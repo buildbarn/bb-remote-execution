@@ -1,0 +1,81 @@
+load("@com_github_buildbarn_bb_storage//tools:container.bzl", "container_push_official")
+load("@io_bazel_rules_docker//container:container.bzl", "container_image", "container_layer")
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["main.go"],
+    importpath = "github.com/buildbarn/bb-remote-execution/cmd/bb_runner",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//pkg/environment:go_default_library",
+        "//pkg/proto/runner:go_default_library",
+        "@com_github_buildbarn_bb_storage//pkg/filesystem:go_default_library",
+        "@com_github_buildbarn_bb_storage//pkg/util:go_default_library",
+        "@org_golang_google_grpc//:go_default_library",
+    ],
+)
+
+go_binary(
+    name = "bb_runner",
+    embed = [":go_default_library"],
+    pure = "on",
+    visibility = ["//visibility:public"],
+)
+
+container_layer(
+    name = "bb_runner_layer",
+    files = [":bb_runner"],
+)
+
+container_layer(
+    name = "passwd_layer",
+    data_path = ".",
+    files = ["etc/passwd"],
+)
+
+container_image(
+    name = "bb_runner_debian8_container",
+    base = "@rbe_debian8_base//image",
+    cmd = [
+        "-temp-directory=/run/lock",
+        "-temp-directory=/tmp",
+        "-temp-directory=/var/tmp",
+    ],
+    entrypoint = ["/bb_runner"],
+    layers = [
+        ":bb_runner_layer",
+        ":passwd_layer",
+    ],
+    user = "build",
+    visibility = ["//visibility:public"],
+)
+
+container_push_official(
+    name = "bb_runner_debian8_container_push",
+    component = "bb-runner-debian8",
+    image = ":bb_runner_debian8_container",
+)
+
+container_image(
+    name = "bb_runner_ubuntu16_04_container",
+    base = "@rbe_ubuntu16_04_base//image",
+    cmd = [
+        "-temp-directory=/run/lock",
+        "-temp-directory=/tmp",
+        "-temp-directory=/var/tmp",
+    ],
+    entrypoint = ["/bb_runner"],
+    layers = [
+        ":bb_runner_layer",
+        ":passwd_layer",
+    ],
+    user = "build",
+    visibility = ["//visibility:public"],
+)
+
+container_push_official(
+    name = "bb_runner_ubuntu16_04_container_push",
+    component = "bb-runner-ubuntu16-04",
+    image = ":bb_runner_ubuntu16_04_container",
+)
