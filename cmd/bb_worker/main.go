@@ -35,6 +35,7 @@ func main() {
 		buildDirectoryPath = flag.String("build-directory", "/worker/build", "Directory where builds take place")
 		cacheDirectoryPath = flag.String("cache-directory", "/worker/cache", "Directory where build input files are cached")
 		concurrency        = flag.Int("concurrency", 1, "Number of actions to run concurrently")
+		maximumMessageSize = flag.Int64("maximum-message-size", 16*1024*1024, "Maximum Protobuf message size to unmarshal")
 		runnerAddress      = flag.String("runner", "unix:///worker/runner", "Address of the runner to which to connect")
 		schedulerAddress   = flag.String("scheduler", "", "Address of the scheduler to which to connect")
 		webListenAddress   = flag.String("web.listen-address", ":80", "Port on which to expose metrics")
@@ -84,7 +85,8 @@ func main() {
 	contentAddressableStorageReader := cas_re.NewDirectoryCachingContentAddressableStorage(
 		cas_re.NewHardlinkingContentAddressableStorage(
 			cas.NewBlobAccessContentAddressableStorage(
-				re_blobstore.NewExistencePreconditionBlobAccess(contentAddressableStorageBlobAccess)),
+				re_blobstore.NewExistencePreconditionBlobAccess(contentAddressableStorageBlobAccess),
+				*maximumMessageSize),
 			util.DigestKeyWithoutInstance, cacheDirectory, 10000, 1<<30),
 		util.DigestKeyWithoutInstance, 1000)
 	actionCache := ac.NewBlobAccessActionCache(actionCacheBlobAccess)
@@ -145,7 +147,9 @@ func main() {
 				"cas_batched_store")
 			contentAddressableStorage := cas_re.NewReadWriteDecouplingContentAddressableStorage(
 				contentAddressableStorageReader,
-				cas.NewBlobAccessContentAddressableStorage(contentAddressableStorageWriter))
+				cas.NewBlobAccessContentAddressableStorage(
+					contentAddressableStorageWriter,
+					*maximumMessageSize))
 			buildExecutor := builder.NewStorageFlushingBuildExecutor(
 				builder.NewCachingBuildExecutor(
 					builder.NewLocalBuildExecutor(
