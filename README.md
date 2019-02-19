@@ -38,9 +38,9 @@ following:
   executables to disk and spawning them. Through this decomposition,
   `bb_worker` writes executables to disk, while `bb_runner` spawns them.
 
-This repository provides container images images for each of these
-components. For `bb_runner`, it provides two container images based on
-Google RBE's [Debian 8](https://console.cloud.google.com/marketplace/details/google/rbe-debian8)
+This repository provides container images for each of these components.
+For `bb_runner`, it provides two container images based on Google RBE's
+[Debian 8](https://console.cloud.google.com/marketplace/details/google/rbe-debian8)
 and [Ubuntu 16.04](https://console.cloud.google.com/marketplace/details/google/rbe-ubuntu16-04)
 images. The advantage of using these container images is that the Bazel
 project provides [ready-to-use toolchain definitions](https://github.com/bazelbuild/bazel-toolchains)
