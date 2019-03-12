@@ -26,12 +26,14 @@ go_binary(
 container_layer(
     name = "bb_runner_layer",
     files = [":bb_runner"],
+    visibility = ["//visibility:public"],
 )
 
 container_layer(
     name = "passwd_layer",
     data_path = ".",
     files = ["etc/passwd"],
+    visibility = ["//visibility:public"],
 )
 
 container_image(
