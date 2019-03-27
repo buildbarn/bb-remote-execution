@@ -44,7 +44,9 @@ For `bb_runner`, it provides two container images based on Google RBE's
 and [Ubuntu 16.04](https://console.cloud.google.com/marketplace/details/google/rbe-ubuntu16-04)
 images. The advantage of using these container images is that the Bazel
 project provides [ready-to-use toolchain definitions](https://github.com/bazelbuild/bazel-toolchains)
-for them.
+for them. It also provides a bare `bb_runner` image, which can be spliced on top of another
+base image, using Docker [multi-stage builds](https://docs.docker.com/develop/develop-images/multistage-build/)
+(multiple FROM's).
 
 Please refer to [the Buildbarn Deployments repository](https://github.com/buildbarn/bb-deployments)
 for examples on how to set up these tools.
