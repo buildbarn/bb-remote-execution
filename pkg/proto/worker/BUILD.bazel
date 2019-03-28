@@ -1,0 +1,36 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
+
+proto_library(
+    name = "worker_proto",
+    srcs = ["remote_worker.proto"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:remoteexecution_proto",
+        "@com_google_protobuf//:duration_proto",
+        "@go_googleapis//google/api:annotations_proto",
+        "@go_googleapis//google/longrunning:longrunning_proto",
+        "@go_googleapis//google/rpc:status_proto",
+    ],
+)
+
+go_proto_library(
+    name = "worker_go_proto",
+    compilers = ["@io_bazel_rules_go//proto:go_grpc"],
+    importpath = "github.com/buildbarn/bb-remote-execution/pkg/proto/worker",
+    proto = ":worker_proto",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:go_default_library",
+        "@go_googleapis//google/api:annotations_go_proto",
+        "@go_googleapis//google/longrunning:longrunning_go_proto",
+        "@go_googleapis//google/rpc:status_go_proto",
+    ],
+)
+
+go_library(
+    name = "go_default_library",
+    embed = [":worker_go_proto"],
+    importpath = "github.com/buildbarn/bb-remote-execution/pkg/proto/worker",
+    visibility = ["//visibility:public"],
+)
