@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+package pkg.proto.worker;
+
+import "google/api/annotations.proto";
+import "build/bazel/remote/execution/v2/remote_execution.proto";
+import "google/longrunning/operations.proto";
+import "google/protobuf/duration.proto";
+import "google/rpc/status.proto";
+
+option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/worker";
+
+// The OperationQueue API is used internally to communicate with Workers
+service OperationQueue {
+  rpc Take(TakeOperationRequest) returns (TakeOperationResponse) {
+    option (google.api.http) = {
+      get : "/v1test/{instance_name=**}/operation:take"
+    };
+  }
+
+  // Final poll for an operation should set the longrunning.Operation.done =
+  // true Result of the operation should be:
+  // build.bazel.remote.execution.v2.ExecuteResponse
+  rpc Poll(google.longrunning.Operation) returns (google.rpc.Status) {
+    option (google.api.http) = {
+      get : "/v1test/{instance_name=**}/operation:poll"
+    };
+  }
+}
+
+message TakeOperationRequest {
+
+  // Map should be unique in the farm in such a way it could be used to generate
+  // a hash specific to this worker. Could contain data such as host, queue,
+  // name, date created.
+  // This should be the same `worker_id` which is used in the
+  // `WorkerOperationMetadata` below.
+  map<string, string> worker_id = 1;
+
+  // The instance of the execution system to operate against. A server may
+  // support multiple instances of the execution system (with their own workers,
+  // storage, caches, etc.). The server MAY require use of this field to select
+  // between them in an implementation-defined fashion, otherwise it can be
+  // omitted.
+  string instance_name = 2;
+
+  // The platform features available for the execution environment. The server
+  // MAY choose to execute the action on any worker satisfying the requirements,
+  // so the client SHOULD ensure that running the action on any such worker will
+  // have the same result.
+  build.bazel.remote.execution.v2.Platform platform = 3;
+}
+
+message TakeOperationResponse {
+
+  // Execution request to perform
+  build.bazel.remote.execution.v2.ExecuteRequest execute_request = 1;
+
+  // Contains configuration options such as the polling time internal.
+  map<string, string> config = 2;
+}
+
+// WorkerOperationMetadata can be used with the longrunning.Operation message.
+message WorkerOperationMetadata {
+
+  // This is the same `worker_id` as used in TakeOperationRequest
+  map<string, string> worker_id = 1;
+
+  // The current stage of execution.
+  enum Stage {
+    UNKNOWN = 0;
+
+    // Fetching the inputs.
+    FETCHING_INPUTS = 1;
+
+    // Currently being executed by a worker.
+    EXECUTING = 2;
+
+    // Uploading the outputs.
+    UPLOADING_OUTPUTS = 3;
+
+    // Finished execution.
+    COMPLETED = 4;
+  }
+
+  Stage stage = 2;
+}
