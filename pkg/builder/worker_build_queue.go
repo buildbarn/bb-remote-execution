@@ -108,9 +108,10 @@ func (job *workerBuildJob) waitExecution(out remoteexecution.Execution_ExecuteSe
 }
 
 type workerBuildQueue struct {
-	deduplicationKeyFormat util.DigestKeyFormat
-	jobsPendingMax         uint64
-	nextInsertionOrder     uint64
+	deduplicationKeyFormat  util.DigestKeyFormat
+	jobsPendingMax          uint64
+	executionDigestFunction remoteexecution.DigestFunction
+	nextInsertionOrder      uint64
 
 	jobsLock                   sync.Mutex
 	jobsNameMap                map[string]*workerBuildJob
@@ -122,10 +123,12 @@ type workerBuildQueue struct {
 // NewWorkerBuildQueue creates an execution server that places execution
 // requests in a queue. These execution requests may be extracted by
 // workers.
-func NewWorkerBuildQueue(deduplicationKeyFormat util.DigestKeyFormat, jobsPendingMax uint64) (builder.BuildQueue, scheduler.SchedulerServer) {
+func NewWorkerBuildQueue(deduplicationKeyFormat util.DigestKeyFormat, executionDigestFunction remoteexecution.DigestFunction, jobsPendingMax uint64) (builder.BuildQueue, scheduler.SchedulerServer) {
 	bq := &workerBuildQueue{
 		deduplicationKeyFormat: deduplicationKeyFormat,
-		jobsPendingMax:         jobsPendingMax,
+		// The digest function we report in GetCapabilities
+		executionDigestFunction: executionDigestFunction,
+		jobsPendingMax:          jobsPendingMax,
 
 		jobsNameMap:          map[string]*workerBuildJob{},
 		jobsDeduplicationMap: map[string]*workerBuildJob{},
@@ -151,7 +154,7 @@ func (bq *workerBuildQueue) GetCapabilities(ctx context.Context, in *remoteexecu
 			SymlinkAbsolutePathStrategy: remoteexecution.CacheCapabilities_ALLOWED,
 		},
 		ExecutionCapabilities: &remoteexecution.ExecutionCapabilities{
-			DigestFunction: remoteexecution.DigestFunction_SHA256,
+			DigestFunction: bq.executionDigestFunction,
 			ExecEnabled:    true,
 			ExecutionPriorityCapabilities: &remoteexecution.PriorityCapabilities{
 				Priorities: []*remoteexecution.PriorityCapabilities_PriorityRange{

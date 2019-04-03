@@ -31,4 +31,7 @@ func setDefaultSchedulerValues(schedulerConfiguration *pb.SchedulerConfiguration
 	if schedulerConfiguration.GrpcListenAddress == "" {
 		schedulerConfiguration.GrpcListenAddress = ":8981"
 	}
+	if schedulerConfiguration.ExecutionDigestFunction == "" {
+		schedulerConfiguration.ExecutionDigestFunction = "sha256"
+	}
 }

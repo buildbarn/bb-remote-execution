@@ -13,4 +13,9 @@ message SchedulerConfiguration {
 
   // Address on which to listen for RPCs. Defaults to ":8981".
   string grpc_listen_address = 3;
+
+  // Digest function reported by the server in its execution capabilities.
+  // This is a singleton for the remote execution instance.
+  // bazel checks it's the same as bazel itself is configured to use.
+  string execution_digest_function = 4;
 }

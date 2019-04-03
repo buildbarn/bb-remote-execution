@@ -34,7 +34,20 @@ func main() {
 		log.Fatal(http.ListenAndServe(schedulerConfiguration.MetricsListenAddress, nil))
 	}()
 
-	executionServer, schedulerServer := builder.NewWorkerBuildQueue(util.DigestKeyWithInstance, schedulerConfiguration.JobsPendingMax)
+	var execDigestFunc remoteexecution.DigestFunction
+	switch schedulerConfiguration.ExecutionDigestFunction {
+	case "sha256":
+		execDigestFunc = remoteexecution.DigestFunction_SHA256
+	case "sha1":
+		execDigestFunc = remoteexecution.DigestFunction_SHA1
+	case "md5":
+		execDigestFunc = remoteexecution.DigestFunction_MD5
+	default:
+		log.Fatalf("Unknown digest function '%s'", schedulerConfiguration.ExecutionDigestFunction)
+	}
+
+	executionServer, schedulerServer := builder.NewWorkerBuildQueue(
+		util.DigestKeyWithInstance, execDigestFunc, schedulerConfiguration.JobsPendingMax)
 
 	// RPC server.
 	s := grpc.NewServer(
