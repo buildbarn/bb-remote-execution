@@ -22,6 +22,9 @@ func GetRunnerConfiguration(path string) (*pb.RunnerConfiguration, error) {
 }
 
 func setDefaultRunnerValues(runnerConfiguration *pb.RunnerConfiguration) {
+	if runnerConfiguration.ListenNetwork == "" {
+		runnerConfiguration.ListenNetwork = "unix"
+	}
 	if runnerConfiguration.ListenPath == "" {
 		runnerConfiguration.ListenPath = "/worker/runner"
 	}

@@ -8,8 +8,16 @@ message RunnerConfiguration {
   // Directory where builds take place. Defaults to "/worker/build".
   string build_directory_path = 1;
 
-  // Path on which the runner should bind its UNIX socket to wait for incoming
-  // requests through gRPC. Defaults to "/worker/runner".
+  // Network on which the runner should setup its socket to wait for incoming
+  // requests through gRPC, e.g. "tcp", "tcp4", "tcp6" or "unix" (see the
+  // Golang documentation). Defaults to "unix".
+  string listen_network = 4;
+
+  // Path on which the runner should bind its socket to wait for incoming
+  // requests through gRPC. Acceptable values depends on `listen_network`:
+  // "unix" accepts file system paths whereas "tcp4" accepts e.g.
+  // "localhost:8991" (see the Golang documentation).
+  // Defaults to "/worker/runner".
   string listen_path = 2;
 
   // Temporary directories that should be cleaned up after a build action
