@@ -3,19 +3,19 @@ package builder
 import (
 	"container/heap"
 	"context"
+	"fmt"
 	"log"
 	"math"
 	"sync"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/bazelbuild/remote-apis/build/bazel/semver"
-	"github.com/buildbarn/bb-remote-execution/pkg/proto/scheduler"
+	remoteworker "github.com/buildbarn/bb-remote-execution/pkg/proto/worker"
 	"github.com/buildbarn/bb-storage/pkg/builder"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/golang/protobuf/ptypes"
-	"github.com/google/uuid"
-
 	"google.golang.org/genproto/googleapis/longrunning"
+	stat "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -30,6 +30,7 @@ type workerBuildJob struct {
 	insertionOrder   uint64
 
 	stage                   remoteexecution.ExecuteOperationMetadata_Stage
+	workerStage             remoteworker.WorkerOperationMetadata_Stage
 	executeResponse         *remoteexecution.ExecuteResponse
 	executeTransitionWakeup *sync.Cond
 }
@@ -122,7 +123,7 @@ type workerBuildQueue struct {
 // NewWorkerBuildQueue creates an execution server that places execution
 // requests in a queue. These execution requests may be extracted by
 // workers.
-func NewWorkerBuildQueue(deduplicationKeyFormat util.DigestKeyFormat, jobsPendingMax uint) (builder.BuildQueue, scheduler.SchedulerServer) {
+func NewWorkerBuildQueue(deduplicationKeyFormat util.DigestKeyFormat, jobsPendingMax uint) (builder.BuildQueue, remoteworker.OperationQueueServer) {
 	bq := &workerBuildQueue{
 		deduplicationKeyFormat: deduplicationKeyFormat,
 		jobsPendingMax:         jobsPendingMax,
@@ -131,7 +132,88 @@ func NewWorkerBuildQueue(deduplicationKeyFormat util.DigestKeyFormat, jobsPendin
 		jobsDeduplicationMap: map[string]*workerBuildJob{},
 	}
 	bq.jobsPendingInsertionWakeup = sync.NewCond(&bq.jobsLock)
+
 	return bq, bq
+}
+
+func (bq *workerBuildQueue) Take(ctx context.Context, in *remoteworker.TakeOperationRequest) (*remoteworker.TakeOperationResponse, error) {
+	bq.jobsLock.Lock()
+	defer bq.jobsLock.Unlock()
+
+	// Wait for jobs to appear.
+	// TODO(edsch): sync.Cond.WaitWithContext() would be helpful here.
+	for bq.jobsPending.Len() == 0 {
+		bq.jobsPendingInsertionWakeup.Wait()
+	}
+	if err := ctx.Err(); err != nil {
+		bq.jobsPendingInsertionWakeup.Signal()
+		return nil, err
+	}
+
+	// Extract job from queue.
+	job := heap.Pop(&bq.jobsPending).(*workerBuildJob)
+	// Could make the job.name the hash of the worker_id
+	// job.name = in.WorkerId
+	// ok := bq.jobsmap[job.name] = job
+	job.stage = remoteexecution.ExecuteOperationMetadata_EXECUTING
+	// Should transition when setting status?
+	// job.executeTransitionWakeup.Broadcast()
+
+	// Expect a poll interval every 60 seconds
+	config := map[string]string{
+		"poll_interval_seconds": "1",
+	}
+
+	takeResponse := remoteworker.TakeOperationResponse{
+		Config:         config,
+		ExecuteRequest: &job.executeRequest,
+	}
+
+	return &takeResponse, nil
+}
+
+func (bq *workerBuildQueue) Poll(ctx context.Context, in *longrunning.Operation) (*stat.Status, error) {
+	bq.jobsLock.Lock()
+	defer bq.jobsLock.Unlock()
+
+	job, ok := bq.jobsNameMap[in.Name]
+	if !ok {
+		return &stat.Status{}, fmt.Errorf("Cannot find job: %s", in.Name)
+	}
+
+	workerMetadata := &remoteworker.WorkerOperationMetadata{}
+
+	if err := ptypes.UnmarshalAny(in.Metadata, workerMetadata); err != nil {
+		return &stat.Status{}, fmt.Errorf("Cannot unmarshal metadata: %s", in.Name)
+	}
+
+	if in.Done {
+		delete(bq.jobsDeduplicationMap, job.deduplicationKey)
+		job.stage = remoteexecution.ExecuteOperationMetadata_COMPLETED
+
+		switch in.Result.(type) {
+		case *longrunning.Operation_Error:
+			job.executeResponse = &remoteexecution.ExecuteResponse{
+				Status: in.GetError(),
+			}
+			job.executeTransitionWakeup.Broadcast()
+			return in.GetError(), nil
+		case *longrunning.Operation_Response:
+			if in == nil {
+				return &stat.Status{}, nil
+			}
+			executeResponse := &remoteexecution.ExecuteResponse{}
+			if err := ptypes.UnmarshalAny(in.GetResponse(), executeResponse); err != nil {
+				return &stat.Status{}, err
+			}
+			job.executeResponse = executeResponse
+			job.executeTransitionWakeup.Broadcast()
+		}
+	} else {
+		job.workerStage = workerMetadata.Stage
+	}
+
+	return &stat.Status{}, nil
 }
 
 func (bq *workerBuildQueue) GetCapabilities(ctx context.Context, in *remoteexecution.GetCapabilitiesRequest) (*remoteexecution.ServerCapabilities, error) {
@@ -167,6 +249,7 @@ func (bq *workerBuildQueue) GetCapabilities(ctx context.Context, in *remoteexecu
 
 func (bq *workerBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out remoteexecution.Execution_ExecuteServer) error {
 	digest, err := util.NewDigest(in.InstanceName, in.ActionDigest)
+
 	if err != nil {
 		return err
 	}
@@ -183,7 +266,7 @@ func (bq *workerBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out remo
 		}
 
 		job = &workerBuildJob{
-			name:                    uuid.Must(uuid.NewRandom()).String(),
+			name:                    in.ActionDigest.Hash, //uuid.Must(uuid.NewRandom()).String(),
 			actionDigest:            in.ActionDigest,
 			deduplicationKey:        deduplicationKey,
 			executeRequest:          *in,
@@ -209,49 +292,4 @@ func (bq *workerBuildQueue) WaitExecution(in *remoteexecution.WaitExecutionReque
 		return status.Errorf(codes.NotFound, "Build job with name %s not found", in.Name)
 	}
 	return job.waitExecution(out)
-}
-
-func executeOnWorker(stream scheduler.Scheduler_GetWorkServer, request *remoteexecution.ExecuteRequest) *remoteexecution.ExecuteResponse {
-	// TODO(edsch): Any way we can set a timeout here?
-	if err := stream.Send(request); err != nil {
-		return convertErrorToExecuteResponse(err)
-	}
-	response, err := stream.Recv()
-	if err != nil {
-		return convertErrorToExecuteResponse(err)
-	}
-	return response
-}
-
-func (bq *workerBuildQueue) GetWork(stream scheduler.Scheduler_GetWorkServer) error {
-	bq.jobsLock.Lock()
-	defer bq.jobsLock.Unlock()
-
-	// TODO(edsch): Purge jobs from the jobsNameMap after some amount of time.
-	for {
-		// Wait for jobs to appear.
-		// TODO(edsch): sync.Cond.WaitWithContext() would be helpful here.
-		for bq.jobsPending.Len() == 0 {
-			bq.jobsPendingInsertionWakeup.Wait()
-		}
-		if err := stream.Context().Err(); err != nil {
-			bq.jobsPendingInsertionWakeup.Signal()
-			return err
-		}
-
-		// Extract job from queue.
-		job := heap.Pop(&bq.jobsPending).(*workerBuildJob)
-		job.stage = remoteexecution.ExecuteOperationMetadata_EXECUTING
-
-		// Perform execution of the job.
-		bq.jobsLock.Unlock()
-		executeResponse := executeOnWorker(stream, &job.executeRequest)
-		bq.jobsLock.Lock()
-
-		// Mark completion.
-		delete(bq.jobsDeduplicationMap, job.deduplicationKey)
-		job.stage = remoteexecution.ExecuteOperationMetadata_COMPLETED
-		job.executeResponse = executeResponse
-		job.executeTransitionWakeup.Broadcast()
-	}
 }

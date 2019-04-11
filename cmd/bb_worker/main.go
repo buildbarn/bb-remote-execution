@@ -1,9 +1,7 @@
 package main
 
 import (
-	"context"
 	"flag"
-	"fmt"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
@@ -11,11 +9,14 @@ import (
 	"syscall"
 	"time"
 
+	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	remoteworker "github.com/buildbarn/bb-remote-execution/pkg/proto/worker"
+
 	re_blobstore "github.com/buildbarn/bb-remote-execution/pkg/blobstore"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
 	cas_re "github.com/buildbarn/bb-remote-execution/pkg/cas"
 	"github.com/buildbarn/bb-remote-execution/pkg/environment"
-	"github.com/buildbarn/bb-remote-execution/pkg/proto/scheduler"
+	"github.com/buildbarn/bb-remote-execution/pkg/worker"
 	"github.com/buildbarn/bb-storage/pkg/ac"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/configuration"
@@ -35,6 +36,7 @@ func main() {
 		buildDirectoryPath = flag.String("build-directory", "/worker/build", "Directory where builds take place")
 		cacheDirectoryPath = flag.String("cache-directory", "/worker/cache", "Directory where build input files are cached")
 		concurrency        = flag.Int("concurrency", 1, "Number of actions to run concurrently")
+		instanceName       = flag.String("instance-name", "main", "Name of instance")
 		maximumMessageSize = flag.Int64("maximum-message-size", 16*1024*1024, "Maximum Protobuf message size to unmarshal")
 		runnerAddress      = flag.String("runner", "unix:///worker/runner", "Address of the runner to which to connect")
 		schedulerAddress   = flag.String("scheduler", "", "Address of the scheduler to which to connect")
@@ -100,7 +102,8 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to create scheduler RPC client: ", err)
 	}
-	schedulerClient := scheduler.NewSchedulerClient(schedulerConnection)
+
+	schedulerClient := remoteworker.NewOperationQueueClient(schedulerConnection)
 
 	// Execute commands using a separate runner process. Due to the
 	// interaction between threads, forking and execve() returning
@@ -161,45 +164,16 @@ func main() {
 				contentAddressableStorageFlusher)
 
 			// Repeatedly ask the scheduler for work.
+			// Empty platform message for now.
+			platform := &remoteexecution.Platform{}
+			worker := worker.NewClient(schedulerClient, buildExecutor, browserURL, *instanceName, platform)
 			for {
-				err := subscribeAndExecute(schedulerClient, buildExecutor, browserURL)
-				log.Print("Failed to subscribe and execute: ", err)
+				if err := worker.Take(); err != nil {
+					log.Print("Failed to subscribe and execute: ", err)
+				}
 				time.Sleep(time.Second * 3)
 			}
 		}(i)
 	}
 	select {}
-}
-
-func subscribeAndExecute(schedulerClient scheduler.SchedulerClient, buildExecutor builder.BuildExecutor, browserURL *url.URL) error {
-	stream, err := schedulerClient.GetWork(context.Background())
-	if err != nil {
-		return err
-	}
-	defer stream.CloseSend()
-
-	for {
-		request, err := stream.Recv()
-		if err != nil {
-			return err
-		}
-
-		// Print URL of the action into the log before execution.
-		actionURL, err := browserURL.Parse(
-			fmt.Sprintf(
-				"/action/%s/%s/%d/",
-				request.InstanceName,
-				request.ActionDigest.Hash,
-				request.ActionDigest.SizeBytes))
-		if err != nil {
-			return err
-		}
-		log.Print("Action: ", actionURL.String())
-
-		response, _ := buildExecutor.Execute(stream.Context(), request)
-		log.Print("ExecuteResponse: ", response)
-		if err := stream.Send(response); err != nil {
-			return err
-		}
-	}
 }
