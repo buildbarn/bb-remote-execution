@@ -4,6 +4,7 @@ import (
 	"context"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	remoteworker "github.com/buildbarn/bb-remote-execution/pkg/proto/worker"
 )
 
 type storageFlushingBuildExecutor struct {
@@ -23,8 +24,8 @@ func NewStorageFlushingBuildExecutor(base BuildExecutor, flush func(context.Cont
 	}
 }
 
-func (be *storageFlushingBuildExecutor) Execute(ctx context.Context, request *remoteexecution.ExecuteRequest) (*remoteexecution.ExecuteResponse, bool) {
-	response, mayBeCached := be.base.Execute(ctx, request)
+func (be *storageFlushingBuildExecutor) Execute(ctx context.Context, request *remoteexecution.ExecuteRequest, channelMeta chan<- *remoteworker.WorkerOperationMetadata) (*remoteexecution.ExecuteResponse, bool) {
+	response, mayBeCached := be.base.Execute(ctx, request, channelMeta)
 	if err := be.flush(ctx); err != nil {
 		return convertErrorToExecuteResponse(err), false
 	}

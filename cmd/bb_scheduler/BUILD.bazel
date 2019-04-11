@@ -10,20 +10,13 @@ go_library(
     deps = [
         "//pkg/builder:go_default_library",
         "//pkg/configuration/bb_scheduler:go_default_library",
-        "//pkg/proto/scheduler:go_default_library",
+        "//pkg/proto/worker:go_default_library",
         "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/util:go_default_library",
         "@com_github_grpc_ecosystem_go_grpc_prometheus//:go_default_library",
         "@com_github_prometheus_client_golang//prometheus/promhttp:go_default_library",
         "@org_golang_google_grpc//:go_default_library",
     ],
-)
-
-go_binary(
-    name = "bb_scheduler",
-    embed = [":go_default_library"],
-    pure = "on",
-    visibility = ["//visibility:private"],
 )
 
 container_image(
@@ -37,4 +30,10 @@ container_push_official(
     name = "bb_scheduler_container_push",
     component = "bb-scheduler",
     image = ":bb_scheduler_container",
+)
+
+go_binary(
+    name = "bb_scheduler",
+    embed = [":go_default_library"],
+    visibility = ["//visibility:public"],
 )

@@ -11,10 +11,12 @@ import (
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/pkg/environment"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
+	remoteworker "github.com/buildbarn/bb-remote-execution/pkg/proto/worker"
 	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/golang/protobuf/proto"
+	"github.com/golang/protobuf/ptypes"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"google.golang.org/grpc/codes"
@@ -210,8 +212,16 @@ func (be *localBuildExecutor) createOutputParentDirectory(buildDirectory filesys
 	return d, nil
 }
 
-func (be *localBuildExecutor) Execute(ctx context.Context, request *remoteexecution.ExecuteRequest) (*remoteexecution.ExecuteResponse, bool) {
+func (be *localBuildExecutor) Execute(ctx context.Context, request *remoteexecution.ExecuteRequest, channelMeta chan<- *remoteworker.WorkerOperationMetadata) (*remoteexecution.ExecuteResponse, bool) {
 	timeStart := time.Now()
+	timestampProto, _ := ptypes.TimestampProto(timeStart)
+	executedActionMetadata := &remoteexecution.ExecutedActionMetadata{
+		InputFetchStartTimestamp: timestampProto,
+	}
+
+	channelMeta <- &remoteworker.WorkerOperationMetadata{
+		Stage: remoteworker.WorkerOperationMetadata_FETCHING_INPUTS,
+	}
 
 	// Fetch action and command.
 	actionDigest, err := util.NewDigest(request.InstanceName, request.ActionDigest)
@@ -233,6 +243,9 @@ func (be *localBuildExecutor) Execute(ctx context.Context, request *remoteexecut
 	timeAfterGetActionCommand := time.Now()
 	localBuildExecutorDurationSecondsGetActionCommand.Observe(
 		timeAfterGetActionCommand.Sub(timeStart).Seconds())
+
+	timestampProto, _ = ptypes.TimestampProto(timeAfterGetActionCommand)
+	executedActionMetadata.InputFetchCompletedTimestamp = timestampProto
 
 	// Obtain build environment.
 	platformProperties := map[string]string{}
@@ -293,6 +306,13 @@ func (be *localBuildExecutor) Execute(ctx context.Context, request *remoteexecut
 	for _, environmentVariable := range command.EnvironmentVariables {
 		environmentVariables[environmentVariable.Name] = environmentVariable.Value
 	}
+
+	channelMeta <- &remoteworker.WorkerOperationMetadata{
+		Stage: remoteworker.WorkerOperationMetadata_EXECUTING,
+	}
+
+	executedActionMetadata.ExecutionStartTimestamp = ptypes.TimestampNow()
+
 	runResponse, err := environment.Run(ctx, &runner.RunRequest{
 		Arguments:            command.Arguments,
 		EnvironmentVariables: environmentVariables,
@@ -307,9 +327,13 @@ func (be *localBuildExecutor) Execute(ctx context.Context, request *remoteexecut
 	localBuildExecutorDurationSecondsRunCommand.Observe(
 		timeAfterRunCommand.Sub(timeAfterPrepareFilesytem).Seconds())
 
+	timestampProto, _ = ptypes.TimestampProto(timeAfterRunCommand)
+	executedActionMetadata.ExecutionCompletedTimestamp = timestampProto
+
 	response := &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
-			ExitCode: runResponse.ExitCode,
+			ExitCode:          runResponse.ExitCode,
+			ExecutionMetadata: executedActionMetadata,
 		},
 	}
 
@@ -330,6 +354,12 @@ func (be *localBuildExecutor) Execute(ctx context.Context, request *remoteexecut
 	if stderrDigest.GetSizeBytes() > 0 {
 		response.Result.StderrDigest = stderrDigest.GetPartialDigest()
 	}
+
+	channelMeta <- &remoteworker.WorkerOperationMetadata{
+		Stage: remoteworker.WorkerOperationMetadata_UPLOADING_OUTPUTS,
+	}
+
+	executedActionMetadata.OutputUploadStartTimestamp = ptypes.TimestampNow()
 
 	// Upload output files.
 	for _, outputFile := range command.OutputFiles {
@@ -410,6 +440,11 @@ func (be *localBuildExecutor) Execute(ctx context.Context, request *remoteexecut
 	}
 
 	timeAfterUpload := time.Now()
+	channelMeta <- &remoteworker.WorkerOperationMetadata{
+		Stage: remoteworker.WorkerOperationMetadata_UPLOADING_OUTPUTS,
+	}
+	timestampProto, _ = ptypes.TimestampProto(timeStart)
+	executedActionMetadata.OutputUploadStartTimestamp = timestampProto
 	localBuildExecutorDurationSecondsUploadOutput.Observe(
 		timeAfterUpload.Sub(timeAfterRunCommand).Seconds())
 

@@ -7,6 +7,7 @@ import (
 	"net/url"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	remoteworker "github.com/buildbarn/bb-remote-execution/pkg/proto/worker"
 	"github.com/buildbarn/bb-storage/pkg/ac"
 	"github.com/buildbarn/bb-storage/pkg/cas"
 	cas_proto "github.com/buildbarn/bb-storage/pkg/proto/cas"
@@ -36,12 +37,14 @@ func NewCachingBuildExecutor(base BuildExecutor, contentAddressableStorage cas.C
 	}
 }
 
-func (be *cachingBuildExecutor) Execute(ctx context.Context, request *remoteexecution.ExecuteRequest) (*remoteexecution.ExecuteResponse, bool) {
+func (be *cachingBuildExecutor) Execute(ctx context.Context, request *remoteexecution.ExecuteRequest, channelMeta chan<- *remoteworker.WorkerOperationMetadata) (*remoteexecution.ExecuteResponse, bool) {
 	actionDigest, err := util.NewDigest(request.InstanceName, request.ActionDigest)
 	if err != nil {
 		return convertErrorToExecuteResponse(util.StatusWrap(err, "Failed to extract digest for action")), false
 	}
-	response, mayBeCached := be.base.Execute(ctx, request)
+
+	response, mayBeCached := be.base.Execute(ctx, request, channelMeta)
+
 	if response.Result == nil {
 		// Action ran, but did not yield any results.
 		actionURL, err := be.browserURL.Parse(
