@@ -4,7 +4,10 @@ load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
 
 go_library(
     name = "go_default_library",
-    srcs = ["main.go"],
+    srcs = ["main.go"] + select({
+        "@io_bazel_rules_go//go/platform:windows_amd64": ["clear_umask_windows.go"],
+        "//conditions:default": ["clear_umask_unix.go"],
+    }),
     importpath = "github.com/buildbarn/bb-remote-execution/cmd/bb_worker",
     visibility = ["//visibility:private"],
     deps = [

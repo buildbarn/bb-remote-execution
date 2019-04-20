@@ -8,7 +8,6 @@ import (
 	_ "net/http/pprof"
 	"net/url"
 	"os"
-	"syscall"
 	"time"
 
 	re_blobstore "github.com/buildbarn/bb-remote-execution/pkg/blobstore"
@@ -34,7 +33,7 @@ func main() {
 	// either writes files into directories that can easily be
 	// closed off, or creates files with the appropriate mode to be
 	// secure.
-	syscall.Umask(0)
+	clearUmask()
 
 	if len(os.Args) != 2 {
 		log.Fatal("Usage: bb_worker bb_worker.conf")
