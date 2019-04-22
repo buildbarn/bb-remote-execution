@@ -66,9 +66,9 @@ func (e *localExecutionEnvironment) Run(ctx context.Context, request *runner.Run
 	if len(request.Arguments) < 1 {
 		return nil, status.Error(codes.InvalidArgument, "Insufficient number of command arguments")
 	}
-	cmd := exec.CommandContext(ctx, request.Arguments[0], request.Arguments[1:]...)
-	// TODO(edsch): Convert workingDirectory to use platform
-	// specific path delimiter.
+	// Forward slash in the executable on Windows is interpreted as command argument. Convert to backslash.
+	executable := strings.ReplaceAll(request.Arguments[0], "/", string(filepath.Separator))
+	cmd := exec.CommandContext(ctx, executable, request.Arguments[1:]...)
 	cmd.Dir = filepath.Join(e.buildPath, request.WorkingDirectory)
 	for name, value := range request.EnvironmentVariables {
 		cmd.Env = append(cmd.Env, name+"="+value)
