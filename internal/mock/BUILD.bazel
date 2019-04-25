@@ -30,7 +30,11 @@ gomock(
 gomock(
     name = "cas",
     out = "cas.go",
-    interfaces = ["ContentAddressableStorage"],
+    interfaces = [
+        "ContentAddressableStorage",
+        "ContentAddressableStorageReader",
+        "ContentAddressableStorageWriter",
+    ],
     library = "@com_github_buildbarn_bb_storage//pkg/cas:go_default_library",
     package = "mock",
 )

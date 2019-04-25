@@ -15,7 +15,7 @@ import (
 
 type cachingBuildExecutor struct {
 	base                      BuildExecutor
-	contentAddressableStorage cas.ContentAddressableStorage
+	contentAddressableStorage cas.ContentAddressableStorageWriter
 	actionCache               ac.ActionCache
 	browserURL                *url.URL
 }
@@ -27,7 +27,7 @@ type cachingBuildExecutor struct {
 //
 // In both cases, a link to bb_browser is added to the ExecuteResponse,
 // so that the user may inspect the Action and ActionResult in detail.
-func NewCachingBuildExecutor(base BuildExecutor, contentAddressableStorage cas.ContentAddressableStorage, actionCache ac.ActionCache, browserURL *url.URL) BuildExecutor {
+func NewCachingBuildExecutor(base BuildExecutor, contentAddressableStorage cas.ContentAddressableStorageWriter, actionCache ac.ActionCache, browserURL *url.URL) BuildExecutor {
 	return &cachingBuildExecutor{
 		base:                      base,
 		contentAddressableStorage: contentAddressableStorage,

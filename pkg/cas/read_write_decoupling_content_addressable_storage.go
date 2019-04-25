@@ -11,8 +11,8 @@ import (
 )
 
 type readWriteDecouplingContentAddressableStorage struct {
-	reader cas.ContentAddressableStorage
-	writer cas.ContentAddressableStorage
+	reader cas.ContentAddressableStorageReader
+	writer cas.ContentAddressableStorageWriter
 }
 
 // NewReadWriteDecouplingContentAddressableStorage takes a pair of
@@ -20,7 +20,7 @@ type readWriteDecouplingContentAddressableStorage struct {
 // requests to them, respectively. It can, for example, be used to
 // forward read requests to a process-wide cache, while write requests
 // are sent to a worker/action-specific write cache.
-func NewReadWriteDecouplingContentAddressableStorage(reader cas.ContentAddressableStorage, writer cas.ContentAddressableStorage) cas.ContentAddressableStorage {
+func NewReadWriteDecouplingContentAddressableStorage(reader cas.ContentAddressableStorageReader, writer cas.ContentAddressableStorageWriter) cas.ContentAddressableStorage {
 	return &readWriteDecouplingContentAddressableStorage{
 		reader: reader,
 		writer: writer,

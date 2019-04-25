@@ -21,7 +21,7 @@ func TestCachingBuildExecutorBadActionDigest(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
 	baseBuildExecutor := mock.NewMockBuildExecutor(ctrl)
-	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorageWriter(ctrl)
 	actionCache := mock.NewMockActionCache(ctrl)
 	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, contentAddressableStorage, actionCache, &url.URL{
 		Scheme: "https",
@@ -48,7 +48,7 @@ func TestCachingBuildExecutorNoResult(t *testing.T) {
 	}).Return(&remoteexecution.ExecuteResponse{
 		Status: status.New(codes.Internal, "Hard disk on fire").Proto(),
 	}, false)
-	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorageWriter(ctrl)
 	actionCache := mock.NewMockActionCache(ctrl)
 	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, contentAddressableStorage, actionCache, &url.URL{
 		Scheme: "https",
@@ -84,7 +84,7 @@ func TestCachingBuildExecutorCachedSuccess(t *testing.T) {
 			StdoutRaw: []byte("Hello, world!"),
 		},
 	}, true)
-	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorageWriter(ctrl)
 	actionCache := mock.NewMockActionCache(ctrl)
 	actionCache.EXPECT().PutActionResult(
 		ctx,
@@ -131,7 +131,7 @@ func TestCachingBuildExecutorCachedFailure(t *testing.T) {
 			StdoutRaw: []byte("Hello, world!"),
 		},
 	}, true)
-	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorageWriter(ctrl)
 	actionCache := mock.NewMockActionCache(ctrl)
 	actionCache.EXPECT().PutActionResult(
 		ctx,
@@ -176,7 +176,7 @@ func TestCachingBuildExecutorUncachedSuccess(t *testing.T) {
 			StderrRaw: []byte("Compilation failed"),
 		},
 	}, false)
-	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorageWriter(ctrl)
 	contentAddressableStorage.EXPECT().PutUncachedActionResult(
 		ctx,
 		&cas_proto.UncachedActionResult{
@@ -232,7 +232,7 @@ func TestCachingBuildExecutorUncachedFailure(t *testing.T) {
 			StderrRaw: []byte("Compilation failed"),
 		},
 	}, false)
-	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorageWriter(ctrl)
 	contentAddressableStorage.EXPECT().PutUncachedActionResult(
 		ctx,
 		&cas_proto.UncachedActionResult{

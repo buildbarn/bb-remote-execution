@@ -11,7 +11,7 @@ import (
 )
 
 type directoryCachingContentAddressableStorage struct {
-	cas.ContentAddressableStorage
+	cas.ContentAddressableStorageReader
 
 	lock sync.RWMutex
 
@@ -23,12 +23,12 @@ type directoryCachingContentAddressableStorage struct {
 }
 
 // NewDirectoryCachingContentAddressableStorage is an adapter for
-// ContentAddressableStorage that caches up a fixed number of
+// ContentAddressableStorageReader that caches up a fixed number of
 // unmarshalled directory objects in memory. This reduces the amount of
 // network traffic needed.
-func NewDirectoryCachingContentAddressableStorage(base cas.ContentAddressableStorage, digestKeyFormat util.DigestKeyFormat, maxDirectories int) cas.ContentAddressableStorage {
+func NewDirectoryCachingContentAddressableStorage(base cas.ContentAddressableStorageReader, digestKeyFormat util.DigestKeyFormat, maxDirectories int) cas.ContentAddressableStorageReader {
 	return &directoryCachingContentAddressableStorage{
-		ContentAddressableStorage: base,
+		ContentAddressableStorageReader: base,
 
 		digestKeyFormat: digestKeyFormat,
 		maxDirectories:  maxDirectories,
@@ -63,7 +63,7 @@ func (cas *directoryCachingContentAddressableStorage) GetDirectory(ctx context.C
 	}
 
 	// Not found. Download directory.
-	directory, err := cas.ContentAddressableStorage.GetDirectory(ctx, digest)
+	directory, err := cas.ContentAddressableStorageReader.GetDirectory(ctx, digest)
 	if err != nil {
 		return nil, err
 	}

@@ -137,23 +137,24 @@ func main() {
 			// Per-worker separate writer of the Content
 			// Addressable Storage that batches writes after
 			// completing the build action.
-			contentAddressableStorageWriter, contentAddressableStorageFlusher := re_blobstore.NewBatchedStoreBlobAccess(
+			blobAccessWriter, contentAddressableStorageFlusher := re_blobstore.NewBatchedStoreBlobAccess(
 				re_blobstore.NewExistencePreconditionBlobAccess(contentAddressableStorageBlobAccess),
 				util.DigestKeyWithoutInstance, 100)
-			contentAddressableStorageWriter = blobstore.NewMetricsBlobAccess(
-				contentAddressableStorageWriter,
+			blobAccessWriter = blobstore.NewMetricsBlobAccess(
+				blobAccessWriter,
 				"cas_batched_store")
+			contentAddressableStorageWriter := cas.NewBlobAccessContentAddressableStorage(
+				blobAccessWriter,
+				workerConfiguration.MaximumMessageSizeBytes)
 			contentAddressableStorage := cas_re.NewReadWriteDecouplingContentAddressableStorage(
 				contentAddressableStorageReader,
-				cas.NewBlobAccessContentAddressableStorage(
-					contentAddressableStorageWriter,
-					workerConfiguration.MaximumMessageSizeBytes))
+				contentAddressableStorageWriter)
 			buildExecutor := builder.NewStorageFlushingBuildExecutor(
 				builder.NewCachingBuildExecutor(
 					builder.NewLocalBuildExecutor(
 						contentAddressableStorage,
 						environmentManager),
-					contentAddressableStorage,
+					contentAddressableStorageWriter,
 					actionCache,
 					browserURL),
 				contentAddressableStorageFlusher)

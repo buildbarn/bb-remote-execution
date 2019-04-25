@@ -29,7 +29,7 @@ func init() {
 }
 
 type hardlinkingContentAddressableStorage struct {
-	cas.ContentAddressableStorage
+	cas.ContentAddressableStorageReader
 
 	lock sync.RWMutex
 
@@ -44,14 +44,14 @@ type hardlinkingContentAddressableStorage struct {
 }
 
 // NewHardlinkingContentAddressableStorage is an adapter for
-// ContentAddressableStorage that stores files in an internal directory. After
+// ContentAddressableStorageReader that stores files in an internal directory. After
 // successfully downloading files at the target location, they are hardlinked
 // into the cache. Future calls for the same file will hardlink them from the
 // cache to the target location. This reduces the amount of network traffic
 // needed.
-func NewHardlinkingContentAddressableStorage(base cas.ContentAddressableStorage, digestKeyFormat util.DigestKeyFormat, cacheDirectory filesystem.Directory, maxFiles int, maxSize int64) cas.ContentAddressableStorage {
+func NewHardlinkingContentAddressableStorage(base cas.ContentAddressableStorageReader, digestKeyFormat util.DigestKeyFormat, cacheDirectory filesystem.Directory, maxFiles int, maxSize int64) cas.ContentAddressableStorageReader {
 	return &hardlinkingContentAddressableStorage{
-		ContentAddressableStorage: base,
+		ContentAddressableStorageReader: base,
 
 		digestKeyFormat: digestKeyFormat,
 		cacheDirectory:  cacheDirectory,
@@ -101,7 +101,7 @@ func (cas *hardlinkingContentAddressableStorage) GetFile(ctx context.Context, di
 	hardlinkingContentAddressableStorageOperationsTotalMiss.Inc()
 
 	// Download the file at the intended location.
-	if err := cas.ContentAddressableStorage.GetFile(ctx, digest, directory, name, isExecutable); err != nil {
+	if err := cas.ContentAddressableStorageReader.GetFile(ctx, digest, directory, name, isExecutable); err != nil {
 		return err
 	}
 
