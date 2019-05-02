@@ -506,11 +506,11 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 		ExitCode: 0,
 	}, nil)
 	environment.EXPECT().Release()
-	buildDirectory.EXPECT().Lstat("foo").Return(filesystem.NewSimpleFileInfo("foo", 0777|os.ModeDir), nil)
+	buildDirectory.EXPECT().Lstat("foo").Return(filesystem.NewFileInfo("foo", filesystem.FileTypeDirectory), nil)
 	fooDirectory := mock.NewMockDirectory(ctrl)
 	buildDirectory.EXPECT().Enter("foo").Return(fooDirectory, nil)
 	fooDirectory.EXPECT().ReadDir().Return([]filesystem.FileInfo{
-		filesystem.NewSimpleFileInfo("bar", 0777|os.ModeSymlink),
+		filesystem.NewFileInfo("bar", filesystem.FileTypeSymlink),
 	}, nil)
 	fooDirectory.EXPECT().Readlink("bar").Return("", status.Error(codes.Internal, "Cosmic rays caused interference"))
 	fooDirectory.EXPECT().Close()
@@ -558,8 +558,8 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 	helloDirectory := mock.NewMockDirectory(ctrl)
 	objsDirectory.EXPECT().Enter("hello").Return(helloDirectory, nil)
 	helloDirectory.EXPECT().Close()
-	helloDirectory.EXPECT().Lstat("hello.pic.d").Return(filesystem.NewSimpleFileInfo("hello.pic.d", 0666), nil)
-	helloDirectory.EXPECT().Lstat("hello.pic.o").Return(filesystem.NewSimpleFileInfo("hello.pic.o", 0777), nil)
+	helloDirectory.EXPECT().Lstat("hello.pic.d").Return(filesystem.NewFileInfo("hello.pic.d", filesystem.FileTypeRegularFile), nil)
+	helloDirectory.EXPECT().Lstat("hello.pic.o").Return(filesystem.NewFileInfo("hello.pic.o", filesystem.FileTypeExecutableFile), nil)
 
 	// Read operations against the Content Addressable Storage.
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)

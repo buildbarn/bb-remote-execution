@@ -111,8 +111,8 @@ func (be *localBuildExecutor) uploadDirectory(ctx context.Context, outputDirecto
 	for _, file := range files {
 		name := file.Name()
 		childComponents := append(components, name)
-		switch mode := file.Mode(); mode & os.ModeType {
-		case 0:
+		switch fileType := file.Type(); fileType {
+		case filesystem.FileTypeRegularFile, filesystem.FileTypeExecutableFile:
 			digest, err := be.contentAddressableStorage.PutFile(ctx, outputDirectory, name, parentDigest)
 			if err != nil {
 				return nil, util.StatusWrapf(err, "Failed to store output file %#v", path.Join(childComponents...))
@@ -120,9 +120,9 @@ func (be *localBuildExecutor) uploadDirectory(ctx context.Context, outputDirecto
 			directory.Files = append(directory.Files, &remoteexecution.FileNode{
 				Name:         name,
 				Digest:       digest.GetPartialDigest(),
-				IsExecutable: (mode & 0111) != 0,
+				IsExecutable: fileType == filesystem.FileTypeExecutableFile,
 			})
-		case os.ModeDir:
+		case filesystem.FileTypeDirectory:
 			childDirectory, err := outputDirectory.Enter(name)
 			if err != nil {
 				return nil, util.StatusWrapf(err, "Failed to enter output directory %#v", path.Join(childComponents...))
@@ -149,7 +149,7 @@ func (be *localBuildExecutor) uploadDirectory(ctx context.Context, outputDirecto
 				Name:   name,
 				Digest: digest.GetPartialDigest(),
 			})
-		case os.ModeSymlink:
+		case filesystem.FileTypeSymlink:
 			target, err := outputDirectory.Readlink(name)
 			if err != nil {
 				return nil, util.StatusWrapf(err, "Failed to read output symlink %#v", path.Join(childComponents...))
@@ -342,8 +342,8 @@ func (be *localBuildExecutor) Execute(ctx context.Context, request *remoteexecut
 			}
 			return convertErrorToExecuteResponse(util.StatusWrapf(err, "Failed to read attributes of output file %#v", outputFile)), false
 		}
-		switch mode := fileInfo.Mode(); mode & os.ModeType {
-		case 0:
+		switch fileType := fileInfo.Type(); fileType {
+		case filesystem.FileTypeRegularFile, filesystem.FileTypeExecutableFile:
 			digest, err := be.contentAddressableStorage.PutFile(ctx, outputParentDirectory, outputBaseName, actionDigest)
 			if err != nil {
 				return convertErrorToExecuteResponse(util.StatusWrapf(err, "Failed to store output file %#v", outputFile)), false
@@ -351,9 +351,9 @@ func (be *localBuildExecutor) Execute(ctx context.Context, request *remoteexecut
 			response.Result.OutputFiles = append(response.Result.OutputFiles, &remoteexecution.OutputFile{
 				Path:         outputFile,
 				Digest:       digest.GetPartialDigest(),
-				IsExecutable: (mode & 0111) != 0,
+				IsExecutable: fileType == filesystem.FileTypeExecutableFile,
 			})
-		case os.ModeSymlink:
+		case filesystem.FileTypeSymlink:
 			target, err := outputParentDirectory.Readlink(outputBaseName)
 			if err != nil {
 				return convertErrorToExecuteResponse(util.StatusWrapf(err, "Failed to read output symlink %#v", outputFile)), false
@@ -378,8 +378,8 @@ func (be *localBuildExecutor) Execute(ctx context.Context, request *remoteexecut
 			}
 			return convertErrorToExecuteResponse(util.StatusWrapf(err, "Failed to read attributes of output directory %#v", outputDirectory)), false
 		}
-		switch mode := fileInfo.Mode(); mode & os.ModeType {
-		case os.ModeDir:
+		switch fileInfo.Type() {
+		case filesystem.FileTypeDirectory:
 			directory, err := outputParentDirectory.Enter(outputBaseName)
 			if err != nil {
 				return convertErrorToExecuteResponse(util.StatusWrapf(err, "Failed to enter output directory %#v", outputDirectory)), false
@@ -395,7 +395,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, request *remoteexecut
 					TreeDigest: digest.GetPartialDigest(),
 				})
 			}
-		case os.ModeSymlink:
+		case filesystem.FileTypeSymlink:
 			target, err := outputParentDirectory.Readlink(outputBaseName)
 			if err != nil {
 				return convertErrorToExecuteResponse(util.StatusWrapf(err, "Failed to read output symlink %#v", outputDirectory)), false
