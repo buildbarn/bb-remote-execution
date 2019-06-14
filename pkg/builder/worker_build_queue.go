@@ -109,7 +109,7 @@ func (job *workerBuildJob) waitExecution(out remoteexecution.Execution_ExecuteSe
 
 type workerBuildQueue struct {
 	deduplicationKeyFormat util.DigestKeyFormat
-	jobsPendingMax         uint
+	jobsPendingMax         uint64
 	nextInsertionOrder     uint64
 
 	jobsLock                   sync.Mutex
@@ -122,7 +122,7 @@ type workerBuildQueue struct {
 // NewWorkerBuildQueue creates an execution server that places execution
 // requests in a queue. These execution requests may be extracted by
 // workers.
-func NewWorkerBuildQueue(deduplicationKeyFormat util.DigestKeyFormat, jobsPendingMax uint) (builder.BuildQueue, scheduler.SchedulerServer) {
+func NewWorkerBuildQueue(deduplicationKeyFormat util.DigestKeyFormat, jobsPendingMax uint64) (builder.BuildQueue, scheduler.SchedulerServer) {
 	bq := &workerBuildQueue{
 		deduplicationKeyFormat: deduplicationKeyFormat,
 		jobsPendingMax:         jobsPendingMax,
@@ -178,7 +178,7 @@ func (bq *workerBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out remo
 	job, ok := bq.jobsDeduplicationMap[deduplicationKey]
 	if !ok {
 		// TODO(edsch): Maybe let the number of workers influence this?
-		if uint(bq.jobsPending.Len()) >= bq.jobsPendingMax {
+		if uint64(bq.jobsPending.Len()) >= bq.jobsPendingMax {
 			return status.Errorf(codes.Unavailable, "Too many jobs pending")
 		}
 

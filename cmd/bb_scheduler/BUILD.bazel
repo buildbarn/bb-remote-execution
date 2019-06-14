@@ -9,6 +9,7 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "//pkg/builder:go_default_library",
+        "//pkg/configuration/bb_scheduler:go_default_library",
         "//pkg/proto/scheduler:go_default_library",
         "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/util:go_default_library",

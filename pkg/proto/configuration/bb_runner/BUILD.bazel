@@ -1,0 +1,24 @@
+# gazelle:ignore
+
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
+
+proto_library(
+    name = "bb_runner_proto",
+    srcs = ["bb_runner.proto"],
+    visibility = ["//visibility:public"],
+)
+
+go_proto_library(
+    name = "bb_runner_go_proto",
+    importpath = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_runner",
+    proto = ":bb_runner_proto",
+    visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "go_default_library",
+    embed = [":bb_runner_go_proto"],
+    importpath = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_runner",
+    visibility = ["//visibility:public"],
+)

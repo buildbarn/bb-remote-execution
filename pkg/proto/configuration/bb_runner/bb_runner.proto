@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package buildbarn.configuration.bb_runner;
+
+option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_runner";
+
+message RunnerConfiguration {
+  // Directory where builds take place. Defaults to "/worker/build".
+  string build_directory_path = 1;
+
+  // Path on which the runner should bind its UNIX socket to wait for incoming
+  // requests through gRPC. Defaults to "/worker/runner".
+  string listen_path = 2;
+
+  // Temporary directories that should be cleaned up after a build action
+  // (e.g. /tmp).
+  repeated string temporary_directories = 3;
+}

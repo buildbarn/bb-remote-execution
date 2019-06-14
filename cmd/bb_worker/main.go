@@ -2,23 +2,24 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
 	"net/url"
+	"os"
 	"syscall"
 	"time"
 
 	re_blobstore "github.com/buildbarn/bb-remote-execution/pkg/blobstore"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
+	"github.com/buildbarn/bb-remote-execution/pkg/configuration/bb_worker"
 	cas_re "github.com/buildbarn/bb-remote-execution/pkg/cas"
 	"github.com/buildbarn/bb-remote-execution/pkg/environment"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/scheduler"
 	"github.com/buildbarn/bb-storage/pkg/ac"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/configuration"
+	blobstore_configuration "github.com/buildbarn/bb-storage/pkg/blobstore/configuration"
 	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/util"
@@ -29,26 +30,22 @@ import (
 )
 
 func main() {
-	var (
-		blobstoreConfig    = flag.String("blobstore-config", "/config/blobstore.conf", "Configuration for blob storage")
-		browserURLString   = flag.String("browser-url", "http://bb-browser/", "URL of the Buildbarn Browser, shown to the user upon build failure")
-		buildDirectoryPath = flag.String("build-directory", "/worker/build", "Directory where builds take place")
-		cacheDirectoryPath = flag.String("cache-directory", "/worker/cache", "Directory where build input files are cached")
-		concurrency        = flag.Int("concurrency", 1, "Number of actions to run concurrently")
-		maximumMessageSize = flag.Int64("maximum-message-size", 16*1024*1024, "Maximum Protobuf message size to unmarshal")
-		runnerAddress      = flag.String("runner", "unix:///worker/runner", "Address of the runner to which to connect")
-		schedulerAddress   = flag.String("scheduler", "", "Address of the scheduler to which to connect")
-		webListenAddress   = flag.String("web.listen-address", ":80", "Port on which to expose metrics")
-	)
-	flag.Parse()
-
 	// To ease privilege separation, clear the umask. This process
 	// either writes files into directories that can easily be
 	// closed off, or creates files with the appropriate mode to be
 	// secure.
 	syscall.Umask(0)
 
-	browserURL, err := url.Parse(*browserURLString)
+	if len(os.Args) != 2 {
+		log.Fatal("Usage: bb_worker bb_worker.conf")
+	}
+
+	workerConfiguration, err := configuration.GetWorkerConfiguration(os.Args[1])
+	if err != nil {
+		log.Fatalf("Failed to read configuration from %s: %s", os.Args[1], err)
+	}
+
+	browserURL, err := url.Parse(workerConfiguration.BrowserUrl)
 	if err != nil {
 		log.Fatal("Failed to parse browser URL: ", err)
 	}
@@ -56,23 +53,23 @@ func main() {
 	// Web server for metrics and profiling.
 	http.Handle("/metrics", promhttp.Handler())
 	go func() {
-		log.Fatal(http.ListenAndServe(*webListenAddress, nil))
+		log.Fatal(http.ListenAndServe(workerConfiguration.MetricsListenAddress, nil))
 	}()
 
 	// Storage access.
-	contentAddressableStorageBlobAccess, actionCacheBlobAccess, err := configuration.CreateBlobAccessObjectsFromConfig(*blobstoreConfig)
+	contentAddressableStorageBlobAccess, actionCacheBlobAccess, err := blobstore_configuration.CreateBlobAccessObjectsFromConfig(workerConfiguration.Blobstore)
 	if err != nil {
 		log.Fatal("Failed to create blob access: ", err)
 	}
 
 	// Directories where builds take place.
-	buildDirectory, err := filesystem.NewLocalDirectory(*buildDirectoryPath)
+	buildDirectory, err := filesystem.NewLocalDirectory(workerConfiguration.BuildDirectoryPath)
 	if err != nil {
 		log.Fatal("Failed to open cache directory: ", err)
 	}
 
 	// On-disk caching of content for efficient linking into build environments.
-	cacheDirectory, err := filesystem.NewLocalDirectory(*cacheDirectoryPath)
+	cacheDirectory, err := filesystem.NewLocalDirectory(workerConfiguration.CacheDirectoryPath)
 	if err != nil {
 		log.Fatal("Failed to open cache directory: ", err)
 	}
@@ -86,14 +83,14 @@ func main() {
 		cas_re.NewHardlinkingContentAddressableStorage(
 			cas.NewBlobAccessContentAddressableStorage(
 				re_blobstore.NewExistencePreconditionBlobAccess(contentAddressableStorageBlobAccess),
-				*maximumMessageSize),
+				workerConfiguration.MaximumMessageSizeBytes),
 			util.DigestKeyWithoutInstance, cacheDirectory, 10000, 1<<30),
 		util.DigestKeyWithoutInstance, 1000)
 	actionCache := ac.NewBlobAccessActionCache(actionCacheBlobAccess)
 
 	// Create connection with scheduler.
 	schedulerConnection, err := grpc.Dial(
-		*schedulerAddress,
+		workerConfiguration.SchedulerAddress,
 		grpc.WithInsecure(),
 		grpc.WithUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor),
 		grpc.WithStreamInterceptor(grpc_prometheus.StreamClientInterceptor))
@@ -109,7 +106,7 @@ func main() {
 	// runner process also makes it possible to apply privilege
 	// separation.
 	runnerConnection, err := grpc.Dial(
-		*runnerAddress,
+		workerConfiguration.RunnerAddress,
 		grpc.WithInsecure(),
 		grpc.WithUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor),
 		grpc.WithStreamInterceptor(grpc_prometheus.StreamClientInterceptor))
@@ -134,8 +131,8 @@ func main() {
 		environment.NewConcurrentManager(environmentManager),
 		util.DigestKeyWithoutInstance)
 
-	for i := 0; i < *concurrency; i++ {
-		go func(i int) {
+	for i := uint64(0); i < workerConfiguration.Concurrency; i++ {
+		go func() {
 			// Per-worker separate writer of the Content
 			// Addressable Storage that batches writes after
 			// completing the build action.
@@ -149,7 +146,7 @@ func main() {
 				contentAddressableStorageReader,
 				cas.NewBlobAccessContentAddressableStorage(
 					contentAddressableStorageWriter,
-					*maximumMessageSize))
+					workerConfiguration.MaximumMessageSizeBytes))
 			buildExecutor := builder.NewStorageFlushingBuildExecutor(
 				builder.NewCachingBuildExecutor(
 					builder.NewLocalBuildExecutor(
@@ -166,7 +163,7 @@ func main() {
 				log.Print("Failed to subscribe and execute: ", err)
 				time.Sleep(time.Second * 3)
 			}
-		}(i)
+		}()
 	}
 	select {}
 }
