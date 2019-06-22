@@ -37,33 +37,9 @@ container_layer(
 )
 
 container_image(
-    name = "bb_runner_debian8_container",
-    base = "@rbe_debian8_base//image",
-    cmd = [
-        "-temp-directory=/run/lock",
-        "-temp-directory=/tmp",
-        "-temp-directory=/var/tmp",
-    ],
-    entrypoint = ["/bb_runner"],
-    layers = [
-        ":bb_runner_layer",
-        ":passwd_layer",
-    ],
-    user = "build",
-    visibility = ["//visibility:public"],
-)
-
-container_push_official(
-    name = "bb_runner_debian8_container_push",
-    component = "bb-runner-debian8",
-    image = ":bb_runner_debian8_container",
-)
-
-container_image(
     name = "bb_runner_ubuntu16_04_container",
     base = "@rbe_ubuntu16_04_base//image",
     cmd = [
-        "-temp-directory=/run/lock",
         "-temp-directory=/tmp",
         "-temp-directory=/var/tmp",
     ],
