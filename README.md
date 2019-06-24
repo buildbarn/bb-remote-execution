@@ -1,4 +1,4 @@
-# Buildbarn Remote Execution
+# Buildbarn Remote Execution [![Build status](https://badge.buildkite.com/0f67e49075a4ad74384f0511494f5cd21f903f703e8e07c25f.svg)](https://buildkite.com/buildbarn/bb-remote-execution)
 
 This repository provides tools that can be used in combination with
 [the Buildbarn storage daemon](https://github.com/buildbarn/bb-storage)
