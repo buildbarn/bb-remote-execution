@@ -13,6 +13,6 @@ message RunnerConfiguration {
   string listen_path = 2;
 
   // Temporary directories that should be cleaned up after a build action
-  // (e.g. /tmp).
+  // (e.g. /tmp). Defaults to none.
   repeated string temporary_directories = 3;
 }

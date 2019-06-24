@@ -20,7 +20,7 @@ import (
 
 func main() {
 	if len(os.Args) != 2 {
-		log.Fatal("Usage: bb_scheduler bb_scheduler.conf")
+		log.Fatal("Usage: bb_scheduler bb_scheduler.json")
 	}
 
 	schedulerConfiguration, err := configuration.GetSchedulerConfiguration(os.Args[1])
