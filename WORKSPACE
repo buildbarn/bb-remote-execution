@@ -11,19 +11,19 @@ http_archive(
 
 http_archive(
     name = "bazel_toolchains",
-    sha256 = "ee854b5de299138c1f4a2edb5573d22b21d975acfc7aa938f36d30b49ef97498",
-    strip_prefix = "bazel-toolchains-37419a124bdb9af2fec5b99a973d359b6b899b61",
+    sha256 = "28cb3666da80fbc62d4c46814f5468dd5d0b59f9064c0b933eee3140d706d330",
+    strip_prefix = "bazel-toolchains-0.27.1",
     urls = [
-        "https://mirror.bazel.build/github.com/bazelbuild/bazel-toolchains/archive/37419a124bdb9af2fec5b99a973d359b6b899b61.tar.gz",
-        "https://github.com/bazelbuild/bazel-toolchains/archive/37419a124bdb9af2fec5b99a973d359b6b899b61.tar.gz",
+        "https://mirror.bazel.build/github.com/bazelbuild/bazel-toolchains/archive/0.27.1.tar.gz",
+        "https://github.com/bazelbuild/bazel-toolchains/archive/0.27.1.tar.gz",
     ],
 )
 
 http_archive(
     name = "io_bazel_rules_docker",
-    sha256 = "aed1c249d4ec8f703edddf35cbe9dfaca0b5f5ea6e4cd9e83e99f3b0d1136c3d",
-    strip_prefix = "rules_docker-0.7.0",
-    urls = ["https://github.com/bazelbuild/rules_docker/archive/v0.7.0.tar.gz"],
+    sha256 = "87fc6a2b128147a0a3039a2fd0b53cc1f2ed5adb8716f50756544a572999ae9a",
+    strip_prefix = "rules_docker-0.8.1",
+    urls = ["https://github.com/bazelbuild/rules_docker/archive/v0.8.1.tar.gz"],
 )
 
 http_archive(
