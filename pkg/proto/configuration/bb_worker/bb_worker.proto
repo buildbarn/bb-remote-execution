@@ -19,6 +19,15 @@ message WorkerConfiguration {
   // Directory where build input files are cached. Defaults to "/worker/cache".
   string cache_directory_path = 4;
 
+  // Maximum number of files in the cache. Defaults to 10000.
+  uint64 maximum_cache_file_count = 10;
+
+  // Maximum total size of the cache in bytes. Defaults to 1024*1024*1024, i.e. 1 GiB.
+  uint64 maximum_cache_size_bytes = 11;
+
+  // Maximum number of directory listings to keep in memory. Defaults to 1000.
+  uint64 maximum_memory_cached_directories = 12;
+
   // Number of actions to run concurrently. Defaults to 1.
   uint64 concurrency = 5;
 

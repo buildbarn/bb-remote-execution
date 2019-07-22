@@ -84,8 +84,9 @@ func main() {
 			cas.NewBlobAccessContentAddressableStorage(
 				re_blobstore.NewExistencePreconditionBlobAccess(contentAddressableStorageBlobAccess),
 				workerConfiguration.MaximumMessageSizeBytes),
-			util.DigestKeyWithoutInstance, cacheDirectory, 10000, 1<<30),
-		util.DigestKeyWithoutInstance, 1000)
+			util.DigestKeyWithoutInstance, cacheDirectory,
+			int(workerConfiguration.MaximumCacheFileCount), int64(workerConfiguration.MaximumCacheSizeBytes)),
+		util.DigestKeyWithoutInstance, int(workerConfiguration.MaximumMemoryCachedDirectories))
 	actionCache := ac.NewBlobAccessActionCache(actionCacheBlobAccess)
 
 	// Create connection with scheduler.
