@@ -45,7 +45,7 @@ load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 
 git_repository(
     name = "com_github_buildbarn_bb_storage",
-    commit = "e8c6266e6632d88220e12ea62dc4b6931372ce55",
+    commit = "182e1df5cdc3affab9a053c3d8667425e0f8fb2b",
     remote = "https://github.com/buildbarn/bb-storage.git",
 )
 
@@ -75,3 +75,10 @@ gazelle_dependencies()
 load("@com_github_buildbarn_bb_storage//:go_dependencies.bzl", "bb_storage_go_dependencies")
 
 bb_storage_go_dependencies()
+
+http_archive(
+    name = "com_github_buildbarn_bb_deployments",
+    sha256 = "3c3f3acc40a829ce30f9e593b2ad48d2016386bfbbb70f0e36f47fb49a9d6ea0",
+    strip_prefix = "bb-deployments-5b304a6df814ba5c7f862557cfdf2ec365f5a682",
+    url = "https://github.com/buildbarn/bb-deployments/archive/5b304a6df814ba5c7f862557cfdf2ec365f5a682.tar.gz",
+)
