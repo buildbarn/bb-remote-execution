@@ -37,7 +37,7 @@ func main() {
 	syscall.Umask(0)
 
 	if len(os.Args) != 2 {
-		log.Fatal("Usage: bb_worker bb_worker.conf")
+		log.Fatal("Usage: bb_worker bb_worker.jsonnet")
 	}
 
 	workerConfiguration, err := configuration.GetWorkerConfiguration(os.Args[1])

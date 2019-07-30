@@ -15,7 +15,7 @@ import (
 
 func main() {
 	if len(os.Args) != 2 {
-		log.Fatal("Usage: bb_runner bb_runner.json")
+		log.Fatal("Usage: bb_runner bb_runner.jsonnet")
 	}
 
 	runnerConfiguration, err := configuration.GetRunnerConfiguration(os.Args[1])

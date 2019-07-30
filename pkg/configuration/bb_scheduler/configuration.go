@@ -1,24 +1,18 @@
 package configuration
 
 import (
-	"os"
-
 	pb "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_scheduler"
-	"github.com/golang/protobuf/jsonpb"
+	"github.com/buildbarn/bb-storage/pkg/util"
 )
 
 // GetSchedulerConfiguration reads the configuration from file and fill in default values.
 func GetSchedulerConfiguration(path string) (*pb.SchedulerConfiguration, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
 	var schedulerConfiguration pb.SchedulerConfiguration
-	if err := jsonpb.Unmarshal(file, &schedulerConfiguration); err != nil {
-		return nil, err
+	if err := util.UnmarshalConfigurationFromFile(path, &schedulerConfiguration); err != nil {
+		return nil, util.StatusWrap(err, "Failed to retrieve configuration")
 	}
 	setDefaultSchedulerValues(&schedulerConfiguration)
-	return &schedulerConfiguration, err
+	return &schedulerConfiguration, nil
 }
 
 func setDefaultSchedulerValues(schedulerConfiguration *pb.SchedulerConfiguration) {

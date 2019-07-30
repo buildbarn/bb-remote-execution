@@ -1,24 +1,18 @@
 package configuration
 
 import (
-	"os"
-
 	pb "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_worker"
-	"github.com/golang/protobuf/jsonpb"
+	"github.com/buildbarn/bb-storage/pkg/util"
 )
 
 // GetWorkerConfiguration reads the configuration from file and fill in default values.
 func GetWorkerConfiguration(path string) (*pb.WorkerConfiguration, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
 	var workerConfiguration pb.WorkerConfiguration
-	if err := jsonpb.Unmarshal(file, &workerConfiguration); err != nil {
-		return nil, err
+	if err := util.UnmarshalConfigurationFromFile(path, &workerConfiguration); err != nil {
+		return nil, util.StatusWrap(err, "Failed to retrieve configuration")
 	}
 	setDefaultWorkerValues(&workerConfiguration)
-	return &workerConfiguration, err
+	return &workerConfiguration, nil
 }
 
 func setDefaultWorkerValues(workerConfiguration *pb.WorkerConfiguration) {

@@ -1,24 +1,18 @@
 package configuration
 
 import (
-	"os"
-
 	pb "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_runner"
-	"github.com/golang/protobuf/jsonpb"
+	"github.com/buildbarn/bb-storage/pkg/util"
 )
 
 // GetRunnerConfiguration reads the configuration from file and fill in default values.
 func GetRunnerConfiguration(path string) (*pb.RunnerConfiguration, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
 	var runnerConfiguration pb.RunnerConfiguration
-	if err := jsonpb.Unmarshal(file, &runnerConfiguration); err != nil {
-		return nil, err
+	if err := util.UnmarshalConfigurationFromFile(path, &runnerConfiguration); err != nil {
+		return nil, util.StatusWrap(err, "Failed to retrieve configuration")
 	}
 	setDefaultRunnerValues(&runnerConfiguration)
-	return &runnerConfiguration, err
+	return &runnerConfiguration, nil
 }
 
 func setDefaultRunnerValues(runnerConfiguration *pb.RunnerConfiguration) {
