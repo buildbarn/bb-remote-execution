@@ -22,11 +22,20 @@ func setDefaultWorkerValues(workerConfiguration *pb.WorkerConfiguration) {
 	if workerConfiguration.CacheDirectoryPath == "" {
 		workerConfiguration.CacheDirectoryPath = "/worker/cache"
 	}
+	if workerConfiguration.MaximumCacheFileCount == 0 {
+		workerConfiguration.MaximumCacheFileCount = 10000
+	}
+	if workerConfiguration.MaximumCacheSizeBytes == 0 {
+		workerConfiguration.MaximumCacheSizeBytes = 1024 * 1024 * 1024
+	}
+	if workerConfiguration.MaximumMemoryCachedDirectories == 0 {
+		workerConfiguration.MaximumMemoryCachedDirectories = 1000
+	}
 	if workerConfiguration.Concurrency == 0 {
 		workerConfiguration.Concurrency = 1
 	}
 	if workerConfiguration.MaximumMessageSizeBytes == 0 {
-		workerConfiguration.MaximumMessageSizeBytes = 16*1024*1024
+		workerConfiguration.MaximumMessageSizeBytes = 16 * 1024 * 1024
 	}
 	if workerConfiguration.RunnerAddress == "" {
 		workerConfiguration.RunnerAddress = "unix:///worker/runner"
@@ -35,4 +44,3 @@ func setDefaultWorkerValues(workerConfiguration *pb.WorkerConfiguration) {
 		workerConfiguration.MetricsListenAddress = ":80"
 	}
 }
-
