@@ -14,11 +14,34 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"google.golang.org/genproto/googleapis/longrunning"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+var (
+	workerBuildQueueLength = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "buildbarn",
+		Subsystem: "build_queue",
+		Name:      "worker_build_queue_length",
+		Help:      "Current size of the build queue on a scheduler.",
+	})
+	workerBuildQueueOperationsCount = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "buildbarn",
+		Subsystem: "build_queue",
+		Name:      "worker_build_queue_operations_count",
+		Help:      "Current size of the build queue on a scheduler.",
+	}, []string{"operation"})
+	workerBuildQueueOperationsCountPush = workerBuildQueueOperationsCount.WithLabelValues("Push")
+	workerBuildQueueOperationsCountPop  = workerBuildQueueOperationsCount.WithLabelValues("Pop")
+)
+
+func init() {
+	prometheus.MustRegister(workerBuildQueueLength)
+	prometheus.MustRegister(workerBuildQueueOperationsCount)
+}
 
 // workerBuildJob holds the information we need to track for a single
 // build action that is enqueued.
@@ -61,6 +84,9 @@ func (h workerBuildJobHeap) Swap(i, j int) {
 
 func (h *workerBuildJobHeap) Push(x interface{}) {
 	*h = append(*h, x.(*workerBuildJob))
+
+	workerBuildQueueLength.Inc()
+	workerBuildQueueOperationsCountPush.Inc()
 }
 
 func (h *workerBuildJobHeap) Pop() interface{} {
@@ -68,6 +94,9 @@ func (h *workerBuildJobHeap) Pop() interface{} {
 	n := len(old)
 	x := old[n-1]
 	*h = old[0 : n-1]
+
+	workerBuildQueueLength.Dec()
+	workerBuildQueueOperationsCountPop.Inc()
 	return x
 }
 
