@@ -23,11 +23,9 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/eviction"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
+	bb_grpc "github.com/buildbarn/bb-storage/pkg/grpc"
 	"github.com/buildbarn/bb-storage/pkg/util"
-	"github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-
-	"google.golang.org/grpc"
 )
 
 func main() {
@@ -95,11 +93,7 @@ func main() {
 		eviction.NewMetricsSet(eviction.NewRRSet(), "DirectoryCachingContentAddressableStorage"))
 
 	// Create connection with scheduler.
-	schedulerConnection, err := grpc.Dial(
-		configuration.SchedulerAddress,
-		grpc.WithInsecure(),
-		grpc.WithUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor),
-		grpc.WithStreamInterceptor(grpc_prometheus.StreamClientInterceptor))
+	schedulerConnection, err := bb_grpc.NewGRPCClientFromConfiguration(configuration.Scheduler)
 	if err != nil {
 		log.Fatal("Failed to create scheduler RPC client: ", err)
 	}
@@ -111,11 +105,7 @@ func main() {
 	// used in combination with a runner process. Having a separate
 	// runner process also makes it possible to apply privilege
 	// separation.
-	runnerConnection, err := grpc.Dial(
-		configuration.RunnerAddress,
-		grpc.WithInsecure(),
-		grpc.WithUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor),
-		grpc.WithStreamInterceptor(grpc_prometheus.StreamClientInterceptor))
+	runnerConnection, err := bb_grpc.NewGRPCClientFromConfiguration(configuration.Runner)
 	if err != nil {
 		log.Fatal("Failed to create runner RPC client: ", err)
 	}
