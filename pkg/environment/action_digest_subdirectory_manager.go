@@ -13,8 +13,7 @@ import (
 )
 
 type actionDigestSubdirectoryManager struct {
-	base               Manager
-	subdirectoryFormat util.DigestKeyFormat
+	base Manager
 }
 
 // NewActionDigestSubdirectoryManager is an adapter for Manager that
@@ -27,10 +26,9 @@ type actionDigestSubdirectoryManager struct {
 // build directory. Instead of picking random pathnames or using a
 // counter, using the action digest has the advantage of improving
 // determinism in case absolute paths end up in build output.
-func NewActionDigestSubdirectoryManager(base Manager, subdirectoryFormat util.DigestKeyFormat) Manager {
+func NewActionDigestSubdirectoryManager(base Manager) Manager {
 	return &actionDigestSubdirectoryManager{
-		base:               base,
-		subdirectoryFormat: subdirectoryFormat,
+		base: base,
 	}
 }
 
@@ -41,9 +39,14 @@ func (em *actionDigestSubdirectoryManager) Acquire(actionDigest *util.Digest) (M
 		return nil, err
 	}
 
-	// Create build directory within.
+	// Create build directory within. Only use a small number of
+	// characters from the digest to ensure the absolute path of the
+	// build directory remains short. This avoids reaching PATH_MAX
+	// and sockaddr_un::sun_path size limits for stronger digest
+	// functions. 16 characters is more than sufficient to prevent
+	// collisions.
 	buildDirectory := environment.GetBuildDirectory()
-	subdirectoryName := actionDigest.GetKey(em.subdirectoryFormat)
+	subdirectoryName := actionDigest.GetHashString()[:16]
 	if err := buildDirectory.Mkdir(subdirectoryName, 0777); err != nil {
 		environment.Release()
 		return nil, util.StatusWrapfWithCode(err, codes.Internal, "Failed to create build subdirectory %#v", subdirectoryName)

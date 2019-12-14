@@ -31,7 +31,7 @@ func TestActionDigestSubdirectoryManagerAcquireFailure(t *testing.T) {
 				SizeBytes: 0,
 			})).Return(nil, status.Error(codes.Internal, "No space left on device"))
 
-	manager := environment.NewActionDigestSubdirectoryManager(baseManager, util.DigestKeyWithoutInstance)
+	manager := environment.NewActionDigestSubdirectoryManager(baseManager)
 	_, err := manager.Acquire(
 		util.MustNewDigest(
 			"debian8",
@@ -58,11 +58,11 @@ func TestActionDigestSubdirectoryManagerMkdirFailure(t *testing.T) {
 			})).Return(baseEnvironment, nil)
 	rootDirectory := mock.NewMockDirectory(ctrl)
 	baseEnvironment.EXPECT().GetBuildDirectory().Return(rootDirectory).AnyTimes()
-	rootDirectory.EXPECT().Mkdir("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855-0", os.FileMode(0777)).Return(
+	rootDirectory.EXPECT().Mkdir("e3b0c44298fc1c14", os.FileMode(0777)).Return(
 		status.Error(codes.AlreadyExists, "Directory already exists"))
 	baseEnvironment.EXPECT().Release()
 
-	manager := environment.NewActionDigestSubdirectoryManager(baseManager, util.DigestKeyWithoutInstance)
+	manager := environment.NewActionDigestSubdirectoryManager(baseManager)
 	_, err := manager.Acquire(
 		util.MustNewDigest(
 			"debian8",
@@ -70,7 +70,7 @@ func TestActionDigestSubdirectoryManagerMkdirFailure(t *testing.T) {
 				Hash:      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 				SizeBytes: 0,
 			}))
-	require.Equal(t, status.Error(codes.Internal, "Failed to create build subdirectory \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855-0\": Directory already exists"), err)
+	require.Equal(t, status.Error(codes.Internal, "Failed to create build subdirectory \"e3b0c44298fc1c14\": Directory already exists"), err)
 }
 
 func TestActionDigestSubdirectoryManagerEnterFailure(t *testing.T) {
@@ -89,12 +89,12 @@ func TestActionDigestSubdirectoryManagerEnterFailure(t *testing.T) {
 			})).Return(baseEnvironment, nil)
 	rootDirectory := mock.NewMockDirectory(ctrl)
 	baseEnvironment.EXPECT().GetBuildDirectory().Return(rootDirectory).AnyTimes()
-	rootDirectory.EXPECT().Mkdir("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855-0", os.FileMode(0777)).Return(nil)
-	rootDirectory.EXPECT().Enter("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855-0").Return(nil, status.Error(codes.ResourceExhausted, "Out of file descriptors"))
-	rootDirectory.EXPECT().Remove("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855-0").Return(nil)
+	rootDirectory.EXPECT().Mkdir("e3b0c44298fc1c14", os.FileMode(0777)).Return(nil)
+	rootDirectory.EXPECT().Enter("e3b0c44298fc1c14").Return(nil, status.Error(codes.ResourceExhausted, "Out of file descriptors"))
+	rootDirectory.EXPECT().Remove("e3b0c44298fc1c14").Return(nil)
 	baseEnvironment.EXPECT().Release()
 
-	manager := environment.NewActionDigestSubdirectoryManager(baseManager, util.DigestKeyWithoutInstance)
+	manager := environment.NewActionDigestSubdirectoryManager(baseManager)
 	_, err := manager.Acquire(
 		util.MustNewDigest(
 			"debian8",
@@ -102,7 +102,7 @@ func TestActionDigestSubdirectoryManagerEnterFailure(t *testing.T) {
 				Hash:      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 				SizeBytes: 0,
 			}))
-	require.Equal(t, status.Error(codes.Internal, "Failed to enter build subdirectory \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855-0\": Out of file descriptors"), err)
+	require.Equal(t, status.Error(codes.Internal, "Failed to enter build subdirectory \"e3b0c44298fc1c14\": Out of file descriptors"), err)
 }
 
 func TestActionDigestSubdirectoryManagerSuccess(t *testing.T) {
@@ -121,25 +121,25 @@ func TestActionDigestSubdirectoryManagerSuccess(t *testing.T) {
 			})).Return(baseEnvironment, nil)
 	rootDirectory := mock.NewMockDirectory(ctrl)
 	baseEnvironment.EXPECT().GetBuildDirectory().Return(rootDirectory).AnyTimes()
-	rootDirectory.EXPECT().Mkdir("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855-0", os.FileMode(0777)).Return(nil)
+	rootDirectory.EXPECT().Mkdir("e3b0c44298fc1c14", os.FileMode(0777)).Return(nil)
 	subDirectory := mock.NewMockDirectory(ctrl)
-	rootDirectory.EXPECT().Enter("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855-0").Return(subDirectory, nil)
+	rootDirectory.EXPECT().Enter("e3b0c44298fc1c14").Return(subDirectory, nil)
 	baseEnvironment.EXPECT().Run(ctx, &runner.RunRequest{
 		Arguments: []string{"ls", "-l"},
 		EnvironmentVariables: map[string]string{
 			"PATH": "/bin",
 		},
-		WorkingDirectory: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855-0/some/sub/directory",
-		StdoutPath:       "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855-0/.stdout.txt",
-		StderrPath:       "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855-0/.stderr.txt",
+		WorkingDirectory: "e3b0c44298fc1c14/some/sub/directory",
+		StdoutPath:       "e3b0c44298fc1c14/.stdout.txt",
+		StderrPath:       "e3b0c44298fc1c14/.stderr.txt",
 	}).Return(&runner.RunResponse{
 		ExitCode: 123,
 	}, nil)
 	subDirectory.EXPECT().Close()
-	rootDirectory.EXPECT().RemoveAll("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855-0").Return(nil)
+	rootDirectory.EXPECT().RemoveAll("e3b0c44298fc1c14").Return(nil)
 	baseEnvironment.EXPECT().Release()
 
-	manager := environment.NewActionDigestSubdirectoryManager(baseManager, util.DigestKeyWithoutInstance)
+	manager := environment.NewActionDigestSubdirectoryManager(baseManager)
 	environment, err := manager.Acquire(
 		util.MustNewDigest(
 			"debian8",

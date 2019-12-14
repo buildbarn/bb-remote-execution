@@ -129,8 +129,7 @@ func main() {
 	// only if there are no other workers in the same cluster that
 	// have concurrency enabled.
 	environmentManager = environment.NewActionDigestSubdirectoryManager(
-		environment.NewConcurrentManager(environmentManager),
-		util.DigestKeyWithoutInstance)
+		environment.NewConcurrentManager(environmentManager))
 
 	for i := uint64(0); i < workerConfiguration.Concurrency; i++ {
 		go func() {
