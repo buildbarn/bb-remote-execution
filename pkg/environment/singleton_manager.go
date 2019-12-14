@@ -23,7 +23,7 @@ func NewSingletonManager(environment Environment) Manager {
 	return em
 }
 
-func (em *singletonManager) Acquire(actionDigest *util.Digest, platformProperties map[string]string) (ManagedEnvironment, error) {
+func (em *singletonManager) Acquire(actionDigest *util.Digest) (ManagedEnvironment, error) {
 	return <-em.environment, nil
 }
 

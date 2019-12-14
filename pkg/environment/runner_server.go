@@ -19,7 +19,7 @@ func NewRunnerServer(manager Manager) runner.RunnerServer {
 }
 
 func (rs *runnerServer) Run(ctx context.Context, request *runner.RunRequest) (*runner.RunResponse, error) {
-	env, err := rs.manager.Acquire(nil, map[string]string{})
+	env, err := rs.manager.Acquire(nil)
 	if err != nil {
 		return nil, err
 	}

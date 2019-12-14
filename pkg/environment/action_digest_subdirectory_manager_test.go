@@ -29,10 +29,7 @@ func TestActionDigestSubdirectoryManagerAcquireFailure(t *testing.T) {
 			&remoteexecution.Digest{
 				Hash:      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 				SizeBytes: 0,
-			}),
-		map[string]string{
-			"container-image": "ubuntu:latest",
-		}).Return(nil, status.Error(codes.Internal, "No space left on device"))
+			})).Return(nil, status.Error(codes.Internal, "No space left on device"))
 
 	manager := environment.NewActionDigestSubdirectoryManager(baseManager, util.DigestKeyWithoutInstance)
 	_, err := manager.Acquire(
@@ -41,10 +38,7 @@ func TestActionDigestSubdirectoryManagerAcquireFailure(t *testing.T) {
 			&remoteexecution.Digest{
 				Hash:      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 				SizeBytes: 0,
-			}),
-		map[string]string{
-			"container-image": "ubuntu:latest",
-		})
+			}))
 	require.Equal(t, status.Error(codes.Internal, "No space left on device"), err)
 }
 
@@ -61,10 +55,7 @@ func TestActionDigestSubdirectoryManagerMkdirFailure(t *testing.T) {
 			&remoteexecution.Digest{
 				Hash:      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 				SizeBytes: 0,
-			}),
-		map[string]string{
-			"container-image": "ubuntu:latest",
-		}).Return(baseEnvironment, nil)
+			})).Return(baseEnvironment, nil)
 	rootDirectory := mock.NewMockDirectory(ctrl)
 	baseEnvironment.EXPECT().GetBuildDirectory().Return(rootDirectory).AnyTimes()
 	rootDirectory.EXPECT().Mkdir("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855-0", os.FileMode(0777)).Return(
@@ -78,10 +69,7 @@ func TestActionDigestSubdirectoryManagerMkdirFailure(t *testing.T) {
 			&remoteexecution.Digest{
 				Hash:      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 				SizeBytes: 0,
-			}),
-		map[string]string{
-			"container-image": "ubuntu:latest",
-		})
+			}))
 	require.Equal(t, status.Error(codes.Internal, "Failed to create build subdirectory \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855-0\": Directory already exists"), err)
 }
 
@@ -98,10 +86,7 @@ func TestActionDigestSubdirectoryManagerEnterFailure(t *testing.T) {
 			&remoteexecution.Digest{
 				Hash:      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 				SizeBytes: 0,
-			}),
-		map[string]string{
-			"container-image": "ubuntu:latest",
-		}).Return(baseEnvironment, nil)
+			})).Return(baseEnvironment, nil)
 	rootDirectory := mock.NewMockDirectory(ctrl)
 	baseEnvironment.EXPECT().GetBuildDirectory().Return(rootDirectory).AnyTimes()
 	rootDirectory.EXPECT().Mkdir("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855-0", os.FileMode(0777)).Return(nil)
@@ -116,10 +101,7 @@ func TestActionDigestSubdirectoryManagerEnterFailure(t *testing.T) {
 			&remoteexecution.Digest{
 				Hash:      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 				SizeBytes: 0,
-			}),
-		map[string]string{
-			"container-image": "ubuntu:latest",
-		})
+			}))
 	require.Equal(t, status.Error(codes.Internal, "Failed to enter build subdirectory \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855-0\": Out of file descriptors"), err)
 }
 
@@ -136,10 +118,7 @@ func TestActionDigestSubdirectoryManagerSuccess(t *testing.T) {
 			&remoteexecution.Digest{
 				Hash:      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 				SizeBytes: 0,
-			}),
-		map[string]string{
-			"container-image": "ubuntu:latest",
-		}).Return(baseEnvironment, nil)
+			})).Return(baseEnvironment, nil)
 	rootDirectory := mock.NewMockDirectory(ctrl)
 	baseEnvironment.EXPECT().GetBuildDirectory().Return(rootDirectory).AnyTimes()
 	rootDirectory.EXPECT().Mkdir("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855-0", os.FileMode(0777)).Return(nil)
@@ -167,10 +146,7 @@ func TestActionDigestSubdirectoryManagerSuccess(t *testing.T) {
 			&remoteexecution.Digest{
 				Hash:      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 				SizeBytes: 0,
-			}),
-		map[string]string{
-			"container-image": "ubuntu:latest",
-		})
+			}))
 	require.NoError(t, err)
 	require.Equal(t, subDirectory, environment.GetBuildDirectory())
 	response, err := environment.Run(ctx, &runner.RunRequest{

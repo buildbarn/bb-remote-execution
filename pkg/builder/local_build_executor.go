@@ -235,13 +235,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, request *remoteexecut
 		timeAfterGetActionCommand.Sub(timeStart).Seconds())
 
 	// Obtain build environment.
-	platformProperties := map[string]string{}
-	if command.Platform != nil {
-		for _, platformProperty := range command.Platform.Properties {
-			platformProperties[platformProperty.Name] = platformProperty.Value
-		}
-	}
-	environment, err := be.environmentManager.Acquire(actionDigest, platformProperties)
+	environment, err := be.environmentManager.Acquire(actionDigest)
 	if err != nil {
 		return convertErrorToExecuteResponse(util.StatusWrap(err, "Failed to acquire build environment")), false
 	}

@@ -22,12 +22,12 @@ func NewTempDirectoryCleaningManager(base Manager, tempDirectory filesystem.Dire
 	}
 }
 
-func (em *tempDirectoryCleaningManager) Acquire(actionDigest *util.Digest, platformProperties map[string]string) (ManagedEnvironment, error) {
+func (em *tempDirectoryCleaningManager) Acquire(actionDigest *util.Digest) (ManagedEnvironment, error) {
 	// Remove all contents prior to use.
 	if err := em.tempDirectory.RemoveAllChildren(); err != nil {
 		return nil, util.StatusWrapWithCode(err, codes.Internal, "Failed to clean temporary directory prior to build")
 	}
 
 	// Allocate underlying environment.
-	return em.base.Acquire(actionDigest, platformProperties)
+	return em.base.Acquire(actionDigest)
 }

@@ -19,9 +19,9 @@ func NewCleanBuildDirectoryManager(base Manager) Manager {
 	}
 }
 
-func (em *cleanBuildDirectoryManager) Acquire(actionDigest *util.Digest, platformProperties map[string]string) (ManagedEnvironment, error) {
+func (em *cleanBuildDirectoryManager) Acquire(actionDigest *util.Digest) (ManagedEnvironment, error) {
 	// Allocate underlying environment.
-	environment, err := em.base.Acquire(actionDigest, platformProperties)
+	environment, err := em.base.Acquire(actionDigest)
 	if err != nil {
 		return nil, err
 	}

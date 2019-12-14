@@ -28,12 +28,12 @@ func NewConcurrentManager(base Manager) Manager {
 	}
 }
 
-func (em *concurrentManager) Acquire(actionDigest *util.Digest, platformProperties map[string]string) (ManagedEnvironment, error) {
+func (em *concurrentManager) Acquire(actionDigest *util.Digest) (ManagedEnvironment, error) {
 	em.lock.Lock()
 	defer em.lock.Unlock()
 	if em.refcount == 0 {
 		// No environment acquired yet. Call into the underlying manager.
-		environment, err := em.base.Acquire(actionDigest, platformProperties)
+		environment, err := em.base.Acquire(actionDigest)
 		if err != nil {
 			return nil, err
 		}

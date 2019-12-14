@@ -211,7 +211,6 @@ func TestLocalBuildExecutorEnvironmentAcquireFailed(t *testing.T) {
 			Hash:      "5555555555555555555555555555555555555555555555555555555555555555",
 			SizeBytes: 7,
 		}),
-		map[string]string{},
 	).Return(nil, status.Error(codes.InvalidArgument, "Platform requirements not provided"))
 	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, environmentManager)
 
@@ -290,7 +289,6 @@ func TestLocalBuildExecutorMissingInputDirectoryDigest(t *testing.T) {
 			Hash:      "5555555555555555555555555555555555555555555555555555555555555555",
 			SizeBytes: 7,
 		}),
-		map[string]string{},
 	).Return(environment, nil)
 	buildDirectory := mock.NewMockDirectory(ctrl)
 	buildDirectory.EXPECT().Mkdir("Hello", os.FileMode(0777)).Return(nil)
@@ -359,7 +357,6 @@ func TestLocalBuildExecutorInputRootNotInStorage(t *testing.T) {
 			Hash:      "5555555555555555555555555555555555555555555555555555555555555555",
 			SizeBytes: 7,
 		}),
-		map[string]string{},
 	).Return(environment, nil)
 	buildDirectory := mock.NewMockDirectory(ctrl)
 	environment.EXPECT().GetBuildDirectory().Return(buildDirectory)
@@ -420,7 +417,6 @@ func TestLocalBuildExecutorOutputDirectoryCreationFailure(t *testing.T) {
 			Hash:      "5555555555555555555555555555555555555555555555555555555555555555",
 			SizeBytes: 7,
 		}),
-		map[string]string{},
 	).Return(environment, nil)
 	buildDirectory := mock.NewMockDirectory(ctrl)
 	buildDirectory.EXPECT().Mkdir("foo", os.FileMode(0777)).Return(status.Error(codes.Internal, "Out of disk space"))
@@ -493,7 +489,6 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 			Hash:      "5555555555555555555555555555555555555555555555555555555555555555",
 			SizeBytes: 7,
 		}),
-		map[string]string{},
 	).Return(environment, nil)
 	environment.EXPECT().GetBuildDirectory().Return(buildDirectory)
 	environment.EXPECT().Run(ctx, &runner.RunRequest{
@@ -660,10 +655,7 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 		util.MustNewDigest("ubuntu1804", &remoteexecution.Digest{
 			Hash:      "0000000000000000000000000000000000000000000000000000000000000001",
 			SizeBytes: 123,
-		}),
-		map[string]string{
-			"container-image": "docker://gcr.io/cloud-marketplace/google/rbe-debian8@sha256:4893599fb00089edc8351d9c26b31d3f600774cb5addefb00c70fdb6ca797abf",
-		}).Return(environment, nil)
+		})).Return(environment, nil)
 	environment.EXPECT().GetBuildDirectory().Return(buildDirectory)
 	environment.EXPECT().Run(ctx, &runner.RunRequest{
 		Arguments: []string{

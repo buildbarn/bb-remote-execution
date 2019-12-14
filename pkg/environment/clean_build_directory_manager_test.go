@@ -28,10 +28,7 @@ func TestCleanBuildDirectoryManagerAcquireFailure(t *testing.T) {
 			&remoteexecution.Digest{
 				Hash:      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 				SizeBytes: 0,
-			}),
-		map[string]string{
-			"container-image": "ubuntu:latest",
-		}).Return(nil, status.Error(codes.Internal, "No space left on device"))
+			})).Return(nil, status.Error(codes.Internal, "No space left on device"))
 
 	manager := environment.NewCleanBuildDirectoryManager(baseManager)
 	_, err := manager.Acquire(
@@ -40,10 +37,7 @@ func TestCleanBuildDirectoryManagerAcquireFailure(t *testing.T) {
 			&remoteexecution.Digest{
 				Hash:      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 				SizeBytes: 0,
-			}),
-		map[string]string{
-			"container-image": "ubuntu:latest",
-		})
+			}))
 	require.Equal(t, status.Error(codes.Internal, "No space left on device"), err)
 }
 
@@ -60,10 +54,7 @@ func TestCleanBuildDirectoryManagerRemoveAllChildrenFailure(t *testing.T) {
 			&remoteexecution.Digest{
 				Hash:      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 				SizeBytes: 0,
-			}),
-		map[string]string{
-			"container-image": "ubuntu:latest",
-		}).Return(baseEnvironment, nil)
+			})).Return(baseEnvironment, nil)
 	rootDirectory := mock.NewMockDirectory(ctrl)
 	baseEnvironment.EXPECT().GetBuildDirectory().Return(rootDirectory).AnyTimes()
 	rootDirectory.EXPECT().RemoveAllChildren().Return(
@@ -77,10 +68,7 @@ func TestCleanBuildDirectoryManagerRemoveAllChildrenFailure(t *testing.T) {
 			&remoteexecution.Digest{
 				Hash:      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 				SizeBytes: 0,
-			}),
-		map[string]string{
-			"container-image": "ubuntu:latest",
-		})
+			}))
 	require.Equal(t, status.Error(codes.Internal, "Failed to clean build directory prior to build: You don't have permissions to remove files from disk"), err)
 }
 
@@ -97,10 +85,7 @@ func TestCleanBuildDirectoryManagerSuccess(t *testing.T) {
 			&remoteexecution.Digest{
 				Hash:      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 				SizeBytes: 0,
-			}),
-		map[string]string{
-			"container-image": "ubuntu:latest",
-		}).Return(baseEnvironment, nil)
+			})).Return(baseEnvironment, nil)
 	rootDirectory := mock.NewMockDirectory(ctrl)
 	baseEnvironment.EXPECT().GetBuildDirectory().Return(rootDirectory).AnyTimes()
 	rootDirectory.EXPECT().RemoveAllChildren().Return(nil)
@@ -124,10 +109,7 @@ func TestCleanBuildDirectoryManagerSuccess(t *testing.T) {
 			&remoteexecution.Digest{
 				Hash:      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 				SizeBytes: 0,
-			}),
-		map[string]string{
-			"container-image": "ubuntu:latest",
-		})
+			}))
 	require.NoError(t, err)
 	require.Equal(t, rootDirectory, environment.GetBuildDirectory())
 	response, err := environment.Run(ctx, &runner.RunRequest{

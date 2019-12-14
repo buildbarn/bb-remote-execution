@@ -9,7 +9,7 @@ import (
 // executed. This may allow the Manager to, for example, download container
 // images or set up simulators/emulators.
 type Manager interface {
-	Acquire(actionDigest *util.Digest, platform map[string]string) (ManagedEnvironment, error)
+	Acquire(actionDigest *util.Digest) (ManagedEnvironment, error)
 }
 
 // ManagedEnvironment is an environment that is owned by a Manager.
