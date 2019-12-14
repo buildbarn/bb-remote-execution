@@ -3,9 +3,9 @@ package blobstore
 import (
 	"context"
 	"fmt"
-	"io"
 
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
+	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/util"
 
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
@@ -27,22 +27,33 @@ func NewExistencePreconditionBlobAccess(blobAccess blobstore.BlobAccess) blobsto
 	}
 }
 
-func (ba *existencePreconditionBlobAccess) Get(ctx context.Context, digest *util.Digest) (int64, io.ReadCloser, error) {
-	length, r, err := ba.BlobAccess.Get(ctx, digest)
-	if s := status.Convert(err); s.Code() == codes.NotFound {
+func (ba *existencePreconditionBlobAccess) Get(ctx context.Context, digest *util.Digest) buffer.Buffer {
+	return buffer.WithErrorHandler(
+		ba.BlobAccess.Get(ctx, digest),
+		existencePreconditionErrorHandler{digest: digest})
+}
+
+type existencePreconditionErrorHandler struct {
+	digest *util.Digest
+}
+
+func (eh existencePreconditionErrorHandler) OnError(observedErr error) (buffer.Buffer, error) {
+	if s := status.Convert(observedErr); s.Code() == codes.NotFound {
 		s, err := status.New(codes.FailedPrecondition, s.Message()).WithDetails(
 			&errdetails.PreconditionFailure{
 				Violations: []*errdetails.PreconditionFailure_Violation{
 					{
 						Type:    "MISSING",
-						Subject: fmt.Sprintf("blobs/%s/%d", digest.GetHashString(), digest.GetSizeBytes()),
+						Subject: fmt.Sprintf("blobs/%s/%d", eh.digest.GetHashString(), eh.digest.GetSizeBytes()),
 					},
 				},
 			})
 		if err != nil {
-			return 0, nil, err
+			return nil, err
 		}
-		return 0, nil, s.Err()
+		return nil, s.Err()
 	}
-	return length, r, err
+	return nil, observedErr
 }
+
+func (eh existencePreconditionErrorHandler) Done() {}

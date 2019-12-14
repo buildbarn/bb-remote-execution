@@ -4,14 +4,6 @@ load("@bazel_gomock//:gomock.bzl", "gomock")
 load("@io_bazel_rules_go//go:def.bzl", "go_library")
 
 gomock(
-    name = "ac",
-    out = "ac.go",
-    interfaces = ["ActionCache"],
-    library = "@com_github_buildbarn_bb_storage//pkg/ac:go_default_library",
-    package = "mock",
-)
-
-gomock(
     name = "blobstore",
     out = "blobstore.go",
     interfaces = ["BlobAccess"],
@@ -52,7 +44,9 @@ gomock(
     out = "filesystem.go",
     interfaces = [
         "Directory",
-        "File",
+        "FileReader",
+        "FileReadWriter",
+        "FileWriter",
     ],
     library = "@com_github_buildbarn_bb_storage//pkg/filesystem:go_default_library",
     package = "mock",
@@ -94,7 +88,6 @@ gomock(
 go_library(
     name = "go_default_library",
     srcs = [
-        ":ac.go",
         ":blobstore.go",
         ":builder.go",
         ":cas.go",
@@ -111,6 +104,7 @@ go_library(
         "//pkg/environment:go_default_library",
         "//pkg/proto/runner:go_default_library",
         "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:go_default_library",
+        "@com_github_buildbarn_bb_storage//pkg/blobstore/buffer:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/blobstore/sharding:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/builder:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/filesystem:go_default_library",

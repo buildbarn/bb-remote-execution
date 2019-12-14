@@ -2,7 +2,6 @@ package environment
 
 import (
 	"context"
-	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
@@ -39,7 +38,7 @@ func (e *localExecutionEnvironment) GetBuildDirectory() filesystem.Directory {
 	return e.buildDirectory
 }
 
-func (e *localExecutionEnvironment) openLog(logPath string) (filesystem.File, error) {
+func (e *localExecutionEnvironment) openLog(logPath string) (filesystem.FileAppender, error) {
 	components := strings.FieldsFunc(logPath, func(r rune) bool { return r == '/' })
 	if len(components) < 1 {
 		return nil, status.Error(codes.InvalidArgument, "Insufficient pathname components in filename")
@@ -59,7 +58,7 @@ func (e *localExecutionEnvironment) openLog(logPath string) (filesystem.File, er
 	}
 
 	// Create log file within.
-	f, err := d.OpenFile(components[len(components)-1], os.O_APPEND|os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0666)
+	f, err := d.OpenAppend(components[len(components)-1], filesystem.CreateExcl(0666))
 	if d != e.buildDirectory {
 		d.Close()
 	}

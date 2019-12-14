@@ -6,7 +6,8 @@ import (
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	re_util "github.com/buildbarn/bb-remote-execution/pkg/util"
-	"github.com/buildbarn/bb-storage/pkg/ac"
+	"github.com/buildbarn/bb-storage/pkg/blobstore"
+	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/cas"
 	cas_proto "github.com/buildbarn/bb-storage/pkg/proto/cas"
 	"github.com/buildbarn/bb-storage/pkg/util"
@@ -15,7 +16,7 @@ import (
 type cachingBuildExecutor struct {
 	base                      BuildExecutor
 	contentAddressableStorage cas.ContentAddressableStorage
-	actionCache               ac.ActionCache
+	actionCache               blobstore.BlobAccess
 	browserURL                *url.URL
 }
 
@@ -26,7 +27,7 @@ type cachingBuildExecutor struct {
 //
 // In both cases, a link to bb_browser is added to the ExecuteResponse,
 // so that the user may inspect the Action and ActionResult in detail.
-func NewCachingBuildExecutor(base BuildExecutor, contentAddressableStorage cas.ContentAddressableStorage, actionCache ac.ActionCache, browserURL *url.URL) BuildExecutor {
+func NewCachingBuildExecutor(base BuildExecutor, contentAddressableStorage cas.ContentAddressableStorage, actionCache blobstore.BlobAccess, browserURL *url.URL) BuildExecutor {
 	return &cachingBuildExecutor{
 		base:                      base,
 		contentAddressableStorage: contentAddressableStorage,
@@ -46,7 +47,7 @@ func (be *cachingBuildExecutor) Execute(ctx context.Context, request *remoteexec
 		response.Message = "Action details (no result): " + re_util.GetBrowserURL(be.browserURL, "action", actionDigest)
 	} else if mayBeCached {
 		// Store result in the Action Cache.
-		if err := be.actionCache.PutActionResult(ctx, actionDigest, response.Result); err != nil {
+		if err := be.actionCache.Put(ctx, actionDigest, buffer.NewACBufferFromActionResult(response.Result, buffer.UserProvided)); err != nil {
 			return convertErrorToExecuteResponse(util.StatusWrap(err, "Failed to store cached action result")), false
 		}
 		response.Message = "Action details (cached result): " + re_util.GetBrowserURL(be.browserURL, "action", actionDigest)
@@ -57,8 +58,8 @@ func (be *cachingBuildExecutor) Execute(ctx context.Context, request *remoteexec
 		uncachedActionResultDigest, err := be.contentAddressableStorage.PutUncachedActionResult(
 			ctx,
 			&cas_proto.UncachedActionResult{
-				ActionDigest: request.ActionDigest,
-				ActionResult: response.Result,
+				ActionDigest:    request.ActionDigest,
+				ExecuteResponse: response,
 			},
 			actionDigest)
 		if err != nil {
