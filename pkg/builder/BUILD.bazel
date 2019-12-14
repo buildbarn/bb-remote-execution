@@ -5,7 +5,9 @@ go_library(
     srcs = [
         "build_executor.go",
         "caching_build_executor.go",
+        "input_root_populator.go",
         "local_build_executor.go",
+        "naive_input_root_populator.go",
         "storage_flushing_build_executor.go",
         "worker_build_queue.go",
     ],
@@ -13,6 +15,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/environment:go_default_library",
+        "//pkg/filesystem:go_default_library",
         "//pkg/proto/runner:go_default_library",
         "//pkg/proto/scheduler:go_default_library",
         "//pkg/util:go_default_library",
@@ -40,6 +43,7 @@ go_test(
     srcs = [
         "caching_build_executor_test.go",
         "local_build_executor_test.go",
+        "naive_input_root_populator_test.go",
     ],
     embed = [":go_default_library"],
     deps = [
