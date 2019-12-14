@@ -9,9 +9,13 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/util"
+	"github.com/golang/protobuf/ptypes"
+	"github.com/golang/protobuf/ptypes/any"
+	"github.com/golang/protobuf/ptypes/duration"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -62,6 +66,13 @@ func (e *localExecutionEnvironment) openLog(logPath string) (filesystem.File, er
 	return f, err
 }
 
+func convertTimeval(t syscall.Timeval) *duration.Duration {
+	return &duration.Duration{
+		Seconds: t.Sec,
+		Nanos:   int32(t.Usec) * 1000,
+	}
+}
+
 func (e *localExecutionEnvironment) Run(ctx context.Context, request *runner.RunRequest) (*runner.RunResponse, error) {
 	if len(request.Arguments) < 1 {
 		return nil, status.Error(codes.InvalidArgument, "Insufficient number of command arguments")
@@ -97,15 +108,40 @@ func (e *localExecutionEnvironment) Run(ctx context.Context, request *runner.Run
 		return nil, util.StatusWrap(err, "Failed to start process")
 	}
 
-	// Wait for execution to complete.
-	err = cmd.Wait()
-	if exitError, ok := err.(*exec.ExitError); ok {
-		waitStatus := exitError.Sys().(syscall.WaitStatus)
-		return &runner.RunResponse{
-			ExitCode: int32(waitStatus.ExitStatus()),
-		}, nil
+	// Wait for execution to complete. Permit non-zero exit codes.
+	if err := cmd.Wait(); err != nil {
+		if _, ok := err.(*exec.ExitError); !ok {
+			return nil, err
+		}
+	}
+
+	// Give subprocesses spawned by the action a chance to cleanup.
+	// Ignore errors since the processes group may have already been
+	// reaped by the init system.
+	syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+
+	// Attach rusage information to the response.
+	rusage := cmd.ProcessState.SysUsage().(*syscall.Rusage)
+	posixResourceUsage, err := ptypes.MarshalAny(&resourceusage.POSIXResourceUsage{
+		UserTime:                   convertTimeval(rusage.Utime),
+		SystemTime:                 convertTimeval(rusage.Stime),
+		MaximumResidentSetSize:     rusage.Maxrss * maximumResidentSetSizeUnit,
+		PageReclaims:               rusage.Minflt,
+		PageFaults:                 rusage.Majflt,
+		Swaps:                      rusage.Nswap,
+		BlockInputOperations:       rusage.Inblock,
+		BlockOutputOperations:      rusage.Oublock,
+		MessagesSent:               rusage.Msgsnd,
+		MessagesReceived:           rusage.Msgrcv,
+		SignalsReceived:            rusage.Nsignals,
+		VoluntaryContextSwitches:   rusage.Nvcsw,
+		InvoluntaryContextSwitches: rusage.Nivcsw,
+	})
+	if err != nil {
+		return nil, util.StatusWrap(err, "Failed to marshal POSIX resource usage")
 	}
 	return &runner.RunResponse{
-		ExitCode: 0,
-	}, err
+		ExitCode:      int32(cmd.ProcessState.ExitCode()),
+		ResourceUsage: []*any.Any{posixResourceUsage},
+	}, nil
 }

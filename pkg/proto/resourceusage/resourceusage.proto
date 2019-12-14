@@ -1,0 +1,83 @@
+syntax = "proto3";
+
+package buildbarn.resourceusage;
+
+import "google/protobuf/duration.proto";
+
+option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage";
+
+// File pool resource usage statistics. File pools are used by bb_worker
+// to allocate temporary files that are created by build actions.
+message FilePoolResourceUsage {
+  // Total number of files created.
+  uint64 files_created = 1;
+
+  // Maximum number of files that existed at some point in time.
+  uint64 files_count_peak = 2;
+
+  // Maximum total size of all files at some point in time.
+  uint64 files_size_bytes_peak = 3;
+
+  // Total number of ReadAt() calls performed.
+  uint64 reads_count = 4;
+
+  // Total amount of data returned by all ReadAt() calls.
+  uint64 reads_size_bytes = 5;
+
+  // Total number of WriteAt() calls performed.
+  uint64 writes_count = 6;
+
+  // Total amount of data processed by all WriteAt() calls.
+  uint64 writes_size_bytes = 7;
+
+  // Total number of Truncate() calls performed.
+  uint64 truncates_count = 8;
+}
+
+// The equivalent of 'struct rusage' in POSIX, generally returned by
+// getrusage(2) or wait4(2).
+message POSIXResourceUsage {
+  // ru_utime: Amount of CPU time in seconds spent in userspace.
+  google.protobuf.Duration user_time = 1;
+
+  // ru_stime: Amount of CPU time in seconds spent in kernelspace.
+  google.protobuf.Duration system_time = 2;
+
+  // ru_maxrss: Maximum amount of resident memory in bytes.
+  int64 maximum_resident_set_size = 3;
+
+  // ru_ixrss, ru_idrss and ru_isrss are omitted, as there is no
+  // portable way to obtain the number of ticks used to compute these
+  // integrals.
+  reserved 4, 5, 6;
+
+  // ru_minflt: Page reclaims.
+  int64 page_reclaims = 7;
+
+  // ru_majflt: Page faults.
+  int64 page_faults = 8;
+
+  // ru_nswap: Number of swaps.
+  int64 swaps = 9;
+
+  // ru_inblock: Block input operations.
+  int64 block_input_operations = 10;
+
+  // ru_oublock: Block output operations.
+  int64 block_output_operations = 11;
+
+  // ru_msgsnd: Messages sent.
+  int64 messages_sent = 12;
+
+  // ru_msgrcv: Messages received.
+  int64 messages_received = 13;
+
+  // ru_nsignals: Signals received.
+  int64 signals_received = 14;
+
+  // ru_nvcsw: Voluntary context switches.
+  int64 voluntary_context_switches = 15;
+
+  // ru_nivcsw: Involuntary context switches.
+  int64 involuntary_context_switches = 16;
+}

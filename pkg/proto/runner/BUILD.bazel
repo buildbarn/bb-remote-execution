@@ -5,6 +5,7 @@ proto_library(
     name = "runner_proto",
     srcs = ["runner.proto"],
     visibility = ["//visibility:public"],
+    deps = ["@com_google_protobuf//:any_proto"],
 )
 
 go_proto_library(
