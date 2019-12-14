@@ -15,6 +15,7 @@ go_library(
         "//pkg/environment:go_default_library",
         "//pkg/proto/runner:go_default_library",
         "//pkg/proto/scheduler:go_default_library",
+        "//pkg/util:go_default_library",
         "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:go_default_library",
         "@com_github_bazelbuild_remote_apis//build/bazel/semver:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/ac:go_default_library",

@@ -2,11 +2,10 @@ package builder
 
 import (
 	"context"
-	"fmt"
-	"log"
 	"net/url"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	re_util "github.com/buildbarn/bb-remote-execution/pkg/util"
 	"github.com/buildbarn/bb-storage/pkg/ac"
 	"github.com/buildbarn/bb-storage/pkg/cas"
 	cas_proto "github.com/buildbarn/bb-storage/pkg/proto/cas"
@@ -44,32 +43,13 @@ func (be *cachingBuildExecutor) Execute(ctx context.Context, request *remoteexec
 	response, mayBeCached := be.base.Execute(ctx, request)
 	if response.Result == nil {
 		// Action ran, but did not yield any results.
-		actionURL, err := be.browserURL.Parse(
-			fmt.Sprintf(
-				"/action/%s/%s/%d/",
-				actionDigest.GetInstance(),
-				actionDigest.GetHashString(),
-				actionDigest.GetSizeBytes()))
-		if err != nil {
-			log.Fatal(err)
-		}
-		response.Message = "Action details (no result): " + actionURL.String()
+		response.Message = "Action details (no result): " + re_util.GetBrowserURL(be.browserURL, "action", actionDigest)
 	} else if mayBeCached {
 		// Store result in the Action Cache.
 		if err := be.actionCache.PutActionResult(ctx, actionDigest, response.Result); err != nil {
 			return convertErrorToExecuteResponse(util.StatusWrap(err, "Failed to store cached action result")), false
 		}
-
-		actionURL, err := be.browserURL.Parse(
-			fmt.Sprintf(
-				"/action/%s/%s/%d/",
-				actionDigest.GetInstance(),
-				actionDigest.GetHashString(),
-				actionDigest.GetSizeBytes()))
-		if err != nil {
-			log.Fatal(err)
-		}
-		response.Message = "Action details (cached result): " + actionURL.String()
+		response.Message = "Action details (cached result): " + re_util.GetBrowserURL(be.browserURL, "action", actionDigest)
 	} else {
 		// Extension: store the result in the Content
 		// Addressable Storage, so the user can at least inspect
@@ -84,17 +64,7 @@ func (be *cachingBuildExecutor) Execute(ctx context.Context, request *remoteexec
 		if err != nil {
 			return convertErrorToExecuteResponse(util.StatusWrap(err, "Failed to store uncached action result")), false
 		}
-
-		uncachedActionResultURL, err := be.browserURL.Parse(
-			fmt.Sprintf(
-				"/uncached_action_result/%s/%s/%d/",
-				uncachedActionResultDigest.GetInstance(),
-				uncachedActionResultDigest.GetHashString(),
-				uncachedActionResultDigest.GetSizeBytes()))
-		if err != nil {
-			log.Fatal(err)
-		}
-		response.Message = "Action details (uncached result): " + uncachedActionResultURL.String()
+		response.Message = "Action details (uncached result): " + re_util.GetBrowserURL(be.browserURL, "uncached_action_result", uncachedActionResultDigest)
 	}
 	return response, mayBeCached
 }
