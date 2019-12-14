@@ -20,7 +20,10 @@ go_library(
 
 go_test(
     name = "go_default_test",
-    srcs = ["existence_precondition_blob_access_test.go"],
+    srcs = [
+        "batched_store_blob_access_test.go",
+        "existence_precondition_blob_access_test.go",
+    ],
     embed = [":go_default_library"],
     deps = [
         "//internal/mock:go_default_library",
