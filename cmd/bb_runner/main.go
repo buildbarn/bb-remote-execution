@@ -2,13 +2,13 @@ package main
 
 import (
 	"log"
-	"net"
 	"os"
 
 	"github.com/buildbarn/bb-remote-execution/pkg/environment"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_runner"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
+	bb_grpc "github.com/buildbarn/bb-storage/pkg/grpc"
 	"github.com/buildbarn/bb-storage/pkg/util"
 
 	"google.golang.org/grpc"
@@ -46,18 +46,11 @@ func main() {
 		runnerServer = env
 	}
 
-	s := grpc.NewServer()
-	runner.RegisterRunnerServer(s, runnerServer)
-
-	if err := os.Remove(configuration.ListenPath); err != nil && !os.IsNotExist(err) {
-		log.Fatalf("Could not remove stale socket %#v: %s", configuration.ListenPath, err)
-	}
-
-	sock, err := net.Listen("unix", configuration.ListenPath)
-	if err != nil {
-		log.Fatalf("Failed to create listening socket %#v: %s", configuration.ListenPath, err)
-	}
-	if err := s.Serve(sock); err != nil {
-		log.Fatal("Failed to serve RPC server: ", err)
-	}
+	log.Fatal(
+		"gRPC server failure: ",
+		bb_grpc.NewGRPCServersFromConfigurationAndServe(
+			configuration.GrpcServers,
+			func(s *grpc.Server) {
+				runner.RegisterRunnerServer(s, runnerServer)
+			}))
 }
