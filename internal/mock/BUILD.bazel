@@ -53,6 +53,14 @@ gomock(
 )
 
 gomock(
+    name = "filesystem_re",
+    out = "filesystem_re.go",
+    interfaces = ["FilePool"],
+    library = "//pkg/filesystem:go_default_library",
+    package = "mock",
+)
+
+gomock(
     name = "remoteexecution",
     out = "remoteexecution.go",
     interfaces = [
@@ -93,6 +101,7 @@ go_library(
         ":cas.go",
         ":environment.go",
         ":filesystem.go",
+        ":filesystem_re.go",
         ":remoteexecution.go",
         ":sharding.go",
         ":storage_builder.go",
