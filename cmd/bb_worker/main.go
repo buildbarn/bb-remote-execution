@@ -21,6 +21,7 @@ import (
 	blobstore_configuration "github.com/buildbarn/bb-storage/pkg/blobstore/configuration"
 	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/clock"
+	"github.com/buildbarn/bb-storage/pkg/eviction"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/grpc-ecosystem/go-grpc-prometheus"
@@ -87,8 +88,12 @@ func main() {
 				re_blobstore.NewExistencePreconditionBlobAccess(contentAddressableStorageBlobAccess),
 				int(workerConfiguration.MaximumMessageSizeBytes)),
 			util.DigestKeyWithoutInstance, cacheDirectory,
-			int(workerConfiguration.MaximumCacheFileCount), int64(workerConfiguration.MaximumCacheSizeBytes)),
-		util.DigestKeyWithoutInstance, int(workerConfiguration.MaximumMemoryCachedDirectories))
+			int(workerConfiguration.MaximumCacheFileCount),
+			int64(workerConfiguration.MaximumCacheSizeBytes),
+			eviction.NewMetricsSet(eviction.NewRRSet(), "HardlinkingContentAddressableStorage")),
+		util.DigestKeyWithoutInstance,
+		int(workerConfiguration.MaximumMemoryCachedDirectories),
+		eviction.NewMetricsSet(eviction.NewRRSet(), "DirectoryCachingContentAddressableStorage"))
 
 	// Create connection with scheduler.
 	schedulerConnection, err := grpc.Dial(

@@ -18,6 +18,7 @@ go_library(
         "@com_github_buildbarn_bb_storage//pkg/blobstore/configuration:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/cas:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/clock:go_default_library",
+        "@com_github_buildbarn_bb_storage//pkg/eviction:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/filesystem:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/util:go_default_library",
         "@com_github_grpc_ecosystem_go_grpc_prometheus//:go_default_library",

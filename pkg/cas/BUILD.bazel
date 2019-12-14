@@ -12,9 +12,9 @@ go_library(
     deps = [
         "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/cas:go_default_library",
+        "@com_github_buildbarn_bb_storage//pkg/eviction:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/filesystem:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/proto/cas:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/util:go_default_library",
-        "@com_github_prometheus_client_golang//prometheus:go_default_library",
     ],
 )
