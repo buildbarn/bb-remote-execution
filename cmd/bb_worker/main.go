@@ -13,9 +13,9 @@ import (
 
 	re_blobstore "github.com/buildbarn/bb-remote-execution/pkg/blobstore"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
-	"github.com/buildbarn/bb-remote-execution/pkg/configuration/bb_worker"
 	cas_re "github.com/buildbarn/bb-remote-execution/pkg/cas"
 	"github.com/buildbarn/bb-remote-execution/pkg/environment"
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_worker"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/scheduler"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	blobstore_configuration "github.com/buildbarn/bb-storage/pkg/blobstore/configuration"
@@ -40,13 +40,12 @@ func main() {
 	if len(os.Args) != 2 {
 		log.Fatal("Usage: bb_worker bb_worker.jsonnet")
 	}
-
-	workerConfiguration, err := configuration.GetWorkerConfiguration(os.Args[1])
-	if err != nil {
+	var configuration bb_worker.ApplicationConfiguration
+	if err := util.UnmarshalConfigurationFromFile(os.Args[1], &configuration); err != nil {
 		log.Fatalf("Failed to read configuration from %s: %s", os.Args[1], err)
 	}
 
-	browserURL, err := url.Parse(workerConfiguration.BrowserUrl)
+	browserURL, err := url.Parse(configuration.BrowserUrl)
 	if err != nil {
 		log.Fatal("Failed to parse browser URL: ", err)
 	}
@@ -54,25 +53,25 @@ func main() {
 	// Web server for metrics and profiling.
 	http.Handle("/metrics", promhttp.Handler())
 	go func() {
-		log.Fatal(http.ListenAndServe(workerConfiguration.MetricsListenAddress, nil))
+		log.Fatal(http.ListenAndServe(configuration.MetricsListenAddress, nil))
 	}()
 
 	// Storage access.
 	contentAddressableStorageBlobAccess, actionCache, err := blobstore_configuration.CreateBlobAccessObjectsFromConfig(
-		workerConfiguration.Blobstore,
-		int(workerConfiguration.MaximumMessageSizeBytes))
+		configuration.Blobstore,
+		int(configuration.MaximumMessageSizeBytes))
 	if err != nil {
 		log.Fatal("Failed to create blob access: ", err)
 	}
 
 	// Directories where builds take place.
-	buildDirectory, err := filesystem.NewLocalDirectory(workerConfiguration.BuildDirectoryPath)
+	buildDirectory, err := filesystem.NewLocalDirectory(configuration.BuildDirectoryPath)
 	if err != nil {
 		log.Fatal("Failed to open cache directory: ", err)
 	}
 
 	// On-disk caching of content for efficient linking into build environments.
-	cacheDirectory, err := filesystem.NewLocalDirectory(workerConfiguration.CacheDirectoryPath)
+	cacheDirectory, err := filesystem.NewLocalDirectory(configuration.CacheDirectoryPath)
 	if err != nil {
 		log.Fatal("Failed to open cache directory: ", err)
 	}
@@ -86,18 +85,18 @@ func main() {
 		cas_re.NewHardlinkingContentAddressableStorage(
 			cas.NewBlobAccessContentAddressableStorage(
 				re_blobstore.NewExistencePreconditionBlobAccess(contentAddressableStorageBlobAccess),
-				int(workerConfiguration.MaximumMessageSizeBytes)),
+				int(configuration.MaximumMessageSizeBytes)),
 			util.DigestKeyWithoutInstance, cacheDirectory,
-			int(workerConfiguration.MaximumCacheFileCount),
-			int64(workerConfiguration.MaximumCacheSizeBytes),
+			int(configuration.MaximumCacheFileCount),
+			int64(configuration.MaximumCacheSizeBytes),
 			eviction.NewMetricsSet(eviction.NewRRSet(), "HardlinkingContentAddressableStorage")),
 		util.DigestKeyWithoutInstance,
-		int(workerConfiguration.MaximumMemoryCachedDirectories),
+		int(configuration.MaximumMemoryCachedDirectories),
 		eviction.NewMetricsSet(eviction.NewRRSet(), "DirectoryCachingContentAddressableStorage"))
 
 	// Create connection with scheduler.
 	schedulerConnection, err := grpc.Dial(
-		workerConfiguration.SchedulerAddress,
+		configuration.SchedulerAddress,
 		grpc.WithInsecure(),
 		grpc.WithUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor),
 		grpc.WithStreamInterceptor(grpc_prometheus.StreamClientInterceptor))
@@ -113,7 +112,7 @@ func main() {
 	// runner process also makes it possible to apply privilege
 	// separation.
 	runnerConnection, err := grpc.Dial(
-		workerConfiguration.RunnerAddress,
+		configuration.RunnerAddress,
 		grpc.WithInsecure(),
 		grpc.WithUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor),
 		grpc.WithStreamInterceptor(grpc_prometheus.StreamClientInterceptor))
@@ -137,7 +136,7 @@ func main() {
 	environmentManager = environment.NewActionDigestSubdirectoryManager(
 		environment.NewConcurrentManager(environmentManager))
 
-	for i := uint64(0); i < workerConfiguration.Concurrency; i++ {
+	for i := uint64(0); i < configuration.Concurrency; i++ {
 		go func() {
 			// Per-worker separate writer of the Content
 			// Addressable Storage that batches writes after
@@ -153,7 +152,7 @@ func main() {
 				contentAddressableStorageReader,
 				cas.NewBlobAccessContentAddressableStorage(
 					contentAddressableStorageWriter,
-					int(workerConfiguration.MaximumMessageSizeBytes)))
+					int(configuration.MaximumMessageSizeBytes)))
 			buildExecutor := builder.NewStorageFlushingBuildExecutor(
 				builder.NewCachingBuildExecutor(
 					builder.NewLocalBuildExecutor(

@@ -8,19 +8,13 @@ go_library(
     importpath = "github.com/buildbarn/bb-remote-execution/cmd/bb_runner",
     visibility = ["//visibility:private"],
     deps = [
-        "//pkg/configuration/bb_runner:go_default_library",
         "//pkg/environment:go_default_library",
+        "//pkg/proto/configuration/bb_runner:go_default_library",
         "//pkg/proto/runner:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/filesystem:go_default_library",
+        "@com_github_buildbarn_bb_storage//pkg/util:go_default_library",
         "@org_golang_google_grpc//:go_default_library",
     ],
-)
-
-go_binary(
-    name = "bb_runner",
-    embed = [":go_default_library"],
-    pure = "on",
-    visibility = ["//visibility:public"],
 )
 
 container_layer(
@@ -56,4 +50,10 @@ container_push_official(
     name = "bb_runner_ubuntu16_04_container_push",
     component = "bb-runner-ubuntu16-04",
     image = ":bb_runner_ubuntu16_04_container",
+)
+
+go_binary(
+    name = "bb_runner",
+    embed = [":go_default_library"],
+    visibility = ["//visibility:public"],
 )
