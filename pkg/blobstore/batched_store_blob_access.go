@@ -2,6 +2,7 @@ package blobstore
 
 import (
 	"context"
+	"sort"
 	"sync"
 
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
@@ -21,6 +22,7 @@ type batchedStoreBlobAccess struct {
 
 	lock                 sync.Mutex
 	pendingPutOperations map[string]pendingPutOperation
+	flushError           error
 }
 
 // NewBatchedStoreBlobAccess is an adapter for BlobAccess that causes
@@ -41,19 +43,39 @@ func NewBatchedStoreBlobAccess(blobAccess blobstore.BlobAccess, blobKeyFormat ut
 	return ba, func(ctx context.Context) error {
 		ba.lock.Lock()
 		defer ba.lock.Unlock()
-		return ba.flushLocked(ctx)
+
+		// Flush last batch of blobs. Return any errors that occurred.
+		ba.flushLocked(ctx)
+		err := ba.flushError
+		ba.flushError = nil
+		return err
 	}
 }
 
-func (ba *batchedStoreBlobAccess) flushLocked(ctx context.Context) error {
-	// Determine which blobs are missing.
-	var digests []*util.Digest
-	for _, pendingPutOperation := range ba.pendingPutOperations {
-		digests = append(digests, pendingPutOperation.digest)
+func (ba *batchedStoreBlobAccess) flushLocked(ctx context.Context) {
+	// Ensure that all pending blobs are closed upon termination.
+	defer func() {
+		for _, pendingPutOperation := range ba.pendingPutOperations {
+			pendingPutOperation.b.Discard()
+		}
+		ba.pendingPutOperations = map[string]pendingPutOperation{}
+	}()
+
+	// Determine which blobs are missing. Pass blobs to
+	// FindMissing() in sorted order for testability.
+	keys := make([]string, 0, len(ba.pendingPutOperations))
+	for key := range ba.pendingPutOperations {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	digests := make([]*util.Digest, 0, len(keys))
+	for _, key := range keys {
+		digests = append(digests, ba.pendingPutOperations[key].digest)
 	}
 	missing, err := ba.BlobAccess.FindMissing(ctx, digests)
 	if err != nil {
-		return err
+		ba.flushError = util.StatusWrap(err, "Failed to determine existence of previous batch of blobs")
+		return
 	}
 
 	// Upload the missing ones.
@@ -62,35 +84,31 @@ func (ba *batchedStoreBlobAccess) flushLocked(ctx context.Context) error {
 		if pendingPutOperation, ok := ba.pendingPutOperations[key]; ok {
 			delete(ba.pendingPutOperations, key)
 			if err := ba.BlobAccess.Put(ctx, pendingPutOperation.digest, pendingPutOperation.b); err != nil {
-				return err
+				ba.flushError = util.StatusWrapf(err, "Failed to store previous blob %s", pendingPutOperation.digest)
+				return
 			}
 		}
 	}
-
-	// Discard the others.
-	for _, pendingPutOperation := range ba.pendingPutOperations {
-		pendingPutOperation.b.Discard()
-	}
-	ba.pendingPutOperations = map[string]pendingPutOperation{}
-	return nil
 }
 
 func (ba *batchedStoreBlobAccess) Put(ctx context.Context, digest *util.Digest, b buffer.Buffer) error {
-	// First flush the existing files if there are too many pending.
 	ba.lock.Lock()
 	defer ba.lock.Unlock()
-	if len(ba.pendingPutOperations) >= ba.batchSize {
-		if err := ba.flushLocked(ctx); err != nil {
-			b.Discard()
-			return err
-		}
-	}
 
 	// Discard duplicate writes.
 	key := digest.GetKey(ba.blobKeyFormat)
 	if _, ok := ba.pendingPutOperations[key]; ok {
 		b.Discard()
 		return nil
+	}
+
+	// Flush the existing blobs if there are too many pending.
+	if len(ba.pendingPutOperations) >= ba.batchSize {
+		ba.flushLocked(ctx)
+	}
+	if err := ba.flushError; err != nil {
+		b.Discard()
+		return err
 	}
 
 	ba.pendingPutOperations[key] = pendingPutOperation{
