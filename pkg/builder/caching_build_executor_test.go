@@ -8,9 +8,11 @@ import (
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
+	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	cas_proto "github.com/buildbarn/bb-storage/pkg/proto/cas"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/golang/mock/gomock"
+	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/require"
 
 	"google.golang.org/grpc/codes"
@@ -22,7 +24,7 @@ func TestCachingBuildExecutorBadActionDigest(t *testing.T) {
 	defer ctrl.Finish()
 	baseBuildExecutor := mock.NewMockBuildExecutor(ctrl)
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
-	actionCache := mock.NewMockActionCache(ctrl)
+	actionCache := mock.NewMockBlobAccess(ctrl)
 	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, contentAddressableStorage, actionCache, &url.URL{
 		Scheme: "https",
 		Host:   "example.com",
@@ -49,7 +51,7 @@ func TestCachingBuildExecutorNoResult(t *testing.T) {
 		Status: status.New(codes.Internal, "Hard disk on fire").Proto(),
 	}, false)
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
-	actionCache := mock.NewMockActionCache(ctrl)
+	actionCache := mock.NewMockBlobAccess(ctrl)
 	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, contentAddressableStorage, actionCache, &url.URL{
 		Scheme: "https",
 		Host:   "example.com",
@@ -85,16 +87,22 @@ func TestCachingBuildExecutorCachedSuccess(t *testing.T) {
 		},
 	}, true)
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
-	actionCache := mock.NewMockActionCache(ctrl)
-	actionCache.EXPECT().PutActionResult(
+	actionCache := mock.NewMockBlobAccess(ctrl)
+	actionCache.EXPECT().Put(
 		ctx,
 		util.MustNewDigest("freebsd12", &remoteexecution.Digest{
 			Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
 			SizeBytes: 11,
 		}),
-		&remoteexecution.ActionResult{
-			StdoutRaw: []byte("Hello, world!"),
-		}).Return(nil)
+		gomock.Any()).DoAndReturn(
+		func(ctx context.Context, digest *util.Digest, b buffer.Buffer) error {
+			actionResult, err := b.ToActionResult(10000)
+			require.NoError(t, err)
+			require.True(t, proto.Equal(&remoteexecution.ActionResult{
+				StdoutRaw: []byte("Hello, world!"),
+			}, actionResult))
+			return nil
+		})
 	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, contentAddressableStorage, actionCache, &url.URL{
 		Scheme: "https",
 		Host:   "example.com",
@@ -107,12 +115,12 @@ func TestCachingBuildExecutorCachedSuccess(t *testing.T) {
 			SizeBytes: 11,
 		},
 	})
-	require.Equal(t, &remoteexecution.ExecuteResponse{
+	require.True(t, proto.Equal(&remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			StdoutRaw: []byte("Hello, world!"),
 		},
 		Message: "Action details (cached result): https://example.com/action/freebsd12/64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c/11/",
-	}, executeResponse)
+	}, executeResponse))
 	require.True(t, mayBeCached)
 }
 
@@ -132,16 +140,22 @@ func TestCachingBuildExecutorCachedFailure(t *testing.T) {
 		},
 	}, true)
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
-	actionCache := mock.NewMockActionCache(ctrl)
-	actionCache.EXPECT().PutActionResult(
+	actionCache := mock.NewMockBlobAccess(ctrl)
+	actionCache.EXPECT().Put(
 		ctx,
 		util.MustNewDigest("freebsd12", &remoteexecution.Digest{
 			Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
 			SizeBytes: 11,
 		}),
-		&remoteexecution.ActionResult{
-			StdoutRaw: []byte("Hello, world!"),
-		}).Return(status.Error(codes.Internal, "Network problems"))
+		gomock.Any()).DoAndReturn(
+		func(ctx context.Context, digest *util.Digest, b buffer.Buffer) error {
+			actionResult, err := b.ToActionResult(10000)
+			require.NoError(t, err)
+			require.True(t, proto.Equal(&remoteexecution.ActionResult{
+				StdoutRaw: []byte("Hello, world!"),
+			}, actionResult))
+			return status.Error(codes.Internal, "Network problems")
+		})
 	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, contentAddressableStorage, actionCache, &url.URL{
 		Scheme: "https",
 		Host:   "example.com",
@@ -184,16 +198,18 @@ func TestCachingBuildExecutorUncachedSuccess(t *testing.T) {
 				Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
 				SizeBytes: 11,
 			},
-			ActionResult: &remoteexecution.ActionResult{
-				ExitCode:  1,
-				StderrRaw: []byte("Compilation failed"),
+			ExecuteResponse: &remoteexecution.ExecuteResponse{
+				Result: &remoteexecution.ActionResult{
+					ExitCode:  1,
+					StderrRaw: []byte("Compilation failed"),
+				},
 			},
 		},
 		gomock.Any()).Return(util.MustNewDigest("freebsd12", &remoteexecution.Digest{
 		Hash:      "1204703084039248092148032948092148032948034924802194802138213222",
 		SizeBytes: 582,
 	}), nil)
-	actionCache := mock.NewMockActionCache(ctrl)
+	actionCache := mock.NewMockBlobAccess(ctrl)
 	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, contentAddressableStorage, actionCache, &url.URL{
 		Scheme: "https",
 		Host:   "example.com",
@@ -240,13 +256,15 @@ func TestCachingBuildExecutorUncachedFailure(t *testing.T) {
 				Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
 				SizeBytes: 11,
 			},
-			ActionResult: &remoteexecution.ActionResult{
-				ExitCode:  1,
-				StderrRaw: []byte("Compilation failed"),
+			ExecuteResponse: &remoteexecution.ExecuteResponse{
+				Result: &remoteexecution.ActionResult{
+					ExitCode:  1,
+					StderrRaw: []byte("Compilation failed"),
+				},
 			},
 		},
 		gomock.Any()).Return(nil, status.Error(codes.Internal, "Network problems"))
-	actionCache := mock.NewMockActionCache(ctrl)
+	actionCache := mock.NewMockBlobAccess(ctrl)
 	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, contentAddressableStorage, actionCache, &url.URL{
 		Scheme: "https",
 		Host:   "example.com",

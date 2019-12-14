@@ -2,17 +2,16 @@ package blobstore
 
 import (
 	"context"
-	"io"
 	"sync"
 
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
+	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/util"
 )
 
 type pendingPutOperation struct {
-	digest    *util.Digest
-	sizeBytes int64
-	r         io.ReadCloser
+	digest *util.Digest
+	b      buffer.Buffer
 }
 
 type batchedStoreBlobAccess struct {
@@ -62,7 +61,7 @@ func (ba *batchedStoreBlobAccess) flushLocked(ctx context.Context) error {
 		key := digest.GetKey(ba.blobKeyFormat)
 		if pendingPutOperation, ok := ba.pendingPutOperations[key]; ok {
 			delete(ba.pendingPutOperations, key)
-			if err := ba.BlobAccess.Put(ctx, pendingPutOperation.digest, pendingPutOperation.sizeBytes, pendingPutOperation.r); err != nil {
+			if err := ba.BlobAccess.Put(ctx, pendingPutOperation.digest, pendingPutOperation.b); err != nil {
 				return err
 			}
 		}
@@ -70,19 +69,19 @@ func (ba *batchedStoreBlobAccess) flushLocked(ctx context.Context) error {
 
 	// Discard the others.
 	for _, pendingPutOperation := range ba.pendingPutOperations {
-		pendingPutOperation.r.Close()
+		pendingPutOperation.b.Discard()
 	}
 	ba.pendingPutOperations = map[string]pendingPutOperation{}
 	return nil
 }
 
-func (ba *batchedStoreBlobAccess) Put(ctx context.Context, digest *util.Digest, sizeBytes int64, r io.ReadCloser) error {
+func (ba *batchedStoreBlobAccess) Put(ctx context.Context, digest *util.Digest, b buffer.Buffer) error {
 	// First flush the existing files if there are too many pending.
 	ba.lock.Lock()
 	defer ba.lock.Unlock()
 	if len(ba.pendingPutOperations) >= ba.batchSize {
 		if err := ba.flushLocked(ctx); err != nil {
-			r.Close()
+			b.Discard()
 			return err
 		}
 	}
@@ -90,13 +89,13 @@ func (ba *batchedStoreBlobAccess) Put(ctx context.Context, digest *util.Digest, 
 	// Discard duplicate writes.
 	key := digest.GetKey(ba.blobKeyFormat)
 	if _, ok := ba.pendingPutOperations[key]; ok {
-		return r.Close()
+		b.Discard()
+		return nil
 	}
 
 	ba.pendingPutOperations[key] = pendingPutOperation{
-		digest:    digest,
-		sizeBytes: sizeBytes,
-		r:         r,
+		digest: digest,
+		b:      b,
 	}
 	return nil
 }

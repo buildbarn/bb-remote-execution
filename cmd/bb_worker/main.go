@@ -17,10 +17,10 @@ import (
 	cas_re "github.com/buildbarn/bb-remote-execution/pkg/cas"
 	"github.com/buildbarn/bb-remote-execution/pkg/environment"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/scheduler"
-	"github.com/buildbarn/bb-storage/pkg/ac"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	blobstore_configuration "github.com/buildbarn/bb-storage/pkg/blobstore/configuration"
 	"github.com/buildbarn/bb-storage/pkg/cas"
+	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/grpc-ecosystem/go-grpc-prometheus"
@@ -57,7 +57,9 @@ func main() {
 	}()
 
 	// Storage access.
-	contentAddressableStorageBlobAccess, actionCacheBlobAccess, err := blobstore_configuration.CreateBlobAccessObjectsFromConfig(workerConfiguration.Blobstore)
+	contentAddressableStorageBlobAccess, actionCache, err := blobstore_configuration.CreateBlobAccessObjectsFromConfig(
+		workerConfiguration.Blobstore,
+		int(workerConfiguration.MaximumMessageSizeBytes))
 	if err != nil {
 		log.Fatal("Failed to create blob access: ", err)
 	}
@@ -83,11 +85,10 @@ func main() {
 		cas_re.NewHardlinkingContentAddressableStorage(
 			cas.NewBlobAccessContentAddressableStorage(
 				re_blobstore.NewExistencePreconditionBlobAccess(contentAddressableStorageBlobAccess),
-				workerConfiguration.MaximumMessageSizeBytes),
+				int(workerConfiguration.MaximumMessageSizeBytes)),
 			util.DigestKeyWithoutInstance, cacheDirectory,
 			int(workerConfiguration.MaximumCacheFileCount), int64(workerConfiguration.MaximumCacheSizeBytes)),
 		util.DigestKeyWithoutInstance, int(workerConfiguration.MaximumMemoryCachedDirectories))
-	actionCache := ac.NewBlobAccessActionCache(actionCacheBlobAccess)
 
 	// Create connection with scheduler.
 	schedulerConnection, err := grpc.Dial(
@@ -141,12 +142,13 @@ func main() {
 				util.DigestKeyWithoutInstance, 100)
 			contentAddressableStorageWriter = blobstore.NewMetricsBlobAccess(
 				contentAddressableStorageWriter,
+				clock.SystemClock,
 				"cas_batched_store")
 			contentAddressableStorage := cas_re.NewReadWriteDecouplingContentAddressableStorage(
 				contentAddressableStorageReader,
 				cas.NewBlobAccessContentAddressableStorage(
 					contentAddressableStorageWriter,
-					workerConfiguration.MaximumMessageSizeBytes))
+					int(workerConfiguration.MaximumMessageSizeBytes)))
 			buildExecutor := builder.NewStorageFlushingBuildExecutor(
 				builder.NewCachingBuildExecutor(
 					builder.NewLocalBuildExecutor(

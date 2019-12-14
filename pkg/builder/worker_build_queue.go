@@ -29,7 +29,7 @@ type workerBuildJob struct {
 	executeRequest   remoteexecution.ExecuteRequest
 	insertionOrder   uint64
 
-	stage                   remoteexecution.ExecuteOperationMetadata_Stage
+	stage                   remoteexecution.ExecutionStage_Value
 	executeResponse         *remoteexecution.ExecuteResponse
 	executeTransitionWakeup *sync.Cond
 }
@@ -137,18 +137,14 @@ func NewWorkerBuildQueue(deduplicationKeyFormat util.DigestKeyFormat, jobsPendin
 func (bq *workerBuildQueue) GetCapabilities(ctx context.Context, in *remoteexecution.GetCapabilitiesRequest) (*remoteexecution.ServerCapabilities, error) {
 	return &remoteexecution.ServerCapabilities{
 		CacheCapabilities: &remoteexecution.CacheCapabilities{
-			DigestFunction: []remoteexecution.DigestFunction{
-				remoteexecution.DigestFunction_MD5,
-				remoteexecution.DigestFunction_SHA1,
-				remoteexecution.DigestFunction_SHA256,
-			},
+			DigestFunction: util.SupportedDigestFunctions,
 			ActionCacheUpdateCapabilities: &remoteexecution.ActionCacheUpdateCapabilities{
 				// TODO(edsch): Let the frontend flip this to true when enabled?
 				UpdateEnabled: false,
 			},
 			// CachePriorityCapabilities: Priorities not supported.
 			// MaxBatchTotalSize: Not used by Bazel yet.
-			SymlinkAbsolutePathStrategy: remoteexecution.CacheCapabilities_ALLOWED,
+			SymlinkAbsolutePathStrategy: remoteexecution.SymlinkAbsolutePathStrategy_ALLOWED,
 		},
 		ExecutionCapabilities: &remoteexecution.ExecutionCapabilities{
 			DigestFunction: remoteexecution.DigestFunction_SHA256,
@@ -188,7 +184,7 @@ func (bq *workerBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out remo
 			deduplicationKey:        deduplicationKey,
 			executeRequest:          *in,
 			insertionOrder:          bq.nextInsertionOrder,
-			stage:                   remoteexecution.ExecuteOperationMetadata_QUEUED,
+			stage:                   remoteexecution.ExecutionStage_QUEUED,
 			executeTransitionWakeup: sync.NewCond(&bq.jobsLock),
 		}
 		bq.jobsNameMap[job.name] = job
@@ -241,7 +237,7 @@ func (bq *workerBuildQueue) GetWork(stream scheduler.Scheduler_GetWorkServer) er
 
 		// Extract job from queue.
 		job := heap.Pop(&bq.jobsPending).(*workerBuildJob)
-		job.stage = remoteexecution.ExecuteOperationMetadata_EXECUTING
+		job.stage = remoteexecution.ExecutionStage_EXECUTING
 
 		// Perform execution of the job.
 		bq.jobsLock.Unlock()
@@ -250,7 +246,7 @@ func (bq *workerBuildQueue) GetWork(stream scheduler.Scheduler_GetWorkServer) er
 
 		// Mark completion.
 		delete(bq.jobsDeduplicationMap, job.deduplicationKey)
-		job.stage = remoteexecution.ExecuteOperationMetadata_COMPLETED
+		job.stage = remoteexecution.ExecutionStage_COMPLETED
 		job.executeResponse = executeResponse
 		job.executeTransitionWakeup.Broadcast()
 	}
