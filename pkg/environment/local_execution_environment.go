@@ -87,7 +87,7 @@ func (e *localExecutionEnvironment) Run(ctx context.Context, request *runner.Run
 		return nil, util.StatusWrap(err, "Failed to open stderr")
 	}
 	cmd.Stderr = stderr
-
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	// Start the subprocess. We can already close the output files
 	// while the process is running.
 	err = cmd.Start()
