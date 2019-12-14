@@ -1,0 +1,36 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "directory_backed_file_pool.go",
+        "file_pool.go",
+        "in_memory_file_pool.go",
+        "quota_enforcing_file_pool.go",
+    ],
+    importpath = "github.com/buildbarn/bb-remote-execution/pkg/filesystem",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_buildbarn_bb_storage//pkg/filesystem:go_default_library",
+        "@org_golang_google_grpc//codes:go_default_library",
+        "@org_golang_google_grpc//status:go_default_library",
+    ],
+)
+
+go_test(
+    name = "go_default_test",
+    srcs = [
+        "directory_backed_file_pool_test.go",
+        "in_memory_file_pool_test.go",
+        "quota_enforcing_file_pool_test.go",
+    ],
+    embed = [":go_default_library"],
+    deps = [
+        "//internal/mock:go_default_library",
+        "@com_github_buildbarn_bb_storage//pkg/filesystem:go_default_library",
+        "@com_github_golang_mock//gomock:go_default_library",
+        "@com_github_stretchr_testify//require:go_default_library",
+        "@org_golang_google_grpc//codes:go_default_library",
+        "@org_golang_google_grpc//status:go_default_library",
+    ],
+)
