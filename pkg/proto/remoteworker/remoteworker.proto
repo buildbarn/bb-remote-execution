@@ -1,0 +1,166 @@
+syntax = "proto3";
+
+package buildbarn.remoteworker;
+
+import "build/bazel/remote/execution/v2/remote_execution.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker";
+
+// Buildbarn's workers connect to the scheduler to receive instructions
+// on what they should be doing. They can either be instructed to be
+// idle or to execute a build action. They can also report their state
+// to the scheduler. The purpose of reporting state is twofold:
+//
+// - Upon completion of a build action, the worker reports the outcome
+//   of the build action, so that it may be communicated back to a
+//   client.
+// - It allows for centralized management/insight in the functioning of
+//   the build cluster.
+//
+// All of this exchange of information takes place through a single type
+// of RPC named Synchronize(), called by the worker against the
+// scheduler. The worker provides information about its identity and its
+// current state. The scheduler responds with instructions on whether to
+// do something different or to continue.
+//
+// Every response contains a timestamp that instructs the worker when to
+// resynchronize. Calls to Synchronize() are guaranteed to be
+// non-blocking when it is executing a build action. They may be
+// blocking in case the worker is idle or reporting the completion of a
+// build action.  In that case the scheduler may decide to let the call
+// hang until more work is available.
+service OperationQueue {
+  rpc Synchronize(SynchronizeRequest) returns (SynchronizeResponse);
+}
+
+message SynchronizeRequest {
+  // Set of key-value properties that uniquely identify (a thread of) a
+  // worker capable of executing actions. These properties are not
+  // intended to describe the execution capabilities of the worker, nor
+  // should individual elements be interpreted by the scheduler.
+  //
+  // These properties are present to permit the scheduler to associate
+  // internal state with a worker. They may also be displayed as part of
+  // logs, dashboards, etc.
+  map<string, string> worker_id = 1;
+
+  // The instance of the execution system to operate against. A
+  // scheduler may support multiple instances of the execution system
+  // (with their own workers, storage, caches, etc.).
+  string instance_name = 2;
+
+  // The platform features available for the execution environment. The
+  // scheduler uses these features to determine which actions are
+  // eligible to be executed on this worker.
+  build.bazel.remote.execution.v2.Platform platform = 3;
+
+  // The kind of activity the worker is currently performing.
+  CurrentState current_state = 4;
+}
+
+message CurrentState {
+  message Executing {
+    // The digest of the action currently being executed. This digest
+    // must be set the value obtained through
+    // DesiredState.Executing.action_digest.
+    build.bazel.remote.execution.v2.Digest action_digest = 1;
+
+    oneof execution_state {
+      // The worker is initializing its build environment.
+      google.protobuf.Empty started = 2;
+
+      // The worker is fetching inputs that are a prerequisite for
+      // execution. Prerequisites include the initial file system
+      // contents if instantiated explicitly.
+      google.protobuf.Empty fetching_inputs = 3;
+
+      // The command associated with the action is currently being run.
+      google.protobuf.Empty running = 4;
+
+      // Output files of the action are currently being uploaded.
+      google.protobuf.Empty uploading_outputs = 5;
+
+      // Execution of the action has completed. Results may be
+      // communicated to the client.
+      build.bazel.remote.execution.v2.ExecuteResponse completed = 6;
+    }
+  }
+
+  oneof worker_state {
+    // The worker is currently idle.
+    google.protobuf.Empty idle = 1;
+
+    // The worker is currently executing a Remote Execution action. It
+    // may also be finished executing an action, waiting to receive
+    // information about the next action to run.
+    Executing executing = 2;
+  }
+}
+
+message SynchronizeResponse {
+  // The timestamp at which the worker is supposed to synchronize again.
+  // The worker is permitted to contact the scheduler earlier if any
+  // notable events occur (e.g., execution of an action completes).
+  //
+  // If the worker does not synchronize with the scheduler at around
+  // this time, the scheduler may assume the worker has gone offline.
+  // To compensate for clock inaccuracies, network latency and transient
+  // network failures, the scheduler should tolerate a certain amount of
+  // skew. Schedulers may vary the interval returned to tune the amount
+  // of load received.
+  google.protobuf.Timestamp next_synchronization_at = 1;
+
+  // The state to which the scheduler desires the worker to transition.
+  // This value must be left unset in case the scheduler desires the
+  // worker to remain in its current state. For example, when it wants
+  // the worker to continue executing the currently running build
+  // action.
+  DesiredState desired_state = 2;
+}
+
+message DesiredState {
+  message Executing {
+    // The digest of the action that should be executed.
+    build.bazel.remote.execution.v2.Digest action_digest = 1;
+
+    // The action message corresponding with the action digest. Although
+    // the worker could also load the action from the Content
+    // Addressable Storage, the scheduler also needs to access this
+    // information. It is passed on to prevent duplicate requests
+    // against storage.
+    build.bazel.remote.execution.v2.Action action = 2;
+
+    // The command message corresponding with the action digest.
+    // Although the worker could also load the command from the Content
+    // Addressable Storage, the scheduler also needs to access this
+    // information. It is passed on to prevent duplicate requests
+    // against storage.
+    build.bazel.remote.execution.v2.Command command = 3;
+
+    // The point in time at which the operation associated with this
+    // execution request was created within the scheduler. The worker
+    // can attach this data to ExecutedActionMetadata's
+    // queued_timestamp.
+    google.protobuf.Timestamp queued_timestamp = 4;
+  }
+
+  oneof worker_state {
+    // The worker is currently not idle. The scheduler desires it to be
+    // idle instead. This could for example occur in case the client
+    // providing the build action disappears.
+    //
+    // It is not needed to forcefully switch the worker to idle when the
+    // worker finishes executing a build action and no additional work
+    // is available. The scheduler can decide to let the Synchronize()
+    // call block until more work is available, switching the worker
+    // directly to the next 'Executing' state.
+    google.protobuf.Empty idle = 1;
+
+    // The worker is currently idle, finished executing a build action,
+    // or is running a build action that should be cancelled. The
+    // scheduler desires it to execute another build action instead.
+    Executing executing = 2;
+  }
+}
