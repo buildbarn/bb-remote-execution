@@ -31,17 +31,25 @@ container_layer(
     visibility = ["//visibility:public"],
 )
 
+container_layer(
+    name = "tini_layer",
+    files = ["@com_github_krallin_tini_tini_static_amd64//file"],
+)
+
 container_image(
     name = "bb_runner_ubuntu16_04_container",
     base = "@rbe_ubuntu16_04_base//image",
-    cmd = [
-        "-temp-directory=/tmp",
-        "-temp-directory=/var/tmp",
+    entrypoint = [
+        "/tini",
+        "-v",
+        "-g",
+        "--",
+        "/bb_runner",
     ],
-    entrypoint = ["/bb_runner"],
     layers = [
         ":bb_runner_layer",
         ":passwd_layer",
+        ":tini_layer",
     ],
     user = "build",
     visibility = ["//visibility:public"],
