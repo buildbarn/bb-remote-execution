@@ -2,7 +2,6 @@ package builder
 
 import (
 	"context"
-	"math"
 	"os"
 	"path"
 	"strings"
@@ -10,95 +9,41 @@ import (
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/pkg/environment"
+	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
 	"github.com/buildbarn/bb-storage/pkg/cas"
+	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/golang/protobuf/proto"
-	"github.com/prometheus/client_golang/prometheus"
+	"github.com/golang/protobuf/ptypes"
+	"github.com/golang/protobuf/ptypes/empty"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-var (
-	localBuildExecutorDurationSeconds = prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Namespace: "buildbarn",
-			Subsystem: "builder",
-			Name:      "local_build_executor_duration_seconds",
-			Help:      "Amount of time spent per build execution step, in seconds.",
-			Buckets:   prometheus.ExponentialBuckets(0.001, math.Pow(10.0, 1.0/3.0), 6*3+1),
-		},
-		[]string{"step"})
-	localBuildExecutorDurationSecondsPrepareFilesystem = localBuildExecutorDurationSeconds.WithLabelValues("PrepareFilesystem")
-	localBuildExecutorDurationSecondsGetActionCommand  = localBuildExecutorDurationSeconds.WithLabelValues("GetActionCommand")
-	localBuildExecutorDurationSecondsRunCommand        = localBuildExecutorDurationSeconds.WithLabelValues("RunCommand")
-	localBuildExecutorDurationSecondsUploadOutput      = localBuildExecutorDurationSeconds.WithLabelValues("UploadOutput")
-)
-
-func init() {
-	prometheus.MustRegister(localBuildExecutorDurationSeconds)
-}
-
 type localBuildExecutor struct {
 	contentAddressableStorage cas.ContentAddressableStorage
 	environmentManager        environment.Manager
+	inputRootPopulator        InputRootPopulator
+	clock                     clock.Clock
+	defaultExecutionTimeout   time.Duration
+	maximumExecutionTimeout   time.Duration
 }
 
 // NewLocalBuildExecutor returns a BuildExecutor that executes build
 // steps on the local system.
-func NewLocalBuildExecutor(contentAddressableStorage cas.ContentAddressableStorage, environmentManager environment.Manager) BuildExecutor {
+func NewLocalBuildExecutor(contentAddressableStorage cas.ContentAddressableStorage, environmentManager environment.Manager, inputRootPopulator InputRootPopulator, clock clock.Clock, defaultExecutionTimeout time.Duration, maximumExecutionTimeout time.Duration) BuildExecutor {
 	return &localBuildExecutor{
 		contentAddressableStorage: contentAddressableStorage,
 		environmentManager:        environmentManager,
+		inputRootPopulator:        inputRootPopulator,
+		clock:                     clock,
+		defaultExecutionTimeout:   defaultExecutionTimeout,
+		maximumExecutionTimeout:   maximumExecutionTimeout,
 	}
-}
-
-func (be *localBuildExecutor) createInputDirectory(ctx context.Context, partialDigest *remoteexecution.Digest, parentDigest *util.Digest, inputDirectory filesystem.Directory, components []string) error {
-	// Obtain directory.
-	digest, err := parentDigest.NewDerivedDigest(partialDigest)
-	if err != nil {
-		return util.StatusWrapf(err, "Failed to extract digest for input directory %#v", path.Join(components...))
-	}
-	directory, err := be.contentAddressableStorage.GetDirectory(ctx, digest)
-	if err != nil {
-		return util.StatusWrapf(err, "Failed to obtain input directory %#v", path.Join(components...))
-	}
-
-	// Create children.
-	for _, file := range directory.Files {
-		childComponents := append(components, file.Name)
-		childDigest, err := digest.NewDerivedDigest(file.Digest)
-		if err != nil {
-			return util.StatusWrapf(err, "Failed to extract digest for input file %#v", path.Join(childComponents...))
-		}
-		if err := be.contentAddressableStorage.GetFile(ctx, childDigest, inputDirectory, file.Name, file.IsExecutable); err != nil {
-			return util.StatusWrapf(err, "Failed to obtain input file %#v", path.Join(childComponents...))
-		}
-	}
-	for _, directory := range directory.Directories {
-		childComponents := append(components, directory.Name)
-		if err := inputDirectory.Mkdir(directory.Name, 0777); err != nil {
-			return util.StatusWrapf(err, "Failed to create input directory %#v", path.Join(childComponents...))
-		}
-		childDirectory, err := inputDirectory.Enter(directory.Name)
-		if err != nil {
-			return util.StatusWrapf(err, "Failed to enter input directory %#v", path.Join(childComponents...))
-		}
-		err = be.createInputDirectory(ctx, directory.Digest, digest, childDirectory, childComponents)
-		childDirectory.Close()
-		if err != nil {
-			return err
-		}
-	}
-	for _, symlink := range directory.Symlinks {
-		childComponents := append(components, symlink.Name)
-		if err := inputDirectory.Symlink(symlink.Target, symlink.Name); err != nil {
-			return util.StatusWrapf(err, "Failed to create input symlink %#v", path.Join(childComponents...))
-		}
-	}
-	return nil
 }
 
 func (be *localBuildExecutor) uploadDirectory(ctx context.Context, outputDirectory filesystem.Directory, parentDigest *util.Digest, children map[string]*remoteexecution.Directory, components []string) (*remoteexecution.Directory, error) {
@@ -210,41 +155,84 @@ func (be *localBuildExecutor) createOutputParentDirectory(buildDirectory filesys
 	return d, nil
 }
 
-func (be *localBuildExecutor) Execute(ctx context.Context, request *remoteexecution.ExecuteRequest) (*remoteexecution.ExecuteResponse, bool) {
-	timeStart := time.Now()
+func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, instanceName string, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+	response := &remoteexecution.ExecuteResponse{
+		Result: &remoteexecution.ActionResult{
+			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
+		},
+	}
 
-	// Fetch action and command.
-	actionDigest, err := util.NewDigest(request.InstanceName, request.ActionDigest)
-	if err != nil {
-		return convertErrorToExecuteResponse(util.StatusWrap(err, "Failed to extract digest for action")), false
+	// Timeout handling.
+	action := request.Action
+	if action == nil {
+		attachErrorToExecuteResponse(response, status.Error(codes.InvalidArgument, "Request does not contain an action"))
+		return response
 	}
-	action, err := be.contentAddressableStorage.GetAction(ctx, actionDigest)
-	if err != nil {
-		return convertErrorToExecuteResponse(util.StatusWrap(err, "Failed to obtain action")), false
+	var executionTimeout time.Duration
+	if action.Timeout == nil {
+		executionTimeout = be.defaultExecutionTimeout
+	} else {
+		var err error
+		executionTimeout, err = ptypes.Duration(action.Timeout)
+		if err != nil {
+			attachErrorToExecuteResponse(
+				response,
+				util.StatusWrapWithCode(err, codes.InvalidArgument, "Invalid execution timeout"))
+			return response
+		}
+		if executionTimeout > be.maximumExecutionTimeout {
+			attachErrorToExecuteResponse(
+				response,
+				status.Errorf(
+					codes.InvalidArgument,
+					"Execution timeout of %s exceeds maximum permitted value of %s",
+					executionTimeout,
+					be.maximumExecutionTimeout))
+			return response
+		}
 	}
-	commandDigest, err := actionDigest.NewDerivedDigest(action.CommandDigest)
-	if err != nil {
-		return convertErrorToExecuteResponse(util.StatusWrap(err, "Failed to extract digest for command")), false
-	}
-	command, err := be.contentAddressableStorage.GetCommand(ctx, commandDigest)
-	if err != nil {
-		return convertErrorToExecuteResponse(util.StatusWrap(err, "Failed to obtain command")), false
-	}
-	timeAfterGetActionCommand := time.Now()
-	localBuildExecutorDurationSecondsGetActionCommand.Observe(
-		timeAfterGetActionCommand.Sub(timeStart).Seconds())
 
 	// Obtain build environment.
+	actionDigest, err := util.NewDigest(instanceName, request.ActionDigest)
+	if err != nil {
+		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to extract digest for action"))
+		return response
+	}
+	command := request.Command
+	if command == nil {
+		attachErrorToExecuteResponse(response, status.Error(codes.InvalidArgument, "Request does not contain a command"))
+		return response
+	}
 	environment, err := be.environmentManager.Acquire(actionDigest)
 	if err != nil {
-		return convertErrorToExecuteResponse(util.StatusWrap(err, "Failed to acquire build environment")), false
+		attachErrorToExecuteResponse(
+			response,
+			util.StatusWrap(err, "Failed to acquire build environment"))
+		return response
 	}
 	defer environment.Release()
 
+	executionStateUpdates <- &remoteworker.CurrentState_Executing{
+		ActionDigest: request.ActionDigest,
+		ExecutionState: &remoteworker.CurrentState_Executing_FetchingInputs{
+			FetchingInputs: &empty.Empty{},
+		},
+	}
+
 	// Set up inputs.
+	inputRootDigest, err := actionDigest.NewDerivedDigest(action.InputRootDigest)
+	if err != nil {
+		attachErrorToExecuteResponse(
+			response,
+			util.StatusWrap(err, "Failed to extract digest for input root"))
+		return response
+	}
 	buildDirectory := environment.GetBuildDirectory()
-	if err := be.createInputDirectory(ctx, action.InputRootDigest, actionDigest, buildDirectory, []string{"."}); err != nil {
-		return convertErrorToExecuteResponse(err), false
+	ctxWithIOError, cancelIOError := context.WithCancel(ctx)
+	defer cancelIOError()
+	if err := be.inputRootPopulator.PopulateInputRoot(ctx, filePool, inputRootDigest, buildDirectory); err != nil {
+		attachErrorToExecuteResponse(response, err)
+		return response
 	}
 
 	// Create and open parent directories of where we expect to see output.
@@ -256,12 +244,35 @@ func (be *localBuildExecutor) Execute(ctx context.Context, request *remoteexecut
 		if _, ok := outputParentDirectories[dirPath]; !ok {
 			dir, err := be.createOutputParentDirectory(buildDirectory, dirPath)
 			if err != nil {
-				return convertErrorToExecuteResponse(err), false
+				attachErrorToExecuteResponse(response, err)
+				return response
 			}
 			outputParentDirectories[dirPath] = dir
 			if dir != buildDirectory {
 				defer dir.Close()
 			}
+		}
+
+		// Although REv2 explicitly document that only parents
+		// of output directories are created (i.e., not the
+		// output directory itself), Bazel recently changed its
+		// behaviour to do so after all for local execution. See
+		// these issues for details:
+		//
+		// https://github.com/bazelbuild/bazel/issues/6262
+		// https://github.com/bazelbuild/bazel/issues/6393
+		//
+		// For now, be consistent with Bazel. What the intended
+		// protocol behaviour is should be clarified at some
+		// point. What is especially confusing is that creating
+		// these directories up front somewhat rules out the
+		// possibility of omitting output directories and using
+		// OutputDirectorySymlinks.
+		if err := outputParentDirectories[dirPath].Mkdir(path.Base(outputDirectory), 0777); err != nil && !os.IsExist(err) {
+			attachErrorToExecuteResponse(
+				response,
+				util.StatusWrapf(err, "Failed to create output directory %#v", outputDirectory))
+			return response
 		}
 	}
 	for _, outputFile := range command.OutputFiles {
@@ -269,7 +280,8 @@ func (be *localBuildExecutor) Execute(ctx context.Context, request *remoteexecut
 		if _, ok := outputParentDirectories[dirPath]; !ok {
 			dir, err := be.createOutputParentDirectory(buildDirectory, dirPath)
 			if err != nil {
-				return convertErrorToExecuteResponse(err), false
+				attachErrorToExecuteResponse(response, err)
+				return response
 			}
 			outputParentDirectories[dirPath] = dir
 			if dir != buildDirectory {
@@ -278,50 +290,54 @@ func (be *localBuildExecutor) Execute(ctx context.Context, request *remoteexecut
 		}
 	}
 
-	timeAfterPrepareFilesytem := time.Now()
-	localBuildExecutorDurationSecondsPrepareFilesystem.Observe(
-		timeAfterPrepareFilesytem.Sub(timeAfterGetActionCommand).Seconds())
+	executionStateUpdates <- &remoteworker.CurrentState_Executing{
+		ActionDigest: request.ActionDigest,
+		ExecutionState: &remoteworker.CurrentState_Executing_Running{
+			Running: &empty.Empty{},
+		},
+	}
 
-	// Invoke command.
+	// Invoke the command.
+	ctxWithTimeout, cancelTimeout := be.clock.NewContextWithTimeout(ctxWithIOError, executionTimeout)
+	defer cancelTimeout()
 	environmentVariables := map[string]string{}
 	for _, environmentVariable := range command.EnvironmentVariables {
 		environmentVariables[environmentVariable.Name] = environmentVariable.Value
 	}
-	runResponse, err := environment.Run(ctx, &runner.RunRequest{
+	runResponse, runErr := environment.Run(ctxWithTimeout, &runner.RunRequest{
 		Arguments:            command.Arguments,
 		EnvironmentVariables: environmentVariables,
 		WorkingDirectory:     command.WorkingDirectory,
 		StdoutPath:           ".stdout.txt",
 		StderrPath:           ".stderr.txt",
 	})
-	if err != nil {
-		return convertErrorToExecuteResponse(err), false
-	}
-	timeAfterRunCommand := time.Now()
-	localBuildExecutorDurationSecondsRunCommand.Observe(
-		timeAfterRunCommand.Sub(timeAfterPrepareFilesytem).Seconds())
 
-	response := &remoteexecution.ExecuteResponse{
-		Result: &remoteexecution.ActionResult{
-			ExitCode: runResponse.ExitCode,
+	// Attach the exit code or execution error.
+	if runErr == nil {
+		response.Result.ExitCode = runResponse.ExitCode
+		response.Result.ExecutionMetadata.AuxiliaryMetadata = runResponse.ResourceUsage
+	} else {
+		attachErrorToExecuteResponse(response, util.StatusWrap(runErr, "Failed to run command"))
+	}
+
+	executionStateUpdates <- &remoteworker.CurrentState_Executing{
+		ActionDigest: request.ActionDigest,
+		ExecutionState: &remoteworker.CurrentState_Executing_UploadingOutputs{
+			UploadingOutputs: &empty.Empty{},
 		},
 	}
 
 	// Upload command output. In the common case, the files are
 	// empty. If that's the case, don't bother setting the digest to
 	// keep the ActionResult small.
-	stdoutDigest, err := be.contentAddressableStorage.PutFile(ctx, buildDirectory, ".stdout.txt", actionDigest)
-	if err != nil {
-		return convertErrorToExecuteResponse(util.StatusWrap(err, "Failed to store stdout")), false
-	}
-	if stdoutDigest.GetSizeBytes() > 0 {
+	if stdoutDigest, err := be.contentAddressableStorage.PutFile(ctx, buildDirectory, ".stdout.txt", actionDigest); err != nil {
+		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to store stdout"))
+	} else if stdoutDigest.GetSizeBytes() > 0 {
 		response.Result.StdoutDigest = stdoutDigest.GetPartialDigest()
 	}
-	stderrDigest, err := be.contentAddressableStorage.PutFile(ctx, buildDirectory, ".stderr.txt", actionDigest)
-	if err != nil {
-		return convertErrorToExecuteResponse(util.StatusWrap(err, "Failed to store stderr")), false
-	}
-	if stderrDigest.GetSizeBytes() > 0 {
+	if stderrDigest, err := be.contentAddressableStorage.PutFile(ctx, buildDirectory, ".stderr.txt", actionDigest); err != nil {
+		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to store stderr"))
+	} else if stderrDigest.GetSizeBytes() > 0 {
 		response.Result.StderrDigest = stderrDigest.GetPartialDigest()
 	}
 
@@ -329,35 +345,40 @@ func (be *localBuildExecutor) Execute(ctx context.Context, request *remoteexecut
 	for _, outputFile := range command.OutputFiles {
 		outputParentDirectory := outputParentDirectories[path.Dir(outputFile)]
 		outputBaseName := path.Base(outputFile)
-		fileInfo, err := outputParentDirectory.Lstat(outputBaseName)
-		if err != nil {
-			if os.IsNotExist(err) {
-				continue
+		if fileInfo, err := outputParentDirectory.Lstat(outputBaseName); err == nil {
+			switch fileType := fileInfo.Type(); fileType {
+			case filesystem.FileTypeRegularFile, filesystem.FileTypeExecutableFile:
+				if digest, err := be.contentAddressableStorage.PutFile(ctx, outputParentDirectory, outputBaseName, actionDigest); err == nil {
+					response.Result.OutputFiles = append(response.Result.OutputFiles, &remoteexecution.OutputFile{
+						Path:         outputFile,
+						Digest:       digest.GetPartialDigest(),
+						IsExecutable: fileType == filesystem.FileTypeExecutableFile,
+					})
+				} else {
+					attachErrorToExecuteResponse(
+						response,
+						util.StatusWrapf(err, "Failed to store output file %#v", outputFile))
+				}
+			case filesystem.FileTypeSymlink:
+				if target, err := outputParentDirectory.Readlink(outputBaseName); err == nil {
+					response.Result.OutputFileSymlinks = append(response.Result.OutputFileSymlinks, &remoteexecution.OutputSymlink{
+						Path:   outputFile,
+						Target: target,
+					})
+				} else {
+					attachErrorToExecuteResponse(
+						response,
+						util.StatusWrapf(err, "Failed to read output symlink %#v", outputFile))
+				}
+			default:
+				attachErrorToExecuteResponse(
+					response,
+					status.Errorf(codes.Internal, "Output file %#v is not a regular file or symlink", outputFile))
 			}
-			return convertErrorToExecuteResponse(util.StatusWrapf(err, "Failed to read attributes of output file %#v", outputFile)), false
-		}
-		switch fileType := fileInfo.Type(); fileType {
-		case filesystem.FileTypeRegularFile, filesystem.FileTypeExecutableFile:
-			digest, err := be.contentAddressableStorage.PutFile(ctx, outputParentDirectory, outputBaseName, actionDigest)
-			if err != nil {
-				return convertErrorToExecuteResponse(util.StatusWrapf(err, "Failed to store output file %#v", outputFile)), false
-			}
-			response.Result.OutputFiles = append(response.Result.OutputFiles, &remoteexecution.OutputFile{
-				Path:         outputFile,
-				Digest:       digest.GetPartialDigest(),
-				IsExecutable: fileType == filesystem.FileTypeExecutableFile,
-			})
-		case filesystem.FileTypeSymlink:
-			target, err := outputParentDirectory.Readlink(outputBaseName)
-			if err != nil {
-				return convertErrorToExecuteResponse(util.StatusWrapf(err, "Failed to read output symlink %#v", outputFile)), false
-			}
-			response.Result.OutputFileSymlinks = append(response.Result.OutputFileSymlinks, &remoteexecution.OutputSymlink{
-				Path:   outputFile,
-				Target: target,
-			})
-		default:
-			return convertErrorToExecuteResponse(status.Errorf(codes.Internal, "Output file %#v is not a regular file or symlink", outputFile)), false
+		} else if !os.IsNotExist(err) {
+			attachErrorToExecuteResponse(
+				response,
+				util.StatusWrapf(err, "Failed to read attributes of output file %#v", outputFile))
 		}
 	}
 
@@ -365,47 +386,46 @@ func (be *localBuildExecutor) Execute(ctx context.Context, request *remoteexecut
 	for _, outputDirectory := range command.OutputDirectories {
 		outputParentDirectory := outputParentDirectories[path.Dir(outputDirectory)]
 		outputBaseName := path.Base(outputDirectory)
-		fileInfo, err := outputParentDirectory.Lstat(outputBaseName)
-		if err != nil {
-			if os.IsNotExist(err) {
-				continue
+		if fileInfo, err := outputParentDirectory.Lstat(outputBaseName); err == nil {
+			switch fileInfo.Type() {
+			case filesystem.FileTypeDirectory:
+				if directory, err := outputParentDirectory.Enter(outputBaseName); err == nil {
+					if digest, err := be.uploadTree(ctx, directory, actionDigest, []string{outputDirectory}); err == nil {
+						response.Result.OutputDirectories = append(response.Result.OutputDirectories, &remoteexecution.OutputDirectory{
+							Path:       outputDirectory,
+							TreeDigest: digest.GetPartialDigest(),
+						})
+					} else {
+						attachErrorToExecuteResponse(response, err)
+					}
+					directory.Close()
+				} else {
+					attachErrorToExecuteResponse(
+						response,
+						util.StatusWrapf(err, "Failed to enter output directory %#v", outputDirectory))
+				}
+			case filesystem.FileTypeSymlink:
+				if target, err := outputParentDirectory.Readlink(outputBaseName); err == nil {
+					response.Result.OutputDirectorySymlinks = append(response.Result.OutputDirectorySymlinks, &remoteexecution.OutputSymlink{
+						Path:   outputDirectory,
+						Target: target,
+					})
+				} else {
+					attachErrorToExecuteResponse(
+						response,
+						util.StatusWrapf(err, "Failed to read output symlink %#v", outputDirectory))
+				}
+			default:
+				attachErrorToExecuteResponse(
+					response,
+					status.Errorf(codes.Internal, "Output file %#v is not a directory or symlink", outputDirectory))
 			}
-			return convertErrorToExecuteResponse(util.StatusWrapf(err, "Failed to read attributes of output directory %#v", outputDirectory)), false
-		}
-		switch fileInfo.Type() {
-		case filesystem.FileTypeDirectory:
-			directory, err := outputParentDirectory.Enter(outputBaseName)
-			if err != nil {
-				return convertErrorToExecuteResponse(util.StatusWrapf(err, "Failed to enter output directory %#v", outputDirectory)), false
-			}
-			digest, err := be.uploadTree(ctx, directory, actionDigest, []string{outputDirectory})
-			directory.Close()
-			if err != nil {
-				return convertErrorToExecuteResponse(err), false
-			}
-			if digest != nil {
-				response.Result.OutputDirectories = append(response.Result.OutputDirectories, &remoteexecution.OutputDirectory{
-					Path:       outputDirectory,
-					TreeDigest: digest.GetPartialDigest(),
-				})
-			}
-		case filesystem.FileTypeSymlink:
-			target, err := outputParentDirectory.Readlink(outputBaseName)
-			if err != nil {
-				return convertErrorToExecuteResponse(util.StatusWrapf(err, "Failed to read output symlink %#v", outputDirectory)), false
-			}
-			response.Result.OutputDirectorySymlinks = append(response.Result.OutputDirectorySymlinks, &remoteexecution.OutputSymlink{
-				Path:   outputDirectory,
-				Target: target,
-			})
-		default:
-			return convertErrorToExecuteResponse(status.Errorf(codes.Internal, "Output file %#v is not a directory or symlink", outputDirectory)), false
+		} else if !os.IsNotExist(err) {
+			attachErrorToExecuteResponse(
+				response,
+				util.StatusWrapf(err, "Failed to read attributes of output directory %#v", outputDirectory))
 		}
 	}
 
-	timeAfterUpload := time.Now()
-	localBuildExecutorDurationSecondsUploadOutput.Observe(
-		timeAfterUpload.Sub(timeAfterRunCommand).Seconds())
-
-	return response, !action.DoNotCache && response.Result.ExitCode == 0
+	return response
 }
