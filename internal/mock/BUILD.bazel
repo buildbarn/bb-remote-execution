@@ -28,6 +28,17 @@ gomock(
 )
 
 gomock(
+    name = "clock",
+    out = "clock.go",
+    interfaces = [
+        "Clock",
+        "Timer",
+    ],
+    library = "@com_github_buildbarn_bb_storage//pkg/clock:go_default_library",
+    package = "mock",
+)
+
+gomock(
     name = "environment",
     out = "environment.go",
     interfaces = [
@@ -93,18 +104,28 @@ gomock(
     package = "mock",
 )
 
+gomock(
+    name = "storage_util",
+    out = "storage_util.go",
+    interfaces = ["UUIDGenerator"],
+    library = "@com_github_buildbarn_bb_storage//pkg/util:go_default_library",
+    package = "mock",
+)
+
 go_library(
     name = "go_default_library",
     srcs = [
         ":blobstore.go",
         ":builder.go",
         ":cas.go",
+        ":clock.go",
         ":environment.go",
         ":filesystem.go",
         ":filesystem_re.go",
         ":remoteexecution.go",
         ":sharding.go",
         ":storage_builder.go",
+        ":storage_util.go",
     ],
     importpath = "github.com/buildbarn/bb-remote-execution/internal/mock",
     visibility = ["//:__subpackages__"],
@@ -116,10 +137,12 @@ go_library(
         "@com_github_buildbarn_bb_storage//pkg/blobstore/buffer:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/blobstore/sharding:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/builder:go_default_library",
+        "@com_github_buildbarn_bb_storage//pkg/clock:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/filesystem:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/proto/cas:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/util:go_default_library",
         "@com_github_golang_mock//gomock:go_default_library",
+        "@com_github_google_uuid//:go_default_library",
         "@go_googleapis//google/longrunning:longrunning_go_proto",
         "@org_golang_google_grpc//metadata:go_default_library",
     ],

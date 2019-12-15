@@ -7,7 +7,10 @@ proto_library(
     name = "bb_scheduler_proto",
     srcs = ["bb_scheduler.proto"],
     visibility = ["//visibility:public"],
-    deps = ["@com_github_buildbarn_bb_storage//pkg/proto/configuration/grpc:grpc_proto"],
+    deps = [
+        "@com_github_buildbarn_bb_storage//pkg/proto/configuration/blobstore:blobstore_proto",
+        "@com_github_buildbarn_bb_storage//pkg/proto/configuration/grpc:grpc_proto",
+    ],
 )
 
 go_proto_library(
@@ -15,7 +18,10 @@ go_proto_library(
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_scheduler",
     proto = ":bb_scheduler_proto",
     visibility = ["//visibility:public"],
-    deps = ["@com_github_buildbarn_bb_storage//pkg/proto/configuration/grpc:go_default_library"],
+    deps = [
+        "@com_github_buildbarn_bb_storage//pkg/proto/configuration/blobstore:go_default_library",
+        "@com_github_buildbarn_bb_storage//pkg/proto/configuration/grpc:go_default_library",
+    ],
 )
 
 go_library(
