@@ -4,18 +4,29 @@ load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
 
 go_library(
     name = "go_default_library",
-    srcs = ["main.go"],
+    srcs = [
+        "build_queue_state_service.go",
+        "main.go",
+    ],
     importpath = "github.com/buildbarn/bb-remote-execution/cmd/bb_scheduler",
     visibility = ["//visibility:private"],
     deps = [
+        "//pkg/blobstore:go_default_library",
         "//pkg/builder:go_default_library",
         "//pkg/proto/configuration/bb_scheduler:go_default_library",
-        "//pkg/proto/scheduler:go_default_library",
+        "//pkg/proto/remoteworker:go_default_library",
+        "//pkg/util:go_default_library",
         "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:go_default_library",
+        "@com_github_buildbarn_bb_storage//pkg/blobstore/configuration:go_default_library",
+        "@com_github_buildbarn_bb_storage//pkg/cas:go_default_library",
+        "@com_github_buildbarn_bb_storage//pkg/clock:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/grpc:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/util:go_default_library",
-        "@com_github_prometheus_client_golang//prometheus/promhttp:go_default_library",
+        "@com_github_golang_protobuf//jsonpb:go_default_library_gen",
+        "@com_github_google_uuid//:go_default_library",
+        "@com_github_gorilla_mux//:go_default_library",
         "@org_golang_google_grpc//:go_default_library",
+        "@org_golang_google_grpc//status:go_default_library",
     ],
 )
 
