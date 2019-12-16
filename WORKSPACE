@@ -60,7 +60,7 @@ load("@io_bazel_rules_docker//container:container.bzl", "container_pull")
 
 container_pull(
     name = "rbe_ubuntu16_04_base",
-    digest = "sha256:94d7d8552902d228c32c8c148cc13f0effc2b4837757a6e95b73fdc5c5e4b07b",
+    digest = "sha256:6ad1d0883742bfd30eba81e292c135b95067a6706f3587498374a083b7073cb9",
     registry = "launcher.gcr.io",
     repository = "google/rbe-ubuntu16-04",
 )
