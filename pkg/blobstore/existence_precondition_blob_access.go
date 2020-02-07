@@ -6,7 +6,7 @@ import (
 
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
-	"github.com/buildbarn/bb-storage/pkg/util"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
@@ -27,14 +27,14 @@ func NewExistencePreconditionBlobAccess(blobAccess blobstore.BlobAccess) blobsto
 	}
 }
 
-func (ba *existencePreconditionBlobAccess) Get(ctx context.Context, digest *util.Digest) buffer.Buffer {
+func (ba *existencePreconditionBlobAccess) Get(ctx context.Context, digest digest.Digest) buffer.Buffer {
 	return buffer.WithErrorHandler(
 		ba.BlobAccess.Get(ctx, digest),
 		existencePreconditionErrorHandler{digest: digest})
 }
 
 type existencePreconditionErrorHandler struct {
-	digest *util.Digest
+	digest digest.Digest
 }
 
 func (eh existencePreconditionErrorHandler) OnError(observedErr error) (buffer.Buffer, error) {

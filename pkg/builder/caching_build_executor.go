@@ -11,6 +11,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/cas"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 	cas_proto "github.com/buildbarn/bb-storage/pkg/proto/cas"
 	"github.com/buildbarn/bb-storage/pkg/util"
 
@@ -43,7 +44,7 @@ func NewCachingBuildExecutor(base BuildExecutor, contentAddressableStorage cas.C
 
 func (be *cachingBuildExecutor) Execute(ctx context.Context, filePool filesystem.FilePool, instanceName string, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 	response := be.base.Execute(ctx, filePool, instanceName, request, executionStateUpdates)
-	if actionDigest, err := util.NewDigest(instanceName, request.ActionDigest); err != nil {
+	if actionDigest, err := digest.NewDigestFromPartialDigest(instanceName, request.ActionDigest); err != nil {
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to extract digest for action"))
 	} else if action := request.Action; action == nil {
 		attachErrorToExecuteResponse(response, status.Error(codes.InvalidArgument, "Request does not contain an action"))

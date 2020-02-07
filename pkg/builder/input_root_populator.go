@@ -4,8 +4,8 @@ import (
 	"context"
 
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
-	"github.com/buildbarn/bb-storage/pkg/util"
 )
 
 // InputRootPopulator implements the strategy for populating the build
@@ -14,5 +14,5 @@ import (
 // all files and directories. A more complex strategy may use
 // parallelism.
 type InputRootPopulator interface {
-	PopulateInputRoot(ctx context.Context, filePool re_filesystem.FilePool, digest *util.Digest, inputRoot filesystem.Directory) error
+	PopulateInputRoot(ctx context.Context, filePool re_filesystem.FilePool, digest digest.Digest, inputRoot filesystem.Directory) error
 }

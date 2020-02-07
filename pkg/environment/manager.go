@@ -1,7 +1,7 @@
 package environment
 
 import (
-	"github.com/buildbarn/bb-storage/pkg/util"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 )
 
 // Manager is a factory for Environments in which build actions are run. An
@@ -9,7 +9,7 @@ import (
 // executed. This may allow the Manager to, for example, download container
 // images or set up simulators/emulators.
 type Manager interface {
-	Acquire(actionDigest *util.Digest) (ManagedEnvironment, error)
+	Acquire(actionDigest digest.Digest) (ManagedEnvironment, error)
 }
 
 // ManagedEnvironment is an environment that is owned by a Manager.

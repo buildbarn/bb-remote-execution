@@ -4,11 +4,10 @@ import (
 	"context"
 	"testing"
 
-	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
-	"github.com/buildbarn/bb-storage/pkg/util"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
@@ -21,30 +20,26 @@ func TestBatchedStoreBlobAccessSuccess(t *testing.T) {
 	defer ctrl.Finish()
 
 	baseBlobAccess := mock.NewMockBlobAccess(ctrl)
-	blobAccess, flush := blobstore.NewBatchedStoreBlobAccess(baseBlobAccess, util.DigestKeyWithoutInstance, 2)
+	blobAccess, flush := blobstore.NewBatchedStoreBlobAccess(baseBlobAccess, digest.KeyWithoutInstance, 2)
 
 	// Empty calls to FindMissing() may be generated at any point in
 	// time. It is up to the storage backend to filter those out.
-	baseBlobAccess.EXPECT().FindMissing(ctx, []*util.Digest{}).Return(nil, nil).AnyTimes()
+	baseBlobAccess.EXPECT().FindMissing(ctx, digest.EmptySet).Return(digest.EmptySet, nil).AnyTimes()
 
 	// We should be able to enqueue requests for up to two blobs
 	// without generating any calls on the storage backend.
-	digestEmpty := util.MustNewDigest(
+	digestEmpty := digest.MustNewDigest(
 		"default",
-		&remoteexecution.Digest{
-			Hash:      "d41d8cd98f00b204e9800998ecf8427e",
-			SizeBytes: 0,
-		})
+		"d41d8cd98f00b204e9800998ecf8427e",
+		0)
 	for i := 0; i < 10; i++ {
 		require.NoError(t, blobAccess.Put(ctx, digestEmpty, buffer.NewValidatedBufferFromByteSlice(nil)))
 	}
 
-	digestHello := util.MustNewDigest(
+	digestHello := digest.MustNewDigest(
 		"default",
-		&remoteexecution.Digest{
-			Hash:      "8b1a9953c4611296a827abf8c47804d7",
-			SizeBytes: 5,
-		})
+		"8b1a9953c4611296a827abf8c47804d7",
+		5)
 	for i := 0; i < 10; i++ {
 		require.NoError(t, blobAccess.Put(ctx, digestHello, buffer.NewValidatedBufferFromByteSlice([]byte("Hello"))))
 	}
@@ -53,31 +48,29 @@ func TestBatchedStoreBlobAccessSuccess(t *testing.T) {
 	// blobs to be flushed.
 	baseBlobAccess.EXPECT().FindMissing(
 		ctx,
-		[]*util.Digest{digestHello, digestEmpty}).Return(
-		[]*util.Digest{digestHello}, nil)
+		digest.NewSetBuilder().Add(digestHello).Add(digestEmpty).Build()).Return(
+		digest.NewSetBuilder().Add(digestHello).Build(), nil)
 	baseBlobAccess.EXPECT().Put(ctx, digestHello, gomock.Any()).DoAndReturn(
-		func(ctx context.Context, digest *util.Digest, b buffer.Buffer) error {
+		func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 			data, err := b.ToByteSlice(100)
 			require.NoError(t, err)
 			require.Equal(t, []byte("Hello"), data)
 			return nil
 		})
 
-	digestGoodbye := util.MustNewDigest(
+	digestGoodbye := digest.MustNewDigest(
 		"default",
-		&remoteexecution.Digest{
-			Hash:      "6fc422233a40a75a1f028e11c3cd1140",
-			SizeBytes: 7,
-		})
+		"6fc422233a40a75a1f028e11c3cd1140",
+		7)
 	require.NoError(t, blobAccess.Put(ctx, digestGoodbye, buffer.NewValidatedBufferFromByteSlice([]byte("Goodbye"))))
 
 	// Flushing should cause the third blob to be written.
 	baseBlobAccess.EXPECT().FindMissing(
 		ctx,
-		[]*util.Digest{digestGoodbye}).Return(
-		[]*util.Digest{digestGoodbye}, nil)
+		digest.NewSetBuilder().Add(digestGoodbye).Build()).Return(
+		digest.NewSetBuilder().Add(digestGoodbye).Build(), nil)
 	baseBlobAccess.EXPECT().Put(ctx, digestGoodbye, gomock.Any()).DoAndReturn(
-		func(ctx context.Context, digest *util.Digest, b buffer.Buffer) error {
+		func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 			data, err := b.ToByteSlice(100)
 			require.NoError(t, err)
 			require.Equal(t, []byte("Goodbye"), data)
@@ -95,30 +88,26 @@ func TestBatchedStoreBlobAccessFailure(t *testing.T) {
 	defer ctrl.Finish()
 
 	baseBlobAccess := mock.NewMockBlobAccess(ctrl)
-	blobAccess, flush := blobstore.NewBatchedStoreBlobAccess(baseBlobAccess, util.DigestKeyWithoutInstance, 2)
+	blobAccess, flush := blobstore.NewBatchedStoreBlobAccess(baseBlobAccess, digest.KeyWithoutInstance, 2)
 
 	// Empty calls to FindMissing() may be generated at any point in
 	// time. It is up to the storage backend to filter those out.
-	baseBlobAccess.EXPECT().FindMissing(ctx, []*util.Digest{}).Return(nil, nil).AnyTimes()
+	baseBlobAccess.EXPECT().FindMissing(ctx, digest.EmptySet).Return(digest.EmptySet, nil).AnyTimes()
 
 	// We should be able to enqueue requests for up to two blobs
 	// without generating any calls on the storage backend.
-	digestEmpty := util.MustNewDigest(
+	digestEmpty := digest.MustNewDigest(
 		"default",
-		&remoteexecution.Digest{
-			Hash:      "d41d8cd98f00b204e9800998ecf8427e",
-			SizeBytes: 0,
-		})
+		"d41d8cd98f00b204e9800998ecf8427e",
+		0)
 	for i := 0; i < 10; i++ {
 		require.NoError(t, blobAccess.Put(ctx, digestEmpty, buffer.NewValidatedBufferFromByteSlice(nil)))
 	}
 
-	digestHello := util.MustNewDigest(
+	digestHello := digest.MustNewDigest(
 		"default",
-		&remoteexecution.Digest{
-			Hash:      "8b1a9953c4611296a827abf8c47804d7",
-			SizeBytes: 5,
-		})
+		"8b1a9953c4611296a827abf8c47804d7",
+		5)
 	for i := 0; i < 10; i++ {
 		require.NoError(t, blobAccess.Put(ctx, digestHello, buffer.NewValidatedBufferFromByteSlice([]byte("Hello"))))
 	}
@@ -129,23 +118,21 @@ func TestBatchedStoreBlobAccessFailure(t *testing.T) {
 	// flushed.
 	baseBlobAccess.EXPECT().FindMissing(
 		ctx,
-		[]*util.Digest{digestHello, digestEmpty}).Return(
-		[]*util.Digest{digestHello}, nil)
+		digest.NewSetBuilder().Add(digestHello).Add(digestEmpty).Build()).Return(
+		digest.NewSetBuilder().Add(digestHello).Build(), nil)
 	baseBlobAccess.EXPECT().Put(
 		ctx, digestHello, gomock.Any(),
-	).DoAndReturn(func(ctx context.Context, digest *util.Digest, b buffer.Buffer) error {
+	).DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 		data, err := b.ToByteSlice(100)
 		require.NoError(t, err)
 		require.Equal(t, []byte("Hello"), data)
 		return status.Error(codes.Internal, "Storage backend on fire")
 	})
 
-	digestGoodbye := util.MustNewDigest(
+	digestGoodbye := digest.MustNewDigest(
 		"default",
-		&remoteexecution.Digest{
-			Hash:      "6fc422233a40a75a1f028e11c3cd1140",
-			SizeBytes: 7,
-		})
+		"6fc422233a40a75a1f028e11c3cd1140",
+		7)
 	require.Equal(
 		t,
 		blobAccess.Put(ctx, digestGoodbye, buffer.NewValidatedBufferFromByteSlice([]byte("Goodbye"))),
@@ -165,6 +152,6 @@ func TestBatchedStoreBlobAccessFailure(t *testing.T) {
 
 	// Successive stores and flushes should be functional once again.
 	require.NoError(t, blobAccess.Put(ctx, digestGoodbye, buffer.NewValidatedBufferFromByteSlice([]byte("Goodbye"))))
-	baseBlobAccess.EXPECT().FindMissing(ctx, []*util.Digest{digestGoodbye}).Return(nil, nil)
+	baseBlobAccess.EXPECT().FindMissing(ctx, digest.NewSetBuilder().Add(digestGoodbye).Build()).Return(digest.EmptySet, nil)
 	require.NoError(t, flush(ctx))
 }

@@ -4,7 +4,7 @@ import (
 	"log"
 	"sync"
 
-	"github.com/buildbarn/bb-storage/pkg/util"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 )
 
 type concurrentManager struct {
@@ -28,7 +28,7 @@ func NewConcurrentManager(base Manager) Manager {
 	}
 }
 
-func (em *concurrentManager) Acquire(actionDigest *util.Digest) (ManagedEnvironment, error) {
+func (em *concurrentManager) Acquire(actionDigest digest.Digest) (ManagedEnvironment, error) {
 	em.lock.Lock()
 	defer em.lock.Unlock()
 	if em.refcount == 0 {

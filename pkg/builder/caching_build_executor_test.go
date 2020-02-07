@@ -10,8 +10,8 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 	cas_proto "github.com/buildbarn/bb-storage/pkg/proto/cas"
-	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/golang/mock/gomock"
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/require"
@@ -47,12 +47,9 @@ func TestCachingBuildExecutorCachedSuccess(t *testing.T) {
 	actionCache := mock.NewMockBlobAccess(ctrl)
 	actionCache.EXPECT().Put(
 		ctx,
-		util.MustNewDigest("freebsd12", &remoteexecution.Digest{
-			Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
-			SizeBytes: 11,
-		}),
+		digest.MustNewDigest("freebsd12", "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c", 11),
 		gomock.Any()).DoAndReturn(
-		func(ctx context.Context, digest *util.Digest, b buffer.Buffer) error {
+		func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 			actionResult, err := b.ToActionResult(10000)
 			require.NoError(t, err)
 			require.True(t, proto.Equal(&remoteexecution.ActionResult{
@@ -102,12 +99,9 @@ func TestCachingBuildExecutorCachedSuccessExplicitOK(t *testing.T) {
 	actionCache := mock.NewMockBlobAccess(ctrl)
 	actionCache.EXPECT().Put(
 		ctx,
-		util.MustNewDigest("freebsd12", &remoteexecution.Digest{
-			Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
-			SizeBytes: 11,
-		}),
+		digest.MustNewDigest("freebsd12", "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c", 11),
 		gomock.Any()).DoAndReturn(
-		func(ctx context.Context, digest *util.Digest, b buffer.Buffer) error {
+		func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 			actionResult, err := b.ToActionResult(10000)
 			require.NoError(t, err)
 			require.True(t, proto.Equal(&remoteexecution.ActionResult{
@@ -160,12 +154,9 @@ func TestCachingBuildExecutorCachedSuccessNonZeroExitCode(t *testing.T) {
 	actionCache := mock.NewMockBlobAccess(ctrl)
 	actionCache.EXPECT().Put(
 		ctx,
-		util.MustNewDigest("freebsd12", &remoteexecution.Digest{
-			Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
-			SizeBytes: 11,
-		}),
+		digest.MustNewDigest("freebsd12", "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c", 11),
 		gomock.Any()).DoAndReturn(
-		func(ctx context.Context, digest *util.Digest, b buffer.Buffer) error {
+		func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 			actionResult, err := b.ToActionResult(10000)
 			require.NoError(t, err)
 			require.True(t, proto.Equal(&remoteexecution.ActionResult{
@@ -216,12 +207,9 @@ func TestCachingBuildExecutorCachedStorageFailure(t *testing.T) {
 	actionCache := mock.NewMockBlobAccess(ctrl)
 	actionCache.EXPECT().Put(
 		ctx,
-		util.MustNewDigest("freebsd12", &remoteexecution.Digest{
-			Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
-			SizeBytes: 11,
-		}),
+		digest.MustNewDigest("freebsd12", "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c", 11),
 		gomock.Any()).DoAndReturn(
-		func(ctx context.Context, digest *util.Digest, b buffer.Buffer) error {
+		func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 			actionResult, err := b.ToActionResult(10000)
 			require.NoError(t, err)
 			require.True(t, proto.Equal(&remoteexecution.ActionResult{
@@ -280,10 +268,9 @@ func TestCachingBuildExecutorUncachedDoNotCache(t *testing.T) {
 				},
 			},
 		},
-		gomock.Any()).Return(util.MustNewDigest("freebsd12", &remoteexecution.Digest{
-		Hash:      "1204703084039248092148032948092148032948034924802194802138213222",
-		SizeBytes: 582,
-	}), nil)
+		gomock.Any()).Return(
+		digest.MustNewDigest("freebsd12", "1204703084039248092148032948092148032948034924802194802138213222", 582),
+		nil)
 	actionCache := mock.NewMockBlobAccess(ctrl)
 	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, contentAddressableStorage, actionCache, &url.URL{
 		Scheme: "http",
@@ -338,10 +325,9 @@ func TestCachingBuildExecutorUncachedError(t *testing.T) {
 				Status: status.New(codes.DeadlineExceeded, "Build took more than ten seconds").Proto(),
 			},
 		},
-		gomock.Any()).Return(util.MustNewDigest("freebsd12", &remoteexecution.Digest{
-		Hash:      "1204703084039248092148032948092148032948034924802194802138213222",
-		SizeBytes: 582,
-	}), nil)
+		gomock.Any()).Return(
+		digest.MustNewDigest("freebsd12", "1204703084039248092148032948092148032948034924802194802138213222", 582),
+		nil)
 	actionCache := mock.NewMockBlobAccess(ctrl)
 	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, contentAddressableStorage, actionCache, &url.URL{
 		Scheme: "http",
@@ -397,10 +383,9 @@ func TestCachingBuildExecutorUncachedStorageFailure(t *testing.T) {
 				Status: status.New(codes.DeadlineExceeded, "Build took more than ten seconds").Proto(),
 			},
 		},
-		gomock.Any()).Return(util.MustNewDigest("freebsd12", &remoteexecution.Digest{
-		Hash:      "1204703084039248092148032948092148032948034924802194802138213222",
-		SizeBytes: 582,
-	}), status.Error(codes.Internal, "Cannot store uncached action result"))
+		gomock.Any()).Return(
+		digest.MustNewDigest("freebsd12", "1204703084039248092148032948092148032948034924802194802138213222", 582),
+		status.Error(codes.Internal, "Cannot store uncached action result"))
 	actionCache := mock.NewMockBlobAccess(ctrl)
 	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, contentAddressableStorage, actionCache, &url.URL{
 		Scheme: "http",

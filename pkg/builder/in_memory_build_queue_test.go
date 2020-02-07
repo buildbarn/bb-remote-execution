@@ -11,7 +11,7 @@ import (
 	re_builder "github.com/buildbarn/bb-remote-execution/pkg/builder"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-storage/pkg/builder"
-	"github.com/buildbarn/bb-storage/pkg/util"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/golang/mock/gomock"
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
@@ -88,12 +88,10 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 
 	// Action cannot be found in the Content Addressable Storage (CAS).
 	t.Run("MissingAction", func(t *testing.T) {
-		contentAddressableStorage.EXPECT().GetAction(gomock.Any(), util.MustNewDigest(
-			"main",
-			&remoteexecution.Digest{
-				Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
-				SizeBytes: 123,
-			})).Return(nil, status.Error(codes.FailedPrecondition, "Blob not found"))
+		contentAddressableStorage.EXPECT().GetAction(
+			gomock.Any(),
+			digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+		).Return(nil, status.Error(codes.FailedPrecondition, "Blob not found"))
 
 		stream, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
 			InstanceName: "main",
@@ -109,12 +107,10 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 
 	// Action contains an invalid command digest.
 	t.Run("InvalidCommandDigest", func(t *testing.T) {
-		contentAddressableStorage.EXPECT().GetAction(gomock.Any(), util.MustNewDigest(
-			"main",
-			&remoteexecution.Digest{
-				Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
-				SizeBytes: 123,
-			})).Return(&remoteexecution.Action{
+		contentAddressableStorage.EXPECT().GetAction(
+			gomock.Any(),
+			digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+		).Return(&remoteexecution.Action{
 			CommandDigest: &remoteexecution.Digest{
 				Hash:      "This is not a valid hash",
 				SizeBytes: 456,
@@ -135,23 +131,19 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 
 	// Command cannot be found in the Content Addressable Storage (CAS).
 	t.Run("MissingCommand", func(t *testing.T) {
-		contentAddressableStorage.EXPECT().GetAction(gomock.Any(), util.MustNewDigest(
-			"main",
-			&remoteexecution.Digest{
-				Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
-				SizeBytes: 123,
-			})).Return(&remoteexecution.Action{
+		contentAddressableStorage.EXPECT().GetAction(
+			gomock.Any(),
+			digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+		).Return(&remoteexecution.Action{
 			CommandDigest: &remoteexecution.Digest{
 				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 				SizeBytes: 456,
 			},
 		}, nil)
-		contentAddressableStorage.EXPECT().GetCommand(gomock.Any(), util.MustNewDigest(
-			"main",
-			&remoteexecution.Digest{
-				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
-				SizeBytes: 456,
-			})).Return(nil, status.Error(codes.FailedPrecondition, "Blob not found"))
+		contentAddressableStorage.EXPECT().GetCommand(
+			gomock.Any(),
+			digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
+		).Return(nil, status.Error(codes.FailedPrecondition, "Blob not found"))
 
 		stream, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
 			InstanceName: "main",
@@ -167,23 +159,19 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 
 	// Command does not contain any playform requirements.
 	t.Run("MissingPlatform", func(t *testing.T) {
-		contentAddressableStorage.EXPECT().GetAction(gomock.Any(), util.MustNewDigest(
-			"main",
-			&remoteexecution.Digest{
-				Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
-				SizeBytes: 123,
-			})).Return(&remoteexecution.Action{
+		contentAddressableStorage.EXPECT().GetAction(
+			gomock.Any(),
+			digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+		).Return(&remoteexecution.Action{
 			CommandDigest: &remoteexecution.Digest{
 				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 				SizeBytes: 456,
 			},
 		}, nil)
-		contentAddressableStorage.EXPECT().GetCommand(gomock.Any(), util.MustNewDigest(
-			"main",
-			&remoteexecution.Digest{
-				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
-				SizeBytes: 456,
-			})).Return(&remoteexecution.Command{}, nil)
+		contentAddressableStorage.EXPECT().GetCommand(
+			gomock.Any(),
+			digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
+		).Return(&remoteexecution.Command{}, nil)
 
 		stream, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
 			InstanceName: "main",
@@ -201,23 +189,19 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 	// Otherwise, there could be distinct queues that refer to the
 	// same platform.
 	t.Run("BadlySortedPlatformProperties", func(t *testing.T) {
-		contentAddressableStorage.EXPECT().GetAction(gomock.Any(), util.MustNewDigest(
-			"main",
-			&remoteexecution.Digest{
-				Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
-				SizeBytes: 123,
-			})).Return(&remoteexecution.Action{
+		contentAddressableStorage.EXPECT().GetAction(
+			gomock.Any(),
+			digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+		).Return(&remoteexecution.Action{
 			CommandDigest: &remoteexecution.Digest{
 				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 				SizeBytes: 456,
 			},
 		}, nil)
-		contentAddressableStorage.EXPECT().GetCommand(gomock.Any(), util.MustNewDigest(
-			"main",
-			&remoteexecution.Digest{
-				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
-				SizeBytes: 456,
-			})).Return(&remoteexecution.Command{
+		contentAddressableStorage.EXPECT().GetCommand(
+			gomock.Any(),
+			digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
+		).Return(&remoteexecution.Command{
 			Platform: &remoteexecution.Platform{
 				Properties: []*remoteexecution.Platform_Property{
 					{Name: "os", Value: "linux"},
@@ -241,23 +225,19 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 	// No workers have registered themselves against this queue,
 	// meaninig calls to Execute() should fail unconditionally.
 	t.Run("UnknownPlatform", func(t *testing.T) {
-		contentAddressableStorage.EXPECT().GetAction(gomock.Any(), util.MustNewDigest(
-			"main",
-			&remoteexecution.Digest{
-				Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
-				SizeBytes: 123,
-			})).Return(&remoteexecution.Action{
+		contentAddressableStorage.EXPECT().GetAction(
+			gomock.Any(),
+			digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+		).Return(&remoteexecution.Action{
 			CommandDigest: &remoteexecution.Digest{
 				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 				SizeBytes: 456,
 			},
 		}, nil)
-		contentAddressableStorage.EXPECT().GetCommand(gomock.Any(), util.MustNewDigest(
-			"main",
-			&remoteexecution.Digest{
-				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
-				SizeBytes: 456,
-			})).Return(&remoteexecution.Command{
+		contentAddressableStorage.EXPECT().GetCommand(
+			gomock.Any(),
+			digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
+		).Return(&remoteexecution.Command{
 			Platform: &remoteexecution.Platform{
 				Properties: []*remoteexecution.Platform_Property{
 					{Name: "cpu", Value: "armv6"},
@@ -285,24 +265,20 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
-	contentAddressableStorage.EXPECT().GetAction(gomock.Any(), util.MustNewDigest(
-		"main",
-		&remoteexecution.Digest{
-			Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
-			SizeBytes: 123,
-		})).Return(&remoteexecution.Action{
+	contentAddressableStorage.EXPECT().GetAction(
+		gomock.Any(),
+		digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+	).Return(&remoteexecution.Action{
 		CommandDigest: &remoteexecution.Digest{
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 			SizeBytes: 456,
 		},
 		DoNotCache: true,
 	}, nil).Times(10)
-	contentAddressableStorage.EXPECT().GetCommand(gomock.Any(), util.MustNewDigest(
-		"main",
-		&remoteexecution.Digest{
-			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
-			SizeBytes: 456,
-		})).Return(&remoteexecution.Command{
+	contentAddressableStorage.EXPECT().GetCommand(
+		gomock.Any(),
+		digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
+	).Return(&remoteexecution.Command{
 		Platform: &remoteexecution.Platform{
 			Properties: []*remoteexecution.Platform_Property{
 				{Name: "cpu", Value: "armv6"},
@@ -574,23 +550,19 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
-	contentAddressableStorage.EXPECT().GetAction(gomock.Any(), util.MustNewDigest(
-		"main",
-		&remoteexecution.Digest{
-			Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
-			SizeBytes: 123,
-		})).Return(&remoteexecution.Action{
+	contentAddressableStorage.EXPECT().GetAction(
+		gomock.Any(),
+		digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+	).Return(&remoteexecution.Action{
 		CommandDigest: &remoteexecution.Digest{
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 			SizeBytes: 456,
 		},
 	}, nil).Times(2)
-	contentAddressableStorage.EXPECT().GetCommand(gomock.Any(), util.MustNewDigest(
-		"main",
-		&remoteexecution.Digest{
-			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
-			SizeBytes: 456,
-		})).Return(&remoteexecution.Command{
+	contentAddressableStorage.EXPECT().GetCommand(
+		gomock.Any(),
+		digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
+	).Return(&remoteexecution.Command{
 		Platform: &remoteexecution.Platform{
 			Properties: []*remoteexecution.Platform_Property{
 				{Name: "cpu", Value: "armv6"},
@@ -809,23 +781,19 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
-	contentAddressableStorage.EXPECT().GetAction(gomock.Any(), util.MustNewDigest(
-		"main",
-		&remoteexecution.Digest{
-			Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
-			SizeBytes: 123,
-		})).Return(&remoteexecution.Action{
+	contentAddressableStorage.EXPECT().GetAction(
+		gomock.Any(),
+		digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+	).Return(&remoteexecution.Action{
 		CommandDigest: &remoteexecution.Digest{
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 			SizeBytes: 456,
 		},
 	}, nil)
-	contentAddressableStorage.EXPECT().GetCommand(gomock.Any(), util.MustNewDigest(
-		"main",
-		&remoteexecution.Digest{
-			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
-			SizeBytes: 456,
-		})).Return(&remoteexecution.Command{
+	contentAddressableStorage.EXPECT().GetCommand(
+		gomock.Any(),
+		digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
+	).Return(&remoteexecution.Command{
 		Platform: &remoteexecution.Platform{
 			Properties: []*remoteexecution.Platform_Property{
 				{Name: "cpu", Value: "armv6"},
@@ -1029,23 +997,19 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
-	contentAddressableStorage.EXPECT().GetAction(gomock.Any(), util.MustNewDigest(
-		"main",
-		&remoteexecution.Digest{
-			Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
-			SizeBytes: 123,
-		})).Return(&remoteexecution.Action{
+	contentAddressableStorage.EXPECT().GetAction(
+		gomock.Any(),
+		digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+	).Return(&remoteexecution.Action{
 		CommandDigest: &remoteexecution.Digest{
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 			SizeBytes: 456,
 		},
 	}, nil)
-	contentAddressableStorage.EXPECT().GetCommand(gomock.Any(), util.MustNewDigest(
-		"main",
-		&remoteexecution.Digest{
-			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
-			SizeBytes: 456,
-		})).Return(&remoteexecution.Command{
+	contentAddressableStorage.EXPECT().GetCommand(
+		gomock.Any(),
+		digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
+	).Return(&remoteexecution.Command{
 		Platform: &remoteexecution.Platform{
 			Properties: []*remoteexecution.Platform_Property{
 				{Name: "cpu", Value: "armv6"},
@@ -1288,23 +1252,19 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
-	contentAddressableStorage.EXPECT().GetAction(gomock.Any(), util.MustNewDigest(
-		"main",
-		&remoteexecution.Digest{
-			Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
-			SizeBytes: 123,
-		})).Return(&remoteexecution.Action{
+	contentAddressableStorage.EXPECT().GetAction(
+		gomock.Any(),
+		digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+	).Return(&remoteexecution.Action{
 		CommandDigest: &remoteexecution.Digest{
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 			SizeBytes: 456,
 		},
 	}, nil)
-	contentAddressableStorage.EXPECT().GetCommand(gomock.Any(), util.MustNewDigest(
-		"main",
-		&remoteexecution.Digest{
-			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
-			SizeBytes: 456,
-		})).Return(&remoteexecution.Command{
+	contentAddressableStorage.EXPECT().GetCommand(
+		gomock.Any(),
+		digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
+	).Return(&remoteexecution.Command{
 		Platform: &remoteexecution.Platform{
 			Properties: []*remoteexecution.Platform_Property{
 				{Name: "cpu", Value: "armv6"},

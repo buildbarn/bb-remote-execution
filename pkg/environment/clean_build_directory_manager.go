@@ -1,6 +1,7 @@
 package environment
 
 import (
+	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/util"
 
 	"google.golang.org/grpc/codes"
@@ -19,7 +20,7 @@ func NewCleanBuildDirectoryManager(base Manager) Manager {
 	}
 }
 
-func (em *cleanBuildDirectoryManager) Acquire(actionDigest *util.Digest) (ManagedEnvironment, error) {
+func (em *cleanBuildDirectoryManager) Acquire(actionDigest digest.Digest) (ManagedEnvironment, error) {
 	// Allocate underlying environment.
 	environment, err := em.base.Acquire(actionDigest)
 	if err != nil {

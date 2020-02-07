@@ -6,13 +6,13 @@ import (
 	"path"
 	"strconv"
 
-	"github.com/buildbarn/bb-storage/pkg/util"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 )
 
 // GetBrowserURL generates a URL that can be visited to obtain more
 // information about an object stored in the Content Addressable Storage
 // (CAS) or Action Cache (AC).
-func GetBrowserURL(browserURL *url.URL, objectType string, digest *util.Digest) string {
+func GetBrowserURL(browserURL *url.URL, objectType string, digest digest.Digest) string {
 	u, err := browserURL.Parse(
 		path.Join(
 			browserURL.EscapedPath(),

@@ -7,17 +7,18 @@ import (
 
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/util"
 )
 
 type pendingPutOperation struct {
-	digest *util.Digest
+	digest digest.Digest
 	b      buffer.Buffer
 }
 
 type batchedStoreBlobAccess struct {
 	blobstore.BlobAccess
-	blobKeyFormat util.DigestKeyFormat
+	blobKeyFormat digest.KeyFormat
 	batchSize     int
 
 	lock                 sync.Mutex
@@ -33,7 +34,7 @@ type batchedStoreBlobAccess struct {
 //
 // This adapter may be used by the worker to speed up the uploading
 // phase of actions.
-func NewBatchedStoreBlobAccess(blobAccess blobstore.BlobAccess, blobKeyFormat util.DigestKeyFormat, batchSize int) (blobstore.BlobAccess, func(ctx context.Context) error) {
+func NewBatchedStoreBlobAccess(blobAccess blobstore.BlobAccess, blobKeyFormat digest.KeyFormat, batchSize int) (blobstore.BlobAccess, func(ctx context.Context) error) {
 	ba := &batchedStoreBlobAccess{
 		BlobAccess:           blobAccess,
 		blobKeyFormat:        blobKeyFormat,
@@ -68,18 +69,18 @@ func (ba *batchedStoreBlobAccess) flushLocked(ctx context.Context) {
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
-	digests := make([]*util.Digest, 0, len(keys))
+	digests := digest.NewSetBuilder()
 	for _, key := range keys {
-		digests = append(digests, ba.pendingPutOperations[key].digest)
+		digests.Add(ba.pendingPutOperations[key].digest)
 	}
-	missing, err := ba.BlobAccess.FindMissing(ctx, digests)
+	missing, err := ba.BlobAccess.FindMissing(ctx, digests.Build())
 	if err != nil {
 		ba.flushError = util.StatusWrap(err, "Failed to determine existence of previous batch of blobs")
 		return
 	}
 
 	// Upload the missing ones.
-	for _, digest := range missing {
+	for _, digest := range missing.Items() {
 		key := digest.GetKey(ba.blobKeyFormat)
 		if pendingPutOperation, ok := ba.pendingPutOperations[key]; ok {
 			delete(ba.pendingPutOperations, key)
@@ -91,7 +92,7 @@ func (ba *batchedStoreBlobAccess) flushLocked(ctx context.Context) {
 	}
 }
 
-func (ba *batchedStoreBlobAccess) Put(ctx context.Context, digest *util.Digest, b buffer.Buffer) error {
+func (ba *batchedStoreBlobAccess) Put(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 	ba.lock.Lock()
 	defer ba.lock.Unlock()
 

@@ -14,6 +14,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
 	re_util "github.com/buildbarn/bb-remote-execution/pkg/util"
 	"github.com/buildbarn/bb-storage/pkg/clock"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/gorilla/mux"
@@ -40,7 +41,11 @@ var (
 			return s
 		},
 		"action_url": func(browserURL *url.URL, instanceName string, actionDigest *remoteexecution.Digest) string {
-			return re_util.GetBrowserURL(browserURL, "action", util.MustNewDigest(instanceName, actionDigest))
+			d, err := digest.NewDigestFromPartialDigest(instanceName, actionDigest)
+			if err != nil {
+				return ""
+			}
+			return re_util.GetBrowserURL(browserURL, "action", d)
 		},
 		"last_element": func(s interface{}) interface{} {
 			v := reflect.ValueOf(s)

@@ -1,6 +1,7 @@
 package environment
 
 import (
+	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/util"
 
@@ -22,7 +23,7 @@ func NewTempDirectoryCleaningManager(base Manager, tempDirectory filesystem.Dire
 	}
 }
 
-func (em *tempDirectoryCleaningManager) Acquire(actionDigest *util.Digest) (ManagedEnvironment, error) {
+func (em *tempDirectoryCleaningManager) Acquire(actionDigest digest.Digest) (ManagedEnvironment, error) {
 	// Remove all contents prior to use.
 	if err := em.tempDirectory.RemoveAllChildren(); err != nil {
 		return nil, util.StatusWrapWithCode(err, codes.Internal, "Failed to clean temporary directory prior to build")

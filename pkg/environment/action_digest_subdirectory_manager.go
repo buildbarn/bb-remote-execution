@@ -6,6 +6,7 @@ import (
 	"path"
 
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/util"
 
@@ -32,7 +33,7 @@ func NewActionDigestSubdirectoryManager(base Manager) Manager {
 	}
 }
 
-func (em *actionDigestSubdirectoryManager) Acquire(actionDigest *util.Digest) (ManagedEnvironment, error) {
+func (em *actionDigestSubdirectoryManager) Acquire(actionDigest digest.Digest) (ManagedEnvironment, error) {
 	// Allocate underlying environment.
 	environment, err := em.base.Acquire(actionDigest)
 	if err != nil {

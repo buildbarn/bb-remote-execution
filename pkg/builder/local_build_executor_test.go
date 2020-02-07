@@ -11,6 +11,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/golang/mock/gomock"
@@ -153,10 +154,8 @@ func TestLocalBuildExecutorEnvironmentAcquireFailed(t *testing.T) {
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	environmentManager := mock.NewMockManager(ctrl)
 	environmentManager.EXPECT().Acquire(
-		util.MustNewDigest("netbsd", &remoteexecution.Digest{
-			Hash:      "5555555555555555555555555555555555555555555555555555555555555555",
-			SizeBytes: 7,
-		})).Return(nil, status.Error(codes.InvalidArgument, "Platform requirements not provided"))
+		digest.MustNewDigest("netbsd", "5555555555555555555555555555555555555555555555555555555555555555", 7),
+	).Return(nil, status.Error(codes.InvalidArgument, "Platform requirements not provided"))
 	inputRootPopulator := mock.NewMockInputRootPopulator(ctrl)
 	clock := mock.NewMockClock(ctrl)
 	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, environmentManager, inputRootPopulator, clock, time.Hour, time.Hour)
@@ -202,10 +201,8 @@ func TestLocalBuildExecutorInputRootPopulationFailed(t *testing.T) {
 	environmentManager := mock.NewMockManager(ctrl)
 	environment := mock.NewMockManagedEnvironment(ctrl)
 	environmentManager.EXPECT().Acquire(
-		util.MustNewDigest("netbsd", &remoteexecution.Digest{
-			Hash:      "5555555555555555555555555555555555555555555555555555555555555555",
-			SizeBytes: 7,
-		})).Return(environment, nil)
+		digest.MustNewDigest("netbsd", "5555555555555555555555555555555555555555555555555555555555555555", 7),
+	).Return(environment, nil)
 	inputRootPopulator := mock.NewMockInputRootPopulator(ctrl)
 	buildDirectory := mock.NewMockDirectory(ctrl)
 	environment.EXPECT().GetBuildDirectory().Return(buildDirectory)
@@ -213,12 +210,7 @@ func TestLocalBuildExecutorInputRootPopulationFailed(t *testing.T) {
 	inputRootPopulator.EXPECT().PopulateInputRoot(
 		ctx,
 		filePool,
-		util.MustNewDigest(
-			"netbsd",
-			&remoteexecution.Digest{
-				Hash:      "7777777777777777777777777777777777777777777777777777777777777777",
-				SizeBytes: 42,
-			}),
+		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42),
 		buildDirectory).Return(status.Error(codes.FailedPrecondition, "Some input files could not be found"))
 	environment.EXPECT().Release()
 	clock := mock.NewMockClock(ctrl)
@@ -264,10 +256,8 @@ func TestLocalBuildExecutorOutputDirectoryCreationFailure(t *testing.T) {
 	environmentManager := mock.NewMockManager(ctrl)
 	environment := mock.NewMockManagedEnvironment(ctrl)
 	environmentManager.EXPECT().Acquire(
-		util.MustNewDigest("fedora", &remoteexecution.Digest{
-			Hash:      "5555555555555555555555555555555555555555555555555555555555555555",
-			SizeBytes: 7,
-		})).Return(environment, nil)
+		digest.MustNewDigest("fedora", "5555555555555555555555555555555555555555555555555555555555555555", 7),
+	).Return(environment, nil)
 	inputRootPopulator := mock.NewMockInputRootPopulator(ctrl)
 	buildDirectory := mock.NewMockDirectory(ctrl)
 	environment.EXPECT().GetBuildDirectory().Return(buildDirectory)
@@ -275,12 +265,7 @@ func TestLocalBuildExecutorOutputDirectoryCreationFailure(t *testing.T) {
 	inputRootPopulator.EXPECT().PopulateInputRoot(
 		ctx,
 		filePool,
-		util.MustNewDigest(
-			"fedora",
-			&remoteexecution.Digest{
-				Hash:      "7777777777777777777777777777777777777777777777777777777777777777",
-				SizeBytes: 42,
-			}),
+		digest.MustNewDigest("fedora", "7777777777777777777777777777777777777777777777777777777777777777", 42),
 		buildDirectory).Return(nil)
 	buildDirectory.EXPECT().Mkdir("foo", os.FileMode(0777)).Return(status.Error(codes.Internal, "Out of disk space"))
 	environment.EXPECT().Release()
@@ -326,34 +311,23 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	buildDirectory := mock.NewMockDirectory(ctrl)
 	contentAddressableStorage.EXPECT().PutFile(ctx, buildDirectory, ".stdout.txt", gomock.Any()).Return(
-		util.MustNewDigest("nintendo64", &remoteexecution.Digest{
-			Hash:      "0000000000000000000000000000000000000000000000000000000000000005",
-			SizeBytes: 567,
-		}), nil)
+		digest.MustNewDigest("nintendo64", "0000000000000000000000000000000000000000000000000000000000000005", 567),
+		nil)
 	contentAddressableStorage.EXPECT().PutFile(ctx, buildDirectory, ".stderr.txt", gomock.Any()).Return(
-		util.MustNewDigest("nintendo64", &remoteexecution.Digest{
-			Hash:      "0000000000000000000000000000000000000000000000000000000000000006",
-			SizeBytes: 678,
-		}), nil)
+		digest.MustNewDigest("nintendo64", "0000000000000000000000000000000000000000000000000000000000000006", 678),
+		nil)
 	environmentManager := mock.NewMockManager(ctrl)
 	environment := mock.NewMockManagedEnvironment(ctrl)
 	environmentManager.EXPECT().Acquire(
-		util.MustNewDigest("nintendo64", &remoteexecution.Digest{
-			Hash:      "5555555555555555555555555555555555555555555555555555555555555555",
-			SizeBytes: 7,
-		})).Return(environment, nil)
+		digest.MustNewDigest("nintendo64", "5555555555555555555555555555555555555555555555555555555555555555", 7),
+	).Return(environment, nil)
 	inputRootPopulator := mock.NewMockInputRootPopulator(ctrl)
 	environment.EXPECT().GetBuildDirectory().Return(buildDirectory)
 	filePool := mock.NewMockFilePool(ctrl)
 	inputRootPopulator.EXPECT().PopulateInputRoot(
 		ctx,
 		filePool,
-		util.MustNewDigest(
-			"nintendo64",
-			&remoteexecution.Digest{
-				Hash:      "7777777777777777777777777777777777777777777777777777777777777777",
-				SizeBytes: 42,
-			}),
+		digest.MustNewDigest("nintendo64", "7777777777777777777777777777777777777777777777777777777777777777", 42),
 		buildDirectory).Return(nil)
 	buildDirectory.EXPECT().Mkdir("foo", os.FileMode(0777)).Return(nil)
 	environment.EXPECT().Run(gomock.Any(), &runner.RunRequest{
@@ -458,46 +432,31 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 
 	// Write operations against the Content Addressable Storage.
 	contentAddressableStorage.EXPECT().PutFile(ctx, buildDirectory, ".stdout.txt", gomock.Any()).Return(
-		util.MustNewDigest("ubuntu1804", &remoteexecution.Digest{
-			Hash:      "0000000000000000000000000000000000000000000000000000000000000005",
-			SizeBytes: 567,
-		}), nil)
+		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000005", 567),
+		nil)
 	contentAddressableStorage.EXPECT().PutFile(ctx, buildDirectory, ".stderr.txt", gomock.Any()).Return(
-		util.MustNewDigest("ubuntu1804", &remoteexecution.Digest{
-			Hash:      "0000000000000000000000000000000000000000000000000000000000000006",
-			SizeBytes: 678,
-		}), nil)
+		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000006", 678),
+		nil)
 	contentAddressableStorage.EXPECT().PutFile(ctx, helloDirectory, "hello.pic.d", gomock.Any()).Return(
-		util.MustNewDigest("ubuntu1804", &remoteexecution.Digest{
-			Hash:      "0000000000000000000000000000000000000000000000000000000000000007",
-			SizeBytes: 789,
-		}), nil)
+		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000007", 789),
+		nil)
 	contentAddressableStorage.EXPECT().PutFile(ctx, helloDirectory, "hello.pic.o", gomock.Any()).Return(
-		util.MustNewDigest("ubuntu1804", &remoteexecution.Digest{
-			Hash:      "0000000000000000000000000000000000000000000000000000000000000008",
-			SizeBytes: 890,
-		}), nil)
+		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000008", 890),
+		nil)
 
 	// Command execution.
 	environmentManager := mock.NewMockManager(ctrl)
 	environment := mock.NewMockManagedEnvironment(ctrl)
 	environmentManager.EXPECT().Acquire(
-		util.MustNewDigest("ubuntu1804", &remoteexecution.Digest{
-			Hash:      "0000000000000000000000000000000000000000000000000000000000000001",
-			SizeBytes: 123,
-		})).Return(environment, nil)
+		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000001", 123),
+	).Return(environment, nil)
 	environment.EXPECT().GetBuildDirectory().Return(buildDirectory)
 	inputRootPopulator := mock.NewMockInputRootPopulator(ctrl)
 	filePool := mock.NewMockFilePool(ctrl)
 	inputRootPopulator.EXPECT().PopulateInputRoot(
 		ctx,
 		filePool,
-		util.MustNewDigest(
-			"ubuntu1804",
-			&remoteexecution.Digest{
-				Hash:      "0000000000000000000000000000000000000000000000000000000000000003",
-				SizeBytes: 345,
-			}),
+		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000003", 345),
 		buildDirectory).Return(nil)
 	resourceUsage, err := ptypes.MarshalAny(&empty.Empty{})
 	require.NoError(t, err)
@@ -704,24 +663,18 @@ func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 	buildDirectory := mock.NewMockDirectory(ctrl)
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	contentAddressableStorage.EXPECT().PutFile(ctx, buildDirectory, ".stdout.txt", gomock.Any()).Return(
-		util.MustNewDigest("ubuntu1804", &remoteexecution.Digest{
-			Hash:      "0000000000000000000000000000000000000000000000000000000000000005",
-			SizeBytes: 567,
-		}), nil)
+		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000005", 567),
+		nil)
 	contentAddressableStorage.EXPECT().PutFile(ctx, buildDirectory, ".stderr.txt", gomock.Any()).Return(
-		util.MustNewDigest("ubuntu1804", &remoteexecution.Digest{
-			Hash:      "0000000000000000000000000000000000000000000000000000000000000006",
-			SizeBytes: 678,
-		}), nil)
+		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000006", 678),
+		nil)
 
 	// Build environment.
 	environmentManager := mock.NewMockManager(ctrl)
 	environment := mock.NewMockManagedEnvironment(ctrl)
 	environmentManager.EXPECT().Acquire(
-		util.MustNewDigest("ubuntu1804", &remoteexecution.Digest{
-			Hash:      "0000000000000000000000000000000000000000000000000000000000000001",
-			SizeBytes: 123,
-		})).Return(environment, nil)
+		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000001", 123),
+	).Return(environment, nil)
 	environment.EXPECT().GetBuildDirectory().Return(buildDirectory)
 
 	// Input root creation.
@@ -730,12 +683,7 @@ func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 	inputRootPopulator.EXPECT().PopulateInputRoot(
 		ctx,
 		filePool,
-		util.MustNewDigest(
-			"ubuntu1804",
-			&remoteexecution.Digest{
-				Hash:      "0000000000000000000000000000000000000000000000000000000000000003",
-				SizeBytes: 345,
-			}),
+		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000003", 345),
 		buildDirectory).Return(nil)
 
 	// Simulate a timeout by running the command with a timeout of

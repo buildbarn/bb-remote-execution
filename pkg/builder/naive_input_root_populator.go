@@ -6,6 +6,7 @@ import (
 
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/cas"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/util"
 )
@@ -30,7 +31,7 @@ func NewNaiveInputRootPopulator(contentAddressableStorage cas.ContentAddressable
 	}
 }
 
-func (ex *naiveInputRootPopulator) populateInputDirectory(ctx context.Context, digest *util.Digest, inputDirectory filesystem.Directory, components []string) error {
+func (ex *naiveInputRootPopulator) populateInputDirectory(ctx context.Context, digest digest.Digest, inputDirectory filesystem.Directory, components []string) error {
 	// Obtain directory.
 	directory, err := ex.contentAddressableStorage.GetDirectory(ctx, digest)
 	if err != nil {
@@ -76,6 +77,6 @@ func (ex *naiveInputRootPopulator) populateInputDirectory(ctx context.Context, d
 	return nil
 }
 
-func (ex *naiveInputRootPopulator) PopulateInputRoot(ctx context.Context, filePool re_filesystem.FilePool, digest *util.Digest, inputDirectory filesystem.Directory) error {
+func (ex *naiveInputRootPopulator) PopulateInputRoot(ctx context.Context, filePool re_filesystem.FilePool, digest digest.Digest, inputDirectory filesystem.Directory) error {
 	return ex.populateInputDirectory(ctx, digest, inputDirectory, []string{"."})
 }

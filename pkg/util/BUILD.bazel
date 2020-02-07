@@ -5,5 +5,5 @@ go_library(
     srcs = ["browser_url.go"],
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/util",
     visibility = ["//visibility:public"],
-    deps = ["@com_github_buildbarn_bb_storage//pkg/util:go_default_library"],
+    deps = ["@com_github_buildbarn_bb_storage//pkg/digest:go_default_library"],
 )

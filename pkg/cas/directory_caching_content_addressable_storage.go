@@ -6,14 +6,14 @@ import (
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-storage/pkg/cas"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/eviction"
-	"github.com/buildbarn/bb-storage/pkg/util"
 )
 
 type directoryCachingContentAddressableStorage struct {
 	cas.ContentAddressableStorage
 
-	digestKeyFormat util.DigestKeyFormat
+	digestKeyFormat digest.KeyFormat
 	maxDirectories  int
 
 	lock        sync.Mutex
@@ -25,7 +25,7 @@ type directoryCachingContentAddressableStorage struct {
 // ContentAddressableStorage that caches up a fixed number of
 // unmarshalled directory objects in memory. This reduces the amount of
 // network traffic needed.
-func NewDirectoryCachingContentAddressableStorage(base cas.ContentAddressableStorage, digestKeyFormat util.DigestKeyFormat, maxDirectories int, evictionSet eviction.Set) cas.ContentAddressableStorage {
+func NewDirectoryCachingContentAddressableStorage(base cas.ContentAddressableStorage, digestKeyFormat digest.KeyFormat, maxDirectories int, evictionSet eviction.Set) cas.ContentAddressableStorage {
 	return &directoryCachingContentAddressableStorage{
 		ContentAddressableStorage: base,
 
@@ -46,7 +46,7 @@ func (cas *directoryCachingContentAddressableStorage) makeSpace() {
 	}
 }
 
-func (cas *directoryCachingContentAddressableStorage) GetDirectory(ctx context.Context, digest *util.Digest) (*remoteexecution.Directory, error) {
+func (cas *directoryCachingContentAddressableStorage) GetDirectory(ctx context.Context, digest digest.Digest) (*remoteexecution.Directory, error) {
 	key := digest.GetKey(cas.digestKeyFormat)
 
 	// Check the cache.

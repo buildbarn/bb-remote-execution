@@ -5,15 +5,15 @@ import (
 	"sync"
 
 	"github.com/buildbarn/bb-storage/pkg/cas"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/eviction"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
-	"github.com/buildbarn/bb-storage/pkg/util"
 )
 
 type hardlinkingContentAddressableStorage struct {
 	cas.ContentAddressableStorage
 
-	digestKeyFormat util.DigestKeyFormat
+	digestKeyFormat digest.KeyFormat
 	cacheDirectory  filesystem.Directory
 	maxFiles        int
 	maxSize         int64
@@ -32,7 +32,7 @@ type hardlinkingContentAddressableStorage struct {
 // into the cache. Future calls for the same file will hardlink them from the
 // cache to the target location. This reduces the amount of network traffic
 // needed.
-func NewHardlinkingContentAddressableStorage(base cas.ContentAddressableStorage, digestKeyFormat util.DigestKeyFormat, cacheDirectory filesystem.Directory, maxFiles int, maxSize int64, evictionSet eviction.Set) cas.ContentAddressableStorage {
+func NewHardlinkingContentAddressableStorage(base cas.ContentAddressableStorage, digestKeyFormat digest.KeyFormat, cacheDirectory filesystem.Directory, maxFiles int, maxSize int64, evictionSet eviction.Set) cas.ContentAddressableStorage {
 	return &hardlinkingContentAddressableStorage{
 		ContentAddressableStorage: base,
 
@@ -63,7 +63,7 @@ func (cas *hardlinkingContentAddressableStorage) makeSpace(size int64) error {
 	return nil
 }
 
-func (cas *hardlinkingContentAddressableStorage) GetFile(ctx context.Context, digest *util.Digest, directory filesystem.Directory, name string, isExecutable bool) error {
+func (cas *hardlinkingContentAddressableStorage) GetFile(ctx context.Context, digest digest.Digest, directory filesystem.Directory, name string, isExecutable bool) error {
 	key := digest.GetKey(cas.digestKeyFormat)
 	if isExecutable {
 		key += "+x"

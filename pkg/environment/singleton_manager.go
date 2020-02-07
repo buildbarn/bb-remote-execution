@@ -1,7 +1,7 @@
 package environment
 
 import (
-	"github.com/buildbarn/bb-storage/pkg/util"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 )
 
 type singletonManager struct {
@@ -23,7 +23,7 @@ func NewSingletonManager(environment Environment) Manager {
 	return em
 }
 
-func (em *singletonManager) Acquire(actionDigest *util.Digest) (ManagedEnvironment, error) {
+func (em *singletonManager) Acquire(actionDigest digest.Digest) (ManagedEnvironment, error) {
 	return <-em.environment, nil
 }
 

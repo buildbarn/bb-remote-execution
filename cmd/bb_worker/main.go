@@ -22,6 +22,7 @@ import (
 	blobstore_configuration "github.com/buildbarn/bb-storage/pkg/blobstore/configuration"
 	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/clock"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/eviction"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	bb_grpc "github.com/buildbarn/bb-storage/pkg/grpc"
@@ -106,7 +107,7 @@ func main() {
 		cas.NewBlobAccessContentAddressableStorage(
 			re_blobstore.NewExistencePreconditionBlobAccess(contentAddressableStorageBlobAccess),
 			int(configuration.MaximumMessageSizeBytes)),
-		util.DigestKeyWithoutInstance,
+		digest.KeyWithoutInstance,
 		int(configuration.MaximumMemoryCachedDirectories),
 		eviction.NewMetricsSet(eviction.NewRRSet(), "DirectoryCachingContentAddressableStorage"))
 
@@ -128,7 +129,7 @@ func main() {
 		}
 		contentAddressableStorageReader = re_cas.NewHardlinkingContentAddressableStorage(
 			contentAddressableStorageReader,
-			util.DigestKeyWithoutInstance,
+			digest.KeyWithoutInstance,
 			cacheDirectory,
 			int(buildDirectoryConfiguration.MaximumCacheFileCount),
 			buildDirectoryConfiguration.MaximumCacheSizeBytes,
@@ -197,7 +198,7 @@ func main() {
 				// completing the build action.
 				contentAddressableStorageWriter, contentAddressableStorageFlusher := re_blobstore.NewBatchedStoreBlobAccess(
 					re_blobstore.NewExistencePreconditionBlobAccess(contentAddressableStorageBlobAccess),
-					util.DigestKeyWithoutInstance, 100)
+					digest.KeyWithoutInstance, 100)
 				contentAddressableStorageWriter = blobstore.NewMetricsBlobAccess(
 					contentAddressableStorageWriter,
 					clock.SystemClock,

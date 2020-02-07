@@ -4,11 +4,10 @@ import (
 	"context"
 	"testing"
 
-	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/environment"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
-	"github.com/buildbarn/bb-storage/pkg/util"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
@@ -23,21 +22,12 @@ func TestCleanBuildDirectoryManagerAcquireFailure(t *testing.T) {
 	// Failure to create environment should simply be forwarded.
 	baseManager := mock.NewMockManager(ctrl)
 	baseManager.EXPECT().Acquire(
-		util.MustNewDigest(
-			"debian8",
-			&remoteexecution.Digest{
-				Hash:      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-				SizeBytes: 0,
-			})).Return(nil, status.Error(codes.Internal, "No space left on device"))
+		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
+	).Return(nil, status.Error(codes.Internal, "No space left on device"))
 
 	manager := environment.NewCleanBuildDirectoryManager(baseManager)
 	_, err := manager.Acquire(
-		util.MustNewDigest(
-			"debian8",
-			&remoteexecution.Digest{
-				Hash:      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-				SizeBytes: 0,
-			}))
+		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0))
 	require.Equal(t, status.Error(codes.Internal, "No space left on device"), err)
 }
 
@@ -49,12 +39,8 @@ func TestCleanBuildDirectoryManagerRemoveAllChildrenFailure(t *testing.T) {
 	baseManager := mock.NewMockManager(ctrl)
 	baseEnvironment := mock.NewMockManagedEnvironment(ctrl)
 	baseManager.EXPECT().Acquire(
-		util.MustNewDigest(
-			"debian8",
-			&remoteexecution.Digest{
-				Hash:      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-				SizeBytes: 0,
-			})).Return(baseEnvironment, nil)
+		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
+	).Return(baseEnvironment, nil)
 	rootDirectory := mock.NewMockDirectory(ctrl)
 	baseEnvironment.EXPECT().GetBuildDirectory().Return(rootDirectory).AnyTimes()
 	rootDirectory.EXPECT().RemoveAllChildren().Return(
@@ -63,12 +49,7 @@ func TestCleanBuildDirectoryManagerRemoveAllChildrenFailure(t *testing.T) {
 
 	manager := environment.NewCleanBuildDirectoryManager(baseManager)
 	_, err := manager.Acquire(
-		util.MustNewDigest(
-			"debian8",
-			&remoteexecution.Digest{
-				Hash:      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-				SizeBytes: 0,
-			}))
+		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0))
 	require.Equal(t, status.Error(codes.Internal, "Failed to clean build directory prior to build: You don't have permissions to remove files from disk"), err)
 }
 
@@ -80,12 +61,8 @@ func TestCleanBuildDirectoryManagerSuccess(t *testing.T) {
 	baseManager := mock.NewMockManager(ctrl)
 	baseEnvironment := mock.NewMockManagedEnvironment(ctrl)
 	baseManager.EXPECT().Acquire(
-		util.MustNewDigest(
-			"debian8",
-			&remoteexecution.Digest{
-				Hash:      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-				SizeBytes: 0,
-			})).Return(baseEnvironment, nil)
+		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
+	).Return(baseEnvironment, nil)
 	rootDirectory := mock.NewMockDirectory(ctrl)
 	baseEnvironment.EXPECT().GetBuildDirectory().Return(rootDirectory).AnyTimes()
 	rootDirectory.EXPECT().RemoveAllChildren().Return(nil)
@@ -104,12 +81,7 @@ func TestCleanBuildDirectoryManagerSuccess(t *testing.T) {
 
 	manager := environment.NewCleanBuildDirectoryManager(baseManager)
 	environment, err := manager.Acquire(
-		util.MustNewDigest(
-			"debian8",
-			&remoteexecution.Digest{
-				Hash:      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-				SizeBytes: 0,
-			}))
+		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0))
 	require.NoError(t, err)
 	require.Equal(t, rootDirectory, environment.GetBuildDirectory())
 	response, err := environment.Run(ctx, &runner.RunRequest{

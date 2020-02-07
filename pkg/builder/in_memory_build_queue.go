@@ -16,6 +16,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/builder"
 	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/clock"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
@@ -200,7 +201,7 @@ var _ BuildQueueStateProvider = (*InMemoryBuildQueue)(nil)
 func (bq *InMemoryBuildQueue) GetCapabilities(ctx context.Context, in *remoteexecution.GetCapabilitiesRequest) (*remoteexecution.ServerCapabilities, error) {
 	return &remoteexecution.ServerCapabilities{
 		CacheCapabilities: &remoteexecution.CacheCapabilities{
-			DigestFunction: util.SupportedDigestFunctions,
+			DigestFunction: digest.SupportedDigestFunctions,
 			ActionCacheUpdateCapabilities: &remoteexecution.ActionCacheUpdateCapabilities{
 				UpdateEnabled: false,
 			},
@@ -235,7 +236,7 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 	// Addressable Storage (CAS) multiple times, the scheduler holds
 	// on to them and passes them on to the workers.
 	ctx := out.Context()
-	actionDigest, err := util.NewDigest(in.InstanceName, in.ActionDigest)
+	actionDigest, err := digest.NewDigestFromPartialDigest(in.InstanceName, in.ActionDigest)
 	if err != nil {
 		return util.StatusWrap(err, "Failed to extract digest for action")
 	}
@@ -1358,7 +1359,7 @@ func (w *worker) isRunningCorrectOperation(actionDigest *remoteexecution.Digest)
 		return false
 	}
 	desiredDigest := o.desiredState.ActionDigest
-	return actionDigest.SizeBytes == desiredDigest.SizeBytes && actionDigest.Hash == desiredDigest.Hash
+	return proto.Equal(actionDigest, desiredDigest)
 }
 
 // updateOperation processes execution status updates from the worker

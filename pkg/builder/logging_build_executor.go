@@ -9,7 +9,7 @@ import (
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	re_util "github.com/buildbarn/bb-remote-execution/pkg/util"
-	"github.com/buildbarn/bb-storage/pkg/util"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/golang/protobuf/jsonpb"
 )
 
@@ -31,7 +31,7 @@ func NewLoggingBuildExecutor(base BuildExecutor, browserURL *url.URL) BuildExecu
 
 func (be *loggingBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, instanceName string, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 	// Print URL to bb_browser prior to execution.
-	if actionDigest, err := util.NewDigest(instanceName, request.ActionDigest); err == nil {
+	if actionDigest, err := digest.NewDigestFromPartialDigest(instanceName, request.ActionDigest); err == nil {
 		log.Print("Action: ", re_util.GetBrowserURL(be.browserURL, "action", actionDigest))
 	} else {
 		log.Print("Action: Failed to extract digest: ", err)

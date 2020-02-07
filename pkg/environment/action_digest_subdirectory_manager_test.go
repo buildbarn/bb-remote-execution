@@ -5,11 +5,10 @@ import (
 	"os"
 	"testing"
 
-	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/environment"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
-	"github.com/buildbarn/bb-storage/pkg/util"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
@@ -24,21 +23,12 @@ func TestActionDigestSubdirectoryManagerAcquireFailure(t *testing.T) {
 	// Failure to create environment should simply be forwarded.
 	baseManager := mock.NewMockManager(ctrl)
 	baseManager.EXPECT().Acquire(
-		util.MustNewDigest(
-			"debian8",
-			&remoteexecution.Digest{
-				Hash:      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-				SizeBytes: 0,
-			})).Return(nil, status.Error(codes.Internal, "No space left on device"))
+		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
+	).Return(nil, status.Error(codes.Internal, "No space left on device"))
 
 	manager := environment.NewActionDigestSubdirectoryManager(baseManager)
 	_, err := manager.Acquire(
-		util.MustNewDigest(
-			"debian8",
-			&remoteexecution.Digest{
-				Hash:      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-				SizeBytes: 0,
-			}))
+		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0))
 	require.Equal(t, status.Error(codes.Internal, "No space left on device"), err)
 }
 
@@ -50,12 +40,8 @@ func TestActionDigestSubdirectoryManagerMkdirFailure(t *testing.T) {
 	baseManager := mock.NewMockManager(ctrl)
 	baseEnvironment := mock.NewMockManagedEnvironment(ctrl)
 	baseManager.EXPECT().Acquire(
-		util.MustNewDigest(
-			"debian8",
-			&remoteexecution.Digest{
-				Hash:      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-				SizeBytes: 0,
-			})).Return(baseEnvironment, nil)
+		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
+	).Return(baseEnvironment, nil)
 	rootDirectory := mock.NewMockDirectory(ctrl)
 	baseEnvironment.EXPECT().GetBuildDirectory().Return(rootDirectory).AnyTimes()
 	rootDirectory.EXPECT().Mkdir("e3b0c44298fc1c14", os.FileMode(0777)).Return(
@@ -64,12 +50,7 @@ func TestActionDigestSubdirectoryManagerMkdirFailure(t *testing.T) {
 
 	manager := environment.NewActionDigestSubdirectoryManager(baseManager)
 	_, err := manager.Acquire(
-		util.MustNewDigest(
-			"debian8",
-			&remoteexecution.Digest{
-				Hash:      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-				SizeBytes: 0,
-			}))
+		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0))
 	require.Equal(t, status.Error(codes.Internal, "Failed to create build subdirectory \"e3b0c44298fc1c14\": Directory already exists"), err)
 }
 
@@ -81,12 +62,8 @@ func TestActionDigestSubdirectoryManagerEnterFailure(t *testing.T) {
 	baseManager := mock.NewMockManager(ctrl)
 	baseEnvironment := mock.NewMockManagedEnvironment(ctrl)
 	baseManager.EXPECT().Acquire(
-		util.MustNewDigest(
-			"debian8",
-			&remoteexecution.Digest{
-				Hash:      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-				SizeBytes: 0,
-			})).Return(baseEnvironment, nil)
+		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
+	).Return(baseEnvironment, nil)
 	rootDirectory := mock.NewMockDirectory(ctrl)
 	baseEnvironment.EXPECT().GetBuildDirectory().Return(rootDirectory).AnyTimes()
 	rootDirectory.EXPECT().Mkdir("e3b0c44298fc1c14", os.FileMode(0777)).Return(nil)
@@ -96,12 +73,7 @@ func TestActionDigestSubdirectoryManagerEnterFailure(t *testing.T) {
 
 	manager := environment.NewActionDigestSubdirectoryManager(baseManager)
 	_, err := manager.Acquire(
-		util.MustNewDigest(
-			"debian8",
-			&remoteexecution.Digest{
-				Hash:      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-				SizeBytes: 0,
-			}))
+		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0))
 	require.Equal(t, status.Error(codes.Internal, "Failed to enter build subdirectory \"e3b0c44298fc1c14\": Out of file descriptors"), err)
 }
 
@@ -113,12 +85,8 @@ func TestActionDigestSubdirectoryManagerSuccess(t *testing.T) {
 	baseManager := mock.NewMockManager(ctrl)
 	baseEnvironment := mock.NewMockManagedEnvironment(ctrl)
 	baseManager.EXPECT().Acquire(
-		util.MustNewDigest(
-			"debian8",
-			&remoteexecution.Digest{
-				Hash:      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-				SizeBytes: 0,
-			})).Return(baseEnvironment, nil)
+		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
+	).Return(baseEnvironment, nil)
 	rootDirectory := mock.NewMockDirectory(ctrl)
 	baseEnvironment.EXPECT().GetBuildDirectory().Return(rootDirectory).AnyTimes()
 	rootDirectory.EXPECT().Mkdir("e3b0c44298fc1c14", os.FileMode(0777)).Return(nil)
@@ -141,12 +109,7 @@ func TestActionDigestSubdirectoryManagerSuccess(t *testing.T) {
 
 	manager := environment.NewActionDigestSubdirectoryManager(baseManager)
 	environment, err := manager.Acquire(
-		util.MustNewDigest(
-			"debian8",
-			&remoteexecution.Digest{
-				Hash:      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-				SizeBytes: 0,
-			}))
+		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0))
 	require.NoError(t, err)
 	require.Equal(t, subDirectory, environment.GetBuildDirectory())
 	response, err := environment.Run(ctx, &runner.RunRequest{

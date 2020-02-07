@@ -14,6 +14,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
 	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/clock"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/golang/protobuf/proto"
@@ -46,7 +47,7 @@ func NewLocalBuildExecutor(contentAddressableStorage cas.ContentAddressableStora
 	}
 }
 
-func (be *localBuildExecutor) uploadDirectory(ctx context.Context, outputDirectory filesystem.Directory, parentDigest *util.Digest, children map[string]*remoteexecution.Directory, components []string) (*remoteexecution.Directory, error) {
+func (be *localBuildExecutor) uploadDirectory(ctx context.Context, outputDirectory filesystem.Directory, parentDigest digest.Digest, children map[string]*remoteexecution.Directory, components []string) (*remoteexecution.Directory, error) {
 	files, err := outputDirectory.ReadDir()
 	if err != nil {
 		return nil, util.StatusWrapf(err, "Failed to read output directory %#v", path.Join(components...))
@@ -58,13 +59,13 @@ func (be *localBuildExecutor) uploadDirectory(ctx context.Context, outputDirecto
 		childComponents := append(components, name)
 		switch fileType := file.Type(); fileType {
 		case filesystem.FileTypeRegularFile, filesystem.FileTypeExecutableFile:
-			digest, err := be.contentAddressableStorage.PutFile(ctx, outputDirectory, name, parentDigest)
+			childDigest, err := be.contentAddressableStorage.PutFile(ctx, outputDirectory, name, parentDigest)
 			if err != nil {
 				return nil, util.StatusWrapf(err, "Failed to store output file %#v", path.Join(childComponents...))
 			}
 			directory.Files = append(directory.Files, &remoteexecution.FileNode{
 				Name:         name,
-				Digest:       digest.GetPartialDigest(),
+				Digest:       childDigest.GetPartialDigest(),
 				IsExecutable: fileType == filesystem.FileTypeExecutableFile,
 			})
 		case filesystem.FileTypeDirectory:
@@ -83,16 +84,16 @@ func (be *localBuildExecutor) uploadDirectory(ctx context.Context, outputDirecto
 			if err != nil {
 				return nil, util.StatusWrapf(err, "Failed to marshal output directory %#v", path.Join(childComponents...))
 			}
-			digestGenerator := parentDigest.NewDigestGenerator()
+			digestGenerator := parentDigest.NewGenerator()
 			if _, err := digestGenerator.Write(data); err != nil {
 				return nil, util.StatusWrapf(err, "Failed to compute digest of output directory %#v", path.Join(childComponents...))
 			}
-			digest := digestGenerator.Sum()
+			childDigest := digestGenerator.Sum()
 
-			children[digest.GetKey(util.DigestKeyWithoutInstance)] = child
+			children[childDigest.GetKey(digest.KeyWithoutInstance)] = child
 			directory.Directories = append(directory.Directories, &remoteexecution.DirectoryNode{
 				Name:   name,
-				Digest: digest.GetPartialDigest(),
+				Digest: childDigest.GetPartialDigest(),
 			})
 		case filesystem.FileTypeSymlink:
 			target, err := outputDirectory.Readlink(name)
@@ -110,12 +111,12 @@ func (be *localBuildExecutor) uploadDirectory(ctx context.Context, outputDirecto
 	return &directory, nil
 }
 
-func (be *localBuildExecutor) uploadTree(ctx context.Context, outputDirectory filesystem.Directory, parentDigest *util.Digest, components []string) (*util.Digest, error) {
+func (be *localBuildExecutor) uploadTree(ctx context.Context, outputDirectory filesystem.Directory, parentDigest digest.Digest, components []string) (digest.Digest, error) {
 	// Gather all individual directory objects and turn them into a tree.
 	children := map[string]*remoteexecution.Directory{}
 	root, err := be.uploadDirectory(ctx, outputDirectory, parentDigest, children, components)
 	if err != nil {
-		return nil, err
+		return digest.BadDigest, err
 	}
 	tree := &remoteexecution.Tree{
 		Root: root,
@@ -123,11 +124,11 @@ func (be *localBuildExecutor) uploadTree(ctx context.Context, outputDirectory fi
 	for _, child := range children {
 		tree.Children = append(tree.Children, child)
 	}
-	digest, err := be.contentAddressableStorage.PutTree(ctx, tree, parentDigest)
+	treeDigest, err := be.contentAddressableStorage.PutTree(ctx, tree, parentDigest)
 	if err != nil {
-		return nil, util.StatusWrapf(err, "Failed to store output directory %#v", path.Join(components...))
+		return digest.BadDigest, util.StatusWrapf(err, "Failed to store output directory %#v", path.Join(components...))
 	}
-	return digest, err
+	return treeDigest, err
 }
 
 func (be *localBuildExecutor) createOutputParentDirectory(buildDirectory filesystem.Directory, outputParentPath string) (filesystem.Directory, error) {
@@ -193,7 +194,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	}
 
 	// Obtain build environment.
-	actionDigest, err := util.NewDigest(instanceName, request.ActionDigest)
+	actionDigest, err := digest.NewDigestFromPartialDigest(instanceName, request.ActionDigest)
 	if err != nil {
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to extract digest for action"))
 		return response
