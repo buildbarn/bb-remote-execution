@@ -25,5 +25,9 @@ message ApplicationConfiguration {
   string browser_url = 5;
 
   // Configuration for blob storage.
-  buildbarn.configuration.blobstore.BlobstoreConfiguration blobstore = 6;
+  buildbarn.configuration.blobstore.BlobAccessConfiguration
+      content_addressable_storage = 6;
+
+  // Maximum Protobuf message size to unmarshal.
+  int64 maximum_message_size_bytes = 7;
 }

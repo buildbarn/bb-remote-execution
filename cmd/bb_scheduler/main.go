@@ -37,12 +37,12 @@ func main() {
 		log.Fatal("Failed to parse browser URL: ", err)
 	}
 
-	// Storage access. Required for accessing platform information from actionDigests
-	// TODO: Split up CreateBlobAccessObjectsFromConfig() into two
-	// functions, as we don't need the Action Cache handle.
-	contentAddressableStorageBlobAccess, _, err := blobstore_configuration.CreateBlobAccessObjectsFromConfig(
-		configuration.Blobstore,
-		16*1024*1024)
+	// Storage access. The scheduler requires access to the Action
+	// and Command messages stored in the CAS to obtain platform
+	// properties.
+	contentAddressableStorageBlobAccess, err := blobstore_configuration.CreateCASBlobAccessObjectFromConfig(
+		configuration.ContentAddressableStorage,
+		int(configuration.MaximumMessageSizeBytes))
 	if err != nil {
 		log.Fatal("Failed to create blob access: ", err)
 	}
