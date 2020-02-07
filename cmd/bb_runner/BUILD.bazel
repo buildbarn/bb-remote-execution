@@ -18,6 +18,13 @@ go_library(
     ],
 )
 
+go_binary(
+    name = "bb_runner",
+    embed = [":go_default_library"],
+    pure = "on",
+    visibility = ["//visibility:public"],
+)
+
 container_layer(
     name = "bb_runner_layer",
     files = [":bb_runner"],
@@ -59,10 +66,4 @@ container_push_official(
     name = "bb_runner_ubuntu16_04_container_push",
     component = "bb-runner-ubuntu16-04",
     image = ":bb_runner_ubuntu16_04_container",
-)
-
-go_binary(
-    name = "bb_runner",
-    embed = [":go_default_library"],
-    visibility = ["//visibility:public"],
 )
