@@ -8,6 +8,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	cas_proto "github.com/buildbarn/bb-storage/pkg/proto/cas"
 	"github.com/buildbarn/bb-storage/pkg/util"
+	"go.opencensus.io/trace"
 )
 
 type readWriteDecouplingContentAddressableStorage struct {
@@ -28,41 +29,71 @@ func NewReadWriteDecouplingContentAddressableStorage(reader cas.ContentAddressab
 }
 
 func (cas *readWriteDecouplingContentAddressableStorage) GetAction(ctx context.Context, digest *util.Digest) (*remoteexecution.Action, error) {
+	ctx, span := trace.StartSpan(ctx, "cas.RWDecoupling.GetAction")
+	defer span.End()
+
 	return cas.reader.GetAction(ctx, digest)
 }
 
 func (cas *readWriteDecouplingContentAddressableStorage) GetCommand(ctx context.Context, digest *util.Digest) (*remoteexecution.Command, error) {
+	ctx, span := trace.StartSpan(ctx, "cas.RWDecoupling.GetCommand")
+	defer span.End()
+
 	return cas.reader.GetCommand(ctx, digest)
 }
 
 func (cas *readWriteDecouplingContentAddressableStorage) GetDirectory(ctx context.Context, digest *util.Digest) (*remoteexecution.Directory, error) {
+	ctx, span := trace.StartSpan(ctx, "cas.RWDecoupling.GetDirectory")
+	defer span.End()
+
 	return cas.reader.GetDirectory(ctx, digest)
 }
 
 func (cas *readWriteDecouplingContentAddressableStorage) GetFile(ctx context.Context, digest *util.Digest, directory filesystem.Directory, name string, isExecutable bool) error {
+	ctx, span := trace.StartSpan(ctx, "cas.RWDecoupling.GetFile")
+	defer span.End()
+
 	return cas.reader.GetFile(ctx, digest, directory, name, isExecutable)
 }
 
 func (cas *readWriteDecouplingContentAddressableStorage) GetTree(ctx context.Context, digest *util.Digest) (*remoteexecution.Tree, error) {
+	ctx, span := trace.StartSpan(ctx, "cas.RWDecoupling.GetTree")
+	defer span.End()
+
 	return cas.reader.GetTree(ctx, digest)
 }
 
 func (cas *readWriteDecouplingContentAddressableStorage) GetUncachedActionResult(ctx context.Context, digest *util.Digest) (*cas_proto.UncachedActionResult, error) {
+	ctx, span := trace.StartSpan(ctx, "cas.RWDecoupling.GetUncachedActionResult")
+	defer span.End()
+
 	return cas.reader.GetUncachedActionResult(ctx, digest)
 }
 
 func (cas *readWriteDecouplingContentAddressableStorage) PutFile(ctx context.Context, directory filesystem.Directory, name string, parentDigest *util.Digest) (*util.Digest, error) {
+	ctx, span := trace.StartSpan(ctx, "cas.RWDecoupling.PutFile")
+	defer span.End()
+
 	return cas.writer.PutFile(ctx, directory, name, parentDigest)
 }
 
 func (cas *readWriteDecouplingContentAddressableStorage) PutLog(ctx context.Context, log []byte, parentDigest *util.Digest) (*util.Digest, error) {
+	ctx, span := trace.StartSpan(ctx, "cas.RWDecoupling.PutLog")
+	defer span.End()
+
 	return cas.writer.PutLog(ctx, log, parentDigest)
 }
 
 func (cas *readWriteDecouplingContentAddressableStorage) PutTree(ctx context.Context, tree *remoteexecution.Tree, parentDigest *util.Digest) (*util.Digest, error) {
+	ctx, span := trace.StartSpan(ctx, "cas.RWDecoupling.PutTree")
+	defer span.End()
+
 	return cas.writer.PutTree(ctx, tree, parentDigest)
 }
 
 func (cas *readWriteDecouplingContentAddressableStorage) PutUncachedActionResult(ctx context.Context, uncachedActionResult *cas_proto.UncachedActionResult, parentDigest *util.Digest) (*util.Digest, error) {
+	ctx, span := trace.StartSpan(ctx, "cas.RWDecoupling.PutUncachedActionResult")
+	defer span.End()
+
 	return cas.writer.PutUncachedActionResult(ctx, uncachedActionResult, parentDigest)
 }

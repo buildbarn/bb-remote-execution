@@ -10,6 +10,7 @@ import (
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	re_blobstore "github.com/buildbarn/bb-remote-execution/pkg/blobstore"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
+	"github.com/buildbarn/bb-remote-execution/pkg/opencensus"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_scheduler"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	blobstore_configuration "github.com/buildbarn/bb-storage/pkg/blobstore/configuration"
@@ -30,6 +31,10 @@ func main() {
 	var configuration bb_scheduler.ApplicationConfiguration
 	if err := util.UnmarshalConfigurationFromFile(os.Args[1], &configuration); err != nil {
 		log.Fatalf("Failed to read configuration from %s: %s", os.Args[1], err)
+	}
+
+	if configuration.Jaeger != nil {
+		opencensus.Initialize(configuration.Jaeger, "bb_scheduler")
 	}
 
 	browserURL, err := url.Parse(configuration.BrowserUrl)

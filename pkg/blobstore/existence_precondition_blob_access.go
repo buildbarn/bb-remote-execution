@@ -7,6 +7,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/util"
+	"go.opencensus.io/trace"
 
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
@@ -28,6 +29,9 @@ func NewExistencePreconditionBlobAccess(blobAccess blobstore.BlobAccess) blobsto
 }
 
 func (ba *existencePreconditionBlobAccess) Get(ctx context.Context, digest *util.Digest) buffer.Buffer {
+	ctx, span := trace.StartSpan(ctx, "blobstore.ExistencePreconditionBlobAccess.Get")
+	defer span.End()
+
 	return buffer.WithErrorHandler(
 		ba.BlobAccess.Get(ctx, digest),
 		existencePreconditionErrorHandler{digest: digest})

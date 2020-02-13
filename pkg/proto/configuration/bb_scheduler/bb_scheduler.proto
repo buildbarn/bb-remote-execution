@@ -4,6 +4,7 @@ package buildbarn.configuration.bb_scheduler;
 
 import "pkg/proto/configuration/blobstore/blobstore.proto";
 import "pkg/proto/configuration/grpc/grpc.proto";
+import "pkg/proto/configuration/bb_storage/bb_storage.proto";
 
 option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_scheduler";
 
@@ -26,4 +27,7 @@ message ApplicationConfiguration {
 
   // Configuration for blob storage.
   buildbarn.configuration.blobstore.BlobstoreConfiguration blobstore = 6;
+
+  // Jaeger configuration for tracing.
+  buildbarn.configuration.bb_storage.JaegerConfiguration jaeger = 7;
 }

@@ -10,6 +10,7 @@ proto_library(
     deps = [
         "@com_github_buildbarn_bb_storage//pkg/proto/configuration/blobstore:blobstore_proto",
         "@com_github_buildbarn_bb_storage//pkg/proto/configuration/grpc:grpc_proto",
+        "@com_github_buildbarn_bb_storage//pkg/proto/configuration/bb_storage:bb_storage_proto",
     ],
 )
 
@@ -21,6 +22,7 @@ go_proto_library(
     deps = [
         "@com_github_buildbarn_bb_storage//pkg/proto/configuration/blobstore:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/proto/configuration/grpc:go_default_library",
+        "@com_github_buildbarn_bb_storage//pkg/proto/configuration/bb_storage:go_default_library",
     ],
 )
 

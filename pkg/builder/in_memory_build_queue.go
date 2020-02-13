@@ -24,9 +24,13 @@ import (
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.opencensus.io/trace"
+	"go.opencensus.io/trace/propagation"
 
 	"google.golang.org/genproto/googleapis/longrunning"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -223,9 +227,19 @@ func (bq *InMemoryBuildQueue) GetCapabilities(ctx context.Context, in *remoteexe
 	}, nil
 }
 
+type executeServerWrapper struct {
+	remoteexecution.Execution_ExecuteServer
+	ctx context.Context
+}
+
+func (w executeServerWrapper) Context() context.Context { return w.ctx }
+
 // Execute an action by scheduling it in the build queue. This call
 // blocks until the action is completed.
 func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out remoteexecution.Execution_ExecuteServer) error {
+	ctx, span := trace.StartSpan(out.Context(), "buildqueue.InMemory.Execute")
+	defer span.End()
+
 	// Fetch the action and command corresponding to the execute
 	// request. Ideally, a scheduler is be oblivious of what these
 	// look like, if it weren't for the fact that Action.DoNotCache
@@ -234,7 +248,6 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 	// To prevent loading these messages from the Content
 	// Addressable Storage (CAS) multiple times, the scheduler holds
 	// on to them and passes them on to the workers.
-	ctx := out.Context()
 	actionDigest, err := util.NewDigest(in.InstanceName, in.ActionDigest)
 	if err != nil {
 		return util.StatusWrap(err, "Failed to extract digest for action")
@@ -273,7 +286,7 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 		if argv := command.Arguments; len(argv) > 0 {
 			argv0 = argv[0]
 		}
-		o = &operation{
+		o = newOperationWithSpan(ctx, &operation{
 			platformQueue: pq,
 			desiredState: remoteworker.DesiredState_Executing{
 				ActionDigest:    in.ActionDigest,
@@ -289,7 +302,7 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 			currentStageStartTime: bq.now,
 
 			completionWakeup: make(chan struct{}),
-		}
+		})
 		bq.operationsNameMap[o.name] = o
 		if !action.DoNotCache {
 			pq.inFlightDeduplicationMap[inFlightDeduplicationKey] = o
@@ -305,13 +318,23 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 		pq.wakeupNextWorker()
 		inMemoryBuildQueueOperationsQueuedTotal.WithLabelValues(platformKey.instance, platformKey.platform).Inc()
 	}
-	return o.waitExecution(bq, out)
+	return o.waitExecution(bq, executeServerWrapper{Execution_ExecuteServer: out, ctx: ctx})
 }
+
+type waitExecuteServerWrapper struct {
+	remoteexecution.Execution_WaitExecutionServer
+	ctx context.Context
+}
+
+func (w waitExecuteServerWrapper) Context() context.Context { return w.ctx }
 
 // WaitExecution attaches to an existing operation that was created by
 // Execute(). This call can be used by the client to reattach to an
 // operation in case of network failure.
 func (bq *InMemoryBuildQueue) WaitExecution(in *remoteexecution.WaitExecutionRequest, out remoteexecution.Execution_WaitExecutionServer) error {
+	ctx, span := trace.StartSpan(out.Context(), "buildqueue.InMemory.WaitExecution")
+	defer span.End()
+
 	bq.enter(bq.clock.Now())
 	defer bq.leave()
 
@@ -319,7 +342,10 @@ func (bq *InMemoryBuildQueue) WaitExecution(in *remoteexecution.WaitExecutionReq
 	if !ok {
 		return status.Errorf(codes.NotFound, "Operation with name %#v not found", in.Name)
 	}
-	return o.waitExecution(bq, out)
+
+	o.addParentSpan(span)
+
+	return o.waitExecution(bq, waitExecuteServerWrapper{Execution_WaitExecutionServer: out, ctx: ctx})
 }
 
 // Synchronize the state of a worker with the scheduler. This call is
@@ -1057,6 +1083,8 @@ type operation struct {
 	// obtain Prometheus metrics.
 	currentStageStartTime time.Time
 
+	span *trace.Span
+
 	// retryCount specifies how many additional times the operation
 	// was provided to the worker to which it was allocated. This
 	// counter may be non-zero in case of network flakiness or
@@ -1066,6 +1094,29 @@ type operation struct {
 	executeResponse  *remoteexecution.ExecuteResponse
 	completionWakeup chan struct{}
 	cleanupKey       cleanupKey
+}
+
+/// newOperationWithSpan creates a new operation with an included span
+func newOperationWithSpan(ctx context.Context, o *operation) *operation {
+	ctx, span := trace.StartSpan(ctx, "builder.Operation")
+	span.AddAttributes(
+		trace.StringAttribute("instance", o.instanceName),
+		trace.StringAttribute("operation-id", o.name),
+	)
+	o.span = span
+	return o
+}
+
+/// linkSpan links a span to this operation (in the case of waitExecute)
+func (o *operation) addParentSpan(span *trace.Span) {
+	spanContext := span.SpanContext()
+	if o.span != nil {
+		o.span.AddLink(trace.Link{
+			TraceID: spanContext.TraceID,
+			SpanID:  spanContext.SpanID,
+			Type:    trace.LinkTypeParent,
+		})
+	}
 }
 
 func (o *operation) getStage() remoteexecution.ExecutionStage_Value {
@@ -1196,6 +1247,10 @@ func (o *operation) complete(bq *InMemoryBuildQueue, executeResponse *remoteexec
 		}
 		o.registerExecutingStageFinished(bq, result, grpcCode)
 	}
+
+	if o.span != nil {
+		o.span.End()
+	}
 }
 
 func (o *operation) remove(bq *InMemoryBuildQueue) {
@@ -1273,9 +1328,15 @@ func (w *worker) getCurrentOperation() *operation {
 // startOperation assigns an operation to the worker, returning a
 // synchronization response that instructs the worker to start executing
 // it.
-func (w *worker) startOperation(bq *InMemoryBuildQueue, pq *platformQueue, o *operation) *remoteworker.SynchronizeResponse {
+func (w *worker) startOperation(ctx context.Context, bq *InMemoryBuildQueue, pq *platformQueue, o *operation) *remoteworker.SynchronizeResponse {
 	w.currentOperation = o
 	o.registerQueuedStageFinished(bq)
+
+	// attach the span and trace IDs to the header so the worker knows
+	// which span to assign this execute response to
+	// todo(arlyon) should worker queue know about the span?...
+	grpc.SetHeader(ctx, metadata.Pairs("grpc-trace-bin", string(propagation.Binary(o.span.SpanContext()))))
+
 	return &remoteworker.SynchronizeResponse{
 		NextSynchronizationAt: bq.getNextSynchronizationAtDelay(),
 		DesiredState: &remoteworker.DesiredState{
@@ -1293,7 +1354,7 @@ func (w *worker) startOperation(bq *InMemoryBuildQueue, pq *platformQueue, o *op
 // instructs the worker to go idle.
 func (w *worker) getNextOperation(ctx context.Context, bq *InMemoryBuildQueue, pq *platformQueue, workerID map[string]string) (*remoteworker.SynchronizeResponse, error) {
 	if o, ok := pq.getNextOperationNonBlocking(bq, workerID); ok {
-		return w.startOperation(bq, pq, o), nil
+		return w.startOperation(ctx, bq, pq, o), nil
 	}
 
 	if ctx == nil {
@@ -1318,7 +1379,7 @@ func (w *worker) getNextOperation(ctx context.Context, bq *InMemoryBuildQueue, p
 			NextSynchronizationAt: bq.getCurrentTime(),
 		}, err
 	}
-	return w.startOperation(bq, pq, o), nil
+	return w.startOperation(ctx, bq, pq, o), nil
 }
 
 // getCurrentOrNextOperation either returns a synchronization response

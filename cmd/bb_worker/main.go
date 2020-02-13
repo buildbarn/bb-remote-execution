@@ -16,6 +16,7 @@ import (
 	re_cas "github.com/buildbarn/bb-remote-execution/pkg/cas"
 	"github.com/buildbarn/bb-remote-execution/pkg/environment"
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
+	"github.com/buildbarn/bb-remote-execution/pkg/opencensus"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_worker"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
@@ -37,6 +38,10 @@ func main() {
 	var configuration bb_worker.ApplicationConfiguration
 	if err := util.UnmarshalConfigurationFromFile(os.Args[1], &configuration); err != nil {
 		log.Fatalf("Failed to read configuration from %s: %s", os.Args[1], err)
+	}
+
+	if configuration.Jaeger != nil {
+		opencensus.Initialize(configuration.Jaeger, "bb_worker")
 	}
 
 	browserURL, err := url.Parse(configuration.BrowserUrl)

@@ -8,6 +8,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/eviction"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/util"
+	"go.opencensus.io/trace"
 )
 
 type hardlinkingContentAddressableStorage struct {
@@ -64,6 +65,9 @@ func (cas *hardlinkingContentAddressableStorage) makeSpace(size int64) error {
 }
 
 func (cas *hardlinkingContentAddressableStorage) GetFile(ctx context.Context, digest *util.Digest, directory filesystem.Directory, name string, isExecutable bool) error {
+	ctx, span := trace.StartSpan(ctx, "cas.HardLinking.GetFile")
+	defer span.End()
+
 	key := digest.GetKey(cas.digestKeyFormat)
 	if isExecutable {
 		key += "+x"

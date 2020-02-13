@@ -13,8 +13,13 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/empty"
 
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+
+	"go.opencensus.io/trace"
+	"go.opencensus.io/trace/propagation"
 )
 
 // BuildClient is a client for the Remote Worker protocol. It can send
@@ -60,7 +65,7 @@ func NewBuildClient(scheduler remoteworker.OperationQueueClient, buildExecutor B
 	}
 }
 
-func (bc *BuildClient) startExecution(executionRequest *remoteworker.DesiredState_Executing) {
+func (bc *BuildClient) startExecution(executionRequest *remoteworker.DesiredState_Executing, parent trace.SpanContext) {
 	bc.stopExecution()
 
 	// Spawn the execution of the build action.
@@ -69,6 +74,14 @@ func (bc *BuildClient) startExecution(executionRequest *remoteworker.DesiredStat
 	updates := make(chan *remoteworker.CurrentState_Executing, 10)
 	bc.executionUpdates = updates
 	go func() {
+		ctx, span := trace.StartSpanWithRemoteParent(ctx, "builder.BuildClient.Execute", parent)
+		attrs := []trace.Attribute{trace.StringAttribute("instance-name", bc.request.InstanceName)}
+		for k, v := range bc.request.WorkerId {
+			attrs = append(attrs, trace.StringAttribute(k, v))
+		}
+		span.AddAttributes(attrs...)
+		defer span.End()
+
 		updates <- &remoteworker.CurrentState_Executing{
 			ActionDigest: executionRequest.ActionDigest,
 			ExecutionState: &remoteworker.CurrentState_Executing_Completed{
@@ -162,9 +175,18 @@ func (bc *BuildClient) Run() error {
 
 	// Inform scheduler of current worker state, potentially
 	// requesting new work.
-	response, err := bc.scheduler.Synchronize(context.Background(), &bc.request)
+	var header metadata.MD // variable to store header and trailer
+	response, err := bc.scheduler.Synchronize(context.Background(), &bc.request, grpc.Header(&header))
 	if err != nil {
 		return util.StatusWrap(err, "Failed to synchronize with scheduler")
+	}
+
+	traceContext := header["grpc-trace-bin"]
+	var parent trace.SpanContext
+
+	if len(traceContext) > 0 {
+		traceContextBinary := []byte(traceContext[0])
+		parent, _ = propagation.FromBinary(traceContextBinary)
 	}
 
 	// Determine when we should contact the scheduler again in case
@@ -182,7 +204,7 @@ func (bc *BuildClient) Run() error {
 			// Scheduler is requesting us to execute the
 			// next action, maybe forcing us to to stop
 			// execution of the current build action.
-			bc.startExecution(workerState.Executing)
+			bc.startExecution(workerState.Executing, parent)
 		case *remoteworker.DesiredState_Idle:
 			// Scheduler is forcing us to go back to idle.
 			bc.stopExecution()

@@ -8,6 +8,8 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/util"
+
+	"go.opencensus.io/trace"
 )
 
 type naiveInputRootPopulator struct {
@@ -31,6 +33,12 @@ func NewNaiveInputRootPopulator(contentAddressableStorage cas.ContentAddressable
 }
 
 func (ex *naiveInputRootPopulator) populateInputDirectory(ctx context.Context, digest *util.Digest, inputDirectory filesystem.Directory, components []string) error {
+	ctx, span := trace.StartSpan(ctx, "builder.NativeInputRootPopulator.populateInputDirectory")
+	span.AddAttributes(
+		trace.StringAttribute("directory", path.Join(components...)),
+	)
+	defer span.End()
+
 	// Obtain directory.
 	directory, err := ex.contentAddressableStorage.GetDirectory(ctx, digest)
 	if err != nil {

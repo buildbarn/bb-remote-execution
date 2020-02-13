@@ -16,6 +16,8 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"go.opencensus.io/trace"
 )
 
 type cachingBuildExecutor struct {
@@ -42,6 +44,9 @@ func NewCachingBuildExecutor(base BuildExecutor, contentAddressableStorage cas.C
 }
 
 func (be *cachingBuildExecutor) Execute(ctx context.Context, filePool filesystem.FilePool, instanceName string, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+	ctx, span := trace.StartSpan(ctx, "builder.CachingExecutor.Execute")
+	defer span.End()
+
 	response := be.base.Execute(ctx, filePool, instanceName, request, executionStateUpdates)
 	if actionDigest, err := util.NewDigest(instanceName, request.ActionDigest); err != nil {
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to extract digest for action"))

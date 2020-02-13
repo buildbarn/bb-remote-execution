@@ -8,6 +8,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/eviction"
 	"github.com/buildbarn/bb-storage/pkg/util"
+	"go.opencensus.io/trace"
 )
 
 type directoryCachingContentAddressableStorage struct {
@@ -47,6 +48,9 @@ func (cas *directoryCachingContentAddressableStorage) makeSpace() {
 }
 
 func (cas *directoryCachingContentAddressableStorage) GetDirectory(ctx context.Context, digest *util.Digest) (*remoteexecution.Directory, error) {
+	ctx, span := trace.StartSpan(ctx, "cas.DirectoryCaching.GetDirectory")
+	defer span.End()
+
 	key := digest.GetKey(cas.digestKeyFormat)
 
 	// Check the cache.

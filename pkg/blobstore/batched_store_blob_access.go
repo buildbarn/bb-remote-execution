@@ -8,6 +8,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/util"
+	"go.opencensus.io/trace"
 )
 
 type pendingPutOperation struct {
@@ -78,6 +79,12 @@ func (ba *batchedStoreBlobAccess) flushLocked(ctx context.Context) {
 		return
 	}
 
+	ctx, span := trace.StartSpan(ctx, "blobstore.BatchedStoreBlobAccess.upload")
+	span.AddAttributes(
+		trace.Int64Attribute("file-count", int64(len(missing))),
+	)
+	defer span.End()
+
 	// Upload the missing ones.
 	for _, digest := range missing {
 		key := digest.GetKey(ba.blobKeyFormat)
@@ -92,6 +99,9 @@ func (ba *batchedStoreBlobAccess) flushLocked(ctx context.Context) {
 }
 
 func (ba *batchedStoreBlobAccess) Put(ctx context.Context, digest *util.Digest, b buffer.Buffer) error {
+	ctx, span := trace.StartSpan(ctx, "blobstore.BatchedStoreBlobAccess.Put")
+	defer span.End()
+
 	ba.lock.Lock()
 	defer ba.lock.Unlock()
 
