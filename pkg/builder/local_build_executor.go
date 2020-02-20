@@ -25,37 +25,6 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-type outputDirectory struct {
-	path string
-}
-
-func newOutputDirectory(workingDirectory string, pathDir string) outputDirectory {
-	// REv2 mandates that output directories are created relative to the
-	// working directory. However, directory semantics in buildbarn only
-	// permit directory traversal in the forward direction to avoid
-	// any possible escaping of the input root.
-	outputPath := workingDirectory
-	components := strings.FieldsFunc(pathDir, func(r rune) bool { return r == '/' })
-
-	for _, component := range components {
-		if component == "." {
-			continue
-		} else if component == ".." {
-			outputPath = path.Dir(outputPath)
-		} else {
-			outputPath = path.Join(outputPath, component)
-		}
-	}
-
-	return outputDirectory{
-		path: path.Clean(outputPath),
-	}
-}
-
-func (o outputDirectory) Path() string {
-	return o.path
-}
-
 type localBuildExecutor struct {
 	contentAddressableStorage cas.ContentAddressableStorage
 	environmentManager        environment.Manager
@@ -271,11 +240,10 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	// Build rules generally expect the parent directories to already be
 	// there. We later use the directory handles to extract output files.
 	outputParentDirectories := map[string]filesystem.Directory{}
-	workingDirectory := command.WorkingDirectory
 	for _, outputDirectory := range command.OutputDirectories {
-		dirPath := newOutputDirectory(workingDirectory, path.Dir(outputDirectory)).Path()
+		dirPath := path.Dir(outputDirectory)
 		if _, ok := outputParentDirectories[dirPath]; !ok {
-			dir, err := be.createOutputParentDirectory(buildDirectory, dirPath)
+			dir, err := be.createOutputParentDirectory(buildDirectory, path.Join(command.WorkingDirectory, dirPath))
 			if err != nil {
 				attachErrorToExecuteResponse(response, err)
 				return response
@@ -309,9 +277,9 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 		}
 	}
 	for _, outputFile := range command.OutputFiles {
-		dirPath := newOutputDirectory(workingDirectory, path.Dir(outputFile)).Path()
+		dirPath := path.Dir(outputFile)
 		if _, ok := outputParentDirectories[dirPath]; !ok {
-			dir, err := be.createOutputParentDirectory(buildDirectory, dirPath)
+			dir, err := be.createOutputParentDirectory(buildDirectory, path.Join(command.WorkingDirectory, dirPath))
 			if err != nil {
 				attachErrorToExecuteResponse(response, err)
 				return response
@@ -376,10 +344,8 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 
 	// Upload output files.
 	for _, outputFile := range command.OutputFiles {
-		ofd := newOutputDirectory(workingDirectory, path.Dir(outputFile)).Path()
-		of := newOutputDirectory(workingDirectory, outputFile).Path()
-		outputParentDirectory := outputParentDirectories[ofd]
-		outputBaseName := path.Base(of)
+		outputParentDirectory := outputParentDirectories[path.Dir(outputFile)]
+		outputBaseName := path.Base(outputFile)
 		if fileInfo, err := outputParentDirectory.Lstat(outputBaseName); err == nil {
 			switch fileType := fileInfo.Type(); fileType {
 			case filesystem.FileTypeRegularFile, filesystem.FileTypeExecutableFile:
@@ -419,10 +385,8 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 
 	// Upload output directories.
 	for _, outputDirectory := range command.OutputDirectories {
-		opd := newOutputDirectory(workingDirectory, path.Dir(outputDirectory)).Path()
-		od := newOutputDirectory(workingDirectory, outputDirectory).Path()
-		outputParentDirectory := outputParentDirectories[opd]
-		outputBaseName := path.Base(od)
+		outputParentDirectory := outputParentDirectories[path.Dir(outputDirectory)]
+		outputBaseName := path.Base(outputDirectory)
 		if fileInfo, err := outputParentDirectory.Lstat(outputBaseName); err == nil {
 			switch fileInfo.Type() {
 			case filesystem.FileTypeDirectory:
