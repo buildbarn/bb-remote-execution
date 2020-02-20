@@ -272,9 +272,6 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	// there. We later use the directory handles to extract output files.
 	outputParentDirectories := map[string]filesystem.Directory{}
 	workingDirectory := command.WorkingDirectory
-	if workingDirectory == "" {
-		workingDirectory = "."
-	}
 	for _, outputDirectory := range command.OutputDirectories {
 		dirPath := newOutputDirectory(workingDirectory, path.Dir(outputDirectory)).Path()
 		if _, ok := outputParentDirectories[dirPath]; !ok {
