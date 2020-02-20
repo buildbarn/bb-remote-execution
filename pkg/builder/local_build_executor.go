@@ -243,7 +243,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	for _, outputDirectory := range command.OutputDirectories {
 		dirPath := path.Dir(outputDirectory)
 		if _, ok := outputParentDirectories[dirPath]; !ok {
-			dir, err := be.createOutputParentDirectory(buildDirectory, dirPath)
+			dir, err := be.createOutputParentDirectory(buildDirectory, path.Join(command.WorkingDirectory, dirPath))
 			if err != nil {
 				attachErrorToExecuteResponse(response, err)
 				return response
@@ -279,7 +279,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	for _, outputFile := range command.OutputFiles {
 		dirPath := path.Dir(outputFile)
 		if _, ok := outputParentDirectories[dirPath]; !ok {
-			dir, err := be.createOutputParentDirectory(buildDirectory, dirPath)
+			dir, err := be.createOutputParentDirectory(buildDirectory, path.Join(command.WorkingDirectory, dirPath))
 			if err != nil {
 				attachErrorToExecuteResponse(response, err)
 				return response

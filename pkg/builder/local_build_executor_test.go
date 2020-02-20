@@ -571,6 +571,172 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 	}, executeResponse)
 }
 
+// TestLocalBuildExecutorSuccess tests a full invocation of a simple
+// build step, equivalent to compiling a simple C++ file.
+// This adds a working directory to the commands, with output files
+// produced relative to that working directory.
+func TestLocalBuildExecutorWithWorkingDirectorySuccess(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+	defer ctrl.Finish()
+
+	// File system operations that should occur against the build directory.
+	// Creation of build/objects
+	rootDirectory := mock.NewMockDirectory(ctrl)
+	rootDirectory.EXPECT().Mkdir("build", os.FileMode(0777)).Return(nil)
+	buildDirectory := mock.NewMockDirectory(ctrl)
+	rootDirectory.EXPECT().Enter("build").Return(buildDirectory, nil)
+	buildDirectory.EXPECT().Close()
+	buildDirectory.EXPECT().Mkdir("objects", os.FileMode(0777)).Return(nil)
+	objectsDirectory := mock.NewMockDirectory(ctrl)
+	buildDirectory.EXPECT().Enter("objects").Return(objectsDirectory, nil)
+	objectsDirectory.EXPECT().Close()
+
+	rootDirectory.EXPECT().Lstat("hello.pic.d").Return(filesystem.NewFileInfo("hello.pic.d", filesystem.FileTypeRegularFile), nil)
+	objectsDirectory.EXPECT().Lstat("hello.pic.o").Return(filesystem.NewFileInfo("hello.pic.o", filesystem.FileTypeExecutableFile), nil)
+
+	// Read operations against the Content Addressable Storage.
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+
+	// Write operations against the Content Addressable Storage.
+	contentAddressableStorage.EXPECT().PutFile(ctx, rootDirectory, ".stdout.txt", gomock.Any()).Return(
+		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000005", 567),
+		nil)
+	contentAddressableStorage.EXPECT().PutFile(ctx, rootDirectory, ".stderr.txt", gomock.Any()).Return(
+		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000006", 678),
+		nil)
+	contentAddressableStorage.EXPECT().PutFile(ctx, rootDirectory, "hello.pic.d", gomock.Any()).Return(
+		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000007", 789),
+		nil)
+	contentAddressableStorage.EXPECT().PutFile(ctx, objectsDirectory, "hello.pic.o", gomock.Any()).Return(
+		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000008", 890),
+		nil)
+
+	// Command execution.
+	environmentManager := mock.NewMockManager(ctrl)
+	environment := mock.NewMockManagedEnvironment(ctrl)
+	environmentManager.EXPECT().Acquire(
+		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000001", 123),
+	).Return(environment, nil)
+	environment.EXPECT().GetBuildDirectory().Return(rootDirectory)
+	inputRootPopulator := mock.NewMockInputRootPopulator(ctrl)
+	filePool := mock.NewMockFilePool(ctrl)
+	inputRootPopulator.EXPECT().PopulateInputRoot(
+		ctx,
+		filePool,
+		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000003", 345),
+		rootDirectory).Return(nil)
+	resourceUsage, err := ptypes.MarshalAny(&empty.Empty{})
+	require.NoError(t, err)
+	environment.EXPECT().Run(gomock.Any(), &runner.RunRequest{
+		Arguments: []string{
+			"/usr/local/bin/clang",
+			"-MD",
+			"-MF",
+			"../hello.pic.d",
+			"-c",
+			"hello.cc",
+			"-o",
+			"objects/hello.pic.o",
+		},
+		EnvironmentVariables: map[string]string{
+			"PATH": "/bin:/usr/bin",
+			"PWD":  "/proc/self/cwd",
+		},
+		WorkingDirectory: "build",
+		StdoutPath:       ".stdout.txt",
+		StderrPath:       ".stderr.txt",
+	}).Return(&runner.RunResponse{
+		ExitCode:      0,
+		ResourceUsage: []*any.Any{resourceUsage},
+	}, nil)
+	environment.EXPECT().Release()
+	clock := mock.NewMockClock(ctrl)
+	clock.EXPECT().NewContextWithTimeout(gomock.Any(), time.Hour).DoAndReturn(func(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+		return context.WithCancel(parent)
+	})
+	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, environmentManager, inputRootPopulator, clock, time.Hour, time.Hour)
+
+	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
+	executeResponse := localBuildExecutor.Execute(
+		ctx,
+		filePool,
+		"ubuntu1804",
+		&remoteworker.DesiredState_Executing{
+			ActionDigest: &remoteexecution.Digest{
+				Hash:      "0000000000000000000000000000000000000000000000000000000000000001",
+				SizeBytes: 123,
+			},
+			Action: &remoteexecution.Action{
+				InputRootDigest: &remoteexecution.Digest{
+					Hash:      "0000000000000000000000000000000000000000000000000000000000000003",
+					SizeBytes: 345,
+				},
+			},
+			Command: &remoteexecution.Command{
+				Arguments: []string{
+					"/usr/local/bin/clang",
+					"-MD",
+					"-MF",
+					"../hello.pic.d",
+					"-c",
+					"hello.cc",
+					"-o",
+					"objects/hello.pic.o",
+				},
+				EnvironmentVariables: []*remoteexecution.Command_EnvironmentVariable{
+					{Name: "PATH", Value: "/bin:/usr/bin"},
+					{Name: "PWD", Value: "/proc/self/cwd"},
+				},
+				OutputFiles: []string{
+					"../hello.pic.d",
+					"objects/hello.pic.o",
+				},
+				Platform: &remoteexecution.Platform{
+					Properties: []*remoteexecution.Platform_Property{
+						{
+							Name:  "container-image",
+							Value: "docker://gcr.io/cloud-marketplace/google/rbe-debian8@sha256:4893599fb00089edc8351d9c26b31d3f600774cb5addefb00c70fdb6ca797abf",
+						},
+					},
+				},
+				WorkingDirectory: "build",
+			},
+		},
+		metadata)
+	require.Equal(t, &remoteexecution.ExecuteResponse{
+		Result: &remoteexecution.ActionResult{
+			OutputFiles: []*remoteexecution.OutputFile{
+				{
+					Path: "../hello.pic.d",
+					Digest: &remoteexecution.Digest{
+						Hash:      "0000000000000000000000000000000000000000000000000000000000000007",
+						SizeBytes: 789,
+					},
+				},
+				{
+					Path: "objects/hello.pic.o",
+					Digest: &remoteexecution.Digest{
+						Hash:      "0000000000000000000000000000000000000000000000000000000000000008",
+						SizeBytes: 890,
+					},
+					IsExecutable: true,
+				},
+			},
+			StdoutDigest: &remoteexecution.Digest{
+				Hash:      "0000000000000000000000000000000000000000000000000000000000000005",
+				SizeBytes: 567,
+			},
+			StderrDigest: &remoteexecution.Digest{
+				Hash:      "0000000000000000000000000000000000000000000000000000000000000006",
+				SizeBytes: 678,
+			},
+			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
+				AuxiliaryMetadata: []*any.Any{resourceUsage},
+			},
+		},
+	}, executeResponse)
+}
+
 func TestLocalBuildExecutorCachingInvalidTimeout(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
