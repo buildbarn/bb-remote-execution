@@ -35,7 +35,7 @@ go_binary(
     name = "bb_scheduler",
     embed = [":go_default_library"],
     pure = "on",
-    visibility = ["//visibility:private"],
+    visibility = ["//visibility:public"],
 )
 
 go_image(
