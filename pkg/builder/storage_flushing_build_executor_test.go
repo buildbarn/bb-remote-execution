@@ -99,7 +99,7 @@ func TestStorageFlushingBuildExecutor(t *testing.T) {
 		ctx, filePool, "default", request, updates,
 	).Return(proto.Clone(response).(*remoteexecution.ExecuteResponse)).Times(2)
 
-	// When flushing suceeds, we should return the response in
+	// When flushing succeeds, we should return the response in
 	// literal form.
 	t.Run("FlushingSucceeded", func(t *testing.T) {
 		storageFlusher.EXPECT().Call(ctx).Return(nil)

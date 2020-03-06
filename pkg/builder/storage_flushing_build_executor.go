@@ -35,7 +35,7 @@ func (be *storageFlushingBuildExecutor) Execute(ctx context.Context, filePool re
 		attachErrorToExecuteResponse(response, err)
 
 		// Due to flushing failing, some of the outputs
-		// referenced by the Execute Reponse may not be present
+		// referenced by the Execute Response may not be present
 		// in the Content Addressable Storage. Even with the
 		// error attached to the Execute Response, Bazel will
 		// try to access some of the outputs.
