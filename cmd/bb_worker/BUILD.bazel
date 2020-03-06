@@ -15,6 +15,7 @@ go_library(
         "//pkg/filesystem:go_default_library",
         "//pkg/proto/configuration/bb_worker:go_default_library",
         "//pkg/proto/remoteworker:go_default_library",
+        "//pkg/proto/runner:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/blobstore:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/blobstore/configuration:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/cas:go_default_library",
@@ -26,6 +27,7 @@ go_library(
         "@com_github_buildbarn_bb_storage//pkg/util:go_default_library",
         "@com_github_golang_protobuf//ptypes:go_default_library_gen",
         "@com_github_gorilla_mux//:go_default_library",
+        "@io_bazel_rules_go//proto/wkt:empty_go_proto",
     ],
 )
 

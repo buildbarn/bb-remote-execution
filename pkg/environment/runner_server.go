@@ -5,6 +5,7 @@ import (
 
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
 	"github.com/buildbarn/bb-storage/pkg/digest"
+	"github.com/golang/protobuf/ptypes/empty"
 )
 
 type runnerServer struct {
@@ -17,6 +18,10 @@ func NewRunnerServer(manager Manager) runner.RunnerServer {
 	return &runnerServer{
 		manager: manager,
 	}
+}
+
+func (rs *runnerServer) CheckReadiness(ctx context.Context, request *empty.Empty) (*empty.Empty, error) {
+	return &empty.Empty{}, nil
 }
 
 func (rs *runnerServer) Run(ctx context.Context, request *runner.RunRequest) (*runner.RunResponse, error) {

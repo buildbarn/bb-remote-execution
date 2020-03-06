@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -18,6 +19,7 @@ import (
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_worker"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	blobstore_configuration "github.com/buildbarn/bb-storage/pkg/blobstore/configuration"
 	"github.com/buildbarn/bb-storage/pkg/cas"
@@ -28,6 +30,7 @@ import (
 	bb_grpc "github.com/buildbarn/bb-storage/pkg/grpc"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/golang/protobuf/ptypes"
+	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gorilla/mux"
 )
 
@@ -163,6 +166,17 @@ func main() {
 		runnerConnection, err := bb_grpc.NewGRPCClientFromConfiguration(runnerConfiguration.Endpoint)
 		if err != nil {
 			log.Fatal("Failed to create runner RPC client: ", err)
+		}
+
+		// Wait for the runner process to come online.
+		runnerClient := runner.NewRunnerClient(runnerConnection)
+		for {
+			_, err := runnerClient.CheckReadiness(context.Background(), &empty.Empty{})
+			if err == nil {
+				break
+			}
+			log.Print("Runner is not ready yet: ", err)
+			time.Sleep(3 * time.Second)
 		}
 
 		// Build environment capable of executing one action at a time.

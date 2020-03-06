@@ -3,6 +3,7 @@ syntax = "proto3";
 package buildbarn.runner;
 
 import "google/protobuf/any.proto";
+import "google/protobuf/empty.proto";
 
 option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/runner";
 
@@ -19,6 +20,7 @@ option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/runner";
 //
 //     https://github.com/golang/go/issues/22315
 service Runner {
+  rpc CheckReadiness(google.protobuf.Empty) returns (google.protobuf.Empty);
   rpc Run(RunRequest) returns (RunResponse);
 }
 

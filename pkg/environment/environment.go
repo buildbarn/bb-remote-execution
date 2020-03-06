@@ -1,6 +1,8 @@
 package environment
 
 import (
+	"context"
+
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 )
@@ -13,7 +15,7 @@ type Environment interface {
 	// arguments, environment variables, a working directory
 	// relative to the build directory and a pair of pathnames for
 	// writing stdout/stderr diagnostics output.
-	runner.RunnerServer
+	Run(ctx context.Context, request *runner.RunRequest) (*runner.RunResponse, error)
 
 	// GetBuildDirectory returns a handle to a directory in which a
 	// BuildExecutor may place the input files of the build step and
