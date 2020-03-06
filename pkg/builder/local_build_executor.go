@@ -241,19 +241,6 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	// there. We later use the directory handles to extract output files.
 	outputParentDirectories := map[string]filesystem.Directory{}
 	for _, outputDirectory := range command.OutputDirectories {
-		dirPath := path.Dir(outputDirectory)
-		if _, ok := outputParentDirectories[dirPath]; !ok {
-			dir, err := be.createOutputParentDirectory(buildDirectory, path.Join(command.WorkingDirectory, dirPath))
-			if err != nil {
-				attachErrorToExecuteResponse(response, err)
-				return response
-			}
-			outputParentDirectories[dirPath] = dir
-			if dir != buildDirectory {
-				defer dir.Close()
-			}
-		}
-
 		// Although REv2 explicitly document that only parents
 		// of output directories are created (i.e., not the
 		// output directory itself), Bazel recently changed its
@@ -269,11 +256,16 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 		// these directories up front somewhat rules out the
 		// possibility of omitting output directories and using
 		// OutputDirectorySymlinks.
-		if err := outputParentDirectories[dirPath].Mkdir(path.Base(outputDirectory), 0777); err != nil && !os.IsExist(err) {
-			attachErrorToExecuteResponse(
-				response,
-				util.StatusWrapf(err, "Failed to create output directory %#v", outputDirectory))
-			return response
+		if _, ok := outputParentDirectories[outputDirectory]; !ok {
+			dir, err := be.createOutputParentDirectory(buildDirectory, path.Join(command.WorkingDirectory, outputDirectory))
+			if err != nil {
+				attachErrorToExecuteResponse(response, err)
+				return response
+			}
+			outputParentDirectories[outputDirectory] = dir
+			if dir != buildDirectory {
+				defer dir.Close()
+			}
 		}
 	}
 	for _, outputFile := range command.OutputFiles {
@@ -385,46 +377,13 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 
 	// Upload output directories.
 	for _, outputDirectory := range command.OutputDirectories {
-		outputParentDirectory := outputParentDirectories[path.Dir(outputDirectory)]
-		outputBaseName := path.Base(outputDirectory)
-		if fileInfo, err := outputParentDirectory.Lstat(outputBaseName); err == nil {
-			switch fileInfo.Type() {
-			case filesystem.FileTypeDirectory:
-				if directory, err := outputParentDirectory.Enter(outputBaseName); err == nil {
-					if digest, err := be.uploadTree(ctx, directory, actionDigest, []string{outputDirectory}); err == nil {
-						response.Result.OutputDirectories = append(response.Result.OutputDirectories, &remoteexecution.OutputDirectory{
-							Path:       outputDirectory,
-							TreeDigest: digest.GetPartialDigest(),
-						})
-					} else {
-						attachErrorToExecuteResponse(response, err)
-					}
-					directory.Close()
-				} else {
-					attachErrorToExecuteResponse(
-						response,
-						util.StatusWrapf(err, "Failed to enter output directory %#v", outputDirectory))
-				}
-			case filesystem.FileTypeSymlink:
-				if target, err := outputParentDirectory.Readlink(outputBaseName); err == nil {
-					response.Result.OutputDirectorySymlinks = append(response.Result.OutputDirectorySymlinks, &remoteexecution.OutputSymlink{
-						Path:   outputDirectory,
-						Target: target,
-					})
-				} else {
-					attachErrorToExecuteResponse(
-						response,
-						util.StatusWrapf(err, "Failed to read output symlink %#v", outputDirectory))
-				}
-			default:
-				attachErrorToExecuteResponse(
-					response,
-					status.Errorf(codes.Internal, "Output file %#v is not a directory or symlink", outputDirectory))
-			}
-		} else if !os.IsNotExist(err) {
-			attachErrorToExecuteResponse(
-				response,
-				util.StatusWrapf(err, "Failed to read attributes of output directory %#v", outputDirectory))
+		if digest, err := be.uploadTree(ctx, outputParentDirectories[outputDirectory], actionDigest, []string{outputDirectory}); err == nil {
+			response.Result.OutputDirectories = append(response.Result.OutputDirectories, &remoteexecution.OutputDirectory{
+				Path:       outputDirectory,
+				TreeDigest: digest.GetPartialDigest(),
+			})
+		} else {
+			attachErrorToExecuteResponse(response, err)
 		}
 	}
 
