@@ -21,7 +21,7 @@ message ApplicationConfiguration {
   int64 maximum_message_size_bytes = 6;
 
   // Endpoint of the scheduler to which to connect.
-  buildbarn.configuration.grpc.GRPCClientConfiguration scheduler = 8;
+  buildbarn.configuration.grpc.ClientConfiguration scheduler = 8;
 
   // Address on which to listen to expose Prometheus metrics.
   string http_listen_address = 9;
@@ -77,7 +77,7 @@ message LocalBuildDirectoryConfiguration {
 
 message RunnerConfiguration {
   // GRPC endpoint to which to connect.
-  buildbarn.configuration.grpc.GRPCClientConfiguration endpoint = 1;
+  buildbarn.configuration.grpc.ClientConfiguration endpoint = 1;
 
   // Number of actions to run concurrently on this runner.
   uint64 concurrency = 2;

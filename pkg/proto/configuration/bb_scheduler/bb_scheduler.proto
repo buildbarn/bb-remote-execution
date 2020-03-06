@@ -14,11 +14,11 @@ message ApplicationConfiguration {
 
   // gRPC servers to spawn to listen for requests from clients
   // (bb_storage or Bazel).
-  repeated buildbarn.configuration.grpc.GRPCServerConfiguration
+  repeated buildbarn.configuration.grpc.ServerConfiguration
       client_grpc_servers = 3;
 
   // gRPC servers to spawn to listen for requests from bb_worker.
-  repeated buildbarn.configuration.grpc.GRPCServerConfiguration
+  repeated buildbarn.configuration.grpc.ServerConfiguration
       worker_grpc_servers = 4;
 
   // URL of the Buildbarn Browser, linked to by the web UI.
