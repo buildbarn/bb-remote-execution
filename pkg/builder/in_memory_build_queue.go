@@ -120,12 +120,15 @@ type InMemoryBuildQueueConfiguration struct {
 	// if no changes to their running state occurred.
 	BusyWorkerSynchronizationInterval time.Duration
 
-	// IdleWorkerSynchronizationInterval specifies the maximum
+	// GetIdleWorkerSynchronizationInterval returns the maximum
 	// amount of time a synchronization performed by a worker
 	// against the scheduler may block. Once this amount of time is
 	// passed, the worker is instructed to resynchronize, as a form
 	// of health checking.
-	IdleWorkerSynchronizationInterval time.Duration
+	//
+	// Implementations may add jitter to this value to ensure
+	// synchronization requests get smeared out over time.
+	GetIdleWorkerSynchronizationInterval func() time.Duration
 
 	// WorkerOperationRetryCount specifies how many times a worker
 	// may redundantly request that a single operation is started.
@@ -867,7 +870,7 @@ func (pq *platformQueue) getNextOperationNonBlocking(bq *InMemoryBuildQueue, wor
 // periodically, ensuring that no stale workers are left behind
 // indefinitely.
 func (pq *platformQueue) getNextOperationBlocking(ctx context.Context, bq *InMemoryBuildQueue, workerID map[string]string) (*operation, error) {
-	timeoutTimer, timeoutChannel := bq.clock.NewTimer(bq.configuration.IdleWorkerSynchronizationInterval)
+	timeoutTimer, timeoutChannel := bq.clock.NewTimer(bq.configuration.GetIdleWorkerSynchronizationInterval())
 	for {
 		drained := pq.workerIsDrained(workerID)
 		drainsWakeup := pq.drainsWakeup

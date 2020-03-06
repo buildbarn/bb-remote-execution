@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
@@ -58,11 +59,16 @@ func main() {
 		clock.SystemClock,
 		uuid.NewRandom,
 		&builder.InMemoryBuildQueueConfiguration{
-			ExecutionUpdateInterval:             time.Minute,
-			OperationWithNoWaitersTimeout:       time.Minute,
-			PlatformQueueWithNoWorkersTimeout:   15 * time.Minute,
-			BusyWorkerSynchronizationInterval:   10 * time.Second,
-			IdleWorkerSynchronizationInterval:   time.Minute,
+			ExecutionUpdateInterval:           time.Minute,
+			OperationWithNoWaitersTimeout:     time.Minute,
+			PlatformQueueWithNoWorkersTimeout: 15 * time.Minute,
+			BusyWorkerSynchronizationInterval: 10 * time.Second,
+			GetIdleWorkerSynchronizationInterval: func() time.Duration {
+				// Let synchronization calls block somewhere
+				// between 1 and 2 minutes. Add jitter to
+				// prevent recurring traffic spikes.
+				return time.Minute + time.Duration(rand.Intn(60*1e6))*time.Microsecond
+			},
 			WorkerOperationRetryCount:           9,
 			WorkerWithNoSynchronizationsTimeout: time.Minute,
 		})

@@ -29,13 +29,13 @@ import (
 
 var (
 	buildQueueConfigurationForTesting = re_builder.InMemoryBuildQueueConfiguration{
-		ExecutionUpdateInterval:             time.Minute,
-		OperationWithNoWaitersTimeout:       time.Minute,
-		PlatformQueueWithNoWorkersTimeout:   15 * time.Minute,
-		BusyWorkerSynchronizationInterval:   10 * time.Second,
-		IdleWorkerSynchronizationInterval:   time.Minute,
-		WorkerOperationRetryCount:           9,
-		WorkerWithNoSynchronizationsTimeout: time.Minute,
+		ExecutionUpdateInterval:              time.Minute,
+		OperationWithNoWaitersTimeout:        time.Minute,
+		PlatformQueueWithNoWorkersTimeout:    15 * time.Minute,
+		BusyWorkerSynchronizationInterval:    10 * time.Second,
+		GetIdleWorkerSynchronizationInterval: func() time.Duration { return time.Minute },
+		WorkerOperationRetryCount:            9,
+		WorkerWithNoSynchronizationsTimeout:  time.Minute,
 	}
 )
 
