@@ -69,6 +69,7 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	clock := mock.NewMockClock(ctrl)
+	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting)
 	executionClient := getExecutionClient(t, buildQueue)
@@ -223,8 +224,10 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 	})
 
 	// No workers have registered themselves against this queue,
-	// meaninig calls to Execute() should fail unconditionally.
-	t.Run("UnknownPlatform", func(t *testing.T) {
+	// meaninig calls to Execute() should fail unconditionally. A
+	// soft error code should be returned if this happens not long
+	// after startup, as workers may still appear.
+	t.Run("UnknownPlatformSoft", func(t *testing.T) {
 		contentAddressableStorage.EXPECT().GetAction(
 			gomock.Any(),
 			digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
@@ -245,7 +248,45 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 				},
 			},
 		}, nil)
-		clock.EXPECT().Now().Return(time.Unix(1000, 0))
+		clock.EXPECT().Now().Return(time.Unix(899, 999999999))
+
+		stream, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
+			InstanceName: "main",
+			ActionDigest: &remoteexecution.Digest{
+				Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+				SizeBytes: 123,
+			},
+		})
+		require.NoError(t, err)
+		_, err = stream.Recv()
+		require.Equal(t, err, status.Error(codes.Unavailable, "No workers exist for instance \"main\" platform {\"properties\":[{\"name\":\"cpu\",\"value\":\"armv6\"},{\"name\":\"os\",\"value\":\"linux\"}]}"))
+	})
+
+	// We can be certain that no workers will appear if a sufficient
+	// amount of time has passed. We may then start returning a hard
+	// error code.
+	t.Run("UnknownPlatformHard", func(t *testing.T) {
+		contentAddressableStorage.EXPECT().GetAction(
+			gomock.Any(),
+			digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+		).Return(&remoteexecution.Action{
+			CommandDigest: &remoteexecution.Digest{
+				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
+				SizeBytes: 456,
+			},
+		}, nil)
+		contentAddressableStorage.EXPECT().GetCommand(
+			gomock.Any(),
+			digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
+		).Return(&remoteexecution.Command{
+			Platform: &remoteexecution.Platform{
+				Properties: []*remoteexecution.Platform_Property{
+					{Name: "cpu", Value: "armv6"},
+					{Name: "os", Value: "linux"},
+				},
+			},
+		}, nil)
+		clock.EXPECT().Now().Return(time.Unix(900, 0))
 
 		stream, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
 			InstanceName: "main",
@@ -287,6 +328,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 		},
 	}, nil).Times(10)
 	clock := mock.NewMockClock(ctrl)
+	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting)
 	executionClient := getExecutionClient(t, buildQueue)
@@ -571,6 +613,7 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 		},
 	}, nil).Times(2)
 	clock := mock.NewMockClock(ctrl)
+	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting)
 	executionClient := getExecutionClient(t, buildQueue)
@@ -802,6 +845,7 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 		},
 	}, nil)
 	clock := mock.NewMockClock(ctrl)
+	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting)
 	executionClient := getExecutionClient(t, buildQueue)
@@ -1018,6 +1062,7 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 		},
 	}, nil)
 	clock := mock.NewMockClock(ctrl)
+	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting)
 	executionClient := getExecutionClient(t, buildQueue)
@@ -1211,6 +1256,7 @@ func TestInMemoryBuildQueueIdleWorkerSynchronizationTimeout(t *testing.T) {
 
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	clock := mock.NewMockClock(ctrl)
+	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting)
 
@@ -1273,6 +1319,7 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 		},
 	}, nil)
 	clock := mock.NewMockClock(ctrl)
+	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting)
 	executionClient := getExecutionClient(t, buildQueue)

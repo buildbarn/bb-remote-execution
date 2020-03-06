@@ -147,10 +147,11 @@ type InMemoryBuildQueueConfiguration struct {
 // of the state of the build queue (i.e., list of queued execution
 // requests and list of workers) is kept in memory.
 type InMemoryBuildQueue struct {
-	contentAddressableStorage cas.ContentAddressableStorage
-	clock                     clock.Clock
-	uuidGenerator             util.UUIDGenerator
-	configuration             *InMemoryBuildQueueConfiguration
+	contentAddressableStorage           cas.ContentAddressableStorage
+	clock                               clock.Clock
+	uuidGenerator                       util.UUIDGenerator
+	configuration                       *InMemoryBuildQueueConfiguration
+	platformQueueAbsenceHardFailureTime time.Time
 
 	lock           sync.Mutex
 	platformQueues map[platformKey]*platformQueue
@@ -186,12 +187,13 @@ func NewInMemoryBuildQueue(contentAddressableStorage cas.ContentAddressableStora
 	})
 
 	return &InMemoryBuildQueue{
-		contentAddressableStorage: contentAddressableStorage,
-		clock:                     clock,
-		uuidGenerator:             uuidGenerator,
-		configuration:             configuration,
-		platformQueues:            map[platformKey]*platformQueue{},
-		operationsNameMap:         map[string]*operation{},
+		contentAddressableStorage:           contentAddressableStorage,
+		clock:                               clock,
+		uuidGenerator:                       uuidGenerator,
+		configuration:                       configuration,
+		platformQueueAbsenceHardFailureTime: clock.Now().Add(configuration.PlatformQueueWithNoWorkersTimeout),
+		platformQueues:                      map[platformKey]*platformQueue{},
+		operationsNameMap:                   map[string]*operation{},
 	}
 }
 
@@ -265,7 +267,20 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 
 	pq, ok := bq.platformQueues[platformKey]
 	if !ok {
-		return status.Errorf(codes.FailedPrecondition, "No workers exist for instance %#v platform %s", platformKey.instance, platformKey.platform)
+		code := codes.FailedPrecondition
+		if bq.now.Before(bq.platformQueueAbsenceHardFailureTime) {
+			// The scheduler process started not too long
+			// ago. It may be the case that clients ended up
+			// connecting to the scheduler before workers
+			// got a chance to synchronize.
+			//
+			// Prevent builds from failing unnecessarily by
+			// providing a brief window of time where
+			// soft errors are returned to the client,
+			// giving workers time to reconnect.
+			code = codes.Unavailable
+		}
+		return status.Errorf(code, "No workers exist for instance %#v platform %s", platformKey.instance, platformKey.platform)
 	}
 
 	// Create a new operation in case none exist against which this
