@@ -83,7 +83,7 @@ func TestStorageFlushingBuildExecutor(t *testing.T) {
 			},
 		},
 		ServerLogs: map[string]*remoteexecution.LogFile{
-			"kernel_log": &remoteexecution.LogFile{
+			"kernel_log": {
 				Digest: &remoteexecution.Digest{
 					Hash:      "2917c2a7eb23012392098e74a873cd31",
 					SizeBytes: 9584,
