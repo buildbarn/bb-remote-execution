@@ -116,3 +116,17 @@ http_file(
     sha256 = "eadb9d6e2dc960655481d78a92d2c8bc021861045987ccd3e27c7eae5af0cf33",
     urls = ["https://github.com/krallin/tini/releases/download/v0.18.0/tini-static-amd64"],
 )
+
+http_archive(
+    name = "com_grail_bazel_toolchain",
+    sha256 = "b3dec631fe2be45b3a7a8a4161dd07fadc68825842e8d6305ed35bc8560968ca",
+    strip_prefix = "bazel-toolchain-0.5.1",
+    urls = ["https://github.com/grailbio/bazel-toolchain/archive/0.5.1.tar.gz"],
+)
+
+load("@com_grail_bazel_toolchain//toolchain:rules.bzl", "llvm_toolchain")
+
+llvm_toolchain(
+    name = "llvm_toolchain",
+    llvm_version = "9.0.0",
+)
