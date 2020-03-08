@@ -16,6 +16,6 @@ jobs:
     - name: Push container bb-runner-ubuntu16-04
       run: bazel run //cmd/bb_runner:bb_runner_ubuntu16_04_container_push
     - name: Push container bb-scheduler
-      run: bazel run //cmd/bb_runner:bb_scheduler_container_push
+      run: bazel run //cmd/bb_scheduler:bb_scheduler_container_push
     - name: Push container bb-worker
-      run: bazel run //cmd/bb_runner:bb_worker_container_push
+      run: bazel run //cmd/bb_worker:bb_worker_container_push
