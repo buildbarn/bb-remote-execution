@@ -39,7 +39,8 @@ func main() {
 	r := runner.NewLocalRunner(
 		buildDirectory,
 		configuration.BuildDirectoryPath,
-		configuration.SetTmpdirEnvironmentVariable)
+		configuration.SetTmpdirEnvironmentVariable,
+		configuration.ChrootIntoInputRoot)
 
 	// When temporary directories need cleaning prior to executing a build
 	// action, attach a series of TemporaryDirectoryCleaningRunners.

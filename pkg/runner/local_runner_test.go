@@ -31,7 +31,7 @@ func TestLocalRunner(t *testing.T) {
 		// variables should cause the process to be executed in
 		// an empty environment. It should not inherit the
 		// environment of the runner.
-		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPath, false)
+		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPath, false, false)
 		response, err := runner.Run(context.Background(), &runner_pb.RunRequest{
 			Arguments:          []string{"/usr/bin/env"},
 			StdoutPath:         "EmptyEnvironment/stdout",
@@ -61,7 +61,7 @@ func TestLocalRunner(t *testing.T) {
 		// The environment variables provided in the RunRequest
 		// should be respected. If automatic injection of TMPDIR
 		// is enabled, that variable should also be added.
-		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPath, true)
+		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPath, true, false)
 		response, err := runner.Run(context.Background(), &runner_pb.RunRequest{
 			Arguments: []string{"/usr/bin/env"},
 			EnvironmentVariables: map[string]string{
@@ -98,7 +98,7 @@ func TestLocalRunner(t *testing.T) {
 
 		// Automatic injection of TMPDIR should have no effect
 		// if the command to be run provides its own TMPDIR.
-		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPath, true)
+		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPath, true, false)
 		response, err := runner.Run(context.Background(), &runner_pb.RunRequest{
 			Arguments: []string{"/usr/bin/env"},
 			EnvironmentVariables: map[string]string{
@@ -131,7 +131,7 @@ func TestLocalRunner(t *testing.T) {
 		// RunResponse. POSIX 2008 and later added support for
 		// 32-bit signed exit codes. Most implementations still
 		// truncate the exit code to 8 bits.
-		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPath, false)
+		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPath, false, false)
 		response, err := runner.Run(context.Background(), &runner_pb.RunRequest{
 			Arguments:          []string{"/bin/sh", "-c", "exit 255"},
 			StdoutPath:         "NonZeroExitCode/stdout",

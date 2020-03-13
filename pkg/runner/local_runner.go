@@ -24,15 +24,17 @@ type localRunner struct {
 	buildDirectory               filesystem.Directory
 	buildDirectoryPath           string
 	setTmpdirEnvironmentVariable bool
+	chrootIntoInputRoot          bool
 }
 
 // NewLocalRunner returns a Runner capable of running commands on the
 // local system directly.
-func NewLocalRunner(buildDirectory filesystem.Directory, buildDirectoryPath string, setTmpdirEnvironmentVariable bool) Runner {
+func NewLocalRunner(buildDirectory filesystem.Directory, buildDirectoryPath string, setTmpdirEnvironmentVariable bool, chrootIntoInputRoot bool) Runner {
 	return &localRunner{
 		buildDirectory:               buildDirectory,
 		buildDirectoryPath:           buildDirectoryPath,
 		setTmpdirEnvironmentVariable: setTmpdirEnvironmentVariable,
+		chrootIntoInputRoot:          chrootIntoInputRoot,
 	}
 }
 
@@ -70,10 +72,18 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 	if len(request.Arguments) < 1 {
 		return nil, status.Error(codes.InvalidArgument, "Insufficient number of command arguments")
 	}
-	cmd := exec.CommandContext(ctx, request.Arguments[0], request.Arguments[1:]...)
-	// TODO: Convert WorkingDirectory and TemporaryDirectory to use
-	// platform specific path delimiters.
-	cmd.Dir = filepath.Join(r.buildDirectoryPath, request.InputRootDirectory, request.WorkingDirectory)
+	var cmd *exec.Cmd
+	if r.chrootIntoInputRoot {
+		envPrependedArguments := []string{"/usr/bin/env", "--"}
+		envPrependedArguments = append(envPrependedArguments, request.Arguments...)
+		cmd = exec.CommandContext(ctx, envPrependedArguments[0], envPrependedArguments[1:]...)
+		// TODO: Convert WorkingDirectory and TemporaryDirectory to use
+		// platform specific path delimiters.
+		cmd.Dir = filepath.Join("/", request.WorkingDirectory)
+	} else {
+		cmd = exec.CommandContext(ctx, request.Arguments[0], request.Arguments[1:]...)
+		cmd.Dir = filepath.Join(r.buildDirectoryPath, request.InputRootDirectory, request.WorkingDirectory)
+	}
 	cmd.Env = make([]string, 0, len(request.EnvironmentVariables)+1)
 	if r.setTmpdirEnvironmentVariable && request.TemporaryDirectory != "" {
 		cmd.Env = append(cmd.Env, "TMPDIR="+filepath.Join(r.buildDirectoryPath, request.TemporaryDirectory))
@@ -95,7 +105,14 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 		return nil, util.StatusWrap(err, "Failed to open stderr")
 	}
 	cmd.Stderr = stderr
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if r.chrootIntoInputRoot {
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			Chroot:  path.Join(r.buildDirectoryPath, request.InputRootDirectory),
+			Setpgid: true,
+		}
+	} else {
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	}
 	// Start the subprocess. We can already close the output files
 	// while the process is running.
 	err = cmd.Start()
