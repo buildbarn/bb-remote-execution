@@ -8,6 +8,7 @@ import (
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
+	re_util "github.com/buildbarn/bb-remote-execution/pkg/util"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/golang/protobuf/ptypes"
@@ -39,7 +40,9 @@ type BuildClient struct {
 
 // NewBuildClient creates a new BuildClient instance that is set to the
 // initial state (i.e., being idle).
-func NewBuildClient(scheduler remoteworker.OperationQueueClient, buildExecutor BuildExecutor, filePool filesystem.FilePool, clock clock.Clock, browserURL *url.URL, workerID map[string]string, instanceName string, platform *remoteexecution.Platform) *BuildClient {
+func NewBuildClient(scheduler remoteworker.OperationQueueClient, buildExecutor BuildExecutor,
+	filePool filesystem.FilePool, clock clock.Clock, browserURL *url.URL,
+	workerID map[string]string, instanceName string, platform *remoteexecution.Platform) *BuildClient {
 	return &BuildClient{
 		scheduler:     scheduler,
 		buildExecutor: buildExecutor,
@@ -49,7 +52,7 @@ func NewBuildClient(scheduler remoteworker.OperationQueueClient, buildExecutor B
 		request: remoteworker.SynchronizeRequest{
 			WorkerId:     workerID,
 			InstanceName: instanceName,
-			Platform:     platform,
+			Platform:     re_util.SortPlatformProperties(platform),
 			CurrentState: &remoteworker.CurrentState{
 				WorkerState: &remoteworker.CurrentState_Idle{
 					Idle: &empty.Empty{},
