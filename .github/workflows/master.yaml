@@ -46,7 +46,7 @@ jobs:
 
     - name: macOS build
       run: bazel build --platforms=@io_bazel_rules_go//go/toolchain:darwin_amd64 //...
-    - name: Upload runner for macOS
+    - name: Upload bb_runner for macOS
       uses: actions/upload-artifact@v2-preview
       with:
         name: bb_runner.darwin_amd64
