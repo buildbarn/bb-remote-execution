@@ -8,7 +8,8 @@ jobs:
     runs-on: ubuntu-latest
     container: docker://l.gcr.io/google/bazel:2.1.0
     steps:
-    - uses: actions/checkout@v1
+    - name: Check out source code
+      uses: actions/checkout@v1
 
     - name: Buildifier
       run: bazel run @com_github_bazelbuild_buildtools//:buildifier
@@ -20,13 +21,46 @@ jobs:
       run: find . -name '*.proto' -exec bazel run @llvm_toolchain//:bin/clang-format -- -i {} +
     - name: Test style conformance
       run: git diff --exit-code HEAD --
+    - name: Golint
+      run: bazel run @org_golang_x_lint//golint -- -set_exit_status $(pwd)/...
     - name: Check for ineffective assignments
       run: bazel run @com_github_gordonklaus_ineffassign//:ineffassign $(pwd)
 
     - name: Linux build and test
       run: bazel test --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //...
+    - name: Upload bb_runner for Linux
+      uses: actions/upload-artifact@v2-preview
+      with:
+        name: bb_runner.linux_amd64
+        path: bazel-bin/cmd/bb_runner/linux_amd64_pure_stripped/bb_runner
+    - name: Upload bb_scheduler for Linux
+      uses: actions/upload-artifact@v2-preview
+      with:
+        name: bb_scheduler.linux_amd64
+        path: bazel-bin/cmd/bb_scheduler/linux_amd64_pure_stripped/bb_scheduler
+    - name: Upload bb_worker for Linux
+      uses: actions/upload-artifact@v2-preview
+      with:
+        name: bb_worker.linux_amd64
+        path: bazel-bin/cmd/bb_worker/linux_amd64_pure_stripped/bb_worker
+
     - name: macOS build
       run: bazel build --platforms=@io_bazel_rules_go//go/toolchain:darwin_amd64 //...
+    - name: Upload runner for macOS
+      uses: actions/upload-artifact@v2-preview
+      with:
+        name: bb_runner.darwin_amd64
+        path: bazel-bin/cmd/bb_runner/darwin_amd64_pure_stripped/bb_runner
+    - name: Upload bb_scheduler for macOS
+      uses: actions/upload-artifact@v2-preview
+      with:
+        name: bb_scheduler.darwin_amd64
+        path: bazel-bin/cmd/bb_scheduler/darwin_amd64_pure_stripped/bb_scheduler
+    - name: Upload bb_worker for macOS
+      uses: actions/upload-artifact@v2-preview
+      with:
+        name: bb_worker.darwin_amd64
+        path: bazel-bin/cmd/bb_worker/darwin_amd64_pure_stripped/bb_worker
 
     - name: Install Docker credentials
       run: mkdir ~/.docker && echo "${DOCKER_CONFIG_JSON}" > ~/.docker/config.json
