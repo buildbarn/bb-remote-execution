@@ -67,7 +67,7 @@ func TestActionDigestSubdirectoryManagerEnterFailure(t *testing.T) {
 	rootDirectory := mock.NewMockDirectory(ctrl)
 	baseEnvironment.EXPECT().GetBuildDirectory().Return(rootDirectory).AnyTimes()
 	rootDirectory.EXPECT().Mkdir("e3b0c44298fc1c14", os.FileMode(0777)).Return(nil)
-	rootDirectory.EXPECT().Enter("e3b0c44298fc1c14").Return(nil, status.Error(codes.ResourceExhausted, "Out of file descriptors"))
+	rootDirectory.EXPECT().EnterDirectory("e3b0c44298fc1c14").Return(nil, status.Error(codes.ResourceExhausted, "Out of file descriptors"))
 	rootDirectory.EXPECT().Remove("e3b0c44298fc1c14").Return(nil)
 	baseEnvironment.EXPECT().Release()
 
@@ -90,8 +90,8 @@ func TestActionDigestSubdirectoryManagerSuccess(t *testing.T) {
 	rootDirectory := mock.NewMockDirectory(ctrl)
 	baseEnvironment.EXPECT().GetBuildDirectory().Return(rootDirectory).AnyTimes()
 	rootDirectory.EXPECT().Mkdir("e3b0c44298fc1c14", os.FileMode(0777)).Return(nil)
-	subDirectory := mock.NewMockDirectory(ctrl)
-	rootDirectory.EXPECT().Enter("e3b0c44298fc1c14").Return(subDirectory, nil)
+	subDirectory := mock.NewMockDirectoryCloser(ctrl)
+	rootDirectory.EXPECT().EnterDirectory("e3b0c44298fc1c14").Return(subDirectory, nil)
 	baseEnvironment.EXPECT().Run(ctx, &runner.RunRequest{
 		Arguments: []string{"ls", "-l"},
 		EnvironmentVariables: map[string]string{

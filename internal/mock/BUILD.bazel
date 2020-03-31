@@ -59,6 +59,7 @@ gomock(
     out = "filesystem.go",
     interfaces = [
         "Directory",
+        "DirectoryCloser",
         "FileReader",
         "FileReadWriter",
         "FileWriter",

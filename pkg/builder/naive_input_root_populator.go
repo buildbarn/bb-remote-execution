@@ -58,7 +58,7 @@ func (ex *naiveInputRootPopulator) populateInputDirectory(ctx context.Context, d
 		if err := inputDirectory.Mkdir(directory.Name, 0777); err != nil {
 			return util.StatusWrapf(err, "Failed to create input directory %#v", path.Join(childComponents...))
 		}
-		childDirectory, err := inputDirectory.Enter(directory.Name)
+		childDirectory, err := inputDirectory.EnterDirectory(directory.Name)
 		if err != nil {
 			return util.StatusWrapf(err, "Failed to enter input directory %#v", path.Join(childComponents...))
 		}

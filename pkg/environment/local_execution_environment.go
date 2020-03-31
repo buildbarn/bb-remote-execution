@@ -45,12 +45,10 @@ func (e *localExecutionEnvironment) openLog(logPath string) (filesystem.FileAppe
 	}
 
 	// Traverse to directory where log should be created.
-	d := e.buildDirectory
+	d := filesystem.NopDirectoryCloser(e.buildDirectory)
 	for n, component := range components[:len(components)-1] {
-		d2, err := d.Enter(component)
-		if d != e.buildDirectory {
-			d.Close()
-		}
+		d2, err := d.EnterDirectory(component)
+		d.Close()
 		if err != nil {
 			return nil, util.StatusWrapf(err, "Failed to enter directory %#v", path.Join(components[:n+1]...))
 		}
@@ -59,9 +57,7 @@ func (e *localExecutionEnvironment) openLog(logPath string) (filesystem.FileAppe
 
 	// Create log file within.
 	f, err := d.OpenAppend(components[len(components)-1], filesystem.CreateExcl(0666))
-	if d != e.buildDirectory {
-		d.Close()
-	}
+	d.Close()
 	return f, err
 }
 

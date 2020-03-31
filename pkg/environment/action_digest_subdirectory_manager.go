@@ -52,7 +52,7 @@ func (em *actionDigestSubdirectoryManager) Acquire(actionDigest digest.Digest) (
 		environment.Release()
 		return nil, util.StatusWrapfWithCode(err, codes.Internal, "Failed to create build subdirectory %#v", subdirectoryName)
 	}
-	subdirectory, err := buildDirectory.Enter(subdirectoryName)
+	subdirectory, err := buildDirectory.EnterDirectory(subdirectoryName)
 	if err != nil {
 		if err := buildDirectory.Remove(subdirectoryName); err != nil {
 			log.Print("Failed to remove action digest build directory upon failure to enter: ", err)
@@ -70,7 +70,7 @@ func (em *actionDigestSubdirectoryManager) Acquire(actionDigest digest.Digest) (
 
 type actionDigestSubdirectoryEnvironment struct {
 	base             ManagedEnvironment
-	subdirectory     filesystem.Directory
+	subdirectory     filesystem.DirectoryCloser
 	subdirectoryName string
 }
 

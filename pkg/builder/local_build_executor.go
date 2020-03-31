@@ -69,7 +69,7 @@ func (be *localBuildExecutor) uploadDirectory(ctx context.Context, outputDirecto
 				IsExecutable: fileType == filesystem.FileTypeExecutableFile,
 			})
 		case filesystem.FileTypeDirectory:
-			childDirectory, err := outputDirectory.Enter(name)
+			childDirectory, err := outputDirectory.EnterDirectory(name)
 			if err != nil {
 				return nil, util.StatusWrapf(err, "Failed to enter output directory %#v", path.Join(childComponents...))
 			}
@@ -131,22 +131,18 @@ func (be *localBuildExecutor) uploadTree(ctx context.Context, outputDirectory fi
 	return treeDigest, err
 }
 
-func (be *localBuildExecutor) createOutputParentDirectory(buildDirectory filesystem.Directory, outputParentPath string) (filesystem.Directory, error) {
+func (be *localBuildExecutor) createOutputParentDirectory(buildDirectory filesystem.Directory, outputParentPath string) (filesystem.DirectoryCloser, error) {
 	// Create and enter successive components, closing the former.
 	components := strings.FieldsFunc(outputParentPath, func(r rune) bool { return r == '/' })
-	d := buildDirectory
+	d := filesystem.NopDirectoryCloser(buildDirectory)
 	for n, component := range components {
 		if component != "." {
 			if err := d.Mkdir(component, 0777); err != nil && !os.IsExist(err) {
-				if d != buildDirectory {
-					d.Close()
-				}
+				d.Close()
 				return nil, util.StatusWrapf(err, "Failed to create output directory %#v", path.Join(components[:n+1]...))
 			}
-			d2, err := d.Enter(component)
-			if d != buildDirectory {
-				d.Close()
-			}
+			d2, err := d.EnterDirectory(component)
+			d.Close()
 			if err != nil {
 				return nil, util.StatusWrapf(err, "Failed to enter output directory %#v", path.Join(components[:n+1]...))
 			}
