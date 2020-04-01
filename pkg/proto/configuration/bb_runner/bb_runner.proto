@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package buildbarn.configuration.bb_runner;
 
+import "pkg/proto/configuration/global/global.proto";
 import "pkg/proto/configuration/grpc/grpc.proto";
 
 option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_runner";
@@ -16,4 +17,7 @@ message ApplicationConfiguration {
   // Temporary directories that should be cleaned up after a build action
   // (e.g. /tmp).
   repeated string temporary_directories = 3;
+
+  // Common configuration options that apply to all Buildbarn binaries.
+  buildbarn.configuration.global.Configuration global = 4;
 }

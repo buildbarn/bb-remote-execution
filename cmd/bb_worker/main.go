@@ -27,6 +27,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/eviction"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
+	"github.com/buildbarn/bb-storage/pkg/global"
 	bb_grpc "github.com/buildbarn/bb-storage/pkg/grpc"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/golang/protobuf/ptypes"
@@ -41,6 +42,9 @@ func main() {
 	var configuration bb_worker.ApplicationConfiguration
 	if err := util.UnmarshalConfigurationFromFile(os.Args[1], &configuration); err != nil {
 		log.Fatalf("Failed to read configuration from %s: %s", os.Args[1], err)
+	}
+	if err := global.ApplyConfiguration(configuration.Global); err != nil {
+		log.Fatal("Failed to apply global configuration options: ", err)
 	}
 
 	browserURL, err := url.Parse(configuration.BrowserUrl)

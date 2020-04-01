@@ -3,6 +3,7 @@ syntax = "proto3";
 package buildbarn.configuration.bb_scheduler;
 
 import "pkg/proto/configuration/blobstore/blobstore.proto";
+import "pkg/proto/configuration/global/global.proto";
 import "pkg/proto/configuration/grpc/grpc.proto";
 
 option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_scheduler";
@@ -30,4 +31,7 @@ message ApplicationConfiguration {
 
   // Maximum Protobuf message size to unmarshal.
   int64 maximum_message_size_bytes = 7;
+
+  // Common configuration options that apply to all Buildbarn binaries.
+  buildbarn.configuration.global.Configuration global = 8;
 }

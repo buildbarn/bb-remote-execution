@@ -6,7 +6,10 @@ proto_library(
     name = "bb_runner_proto",
     srcs = ["bb_runner.proto"],
     visibility = ["//visibility:public"],
-    deps = ["@com_github_buildbarn_bb_storage//pkg/proto/configuration/grpc:grpc_proto"],
+    deps = [
+        "@com_github_buildbarn_bb_storage//pkg/proto/configuration/global:global_proto",
+        "@com_github_buildbarn_bb_storage//pkg/proto/configuration/grpc:grpc_proto",
+    ],
 )
 
 go_proto_library(
@@ -14,7 +17,10 @@ go_proto_library(
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_runner",
     proto = ":bb_runner_proto",
     visibility = ["//visibility:public"],
-    deps = ["@com_github_buildbarn_bb_storage//pkg/proto/configuration/grpc:go_default_library"],
+    deps = [
+        "@com_github_buildbarn_bb_storage//pkg/proto/configuration/global:go_default_library",
+        "@com_github_buildbarn_bb_storage//pkg/proto/configuration/grpc:go_default_library",
+    ],
 )
 
 go_library(

@@ -8,6 +8,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_runner"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
+	"github.com/buildbarn/bb-storage/pkg/global"
 	bb_grpc "github.com/buildbarn/bb-storage/pkg/grpc"
 	"github.com/buildbarn/bb-storage/pkg/util"
 
@@ -21,6 +22,9 @@ func main() {
 	var configuration bb_runner.ApplicationConfiguration
 	if err := util.UnmarshalConfigurationFromFile(os.Args[1], &configuration); err != nil {
 		log.Fatalf("Failed to read configuration from %s: %s", os.Args[1], err)
+	}
+	if err := global.ApplyConfiguration(configuration.Global); err != nil {
+		log.Fatal("Failed to apply global configuration options: ", err)
 	}
 
 	buildDirectory, err := filesystem.NewLocalDirectory(configuration.BuildDirectoryPath)
