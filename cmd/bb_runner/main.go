@@ -4,9 +4,9 @@ import (
 	"log"
 	"os"
 
-	"github.com/buildbarn/bb-remote-execution/pkg/environment"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_runner"
-	"github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
+	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
+	"github.com/buildbarn/bb-remote-execution/pkg/runner"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/global"
 	bb_grpc "github.com/buildbarn/bb-storage/pkg/grpc"
@@ -32,24 +32,25 @@ func main() {
 		log.Fatal("Failed to open build directory: ", err)
 	}
 
-	env := environment.NewLocalExecutionEnvironment(buildDirectory, configuration.BuildDirectoryPath)
+	r := runner.NewLocalRunner(
+		buildDirectory,
+		configuration.BuildDirectoryPath)
+
 	// When temporary directories need cleaning prior to executing a build
-	// action, attach a series of TempDirectoryCleaningManagers.
-	m := environment.NewSingletonManager(env)
+	// action, attach a series of TemporaryDirectoryCleaningRunners.
 	for _, d := range configuration.TemporaryDirectories {
 		directory, err := filesystem.NewLocalDirectory(d)
 		if err != nil {
 			log.Fatalf("Failed to open temporary directory %#v: %s", d, err)
 		}
-		m = environment.NewTempDirectoryCleaningManager(m, directory)
+		r = runner.NewTemporaryDirectoryCleaningRunner(r, directory, d)
 	}
-	runnerServer := environment.NewRunnerServer(environment.NewConcurrentManager(m))
 
 	log.Fatal(
 		"gRPC server failure: ",
 		bb_grpc.NewGRPCServersFromConfigurationAndServe(
 			configuration.GrpcServers,
 			func(s *grpc.Server) {
-				runner.RegisterRunnerServer(s, runnerServer)
+				runner_pb.RegisterRunnerServer(s, runner.NewRunnerServer(r))
 			}))
 }

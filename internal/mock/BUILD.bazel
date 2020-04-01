@@ -15,8 +15,9 @@ gomock(
     name = "builder",
     out = "builder.go",
     interfaces = [
+        "BuildDirectory",
+        "BuildDirectoryCreator",
         "BuildExecutor",
-        "InputRootPopulator",
         "StorageFlusher",
     ],
     library = "//pkg/builder:go_default_library",
@@ -39,18 +40,6 @@ gomock(
         "Timer",
     ],
     library = "@com_github_buildbarn_bb_storage//pkg/clock:go_default_library",
-    package = "mock",
-)
-
-gomock(
-    name = "environment",
-    out = "environment.go",
-    interfaces = [
-        "Environment",
-        "ManagedEnvironment",
-        "Manager",
-    ],
-    library = "//pkg/environment:go_default_library",
     package = "mock",
 )
 
@@ -84,6 +73,14 @@ gomock(
         "Execution_WaitExecutionServer",
     ],
     library = "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:go_default_library",
+    package = "mock",
+)
+
+gomock(
+    name = "runner",
+    out = "runner.go",
+    interfaces = ["Runner"],
+    library = "//pkg/runner:go_default_library",
     package = "mock",
 )
 
@@ -132,10 +129,10 @@ go_library(
         ":builder.go",
         ":cas.go",
         ":clock.go",
-        ":environment.go",
         ":filesystem.go",
         ":filesystem_re.go",
         ":remoteexecution.go",
+        ":runner.go",
         ":sharding.go",
         ":storage_builder.go",
         ":storage_util.go",
@@ -145,7 +142,6 @@ go_library(
     visibility = ["//:__subpackages__"],
     deps = [
         "//pkg/builder:go_default_library",
-        "//pkg/environment:go_default_library",
         "//pkg/filesystem:go_default_library",
         "//pkg/proto/remoteworker:go_default_library",
         "//pkg/proto/runner:go_default_library",

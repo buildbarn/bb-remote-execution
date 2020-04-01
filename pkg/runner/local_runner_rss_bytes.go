@@ -1,6 +1,6 @@
 // +build darwin
 
-package environment
+package runner
 
 const (
 	// On macOS, the getrusage(2) man page documents that the

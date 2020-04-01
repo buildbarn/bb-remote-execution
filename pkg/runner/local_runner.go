@@ -1,4 +1,4 @@
-package environment
+package runner
 
 import (
 	"context"
@@ -20,32 +20,28 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-type localExecutionEnvironment struct {
-	buildDirectory filesystem.Directory
-	buildPath      string
+type localRunner struct {
+	buildDirectory     filesystem.Directory
+	buildDirectoryPath string
 }
 
-// NewLocalExecutionEnvironment returns an Environment capable of running
-// commands on the local system directly.
-func NewLocalExecutionEnvironment(buildDirectory filesystem.Directory, buildPath string) Environment {
-	return &localExecutionEnvironment{
-		buildDirectory: buildDirectory,
-		buildPath:      buildPath,
+// NewLocalRunner returns a Runner capable of running commands on the
+// local system directly.
+func NewLocalRunner(buildDirectory filesystem.Directory, buildDirectoryPath string) Runner {
+	return &localRunner{
+		buildDirectory:     buildDirectory,
+		buildDirectoryPath: buildDirectoryPath,
 	}
 }
 
-func (e *localExecutionEnvironment) GetBuildDirectory() filesystem.Directory {
-	return e.buildDirectory
-}
-
-func (e *localExecutionEnvironment) openLog(logPath string) (filesystem.FileAppender, error) {
+func (r *localRunner) openLog(logPath string) (filesystem.FileAppender, error) {
 	components := strings.FieldsFunc(logPath, func(r rune) bool { return r == '/' })
 	if len(components) < 1 {
 		return nil, status.Error(codes.InvalidArgument, "Insufficient pathname components in filename")
 	}
 
 	// Traverse to directory where log should be created.
-	d := filesystem.NopDirectoryCloser(e.buildDirectory)
+	d := filesystem.NopDirectoryCloser(r.buildDirectory)
 	for n, component := range components[:len(components)-1] {
 		d2, err := d.EnterDirectory(component)
 		d.Close()
@@ -68,26 +64,26 @@ func convertTimeval(t syscall.Timeval) *duration.Duration {
 	}
 }
 
-func (e *localExecutionEnvironment) Run(ctx context.Context, request *runner.RunRequest) (*runner.RunResponse, error) {
+func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*runner.RunResponse, error) {
 	if len(request.Arguments) < 1 {
 		return nil, status.Error(codes.InvalidArgument, "Insufficient number of command arguments")
 	}
 	cmd := exec.CommandContext(ctx, request.Arguments[0], request.Arguments[1:]...)
-	// TODO(edsch): Convert workingDirectory to use platform
-	// specific path delimiter.
-	cmd.Dir = filepath.Join(e.buildPath, request.WorkingDirectory)
+	// TODO: Convert WorkingDirectory to use platform specific path
+	// delimiters.
+	cmd.Dir = filepath.Join(r.buildDirectoryPath, request.InputRootDirectory, request.WorkingDirectory)
 	for name, value := range request.EnvironmentVariables {
 		cmd.Env = append(cmd.Env, name+"="+value)
 	}
 
 	// Open output files for logging.
-	stdout, err := e.openLog(request.StdoutPath)
+	stdout, err := r.openLog(request.StdoutPath)
 	if err != nil {
 		return nil, util.StatusWrap(err, "Failed to open stdout")
 	}
 	cmd.Stdout = stdout
 
-	stderr, err := e.openLog(request.StderrPath)
+	stderr, err := r.openLog(request.StderrPath)
 	if err != nil {
 		stdout.Close()
 		return nil, util.StatusWrap(err, "Failed to open stderr")

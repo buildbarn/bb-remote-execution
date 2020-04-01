@@ -1,0 +1,30 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "local_runner.go",
+        "local_runner_rss_bytes.go",
+        "local_runner_rss_kibibytes.go",
+        "remote_runner.go",
+        "runner.go",
+        "runner_server.go",
+        "temporary_directory_cleaning_runner.go",
+    ],
+    importpath = "github.com/buildbarn/bb-remote-execution/pkg/runner",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/proto/resourceusage:go_default_library",
+        "//pkg/proto/runner:go_default_library",
+        "//pkg/sync:go_default_library",
+        "@com_github_buildbarn_bb_storage//pkg/filesystem:go_default_library",
+        "@com_github_buildbarn_bb_storage//pkg/util:go_default_library",
+        "@com_github_golang_protobuf//ptypes:go_default_library_gen",
+        "@io_bazel_rules_go//proto/wkt:any_go_proto",
+        "@io_bazel_rules_go//proto/wkt:duration_go_proto",
+        "@io_bazel_rules_go//proto/wkt:empty_go_proto",
+        "@org_golang_google_grpc//:go_default_library",
+        "@org_golang_google_grpc//codes:go_default_library",
+        "@org_golang_google_grpc//status:go_default_library",
+    ],
+)

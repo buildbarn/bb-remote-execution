@@ -16,7 +16,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func TestNaiveInputRootPopulatorSuccess(t *testing.T) {
+func TestNaiveBuildDirectorySuccess(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
 
@@ -69,7 +69,7 @@ func TestNaiveInputRootPopulatorSuccess(t *testing.T) {
 			},
 		},
 	}, nil)
-	buildDirectory := mock.NewMockDirectory(ctrl)
+	buildDirectory := mock.NewMockDirectoryCloser(ctrl)
 	buildDirectory.EXPECT().Mkdir("directory", os.FileMode(0777)).Return(nil)
 	nestedDirectory := mock.NewMockDirectoryCloser(ctrl)
 	buildDirectory.EXPECT().EnterDirectory("directory").Return(nestedDirectory, nil)
@@ -88,18 +88,15 @@ func TestNaiveInputRootPopulatorSuccess(t *testing.T) {
 		"executable",
 		true).Return(nil)
 	buildDirectory.EXPECT().Symlink("executable", "link-to-executable").Return(nil)
-	inputRootPopulator := builder.NewNaiveInputRootPopulator(contentAddressableStorage)
+	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, contentAddressableStorage)
 
-	filePool := mock.NewMockFilePool(ctrl)
-	err := inputRootPopulator.PopulateInputRoot(
+	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
-		filePool,
-		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42),
-		buildDirectory)
+		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42))
 	require.NoError(t, err)
 }
 
-func TestNaiveInputRootPopulatorInputRootNotInStorage(t *testing.T) {
+func TestNaiveBuildDirectoryInputRootNotInStorage(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
 
@@ -108,19 +105,16 @@ func TestNaiveInputRootPopulatorInputRootNotInStorage(t *testing.T) {
 		ctx,
 		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42),
 	).Return(nil, status.Error(codes.Internal, "Storage is offline"))
-	buildDirectory := mock.NewMockDirectory(ctrl)
-	inputRootPopulator := builder.NewNaiveInputRootPopulator(contentAddressableStorage)
+	buildDirectory := mock.NewMockDirectoryCloser(ctrl)
+	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, contentAddressableStorage)
 
-	filePool := mock.NewMockFilePool(ctrl)
-	err := inputRootPopulator.PopulateInputRoot(
+	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
-		filePool,
-		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42),
-		buildDirectory)
+		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42))
 	require.Equal(t, err, status.Error(codes.Internal, "Failed to obtain input directory \".\": Storage is offline"))
 }
 
-func TestNaiveInputRootPopulatorMissingInputDirectoryDigest(t *testing.T) {
+func TestNaiveBuildDirectoryMissingInputDirectoryDigest(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
 
@@ -149,23 +143,20 @@ func TestNaiveInputRootPopulatorMissingInputDirectoryDigest(t *testing.T) {
 			},
 		},
 	}, nil)
-	buildDirectory := mock.NewMockDirectory(ctrl)
+	buildDirectory := mock.NewMockDirectoryCloser(ctrl)
 	buildDirectory.EXPECT().Mkdir("Hello", os.FileMode(0777)).Return(nil)
 	helloDirectory := mock.NewMockDirectoryCloser(ctrl)
 	buildDirectory.EXPECT().EnterDirectory("Hello").Return(helloDirectory, nil)
 	helloDirectory.EXPECT().Close()
-	inputRootPopulator := builder.NewNaiveInputRootPopulator(contentAddressableStorage)
+	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, contentAddressableStorage)
 
-	filePool := mock.NewMockFilePool(ctrl)
-	err := inputRootPopulator.PopulateInputRoot(
+	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
-		filePool,
-		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42),
-		buildDirectory)
+		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42))
 	require.Equal(t, err, status.Error(codes.InvalidArgument, "Failed to extract digest for input directory \"Hello/World\": No digest provided"))
 }
 
-func TestNaiveInputRootPopulatorDirectoryCreationFailure(t *testing.T) {
+func TestNaiveBuildDirectoryDirectoryCreationFailure(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
 
@@ -198,24 +189,21 @@ func TestNaiveInputRootPopulatorDirectoryCreationFailure(t *testing.T) {
 			},
 		},
 	}, nil)
-	buildDirectory := mock.NewMockDirectory(ctrl)
+	buildDirectory := mock.NewMockDirectoryCloser(ctrl)
 	buildDirectory.EXPECT().Mkdir("Hello", os.FileMode(0777)).Return(nil)
 	helloDirectory := mock.NewMockDirectoryCloser(ctrl)
 	buildDirectory.EXPECT().EnterDirectory("Hello").Return(helloDirectory, nil)
 	helloDirectory.EXPECT().Mkdir("World", os.FileMode(0777)).Return(status.Error(codes.DataLoss, "Disk on fire"))
 	helloDirectory.EXPECT().Close()
-	inputRootPopulator := builder.NewNaiveInputRootPopulator(contentAddressableStorage)
+	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, contentAddressableStorage)
 
-	filePool := mock.NewMockFilePool(ctrl)
-	err := inputRootPopulator.PopulateInputRoot(
+	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
-		filePool,
-		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42),
-		buildDirectory)
+		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42))
 	require.Equal(t, err, status.Error(codes.DataLoss, "Failed to create input directory \"Hello/World\": Disk on fire"))
 }
 
-func TestNaiveInputRootPopulatorDirectoryEnterFailure(t *testing.T) {
+func TestNaiveBuildDirectoryDirectoryEnterDirectoryFailure(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
 
@@ -248,25 +236,22 @@ func TestNaiveInputRootPopulatorDirectoryEnterFailure(t *testing.T) {
 			},
 		},
 	}, nil)
-	buildDirectory := mock.NewMockDirectory(ctrl)
+	buildDirectory := mock.NewMockDirectoryCloser(ctrl)
 	buildDirectory.EXPECT().Mkdir("Hello", os.FileMode(0777)).Return(nil)
 	helloDirectory := mock.NewMockDirectoryCloser(ctrl)
 	buildDirectory.EXPECT().EnterDirectory("Hello").Return(helloDirectory, nil)
 	helloDirectory.EXPECT().Mkdir("World", os.FileMode(0777)).Return(nil)
 	helloDirectory.EXPECT().EnterDirectory("World").Return(nil, status.Error(codes.PermissionDenied, "Thou shalt not pass!"))
 	helloDirectory.EXPECT().Close()
-	inputRootPopulator := builder.NewNaiveInputRootPopulator(contentAddressableStorage)
+	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, contentAddressableStorage)
 
-	filePool := mock.NewMockFilePool(ctrl)
-	err := inputRootPopulator.PopulateInputRoot(
+	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
-		filePool,
-		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42),
-		buildDirectory)
+		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42))
 	require.Equal(t, err, status.Error(codes.PermissionDenied, "Failed to enter input directory \"Hello/World\": Thou shalt not pass!"))
 }
 
-func TestNaiveInputRootPopulatorMissingInputFileDigest(t *testing.T) {
+func TestNaiveBuildDirectoryMissingInputFileDigest(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
 
@@ -295,23 +280,20 @@ func TestNaiveInputRootPopulatorMissingInputFileDigest(t *testing.T) {
 			},
 		},
 	}, nil)
-	buildDirectory := mock.NewMockDirectory(ctrl)
+	buildDirectory := mock.NewMockDirectoryCloser(ctrl)
 	buildDirectory.EXPECT().Mkdir("Hello", os.FileMode(0777)).Return(nil)
 	helloDirectory := mock.NewMockDirectoryCloser(ctrl)
 	buildDirectory.EXPECT().EnterDirectory("Hello").Return(helloDirectory, nil)
 	helloDirectory.EXPECT().Close()
-	inputRootPopulator := builder.NewNaiveInputRootPopulator(contentAddressableStorage)
+	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, contentAddressableStorage)
 
-	filePool := mock.NewMockFilePool(ctrl)
-	err := inputRootPopulator.PopulateInputRoot(
+	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
-		filePool,
-		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42),
-		buildDirectory)
+		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42))
 	require.Equal(t, err, status.Error(codes.InvalidArgument, "Failed to extract digest for input file \"Hello/World\": No digest provided"))
 }
 
-func TestNaiveInputRootPopulatorFileCreationFailure(t *testing.T) {
+func TestNaiveBuildDirectoryFileCreationFailure(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
 
@@ -344,7 +326,7 @@ func TestNaiveInputRootPopulatorFileCreationFailure(t *testing.T) {
 			},
 		},
 	}, nil)
-	buildDirectory := mock.NewMockDirectory(ctrl)
+	buildDirectory := mock.NewMockDirectoryCloser(ctrl)
 	buildDirectory.EXPECT().Mkdir("Hello", os.FileMode(0777)).Return(nil)
 	helloDirectory := mock.NewMockDirectoryCloser(ctrl)
 	buildDirectory.EXPECT().EnterDirectory("Hello").Return(helloDirectory, nil)
@@ -355,18 +337,15 @@ func TestNaiveInputRootPopulatorFileCreationFailure(t *testing.T) {
 		"World",
 		false).Return(status.Error(codes.DataLoss, "Disk on fire"))
 	helloDirectory.EXPECT().Close()
-	inputRootPopulator := builder.NewNaiveInputRootPopulator(contentAddressableStorage)
+	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, contentAddressableStorage)
 
-	filePool := mock.NewMockFilePool(ctrl)
-	err := inputRootPopulator.PopulateInputRoot(
+	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
-		filePool,
-		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42),
-		buildDirectory)
+		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42))
 	require.Equal(t, err, status.Error(codes.DataLoss, "Failed to obtain input file \"Hello/World\": Disk on fire"))
 }
 
-func TestNaiveInputRootPopulatorSymlinkCreationFailure(t *testing.T) {
+func TestNaiveBuildDirectorySymlinkCreationFailure(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
 
@@ -396,19 +375,16 @@ func TestNaiveInputRootPopulatorSymlinkCreationFailure(t *testing.T) {
 			},
 		},
 	}, nil)
-	buildDirectory := mock.NewMockDirectory(ctrl)
+	buildDirectory := mock.NewMockDirectoryCloser(ctrl)
 	buildDirectory.EXPECT().Mkdir("Hello", os.FileMode(0777)).Return(nil)
 	helloDirectory := mock.NewMockDirectoryCloser(ctrl)
 	buildDirectory.EXPECT().EnterDirectory("Hello").Return(helloDirectory, nil)
 	helloDirectory.EXPECT().Symlink("/etc/passwd", "World").Return(status.Error(codes.Unimplemented, "This filesystem does not support symbolic links"))
 	helloDirectory.EXPECT().Close()
-	inputRootPopulator := builder.NewNaiveInputRootPopulator(contentAddressableStorage)
+	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, contentAddressableStorage)
 
-	filePool := mock.NewMockFilePool(ctrl)
-	err := inputRootPopulator.PopulateInputRoot(
+	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
-		filePool,
-		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42),
-		buildDirectory)
+		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42))
 	require.Equal(t, err, status.Error(codes.Unimplemented, "Failed to create input symlink \"Hello/World\": This filesystem does not support symbolic links"))
 }

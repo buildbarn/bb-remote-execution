@@ -31,7 +31,7 @@ message RunRequest {
   // Environment variables that need to be set.
   map<string, string> environment_variables = 2;
 
-  // Working directory, relative to the build directory.
+  // Working directory, relative to the input root directory.
   string working_directory = 3;
 
   // Path where data written over stdout should be stored, relative to
@@ -41,6 +41,9 @@ message RunRequest {
   // Path where data written over stderr should be stored, relative to
   // the build directory.
   string stderr_path = 5;
+
+  // Path of the input root, relative to the build directory.
+  string input_root_directory = 6;
 }
 
 message RunResponse {

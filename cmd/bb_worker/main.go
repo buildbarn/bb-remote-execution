@@ -15,11 +15,12 @@ import (
 	re_blobstore "github.com/buildbarn/bb-remote-execution/pkg/blobstore"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
 	re_cas "github.com/buildbarn/bb-remote-execution/pkg/cas"
-	"github.com/buildbarn/bb-remote-execution/pkg/environment"
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_worker"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
-	"github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
+	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
+	"github.com/buildbarn/bb-remote-execution/pkg/runner"
+	"github.com/buildbarn/bb-remote-execution/pkg/sync"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	blobstore_configuration "github.com/buildbarn/bb-storage/pkg/blobstore/configuration"
 	"github.com/buildbarn/bb-storage/pkg/cas"
@@ -82,7 +83,7 @@ func main() {
 		log.Fatal("Failed to create blob access: ", err)
 	}
 
-	var buildDirectory filesystem.Directory
+	var naiveBuildDirectory filesystem.DirectoryCloser
 	switch buildDirectoryConfigurationVariant := configuration.BuildDirectory.(type) {
 	case *bb_worker.ApplicationConfiguration_LocalBuildDirectory:
 		// To ease privilege separation, clear the umask. This
@@ -93,15 +94,9 @@ func main() {
 
 		// Directory where actual builds take place.
 		buildDirectoryConfiguration := buildDirectoryConfigurationVariant.LocalBuildDirectory
-		buildDirectory, err = filesystem.NewLocalDirectory(buildDirectoryConfiguration.BuildDirectoryPath)
+		naiveBuildDirectory, err = filesystem.NewLocalDirectory(buildDirectoryConfiguration.BuildDirectoryPath)
 		if err != nil {
 			log.Fatal("Failed to open build directory: ", err)
-		}
-		// TODO: This may be removed when the
-		// CleanBuildDirectoryManager is enabled unconditionally
-		// once again.
-		if err := buildDirectory.RemoveAllChildren(); err != nil {
-			log.Fatal("Failed to clean build directory on startup: ", err)
 		}
 	default:
 		log.Fatal("No build directory specified")
@@ -143,6 +138,8 @@ func main() {
 			eviction.NewMetricsSet(evictionSet, "HardlinkingContentAddressableStorage"))
 	}
 
+	var buildDirectoryInitializer sync.Initializer
+	var sharedBuildDirectoryNextParallelActionID uint64
 	if len(configuration.Runners) == 0 {
 		log.Fatal("Cannot start worker without any runners")
 	}
@@ -173,7 +170,7 @@ func main() {
 		}
 
 		// Wait for the runner process to come online.
-		runnerClient := runner.NewRunnerClient(runnerConnection)
+		runnerClient := runner_pb.NewRunnerClient(runnerConnection)
 		for {
 			_, err := runnerClient.CheckReadiness(context.Background(), &empty.Empty{})
 			if err == nil {
@@ -182,32 +179,6 @@ func main() {
 			log.Print("Runner is not ready yet: ", err)
 			time.Sleep(3 * time.Second)
 		}
-
-		// Build environment capable of executing one action at a time.
-		// The build takes place in the root of the build directory.
-		environmentManager := environment.NewSingletonManager(
-			environment.NewRemoteExecutionEnvironment(runnerConnection, buildDirectory))
-
-		// Clean the build directory every time when going from
-		// fully idle to executing one action.
-		// TODO: Also enable this feature when multiple runners
-		// are configured. Being able to support this requires a
-		// decomposition of environment.Environment into two
-		// separate interfaces: one for managing the build
-		// directory and one for running commands.
-		if len(configuration.Runners) == 1 {
-			environmentManager = environment.NewCleanBuildDirectoryManager(environmentManager)
-		}
-
-		// Create a per-action subdirectory in the build directory named
-		// after the action digest, so that multiple actions may be run
-		// concurrently within the same environment.
-		// TODO(edsch): It might make sense to disable this if
-		// concurrency is disabled to improve action cache hit rate, but
-		// only if there are no other workers in the same cluster that
-		// have concurrency enabled.
-		environmentManager = environment.NewActionDigestSubdirectoryManager(
-			environment.NewConcurrentManager(environmentManager))
 
 		for threadID := uint64(0); threadID < runnerConfiguration.Concurrency; threadID++ {
 			go func(runnerConfiguration *bb_worker.RunnerConfiguration, threadID uint64) {
@@ -227,12 +198,27 @@ func main() {
 						contentAddressableStorageWriter,
 						int(configuration.MaximumMessageSizeBytes)))
 
-				var inputRootPopulator builder.InputRootPopulator
+				var buildDirectory builder.BuildDirectory
 				switch configuration.BuildDirectory.(type) {
 				case *bb_worker.ApplicationConfiguration_LocalBuildDirectory:
-					inputRootPopulator = builder.NewNaiveInputRootPopulator(
+					buildDirectory = builder.NewNaiveBuildDirectory(
+						naiveBuildDirectory,
 						contentAddressableStorage)
 				}
+
+				// Create a per-action subdirectory in
+				// the build directory named after the
+				// action digest, so that multiple
+				// actions may be run concurrently.
+				//
+				// Also clean the build directory every
+				// time when going from fully idle to
+				// executing one action.
+				buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(
+					builder.NewCleanBuildDirectoryCreator(
+						builder.NewRootBuildDirectoryCreator(buildDirectory),
+						&buildDirectoryInitializer),
+					&sharedBuildDirectoryNextParallelActionID)
 
 				workerID := map[string]string{}
 				if runnerConfiguration.Concurrency > 1 {
@@ -254,8 +240,8 @@ func main() {
 									builder.NewStorageFlushingBuildExecutor(
 										builder.NewLocalBuildExecutor(
 											contentAddressableStorage,
-											environmentManager,
-											inputRootPopulator,
+											buildDirectoryCreator,
+											runner.NewRemoteRunner(runnerConnection),
 											clock.SystemClock,
 											defaultExecutionTimeout,
 											maximumExecutionTimeout),

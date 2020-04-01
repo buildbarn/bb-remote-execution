@@ -1,6 +1,6 @@
 // +build freebsd linux
 
-package environment
+package runner
 
 const (
 	// On Linux and FreeBSD, the getrusage(2) man pages document
