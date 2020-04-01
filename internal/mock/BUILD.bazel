@@ -117,6 +117,14 @@ gomock(
     package = "mock",
 )
 
+gomock(
+    name = "sync",
+    out = "sync.go",
+    interfaces = ["InitializationFunc"],
+    library = "//pkg/sync:go_default_library",
+    package = "mock",
+)
+
 go_library(
     name = "go_default_library",
     srcs = [
@@ -131,6 +139,7 @@ go_library(
         ":sharding.go",
         ":storage_builder.go",
         ":storage_util.go",
+        ":sync.go",
     ],
     importpath = "github.com/buildbarn/bb-remote-execution/internal/mock",
     visibility = ["//:__subpackages__"],
