@@ -332,6 +332,7 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 		digest.MustNewDigest("nintendo64", "7777777777777777777777777777777777777777777777777777777777777777", 42),
 	).Return(nil)
 	inputRootDirectory.EXPECT().Mkdir("foo", os.FileMode(0777)).Return(nil)
+	buildDirectory.EXPECT().Mkdir("tmp", os.FileMode(0777))
 	runner := mock.NewMockRunner(ctrl)
 	runner.EXPECT().Run(gomock.Any(), &runner_pb.RunRequest{
 		Arguments:            []string{"touch", "foo"},
@@ -340,6 +341,7 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 		StdoutPath:           "stdout",
 		StderrPath:           "stderr",
 		InputRootDirectory:   "root",
+		TemporaryDirectory:   "tmp",
 	}).Return(&runner_pb.RunResponse{
 		ExitCode: 0,
 	}, nil)
@@ -464,6 +466,7 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 		ctx,
 		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000003", 345),
 	).Return(nil)
+	buildDirectory.EXPECT().Mkdir("tmp", os.FileMode(0777))
 	resourceUsage, err := ptypes.MarshalAny(&empty.Empty{})
 	require.NoError(t, err)
 	runner := mock.NewMockRunner(ctrl)
@@ -487,6 +490,7 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 		StdoutPath:         "0000000000000000/stdout",
 		StderrPath:         "0000000000000000/stderr",
 		InputRootDirectory: "0000000000000000/root",
+		TemporaryDirectory: "0000000000000000/tmp",
 	}).Return(&runner_pb.RunResponse{
 		ExitCode:      0,
 		ResourceUsage: []*any.Any{resourceUsage},
@@ -682,6 +686,7 @@ func TestLocalBuildExecutorWithWorkingDirectorySuccess(t *testing.T) {
 		ctx,
 		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000003", 345),
 	).Return(nil)
+	buildDirectory.EXPECT().Mkdir("tmp", os.FileMode(0777))
 	resourceUsage, err := ptypes.MarshalAny(&empty.Empty{})
 	require.NoError(t, err)
 	runner := mock.NewMockRunner(ctrl)
@@ -704,6 +709,7 @@ func TestLocalBuildExecutorWithWorkingDirectorySuccess(t *testing.T) {
 		StdoutPath:         "stdout",
 		StderrPath:         "stderr",
 		InputRootDirectory: "root",
+		TemporaryDirectory: "tmp",
 	}).Return(&runner_pb.RunResponse{
 		ExitCode:      0,
 		ResourceUsage: []*any.Any{resourceUsage},
@@ -924,6 +930,7 @@ func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 		ctx,
 		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000003", 345),
 	).Return(nil)
+	buildDirectory.EXPECT().Mkdir("tmp", os.FileMode(0777))
 
 	// Simulate a timeout by running the command with a timeout of
 	// zero seconds. This should cause an immediate build failure.
@@ -935,6 +942,7 @@ func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 		StdoutPath:           "stdout",
 		StderrPath:           "stderr",
 		InputRootDirectory:   "root",
+		TemporaryDirectory:   "tmp",
 	}).DoAndReturn(func(ctx context.Context, request *runner_pb.RunRequest) (*runner_pb.RunResponse, error) {
 		<-ctx.Done()
 		return nil, util.StatusFromContext(ctx)

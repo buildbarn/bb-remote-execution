@@ -21,16 +21,18 @@ import (
 )
 
 type localRunner struct {
-	buildDirectory     filesystem.Directory
-	buildDirectoryPath string
+	buildDirectory               filesystem.Directory
+	buildDirectoryPath           string
+	setTmpdirEnvironmentVariable bool
 }
 
 // NewLocalRunner returns a Runner capable of running commands on the
 // local system directly.
-func NewLocalRunner(buildDirectory filesystem.Directory, buildDirectoryPath string) Runner {
+func NewLocalRunner(buildDirectory filesystem.Directory, buildDirectoryPath string, setTmpdirEnvironmentVariable bool) Runner {
 	return &localRunner{
-		buildDirectory:     buildDirectory,
-		buildDirectoryPath: buildDirectoryPath,
+		buildDirectory:               buildDirectory,
+		buildDirectoryPath:           buildDirectoryPath,
+		setTmpdirEnvironmentVariable: setTmpdirEnvironmentVariable,
 	}
 }
 
@@ -69,9 +71,12 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 		return nil, status.Error(codes.InvalidArgument, "Insufficient number of command arguments")
 	}
 	cmd := exec.CommandContext(ctx, request.Arguments[0], request.Arguments[1:]...)
-	// TODO: Convert WorkingDirectory to use platform specific path
-	// delimiters.
+	// TODO: Convert WorkingDirectory and TemporaryDirectory to use
+	// platform specific path delimiters.
 	cmd.Dir = filepath.Join(r.buildDirectoryPath, request.InputRootDirectory, request.WorkingDirectory)
+	if r.setTmpdirEnvironmentVariable && request.TemporaryDirectory != "" {
+		cmd.Env = append(cmd.Env, "TMPDIR="+filepath.Join(r.buildDirectoryPath, request.TemporaryDirectory))
+	}
 	for name, value := range request.EnvironmentVariables {
 		cmd.Env = append(cmd.Env, name+"="+value)
 	}

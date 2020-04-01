@@ -44,6 +44,10 @@ message RunRequest {
 
   // Path of the input root, relative to the build directory.
   string input_root_directory = 6;
+
+  // Path of a scratch space directory that may be used by the build
+  // action, relative to the build directory.
+  string temporary_directory = 7;
 }
 
 message RunResponse {

@@ -291,6 +291,18 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 		}
 	}
 
+	// Create a directory inside the build directory that build
+	// actions may use to store temporary files. This ensures that
+	// temporary files are automatically removed when the build
+	// action completes. When using FUSE, it also causes quotas to
+	// be applied to them.
+	if err := buildDirectory.Mkdir("tmp", 0777); err != nil {
+		attachErrorToExecuteResponse(
+			response,
+			util.StatusWrap(err, "Failed to create temporary directory inside build directory"))
+		return response
+	}
+
 	executionStateUpdates <- &remoteworker.CurrentState_Executing{
 		ActionDigest: request.ActionDigest,
 		ExecutionState: &remoteworker.CurrentState_Executing_Running{
@@ -312,6 +324,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 		StdoutPath:           path.Join(buildDirectoryPath, "stdout"),
 		StderrPath:           path.Join(buildDirectoryPath, "stderr"),
 		InputRootDirectory:   path.Join(buildDirectoryPath, "root"),
+		TemporaryDirectory:   path.Join(buildDirectoryPath, "tmp"),
 	})
 
 	// Attach the exit code or execution error.

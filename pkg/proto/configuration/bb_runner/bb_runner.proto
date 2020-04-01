@@ -20,4 +20,11 @@ message ApplicationConfiguration {
 
   // Common configuration options that apply to all Buildbarn binaries.
   buildbarn.configuration.global.Configuration global = 4;
+
+  // Run every build action with the TMPDIR environment variable set to
+  // point to a location inside the build directory. This causes
+  // temporary files to be cleaned up automatically on the build
+  // action's behalf, assuming it properly respects the environment
+  // variable.
+  bool set_tmpdir_environment_variable = 5;
 }
