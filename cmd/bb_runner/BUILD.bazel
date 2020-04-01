@@ -8,13 +8,16 @@ go_library(
     importpath = "github.com/buildbarn/bb-remote-execution/cmd/bb_runner",
     visibility = ["//visibility:private"],
     deps = [
+        "//pkg/filesystem:go_default_library",
         "//pkg/proto/configuration/bb_runner:go_default_library",
         "//pkg/proto/runner:go_default_library",
+        "//pkg/proto/tmp_installer:go_default_library",
         "//pkg/runner:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/filesystem:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/global:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/grpc:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/util:go_default_library",
+        "@io_bazel_rules_go//proto/wkt:empty_go_proto",
         "@org_golang_google_grpc//:go_default_library",
     ],
 )

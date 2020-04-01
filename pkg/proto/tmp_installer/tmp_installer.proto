@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package buildbarn.tmp_installer;
+
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/tmp_installer";
+
+// For every build action executed, bb_worker creates a temporary
+// directory that may be used by bb_runner and the build action as it
+// needs. This temporary directory is automatically purged when the
+// build action completes.
+//
+// bb_runner is capable of passing on this directory to the build action
+// by setting the TMPDIR environment variable. In practice, there tend
+// to be many build actions that simply ignore this environment
+// variable. They create files in /tmp unconditionally.
+//
+// To work around this issue, the TemporaryDirectoryInstaller service
+// may be used call into a potentially privileged helper process that
+// rewrites access to /tmp in a platform specific way:
+//
+// - If the runner is known not to provide any concurrency, the helper
+//   process may remove /tmp and replace it by a symbolic link.
+//
+// - Operating systems such as NetBSD provide a feature called 'magic
+//   symlinks'. When enabled, symbolic link targets may contain tags
+//   such as @uid that cause them to expand to different targets, based
+//   on the user ID of the calling process.
+//
+// - Operating systems that provide support for userspace file systems
+//   may virtualize /tmp into a symbolic link that dynamically resolves
+//   to the temporary directory corresponding to the build action to
+//   which the calling process belongs.
+service TemporaryDirectoryInstaller {
+  rpc CheckReadiness(google.protobuf.Empty) returns (google.protobuf.Empty);
+  rpc InstallTemporaryDirectory(InstallTemporaryDirectoryRequest)
+      returns (google.protobuf.Empty);
+}
+
+message InstallTemporaryDirectoryRequest {
+  // Path of a scratch space directory that may be used by the build
+  // action, relative to the build directory.
+  string temporary_directory = 1;
+}

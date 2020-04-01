@@ -27,4 +27,8 @@ message ApplicationConfiguration {
   // action's behalf, assuming it properly respects the environment
   // variable.
   bool set_tmpdir_environment_variable = 5;
+
+  // Optional helper process for resolving /tmp.
+  buildbarn.configuration.grpc.ClientConfiguration
+      temporary_directory_installer = 6;
 }

@@ -1,16 +1,20 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
+	"time"
 
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_runner"
 	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/tmp_installer"
 	"github.com/buildbarn/bb-remote-execution/pkg/runner"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/global"
 	bb_grpc "github.com/buildbarn/bb-storage/pkg/grpc"
 	"github.com/buildbarn/bb-storage/pkg/util"
+	"github.com/golang/protobuf/ptypes/empty"
 
 	"google.golang.org/grpc"
 )
@@ -45,6 +49,25 @@ func main() {
 			log.Fatalf("Failed to open temporary directory %#v: %s", d, err)
 		}
 		r = runner.NewTemporaryDirectoryCleaningRunner(r, directory, d)
+	}
+
+	// Calling into a helper process to set up access to temporary
+	// directories prior to the execution of build actions.
+	if configuration.TemporaryDirectoryInstaller != nil {
+		tmpInstallerConnection, err := bb_grpc.NewGRPCClientFromConfiguration(configuration.TemporaryDirectoryInstaller)
+		if err != nil {
+			log.Fatal("Failed to create temporary directory installer RPC client: ", err)
+		}
+		tmpInstaller := tmp_installer.NewTemporaryDirectoryInstallerClient(tmpInstallerConnection)
+		for {
+			_, err := tmpInstaller.CheckReadiness(context.Background(), &empty.Empty{})
+			if err == nil {
+				break
+			}
+			log.Print("Temporary directory installer is not ready yet: ", err)
+			time.Sleep(3 * time.Second)
+		}
+		r = runner.NewTemporaryDirectoryInstallingRunner(r, tmpInstaller)
 	}
 
 	log.Fatal(
