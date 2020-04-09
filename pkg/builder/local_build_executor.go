@@ -131,15 +131,17 @@ func (be *localBuildExecutor) uploadTree(ctx context.Context, outputDirectory fi
 	return treeDigest, err
 }
 
-func (be *localBuildExecutor) createOutputParentDirectory(inputRootDirectory filesystem.Directory, outputParentPath string) (filesystem.DirectoryCloser, error) {
+func getOutputDirectory(inputRootDirectory filesystem.Directory, outputPath string, create bool) (filesystem.DirectoryCloser, error) {
 	// Create and enter successive components, closing the former.
-	components := strings.FieldsFunc(outputParentPath, func(r rune) bool { return r == '/' })
+	components := strings.FieldsFunc(outputPath, func(r rune) bool { return r == '/' })
 	d := filesystem.NopDirectoryCloser(inputRootDirectory)
 	for n, component := range components {
 		if component != "." {
-			if err := d.Mkdir(component, 0777); err != nil && !os.IsExist(err) {
-				d.Close()
-				return nil, util.StatusWrapf(err, "Failed to create output directory %#v", path.Join(components[:n+1]...))
+			if create {
+				if err := d.Mkdir(component, 0777); err != nil && !os.IsExist(err) {
+					d.Close()
+					return nil, util.StatusWrapf(err, "Failed to create output directory %#v", path.Join(components[:n+1]...))
+				}
 			}
 			d2, err := d.EnterDirectory(component)
 			d.Close()
@@ -150,6 +152,65 @@ func (be *localBuildExecutor) createOutputParentDirectory(inputRootDirectory fil
 		}
 	}
 	return d, nil
+}
+
+type outputDirectories map[string]filesystem.DirectoryCloser
+
+func (d outputDirectories) Close() {
+	for _, dir := range d {
+		dir.Close()
+	}
+}
+
+func newOutputDirectories(command *remoteexecution.Command, inputRootDirectory filesystem.Directory, create bool) (outputDirectories, error) {
+	paths := map[string]struct{}{}
+
+	for _, outputDirectory := range command.OutputDirectories {
+		// Although REv2 explicitly document that only parents
+		// of output directories are created (i.e., not the
+		// output directory itself), Bazel recently changed its
+		// behaviour to do so after all for local execution. See
+		// these issues for details:
+		//
+		// https://github.com/bazelbuild/bazel/issues/6262
+		// https://github.com/bazelbuild/bazel/issues/6393
+		//
+		// For now, be consistent with Bazel. What the intended
+		// protocol behaviour is should be clarified at some
+		// point. What is especially confusing is that creating
+		// these directories up front somewhat rules out the
+		// possibility of omitting output directories and using
+		// OutputDirectorySymlinks.
+		paths[outputDirectory] = struct{}{}
+	}
+
+	for _, outputFile := range command.OutputFiles {
+		dirPath := path.Dir(outputFile)
+		paths[dirPath] = struct{}{}
+	}
+
+	dirs := outputDirectories(map[string]filesystem.DirectoryCloser{})
+
+	for p, _ := range paths {
+		dir, err := getOutputDirectory(inputRootDirectory, path.Join(command.WorkingDirectory, p), create)
+		if err != nil {
+			dirs.Close()
+			return nil, err
+		}
+		dirs[p] = dir
+	}
+
+	return dirs, nil
+}
+
+func createOutputDirectories(command *remoteexecution.Command, inputRootDirectory filesystem.Directory) error {
+	// Returns nil if all directories are created
+	dirs, err := newOutputDirectories(command, inputRootDirectory, true)
+	if err != nil {
+		return err
+	}
+	dirs.Close()
+	return nil
 }
 
 func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, instanceName string, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
@@ -250,45 +311,10 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 
 	// Create and open parent directories of where we expect to see output.
 	// Build rules generally expect the parent directories to already be
-	// there. We later use the directory handles to extract output files.
-	outputParentDirectories := map[string]filesystem.Directory{}
-	for _, outputDirectory := range command.OutputDirectories {
-		// Although REv2 explicitly document that only parents
-		// of output directories are created (i.e., not the
-		// output directory itself), Bazel recently changed its
-		// behaviour to do so after all for local execution. See
-		// these issues for details:
-		//
-		// https://github.com/bazelbuild/bazel/issues/6262
-		// https://github.com/bazelbuild/bazel/issues/6393
-		//
-		// For now, be consistent with Bazel. What the intended
-		// protocol behaviour is should be clarified at some
-		// point. What is especially confusing is that creating
-		// these directories up front somewhat rules out the
-		// possibility of omitting output directories and using
-		// OutputDirectorySymlinks.
-		if _, ok := outputParentDirectories[outputDirectory]; !ok {
-			dir, err := be.createOutputParentDirectory(inputRootDirectory, path.Join(command.WorkingDirectory, outputDirectory))
-			if err != nil {
-				attachErrorToExecuteResponse(response, err)
-				return response
-			}
-			outputParentDirectories[outputDirectory] = dir
-			defer dir.Close()
-		}
-	}
-	for _, outputFile := range command.OutputFiles {
-		dirPath := path.Dir(outputFile)
-		if _, ok := outputParentDirectories[dirPath]; !ok {
-			dir, err := be.createOutputParentDirectory(inputRootDirectory, path.Join(command.WorkingDirectory, dirPath))
-			if err != nil {
-				attachErrorToExecuteResponse(response, err)
-				return response
-			}
-			outputParentDirectories[dirPath] = dir
-			defer dir.Close()
-		}
+	// there.
+	if err := createOutputDirectories(command, inputRootDirectory); err != nil {
+		attachErrorToExecuteResponse(response, err)
+		return response
 	}
 
 	// Create a directory inside the build directory that build
@@ -355,6 +381,13 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	} else if stderrDigest.GetSizeBytes() > 0 {
 		response.Result.StderrDigest = stderrDigest.GetPartialDigest()
 	}
+
+	outputParentDirectories, err := newOutputDirectories(command, inputRootDirectory, false)
+	if err != nil {
+		attachErrorToExecuteResponse(response, err)
+		return response
+	}
+	defer outputParentDirectories.Close()
 
 	// Upload output files.
 	for _, outputFile := range command.OutputFiles {
