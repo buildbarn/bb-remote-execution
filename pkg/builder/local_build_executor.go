@@ -191,7 +191,7 @@ func newOutputDirectories(command *remoteexecution.Command, inputRootDirectory f
 
 	dirs := outputDirectories(map[string]filesystem.DirectoryCloser{})
 
-	for p, _ := range paths {
+	for p := range paths {
 		dir, err := getOutputDirectory(inputRootDirectory, path.Join(command.WorkingDirectory, p), create)
 		if err != nil {
 			dirs.Close()
