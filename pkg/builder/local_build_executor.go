@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path"
+	"sort"
 	"strings"
 	"time"
 
@@ -250,8 +251,13 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 
 	// Create and open parent directories of where we expect to see output.
 	// Build rules generally expect the parent directories to already be
-	// there. We later use the directory handles to extract output files.
-	outputParentDirectories := map[string]filesystem.Directory{}
+	// there. We cannot reuse directory handles because some programs might
+	// delete or move the files instead of modifying them. This means we
+	// need to create the directory structure, but then reopen the handles
+	// later in order to check the contents. If we use the same directory
+	// handle created here, the handle might point to a directory that has
+	// been deleted by our action.
+	outputParentDirectories := make(map[string]struct{}, len(command.OutputDirectories))
 	for _, outputDirectory := range command.OutputDirectories {
 		// Although REv2 explicitly document that only parents
 		// of output directories are created (i.e., not the
@@ -269,25 +275,27 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 		// possibility of omitting output directories and using
 		// OutputDirectorySymlinks.
 		if _, ok := outputParentDirectories[outputDirectory]; !ok {
-			dir, err := be.createOutputParentDirectory(inputRootDirectory, path.Join(command.WorkingDirectory, outputDirectory))
+			relativePath := path.Join(command.WorkingDirectory, outputDirectory)
+			dir, err := be.createOutputParentDirectory(inputRootDirectory, relativePath)
 			if err != nil {
 				attachErrorToExecuteResponse(response, err)
 				return response
 			}
-			outputParentDirectories[outputDirectory] = dir
-			defer dir.Close()
+			dir.Close()
+			outputParentDirectories[relativePath] = struct{}{}
 		}
 	}
 	for _, outputFile := range command.OutputFiles {
 		dirPath := path.Dir(outputFile)
-		if _, ok := outputParentDirectories[dirPath]; !ok {
-			dir, err := be.createOutputParentDirectory(inputRootDirectory, path.Join(command.WorkingDirectory, dirPath))
+		relativePath := path.Join(command.WorkingDirectory, dirPath)
+		if _, ok := outputParentDirectories[relativePath]; !ok {
+			dir, err := be.createOutputParentDirectory(inputRootDirectory, relativePath)
 			if err != nil {
 				attachErrorToExecuteResponse(response, err)
 				return response
 			}
-			outputParentDirectories[dirPath] = dir
-			defer dir.Close()
+			dir.Close()
+			outputParentDirectories[relativePath] = struct{}{}
 		}
 	}
 
@@ -356,9 +364,53 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 		response.Result.StderrDigest = stderrDigest.GetPartialDigest()
 	}
 
+	// See note above (where we set 'outputParentDirectories') on why we need to re-open all of our handles.
+	rebuiltOutputParentDirectories := map[string]filesystem.Directory{}
+	{ // Block to re-open all our handles for easy access later. We don't put this into a function so we can defer d.Close().
+		paths := []string{}
+		for k := range outputParentDirectories {
+			paths = append(paths, k)
+		}
+		// We need deterministic ordering for unit tests, so sort our paths before we begin opening directories.
+		sort.Strings(paths)
+
+		rootBuildDirectory := filesystem.NopDirectoryCloser(inputRootDirectory)
+		for _, relativePath := range paths {
+			// Create and enter successive components, closing the former.
+			components := strings.FieldsFunc(relativePath, func(r rune) bool { return r == '/' })
+			d := rootBuildDirectory
+			for n, component := range components {
+				if component == "." {
+					continue
+				}
+				d2, err := d.EnterDirectory(component)
+				if d != rootBuildDirectory {
+					d.Close() // Close our previous directory, but don't close the RootBuilddirectory.
+				}
+				if err != nil {
+					attachErrorToExecuteResponse(
+						response,
+						util.StatusWrapf(err, "Output directory was not created (or does not exist) by action %#v", path.Join(components[:n+1]...)))
+					d = nil
+					break
+				}
+				d = d2
+			}
+			if d == nil {
+				continue // Looks like one of our subdirectories does not exist, so abort this entry. We've already set an error.
+			}
+			defer d.Close()
+			rebuiltOutputParentDirectories[relativePath] = d
+		}
+	}
+
 	// Upload output files.
 	for _, outputFile := range command.OutputFiles {
-		outputParentDirectory := outputParentDirectories[path.Dir(outputFile)]
+		relativePath := path.Join(command.WorkingDirectory, path.Dir(outputFile))
+		outputParentDirectory, ok := rebuiltOutputParentDirectories[relativePath]
+		if !ok {
+			continue // If we ever have a case where our index does not exist, we have already attached an error from loop above.
+		}
 		outputBaseName := path.Base(outputFile)
 		if fileInfo, err := outputParentDirectory.Lstat(outputBaseName); err == nil {
 			switch fileType := fileInfo.Type(); fileType {
@@ -399,7 +451,12 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 
 	// Upload output directories.
 	for _, outputDirectory := range command.OutputDirectories {
-		if digest, err := be.uploadTree(ctx, outputParentDirectories[outputDirectory], actionDigest, []string{outputDirectory}); err == nil {
+		relativePath := path.Join(command.WorkingDirectory, outputDirectory)
+		rebuiltOutputDirectory, ok := rebuiltOutputParentDirectories[relativePath]
+		if !ok {
+			continue // If we ever have a case where our index does not exist, we have already attached an error from loop above.
+		}
+		if digest, err := be.uploadTree(ctx, rebuiltOutputDirectory, actionDigest, []string{outputDirectory}); err == nil {
 			response.Result.OutputDirectories = append(response.Result.OutputDirectories, &remoteexecution.OutputDirectory{
 				Path:       outputDirectory,
 				TreeDigest: digest.GetPartialDigest(),
