@@ -131,9 +131,9 @@ func (be *localBuildExecutor) uploadTree(ctx context.Context, outputDirectory fi
 	return treeDigest, err
 }
 
-func getOutputDirectory(inputRootDirectory filesystem.Directory, outputPath string, create bool) (filesystem.DirectoryCloser, error) {
+func getDirectory(inputRootDirectory filesystem.Directory, outputParentPath string, create bool) (filesystem.DirectoryCloser, error) {
 	// Create and enter successive components, closing the former.
-	components := strings.FieldsFunc(outputPath, func(r rune) bool { return r == '/' })
+	components := strings.FieldsFunc(outputParentPath, func(r rune) bool { return r == '/' })
 	d := filesystem.NopDirectoryCloser(inputRootDirectory)
 	for n, component := range components {
 		if component != "." {
@@ -146,7 +146,7 @@ func getOutputDirectory(inputRootDirectory filesystem.Directory, outputPath stri
 			d2, err := d.EnterDirectory(component)
 			d.Close()
 			if err != nil {
-				return nil, util.StatusWrapf(err, "Failed to enter output directory %#v", path.Join(components[:n+1]...))
+				return nil, util.StatusWrapf(err, "Failed to enter directory %#v", path.Join(components[:n+1]...))
 			}
 			d = d2
 		}
@@ -154,16 +154,8 @@ func getOutputDirectory(inputRootDirectory filesystem.Directory, outputPath stri
 	return d, nil
 }
 
-type outputDirectories map[string]filesystem.DirectoryCloser
-
-func (d outputDirectories) Close() {
-	for _, dir := range d {
-		dir.Close()
-	}
-}
-
-func newOutputDirectories(command *remoteexecution.Command, inputRootDirectory filesystem.Directory, create bool) (outputDirectories, error) {
-	paths := map[string]struct{}{}
+func outputDirectories(command *remoteexecution.Command) []string {
+	pathMap := map[string]struct{}{}
 
 	for _, outputDirectory := range command.OutputDirectories {
 		// Although REv2 explicitly document that only parents
@@ -181,35 +173,102 @@ func newOutputDirectories(command *remoteexecution.Command, inputRootDirectory f
 		// these directories up front somewhat rules out the
 		// possibility of omitting output directories and using
 		// OutputDirectorySymlinks.
-		paths[outputDirectory] = struct{}{}
+		pathMap[outputDirectory] = struct{}{}
 	}
 
 	for _, outputFile := range command.OutputFiles {
 		dirPath := path.Dir(outputFile)
-		paths[dirPath] = struct{}{}
+		pathMap[dirPath] = struct{}{}
 	}
 
-	dirs := outputDirectories(map[string]filesystem.DirectoryCloser{})
-
-	for p := range paths {
-		dir, err := getOutputDirectory(inputRootDirectory, path.Join(command.WorkingDirectory, p), create)
-		if err != nil {
-			dirs.Close()
-			return nil, err
-		}
-		dirs[p] = dir
+	paths := []string{}
+	for p := range pathMap {
+		paths = append(paths, p)
 	}
-
-	return dirs, nil
+	return paths
 }
 
-func createOutputDirectories(command *remoteexecution.Command, inputRootDirectory filesystem.Directory) error {
+func createOutputDirectories(command *remoteexecution.Command, root filesystem.Directory) error {
 	// Returns nil if all directories are created
-	dirs, err := newOutputDirectories(command, inputRootDirectory, true)
+
+	for _, p := range outputDirectories(command) {
+		d, err := getDirectory(root, path.Join(command.WorkingDirectory, p), true)
+		if err != nil {
+			return err
+		}
+		d.Close()
+	}
+
+	return nil
+}
+
+func (be *localBuildExecutor) uploadPath(ctx context.Context, command *remoteexecution.Command, root filesystem.Directory, actionDigest digest.Digest, outputPath string, wantDir bool, result *remoteexecution.ActionResult) error {
+	outputBaseName := path.Base(outputPath)
+	outputParentDirectory, err := getDirectory(root, path.Dir(path.Join(command.WorkingDirectory, outputPath)), false)
 	if err != nil {
 		return err
 	}
-	dirs.Close()
+	defer outputParentDirectory.Close()
+
+	if fileInfo, err := outputParentDirectory.Lstat(outputBaseName); err == nil {
+		switch fileType := fileInfo.Type(); fileType {
+		case filesystem.FileTypeRegularFile, filesystem.FileTypeExecutableFile:
+			if wantDir {
+				return status.Errorf(codes.FailedPrecondition, "Output directory %s is a regular file", outputPath)
+			}
+
+			if digest, err := be.contentAddressableStorage.PutFile(ctx, outputParentDirectory, outputBaseName, actionDigest); err == nil {
+				result.OutputFiles = append(result.OutputFiles, &remoteexecution.OutputFile{
+					Path:         outputPath,
+					Digest:       digest.GetPartialDigest(),
+					IsExecutable: fileType == filesystem.FileTypeExecutableFile,
+				})
+			} else {
+				return util.StatusWrapf(err, "Failed to store output file %#v", outputPath)
+			}
+
+		case filesystem.FileTypeDirectory:
+			if !wantDir {
+				return status.Errorf(codes.FailedPrecondition, "Output file %s is a directory", outputPath)
+			}
+
+			d, err := outputParentDirectory.EnterDirectory(outputBaseName)
+			if err != nil {
+				return util.StatusWrapf(err, "Failed to enter output directory %s", outputPath)
+			}
+			defer d.Close()
+
+			if digest, err := be.uploadTree(ctx, d, actionDigest, []string{outputPath}); err == nil {
+				result.OutputDirectories = append(result.OutputDirectories, &remoteexecution.OutputDirectory{
+					Path:       outputPath,
+					TreeDigest: digest.GetPartialDigest(),
+				})
+			} else {
+				return err
+			}
+
+		case filesystem.FileTypeSymlink:
+			if target, err := outputParentDirectory.Readlink(outputBaseName); err == nil {
+				outputSymlink := &remoteexecution.OutputSymlink{
+					Path:   outputPath,
+					Target: target,
+				}
+
+				if wantDir {
+					result.OutputDirectorySymlinks = append(result.OutputDirectorySymlinks, outputSymlink)
+				} else {
+					result.OutputFileSymlinks = append(result.OutputFileSymlinks, outputSymlink)
+				}
+			} else {
+				return util.StatusWrapf(err, "Failed to read output symlink %s", outputPath)
+			}
+		default:
+			return status.Errorf(codes.Internal, "Output path %s has unknown type", outputPath)
+		}
+	} else if !os.IsNotExist(err) {
+		return util.StatusWrapf(err, "Failed to read attributes of output path %s", outputPath)
+	}
+
 	return nil
 }
 
@@ -382,62 +441,14 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 		response.Result.StderrDigest = stderrDigest.GetPartialDigest()
 	}
 
-	outputParentDirectories, err := newOutputDirectories(command, inputRootDirectory, false)
-	if err != nil {
-		attachErrorToExecuteResponse(response, err)
-		return response
-	}
-	defer outputParentDirectories.Close()
-
-	// Upload output files.
+	// Upload output files and directories
 	for _, outputFile := range command.OutputFiles {
-		outputParentDirectory := outputParentDirectories[path.Dir(outputFile)]
-		outputBaseName := path.Base(outputFile)
-		if fileInfo, err := outputParentDirectory.Lstat(outputBaseName); err == nil {
-			switch fileType := fileInfo.Type(); fileType {
-			case filesystem.FileTypeRegularFile, filesystem.FileTypeExecutableFile:
-				if digest, err := be.contentAddressableStorage.PutFile(ctx, outputParentDirectory, outputBaseName, actionDigest); err == nil {
-					response.Result.OutputFiles = append(response.Result.OutputFiles, &remoteexecution.OutputFile{
-						Path:         outputFile,
-						Digest:       digest.GetPartialDigest(),
-						IsExecutable: fileType == filesystem.FileTypeExecutableFile,
-					})
-				} else {
-					attachErrorToExecuteResponse(
-						response,
-						util.StatusWrapf(err, "Failed to store output file %#v", outputFile))
-				}
-			case filesystem.FileTypeSymlink:
-				if target, err := outputParentDirectory.Readlink(outputBaseName); err == nil {
-					response.Result.OutputFileSymlinks = append(response.Result.OutputFileSymlinks, &remoteexecution.OutputSymlink{
-						Path:   outputFile,
-						Target: target,
-					})
-				} else {
-					attachErrorToExecuteResponse(
-						response,
-						util.StatusWrapf(err, "Failed to read output symlink %#v", outputFile))
-				}
-			default:
-				attachErrorToExecuteResponse(
-					response,
-					status.Errorf(codes.Internal, "Output file %#v is not a regular file or symlink", outputFile))
-			}
-		} else if !os.IsNotExist(err) {
-			attachErrorToExecuteResponse(
-				response,
-				util.StatusWrapf(err, "Failed to read attributes of output file %#v", outputFile))
+		if err := be.uploadPath(ctx, command, inputRootDirectory, actionDigest, outputFile, false, response.Result); err != nil {
+			attachErrorToExecuteResponse(response, err)
 		}
 	}
-
-	// Upload output directories.
 	for _, outputDirectory := range command.OutputDirectories {
-		if digest, err := be.uploadTree(ctx, outputParentDirectories[outputDirectory], actionDigest, []string{outputDirectory}); err == nil {
-			response.Result.OutputDirectories = append(response.Result.OutputDirectories, &remoteexecution.OutputDirectory{
-				Path:       outputDirectory,
-				TreeDigest: digest.GetPartialDigest(),
-			})
-		} else {
+		if err := be.uploadPath(ctx, command, inputRootDirectory, actionDigest, outputDirectory, true, response.Result); err != nil {
 			attachErrorToExecuteResponse(response, err)
 		}
 	}
