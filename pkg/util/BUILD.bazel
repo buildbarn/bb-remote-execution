@@ -1,9 +1,22 @@
-load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "go_default_library",
-    srcs = ["browser_url.go"],
+    srcs = [
+        "browser_url.go",
+        "shared_action_queue.go",
+    ],
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/util",
     visibility = ["//visibility:public"],
     deps = ["@com_github_buildbarn_bb_storage//pkg/digest:go_default_library"],
+)
+
+go_test(
+    name = "go_default_test",
+    srcs = ["shared_action_queue_test.go"],
+    embed = [":go_default_library"],
+    deps = [
+        "@com_github_golang_mock//gomock:go_default_library",
+        "@com_github_stretchr_testify//require:go_default_library",
+    ],
 )

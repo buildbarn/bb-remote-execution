@@ -48,6 +48,11 @@ message ApplicationConfiguration {
   // stored. If left empty, temporary files are stored in memory.
   string file_pool_directory_path = 18;
 
+  // The size of concurrent actions that can be run at any given time.
+  // This many goroutines and concurrent streams will be allowed at
+  // any given time.
+  uint32 shared_action_queue_size = 20;
+
   // Common configuration options that apply to all Buildbarn binaries.
   buildbarn.configuration.global.Configuration global = 19;
 }

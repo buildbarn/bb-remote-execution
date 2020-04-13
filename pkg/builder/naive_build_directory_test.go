@@ -8,6 +8,7 @@ import (
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
+	re_util "github.com/buildbarn/bb-remote-execution/pkg/util"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -22,7 +23,7 @@ func TestNaiveBuildDirectorySuccess(t *testing.T) {
 
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	contentAddressableStorage.EXPECT().GetDirectory(
-		ctx,
+		gomock.AssignableToTypeOf(ctx),
 		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42),
 	).Return(&remoteexecution.Directory{
 		Directories: []*remoteexecution.DirectoryNode{
@@ -59,7 +60,7 @@ func TestNaiveBuildDirectorySuccess(t *testing.T) {
 		},
 	}, nil)
 	contentAddressableStorage.EXPECT().GetDirectory(
-		ctx,
+		gomock.AssignableToTypeOf(ctx),
 		digest.MustNewDigest("netbsd", "8888888888888888888888888888888888888888888888888888888888888888", 123),
 	).Return(&remoteexecution.Directory{
 		Symlinks: []*remoteexecution.SymlinkNode{
@@ -76,19 +77,20 @@ func TestNaiveBuildDirectorySuccess(t *testing.T) {
 	nestedDirectory.EXPECT().Symlink("../non-executable", "link-to-non-executable").Return(nil)
 	nestedDirectory.EXPECT().Close()
 	contentAddressableStorage.EXPECT().GetFile(
-		ctx,
+		gomock.AssignableToTypeOf(ctx),
 		digest.MustNewDigest("netbsd", "9999999999999999999999999999999999999999999999999999999999999999", 512),
 		buildDirectory,
 		"non-executable",
 		false).Return(nil)
 	contentAddressableStorage.EXPECT().GetFile(
-		ctx,
+		gomock.AssignableToTypeOf(ctx),
 		digest.MustNewDigest("netbsd", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", 512),
 		buildDirectory,
 		"executable",
 		true).Return(nil)
 	buildDirectory.EXPECT().Symlink("executable", "link-to-executable").Return(nil)
-	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, contentAddressableStorage)
+	sharedActionQueue := re_util.NewSharedActionQueue(10)
+	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, contentAddressableStorage, sharedActionQueue)
 
 	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
@@ -102,11 +104,12 @@ func TestNaiveBuildDirectoryInputRootNotInStorage(t *testing.T) {
 
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	contentAddressableStorage.EXPECT().GetDirectory(
-		ctx,
+		gomock.AssignableToTypeOf(ctx),
 		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42),
 	).Return(nil, status.Error(codes.Internal, "Storage is offline"))
 	buildDirectory := mock.NewMockDirectoryCloser(ctrl)
-	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, contentAddressableStorage)
+	sharedActionQueue := re_util.NewSharedActionQueue(10)
+	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, contentAddressableStorage, sharedActionQueue)
 
 	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
@@ -120,7 +123,7 @@ func TestNaiveBuildDirectoryMissingInputDirectoryDigest(t *testing.T) {
 
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	contentAddressableStorage.EXPECT().GetDirectory(
-		ctx,
+		gomock.AssignableToTypeOf(ctx),
 		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42),
 	).Return(&remoteexecution.Directory{
 		Directories: []*remoteexecution.DirectoryNode{
@@ -134,7 +137,7 @@ func TestNaiveBuildDirectoryMissingInputDirectoryDigest(t *testing.T) {
 		},
 	}, nil)
 	contentAddressableStorage.EXPECT().GetDirectory(
-		ctx,
+		gomock.AssignableToTypeOf(ctx),
 		digest.MustNewDigest("netbsd", "8888888888888888888888888888888888888888888888888888888888888888", 123),
 	).Return(&remoteexecution.Directory{
 		Directories: []*remoteexecution.DirectoryNode{
@@ -148,7 +151,8 @@ func TestNaiveBuildDirectoryMissingInputDirectoryDigest(t *testing.T) {
 	helloDirectory := mock.NewMockDirectoryCloser(ctrl)
 	buildDirectory.EXPECT().EnterDirectory("Hello").Return(helloDirectory, nil)
 	helloDirectory.EXPECT().Close()
-	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, contentAddressableStorage)
+	sharedActionQueue := re_util.NewSharedActionQueue(10)
+	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, contentAddressableStorage, sharedActionQueue)
 
 	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
@@ -162,7 +166,7 @@ func TestNaiveBuildDirectoryDirectoryCreationFailure(t *testing.T) {
 
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	contentAddressableStorage.EXPECT().GetDirectory(
-		ctx,
+		gomock.AssignableToTypeOf(ctx),
 		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42),
 	).Return(&remoteexecution.Directory{
 		Directories: []*remoteexecution.DirectoryNode{
@@ -176,7 +180,7 @@ func TestNaiveBuildDirectoryDirectoryCreationFailure(t *testing.T) {
 		},
 	}, nil)
 	contentAddressableStorage.EXPECT().GetDirectory(
-		ctx,
+		gomock.AssignableToTypeOf(ctx),
 		digest.MustNewDigest("netbsd", "8888888888888888888888888888888888888888888888888888888888888888", 123),
 	).Return(&remoteexecution.Directory{
 		Directories: []*remoteexecution.DirectoryNode{
@@ -195,7 +199,8 @@ func TestNaiveBuildDirectoryDirectoryCreationFailure(t *testing.T) {
 	buildDirectory.EXPECT().EnterDirectory("Hello").Return(helloDirectory, nil)
 	helloDirectory.EXPECT().Mkdir("World", os.FileMode(0777)).Return(status.Error(codes.DataLoss, "Disk on fire"))
 	helloDirectory.EXPECT().Close()
-	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, contentAddressableStorage)
+	sharedActionQueue := re_util.NewSharedActionQueue(10)
+	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, contentAddressableStorage, sharedActionQueue)
 
 	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
@@ -209,7 +214,7 @@ func TestNaiveBuildDirectoryDirectoryEnterDirectoryFailure(t *testing.T) {
 
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	contentAddressableStorage.EXPECT().GetDirectory(
-		ctx,
+		gomock.AssignableToTypeOf(ctx),
 		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42),
 	).Return(&remoteexecution.Directory{
 		Directories: []*remoteexecution.DirectoryNode{
@@ -223,7 +228,7 @@ func TestNaiveBuildDirectoryDirectoryEnterDirectoryFailure(t *testing.T) {
 		},
 	}, nil)
 	contentAddressableStorage.EXPECT().GetDirectory(
-		ctx,
+		gomock.AssignableToTypeOf(ctx),
 		digest.MustNewDigest("netbsd", "8888888888888888888888888888888888888888888888888888888888888888", 123),
 	).Return(&remoteexecution.Directory{
 		Directories: []*remoteexecution.DirectoryNode{
@@ -243,7 +248,8 @@ func TestNaiveBuildDirectoryDirectoryEnterDirectoryFailure(t *testing.T) {
 	helloDirectory.EXPECT().Mkdir("World", os.FileMode(0777)).Return(nil)
 	helloDirectory.EXPECT().EnterDirectory("World").Return(nil, status.Error(codes.PermissionDenied, "Thou shalt not pass!"))
 	helloDirectory.EXPECT().Close()
-	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, contentAddressableStorage)
+	sharedActionQueue := re_util.NewSharedActionQueue(10)
+	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, contentAddressableStorage, sharedActionQueue)
 
 	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
@@ -257,7 +263,7 @@ func TestNaiveBuildDirectoryMissingInputFileDigest(t *testing.T) {
 
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	contentAddressableStorage.EXPECT().GetDirectory(
-		ctx,
+		gomock.AssignableToTypeOf(ctx),
 		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42),
 	).Return(&remoteexecution.Directory{
 		Directories: []*remoteexecution.DirectoryNode{
@@ -271,7 +277,7 @@ func TestNaiveBuildDirectoryMissingInputFileDigest(t *testing.T) {
 		},
 	}, nil)
 	contentAddressableStorage.EXPECT().GetDirectory(
-		ctx,
+		gomock.AssignableToTypeOf(ctx),
 		digest.MustNewDigest("netbsd", "8888888888888888888888888888888888888888888888888888888888888888", 123),
 	).Return(&remoteexecution.Directory{
 		Files: []*remoteexecution.FileNode{
@@ -285,7 +291,8 @@ func TestNaiveBuildDirectoryMissingInputFileDigest(t *testing.T) {
 	helloDirectory := mock.NewMockDirectoryCloser(ctrl)
 	buildDirectory.EXPECT().EnterDirectory("Hello").Return(helloDirectory, nil)
 	helloDirectory.EXPECT().Close()
-	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, contentAddressableStorage)
+	sharedActionQueue := re_util.NewSharedActionQueue(10)
+	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, contentAddressableStorage, sharedActionQueue)
 
 	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
@@ -299,7 +306,7 @@ func TestNaiveBuildDirectoryFileCreationFailure(t *testing.T) {
 
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	contentAddressableStorage.EXPECT().GetDirectory(
-		ctx,
+		gomock.AssignableToTypeOf(ctx),
 		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42),
 	).Return(&remoteexecution.Directory{
 		Directories: []*remoteexecution.DirectoryNode{
@@ -313,7 +320,7 @@ func TestNaiveBuildDirectoryFileCreationFailure(t *testing.T) {
 		},
 	}, nil)
 	contentAddressableStorage.EXPECT().GetDirectory(
-		ctx,
+		gomock.AssignableToTypeOf(ctx),
 		digest.MustNewDigest("netbsd", "8888888888888888888888888888888888888888888888888888888888888888", 123),
 	).Return(&remoteexecution.Directory{
 		Files: []*remoteexecution.FileNode{
@@ -331,13 +338,14 @@ func TestNaiveBuildDirectoryFileCreationFailure(t *testing.T) {
 	helloDirectory := mock.NewMockDirectoryCloser(ctrl)
 	buildDirectory.EXPECT().EnterDirectory("Hello").Return(helloDirectory, nil)
 	contentAddressableStorage.EXPECT().GetFile(
-		ctx,
+		gomock.AssignableToTypeOf(ctx),
 		digest.MustNewDigest("netbsd", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 87),
 		helloDirectory,
 		"World",
 		false).Return(status.Error(codes.DataLoss, "Disk on fire"))
 	helloDirectory.EXPECT().Close()
-	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, contentAddressableStorage)
+	sharedActionQueue := re_util.NewSharedActionQueue(10)
+	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, contentAddressableStorage, sharedActionQueue)
 
 	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
@@ -351,7 +359,7 @@ func TestNaiveBuildDirectorySymlinkCreationFailure(t *testing.T) {
 
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	contentAddressableStorage.EXPECT().GetDirectory(
-		ctx,
+		gomock.AssignableToTypeOf(ctx),
 		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42),
 	).Return(&remoteexecution.Directory{
 		Directories: []*remoteexecution.DirectoryNode{
@@ -365,7 +373,7 @@ func TestNaiveBuildDirectorySymlinkCreationFailure(t *testing.T) {
 		},
 	}, nil)
 	contentAddressableStorage.EXPECT().GetDirectory(
-		ctx,
+		gomock.AssignableToTypeOf(ctx),
 		digest.MustNewDigest("netbsd", "8888888888888888888888888888888888888888888888888888888888888888", 123),
 	).Return(&remoteexecution.Directory{
 		Symlinks: []*remoteexecution.SymlinkNode{
@@ -381,7 +389,8 @@ func TestNaiveBuildDirectorySymlinkCreationFailure(t *testing.T) {
 	buildDirectory.EXPECT().EnterDirectory("Hello").Return(helloDirectory, nil)
 	helloDirectory.EXPECT().Symlink("/etc/passwd", "World").Return(status.Error(codes.Unimplemented, "This filesystem does not support symbolic links"))
 	helloDirectory.EXPECT().Close()
-	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, contentAddressableStorage)
+	sharedActionQueue := re_util.NewSharedActionQueue(10)
+	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, contentAddressableStorage, sharedActionQueue)
 
 	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
