@@ -32,18 +32,21 @@ type localBuildExecutor struct {
 	clock                     clock.Clock
 	defaultExecutionTimeout   time.Duration
 	maximumExecutionTimeout   time.Duration
+	devices                   []filesystem.Device
 }
 
 // NewLocalBuildExecutor returns a BuildExecutor that executes build
 // steps on the local system.
-func NewLocalBuildExecutor(contentAddressableStorage cas.ContentAddressableStorage, buildDirectoryCreator BuildDirectoryCreator, runner runner.Runner, clock clock.Clock, defaultExecutionTimeout time.Duration, maximumExecutionTimeout time.Duration) BuildExecutor {
+func NewLocalBuildExecutor(contentAddressableStorage cas.ContentAddressableStorage, buildDirectoryCreator BuildDirectoryCreator, runner runner.Runner, clock clock.Clock, defaultExecutionTimeout time.Duration, maximumExecutionTimeout time.Duration, devices []filesystem.Device) BuildExecutor {
 	return &localBuildExecutor{
 		contentAddressableStorage: contentAddressableStorage,
 		buildDirectoryCreator:     buildDirectoryCreator,
 		runner:                    runner,
 		clock:                     clock,
 		defaultExecutionTimeout:   defaultExecutionTimeout,
-		maximumExecutionTimeout:   maximumExecutionTimeout,
+
+		maximumExecutionTimeout: maximumExecutionTimeout,
+		devices:                 devices,
 	}
 }
 
@@ -104,6 +107,8 @@ func (be *localBuildExecutor) uploadDirectory(ctx context.Context, outputDirecto
 				Name:   name,
 				Target: target,
 			})
+		case filesystem.FileTypeCharacterDevice:
+			continue
 		default:
 			return nil, status.Errorf(codes.Internal, "Output file %#v is not a regular file, directory or symlink", name)
 		}
@@ -246,6 +251,13 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	if err := inputRootDirectory.MergeDirectoryContents(ctx, inputRootDigest); err != nil {
 		attachErrorToExecuteResponse(response, err)
 		return response
+	}
+
+	if be.devices != nil {
+		if err := filesystem.CreateDev(inputRootDirectory, be.devices); err != nil {
+			attachErrorToExecuteResponse(response, err)
+			return response
+		}
 	}
 
 	// Create and open parent directories of where we expect to see output.

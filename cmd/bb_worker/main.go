@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"syscall"
 	"time"
@@ -34,6 +35,8 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gorilla/mux"
+
+	"golang.org/x/sys/unix"
 )
 
 func main() {
@@ -240,6 +243,19 @@ func main() {
 						log.Fatal("Failed to marshal worker ID: ", err)
 					}
 
+					var devices []filesystem.Device
+					for _, device := range configuration.Devices {
+						var stat unix.Stat_t
+						if err := unix.Stat(filepath.Join("/dev", device), &stat); err != nil {
+							log.Fatalf("Unable to stat device /dev/%#v", device)
+						}
+						devices = append(devices, filesystem.Device{
+							Name: device,
+							Rdev: stat.Rdev,
+							Mode: os.FileMode(stat.Mode),
+						})
+					}
+
 					buildExecutor := builder.NewLoggingBuildExecutor(
 						builder.NewCachingBuildExecutor(
 							builder.NewMetricsBuildExecutor(
@@ -252,7 +268,8 @@ func main() {
 												runner.NewRemoteRunner(runnerConnection),
 												clock.SystemClock,
 												defaultExecutionTimeout,
-												maximumExecutionTimeout),
+												maximumExecutionTimeout,
+												devices),
 											contentAddressableStorageFlusher),
 										clock.SystemClock,
 										string(workerName)))),
