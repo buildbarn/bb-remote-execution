@@ -5,6 +5,7 @@ import (
 	"path"
 
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
+	re_util "github.com/buildbarn/bb-remote-execution/pkg/util"
 	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
@@ -14,6 +15,7 @@ import (
 type naiveBuildDirectory struct {
 	filesystem.DirectoryCloser
 	contentAddressableStorage cas.ContentAddressableStorage
+	sharedActionQueue         *re_util.SharedActionQueue
 }
 
 // NewNaiveBuildDirectory creates a BuildDirectory that is backed by a
@@ -26,10 +28,11 @@ type naiveBuildDirectory struct {
 // regular local file systems. The downside of such file systems is that
 // we cannot populate them on demand. All of the input files must be
 // present before invoking the build action.
-func NewNaiveBuildDirectory(directory filesystem.DirectoryCloser, contentAddressableStorage cas.ContentAddressableStorage) BuildDirectory {
+func NewNaiveBuildDirectory(directory filesystem.DirectoryCloser, contentAddressableStorage cas.ContentAddressableStorage, sharedActionQueue *re_util.SharedActionQueue) BuildDirectory {
 	return &naiveBuildDirectory{
 		DirectoryCloser:           directory,
 		contentAddressableStorage: contentAddressableStorage,
+		sharedActionQueue:         sharedActionQueue,
 	}
 }
 
@@ -41,6 +44,7 @@ func (d *naiveBuildDirectory) EnterBuildDirectory(name string) (BuildDirectory, 
 	return &naiveBuildDirectory{
 		DirectoryCloser:           child,
 		contentAddressableStorage: d.contentAddressableStorage,
+		sharedActionQueue:         d.sharedActionQueue,
 	}, nil
 }
 
@@ -56,19 +60,31 @@ func (d *naiveBuildDirectory) mergeDirectoryContents(ctx context.Context, digest
 		return util.StatusWrapf(err, "Failed to obtain input directory %#v", path.Join(components...))
 	}
 
-	// Create children.
+	actionGroup := re_util.ActionGroup{}
+
 	for _, file := range directory.Files {
-		childComponents := append(components, file.Name)
+		childComponents := append([]string(nil), components...) // We need a copy of our slice to pass to go routine.
+		childComponents = append(childComponents, file.Name)
 		childDigest, err := digest.NewDerivedDigest(file.Digest)
 		if err != nil {
 			return util.StatusWrapf(err, "Failed to extract digest for input file %#v", path.Join(childComponents...))
 		}
-		if err := d.contentAddressableStorage.GetFile(ctx, childDigest, inputDirectory, file.Name, file.IsExecutable); err != nil {
-			return util.StatusWrapf(err, "Failed to obtain input file %#v", path.Join(childComponents...))
-		}
+		// Extract values out of object so we don't end up with stale objects when we pass into go routine.
+		fileName := file.Name
+		fileIsExecutable := file.IsExecutable
+
+		actionGroup = append(actionGroup, func(actionContext *re_util.ActionContext) {
+			if err := d.contentAddressableStorage.GetFile(actionContext.Ctx(), childDigest, inputDirectory, fileName, fileIsExecutable); err != nil {
+				actionContext.Done(util.StatusWrapf(err, "Failed to obtain input file %#v", path.Join(childComponents...)))
+				return
+			}
+			actionContext.Done(nil)
+		})
 	}
+
 	for _, directory := range directory.Directories {
-		childComponents := append(components, directory.Name)
+		childComponents := append([]string(nil), components...) // We need a copy of our slice to pass to go routine.
+		childComponents = append(childComponents, directory.Name)
 		childDigest, err := digest.NewDerivedDigest(directory.Digest)
 		if err != nil {
 			return util.StatusWrapf(err, "Failed to extract digest for input directory %#v", path.Join(childComponents...))
@@ -76,16 +92,35 @@ func (d *naiveBuildDirectory) mergeDirectoryContents(ctx context.Context, digest
 		if err := inputDirectory.Mkdir(directory.Name, 0777); err != nil {
 			return util.StatusWrapf(err, "Failed to create input directory %#v", path.Join(childComponents...))
 		}
-		childDirectory, err := inputDirectory.EnterDirectory(directory.Name)
-		if err != nil {
-			return util.StatusWrapf(err, "Failed to enter input directory %#v", path.Join(childComponents...))
-		}
-		err = d.mergeDirectoryContents(ctx, childDigest, childDirectory, childComponents)
-		childDirectory.Close()
-		if err != nil {
-			return err
-		}
+		directoryName := directory.Name // Ensure we don't grab the reference to an object.
+		actionGroup = append(actionGroup, func(actionContext *re_util.ActionContext) {
+			childDirectory, err := inputDirectory.EnterDirectory(directoryName)
+			if err != nil {
+				actionContext.Done(util.StatusWrapf(err, "Failed to enter input directory %#v", path.Join(childComponents...)))
+				return
+			}
+			// We don't want to close the folder's handle until our children are done, however we also don't
+			// want to hold a slot of the SharedActionQueue (or we might deadlock). Since 'mergeDirectoryContents'
+			// is a blocking function, we can notify the ActionContext that we want to release our hold on a slot
+			// and let a new goroutine block on 'mergeDirectoryContents' for us then call the result handler
+			// when we have finished.
+			doneHandler := actionContext.Defer()
+			go func() {
+				defer childDirectory.Close()
+				err := d.mergeDirectoryContents(actionContext.Ctx(), childDigest, childDirectory, childComponents)
+				doneHandler(err)
+			}()
+		})
 	}
+
+	// Now wait for all of our queued actions. If any of them
+	// error the first error is returned.
+	err = d.sharedActionQueue.ProcessActionQueue(ctx, actionGroup).WaitForResult()
+	if err != nil {
+		return err
+	}
+
+	// We don't need to fetch symlinks, so link them now.
 	for _, symlink := range directory.Symlinks {
 		childComponents := append(components, symlink.Name)
 		if err := inputDirectory.Symlink(symlink.Target, symlink.Name); err != nil {
