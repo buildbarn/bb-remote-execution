@@ -46,6 +46,24 @@ container_layer(
     files = ["@com_github_krallin_tini_tini_static_amd64//file"],
 )
 
+container_layer(
+    name = "install_layer",
+    files = ["install"],
+)
+
+container_image(
+    name = "bb_runner_installer",
+    base = "@busybox//image",
+    entrypoint = ["/install"],
+    cmd = ["/bb"],
+    layers = [
+        ":install_layer",
+        ":bb_runner_layer",
+        ":tini_layer",
+    ],
+    visibility = ["//visibility:public"],
+)
+
 container_image(
     name = "bb_runner_ubuntu16_04_container",
     base = "@rbe_ubuntu16_04_base//image",
@@ -69,4 +87,10 @@ container_push_official(
     name = "bb_runner_ubuntu16_04_container_push",
     component = "bb-runner-ubuntu16-04",
     image = ":bb_runner_ubuntu16_04_container",
+)
+
+container_push_official(
+    name = "bb_runner_installer_push",
+    component = "bb-runner-installer",
+    image = ":bb_runner_installer",
 )

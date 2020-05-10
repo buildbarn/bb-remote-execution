@@ -1,0 +1,11 @@
+#!/bin/sh
+
+set -eu
+
+echo "$*"
+
+# Can pass the destination directory as the first argument. By default
+# it will use /bb
+dest="${1:-/bb}"
+
+cp /bb_runner /tini "$dest"
