@@ -67,7 +67,7 @@ container_pull(
 
 container_pull(
     name = "busybox",
-    digest = "sha256:a2490cec4484ee6c1068ba3a05f89934010c85242f736280b35343483b2264b6", # 1.31.1-uclibc
+    digest = "sha256:a2490cec4484ee6c1068ba3a05f89934010c85242f736280b35343483b2264b6",  # 1.31.1-uclibc
     registry = "docker.io",
     repository = "library/busybox",
 )

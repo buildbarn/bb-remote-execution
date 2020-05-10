@@ -54,8 +54,8 @@ container_layer(
 container_image(
     name = "bb_runner_installer",
     base = "@busybox//image",
-    entrypoint = ["/install"],
     cmd = ["/bb"],
+    entrypoint = ["/install"],
     layers = [
         ":install_layer",
         ":bb_runner_layer",
