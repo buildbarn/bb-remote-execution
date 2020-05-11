@@ -189,6 +189,70 @@ func TestLocalBuildExecutorBuildDirectoryCreatorFailedFailed(t *testing.T) {
 	}, executeResponse)
 }
 
+func TestLocalBuildExecutorEscapeWorkingDirectoryFailed(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+	defer ctrl.Finish()
+
+	// Things that happen even when we don't do anything
+	inputRootDirectory := mock.NewMockBuildDirectory(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	buildDirectory := mock.NewMockBuildDirectory(ctrl)
+
+	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
+	buildDirectoryCreator.EXPECT().GetBuildDirectory(
+		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000001", 123),
+		false,
+	).Return(buildDirectory, ".", nil)
+	filePool := mock.NewMockFilePool(ctrl)
+	buildDirectory.EXPECT().InstallHooks(filePool)
+	buildDirectory.EXPECT().Mkdir("root", os.FileMode(0777))
+	buildDirectory.EXPECT().EnterBuildDirectory("root").Return(inputRootDirectory, nil)
+	inputRootDirectory.EXPECT().MergeDirectoryContents(
+		ctx,
+		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000003", 345),
+	).Return(nil)
+	runner := mock.NewMockRunner(ctrl)
+	inputRootDirectory.EXPECT().Close()
+	buildDirectory.EXPECT().Close()
+	clock := mock.NewMockClock(ctrl)
+	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour)
+
+	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
+	executeResponse := localBuildExecutor.Execute(
+		ctx,
+		filePool,
+		"ubuntu1804",
+		&remoteworker.DesiredState_Executing{
+			ActionDigest: &remoteexecution.Digest{
+				Hash:      "0000000000000000000000000000000000000000000000000000000000000001",
+				SizeBytes: 123,
+			},
+			Action: &remoteexecution.Action{
+				InputRootDigest: &remoteexecution.Digest{
+					Hash:      "0000000000000000000000000000000000000000000000000000000000000003",
+					SizeBytes: 345,
+				},
+			},
+			Command: &remoteexecution.Command{
+				Arguments: []string{"touch", "foo"},
+				EnvironmentVariables: []*remoteexecution.Command_EnvironmentVariable{
+					{Name: "PATH", Value: "/bin:/usr/bin"},
+				},
+				OutputDirectories: []string{
+					"../..",
+				},
+				WorkingDirectory: "output",
+			},
+		},
+		metadata)
+	require.Equal(t, &remoteexecution.ExecuteResponse{
+		Result: &remoteexecution.ActionResult{
+			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
+		},
+		Status: status.New(codes.InvalidArgument, "Output path ../.. is not below working directory output").Proto(),
+	}, executeResponse)
+}
+
 func TestLocalBuildExecutorInputRootPopulationFailed(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
@@ -695,10 +759,10 @@ func TestLocalBuildExecutorWithWorkingDirectorySuccess(t *testing.T) {
 		nil)
 
 	inputRootDirectory.EXPECT().EnterDirectory("outputParent").Return(outputParentDirectory0, nil)
-	outputParentDirectory0.EXPECT().Lstat("..").Return(
+	outputParentDirectory0.EXPECT().Lstat("output").Return(
 		filesystem.NewFileInfo("output", filesystem.FileTypeDirectory),
 		nil)
-	outputParentDirectory0.EXPECT().EnterDirectory("..").Return(outputDirectory0, nil)
+	outputParentDirectory0.EXPECT().EnterDirectory("output").Return(outputDirectory0, nil)
 	outputDirectory0.EXPECT().ReadDir().Return(
 		[]filesystem.FileInfo{
 			filesystem.NewFileInfo("output.file", filesystem.FileTypeRegularFile),

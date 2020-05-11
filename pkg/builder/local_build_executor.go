@@ -188,10 +188,25 @@ func outputDirectories(command *remoteexecution.Command) []string {
 	return paths
 }
 
+func validateOutputPath(command *remoteexecution.Command, outputPath string) error {
+	fullPath := path.Join(command.WorkingDirectory, outputPath)
+	if fullPath == "." || fullPath == ".." || strings.HasPrefix(fullPath, "../") {
+		return status.Errorf(codes.InvalidArgument, "Output path %s is not below working directory %s", outputPath, command.WorkingDirectory)
+	}
+	return nil
+}
+
 func createOutputDirectories(command *remoteexecution.Command, root filesystem.Directory) error {
 	// Returns nil if all directories are created
 
 	for _, p := range outputDirectories(command) {
+		// Short-circuit errors before execution, with a clear
+		// message. This would be caught in uploadPath if we didn't
+		// catch it here.
+		if err := validateOutputPath(command, p); err != nil {
+			return err
+		}
+
 		d, err := getDirectory(root, path.Join(command.WorkingDirectory, p), true)
 		if err != nil {
 			return err
@@ -203,8 +218,18 @@ func createOutputDirectories(command *remoteexecution.Command, root filesystem.D
 }
 
 func (be *localBuildExecutor) uploadPath(ctx context.Context, command *remoteexecution.Command, root filesystem.Directory, actionDigest digest.Digest, outputPath string, wantDir bool, result *remoteexecution.ActionResult) error {
-	outputBaseName := path.Base(outputPath)
-	outputParentDirectory, err := getDirectory(root, path.Dir(path.Join(command.WorkingDirectory, outputPath)), false)
+	// Short-circuit errors here with a clear message. This would fail
+	// with a mysterious "Invalid filename: .." otherwise.
+	if err := validateOutputPath(command, outputPath); err != nil {
+		return err
+	}
+
+	// Note that outputPath may still be .. so we first need to join it onto WorkingDirectory
+	outputFullPath := path.Join(command.WorkingDirectory, outputPath)
+
+	outputBaseName := path.Base(outputFullPath)
+
+	outputParentDirectory, err := getDirectory(root, path.Dir(outputFullPath), false)
 	if err != nil {
 		return err
 	}
