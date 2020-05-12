@@ -82,6 +82,10 @@ message NativeBuildDirectoryConfiguration {
   // LEAST_RECENTLY_USED can, assuming the cache size is sufficient.
   buildbarn.configuration.eviction.CacheReplacementPolicy
       cache_replacement_policy = 5;
+
+  // Whether to set the mtimes of all of the files in the build
+  // directory to the same fixed value (2011-11-11 11:11:11).
+  bool deterministic_mtimes = 6;
 }
 
 message RunnerConfiguration {

@@ -3,20 +3,24 @@ package cas
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/eviction"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
+
+	"golang.org/x/sys/unix"
 )
 
 type hardlinkingContentAddressableStorage struct {
 	cas.ContentAddressableStorage
 
-	digestKeyFormat digest.KeyFormat
-	cacheDirectory  filesystem.Directory
-	maxFiles        int
-	maxSize         int64
+	digestKeyFormat     digest.KeyFormat
+	cacheDirectory      filesystem.Directory
+	maxFiles            int
+	maxSize             int64
+	deterministicMtimes bool
 
 	filesLock      sync.RWMutex
 	filesSize      map[string]int64
@@ -32,14 +36,15 @@ type hardlinkingContentAddressableStorage struct {
 // into the cache. Future calls for the same file will hardlink them from the
 // cache to the target location. This reduces the amount of network traffic
 // needed.
-func NewHardlinkingContentAddressableStorage(base cas.ContentAddressableStorage, digestKeyFormat digest.KeyFormat, cacheDirectory filesystem.Directory, maxFiles int, maxSize int64, evictionSet eviction.Set) cas.ContentAddressableStorage {
+func NewHardlinkingContentAddressableStorage(base cas.ContentAddressableStorage, digestKeyFormat digest.KeyFormat, cacheDirectory filesystem.Directory, maxFiles int, maxSize int64, deterministicMtimes bool, evictionSet eviction.Set) cas.ContentAddressableStorage {
 	return &hardlinkingContentAddressableStorage{
 		ContentAddressableStorage: base,
 
-		digestKeyFormat: digestKeyFormat,
-		cacheDirectory:  cacheDirectory,
-		maxFiles:        maxFiles,
-		maxSize:         maxSize,
+		digestKeyFormat:     digestKeyFormat,
+		cacheDirectory:      cacheDirectory,
+		maxFiles:            maxFiles,
+		maxSize:             maxSize,
+		deterministicMtimes: deterministicMtimes,
 
 		filesSize: map[string]int64{},
 
@@ -104,6 +109,15 @@ func (cas *hardlinkingContentAddressableStorage) GetFile(ctx context.Context, di
 		// Hardlink the file into the cache.
 		if err := directory.Link(name, cas.cacheDirectory, key); err != nil {
 			return err
+		}
+		if cas.deterministicMtimes {
+			time, err := unix.TimeToTimespec(time.Date(2011, time.November, 11, 11, 11, 11, 0, time.UTC))
+			if err != nil {
+				return err
+			}
+			if err := cas.cacheDirectory.UtimesNano(key, []unix.Timespec{time, time}); err != nil {
+				return err
+			}
 		}
 		cas.evictionSet.Insert(key)
 		cas.filesSize[key] = sizeBytes

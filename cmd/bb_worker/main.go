@@ -145,6 +145,7 @@ func main() {
 				cacheDirectory,
 				int(nativeConfiguration.MaximumCacheFileCount),
 				nativeConfiguration.MaximumCacheSizeBytes,
+				nativeConfiguration.DeterministicMtimes,
 				eviction.NewMetricsSet(evictionSet, "HardlinkingContentAddressableStorage"))
 		default:
 			log.Fatal("No build directory specified")
