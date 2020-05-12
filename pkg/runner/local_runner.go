@@ -74,6 +74,7 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 	// TODO: Convert WorkingDirectory and TemporaryDirectory to use
 	// platform specific path delimiters.
 	cmd.Dir = filepath.Join(r.buildDirectoryPath, request.InputRootDirectory, request.WorkingDirectory)
+	cmd.Env = make([]string, 0, len(request.EnvironmentVariables)+1)
 	if r.setTmpdirEnvironmentVariable && request.TemporaryDirectory != "" {
 		cmd.Env = append(cmd.Env, "TMPDIR="+filepath.Join(r.buildDirectoryPath, request.TemporaryDirectory))
 	}
