@@ -76,204 +76,213 @@ func main() {
 	}
 
 	// Storage access.
-	contentAddressableStorageBlobAccess, actionCache, err := blobstore_configuration.CreateBlobAccessObjectsFromConfig(
+	globalContentAddressableStorageBlobAccess, actionCache, err := blobstore_configuration.CreateBlobAccessObjectsFromConfig(
 		configuration.Blobstore,
 		int(configuration.MaximumMessageSizeBytes))
 	if err != nil {
 		log.Fatal("Failed to create blob access: ", err)
 	}
 
-	var naiveBuildDirectory filesystem.DirectoryCloser
-	switch buildDirectoryConfigurationVariant := configuration.BuildDirectory.(type) {
-	case *bb_worker.ApplicationConfiguration_LocalBuildDirectory:
-		// To ease privilege separation, clear the umask. This
-		// process either writes files into directories that can
-		// easily be closed off, or creates files with the
-		// appropriate mode to be secure.
-		syscall.Umask(0)
-
-		// Directory where actual builds take place.
-		buildDirectoryConfiguration := buildDirectoryConfigurationVariant.LocalBuildDirectory
-		naiveBuildDirectory, err = filesystem.NewLocalDirectory(buildDirectoryConfiguration.BuildDirectoryPath)
-		if err != nil {
-			log.Fatal("Failed to open build directory: ", err)
-		}
-	default:
-		log.Fatal("No build directory specified")
-	}
-
 	// Cached read access for directory objects stored in the
 	// Content Addressable Storage. All workers make use of the same
 	// cache, to increase the hit rate.
-	contentAddressableStorageReader := re_cas.NewDirectoryCachingContentAddressableStorage(
+	globalContentAddressableStorage := re_cas.NewDirectoryCachingContentAddressableStorage(
 		cas.NewBlobAccessContentAddressableStorage(
-			re_blobstore.NewExistencePreconditionBlobAccess(contentAddressableStorageBlobAccess),
+			re_blobstore.NewExistencePreconditionBlobAccess(globalContentAddressableStorageBlobAccess),
 			int(configuration.MaximumMessageSizeBytes)),
 		digest.KeyWithoutInstance,
 		int(configuration.MaximumMemoryCachedDirectories),
 		eviction.NewMetricsSet(eviction.NewRRSet(), "DirectoryCachingContentAddressableStorage"))
 
-	// Create a cache directory that holds input files that can be
-	// hardlinked into build directory.
-	switch buildDirectoryConfigurationVariant := configuration.BuildDirectory.(type) {
-	case *bb_worker.ApplicationConfiguration_LocalBuildDirectory:
-		buildDirectoryConfiguration := buildDirectoryConfigurationVariant.LocalBuildDirectory
-		cacheDirectory, err := filesystem.NewLocalDirectory(buildDirectoryConfiguration.CacheDirectoryPath)
-		if err != nil {
-			log.Fatal("Failed to open cache directory: ", err)
-		}
-		if err := cacheDirectory.RemoveAllChildren(); err != nil {
-			log.Fatal("Failed to clear cache directory: ", err)
-		}
-		evictionSet, err := eviction.NewSetFromConfiguration(buildDirectoryConfiguration.CacheReplacementPolicy)
-		if err != nil {
-			log.Fatal("Failed to create eviction set for cache directory: ", err)
-		}
-		contentAddressableStorageReader = re_cas.NewHardlinkingContentAddressableStorage(
-			contentAddressableStorageReader,
-			digest.KeyWithoutInstance,
-			cacheDirectory,
-			int(buildDirectoryConfiguration.MaximumCacheFileCount),
-			buildDirectoryConfiguration.MaximumCacheSizeBytes,
-			eviction.NewMetricsSet(evictionSet, "HardlinkingContentAddressableStorage"))
+	if len(configuration.BuildDirectories) == 0 {
+		log.Fatal("Cannot start worker without any build directories")
 	}
+	for _, buildDirectoryConfiguration := range configuration.BuildDirectories {
+		var naiveBuildDirectory filesystem.DirectoryCloser
+		var perBuildDirectoryContentAddressableStorage cas.ContentAddressableStorage
+		switch backend := buildDirectoryConfiguration.Backend.(type) {
+		case *bb_worker.BuildDirectoryConfiguration_Native:
+			// To ease privilege separation, clear the umask. This
+			// process either writes files into directories that can
+			// easily be closed off, or creates files with the
+			// appropriate mode to be secure.
+			syscall.Umask(0)
 
-	var buildDirectoryInitializer sync.Initializer
-	var sharedBuildDirectoryNextParallelActionID uint64
-	if len(configuration.Runners) == 0 {
-		log.Fatal("Cannot start worker without any runners")
-	}
-	for _, runnerConfiguration := range configuration.Runners {
-		if runnerConfiguration.Concurrency < 1 {
-			log.Fatal("Runner concurrency must be positive")
-		}
-		concurrencyLength := len(strconv.FormatUint(runnerConfiguration.Concurrency-1, 10))
-
-		defaultExecutionTimeout, err := ptypes.Duration(runnerConfiguration.DefaultExecutionTimeout)
-		if err != nil {
-			log.Fatal("Failed to parse default execution timeout")
-		}
-		maximumExecutionTimeout, err := ptypes.Duration(runnerConfiguration.MaximumExecutionTimeout)
-		if err != nil {
-			log.Fatal("Failed to parse maximum execution timeout")
-		}
-
-		// Execute commands using a separate runner process. Due to the
-		// interaction between threads, forking and execve() returning
-		// ETXTBSY, concurrent execution of build actions can only be
-		// used in combination with a runner process. Having a separate
-		// runner process also makes it possible to apply privilege
-		// separation.
-		runnerConnection, err := bb_grpc.NewGRPCClientFromConfiguration(runnerConfiguration.Endpoint)
-		if err != nil {
-			log.Fatal("Failed to create runner RPC client: ", err)
-		}
-
-		// Wait for the runner process to come online.
-		runnerClient := runner_pb.NewRunnerClient(runnerConnection)
-		for {
-			_, err := runnerClient.CheckReadiness(context.Background(), &empty.Empty{})
-			if err == nil {
-				break
+			// Directory where actual builds take place.
+			nativeConfiguration := backend.Native
+			naiveBuildDirectory, err = filesystem.NewLocalDirectory(nativeConfiguration.BuildDirectoryPath)
+			if err != nil {
+				log.Fatal("Failed to open build directory: ", err)
 			}
-			log.Print("Runner is not ready yet: ", err)
-			time.Sleep(3 * time.Second)
+
+			// Create a cache directory that holds input
+			// files that can be hardlinked into build
+			// directory.
+			//
+			// TODO: Move ContentAddressableStorage.GetFile()
+			// into its own FilePlacer interface that is
+			// isolated to NaiveBuildDirectory. That would
+			// prevent the need for all of this wrapping and
+			// ReadWriteDecouplingContentAddressableStorage.
+			//
+			// TODO: Have a single process-wide hardlinking
+			// cache even if multiple build directories are
+			// used. This increases cache hit rate.
+			cacheDirectory, err := filesystem.NewLocalDirectory(nativeConfiguration.CacheDirectoryPath)
+			if err != nil {
+				log.Fatal("Failed to open cache directory: ", err)
+			}
+			if err := cacheDirectory.RemoveAllChildren(); err != nil {
+				log.Fatal("Failed to clear cache directory: ", err)
+			}
+			evictionSet, err := eviction.NewSetFromConfiguration(nativeConfiguration.CacheReplacementPolicy)
+			if err != nil {
+				log.Fatal("Failed to create eviction set for cache directory: ", err)
+			}
+			perBuildDirectoryContentAddressableStorage = re_cas.NewHardlinkingContentAddressableStorage(
+				globalContentAddressableStorage,
+				digest.KeyWithoutInstance,
+				cacheDirectory,
+				int(nativeConfiguration.MaximumCacheFileCount),
+				nativeConfiguration.MaximumCacheSizeBytes,
+				eviction.NewMetricsSet(evictionSet, "HardlinkingContentAddressableStorage"))
+		default:
+			log.Fatal("No build directory specified")
 		}
 
-		for threadID := uint64(0); threadID < runnerConfiguration.Concurrency; threadID++ {
-			go func(runnerConfiguration *bb_worker.RunnerConfiguration, threadID uint64) {
-				// Per-worker separate writer of the Content
-				// Addressable Storage that batches writes after
-				// completing the build action.
-				contentAddressableStorageWriter, contentAddressableStorageFlusher := re_blobstore.NewBatchedStoreBlobAccess(
-					re_blobstore.NewExistencePreconditionBlobAccess(contentAddressableStorageBlobAccess),
-					digest.KeyWithoutInstance, 100)
-				contentAddressableStorageWriter = blobstore.NewMetricsBlobAccess(
-					contentAddressableStorageWriter,
-					clock.SystemClock,
-					"cas_batched_store")
-				contentAddressableStorage := re_cas.NewReadWriteDecouplingContentAddressableStorage(
-					contentAddressableStorageReader,
-					cas.NewBlobAccessContentAddressableStorage(
+		var buildDirectoryInitializer sync.Initializer
+		var sharedBuildDirectoryNextParallelActionID uint64
+		if len(buildDirectoryConfiguration.Runners) == 0 {
+			log.Fatal("Cannot start worker without any runners")
+		}
+		for _, runnerConfiguration := range buildDirectoryConfiguration.Runners {
+			if runnerConfiguration.Concurrency < 1 {
+				log.Fatal("Runner concurrency must be positive")
+			}
+			concurrencyLength := len(strconv.FormatUint(runnerConfiguration.Concurrency-1, 10))
+
+			defaultExecutionTimeout, err := ptypes.Duration(runnerConfiguration.DefaultExecutionTimeout)
+			if err != nil {
+				log.Fatal("Failed to parse default execution timeout")
+			}
+			maximumExecutionTimeout, err := ptypes.Duration(runnerConfiguration.MaximumExecutionTimeout)
+			if err != nil {
+				log.Fatal("Failed to parse maximum execution timeout")
+			}
+
+			// Execute commands using a separate runner process. Due to the
+			// interaction between threads, forking and execve() returning
+			// ETXTBSY, concurrent execution of build actions can only be
+			// used in combination with a runner process. Having a separate
+			// runner process also makes it possible to apply privilege
+			// separation.
+			runnerConnection, err := bb_grpc.NewGRPCClientFromConfiguration(runnerConfiguration.Endpoint)
+			if err != nil {
+				log.Fatal("Failed to create runner RPC client: ", err)
+			}
+
+			// Wait for the runner process to come online.
+			runnerClient := runner_pb.NewRunnerClient(runnerConnection)
+			for {
+				_, err := runnerClient.CheckReadiness(context.Background(), &empty.Empty{})
+				if err == nil {
+					break
+				}
+				log.Print("Runner is not ready yet: ", err)
+				time.Sleep(3 * time.Second)
+			}
+
+			for threadID := uint64(0); threadID < runnerConfiguration.Concurrency; threadID++ {
+				go func(runnerConfiguration *bb_worker.RunnerConfiguration, threadID uint64) {
+					// Per-worker separate writer of the Content
+					// Addressable Storage that batches writes after
+					// completing the build action.
+					contentAddressableStorageWriter, contentAddressableStorageFlusher := re_blobstore.NewBatchedStoreBlobAccess(
+						re_blobstore.NewExistencePreconditionBlobAccess(globalContentAddressableStorageBlobAccess),
+						digest.KeyWithoutInstance, 100)
+					contentAddressableStorageWriter = blobstore.NewMetricsBlobAccess(
 						contentAddressableStorageWriter,
-						int(configuration.MaximumMessageSizeBytes)))
-
-				var buildDirectory builder.BuildDirectory
-				switch configuration.BuildDirectory.(type) {
-				case *bb_worker.ApplicationConfiguration_LocalBuildDirectory:
-					buildDirectory = builder.NewNaiveBuildDirectory(
-						naiveBuildDirectory,
-						contentAddressableStorage)
-				}
-
-				// Create a per-action subdirectory in
-				// the build directory named after the
-				// action digest, so that multiple
-				// actions may be run concurrently.
-				//
-				// Also clean the build directory every
-				// time when going from fully idle to
-				// executing one action.
-				buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(
-					builder.NewCleanBuildDirectoryCreator(
-						builder.NewRootBuildDirectoryCreator(buildDirectory),
-						&buildDirectoryInitializer),
-					&sharedBuildDirectoryNextParallelActionID)
-
-				workerID := map[string]string{}
-				if runnerConfiguration.Concurrency > 1 {
-					workerID["thread"] = fmt.Sprintf("%0*d", concurrencyLength, threadID)
-				}
-				for k, v := range runnerConfiguration.WorkerId {
-					workerID[k] = v
-				}
-				workerName, err := json.Marshal(workerID)
-				if err != nil {
-					log.Fatal("Failed to marshal worker ID: ", err)
-				}
-
-				buildExecutor := builder.NewLoggingBuildExecutor(
-					builder.NewCachingBuildExecutor(
-						builder.NewMetricsBuildExecutor(
-							builder.NewFilePoolStatsBuildExecutor(
-								builder.NewTimestampedBuildExecutor(
-									builder.NewStorageFlushingBuildExecutor(
-										builder.NewLocalBuildExecutor(
-											contentAddressableStorage,
-											buildDirectoryCreator,
-											runner.NewRemoteRunner(runnerConnection),
-											clock.SystemClock,
-											defaultExecutionTimeout,
-											maximumExecutionTimeout),
-										contentAddressableStorageFlusher),
-									clock.SystemClock,
-									string(workerName)))),
+						clock.SystemClock,
+						"cas_batched_store")
+					perThreadContentAddressableStorage := re_cas.NewReadWriteDecouplingContentAddressableStorage(
+						perBuildDirectoryContentAddressableStorage,
 						cas.NewBlobAccessContentAddressableStorage(
-							contentAddressableStorageBlobAccess,
-							int(configuration.MaximumMessageSizeBytes)),
-						actionCache,
-						browserURL),
-					browserURL)
+							contentAddressableStorageWriter,
+							int(configuration.MaximumMessageSizeBytes)))
 
-				buildClient := builder.NewBuildClient(
-					schedulerClient,
-					buildExecutor,
-					re_filesystem.NewQuotaEnforcingFilePool(
-						filePool,
-						runnerConfiguration.MaximumFilePoolFileCount,
-						runnerConfiguration.MaximumFilePoolSizeBytes),
-					clock.SystemClock,
-					browserURL,
-					workerID,
-					configuration.InstanceName,
-					runnerConfiguration.Platform)
-				for {
-					if err := buildClient.Run(); err != nil {
-						log.Print(err)
-						time.Sleep(3 * time.Second)
+					buildDirectory := builder.NewNaiveBuildDirectory(
+						naiveBuildDirectory,
+						perThreadContentAddressableStorage)
+
+					// Create a per-action subdirectory in
+					// the build directory named after the
+					// action digest, so that multiple
+					// actions may be run concurrently.
+					//
+					// Also clean the build directory every
+					// time when going from fully idle to
+					// executing one action.
+					buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(
+						builder.NewCleanBuildDirectoryCreator(
+							builder.NewRootBuildDirectoryCreator(buildDirectory),
+							&buildDirectoryInitializer),
+						&sharedBuildDirectoryNextParallelActionID)
+
+					workerID := map[string]string{}
+					if runnerConfiguration.Concurrency > 1 {
+						workerID["thread"] = fmt.Sprintf("%0*d", concurrencyLength, threadID)
 					}
-				}
-			}(runnerConfiguration, threadID)
+					for k, v := range runnerConfiguration.WorkerId {
+						workerID[k] = v
+					}
+					workerName, err := json.Marshal(workerID)
+					if err != nil {
+						log.Fatal("Failed to marshal worker ID: ", err)
+					}
+
+					buildExecutor := builder.NewLoggingBuildExecutor(
+						builder.NewCachingBuildExecutor(
+							builder.NewMetricsBuildExecutor(
+								builder.NewFilePoolStatsBuildExecutor(
+									builder.NewTimestampedBuildExecutor(
+										builder.NewStorageFlushingBuildExecutor(
+											builder.NewLocalBuildExecutor(
+												perThreadContentAddressableStorage,
+												buildDirectoryCreator,
+												runner.NewRemoteRunner(runnerConnection),
+												clock.SystemClock,
+												defaultExecutionTimeout,
+												maximumExecutionTimeout),
+											contentAddressableStorageFlusher),
+										clock.SystemClock,
+										string(workerName)))),
+							cas.NewBlobAccessContentAddressableStorage(
+								globalContentAddressableStorageBlobAccess,
+								int(configuration.MaximumMessageSizeBytes)),
+							actionCache,
+							browserURL),
+						browserURL)
+
+					buildClient := builder.NewBuildClient(
+						schedulerClient,
+						buildExecutor,
+						re_filesystem.NewQuotaEnforcingFilePool(
+							filePool,
+							runnerConfiguration.MaximumFilePoolFileCount,
+							runnerConfiguration.MaximumFilePoolSizeBytes),
+						clock.SystemClock,
+						browserURL,
+						workerID,
+						configuration.InstanceName,
+						runnerConfiguration.Platform)
+					for {
+						if err := buildClient.Run(); err != nil {
+							log.Print(err)
+							time.Sleep(3 * time.Second)
+						}
+					}
+				}(runnerConfiguration, threadID)
+			}
 		}
 	}
 
