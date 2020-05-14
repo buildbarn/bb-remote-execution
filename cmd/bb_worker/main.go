@@ -173,6 +173,19 @@ func main() {
 				log.Fatal("Failed to parse maximum execution timeout")
 			}
 
+			var devices []filesystem.Device
+			for _, device := range runnerConfiguration.Devices {
+				var stat unix.Stat_t
+				if err := unix.Stat(filepath.Join("/dev", device), &stat); err != nil {
+					log.Fatalf("Unable to stat device /dev/%#v", device)
+				}
+				devices = append(devices, filesystem.Device{
+					Name: device,
+					Rdev: stat.Rdev,
+					Mode: os.FileMode(stat.Mode),
+				})
+			}
+
 			// Execute commands using a separate runner process. Due to the
 			// interaction between threads, forking and execve() returning
 			// ETXTBSY, concurrent execution of build actions can only be
@@ -241,19 +254,6 @@ func main() {
 					workerName, err := json.Marshal(workerID)
 					if err != nil {
 						log.Fatal("Failed to marshal worker ID: ", err)
-					}
-
-					var devices []filesystem.Device
-					for _, device := range configuration.Devices {
-						var stat unix.Stat_t
-						if err := unix.Stat(filepath.Join("/dev", device), &stat); err != nil {
-							log.Fatalf("Unable to stat device /dev/%#v", device)
-						}
-						devices = append(devices, filesystem.Device{
-							Name: device,
-							Rdev: stat.Rdev,
-							Mode: os.FileMode(stat.Mode),
-						})
 					}
 
 					buildExecutor := builder.NewLoggingBuildExecutor(
