@@ -116,5 +116,5 @@ message RunnerConfiguration {
 
   // Device nodes to install in input root.
   // e.g. ["null", "zero", "random"]
-  repeated string devices = 9;
+  repeated string input_root_character_device_nodes = 9;
 }

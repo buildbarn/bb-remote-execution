@@ -173,17 +173,17 @@ func main() {
 				log.Fatal("Failed to parse maximum execution timeout")
 			}
 
-			var devices []filesystem.Device
-			for _, device := range runnerConfiguration.Devices {
+			inputRootCharacterDevices := make(map[string]int)
+			for _, device := range runnerConfiguration.InputRootCharacterDeviceNodes {
 				var stat unix.Stat_t
-				if err := unix.Stat(filepath.Join("/dev", device), &stat); err != nil {
-					log.Fatalf("Unable to stat device /dev/%#v", device)
+				devicePath := filepath.Join("/dev", device)
+				if err := unix.Stat(devicePath, &stat); err != nil {
+					log.Fatalf("Unable to stat character device %#v: %s", devicePath, err)
 				}
-				devices = append(devices, filesystem.Device{
-					Name: device,
-					Rdev: stat.Rdev,
-					Mode: os.FileMode(stat.Mode),
-				})
+				if stat.Mode&syscall.S_IFMT != syscall.S_IFCHR {
+					log.Fatalf("The specified device %#v is not a character device", devicePath)
+				}
+				inputRootCharacterDevices[device] = int(stat.Rdev)
 			}
 
 			// Execute commands using a separate runner process. Due to the
@@ -269,7 +269,7 @@ func main() {
 												clock.SystemClock,
 												defaultExecutionTimeout,
 												maximumExecutionTimeout,
-												devices),
+												inputRootCharacterDevices),
 											contentAddressableStorageFlusher),
 										clock.SystemClock,
 										string(workerName)))),

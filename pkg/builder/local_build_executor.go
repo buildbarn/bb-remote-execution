@@ -5,6 +5,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"syscall"
 	"time"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
@@ -32,21 +33,20 @@ type localBuildExecutor struct {
 	clock                     clock.Clock
 	defaultExecutionTimeout   time.Duration
 	maximumExecutionTimeout   time.Duration
-	devices                   []filesystem.Device
+	inputRootCharacterDevices map[string]int
 }
 
 // NewLocalBuildExecutor returns a BuildExecutor that executes build
 // steps on the local system.
-func NewLocalBuildExecutor(contentAddressableStorage cas.ContentAddressableStorage, buildDirectoryCreator BuildDirectoryCreator, runner runner.Runner, clock clock.Clock, defaultExecutionTimeout time.Duration, maximumExecutionTimeout time.Duration, devices []filesystem.Device) BuildExecutor {
+func NewLocalBuildExecutor(contentAddressableStorage cas.ContentAddressableStorage, buildDirectoryCreator BuildDirectoryCreator, runner runner.Runner, clock clock.Clock, defaultExecutionTimeout time.Duration, maximumExecutionTimeout time.Duration, inputRootCharacterDevices map[string]int) BuildExecutor {
 	return &localBuildExecutor{
 		contentAddressableStorage: contentAddressableStorage,
 		buildDirectoryCreator:     buildDirectoryCreator,
 		runner:                    runner,
 		clock:                     clock,
 		defaultExecutionTimeout:   defaultExecutionTimeout,
-
-		maximumExecutionTimeout: maximumExecutionTimeout,
-		devices:                 devices,
+		maximumExecutionTimeout:   maximumExecutionTimeout,
+		inputRootCharacterDevices: inputRootCharacterDevices,
 	}
 }
 
@@ -253,10 +253,21 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 		return response
 	}
 
-	if be.devices != nil {
-		if err := filesystem.CreateDev(inputRootDirectory, be.devices); err != nil {
-			attachErrorToExecuteResponse(response, err)
-			return response
+	if len(be.inputRootCharacterDevices) > 0 {
+		if err := inputRootDirectory.Mkdir("dev", 0777); err != nil && !os.IsExist(err) {
+			attachErrorToExecuteResponse(response, util.StatusWrap(err, "Unable to create dev directory in input root"))
+		}
+		devDir, err := inputRootDirectory.EnterDirectory("dev")
+		if err != nil {
+			attachErrorToExecuteResponse(response, util.StatusWrap(err, "Unable to enter dev directory in input root"))
+		}
+		for name, number := range be.inputRootCharacterDevices {
+			if _, err := devDir.Lstat(name); err == nil {
+				continue
+			}
+			if err := devDir.Mknod(name, os.FileMode(syscall.S_IFCHR|0666), number); err != nil {
+				attachErrorToExecuteResponse(response, util.StatusWrapf(err, "Mknod failed for device %#v", name))
+			}
 		}
 	}
 
