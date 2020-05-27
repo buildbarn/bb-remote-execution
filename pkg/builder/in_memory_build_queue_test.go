@@ -158,34 +158,6 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 		require.Equal(t, err, status.Error(codes.FailedPrecondition, "Failed to obtain command: Blob not found"))
 	})
 
-	// Command does not contain any playform requirements.
-	t.Run("MissingPlatform", func(t *testing.T) {
-		contentAddressableStorage.EXPECT().GetAction(
-			gomock.Any(),
-			digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-		).Return(&remoteexecution.Action{
-			CommandDigest: &remoteexecution.Digest{
-				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
-				SizeBytes: 456,
-			},
-		}, nil)
-		contentAddressableStorage.EXPECT().GetCommand(
-			gomock.Any(),
-			digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
-		).Return(&remoteexecution.Command{}, nil)
-
-		stream, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
-			InstanceName: "main",
-			ActionDigest: &remoteexecution.Digest{
-				Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
-				SizeBytes: 123,
-			},
-		})
-		require.NoError(t, err)
-		_, err = stream.Recv()
-		require.Equal(t, err, status.Error(codes.InvalidArgument, "Platform message not set"))
-	})
-
 	// Platform requirements should be provided in sorted order.
 	// Otherwise, there could be distinct queues that refer to the
 	// same platform.
@@ -319,14 +291,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 	contentAddressableStorage.EXPECT().GetCommand(
 		gomock.Any(),
 		digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
-	).Return(&remoteexecution.Command{
-		Platform: &remoteexecution.Platform{
-			Properties: []*remoteexecution.Platform_Property{
-				{Name: "cpu", Value: "armv6"},
-				{Name: "os", Value: "linux"},
-			},
-		},
-	}, nil).Times(10)
+	).Return(&remoteexecution.Command{}, nil).Times(10)
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -341,12 +306,6 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 			"thread":   "42",
 		},
 		InstanceName: "main",
-		Platform: &remoteexecution.Platform{
-			Properties: []*remoteexecution.Platform_Property{
-				{Name: "cpu", Value: "armv6"},
-				{Name: "os", Value: "linux"},
-			},
-		},
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
 				Executing: &remoteworker.CurrentState_Executing{
@@ -408,12 +367,6 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 			"thread":   "42",
 		},
 		InstanceName: "main",
-		Platform: &remoteexecution.Platform{
-			Properties: []*remoteexecution.Platform_Property{
-				{Name: "cpu", Value: "armv6"},
-				{Name: "os", Value: "linux"},
-			},
-		},
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Idle{
 				Idle: &empty.Empty{},
@@ -437,14 +390,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 						},
 						DoNotCache: true,
 					},
-					Command: &remoteexecution.Command{
-						Platform: &remoteexecution.Platform{
-							Properties: []*remoteexecution.Platform_Property{
-								{Name: "cpu", Value: "armv6"},
-								{Name: "os", Value: "linux"},
-							},
-						},
-					},
+					Command:         &remoteexecution.Command{},
 					QueuedTimestamp: &timestamp.Timestamp{Seconds: 1001},
 				},
 			},
@@ -558,7 +504,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 	})
 	require.NoError(t, err)
 	_, err = stream3.Recv()
-	require.Equal(t, err, status.Error(codes.FailedPrecondition, "No workers exist for instance \"main\" platform {\"properties\":[{\"name\":\"cpu\",\"value\":\"armv6\"},{\"name\":\"os\",\"value\":\"linux\"}]}"))
+	require.Equal(t, err, status.Error(codes.FailedPrecondition, "No workers exist for instance \"main\" platform {}"))
 
 	// Operations that were queued should have been cancelled when
 	// the platform queue was garbage collected. All eight should
