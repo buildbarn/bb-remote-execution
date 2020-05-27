@@ -778,7 +778,7 @@ func (k *platformKey) getPlatform() *remoteexecution.Platform {
 func newPlatformKey(instanceName string, platform *remoteexecution.Platform) (platformKey, error) {
 	// Ensure that the platform properties are in normal form.
 	if platform == nil {
-		return platformKey{}, status.Error(codes.InvalidArgument, "Platform message not set")
+		platform = &remoteexecution.Platform{}
 	}
 	properties := platform.Properties
 	for i := 1; i < len(properties); i++ {
