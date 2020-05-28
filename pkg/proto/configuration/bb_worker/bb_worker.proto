@@ -113,4 +113,8 @@ message RunnerConfiguration {
   // as announced to the scheduler. In addition to the labels specified,
   // one named "thread" is added automatically in case concurrency > 1.
   map<string, string> worker_id = 8;
+
+  // Device nodes to install in input root.
+  // e.g. ["null", "zero", "random"]
+  repeated string input_root_character_device_nodes = 9;
 }

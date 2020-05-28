@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"syscall"
 	"time"
@@ -34,6 +35,8 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gorilla/mux"
+
+	"golang.org/x/sys/unix"
 )
 
 func main() {
@@ -170,6 +173,19 @@ func main() {
 				log.Fatal("Failed to parse maximum execution timeout")
 			}
 
+			inputRootCharacterDevices := make(map[string]int)
+			for _, device := range runnerConfiguration.InputRootCharacterDeviceNodes {
+				var stat unix.Stat_t
+				devicePath := filepath.Join("/dev", device)
+				if err := unix.Stat(devicePath, &stat); err != nil {
+					log.Fatalf("Unable to stat character device %#v: %s", devicePath, err)
+				}
+				if stat.Mode&syscall.S_IFMT != syscall.S_IFCHR {
+					log.Fatalf("The specified device %#v is not a character device", devicePath)
+				}
+				inputRootCharacterDevices[device] = int(stat.Rdev)
+			}
+
 			// Execute commands using a separate runner process. Due to the
 			// interaction between threads, forking and execve() returning
 			// ETXTBSY, concurrent execution of build actions can only be
@@ -252,7 +268,8 @@ func main() {
 												runner.NewRemoteRunner(runnerConnection),
 												clock.SystemClock,
 												defaultExecutionTimeout,
-												maximumExecutionTimeout),
+												maximumExecutionTimeout,
+												inputRootCharacterDevices),
 											contentAddressableStorageFlusher),
 										clock.SystemClock,
 										string(workerName)))),
