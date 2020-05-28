@@ -1060,6 +1060,6 @@ func TestLocalBuildExecutorCharacterDeviceNodeCreationFailed(t *testing.T) {
 		Result: &remoteexecution.ActionResult{
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
 		},
-		Status: status.New(codes.Internal, "Mknod failed for device \"null\": Device node creation failed").Proto(),
+		Status: status.New(codes.Internal, "Failed to create character device \"null\": Device node creation failed").Proto(),
 	}, executeResponse)
 }

@@ -59,6 +59,10 @@ func (be *localBuildExecutor) uploadDirectory(ctx context.Context, outputDirecto
 	for _, file := range files {
 		name := file.Name()
 		childComponents := append(components, name)
+		// The elided default case of the below switch statement would
+		// represent a UNIX socket, FIFO or device node. These files cannot
+		// be represented in a Directory message. They are simply skipped.
+		// Returning an error would make the overall user experience worse.
 		switch fileType := file.Type(); fileType {
 		case filesystem.FileTypeRegularFile, filesystem.FileTypeExecutableFile:
 			childDigest, err := be.contentAddressableStorage.PutFile(ctx, outputDirectory, name, parentDigest)
@@ -106,10 +110,6 @@ func (be *localBuildExecutor) uploadDirectory(ctx context.Context, outputDirecto
 				Name:   name,
 				Target: target,
 			})
-		case filesystem.FileTypeOther:
-			continue
-		default:
-			return nil, status.Errorf(codes.Internal, "Output file %#v is not a regular file, directory or symlink", name)
 		}
 	}
 	return &directory, nil
@@ -156,18 +156,18 @@ func (be *localBuildExecutor) createOutputParentDirectory(inputRootDirectory fil
 	return d, nil
 }
 
-func (be *localBuildExecutor) createDev(inputRootDirectory BuildDirectory) error {
+func (be *localBuildExecutor) createCharacterDevices(inputRootDirectory BuildDirectory) error {
 	if err := inputRootDirectory.Mkdir("dev", 0777); err != nil && !os.IsExist(err) {
-		return util.StatusWrap(err, "Unable to create dev directory in input root")
+		return util.StatusWrap(err, "Unable to create /dev directory in input root")
 	}
 	devDir, err := inputRootDirectory.EnterDirectory("dev")
 	defer devDir.Close()
 	if err != nil {
-		return util.StatusWrap(err, "Unable to enter dev directory in input root")
+		return util.StatusWrap(err, "Unable to enter /dev directory in input root")
 	}
 	for name, number := range be.inputRootCharacterDevices {
-		if err := devDir.Mknod(name, os.FileMode(os.ModeDevice|os.ModeCharDevice|0666), number); err != nil {
-			return util.StatusWrapf(err, "Mknod failed for device %#v", name)
+		if err := devDir.Mknod(name, os.ModeDevice|os.ModeCharDevice|0666, number); err != nil {
+			return util.StatusWrapf(err, "Failed to create character device %#v", name)
 		}
 	}
 	return nil
@@ -270,7 +270,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	}
 
 	if len(be.inputRootCharacterDevices) > 0 {
-		if err := be.createDev(inputRootDirectory); err != nil {
+		if err := be.createCharacterDevices(inputRootDirectory); err != nil {
 			attachErrorToExecuteResponse(response, err)
 			return response
 		}
