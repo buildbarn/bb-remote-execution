@@ -5,7 +5,10 @@ set -eu
 echo "$*"
 
 # Can pass the destination directory as the first argument. By default
-# it will use /bb
+# it will use /bb.
 dest="${1:-/bb}"
 
-cp /bb_runner /tini "$dest"
+cp /bb_runner /tini "${dest}"
+
+# Create a file that indicates that installation has finished.
+touch "${dest}/installed"
