@@ -466,6 +466,11 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 		ctx,
 		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000003", 345),
 	).Return(nil)
+	inputRootDirectory.EXPECT().Mkdir("dev", os.FileMode(0777))
+	inputRootDevDirectory := mock.NewMockDirectoryCloser(ctrl)
+	inputRootDirectory.EXPECT().EnterDirectory("dev").Return(inputRootDevDirectory, nil)
+	inputRootDevDirectory.EXPECT().Mknod("null", os.FileMode(os.ModeDevice|os.ModeCharDevice|0666), 259).Return(nil)
+	inputRootDevDirectory.EXPECT().Close()
 	buildDirectory.EXPECT().Mkdir("tmp", os.FileMode(0777))
 	resourceUsage, err := ptypes.MarshalAny(&empty.Empty{})
 	require.NoError(t, err)
@@ -501,7 +506,8 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 	clock.EXPECT().NewContextWithTimeout(gomock.Any(), time.Hour).DoAndReturn(func(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 		return context.WithCancel(parent)
 	})
-	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil)
+	inputRootCharacterDevices := map[string]int{"null": 259}
+	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, inputRootCharacterDevices)
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
 	executeResponse := localBuildExecutor.Execute(
@@ -989,5 +995,71 @@ func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
 		},
 		Status: status.New(codes.DeadlineExceeded, "Failed to run command: context deadline exceeded").Proto(),
+	}, executeResponse)
+}
+
+func TestLocalBuildExecutorCharacterDeviceNodeCreationFailed(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+	defer ctrl.Finish()
+
+	// Build directory.
+	buildDirectory := mock.NewMockBuildDirectory(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+
+	// Build environment.
+	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
+	buildDirectoryCreator.EXPECT().GetBuildDirectory(
+		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000001", 123),
+		false,
+	).Return(buildDirectory, ".", nil)
+	filePool := mock.NewMockFilePool(ctrl)
+	buildDirectory.EXPECT().InstallHooks(filePool)
+
+	// Input root creation.
+	buildDirectory.EXPECT().Mkdir("root", os.FileMode(0777))
+	inputRootDirectory := mock.NewMockBuildDirectory(ctrl)
+	buildDirectory.EXPECT().EnterBuildDirectory("root").Return(inputRootDirectory, nil)
+	inputRootDirectory.EXPECT().MergeDirectoryContents(
+		ctx,
+		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000003", 345),
+	).Return(nil)
+	inputRootDirectory.EXPECT().Mkdir("dev", os.FileMode(0777))
+	inputRootDevDirectory := mock.NewMockDirectoryCloser(ctrl)
+	inputRootDirectory.EXPECT().EnterDirectory("dev").Return(inputRootDevDirectory, nil)
+	inputRootDevDirectory.EXPECT().Mknod("null", os.FileMode(os.ModeDevice|os.ModeCharDevice|0666), 259).Return(status.Error(codes.Internal, "Device node creation failed"))
+	inputRootDevDirectory.EXPECT().Close()
+	inputRootDirectory.EXPECT().Close()
+	buildDirectory.EXPECT().Close()
+	runner := mock.NewMockRunner(ctrl)
+	clock := mock.NewMockClock(ctrl)
+	inputRootCharacterDevices := map[string]int{"null": 259}
+	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, inputRootCharacterDevices)
+
+	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
+	executeResponse := localBuildExecutor.Execute(
+		ctx,
+		filePool,
+		"ubuntu1804",
+		&remoteworker.DesiredState_Executing{
+			ActionDigest: &remoteexecution.Digest{
+				Hash:      "0000000000000000000000000000000000000000000000000000000000000001",
+				SizeBytes: 123,
+			},
+			Action: &remoteexecution.Action{
+				InputRootDigest: &remoteexecution.Digest{
+					Hash:      "0000000000000000000000000000000000000000000000000000000000000003",
+					SizeBytes: 345,
+				},
+			},
+			Command: &remoteexecution.Command{
+				Arguments: []string{"clang"},
+			},
+		},
+		metadata)
+	require.Equal(t, &remoteexecution.ExecuteResponse{
+		Result: &remoteexecution.ActionResult{
+			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
+		},
+		Status: status.New(codes.Internal, "Mknod failed for device \"null\": Device node creation failed").Proto(),
 	}, executeResponse)
 }

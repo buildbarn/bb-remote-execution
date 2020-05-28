@@ -5,7 +5,6 @@ import (
 	"os"
 	"path"
 	"strings"
-	"syscall"
 	"time"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
@@ -107,7 +106,7 @@ func (be *localBuildExecutor) uploadDirectory(ctx context.Context, outputDirecto
 				Name:   name,
 				Target: target,
 			})
-		case filesystem.FileTypeCharacterDevice:
+		case filesystem.FileTypeOther:
 			continue
 		default:
 			return nil, status.Errorf(codes.Internal, "Output file %#v is not a regular file, directory or symlink", name)
@@ -155,6 +154,23 @@ func (be *localBuildExecutor) createOutputParentDirectory(inputRootDirectory fil
 		}
 	}
 	return d, nil
+}
+
+func (be *localBuildExecutor) createDev(inputRootDirectory BuildDirectory) error {
+	if err := inputRootDirectory.Mkdir("dev", 0777); err != nil && !os.IsExist(err) {
+		return util.StatusWrap(err, "Unable to create dev directory in input root")
+	}
+	devDir, err := inputRootDirectory.EnterDirectory("dev")
+	defer devDir.Close()
+	if err != nil {
+		return util.StatusWrap(err, "Unable to enter dev directory in input root")
+	}
+	for name, number := range be.inputRootCharacterDevices {
+		if err := devDir.Mknod(name, os.FileMode(os.ModeDevice|os.ModeCharDevice|0666), number); err != nil {
+			return util.StatusWrapf(err, "Mknod failed for device %#v", name)
+		}
+	}
+	return nil
 }
 
 func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, instanceName string, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
@@ -254,20 +270,9 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	}
 
 	if len(be.inputRootCharacterDevices) > 0 {
-		if err := inputRootDirectory.Mkdir("dev", 0777); err != nil && !os.IsExist(err) {
-			attachErrorToExecuteResponse(response, util.StatusWrap(err, "Unable to create dev directory in input root"))
-		}
-		devDir, err := inputRootDirectory.EnterDirectory("dev")
-		if err != nil {
-			attachErrorToExecuteResponse(response, util.StatusWrap(err, "Unable to enter dev directory in input root"))
-		}
-		for name, number := range be.inputRootCharacterDevices {
-			if _, err := devDir.Lstat(name); err == nil {
-				continue
-			}
-			if err := devDir.Mknod(name, os.FileMode(syscall.S_IFCHR|0666), number); err != nil {
-				attachErrorToExecuteResponse(response, util.StatusWrapf(err, "Mknod failed for device %#v", name))
-			}
+		if err := be.createDev(inputRootDirectory); err != nil {
+			attachErrorToExecuteResponse(response, err)
+			return response
 		}
 	}
 
