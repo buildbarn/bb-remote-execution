@@ -31,4 +31,9 @@ message ApplicationConfiguration {
   // Optional helper process for resolving /tmp.
   buildbarn.configuration.grpc.ClientConfiguration
       temporary_directory_installer = 6;
+
+  // Chroot into the input root to run commands. This option can be used
+  // if the input root contains a full userland installation. This
+  // feature is used by the BuildStream build system.
+  bool chroot_into_input_root = 7;
 }
