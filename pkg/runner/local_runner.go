@@ -74,6 +74,11 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 	}
 	var cmd *exec.Cmd
 	if r.chrootIntoInputRoot {
+		// The addition of /usr/bin/env is necessary as the PATH resolution
+		// will take place prior to the chroot, so the executable may not be
+		// found by exec.LookPath() inside exec.CommandContext() and may
+		// cause cmd.Start() to fail when it shouldn't.
+		// https://github.com/golang/go/issues/39341
 		envPrependedArguments := []string{"/usr/bin/env", "--"}
 		envPrependedArguments = append(envPrependedArguments, request.Arguments...)
 		cmd = exec.CommandContext(ctx, envPrependedArguments[0], envPrependedArguments[1:]...)
