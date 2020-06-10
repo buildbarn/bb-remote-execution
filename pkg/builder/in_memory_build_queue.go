@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 
 	"google.golang.org/genproto/googleapis/longrunning"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	"go.opencensus.io/trace"
@@ -143,6 +145,82 @@ type InMemoryBuildQueueConfiguration struct {
 	// worker may remain registered by InMemoryBuildQueue when no
 	// Synchronize() calls are received.
 	WorkerWithNoSynchronizationsTimeout time.Duration
+
+	// InvocationInfoTimeout specifies how long a invocation
+	// information may remain registered before being cleaned up.
+	InvocationInfoTimeout time.Duration
+
+	// Configurable metadata keys. These can be passed for an
+	// to the remote execution by using
+	// --remote_exec_header if using a bazel build client.
+	// The specified keys will be shown in the web view if present
+	// and if matching the pre-configured keys.
+	RemoteExecutionMetadataKeys []string
+}
+
+type invocationIDInfo struct {
+	ID            string
+	cleanupKey    cleanupKey
+	startTime     *timestamp.Timestamp
+	priority      int32
+	keyToValueMap map[string]string
+	canceled      bool
+}
+
+type invocationArray []*invocationIDInfo
+
+// Return true if specified ID is among the invocations
+func (ia invocationArray) Contains(ID string) bool {
+	for _, i := range ia {
+		if i.ID == ID {
+			return true
+		}
+	}
+	return false
+}
+
+// Return true if all invocations are canceled
+func (ia invocationArray) Canceled() bool {
+	for _, i := range ia {
+		if !i.canceled {
+			return false
+		}
+	}
+	return true
+}
+
+type sortedInvocations struct {
+	m    map[string]*invocationIDInfo
+	keys []string
+}
+
+func (si sortedInvocations) Len() int {
+	return len(si.keys)
+}
+
+func (si sortedInvocations) Less(i, j int) bool {
+	x := si.m[si.keys[i]]
+	y := si.m[si.keys[j]]
+	return x.priority < y.priority ||
+		(x.priority == y.priority &&
+			isBeforeTime(x.startTime, y.startTime))
+}
+
+func (si sortedInvocations) Swap(i, j int) {
+	si.keys[i], si.keys[j] = si.keys[j], si.keys[i]
+}
+
+func sortedKeys(m map[string]*invocationIDInfo) []string {
+	si := new(sortedInvocations)
+	si.m = m
+	si.keys = make([]string, len(m))
+	i := 0
+	for key := range m {
+		si.keys[i] = key
+		i++
+	}
+	sort.Sort(si)
+	return si.keys
 }
 
 // InMemoryBuildQueue implements a BuildQueue that can distribute
@@ -173,6 +251,10 @@ type InMemoryBuildQueue struct {
 	// Binary heap containing closures that purge stale workers,
 	// platform queues and operations.
 	cleanupQueue cleanupQueue
+
+	// Bookkeeping of invocation time stamp to make it possible
+	// to group operations, and sort them on invocation time.
+	invocationIDToInfo map[string]*invocationIDInfo
 }
 
 // NewInMemoryBuildQueue creates a new InMemoryBuildQueue that is in the
@@ -189,7 +271,6 @@ func NewInMemoryBuildQueue(contentAddressableStorage blobstore.BlobAccess, clock
 		prometheus.MustRegister(inMemoryBuildQueueWorkersCreatedTotal)
 		prometheus.MustRegister(inMemoryBuildQueueWorkersRemovedTotal)
 	})
-
 	return &InMemoryBuildQueue{
 		contentAddressableStorage:           contentAddressableStorage,
 		clock:                               clock,
@@ -199,6 +280,7 @@ func NewInMemoryBuildQueue(contentAddressableStorage blobstore.BlobAccess, clock
 		maximumMessageSizeBytes:             maximumMessageSizeBytes,
 		platformQueues:                      map[platformKey]*platformQueue{},
 		operationsNameMap:                   map[string]*operation{},
+		invocationIDToInfo:                  map[string]*invocationIDInfo{},
 	}
 }
 
@@ -238,7 +320,7 @@ func (bq *InMemoryBuildQueue) GetCapabilities(ctx context.Context, in *remoteexe
 // blocks until the action is completed.
 func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out remoteexecution.Execution_ExecuteServer) error {
 	// Fetch the action and command corresponding to the execute
-	// request. Ideally, a scheduler is be oblivious of what these
+	// request. Ideally, a scheduler oblivious of what these
 	// look like, if it weren't for the fact that Action.DoNotCache
 	// and Command.Platform are used for scheduling decisions.
 	//
@@ -272,9 +354,39 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 	if err != nil {
 		return err
 	}
+	invocationID, err := getInvocationID(ctx)
+	if err != nil {
+		return util.StatusWrap(err, "Failed to extract invocation ID")
+	}
+	// Priority 0 is default according to documentation for ExecutionPolicy.Priority
+	priority := int32(0)
+	if in.ExecutionPolicy != nil {
+		priority = in.ExecutionPolicy.Priority
+	}
 
 	bq.enter(bq.clock.Now())
 	defer bq.leave()
+
+	if _, previouslyQueued := bq.invocationIDToInfo[invocationID]; !previouslyQueued {
+		removalTime := bq.now.Add(bq.configuration.InvocationInfoTimeout)
+		invocationInfo := &invocationIDInfo{
+			ID:            invocationID,
+			priority:      priority,
+			startTime:     bq.getCurrentTime(),
+			keyToValueMap: bq.getKeyToValueMap(ctx),
+			canceled:      false,
+		}
+		bq.invocationIDToInfo[invocationID] = invocationInfo
+		bq.cleanupQueue.add(&invocationInfo.cleanupKey, removalTime, func() {
+			delete(bq.invocationIDToInfo, invocationID)
+		})
+	}
+
+	invocation := bq.invocationIDToInfo[invocationID]
+	if invocation.canceled {
+		code := codes.Canceled
+		return status.Error(code, "Invocation was killed administratively")
+	}
 
 	pq, ok := bq.platformQueues[platformKey]
 	if !ok {
@@ -297,44 +409,13 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 	// Create a new operation in case none exist against which this
 	// request may be deduplicated.
 	inFlightDeduplicationKey := newInFlightDeduplicationKey(in.ActionDigest)
+
 	o, ok := pq.inFlightDeduplicationMap[inFlightDeduplicationKey]
 	if !ok {
-		argv0 := ""
-		if argv := command.Arguments; len(argv) > 0 {
-			argv0 = argv[0]
-		}
-
-		desiredState := remoteworker.DesiredState_Executing{
-			ActionDigest:    in.ActionDigest,
-			Action:          action,
-			Command:         command,
-			QueuedTimestamp: bq.getCurrentTime(),
-		}
-
-		span := trace.FromContext(ctx)
-		if span != nil {
-			desiredState.TraceContext = propagation.Binary(span.SpanContext())
-		}
-
-		o = &operation{
-			platformQueue: pq,
-			desiredState:  desiredState,
-
-			name:         uuid.Must(bq.uuidGenerator()).String(),
-			instanceName: instanceName,
-			argv0:        argv0,
-
-			currentStageStartTime: bq.now,
-
-			completionWakeup: make(chan struct{}),
-		}
+		o = bq.createOperation(ctx, in, pq, action, command, invocation, instanceName)
 		bq.operationsNameMap[o.name] = o
 		if !action.DoNotCache {
 			pq.inFlightDeduplicationMap[inFlightDeduplicationKey] = o
-		}
-		priority := int32(0)
-		if in.ExecutionPolicy != nil {
-			priority = in.ExecutionPolicy.Priority
 		}
 		heap.Push(&pq.queuedOperations, queuedOperationsEntry{
 			priority:  priority,
@@ -342,8 +423,45 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 		})
 		pq.wakeupNextWorker()
 		pq.operationsQueuedTotal.Inc()
+	} else {
+		// Operation shared between invocations, append it last so they are in invocation start time order
+		o.invocations = append(o.invocations, invocation)
 	}
 	return o.waitExecution(bq, out)
+}
+
+func (bq *InMemoryBuildQueue) createOperation(ctx context.Context, in *remoteexecution.ExecuteRequest, pq *platformQueue, action *remoteexecution.Action, command *remoteexecution.Command, invocation *invocationIDInfo, instanceName digest.InstanceName) *operation {
+	argv0 := ""
+	if argv := command.Arguments; len(argv) > 0 {
+		argv0 = argv[0]
+	}
+
+	desiredState := remoteworker.DesiredState_Executing{
+		ActionDigest:    in.ActionDigest,
+		Action:          action,
+		Command:         command,
+		QueuedTimestamp: bq.getCurrentTime(),
+	}
+
+	span := trace.FromContext(ctx)
+	if span != nil {
+		desiredState.TraceContext = propagation.Binary(span.SpanContext())
+	}
+
+	return &operation{
+		platformQueue: pq,
+		desiredState:  desiredState,
+
+		name:         uuid.Must(bq.uuidGenerator()).String(),
+		instanceName: instanceName,
+		argv0:        argv0,
+
+		currentStageStartTime: bq.now,
+
+		completionWakeup: make(chan struct{}),
+
+		invocations: invocationArray{invocation},
+	}
 }
 
 // WaitExecution attaches to an existing operation that was created by
@@ -470,6 +588,7 @@ func (bq *InMemoryBuildQueue) GetBuildQueueState() *BuildQueueState {
 			InstanceName:          platformKey.instanceName,
 			Platform:              *platformKey.getPlatform(),
 			Timeout:               bq.cleanupQueue.getTimestamp(pq.cleanupKey),
+			InvocationCount:       len(bq.invocationIDToInfo),
 			QueuedOperationsCount: len(pq.queuedOperations),
 			WorkersCount:          len(pq.workers),
 			ExecutingWorkersCount: executingWorkersCount,
@@ -516,26 +635,65 @@ func (bq *InMemoryBuildQueue) KillOperation(name string) bool {
 	bq.enter(bq.clock.Now())
 	defer bq.leave()
 
+	return bq.killAnOperation(name)
+}
+
+// KillInvocation requests that an invocation has all its operations killed.
+// (See KillOperation). Any further operations to this invocation will be
+// killed.
+func (bq *InMemoryBuildQueue) KillInvocation(invocationID string) bool {
+	bq.enter(bq.clock.Now())
+	defer bq.leave()
+
+	entry, queued := bq.invocationIDToInfo[invocationID]
+	if !queued {
+		return false
+	}
+	entry.canceled = true
+
+	for name, o := range bq.operationsNameMap {
+		if o.invocations.Contains(invocationID) && o.invocations.Canceled() {
+			bq.killAnOperation(name)
+		}
+	}
+
+	return true
+}
+
+func (bq *InMemoryBuildQueue) killAnOperation(name string) bool {
 	o, ok := bq.operationsNameMap[name]
 	if !ok {
 		return false
 	}
-	o.complete(bq, &remoteexecution.ExecuteResponse{
-		Status: status.New(codes.Unavailable, "Operation was killed administratively").Proto(),
-	})
+	bq.cancelOperation(o)
 	return true
 }
 
-// ListDetailedOperationState returns detailed information about all of
+func (bq *InMemoryBuildQueue) cancelOperation(o *operation) {
+	o.complete(bq, &remoteexecution.ExecuteResponse{
+		Status: status.New(codes.Unavailable, "Operation was killed administratively").Proto(),
+	})
+}
+
+// ListDetailedOperationState returns detailed information about some or all of
 // the operations tracked by the InMemoryBuildQueue.
-func (bq *InMemoryBuildQueue) ListDetailedOperationState(pageSize int, startAfterOperation *string) ([]DetailedOperationState, PaginationInfo) {
+// If invocationID is nil, all are listed.
+// If invocationID is non-nil, only operatons for that invocation are listed.
+// If invocationID and selection is non-nil, then operations of that type and invocation ID are selected.
+func (bq *InMemoryBuildQueue) ListDetailedOperationState(invocationID *string, selection *string, pageSize int, startAfterOperation *string) ([]DetailedOperationState, PaginationInfo, error) {
 	bq.enter(bq.clock.Now())
 	defer bq.leave()
 
 	// Obtain operation names in sorted order.
-	nameList := make([]string, 0, len(bq.operationsNameMap))
-	for name := range bq.operationsNameMap {
-		nameList = append(nameList, name)
+	nameList := make([]string, 0)
+	for name, o := range bq.operationsNameMap {
+		doSelect, err := o.isSelectedOperation(invocationID, selection)
+		if err != nil {
+			return []DetailedOperationState{}, PaginationInfo{}, err
+		}
+		if doSelect {
+			nameList = append(nameList, name)
+		}
 	}
 	sort.Strings(nameList)
 	paginationInfo := getPaginationInfo(len(nameList), pageSize, func(i int) bool {
@@ -549,7 +707,89 @@ func (bq *InMemoryBuildQueue) ListDetailedOperationState(pageSize int, startAfte
 		o := bq.operationsNameMap[name]
 		results = append(results, *o.getDetailedOperationState(bq))
 	}
-	return results, paginationInfo
+	return results, paginationInfo, nil
+}
+
+// Return true if the parameters match the operation, false otherwise.
+//
+// By specifying invocationID it is possible to restrict it to just
+// that invocationID.
+//
+// selection is a string value with the following match criteria:
+//   nil: any operation
+//   Finished: completed operations (ExecutionStage_COMPLETED)
+//   Executing: ongoing operations (ExecutionState_EXECUTING)
+//   Queued: queued operations (ExecutionState_QUEUED)
+//   Any other value will result in an exception.
+func (o *operation) isSelectedOperation(invocationID *string, selection *string) (bool, error) {
+	if invocationID != nil && !o.invocations.Contains(*invocationID) {
+		return false, nil
+	}
+	if selection == nil {
+		return true, nil
+	}
+	switch o.getStage() {
+	case remoteexecution.ExecutionStage_COMPLETED:
+		return *selection == "Finished", nil
+	case remoteexecution.ExecutionStage_EXECUTING:
+		return *selection == "Executing", nil
+	case remoteexecution.ExecutionStage_QUEUED:
+		return *selection == "Queued", nil
+	default:
+		return false, fmt.Errorf("Unsupported remote execution state: %d", o.getStage())
+	}
+}
+
+// ListInvocations returns properties of recent invocations.
+// If active is true only active invocations are selected, if active is false only
+// inactive invocations are selected. An invocation is active if it has had any recent
+// activity.
+func (bq *InMemoryBuildQueue) ListInvocations(instanceName digest.InstanceName, pageSize int, active bool) ([]InvocationEntry, PaginationInfo, error) {
+
+	bq.enter(bq.clock.Now())
+	defer bq.leave()
+
+	invocations := []InvocationEntry{}
+	keys := sortedKeys(bq.invocationIDToInfo)
+
+	for _, id := range keys {
+		entry := bq.invocationIDToInfo[id]
+		invocationTimestamp, _ := ptypes.Timestamp(entry.startTime)
+		queued, executing, finished := int(0), int(0), int(0)
+		for _, o := range bq.operationsNameMap {
+			if o.invocations.Contains(id) {
+				switch o.getStage() {
+				case remoteexecution.ExecutionStage_COMPLETED:
+					finished++
+				case remoteexecution.ExecutionStage_EXECUTING:
+					executing++
+				case remoteexecution.ExecutionStage_QUEUED:
+					queued++
+				default:
+					return []InvocationEntry{}, PaginationInfo{}, fmt.Errorf("Unsupported remote execution state: %d", o.getStage())
+				}
+			}
+		}
+		isActive := queued+executing+finished > 0
+		if (active && isActive) || (!active && !isActive) {
+			invocations = append(invocations,
+				InvocationEntry{
+					Priority:                 entry.priority,
+					InvocationID:             id,
+					InvocationTimestamp:      invocationTimestamp,
+					InvocationTimeout:        *(bq.cleanupQueue.getTimestamp(entry.cleanupKey)),
+					QueuedOperationsCount:    queued,
+					ExecutingOperationsCount: executing,
+					FinishedOperationsCount:  finished,
+					Canceled:                 entry.canceled,
+					Keywords:                 entry.keyToValueMap})
+		}
+	}
+	paginationInfo := getPaginationInfo(len(invocations), pageSize, func(i int) bool {
+		return true
+	})
+	results := invocations[paginationInfo.StartIndex:paginationInfo.EndIndex]
+	return results, paginationInfo, nil
 }
 
 // ListQueuedOperationState returns properties of all queued
@@ -784,6 +1024,25 @@ func (bq *InMemoryBuildQueue) enter(t time.Time) {
 // leave releases the lock on the InMemoryBuildQueue.
 func (bq *InMemoryBuildQueue) leave() {
 	bq.lock.Unlock()
+}
+
+// Used to get remote execution metadata values from the context
+// using with build queue configuration to select the keys of interest.
+func (bq *InMemoryBuildQueue) getKeyToValueMap(ctx context.Context) map[string]string {
+	keyToValueMap := make(map[string]string, 0)
+
+	incomingMetadata, err := getMetadataFromContext(ctx)
+	if err != nil {
+		return keyToValueMap
+	}
+
+	for _, key := range bq.configuration.RemoteExecutionMetadataKeys {
+		trimmedKey := strings.TrimSpace(key)
+		if value := incomingMetadata.Get(trimmedKey); len(value) > 0 {
+			keyToValueMap[trimmedKey] = value[0]
+		}
+	}
+	return keyToValueMap
 }
 
 // platformKey can be used as a key for maps to uniquely identify a
@@ -1091,13 +1350,26 @@ func (h queuedOperationsHeap) Len() int {
 	return len(h)
 }
 
-func (h queuedOperationsHeap) Less(i, j int) bool {
-	// Lexicographic order on priority and queued timestamp.
-	ti := h[i].operation.desiredState.QueuedTimestamp
-	tj := h[j].operation.desiredState.QueuedTimestamp
-	return h[i].priority < h[j].priority || (h[i].priority == h[j].priority &&
-		(ti.Seconds < tj.Seconds || (ti.Seconds == tj.Seconds &&
-			ti.Nanos < tj.Nanos)))
+func (h queuedOperationsHeap) Less(x, y int) bool {
+	// Lexicographic order on priority, invocation timestamp and queued timestamp.
+	// The invocation timestamp used is the oldest timestamp for connected invocations.
+	qx := h[x].operation.desiredState.QueuedTimestamp
+	qy := h[y].operation.desiredState.QueuedTimestamp
+
+	return h[x].priority < h[y].priority ||
+		(h[x].priority == h[y].priority &&
+			isBeforeTime(h[x].operation.invocations[0].startTime, h[y].operation.invocations[0].startTime)) ||
+		(h[x].priority == h[y].priority &&
+			isSameTime(h[x].operation.invocations[0].startTime, h[y].operation.invocations[0].startTime) &&
+			isBeforeTime(qx, qy))
+}
+
+func isBeforeTime(tx, ty *timestamp.Timestamp) bool {
+	return tx.Seconds < ty.Seconds || (tx.Seconds == ty.Seconds && tx.Nanos < ty.Nanos)
+}
+
+func isSameTime(tx, ty *timestamp.Timestamp) bool {
+	return tx.Seconds == ty.Seconds && tx.Nanos == ty.Nanos
 }
 
 func (h queuedOperationsHeap) Swap(i, j int) {
@@ -1161,6 +1433,8 @@ type operation struct {
 	executeResponse  *remoteexecution.ExecuteResponse
 	completionWakeup chan struct{}
 	cleanupKey       cleanupKey
+
+	invocations invocationArray
 }
 
 func (o *operation) getStage() remoteexecution.ExecutionStage_Value {
@@ -1277,7 +1551,6 @@ func (o *operation) complete(bq *InMemoryBuildQueue, executeResponse *remoteexec
 		o.desiredState.Action = nil
 		o.desiredState.Command = nil
 		o.completionWakeup = nil
-
 		var result, grpcCode string
 		if s := status.FromProto(executeResponse.Status); s.Err() != nil {
 			result = "Failure"
@@ -1293,6 +1566,8 @@ func (o *operation) complete(bq *InMemoryBuildQueue, executeResponse *remoteexec
 	}
 }
 
+// Remove the operation from the build queue. Typically used
+// when its invocation has been canceled.
 func (o *operation) remove(bq *InMemoryBuildQueue) {
 	o.complete(bq, &remoteexecution.ExecuteResponse{
 		Status: status.New(codes.Canceled, "Operation no longer has any waiting clients").Proto(),
@@ -1303,6 +1578,7 @@ func (o *operation) remove(bq *InMemoryBuildQueue) {
 	o.registerCompletedStageFinished(bq)
 }
 
+// Return the BasicOperationState for the operation.
 func (o *operation) getBasicOperationState(bq *InMemoryBuildQueue) *BasicOperationState {
 	queuedTimestamp, err := ptypes.Timestamp(o.desiredState.QueuedTimestamp)
 	if err != nil {
@@ -1317,6 +1593,7 @@ func (o *operation) getBasicOperationState(bq *InMemoryBuildQueue) *BasicOperati
 	}
 }
 
+// Return the DetailedOperationState for the operation.
 func (o *operation) getDetailedOperationState(bq *InMemoryBuildQueue) *DetailedOperationState {
 	return &DetailedOperationState{
 		BasicOperationState: *o.getBasicOperationState(bq),
@@ -1579,4 +1856,41 @@ func (q *cleanupQueue) getTimestamp(key cleanupKey) *time.Time {
 	}
 	t := q.heap[key-1].timestamp
 	return &t
+}
+
+// Used to get invocation ID from a remote execution context
+func getInvocationID(ctx context.Context) (string, error) {
+	incomingMetadata, err := getMetadataFromContext(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	encodedRequestMetadata := incomingMetadata.Get("build.bazel.remote.execution.v2.requestmetadata-bin")
+
+	requestMetadata, err := decodeRequestMetadata(encodedRequestMetadata)
+	if err != nil {
+		return "", err
+	}
+
+	return requestMetadata.GetToolInvocationId(), nil
+}
+
+// Used to get invocation ID from a remote execution context
+func getMetadataFromContext(ctx context.Context) (metadata.MD, error) {
+	incomingMetadata, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return metadata.MD{}, fmt.Errorf("Missing metadata in context from bazel client")
+	}
+	return incomingMetadata, nil
+}
+
+func decodeRequestMetadata(encodedRequestMetadata []string) (remoteexecution.RequestMetadata, error) {
+	var requestMetadata remoteexecution.RequestMetadata
+	if len(encodedRequestMetadata) == 0 {
+		return remoteexecution.RequestMetadata{}, fmt.Errorf("Missing remote execution request metadata from bazel client")
+	}
+	if err := proto.Unmarshal([]byte(encodedRequestMetadata[0]), &requestMetadata); err != nil {
+		return remoteexecution.RequestMetadata{}, fmt.Errorf("Failed to unmarshal remote execution request metadata: %v", err)
+	}
+	return requestMetadata, nil
 }

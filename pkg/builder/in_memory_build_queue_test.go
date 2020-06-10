@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/grpc/metadata"
+
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	re_builder "github.com/buildbarn/bb-remote-execution/pkg/builder"
@@ -37,8 +39,12 @@ var (
 		GetIdleWorkerSynchronizationInterval: func() time.Duration { return time.Minute },
 		WorkerOperationRetryCount:            9,
 		WorkerWithNoSynchronizationsTimeout:  time.Minute,
+		InvocationInfoTimeout:                60 * time.Minute,
+		RemoteExecutionMetadataKeys:          []string{"key1", "key2"},
 	}
 )
+
+const INSTANCE_NAME = "main"
 
 // getExecutionClient creates a GRPC client for calling Execute() and
 // WaitExecution() operations against a build queue. These operations
@@ -64,8 +70,32 @@ func getExecutionClient(t *testing.T, buildQueue builder.BuildQueue) remoteexecu
 	return remoteexecution.NewExecutionClient(client)
 }
 
+// Add a dummy invocation ID to a context
+func addDummyInvocationIdToContext(ctx context.Context) context.Context {
+	return addInvocationIdToContext(ctx, "DUMMY_INVOCATION_ID")
+}
+
+// Add an invocation ID to a context
+func addInvocationIdToContext(ctx context.Context, invocationID string) context.Context {
+	requestMetadata, err := ptypes.MarshalAny(&remoteexecution.RequestMetadata{
+		ToolInvocationId: invocationID,
+	})
+	if err != nil {
+		panic(err)
+	}
+	data := string(requestMetadata.GetValue())
+	return metadata.AppendToOutgoingContext(ctx, "build.bazel.remote.execution.v2.requestmetadata-bin", data)
+}
+
+// Add a key, value pair to a context
+func addKeyValueToContext(ctx context.Context, key string, value string) context.Context {
+	return metadata.AppendToOutgoingContext(ctx, key, value)
+}
+
 func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
-	ctrl, ctx := gomock.WithContext(context.Background(), t)
+	ctrl, baseCtx := gomock.WithContext(context.Background(), t)
+	ctx := addDummyInvocationIdToContext(baseCtx)
+	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	clock := mock.NewMockClock(ctrl)
@@ -156,6 +186,42 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 		require.NoError(t, err)
 		_, err = stream.Recv()
 		require.Equal(t, err, status.Error(codes.FailedPrecondition, "Failed to obtain command: Blob not found"))
+	})
+
+	// Remote exection context is missing invocation ID
+	t.Run("Missing invocation ID", func(t *testing.T) {
+		contentAddressableStorage.EXPECT().Get(
+			gomock.Any(),
+			digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
+			CommandDigest: &remoteexecution.Digest{
+				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
+				SizeBytes: 456,
+			},
+		}, buffer.UserProvided))
+		contentAddressableStorage.EXPECT().Get(
+			gomock.Any(),
+			digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
+		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
+			Platform: &remoteexecution.Platform{
+				Properties: []*remoteexecution.Platform_Property{
+					{Name: "cpu", Value: "armv6"},
+					{Name: "os", Value: "linux"},
+				},
+			},
+		}, buffer.UserProvided))
+
+		stream, err := executionClient.Execute(baseCtx, &remoteexecution.ExecuteRequest{
+			InstanceName: "main",
+			ActionDigest: &remoteexecution.Digest{
+				Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+				SizeBytes: 123,
+			},
+		})
+		require.NoError(t, err)
+		_, err = stream.Recv()
+		require.Contains(t, err.Error(),
+			"Failed to extract invocation ID: Missing remote execution request metadata from bazel client")
 	})
 
 	// Platform requirements should be provided in sorted order.
@@ -271,10 +337,13 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 		_, err = stream.Recv()
 		require.Equal(t, err, status.Error(codes.FailedPrecondition, "No workers exist for instance \"main\" platform {\"properties\":[{\"name\":\"cpu\",\"value\":\"armv6\"},{\"name\":\"os\",\"value\":\"linux\"}]}"))
 	})
+
 }
 
 func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
-	ctrl, ctx := gomock.WithContext(context.Background(), t)
+	ctrl, baseCtx := gomock.WithContext(context.Background(), t)
+	ctx := addDummyInvocationIdToContext(baseCtx)
+	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	for i := 0; i < 10; i++ {
@@ -507,7 +576,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 	_, err = stream3.Recv()
 	require.Equal(t, err, status.Error(codes.FailedPrecondition, "No workers exist for instance \"main\" platform {}"))
 
-	// Operations that were queued should have been cancelled when
+	// Operations that were queued should have been canceled when
 	// the platform queue was garbage collected. All eight should
 	// get woken up.
 	for i, fakeUUID := range fakeUUIDs {
@@ -535,7 +604,9 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 }
 
 func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
-	ctrl, ctx := gomock.WithContext(context.Background(), t)
+	ctrl, baseCtx := gomock.WithContext(context.Background(), t)
+	ctx := addDummyInvocationIdToContext(baseCtx)
+	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	for i := 0; i < 2; i++ {
@@ -694,7 +765,8 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 	// The operation should be present without any timeout
 	// associated with it, as there are multiple waiters.
 	clock.EXPECT().Now().Return(time.Unix(1080, 0))
-	allOperations, paginationInfo := buildQueue.ListDetailedOperationState(10, nil)
+	allOperations, paginationInfo, err := buildQueue.ListDetailedOperationState(nil, nil, 10, nil)
+	require.NoError(t, err)
 	require.True(t, proto.Equal(allOperations[0].ActionDigest,
 		&remoteexecution.Digest{
 			Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
@@ -731,7 +803,8 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 
 	// The operation should still be available up until the deadline.
 	clock.EXPECT().Now().Return(time.Unix(1149, 999999999))
-	allOperations, paginationInfo = buildQueue.ListDetailedOperationState(10, nil)
+	allOperations, paginationInfo, err = buildQueue.ListDetailedOperationState(nil, nil, 10, nil)
+	require.NoError(t, err)
 	require.True(t, proto.Equal(allOperations[0].ActionDigest,
 		&remoteexecution.Digest{
 			Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
@@ -756,9 +829,32 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 		TotalEntries: 1,
 	})
 
+	clock.EXPECT().Now().Return(time.Unix(1149, 999999999))
+	invocationID := "DUMMY_INVOCATION_ID"
+	allOperationsForInvocationID, _, _ := buildQueue.ListDetailedOperationState(&invocationID, nil, 10, nil)
+	allOperationsForInvocationID[0].ActionDigest = nil
+	require.Equal(t, allOperations[0], allOperationsForInvocationID[0])
+
+	clock.EXPECT().Now().Return(time.Unix(1149, 999999999))
+	otherInvocationID := "OTHER_INVOCATION_ID"
+	noOperations, _, _ := buildQueue.ListDetailedOperationState(&otherInvocationID, nil, 10, nil)
+	require.Empty(t, noOperations)
+
+	clock.EXPECT().Now().Return(time.Unix(1149, 999999999))
+	queued := "Queued"
+	queuedOperations, _, _ := buildQueue.ListDetailedOperationState(&invocationID, &queued, 10, nil)
+	queuedOperations[0].ActionDigest = nil
+	require.Equal(t, allOperations[0], queuedOperations[0])
+
+	clock.EXPECT().Now().Return(time.Unix(1149, 999999999))
+	canceled := "Failed"
+	canceledOperations, _, _ := buildQueue.ListDetailedOperationState(&invocationID, &canceled, 10, nil)
+	require.Empty(t, canceledOperations)
+
 	// And it should be gone after it.
 	clock.EXPECT().Now().Return(time.Unix(1150, 0))
-	allOperations, paginationInfo = buildQueue.ListDetailedOperationState(10, nil)
+	allOperations, paginationInfo, err = buildQueue.ListDetailedOperationState(nil, nil, 10, nil)
+	require.NoError(t, err)
 	require.Empty(t, allOperations)
 	require.Equal(t, paginationInfo, re_builder.PaginationInfo{
 		StartIndex:   0,
@@ -768,7 +864,9 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 }
 
 func TestInMemoryBuildQueueKillOperation(t *testing.T) {
-	ctrl, ctx := gomock.WithContext(context.Background(), t)
+	ctrl, baseCtx := gomock.WithContext(context.Background(), t)
+	ctx := addDummyInvocationIdToContext(baseCtx)
+	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	contentAddressableStorage.EXPECT().Get(
@@ -984,7 +1082,9 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 }
 
 func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
-	ctrl, ctx := gomock.WithContext(context.Background(), t)
+	ctrl, baseCtx := gomock.WithContext(context.Background(), t)
+	ctx := addDummyInvocationIdToContext(baseCtx)
+	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	contentAddressableStorage.EXPECT().Get(
@@ -1239,7 +1339,9 @@ func TestInMemoryBuildQueueIdleWorkerSynchronizationTimeout(t *testing.T) {
 }
 
 func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
-	ctrl, ctx := gomock.WithContext(context.Background(), t)
+	ctrl, baseCtx := gomock.WithContext(context.Background(), t)
+	ctx := addDummyInvocationIdToContext(baseCtx)
+	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	contentAddressableStorage.EXPECT().Get(
@@ -1487,6 +1589,265 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 			},
 		},
 	}))
+}
+
+func TestInMemoryBuildQueueSortOrderForQueuedOperations(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+	defer ctrl.Finish()
+
+	buildQueue, clock, platform := setUpQueueWithOperationsForTests(t, ctrl, ctx)
+
+	// Ensure we get the expected numbear of operations, and in the correct order
+	clock.EXPECT().Now().Return(time.Unix(1020, 0))
+	main, err := digest.NewInstanceName("main")
+	require.NoError(t, err)
+	enqueued, _, err := buildQueue.ListQueuedOperationState(main, platform, 1024, nil, nil)
+	require.NoError(t, err)
+	require.Equal(t, 7, len(enqueued))
+	uuids := make([]string, len(enqueued))
+	for i, v := range enqueued {
+		uuids[i] = v.Name
+	}
+	expectedUuids := [7]string{
+		"1a77fe58-b3ae-11ea-b3de-0242ac130004", // Priority HIGH   , Late invocation
+		"36ebab65-3c4f-4faf-818b-2eabb4cd1b02", // Priority default, Very early invocation
+		"1ef11db1-7b06-44ec-b5d2-af3a4b9a249f", //                 ,
+		"250deff8-b3ae-11ea-b3de-0242ac130004", //                 ,
+		"d3ecfdda-b3ad-11ea-b3de-0242ac130004", //                 , Early invocation
+		"032eaa58-b3ae-11ea-b3de-0242ac130004", //                 , Medium invocation
+		"102a980c-b3ae-11ea-b3de-0242ac130004", // Priority LOW    , Very early invocation
+	}
+	for i, v := range uuids {
+		require.Equal(t, expectedUuids[i], v, "Expected %s at index %d but found %s\nExpected UUIDs=%v\nActual UUIDs=%v\n",
+			expectedUuids[i], i, v, expectedUuids, uuids)
+	}
+}
+
+func TestInMemoryBuildQueueListInvocations(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+	defer ctrl.Finish()
+
+	ctxWithKeyValue := addKeyValueToContext(ctx, "key1", "value1")
+	ctxWithKeyValue2 := addKeyValueToContext(ctxWithKeyValue, "key2", "otherValue")
+	buildQueue, clock, _ := setUpQueueWithOperationsForTests(t, ctrl, ctxWithKeyValue2)
+
+	// We wont have any inactive invocations
+	clock.EXPECT().Now().Return(time.Unix(1020, 0))
+	main, err := digest.NewInstanceName("main")
+	require.NoError(t, err)
+	invocations, _, err := buildQueue.ListInvocations(main, 1024, false)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(invocations))
+
+	// Ensure we get the expected numbear of operations, and in the correct order
+	clock.EXPECT().Now().Return(time.Unix(1021, 0))
+	invocations, _, err = buildQueue.ListInvocations(main, 1024, true)
+	require.NoError(t, err)
+	require.Equal(t, 4, len(invocations))
+	expectedKeywords := make(map[string]string, 2)
+	expectedKeywords["key1"] = "value1"
+	expectedKeywords["key2"] = "otherValue"
+
+	require.Equal(t, int32(-30), invocations[0].Priority)
+	require.Equal(t, "LATE", invocations[0].InvocationID)
+	require.Equal(t, int(1), invocations[0].QueuedOperationsCount)
+	require.Equal(t, expectedKeywords, invocations[0].Keywords)
+
+	require.Equal(t, int32(0), invocations[1].Priority)
+	require.Equal(t, "VERY_EARLY", invocations[1].InvocationID)
+	require.Equal(t, int(3), invocations[1].QueuedOperationsCount)
+	require.Equal(t, expectedKeywords, invocations[1].Keywords)
+
+	require.Equal(t, int32(0), invocations[2].Priority)
+	require.Equal(t, "EARLY", invocations[2].InvocationID)
+	require.Equal(t, int(2), invocations[2].QueuedOperationsCount)
+	require.Equal(t, expectedKeywords, invocations[2].Keywords)
+
+	require.Equal(t, int32(0), invocations[3].Priority)
+	require.Equal(t, "MEDIUM", invocations[3].InvocationID)
+	require.Equal(t, int(1), invocations[3].QueuedOperationsCount)
+	require.Equal(t, expectedKeywords, invocations[3].Keywords)
+}
+
+// This sets up the build queue so that it contains 7 operations from 4 different invocations.
+func setUpQueueWithOperationsForTests(t *testing.T, ctrl *gomock.Controller, ctx context.Context) (*re_builder.InMemoryBuildQueue, *mock.MockClock, *remoteexecution.Platform) {
+	platform := &remoteexecution.Platform{
+		Properties: []*remoteexecution.Platform_Property{
+			{Name: "cpu", Value: "armv6"},
+			{Name: "os", Value: "linux"},
+		},
+	}
+
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	clock := mock.NewMockClock(ctrl)
+	clock.EXPECT().Now().Return(time.Unix(0, 0))
+	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000)
+	executionClient := getExecutionClient(t, buildQueue)
+
+	// Announce a new worker, which creates a queue for operations.
+	clock.EXPECT().Now().Return(time.Unix(1000, 0))
+	response, err := buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
+		WorkerId: map[string]string{
+			"hostname": "worker123",
+			"thread":   "42",
+		},
+		InstanceName: INSTANCE_NAME,
+		Platform:     platform,
+		CurrentState: &remoteworker.CurrentState{
+			WorkerState: &remoteworker.CurrentState_Executing_{
+				Executing: &remoteworker.CurrentState_Executing{
+					ActionDigest: &remoteexecution.Digest{
+						Hash:      "099a3f6dc1e8e91dbcca4ea964cd2237d4b11733",
+						SizeBytes: 123,
+					},
+					ExecutionState: &remoteworker.CurrentState_Executing_FetchingInputs{
+						FetchingInputs: &empty.Empty{},
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, response, &remoteworker.SynchronizeResponse{
+		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1000},
+		DesiredState: &remoteworker.DesiredState{
+			WorkerState: &remoteworker.DesiredState_Idle{
+				Idle: &empty.Empty{},
+			},
+		},
+	})
+
+	priorityLow := int32(30)
+	priorityDefault := int32(0)
+	priorityHigh := int32(-30)
+	ctxVeryEarly := addInvocationIdToContext(ctx, "VERY_EARLY")
+	ctxEarly := addInvocationIdToContext(ctx, "EARLY")
+	ctxMedium := addInvocationIdToContext(ctx, "MEDIUM")
+	ctxLate := addInvocationIdToContext(ctx, "LATE")
+
+	// Enqueue an operation with very early invocation time, and default priority.
+	enqueueOperation(t, ctrl, ctxVeryEarly, contentAddressableStorage, executionClient, uuidGenerator, clock, platform, buildQueue,
+		"da39a3ee5e6b4b0d3255bfef95601890afd80709", 123,
+		"61c585c297d00409bd477b6b80759c94ec545ab4", 456,
+		"36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
+		priorityDefault, time.Unix(1001, 0))
+
+	// Enqueue an operation with same invocation time, still default priority.
+	enqueueOperation(t, ctrl, ctxVeryEarly, contentAddressableStorage, executionClient, uuidGenerator, clock, platform, buildQueue,
+		"442dd07b7ecd17e43f3ad237a35d9120a6383211", 29,
+		"2c16adde3b18eab1845a8db2ccae8bdd4627ab7a", 10949,
+		"1ef11db1-7b06-44ec-b5d2-af3a4b9a249f",
+		priorityDefault, time.Unix(1002, 0))
+
+	// Enqueue an operation after the previous two as later invocation, still default priority.
+	enqueueOperation(t, ctrl, ctxEarly, contentAddressableStorage, executionClient, uuidGenerator, clock, platform, buildQueue,
+		"12039d6dd9a7e27622301e935b6eefc78846802e", 11,
+		"163d8e5e390b106c99e9a23fe5a1058337ad1930", 22,
+		"d3ecfdda-b3ad-11ea-b3de-0242ac130004",
+		priorityDefault, time.Unix(1003, 0))
+
+	// Enqueue another after the previous ones as later invocation, still default priority.
+	enqueueOperation(t, ctrl, ctxMedium, contentAddressableStorage, executionClient, uuidGenerator, clock, platform, buildQueue,
+		"4fbfcfddd17e0aa37e30ab076acdb58e3bf6bb1f", 33,
+		"e8eee4d468b6fe6e915330a4c3882f9fb5990a8d", 44,
+		"032eaa58-b3ae-11ea-b3de-0242ac130004",
+		priorityDefault, time.Unix(1004, 0))
+
+	// Enqueue another operation of the early invocation, but low priority, so it will be put last.
+	enqueueOperation(t, ctrl, ctxEarly, contentAddressableStorage, executionClient, uuidGenerator, clock, platform, buildQueue,
+		"2f9f0f479db29c552df5ff190a683200caa9d569", 55,
+		"2c9537d27c201a226df5ca2d3babf2515f9600d7", 66,
+		"102a980c-b3ae-11ea-b3de-0242ac130004",
+		priorityLow, time.Unix(1005, 0))
+
+	// Enqueue a new invocation, but with high priority, so it appears first.
+	enqueueOperation(t, ctrl, ctxLate, contentAddressableStorage, executionClient, uuidGenerator, clock, platform, buildQueue,
+		"2f4458df6c47896395928b74158a6d9d9791bda0", 77,
+		"9b1df8e00f274c5ff430d0c02d06ceabfe0dbb3a", 88,
+		"1a77fe58-b3ae-11ea-b3de-0242ac130004",
+		priorityHigh, time.Unix(1006, 0))
+
+	// Enqueue another default priority operation, now veary early invocation, so 3rd order in default priority.
+	enqueueOperation(t, ctrl, ctxVeryEarly, contentAddressableStorage, executionClient, uuidGenerator, clock, platform, buildQueue,
+		"e2cba501f5a59db48cfef64e017a3b91916c4303", 99,
+		"962d944b0d0b93b7c8231e9926c28fdff7dd3617", 110,
+		"250deff8-b3ae-11ea-b3de-0242ac130004",
+		priorityDefault, time.Unix(1007, 0))
+
+	return buildQueue, clock, platform
+}
+
+// Do enqueue an operation with the specified action(hash) and command(hash)
+// which will have the specified time as queued time.
+func enqueueOperation(t *testing.T,
+	ctrl *gomock.Controller,
+	ctx context.Context,
+	contentAddressableStorage *mock.MockBlobAccess,
+	executionClient remoteexecution.ExecutionClient,
+	uuidGenerator *mock.MockUUIDGenerator,
+	clock *mock.MockClock,
+	platform *remoteexecution.Platform,
+	buildQueue *re_builder.InMemoryBuildQueue,
+	actionHash string,
+	actionHashSize int64,
+	commandHash string,
+	commandHashSize int64,
+	anUUID string,
+	priority int32,
+	clockTime time.Time) {
+
+	contentAddressableStorage.EXPECT().Get(
+		gomock.Any(),
+		digest.MustNewDigest(INSTANCE_NAME, actionHash, actionHashSize),
+	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
+		CommandDigest: &remoteexecution.Digest{
+			Hash:      commandHash,
+			SizeBytes: commandHashSize,
+		},
+	}, buffer.UserProvided))
+	contentAddressableStorage.EXPECT().Get(
+		gomock.Any(),
+		digest.MustNewDigest(INSTANCE_NAME, commandHash, commandHashSize),
+	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
+		Platform: platform,
+	}, buffer.UserProvided))
+	uuidGenerator.EXPECT().Call().Return(uuid.Parse(anUUID))
+	clock.EXPECT().Now().Return(clockTime)
+	timer := mock.NewMockTimer(ctrl)
+	wakeup := make(chan time.Time, 1)
+	clock.EXPECT().NewTimer(time.Minute).Return(timer, wakeup)
+	var executionPolicy *remoteexecution.ExecutionPolicy
+	if priority == int32(0) {
+		executionPolicy = &remoteexecution.ExecutionPolicy{}
+	} else {
+		executionPolicy = &remoteexecution.ExecutionPolicy{
+			Priority: priority,
+		}
+	}
+	stream, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
+		InstanceName: INSTANCE_NAME,
+		ActionDigest: &remoteexecution.Digest{
+			Hash:      actionHash,
+			SizeBytes: actionHashSize,
+		},
+		ExecutionPolicy: executionPolicy,
+	})
+	require.NoError(t, err)
+	update, err := stream.Recv()
+	require.NoError(t, err)
+	metadata, err := ptypes.MarshalAny(&remoteexecution.ExecuteOperationMetadata{
+		Stage: remoteexecution.ExecutionStage_QUEUED,
+		ActionDigest: &remoteexecution.Digest{
+			Hash:      actionHash,
+			SizeBytes: actionHashSize,
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, update, &longrunning.Operation{
+		Name:     anUUID,
+		Metadata: metadata,
+	})
 }
 
 // TODO: Make testing coverage of InMemoryBuildQueue complete.

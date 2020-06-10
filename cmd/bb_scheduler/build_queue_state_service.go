@@ -2,12 +2,15 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"html/template"
 	"log"
 	"net/http"
 	"net/url"
 	"reflect"
+	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
@@ -32,14 +35,15 @@ const (
 var (
 	jsonpbMarshaler         = jsonpb.Marshaler{}
 	jsonpbIndentedMarshaler = jsonpb.Marshaler{Indent: "  "}
+	abbreviateFun           = func(s string) string {
+		if len(s) > 11 {
+			return s[:8] + "..."
+		}
+		return s
+	}
 
 	templateFuncMap = template.FuncMap{
-		"abbreviate": func(s string) string {
-			if len(s) > 11 {
-				return s[:8] + "..."
-			}
-			return s
-		},
+		"abbreviate": abbreviateFun,
 		"action_url": func(browserURL *url.URL, instanceName digest.InstanceName, actionDigest *remoteexecution.Digest) string {
 			d, err := instanceName.NewDigestFromProto(actionDigest)
 			if err != nil {
@@ -73,6 +77,44 @@ var (
 		"to_foreground_color": func(s string) string {
 			return "#" + invertColor(s[:2]) + invertColor(s[2:4]) + invertColor(s[4:6])
 		},
+		"to_timestamp": func(t time.Time) string {
+			localLoc, _ := time.LoadLocation("Local")
+			localDateTime := t.In(localLoc)
+			return localDateTime.Format("15:04:05")
+		},
+		"present_if_value": func(format string, s *string) string {
+			if s == nil {
+				return ""
+			}
+			return fmt.Sprintf(format, abbreviateFun(*s))
+		},
+		"list_keywords": func(keyValueMap map[string]string) string {
+			keys := make([]string, len(keyValueMap))
+
+			i := 0
+			for k := range keyValueMap {
+				keys[i] = k
+				i++
+			}
+			sort.Strings(keys)
+			result := make([]string, i)
+			for idx, key := range keys {
+				result[idx] = fmt.Sprintf("%s=%s", key, keyValueMap[key])
+			}
+			return strings.Join(result, ", ")
+		},
+		"potential_disable": func(canceled bool) string {
+			if canceled {
+				return "disabled"
+			}
+			return ""
+		},
+		"operations_title": func(selection *string) string {
+			if selection == nil {
+				return "All"
+			}
+			return *selection
+		},
 	}
 
 	getBuildQueueStateTemplate = template.Must(template.New("GetBuildQueueState").Funcs(templateFuncMap).Parse(`
@@ -97,6 +139,7 @@ var (
           <th>Instance name</th>
           <th>Platform</th>
           <th>Timeout</th>
+          <th>Invocations</th>
           <th>Queued operations</th>
           <th>Executing workers</th>
           <th>Drains</th>
@@ -109,6 +152,7 @@ var (
           <td>{{.InstanceName}}</td>
           <td>{{$platform}}</td>
           <td>{{with .Timeout}}{{to_duration . $now}}{{else}}∞{{end}}</td>
+          <td><a href="active_invocations?instance_name={{.InstanceName}}">{{.InvocationCount}}</a></td>
           <td><a href="queued_operations?instance_name={{.InstanceName}}&amp;platform={{$platform}}">{{.QueuedOperationsCount}}</a></td>
           <td>
             <a href="workers?instance_name={{.InstanceName}}&amp;platform={{$platform}}&amp;just_executing_workers=true">{{.ExecutingWorkersCount}}</a>
@@ -182,7 +226,7 @@ var (
 <!DOCTYPE html>
 <html>
   <head>
-    <title>All operations</title>
+    <title>{{operations_title .Selection}} operations {{present_if_value "for invocationID %s" .InvocationID}}</title>
     <style>
       html { font-family: sans-serif; }
       table { border-collapse: collapse; }
@@ -192,7 +236,7 @@ var (
     </style>
   </head>
   <body>
-    <h1>All operations</h1>
+    <h1>{{operations_title .Selection}} operations {{present_if_value "for invocationID %s" .InvocationID}}</h1>
     <p>Showing operations [{{.PaginationInfo.StartIndex}}, {{.PaginationInfo.EndIndex}}) of {{.PaginationInfo.TotalEntries}} in total.
       {{with last_element .DetailedOperations}}
         <a href="?start_after_operation={{.Name}}">&gt;&gt;&gt;</a>
@@ -251,6 +295,102 @@ var (
   </body>
 </html>
 `))
+	listActiveInvocationsTemplate = template.Must(template.New("ListActiveInvocations").Funcs(templateFuncMap).Parse(`
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Active bazel invocations</title>
+    <style>
+      html { font-family: sans-serif; }
+      table { border-collapse: collapse; }
+      table, td, th { border: 1px solid black; }
+      td, th { padding-left: 5px; padding-right: 5px; }
+      .text-monospace { font-family: monospace; }
+    </style>
+  </head>
+  <body>
+    {{$instanceName := .InstanceName}}
+    <h1>Recent invocations</h1>
+    <p>Instance name: {{$instanceName}}</p>
+    <p><a href="inactive_invocations?instance_name={{.InstanceName}}">Show inactive invocations</a></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Invocation<br/>ID</th>
+          <th>First<br/>operation</th>
+          <th>Priority</th>
+          <th>Queued<br/>operations</th>
+          <th>Executing<br/>operations</th>
+          <th>Finished<br/>recent<br/>operations</th>
+          <th>Keywords</th>
+          <th>Control</th>
+          <th>Timeout</br>
+        </tr>
+      </thead>
+      {{$browserURL := .BrowserURL}}
+      {{$now := .Now}}
+      {{range .Invocations}}
+        <tr>
+          <td><a href="operations?invocation_id={{.InvocationID}}">{{abbreviate .InvocationID}}</a></td>
+          <td>{{to_timestamp .InvocationTimestamp}}</td>
+          <td>{{.Priority}}</td>
+          <td><a href="operations?invocation_id={{.InvocationID}}&selection=Queued">{{.QueuedOperationsCount}}</a></td>
+          <td><a href="operations?invocation_id={{.InvocationID}}&selection=Executing">{{.ExecutingOperationsCount}}</a></td>
+          <td><a href="operations?invocation_id={{.InvocationID}}&selection=Finished">{{.FinishedOperationsCount}}</a></td>
+          <td>{{list_keywords .Keywords}}</td>
+          <td> <button {{potential_disable .Canceled}} onclick="window.location.href='kill_invocation?name={{.InvocationID}}';" value="">Cancel</button></td>
+          <td>{{with .InvocationTimeout}}{{to_duration . $now}}{{else}}∞{{end}}</td>
+        </tr>
+      {{end}}
+    </table>
+  </body>
+</html>
+`))
+	listInactiveInvocationsTemplate = template.Must(template.New("ListInactiveInvocations").Funcs(templateFuncMap).Parse(`
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Inactive bazel invocations</title>
+    <style>
+      html { font-family: sans-serif; }
+      table { border-collapse: collapse; }
+      table, td, th { border: 1px solid black; }
+      td, th { padding-left: 5px; padding-right: 5px; }
+      .text-monospace { font-family: monospace; }
+    </style>
+  </head>
+  <body>
+    {{$instanceName := .InstanceName}}
+    <h1>Inactive invocations</h1>
+    <p>Instance name: {{$instanceName}}</p>
+    <p><a href="active_invocations?instance_name={{.InstanceName}}">Show active invocations</a></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Invocation<br/>ID</th>
+          <th>First<br/>operation</th>
+          <th>Priority</th>
+          <th>Keywords</th>
+          <th>Control</th>
+          <th>Timeout</br>
+        </tr>
+      </thead>
+      {{$browserURL := .BrowserURL}}
+      {{$now := .Now}}
+      {{range .Invocations}}
+        <tr>
+          <td><a href="operations?invocation_id={{.InvocationID}}">{{abbreviate .InvocationID}}</a></td>
+          <td>{{to_timestamp .InvocationTimestamp}}</td>
+          <td>{{.Priority}}</td>
+          <td>{{list_keywords .Keywords}}</td>
+          <td> <button {{potential_disable .Canceled}} onclick="window.location.href='kill_invocation?name={{.InvocationID}}';" value="">Cancel</button></td>
+          <td>{{with .InvocationTimeout}}{{to_duration . $now}}{{else}}∞{{end}}</td>
+        </tr>
+      {{end}}
+    </table>
+  </body>
+</html>
+`))
 	listQueuedOperationStateTemplate = template.Must(template.New("ListQueuedOperationState").Funcs(templateFuncMap).Parse(`
 <!DOCTYPE html>
 <html>
@@ -279,6 +419,7 @@ var (
       <thead>
         <tr>
           <th>Priority</th>
+          <th>Invocation ID</th>
           <th>Age</th>
           <th>Timeout</th>
           <th>Operation name</th>
@@ -291,6 +432,7 @@ var (
       {{range .QueuedOperations}}
         <tr>
           <td>{{.Priority}}</td>
+          <td>{{abbreviate .InvocationID}}</a></td>
           <td>{{to_duration $now .QueuedTimestamp}}</td>
           <td>{{with .Timeout}}{{to_duration . $now}}{{else}}∞{{end}}</td>
           <td style="background-color: {{to_background_color .Name}}">
@@ -448,7 +590,10 @@ func newBuildQueueStateService(buildQueue builder.BuildQueueStateProvider, clock
 	router.HandleFunc("/", s.handleGetBuildQueueState)
 	router.HandleFunc("/add_drain", s.handleAddDrain)
 	router.HandleFunc("/drains", s.handleListDrainState)
+	router.HandleFunc("/active_invocations", s.handleListActiveInvocations)
+	router.HandleFunc("/inactive_invocations", s.handleListInactiveInvocations)
 	router.HandleFunc("/kill_operation", s.handleKillOperation)
+	router.HandleFunc("/kill_invocation", s.handleKillInvocation)
 	router.HandleFunc("/operation", s.handleGetDetailedOperationState)
 	router.HandleFunc("/operations", s.handleListDetailedOperationState)
 	router.HandleFunc("/queued_operations", s.handleListQueuedOperationState)
@@ -478,6 +623,15 @@ func (s *buildQueueStateService) handleKillOperation(w http.ResponseWriter, req 
 	http.Redirect(w, req, req.Header.Get("Referer"), http.StatusSeeOther)
 }
 
+func (s *buildQueueStateService) handleKillInvocation(w http.ResponseWriter, req *http.Request) {
+	req.ParseForm()
+	if !s.buildQueue.KillInvocation(req.FormValue("name")) {
+		http.Error(w, "Invocation not found: "+req.FormValue("name"), http.StatusNotFound)
+		return
+	}
+	http.Redirect(w, req, req.Header.Get("Referer"), http.StatusSeeOther)
+}
+
 func (s *buildQueueStateService) handleGetDetailedOperationState(w http.ResponseWriter, req *http.Request) {
 	detailedOperation, ok := s.buildQueue.GetDetailedOperationState(req.URL.Query().Get("name"))
 	if !ok {
@@ -502,21 +656,87 @@ func (s *buildQueueStateService) handleListDetailedOperationState(w http.Respons
 	if operationParameter := req.URL.Query().Get("start_after_operation"); operationParameter != "" {
 		startAfterOperation = &operationParameter
 	}
+	var invocationID *string
+	if operationParameter := req.URL.Query().Get("invocation_id"); operationParameter != "" {
+		invocationID = &operationParameter
+	}
+	var selection *string
+	if operationParameter := req.URL.Query().Get("selection"); operationParameter != "" {
+		selection = &operationParameter
+	}
 
-	detailedOperations, paginationInfo := s.buildQueue.ListDetailedOperationState(pageSize, startAfterOperation)
+	detailedOperations, paginationInfo, err := s.buildQueue.ListDetailedOperationState(invocationID, selection, pageSize, startAfterOperation)
+	if err != nil {
+		http.Error(w, util.StatusWrap(err, "Failed to list operations").Error(), http.StatusBadRequest)
+		return
+	}
 	if err := listDetailedOperationStateTemplate.Execute(w, struct {
 		BrowserURL         *url.URL
 		Now                time.Time
+		InvocationID       *string
+		Selection          *string
 		PaginationInfo     builder.PaginationInfo
 		DetailedOperations []builder.DetailedOperationState
 	}{
 		BrowserURL:         s.browserURL,
 		Now:                s.clock.Now(),
+		InvocationID:       invocationID,
+		Selection:          selection,
 		PaginationInfo:     paginationInfo,
 		DetailedOperations: detailedOperations,
 	}); err != nil {
 		log.Print(err)
 	}
+}
+
+func (s *buildQueueStateService) doHandleListInvocations(w http.ResponseWriter, instanceName digest.InstanceName, active bool) {
+	invocations, paginationInfo, err := s.buildQueue.ListInvocations(instanceName, pageSize, active)
+	if err != nil {
+		http.Error(w, util.StatusWrap(err, "Failed to list invocations").Error(), http.StatusBadRequest)
+		return
+	}
+	sort.Slice(invocations, func(i, j int) bool {
+		return invocations[i].InvocationTimestamp.Before(invocations[j].InvocationTimestamp)
+	})
+	template := listActiveInvocationsTemplate
+	if !active {
+		template = listInactiveInvocationsTemplate
+	}
+	if err := template.Execute(w, struct {
+		InstanceName   digest.InstanceName
+		BrowserURL     *url.URL
+		Now            time.Time
+		PaginationInfo builder.PaginationInfo
+		Invocations    []builder.InvocationEntry
+	}{
+		InstanceName:   instanceName,
+		BrowserURL:     s.browserURL,
+		Now:            s.clock.Now(),
+		PaginationInfo: paginationInfo,
+		Invocations:    invocations,
+	}); err != nil {
+		log.Print(err)
+	}
+}
+
+func (s *buildQueueStateService) handleListActiveInvocations(w http.ResponseWriter, req *http.Request) {
+	query := req.URL.Query()
+	instanceName, err := digest.NewInstanceName(query.Get("instance_name"))
+	if err != nil {
+		http.Error(w, util.StatusWrapf(err, "Invalid instance name %#v", query.Get("instance_name")).Error(), http.StatusBadRequest)
+		return
+	}
+	s.doHandleListInvocations(w, instanceName, true)
+}
+
+func (s *buildQueueStateService) handleListInactiveInvocations(w http.ResponseWriter, req *http.Request) {
+	query := req.URL.Query()
+	instanceName, err := digest.NewInstanceName(query.Get("instance_name"))
+	if err != nil {
+		http.Error(w, util.StatusWrapf(err, "Invalid instance name %#v", query.Get("instance_name")).Error(), http.StatusBadRequest)
+		return
+	}
+	s.doHandleListInvocations(w, instanceName, false)
 }
 
 func (s *buildQueueStateService) handleListQueuedOperationState(w http.ResponseWriter, req *http.Request) {

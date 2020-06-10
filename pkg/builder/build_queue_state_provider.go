@@ -14,7 +14,9 @@ type BuildQueueStateProvider interface {
 	GetBuildQueueState() *BuildQueueState
 	GetDetailedOperationState(name string) (*DetailedOperationState, bool)
 	KillOperation(name string) bool
-	ListDetailedOperationState(pageSize int, startAfterOperation *string) ([]DetailedOperationState, PaginationInfo)
+	KillInvocation(invocationID string) bool
+	ListDetailedOperationState(invocationID *string, selection *string, pageSize int, startAfterOperation *string) ([]DetailedOperationState, PaginationInfo, error)
+	ListInvocations(instanceName digest.InstanceName, pageSize int, active bool) ([]InvocationEntry, PaginationInfo, error)
 	ListQueuedOperationState(instanceName digest.InstanceName, platform *remoteexecution.Platform, pageSize int, startAfterPriority *int32, startAfterQueuedTimestamp *time.Time) ([]QueuedOperationState, PaginationInfo, error)
 	ListWorkerState(instanceName digest.InstanceName, platform *remoteexecution.Platform, justExecutingWorkers bool, pageSize int, startAfterWorkerID map[string]string) ([]WorkerState, PaginationInfo, error)
 
@@ -47,6 +49,7 @@ type PlatformQueueState struct {
 	Platform     remoteexecution.Platform
 
 	Timeout               *time.Time
+	InvocationCount       int
 	QueuedOperationsCount int
 	WorkersCount          int
 	ExecutingWorkersCount int
@@ -70,6 +73,19 @@ type QueuedOperationState struct {
 	BasicOperationState
 
 	Priority int32
+}
+
+// InvocationEntry contains properties of recent invocation.
+type InvocationEntry struct {
+	Priority                 int32
+	InvocationID             string
+	InvocationTimestamp      time.Time
+	InvocationTimeout        time.Time
+	QueuedOperationsCount    int
+	ExecutingOperationsCount int
+	FinishedOperationsCount  int
+	Canceled                 bool
+	Keywords                 map[string]string
 }
 
 // DetailedOperationState contains properties of an operation that is
