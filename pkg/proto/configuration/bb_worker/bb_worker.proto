@@ -13,6 +13,15 @@ option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/configur
 
 message ApplicationConfiguration {
   // Configuration for blob storage.
+  //
+  // Note: some configurations have implmentation nounces that lead to a differences in runtime behavior
+  // between bb-storage acting as a bb-frontend and bb-worker, even while blobstore configuration is shared.
+  ///
+  // For example: buildbarn.configuration.grpc.ClientConfiguration.forward_metadata = ["authorization"]
+  // will work on the bb-storage frontend and forward client provided "authorization" header.
+  // In on the worker, the grpc call is terminated in the scheduler and when worker synchronizes with scheduler
+  // the client headers are not passed as part of this context.
+  // Hence the `forward_metadata` on the worker would not be able to re-use the client "authorization" header.
   buildbarn.configuration.blobstore.BlobstoreConfiguration blobstore = 1;
 
   // URL of the Buildbarn Browser, shown to the user upon build completion.
