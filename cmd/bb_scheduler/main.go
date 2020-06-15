@@ -94,6 +94,9 @@ func main() {
 			bb_grpc.NewGRPCServersFromConfigurationAndServe(
 				configuration.WorkerGrpcServers,
 				func(s *grpc.Server) {
+					// So workers can check if we're ready:
+					remoteexecution.RegisterCapabilitiesServer(s, buildQueue)
+
 					remoteworker.RegisterOperationQueueServer(s, buildQueue)
 				}))
 	}()

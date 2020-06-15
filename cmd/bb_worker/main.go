@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	re_blobstore "github.com/buildbarn/bb-remote-execution/pkg/blobstore"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
 	re_cas "github.com/buildbarn/bb-remote-execution/pkg/cas"
@@ -35,6 +36,7 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gorilla/mux"
+	"google.golang.org/grpc"
 
 	"golang.org/x/sys/unix"
 )
@@ -62,6 +64,8 @@ func main() {
 		log.Fatal("Failed to create scheduler RPC client: ", err)
 	}
 	schedulerClient := remoteworker.NewOperationQueueClient(schedulerConnection)
+
+	waitForSchedulerWithTimeout(schedulerConnection, time.Second*10)
 
 	// Location for storing temporary file objects.
 	var filePool re_filesystem.FilePool
@@ -307,4 +311,29 @@ func main() {
 	router := mux.NewRouter()
 	util.RegisterAdministrativeHTTPEndpoints(router)
 	log.Fatal(http.ListenAndServe(configuration.HttpListenAddress, router))
+}
+
+func waitForSchedulerWithTimeout(conn *grpc.ClientConn, timeout time.Duration) {
+	c := remoteexecution.NewCapabilitiesClient(conn)
+
+	alive := make(chan struct{})
+
+	go func() {
+		for i := 0; i < 10; i++ {
+			_, err := c.GetCapabilities(context.Background(),
+				&remoteexecution.GetCapabilitiesRequest{})
+			if err == nil {
+				alive <- struct{}{}
+				return
+			}
+			time.Sleep(time.Second)
+		}
+	}()
+
+	select {
+	case <-alive:
+		return
+	case <-time.After(timeout):
+		return
+	}
 }
