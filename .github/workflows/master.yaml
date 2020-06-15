@@ -62,6 +62,24 @@ jobs:
         name: bb_worker.darwin_amd64
         path: bazel-bin/cmd/bb_worker/darwin_amd64_pure_stripped/bb_worker
 
+    - name: FreeBSD build
+      run: bazel build --platforms=@io_bazel_rules_go//go/toolchain:freebsd_amd64 //cmd/bb_runner //cmd/bb_scheduler //cmd/bb_worker
+    - name: Upload bb_runner for FreeBSD
+      uses: actions/upload-artifact@v2-preview
+      with:
+        name: bb_runner.freebsd_amd64
+        path: bazel-bin/cmd/bb_runner/freebsd_amd64_pure_stripped/bb_runner
+    - name: Upload bb_scheduler for FreeBSD
+      uses: actions/upload-artifact@v2-preview
+      with:
+        name: bb_scheduler.freebsd_amd64
+        path: bazel-bin/cmd/bb_scheduler/freebsd_amd64_pure_stripped/bb_scheduler
+    - name: Upload bb_worker for FreeBSD
+      uses: actions/upload-artifact@v2-preview
+      with:
+        name: bb_worker.freebsd_amd64
+        path: bazel-bin/cmd/bb_worker/freebsd_amd64_pure_stripped/bb_worker
+
     - name: Install Docker credentials
       run: mkdir ~/.docker && echo "${DOCKER_CONFIG_JSON}" > ~/.docker/config.json
       env:
