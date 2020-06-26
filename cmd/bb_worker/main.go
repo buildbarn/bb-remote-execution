@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -24,6 +25,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/sync"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	blobstore_configuration "github.com/buildbarn/bb-storage/pkg/blobstore/configuration"
+	"github.com/buildbarn/bb-storage/pkg/blockdevice"
 	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
@@ -66,17 +68,30 @@ func main() {
 
 	// Location for storing temporary file objects.
 	var filePool re_filesystem.FilePool
-	if configuration.FilePoolDirectoryPath == "" {
-		filePool = re_filesystem.NewInMemoryFilePool()
-	} else {
-		filePoolDirectory, err := filesystem.NewLocalDirectory(configuration.FilePoolDirectoryPath)
+	switch backend := configuration.FilePool.(type) {
+	case *bb_worker.ApplicationConfiguration_FilePoolDirectoryPath:
+		directory, err := filesystem.NewLocalDirectory(backend.FilePoolDirectoryPath)
 		if err != nil {
-			log.Fatal("Failed to open output directory: ", err)
+			log.Fatal("Failed to open file pool directory: ", err)
 		}
-		if err := filePoolDirectory.RemoveAllChildren(); err != nil {
-			log.Fatal("Failed to empty out output directory: ", err)
+		if err := directory.RemoveAllChildren(); err != nil {
+			log.Fatal("Failed to empty out file pool directory: ", err)
 		}
-		filePool = re_filesystem.NewDirectoryBackedFilePool(filePoolDirectory)
+		filePool = re_filesystem.NewDirectoryBackedFilePool(directory)
+	case *bb_worker.ApplicationConfiguration_FilePoolBlockDevicePath:
+		blockDevice, sectorSizeBytes, sectorCount, err := blockdevice.MemoryMapBlockDevice(backend.FilePoolBlockDevicePath)
+		if err != nil {
+			log.Fatal("Failed to memory map file pool block device: ", err)
+		}
+		if sectorCount > math.MaxUint32 {
+			log.Fatal("File pool block device has %d sectors, while only %d may be addressed", sectorCount, math.MaxUint32)
+		}
+		filePool = re_filesystem.NewBlockDeviceBackedFilePool(
+			blockDevice,
+			re_filesystem.NewBitmapSectorAllocator(uint32(sectorCount)),
+			sectorSizeBytes)
+	default:
+		filePool = re_filesystem.NewInMemoryFilePool()
 	}
 
 	// Storage access.

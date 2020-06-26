@@ -75,7 +75,10 @@ gomock(
 gomock(
     name = "filesystem_re",
     out = "filesystem_re.go",
-    interfaces = ["FilePool"],
+    interfaces = [
+        "FilePool",
+        "SectorAllocator",
+    ],
     library = "//pkg/filesystem:go_default_library",
     package = "mock",
 )
