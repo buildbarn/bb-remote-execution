@@ -34,4 +34,29 @@ message ApplicationConfiguration {
 
   // Common configuration options that apply to all Buildbarn binaries.
   buildbarn.configuration.global.Configuration global = 8;
+
+  // AWS Auto Scaling Group lifecycle hooks that should be used to
+  // automatically drain EC2 instances that are about to be terminated,
+  // and to delay their termination until all operations running on
+  // those systems have completed.
+  //
+  // More details:
+  // https://docs.aws.amazon.com/autoscaling/ec2/userguide/lifecycle-hooks.html
+  repeated AWSASGLifecycleHookConfiguration aws_asg_lifecycle_hooks = 9;
+}
+
+message AWSASGLifecycleHookConfiguration {
+  // The URL of the Simple Queue Service (SQS) queue where
+  // "autoscaling:EC2_INSTANCE_TERMINATING" events are posted.
+  string sqs_url = 1;
+
+  // Label that should be used to match the private DNS name of the EC2
+  // instance (ip-*.*.compute.internal) against workers known by the
+  // scheduler. For example, if your workers are all called
+  // {"host": "ip-*.*.compute.internal", "thread": "*"}, then this
+  // configuration option should be set to "host".
+  //
+  // Setting this configuration option incorrectly may cause the
+  // scheduler to not drain the right set of workers.
+  string private_dns_name_label = 2;
 }

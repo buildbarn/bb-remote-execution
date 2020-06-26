@@ -8,9 +8,14 @@ import (
 	"os"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/autoscaling"
+	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/sqs"
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	re_blobstore "github.com/buildbarn/bb-remote-execution/pkg/blobstore"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
+	re_aws "github.com/buildbarn/bb-remote-execution/pkg/cloud/aws"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_scheduler"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	blobstore_configuration "github.com/buildbarn/bb-storage/pkg/blobstore/configuration"
@@ -100,6 +105,35 @@ func main() {
 					remoteworker.RegisterOperationQueueServer(s, buildQueue)
 				}))
 	}()
+
+	// Automatically drain workers based on AWS ASG lifecycle events.
+	if len(configuration.AwsAsgLifecycleHooks) > 0 {
+		sess := session.New()
+		autoScaling := autoscaling.New(sess)
+		ec2 := ec2.New(sess)
+		sqs := sqs.New(sess)
+		for _, lifecycleHook := range configuration.AwsAsgLifecycleHooks {
+			r := re_aws.NewSQSReceiver(
+				sqs,
+				lifecycleHook.SqsUrl,
+				10*time.Minute,
+				re_aws.NewLifecycleHookSQSMessageHandler(
+					autoScaling,
+					re_aws.NewBuildQueueLifecycleHookHandler(
+						ec2,
+						buildQueue,
+						lifecycleHook.PrivateDnsNameLabel)),
+				util.DefaultErrorLogger)
+			go func() {
+				for {
+					if err := r.PerformSingleRequest(); err != nil {
+						log.Print("Failed to receive messages from SQS: ", err)
+						time.Sleep(10 * time.Second)
+					}
+				}
+			}()
+		}
+	}
 
 	// Web server for metrics and profiling.
 	router := mux.NewRouter()
