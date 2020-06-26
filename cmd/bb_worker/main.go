@@ -190,7 +190,10 @@ func main() {
 				log.Fatal("Failed to parse maximum execution timeout")
 			}
 
-			inputRootCharacterDevices := make(map[string]int)
+			// Obtain raw device numbers of character
+			// devices that need to be available within the
+			// input root.
+			inputRootCharacterDevices := map[string]int{}
 			for _, device := range runnerConfiguration.InputRootCharacterDeviceNodes {
 				var stat unix.Stat_t
 				devicePath := filepath.Join("/dev", device)
