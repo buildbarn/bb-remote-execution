@@ -3,7 +3,6 @@ package builder_test
 import (
 	"context"
 	"os"
-	"syscall"
 	"testing"
 	"time"
 
@@ -29,6 +28,7 @@ import (
 func TestLocalBuildExecutorInvalidActionDigest(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
+
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	runner := mock.NewMockRunner(ctrl)
@@ -72,6 +72,7 @@ func TestLocalBuildExecutorInvalidActionDigest(t *testing.T) {
 func TestLocalBuildExecutorMissingAction(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
+
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	runner := mock.NewMockRunner(ctrl)
@@ -109,6 +110,7 @@ func TestLocalBuildExecutorMissingAction(t *testing.T) {
 func TestLocalBuildExecutorMissingCommand(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
+
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	runner := mock.NewMockRunner(ctrl)
@@ -145,6 +147,7 @@ func TestLocalBuildExecutorMissingCommand(t *testing.T) {
 func TestLocalBuildExecutorBuildDirectoryCreatorFailedFailed(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
+
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(
@@ -192,6 +195,7 @@ func TestLocalBuildExecutorBuildDirectoryCreatorFailedFailed(t *testing.T) {
 func TestLocalBuildExecutorInputRootPopulationFailed(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
+
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
@@ -250,6 +254,7 @@ func TestLocalBuildExecutorInputRootPopulationFailed(t *testing.T) {
 func TestLocalBuildExecutorOutputDirectoryCreationFailure(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
+
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
@@ -302,13 +307,14 @@ func TestLocalBuildExecutorOutputDirectoryCreationFailure(t *testing.T) {
 		Result: &remoteexecution.ActionResult{
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
 		},
-		Status: status.New(codes.Internal, "Failed to create output directory \"foo\": Out of disk space").Proto(),
+		Status: status.New(codes.Internal, "Failed to create output parent directory \"foo\": Out of disk space").Proto(),
 	}, executeResponse)
 }
 
 func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
+
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
 	contentAddressableStorage.EXPECT().PutFile(ctx, buildDirectory, "stdout", gomock.Any()).Return(
@@ -317,6 +323,13 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 	contentAddressableStorage.EXPECT().PutFile(ctx, buildDirectory, "stderr", gomock.Any()).Return(
 		digest.MustNewDigest("nintendo64", "0000000000000000000000000000000000000000000000000000000000000006", 678),
 		nil)
+	contentAddressableStorage.EXPECT().PutTree(ctx,
+		&remoteexecution.Tree{
+			Root: &remoteexecution.Directory{},
+		}, gomock.Any()).Return(
+		digest.MustNewDigest("nintendo64", "0000000000000000000000000000000000000000000000000000000000000007", 902),
+		nil)
+
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(
 		digest.MustNewDigest("nintendo64", "5555555555555555555555555555555555555555555555555555555555555555", 7),
@@ -346,6 +359,7 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 		ExitCode: 0,
 	}, nil)
 	fooDirectory := mock.NewMockDirectoryCloser(ctrl)
+	inputRootDirectory.EXPECT().Lstat("foo").Return(filesystem.NewFileInfo("foo", filesystem.FileTypeDirectory), nil)
 	inputRootDirectory.EXPECT().EnterDirectory("foo").Return(fooDirectory, nil)
 	fooDirectory.EXPECT().ReadDir().Return([]filesystem.FileInfo{
 		filesystem.NewFileInfo("bar", filesystem.FileTypeSymlink),
@@ -387,6 +401,15 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 		metadata)
 	require.Equal(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
+			OutputDirectories: []*remoteexecution.OutputDirectory{
+				{
+					Path: "foo",
+					TreeDigest: &remoteexecution.Digest{
+						Hash:      "0000000000000000000000000000000000000000000000000000000000000007",
+						SizeBytes: 902,
+					},
+				},
+			},
 			StdoutDigest: &remoteexecution.Digest{
 				Hash:      "0000000000000000000000000000000000000000000000000000000000000005",
 				SizeBytes: 567,
@@ -428,11 +451,25 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 	binDirectory.EXPECT().EnterDirectory("_objs").Return(objsDirectory, nil)
 	objsDirectory.EXPECT().Close()
 	objsDirectory.EXPECT().Mkdir("hello", os.FileMode(0777)).Return(nil)
+
+	// Uploading of files in bazel-out/k8-fastbuild/bin/_objs/hello.
+	bazelOutDirectory = mock.NewMockDirectoryCloser(ctrl)
+	inputRootDirectory.EXPECT().EnterDirectory("bazel-out").Return(bazelOutDirectory, nil)
+	bazelOutDirectory.EXPECT().Close()
+	k8FastbuildDirectory = mock.NewMockBuildDirectory(ctrl)
+	bazelOutDirectory.EXPECT().EnterDirectory("k8-fastbuild").Return(k8FastbuildDirectory, nil)
+	k8FastbuildDirectory.EXPECT().Close()
+	binDirectory = mock.NewMockDirectoryCloser(ctrl)
+	k8FastbuildDirectory.EXPECT().EnterDirectory("bin").Return(binDirectory, nil)
+	binDirectory.EXPECT().Close()
+	objsDirectory = mock.NewMockDirectoryCloser(ctrl)
+	binDirectory.EXPECT().EnterDirectory("_objs").Return(objsDirectory, nil)
+	objsDirectory.EXPECT().Close()
 	helloDirectory := mock.NewMockDirectoryCloser(ctrl)
 	objsDirectory.EXPECT().EnterDirectory("hello").Return(helloDirectory, nil)
-	helloDirectory.EXPECT().Close()
 	helloDirectory.EXPECT().Lstat("hello.pic.d").Return(filesystem.NewFileInfo("hello.pic.d", filesystem.FileTypeRegularFile), nil)
 	helloDirectory.EXPECT().Lstat("hello.pic.o").Return(filesystem.NewFileInfo("hello.pic.o", filesystem.FileTypeExecutableFile), nil)
+	helloDirectory.EXPECT().Close()
 
 	// Read operations against the Content Addressable Storage.
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
@@ -573,237 +610,6 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 						SizeBytes: 890,
 					},
 					IsExecutable: true,
-				},
-			},
-			StdoutDigest: &remoteexecution.Digest{
-				Hash:      "0000000000000000000000000000000000000000000000000000000000000005",
-				SizeBytes: 567,
-			},
-			StderrDigest: &remoteexecution.Digest{
-				Hash:      "0000000000000000000000000000000000000000000000000000000000000006",
-				SizeBytes: 678,
-			},
-			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
-				AuxiliaryMetadata: []*any.Any{resourceUsage},
-			},
-		},
-	}, executeResponse)
-}
-
-// TestLocalBuildExecutorSuccess tests a full invocation of a simple
-// build step, equivalent to compiling a simple C++ file.
-// This adds a working directory to the commands, with output files
-// produced relative to that working directory.
-func TestLocalBuildExecutorWithWorkingDirectorySuccess(t *testing.T) {
-	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
-
-	// File system operations that should occur against the build directory.
-
-	// Creation of output directory's parent and the directory itself
-	// This will be the same directory used by the first output file
-	inputRootDirectory := mock.NewMockBuildDirectory(ctrl)
-	inputRootDirectory.EXPECT().Mkdir("outputParent", os.FileMode(0777)).Return(nil)
-	outputParentDirectory0 := mock.NewMockDirectoryCloser(ctrl)
-	inputRootDirectory.EXPECT().EnterDirectory("outputParent").Return(outputParentDirectory0, nil)
-	outputParentDirectory0.EXPECT().Close()
-	outputParentDirectory0.EXPECT().Mkdir("output", os.FileMode(0777)).Return(nil)
-	outputDirectory0 := mock.NewMockDirectoryCloser(ctrl)
-	outputParentDirectory0.EXPECT().EnterDirectory("output").Return(outputDirectory0, nil)
-	outputDirectory0.EXPECT().Close()
-
-	// Creation of the parent directory of second output file
-	inputRootDirectory.EXPECT().Mkdir("outputParent", os.FileMode(0777)).Return(syscall.EEXIST)
-	outputParentDirectory1 := mock.NewMockDirectoryCloser(ctrl)
-	inputRootDirectory.EXPECT().EnterDirectory("outputParent").Return(outputParentDirectory1, nil)
-	outputParentDirectory1.EXPECT().Mkdir("output", os.FileMode(0777)).Return(syscall.EEXIST)
-	outputDirectory1 := mock.NewMockDirectoryCloser(ctrl)
-	outputParentDirectory1.EXPECT().EnterDirectory("output").Return(outputDirectory1, nil)
-	outputParentDirectory1.EXPECT().Close()
-	outputDirectory1.EXPECT().Close()
-	outputDirectory1.EXPECT().Mkdir("foo", os.FileMode(0777)).Return(nil)
-	fooDirectory := mock.NewMockDirectoryCloser(ctrl)
-	outputDirectory1.EXPECT().EnterDirectory("foo").Return(fooDirectory, nil)
-	fooDirectory.EXPECT().Close()
-	fooDirectory.EXPECT().Mkdir("objects", os.FileMode(0777)).Return(nil)
-	objectsDirectory := mock.NewMockDirectoryCloser(ctrl)
-	fooDirectory.EXPECT().EnterDirectory("objects").Return(objectsDirectory, nil)
-	objectsDirectory.EXPECT().Close()
-
-	outputDirectory0.EXPECT().ReadDir().Return(
-		[]filesystem.FileInfo{
-			filesystem.NewFileInfo("output.file", filesystem.FileTypeRegularFile),
-		}, nil)
-	outputDirectory0.EXPECT().Lstat("hello.pic.d").Return(
-		filesystem.NewFileInfo("hello.pic.d", filesystem.FileTypeRegularFile),
-		nil)
-	objectsDirectory.EXPECT().Lstat("hello.pic.o").Return(
-		filesystem.NewFileInfo("hello.pic.o", filesystem.FileTypeExecutableFile),
-		nil)
-
-	// Read operations against the Content Addressable Storage.
-	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
-
-	// Write operations against the Content Addressable Storage.
-	buildDirectory := mock.NewMockBuildDirectory(ctrl)
-	contentAddressableStorage.EXPECT().PutFile(ctx, buildDirectory, "stdout", gomock.Any()).Return(
-		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000005", 567),
-		nil)
-	contentAddressableStorage.EXPECT().PutFile(ctx, buildDirectory, "stderr", gomock.Any()).Return(
-		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000006", 678),
-		nil)
-	contentAddressableStorage.EXPECT().PutFile(ctx, outputDirectory0, "hello.pic.d", gomock.Any()).Return(
-		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000007", 789),
-		nil)
-	contentAddressableStorage.EXPECT().PutFile(ctx, objectsDirectory, "hello.pic.o", gomock.Any()).Return(
-		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000008", 890),
-		nil)
-	contentAddressableStorage.EXPECT().PutFile(ctx, outputDirectory0, "output.file", gomock.Any()).Return(
-		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000009", 901),
-		nil)
-	contentAddressableStorage.EXPECT().PutTree(ctx,
-		&remoteexecution.Tree{
-			Root: &remoteexecution.Directory{
-				Files: []*remoteexecution.FileNode{
-					{
-						Name: "output.file",
-						Digest: &remoteexecution.Digest{
-							Hash:      "0000000000000000000000000000000000000000000000000000000000000009",
-							SizeBytes: 901,
-						},
-					},
-				},
-			},
-		}, gomock.Any()).Return(
-		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000010", 902),
-		nil)
-
-	// Command execution.
-	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
-	buildDirectoryCreator.EXPECT().GetBuildDirectory(
-		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000001", 123),
-		false,
-	).Return(buildDirectory, ".", nil)
-	filePool := mock.NewMockFilePool(ctrl)
-	buildDirectory.EXPECT().InstallHooks(filePool)
-	buildDirectory.EXPECT().Mkdir("root", os.FileMode(0777))
-	buildDirectory.EXPECT().EnterBuildDirectory("root").Return(inputRootDirectory, nil)
-	inputRootDirectory.EXPECT().MergeDirectoryContents(
-		ctx,
-		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000003", 345),
-	).Return(nil)
-	buildDirectory.EXPECT().Mkdir("tmp", os.FileMode(0777))
-	resourceUsage, err := ptypes.MarshalAny(&empty.Empty{})
-	require.NoError(t, err)
-	runner := mock.NewMockRunner(ctrl)
-	runner.EXPECT().Run(gomock.Any(), &runner_pb.RunRequest{
-		Arguments: []string{
-			"/usr/local/bin/clang",
-			"-MD",
-			"-MF",
-			"../hello.pic.d",
-			"-c",
-			"hello.cc",
-			"-o",
-			"objects/hello.pic.o",
-		},
-		EnvironmentVariables: map[string]string{
-			"PATH": "/bin:/usr/bin",
-			"PWD":  "/proc/self/cwd",
-		},
-		WorkingDirectory:   "outputParent/output/foo",
-		StdoutPath:         "stdout",
-		StderrPath:         "stderr",
-		InputRootDirectory: "root",
-		TemporaryDirectory: "tmp",
-	}).Return(&runner_pb.RunResponse{
-		ExitCode:      0,
-		ResourceUsage: []*any.Any{resourceUsage},
-	}, nil)
-	inputRootDirectory.EXPECT().Close()
-	buildDirectory.EXPECT().Close()
-	clock := mock.NewMockClock(ctrl)
-	clock.EXPECT().NewContextWithTimeout(gomock.Any(), time.Hour).DoAndReturn(func(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
-		return context.WithCancel(parent)
-	})
-	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil)
-
-	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
-	executeResponse := localBuildExecutor.Execute(
-		ctx,
-		filePool,
-		"ubuntu1804",
-		&remoteworker.DesiredState_Executing{
-			ActionDigest: &remoteexecution.Digest{
-				Hash:      "0000000000000000000000000000000000000000000000000000000000000001",
-				SizeBytes: 123,
-			},
-			Action: &remoteexecution.Action{
-				InputRootDigest: &remoteexecution.Digest{
-					Hash:      "0000000000000000000000000000000000000000000000000000000000000003",
-					SizeBytes: 345,
-				},
-			},
-			Command: &remoteexecution.Command{
-				Arguments: []string{
-					"/usr/local/bin/clang",
-					"-MD",
-					"-MF",
-					"../hello.pic.d",
-					"-c",
-					"hello.cc",
-					"-o",
-					"objects/hello.pic.o",
-				},
-				EnvironmentVariables: []*remoteexecution.Command_EnvironmentVariable{
-					{Name: "PATH", Value: "/bin:/usr/bin"},
-					{Name: "PWD", Value: "/proc/self/cwd"},
-				},
-				OutputFiles: []string{
-					"../hello.pic.d",
-					"objects/hello.pic.o",
-				},
-				OutputDirectories: []string{
-					"..",
-				},
-				Platform: &remoteexecution.Platform{
-					Properties: []*remoteexecution.Platform_Property{
-						{
-							Name:  "container-image",
-							Value: "docker://gcr.io/cloud-marketplace/google/rbe-debian8@sha256:4893599fb00089edc8351d9c26b31d3f600774cb5addefb00c70fdb6ca797abf",
-						},
-					},
-				},
-				WorkingDirectory: "outputParent/output/foo",
-			},
-		},
-		metadata)
-	require.Equal(t, &remoteexecution.ExecuteResponse{
-		Result: &remoteexecution.ActionResult{
-			OutputFiles: []*remoteexecution.OutputFile{
-				{
-					Path: "../hello.pic.d",
-					Digest: &remoteexecution.Digest{
-						Hash:      "0000000000000000000000000000000000000000000000000000000000000007",
-						SizeBytes: 789,
-					},
-				},
-				{
-					Path: "objects/hello.pic.o",
-					Digest: &remoteexecution.Digest{
-						Hash:      "0000000000000000000000000000000000000000000000000000000000000008",
-						SizeBytes: 890,
-					},
-					IsExecutable: true,
-				},
-			},
-			OutputDirectories: []*remoteexecution.OutputDirectory{
-				{
-					Path: "..",
-					TreeDigest: &remoteexecution.Digest{
-						Hash:      "0000000000000000000000000000000000000000000000000000000000000010",
-						SizeBytes: 902,
-					},
 				},
 			},
 			StdoutDigest: &remoteexecution.Digest{
