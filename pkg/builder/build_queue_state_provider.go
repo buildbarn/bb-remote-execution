@@ -21,6 +21,9 @@ type BuildQueueStateProvider interface {
 	ListDrainState(instanceName string, platform *remoteexecution.Platform) ([]DrainState, error)
 	AddDrain(instanceName string, platform *remoteexecution.Platform, workerIDPattern map[string]string) error
 	RemoveDrain(instanceName string, platform *remoteexecution.Platform, workerIDPattern map[string]string) error
+
+	// Support for gracefully terminating workers.
+	MarkTerminatingAndWait(workerIDPattern map[string]string)
 }
 
 // PaginationInfo returns offsets of the data returned by

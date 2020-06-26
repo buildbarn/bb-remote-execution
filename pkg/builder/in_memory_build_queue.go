@@ -622,7 +622,7 @@ func (bq *InMemoryBuildQueue) ListWorkerState(instanceName string, platform *rem
 			WorkerID:         workerID,
 			Timeout:          bq.cleanupQueue.getTimestamp(w.cleanupKey),
 			CurrentOperation: currentOperation,
-			Drained:          pq.workerIsDrained(workerID),
+			Drained:          w.isDrained(pq, workerID),
 		})
 	}
 	return results, paginationInfo, nil
@@ -699,6 +699,30 @@ func (bq *InMemoryBuildQueue) RemoveDrain(instanceName string, platform *remotee
 	return bq.modifyDrain(instanceName, platform, workerIDPattern, func(pq *platformQueue, drainKey string) {
 		delete(pq.drains, drainKey)
 	})
+}
+
+// MarkTerminatingAndWait can be used to indicate that workers are going
+// to be terminated in the nearby future. This function will block until
+// any operations running on the workers complete, thereby allowing the
+// workers to be terminated without interrupting operations.
+func (bq *InMemoryBuildQueue) MarkTerminatingAndWait(workerIDPattern map[string]string) {
+	var completionWakeups []chan struct{}
+	bq.enter(bq.clock.Now())
+	for _, pq := range bq.platformQueues {
+		for workerKey, w := range pq.workers {
+			if workerMatchesPattern(workerKey.getWorkerID(), workerIDPattern) {
+				w.terminating = true
+				if o := w.getCurrentOperation(); o != nil {
+					completionWakeups = append(completionWakeups, o.completionWakeup)
+				}
+			}
+		}
+	}
+	bq.leave()
+
+	for _, completionWakeup := range completionWakeups {
+		<-completionWakeup
+	}
 }
 
 // getNextSynchronizationAtDelay generates a timestamp that is attached
@@ -877,7 +901,12 @@ func workerMatchesPattern(workerID map[string]string, workerIDPattern map[string
 	return true
 }
 
-func (pq *platformQueue) workerIsDrained(workerID map[string]string) bool {
+func (w *worker) isDrained(pq *platformQueue, workerID map[string]string) bool {
+	// Implicitly treat workers that are terminating as being
+	// drained. This prevents operations from getting interrupted.
+	if w.terminating {
+		return true
+	}
 	for _, drain := range pq.drains {
 		if workerMatchesPattern(workerID, drain.WorkerIDPattern) {
 			return true
@@ -889,8 +918,8 @@ func (pq *platformQueue) workerIsDrained(workerID map[string]string) bool {
 // getNextOperationNonBlocking extracts the next operation that should
 // be assigned to a worker. Even when the worker is drained or no
 // operations are available, this function returns immediately.
-func (pq *platformQueue) getNextOperationNonBlocking(bq *InMemoryBuildQueue, workerID map[string]string) (*operation, bool) {
-	if !pq.workerIsDrained(workerID) && pq.queuedOperations.Len() > 0 {
+func (w *worker) getNextOperationNonBlocking(bq *InMemoryBuildQueue, pq *platformQueue, workerID map[string]string) (*operation, bool) {
+	if !w.isDrained(pq, workerID) && pq.queuedOperations.Len() > 0 {
 		entry := heap.Pop(&pq.queuedOperations).(queuedOperationsEntry)
 		return entry.operation, true
 	}
@@ -903,10 +932,10 @@ func (pq *platformQueue) getNextOperationNonBlocking(bq *InMemoryBuildQueue, wor
 // has been reached. The timeout ensures that workers resynchronize
 // periodically, ensuring that no stale workers are left behind
 // indefinitely.
-func (pq *platformQueue) getNextOperationBlocking(ctx context.Context, bq *InMemoryBuildQueue, workerID map[string]string) (*operation, error) {
+func (w *worker) getNextOperationBlocking(ctx context.Context, bq *InMemoryBuildQueue, pq *platformQueue, workerID map[string]string) (*operation, error) {
 	timeoutTimer, timeoutChannel := bq.clock.NewTimer(bq.configuration.GetIdleWorkerSynchronizationInterval())
 	for {
-		drained := pq.workerIsDrained(workerID)
+		drained := w.isDrained(pq, workerID)
 		drainsWakeup := pq.drainsWakeup
 		bq.leave()
 
@@ -940,7 +969,7 @@ func (pq *platformQueue) getNextOperationBlocking(ctx context.Context, bq *InMem
 				// Work has appeared, but it may also have been
 				// taken by another worker in the meantime.
 				bq.enter(bq.clock.Now())
-				o, ok := pq.getNextOperationNonBlocking(bq, workerID)
+				o, ok := w.getNextOperationNonBlocking(bq, pq, workerID)
 				if pq.queuedOperations.Len() > 0 {
 					pq.wakeupNextWorker()
 				}
@@ -1298,6 +1327,7 @@ func (o *operation) registerCompletedStageFinished(bq *InMemoryBuildQueue) {
 type worker struct {
 	currentOperation *operation
 	cleanupKey       cleanupKey
+	terminating      bool
 }
 
 func (w *worker) getCurrentOperation() *operation {
@@ -1329,7 +1359,7 @@ func (w *worker) startOperation(bq *InMemoryBuildQueue, pq *platformQueue, o *op
 // available or returns immediately. When returning immediately, it
 // instructs the worker to go idle.
 func (w *worker) getNextOperation(ctx context.Context, bq *InMemoryBuildQueue, pq *platformQueue, workerID map[string]string) (*remoteworker.SynchronizeResponse, error) {
-	if o, ok := pq.getNextOperationNonBlocking(bq, workerID); ok {
+	if o, ok := w.getNextOperationNonBlocking(bq, pq, workerID); ok {
 		return w.startOperation(bq, pq, o), nil
 	}
 
@@ -1349,7 +1379,7 @@ func (w *worker) getNextOperation(ctx context.Context, bq *InMemoryBuildQueue, p
 		}, nil
 	}
 
-	o, err := pq.getNextOperationBlocking(ctx, bq, workerID)
+	o, err := w.getNextOperationBlocking(ctx, bq, pq, workerID)
 	if o == nil {
 		return &remoteworker.SynchronizeResponse{
 			NextSynchronizationAt: bq.getCurrentTime(),
