@@ -94,7 +94,7 @@ var (
 			Name:      "in_memory_build_queue_workers_removed_total",
 			Help:      "Number of workers removed due to expiration.",
 		},
-		[]string{"instance_name", "platform"})
+		[]string{"instance_name", "platform", "state"})
 )
 
 // InMemoryBuildQueueConfiguration contains all the tunable settings of
@@ -322,7 +322,7 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 			operation: o,
 		})
 		pq.wakeupNextWorker()
-		inMemoryBuildQueueOperationsQueuedTotal.WithLabelValues(platformKey.instance, platformKey.platform).Inc()
+		pq.operationsQueuedTotal.Inc()
 	}
 	return o.waitExecution(bq, out)
 }
@@ -381,7 +381,7 @@ func (bq *InMemoryBuildQueue) Synchronize(ctx context.Context, request *remotewo
 		// First time we're seeing this worker.
 		w = &worker{}
 		pq.workers[workerKey] = w
-		inMemoryBuildQueueWorkersCreatedTotal.WithLabelValues(platformKey.instance, platformKey.platform).Inc()
+		pq.workersCreatedTotal.Inc()
 	}
 
 	// Install cleanup handlers to ensure stale workers and queues
@@ -823,20 +823,29 @@ type platformQueue struct {
 
 	drains       map[string]DrainState
 	drainsWakeup chan struct{}
+
+	// Prometheus metrics.
+	operationsQueuedTotal              prometheus.Counter
+	operationsQueuedDurationSeconds    prometheus.Observer
+	operationsExecutingDurationSeconds prometheus.ObserverVec
+	operationsExecutingRetries         prometheus.ObserverVec
+	operationsCompletedDurationSeconds prometheus.Observer
+
+	workersCreatedTotal          prometheus.Counter
+	workersRemovedIdleTotal      prometheus.Counter
+	workersRemovedExecutingTotal prometheus.Counter
 }
 
 func newPlatformQueue(platformKey platformKey) *platformQueue {
 	// Force creation of all metrics associated with
 	// this platform queue to make recording rules work.
-	inMemoryBuildQueueOperationsQueuedTotal.WithLabelValues(platformKey.instance, platformKey.platform)
-	inMemoryBuildQueueOperationsQueuedDurationSeconds.WithLabelValues(platformKey.instance, platformKey.platform)
 	inMemoryBuildQueueOperationsExecutingDurationSeconds.WithLabelValues(platformKey.instance, platformKey.platform, "Success", "")
 	inMemoryBuildQueueOperationsExecutingRetries.WithLabelValues(platformKey.instance, platformKey.platform, "Success", "")
-	inMemoryBuildQueueOperationsCompletedDurationSeconds.WithLabelValues(platformKey.instance, platformKey.platform)
 
-	inMemoryBuildQueueWorkersCreatedTotal.WithLabelValues(platformKey.instance, platformKey.platform)
-	inMemoryBuildQueueWorkersRemovedTotal.WithLabelValues(platformKey.instance, platformKey.platform)
-
+	platformLabels := map[string]string{
+		"instance_name": platformKey.instance,
+		"platform":      platformKey.platform,
+	}
 	return &platformQueue{
 		platformKey: platformKey,
 
@@ -846,6 +855,16 @@ func newPlatformQueue(platformKey platformKey) *platformQueue {
 
 		drains:       map[string]DrainState{},
 		drainsWakeup: make(chan struct{}),
+
+		operationsQueuedTotal:              inMemoryBuildQueueOperationsQueuedTotal.WithLabelValues(platformKey.instance, platformKey.platform),
+		operationsQueuedDurationSeconds:    inMemoryBuildQueueOperationsQueuedDurationSeconds.WithLabelValues(platformKey.instance, platformKey.platform),
+		operationsExecutingDurationSeconds: inMemoryBuildQueueOperationsExecutingDurationSeconds.MustCurryWith(platformLabels),
+		operationsExecutingRetries:         inMemoryBuildQueueOperationsExecutingRetries.MustCurryWith(platformLabels),
+		operationsCompletedDurationSeconds: inMemoryBuildQueueOperationsCompletedDurationSeconds.WithLabelValues(platformKey.instance, platformKey.platform),
+
+		workersCreatedTotal:          inMemoryBuildQueueWorkersCreatedTotal.WithLabelValues(platformKey.instance, platformKey.platform),
+		workersRemovedIdleTotal:      inMemoryBuildQueueWorkersRemovedTotal.WithLabelValues(platformKey.instance, platformKey.platform, "Idle"),
+		workersRemovedExecutingTotal: inMemoryBuildQueueWorkersRemovedTotal.WithLabelValues(platformKey.instance, platformKey.platform, "Executing"),
 	}
 }
 
@@ -949,13 +968,15 @@ func (pq *platformQueue) wakeupNextWorker() {
 // the InMemoryBuildQueue.
 func (pq *platformQueue) removeStaleWorker(bq *InMemoryBuildQueue, workerKey workerKey, removalTime time.Time) {
 	w := pq.workers[workerKey]
-	if o := w.getCurrentOperation(); o != nil {
+	if o := w.getCurrentOperation(); o == nil {
+		pq.workersRemovedIdleTotal.Inc()
+	} else {
+		pq.workersRemovedExecutingTotal.Inc()
 		o.complete(bq, &remoteexecution.ExecuteResponse{
 			Status: status.Newf(codes.Unavailable, "Worker %s disappeared while operation was executing", workerKey).Proto(),
 		})
 	}
 	delete(pq.workers, workerKey)
-	inMemoryBuildQueueWorkersRemovedTotal.WithLabelValues(pq.platformKey.instance, pq.platformKey.platform).Inc()
 
 	// Trigger platform queue removal if necessary.
 	if len(pq.workers) == 0 {
@@ -1253,17 +1274,15 @@ func (o *operation) getDetailedOperationState(bq *InMemoryBuildQueue) *DetailedO
 // registerQueuedStageFinished updates Prometheus metrics related to
 // operations finishing the QUEUED stage.
 func (o *operation) registerQueuedStageFinished(bq *InMemoryBuildQueue) {
-	platformKey := o.platformQueue.platformKey
-	inMemoryBuildQueueOperationsQueuedDurationSeconds.WithLabelValues(platformKey.instance, platformKey.platform).Observe(bq.now.Sub(o.currentStageStartTime).Seconds())
+	o.platformQueue.operationsQueuedDurationSeconds.Observe(bq.now.Sub(o.currentStageStartTime).Seconds())
 	o.currentStageStartTime = bq.now
 }
 
 // registerQueuedStageFinished updates Prometheus metrics related to
 // operations finishing the EXECUTING stage.
 func (o *operation) registerExecutingStageFinished(bq *InMemoryBuildQueue, result string, grpcCode string) {
-	platformKey := o.platformQueue.platformKey
-	inMemoryBuildQueueOperationsExecutingDurationSeconds.WithLabelValues(platformKey.instance, platformKey.platform, result, grpcCode).Observe(bq.now.Sub(o.currentStageStartTime).Seconds())
-	inMemoryBuildQueueOperationsExecutingRetries.WithLabelValues(platformKey.instance, platformKey.platform, result, grpcCode).Observe(float64(o.retryCount))
+	o.platformQueue.operationsExecutingDurationSeconds.WithLabelValues(result, grpcCode).Observe(bq.now.Sub(o.currentStageStartTime).Seconds())
+	o.platformQueue.operationsExecutingRetries.WithLabelValues(result, grpcCode).Observe(float64(o.retryCount))
 	o.currentStageStartTime = bq.now
 }
 
@@ -1271,8 +1290,7 @@ func (o *operation) registerExecutingStageFinished(bq *InMemoryBuildQueue, resul
 // operations finishing the COMPLETED stage, meaning the operation got
 // removed.
 func (o *operation) registerCompletedStageFinished(bq *InMemoryBuildQueue) {
-	platformKey := o.platformQueue.platformKey
-	inMemoryBuildQueueOperationsCompletedDurationSeconds.WithLabelValues(platformKey.instance, platformKey.platform).Observe(bq.now.Sub(o.currentStageStartTime).Seconds())
+	o.platformQueue.operationsCompletedDurationSeconds.Observe(bq.now.Sub(o.currentStageStartTime).Seconds())
 	o.currentStageStartTime = bq.now
 }
 
