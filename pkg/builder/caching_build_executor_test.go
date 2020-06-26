@@ -50,7 +50,7 @@ func TestCachingBuildExecutorCachedSuccess(t *testing.T) {
 		digest.MustNewDigest("freebsd12", "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c", 11),
 		gomock.Any()).DoAndReturn(
 		func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
-			actionResult, err := b.ToActionResult(10000)
+			actionResult, err := b.ToProto(&remoteexecution.ActionResult{}, 10000)
 			require.NoError(t, err)
 			require.True(t, proto.Equal(&remoteexecution.ActionResult{
 				StdoutRaw: []byte("Hello, world!"),
@@ -102,7 +102,7 @@ func TestCachingBuildExecutorCachedSuccessExplicitOK(t *testing.T) {
 		digest.MustNewDigest("freebsd12", "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c", 11),
 		gomock.Any()).DoAndReturn(
 		func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
-			actionResult, err := b.ToActionResult(10000)
+			actionResult, err := b.ToProto(&remoteexecution.ActionResult{}, 10000)
 			require.NoError(t, err)
 			require.True(t, proto.Equal(&remoteexecution.ActionResult{
 				StdoutRaw: []byte("Hello, world!"),
@@ -157,7 +157,7 @@ func TestCachingBuildExecutorCachedSuccessNonZeroExitCode(t *testing.T) {
 		digest.MustNewDigest("freebsd12", "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c", 11),
 		gomock.Any()).DoAndReturn(
 		func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
-			actionResult, err := b.ToActionResult(10000)
+			actionResult, err := b.ToProto(&remoteexecution.ActionResult{}, 10000)
 			require.NoError(t, err)
 			require.True(t, proto.Equal(&remoteexecution.ActionResult{
 				ExitCode:  127,
@@ -210,7 +210,7 @@ func TestCachingBuildExecutorCachedStorageFailure(t *testing.T) {
 		digest.MustNewDigest("freebsd12", "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c", 11),
 		gomock.Any()).DoAndReturn(
 		func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
-			actionResult, err := b.ToActionResult(10000)
+			actionResult, err := b.ToProto(&remoteexecution.ActionResult{}, 10000)
 			require.NoError(t, err)
 			require.True(t, proto.Equal(&remoteexecution.ActionResult{
 				StdoutRaw: []byte("Hello, world!"),

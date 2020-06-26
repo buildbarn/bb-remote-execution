@@ -55,7 +55,7 @@ func main() {
 	// Calling into a helper process to set up access to temporary
 	// directories prior to the execution of build actions.
 	if configuration.TemporaryDirectoryInstaller != nil {
-		tmpInstallerConnection, err := bb_grpc.NewGRPCClientFromConfiguration(configuration.TemporaryDirectoryInstaller)
+		tmpInstallerConnection, err := bb_grpc.BaseClientFactory.NewClientFromConfiguration(configuration.TemporaryDirectoryInstaller)
 		if err != nil {
 			log.Fatal("Failed to create temporary directory installer RPC client: ", err)
 		}
@@ -73,7 +73,7 @@ func main() {
 
 	log.Fatal(
 		"gRPC server failure: ",
-		bb_grpc.NewGRPCServersFromConfigurationAndServe(
+		bb_grpc.NewServersFromConfigurationAndServe(
 			configuration.GrpcServers,
 			func(s *grpc.Server) {
 				runner_pb.RegisterRunnerServer(s, runner.NewRunnerServer(r))

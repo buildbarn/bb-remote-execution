@@ -57,7 +57,8 @@ func main() {
 	}
 
 	// Create connection with scheduler.
-	schedulerConnection, err := bb_grpc.NewGRPCClientFromConfiguration(configuration.Scheduler)
+	grpcClientFactory := bb_grpc.NewDeduplicatingClientFactory(bb_grpc.BaseClientFactory)
+	schedulerConnection, err := grpcClientFactory.NewClientFromConfiguration(configuration.Scheduler)
 	if err != nil {
 		log.Fatal("Failed to create scheduler RPC client: ", err)
 	}
@@ -79,11 +80,12 @@ func main() {
 	}
 
 	// Storage access.
-	globalContentAddressableStorageBlobAccess, actionCache, err := blobstore_configuration.CreateBlobAccessObjectsFromConfig(
+	globalContentAddressableStorageBlobAccess, actionCache, err := blobstore_configuration.NewCASAndACBlobAccessFromConfiguration(
 		configuration.Blobstore,
+		grpcClientFactory,
 		int(configuration.MaximumMessageSizeBytes))
 	if err != nil {
-		log.Fatal("Failed to create blob access: ", err)
+		log.Fatal(err)
 	}
 
 	// Cached read access for directory objects stored in the
@@ -192,7 +194,7 @@ func main() {
 			// used in combination with a runner process. Having a separate
 			// runner process also makes it possible to apply privilege
 			// separation.
-			runnerConnection, err := bb_grpc.NewGRPCClientFromConfiguration(runnerConfiguration.Endpoint)
+			runnerConnection, err := grpcClientFactory.NewClientFromConfiguration(runnerConfiguration.Endpoint)
 			if err != nil {
 				log.Fatal("Failed to create runner RPC client: ", err)
 			}

@@ -45,17 +45,20 @@ func main() {
 	// Storage access. The scheduler requires access to the Action
 	// and Command messages stored in the CAS to obtain platform
 	// properties.
-	contentAddressableStorageBlobAccess, err := blobstore_configuration.CreateCASBlobAccessObjectFromConfig(
+	grpcClientFactory := bb_grpc.NewDeduplicatingClientFactory(bb_grpc.BaseClientFactory)
+	contentAddressableStorageBlobAccess, err := blobstore_configuration.NewBlobAccessFromConfiguration(
 		configuration.ContentAddressableStorage,
-		int(configuration.MaximumMessageSizeBytes))
+		blobstore_configuration.NewCASBlobAccessCreator(
+			grpcClientFactory,
+			int(configuration.MaximumMessageSizeBytes)))
 	if err != nil {
-		log.Fatal("Failed to create blob access: ", err)
+		log.Fatal("Failed to create Content Adddressable Storage: ", err)
 	}
 	contentAddressableStorage :=
 		cas.NewBlobAccessContentAddressableStorage(
 			re_blobstore.NewExistencePreconditionBlobAccess(
 				contentAddressableStorageBlobAccess),
-			16*1024*1024)
+			int(configuration.MaximumMessageSizeBytes))
 
 	// TODO: Make timeouts configurable.
 	buildQueue := builder.NewInMemoryBuildQueue(
@@ -81,7 +84,7 @@ func main() {
 	go func() {
 		log.Fatal(
 			"Client gRPC server failure: ",
-			bb_grpc.NewGRPCServersFromConfigurationAndServe(
+			bb_grpc.NewServersFromConfigurationAndServe(
 				configuration.ClientGrpcServers,
 				func(s *grpc.Server) {
 					remoteexecution.RegisterCapabilitiesServer(s, buildQueue)
@@ -91,7 +94,7 @@ func main() {
 	go func() {
 		log.Fatal(
 			"Worker gRPC server failure: ",
-			bb_grpc.NewGRPCServersFromConfigurationAndServe(
+			bb_grpc.NewServersFromConfigurationAndServe(
 				configuration.WorkerGrpcServers,
 				func(s *grpc.Server) {
 					remoteworker.RegisterOperationQueueServer(s, buildQueue)

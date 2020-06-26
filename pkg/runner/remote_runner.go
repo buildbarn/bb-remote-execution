@@ -14,7 +14,7 @@ type remoteRunner struct {
 
 // NewRemoteRunner creates a Runner that forwards requests to a remote
 // gRPC service (typically an instance of bb_runner).
-func NewRemoteRunner(connection *grpc.ClientConn) Runner {
+func NewRemoteRunner(connection grpc.ClientConnInterface) Runner {
 	return &remoteRunner{
 		runner: runner_pb.NewRunnerClient(connection),
 	}

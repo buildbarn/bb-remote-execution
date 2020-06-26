@@ -50,7 +50,7 @@ func (be *cachingBuildExecutor) Execute(ctx context.Context, filePool filesystem
 		attachErrorToExecuteResponse(response, status.Error(codes.InvalidArgument, "Request does not contain an action"))
 	} else if !action.DoNotCache && status.ErrorProto(response.Status) == nil {
 		// Store result in the Action Cache.
-		if err := be.actionCache.Put(ctx, actionDigest, buffer.NewACBufferFromActionResult(response.Result, buffer.UserProvided)); err == nil {
+		if err := be.actionCache.Put(ctx, actionDigest, buffer.NewProtoBufferFromProto(response.Result, buffer.UserProvided)); err == nil {
 			response.Message = "Action details (cached result): " + re_util.GetBrowserURL(be.browserURL, "action", actionDigest)
 		} else {
 			attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to store cached action result"))
