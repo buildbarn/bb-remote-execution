@@ -44,9 +44,10 @@ func (d *naiveBuildDirectory) EnterBuildDirectory(name string) (BuildDirectory, 
 	}, nil
 }
 
-func (d *naiveBuildDirectory) InstallHooks(filePool re_filesystem.FilePool) {
+func (d *naiveBuildDirectory) InstallHooks(filePool re_filesystem.FilePool, errorLogger util.ErrorLogger) {
 	// Simply ignore the provided hooks, as POSIX offers no way to
-	// install them. This means no quota enforcement is performed.
+	// install them. This means no quota enforcement and detection
+	// of I/O errors is performed.
 }
 
 func (d *naiveBuildDirectory) mergeDirectoryContents(ctx context.Context, digest digest.Digest, inputDirectory filesystem.Directory, components []string) error {
@@ -95,6 +96,6 @@ func (d *naiveBuildDirectory) mergeDirectoryContents(ctx context.Context, digest
 	return nil
 }
 
-func (d *naiveBuildDirectory) MergeDirectoryContents(ctx context.Context, digest digest.Digest) error {
+func (d *naiveBuildDirectory) MergeDirectoryContents(ctx context.Context, errorLogger util.ErrorLogger, digest digest.Digest) error {
 	return d.mergeDirectoryContents(ctx, digest, d.DirectoryCloser, []string{"."})
 }

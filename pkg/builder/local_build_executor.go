@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path"
+	"sync"
 	"time"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
@@ -21,6 +22,33 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+// capturingErrorLogger is an error logger that stores up to a single
+// error. When the error is stored, a context cancelation function is
+// invoked.
+type capturingErrorLogger struct {
+	lock   sync.Mutex
+	cancel context.CancelFunc
+	error  error
+}
+
+func (el *capturingErrorLogger) Log(err error) {
+	el.lock.Lock()
+	defer el.lock.Unlock()
+
+	if el.cancel != nil {
+		el.error = err
+		el.cancel()
+		el.cancel = nil
+	}
+}
+
+func (el *capturingErrorLogger) GetError() error {
+	el.lock.Lock()
+	defer el.lock.Unlock()
+
+	return el.error
+}
 
 type localBuildExecutor struct {
 	contentAddressableStorage cas.ContentAddressableStorage
@@ -120,9 +148,12 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	}
 	defer buildDirectory.Close()
 
-	// Install hooks on build directory to capture file creation
-	// events.
-	buildDirectory.InstallHooks(filePool)
+	// Install hooks on build directory to capture file creation and
+	// I/O error events.
+	ctxWithIOError, cancelIOError := context.WithCancel(ctx)
+	defer cancelIOError()
+	ioErrorCapturer := capturingErrorLogger{cancel: cancelIOError}
+	buildDirectory.InstallHooks(filePool, &ioErrorCapturer)
 
 	executionStateUpdates <- &remoteworker.CurrentState_Executing{
 		ActionDigest: request.ActionDigest,
@@ -154,7 +185,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 			util.StatusWrap(err, "Failed to extract digest for input root"))
 		return response
 	}
-	if err := inputRootDirectory.MergeDirectoryContents(ctx, inputRootDigest); err != nil {
+	if err := inputRootDirectory.MergeDirectoryContents(ctx, &ioErrorCapturer, inputRootDigest); err != nil {
 		attachErrorToExecuteResponse(response, err)
 		return response
 	}
@@ -203,7 +234,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	}
 
 	// Invoke the command.
-	ctxWithTimeout, cancelTimeout := be.clock.NewContextWithTimeout(ctx, executionTimeout)
+	ctxWithTimeout, cancelTimeout := be.clock.NewContextWithTimeout(ctxWithIOError, executionTimeout)
 	defer cancelTimeout()
 	environmentVariables := map[string]string{}
 	for _, environmentVariable := range command.EnvironmentVariables {
@@ -218,6 +249,13 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 		InputRootDirectory:   path.Join(buildDirectoryPath, "root"),
 		TemporaryDirectory:   path.Join(buildDirectoryPath, "tmp"),
 	})
+
+	// If an I/O error occurred during execution, attach any errors
+	// related to it to the response first. These errors should be
+	// preferred over the cancelation errors that are a result of it.
+	if err := ioErrorCapturer.GetError(); err != nil {
+		attachErrorToExecuteResponse(response, util.StatusWrap(err, "I/O error while running command"))
+	}
 
 	// Attach the exit code or execution error.
 	if runErr == nil {
