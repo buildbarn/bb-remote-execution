@@ -78,13 +78,13 @@ func (be *localBuildExecutor) createCharacterDevices(inputRootDirectory BuildDir
 	if err := inputRootDirectory.Mkdir("dev", 0777); err != nil && !os.IsExist(err) {
 		return util.StatusWrap(err, "Unable to create /dev directory in input root")
 	}
-	devDir, err := inputRootDirectory.EnterDirectory("dev")
-	defer devDir.Close()
+	deviceDirectory, err := inputRootDirectory.EnterDirectory("dev")
 	if err != nil {
 		return util.StatusWrap(err, "Unable to enter /dev directory in input root")
 	}
+	defer deviceDirectory.Close()
 	for name, number := range be.inputRootCharacterDevices {
-		if err := devDir.Mknod(name, os.ModeDevice|os.ModeCharDevice|0666, number); err != nil {
+		if err := deviceDirectory.Mknod(name, os.ModeDevice|os.ModeCharDevice|0666, number); err != nil {
 			return util.StatusWrapf(err, "Failed to create character device %#v", name)
 		}
 	}
