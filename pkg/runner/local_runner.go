@@ -85,6 +85,9 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 		// TODO: Convert WorkingDirectory and TemporaryDirectory to use
 		// platform specific path delimiters.
 		cmd.Dir = filepath.Join("/", request.WorkingDirectory)
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			Chroot: path.Join(r.buildDirectoryPath, request.InputRootDirectory),
+		}
 	} else {
 		cmd = exec.CommandContext(ctx, request.Arguments[0], request.Arguments[1:]...)
 		cmd.Dir = filepath.Join(r.buildDirectoryPath, request.InputRootDirectory, request.WorkingDirectory)
@@ -110,14 +113,6 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 		return nil, util.StatusWrap(err, "Failed to open stderr")
 	}
 	cmd.Stderr = stderr
-	if r.chrootIntoInputRoot {
-		cmd.SysProcAttr = &syscall.SysProcAttr{
-			Chroot:  path.Join(r.buildDirectoryPath, request.InputRootDirectory),
-			Setpgid: true,
-		}
-	} else {
-		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	}
 	// Start the subprocess. We can already close the output files
 	// while the process is running.
 	err = cmd.Start()
@@ -133,11 +128,6 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 			return nil, err
 		}
 	}
-
-	// Give subprocesses spawned by the action a chance to cleanup.
-	// Ignore errors since the processes group may have already been
-	// reaped by the init system.
-	syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 
 	// Attach rusage information to the response.
 	rusage := cmd.ProcessState.SysUsage().(*syscall.Rusage)

@@ -84,6 +84,14 @@ gomock(
 )
 
 gomock(
+    name = "processtablecleaning",
+    out = "processtablecleaning.go",
+    interfaces = ["ProcessTable"],
+    library = "//pkg/runner/processtablecleaning:go_default_library",
+    package = "mock",
+)
+
+gomock(
     name = "remoteexecution",
     out = "remoteexecution.go",
     interfaces = [
@@ -153,6 +161,7 @@ go_library(
         ":cloud_aws.go",
         ":filesystem.go",
         ":filesystem_re.go",
+        ":processtablecleaning.go",
         ":remoteexecution.go",
         ":runner.go",
         ":sharding.go",
@@ -167,6 +176,7 @@ go_library(
         "//pkg/filesystem:go_default_library",
         "//pkg/proto/remoteworker:go_default_library",
         "//pkg/proto/runner:go_default_library",
+        "//pkg/runner/processtablecleaning:go_default_library",
         "@com_github_aws_aws_sdk_go//service/autoscaling:go_default_library",
         "@com_github_aws_aws_sdk_go//service/ec2:go_default_library",
         "@com_github_aws_aws_sdk_go//service/sqs:go_default_library",

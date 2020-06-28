@@ -36,4 +36,14 @@ message ApplicationConfiguration {
   // if the input root contains a full userland installation. This
   // feature is used by the BuildStream build system.
   bool chroot_into_input_root = 7;
+
+  // Kill processes that are left behind by build actions that are
+  // running in the background.
+  //
+  // Enabling this feature causes all processes to be killed that run as
+  // the same user ID as bb_runner and were spawned after bb_runner.
+  // This feature must not be enabled when the same user ID is used for
+  // other purposes (e.g., running multiple bb_runners), as this may
+  // cause unrelated processes to be killed.
+  bool clean_process_table = 8;
 }

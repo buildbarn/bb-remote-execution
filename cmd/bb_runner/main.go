@@ -10,6 +10,7 @@ import (
 	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/tmp_installer"
 	"github.com/buildbarn/bb-remote-execution/pkg/runner"
+	ptc "github.com/buildbarn/bb-remote-execution/pkg/runner/processtablecleaning"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/global"
 	bb_grpc "github.com/buildbarn/bb-storage/pkg/grpc"
@@ -69,6 +70,23 @@ func main() {
 			time.Sleep(3 * time.Second)
 		}
 		r = runner.NewTemporaryDirectoryInstallingRunner(r, tmpInstaller)
+	}
+
+	// Kill processes that actions leave behind by daemonizing.
+	// Ensure that we only match processes belonging to the current
+	// user that were created after bb_runner is spawned, as we
+	// don't want to kill unrelated processes.
+	if configuration.CleanProcessTable {
+		currentUserID := os.Getuid()
+		startupTime := time.Now()
+		r = ptc.NewProcessTableCleaningRunner(
+			r,
+			ptc.NewFilteringProcessTable(
+				ptc.SystemProcessTable,
+				func(process *ptc.Process) bool {
+					return process.UserID == currentUserID &&
+						process.CreationTime.After(startupTime)
+				}))
 	}
 
 	log.Fatal(

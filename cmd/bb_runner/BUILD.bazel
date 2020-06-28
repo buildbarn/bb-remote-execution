@@ -13,6 +13,7 @@ go_library(
         "//pkg/proto/runner:go_default_library",
         "//pkg/proto/tmp_installer:go_default_library",
         "//pkg/runner:go_default_library",
+        "//pkg/runner/processtablecleaning:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/filesystem:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/global:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/grpc:go_default_library",
