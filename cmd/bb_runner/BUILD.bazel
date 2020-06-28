@@ -36,13 +36,6 @@ container_layer(
 )
 
 container_layer(
-    name = "passwd_layer",
-    data_path = ".",
-    files = ["etc/passwd"],
-    visibility = ["//visibility:public"],
-)
-
-container_layer(
     name = "tini_layer",
     files = ["@com_github_krallin_tini_tini_static_amd64//file"],
 )
@@ -65,36 +58,11 @@ container_image(
     visibility = ["//visibility:public"],
 )
 
-container_image(
-    name = "bb_runner_ubuntu16_04_container",
-    base = "@rbe_ubuntu16_04_base//image",
-    entrypoint = [
-        "/tini",
-        "-v",
-        "-g",
-        "--",
-        "/bb_runner",
-    ],
-    layers = [
-        ":bb_runner_layer",
-        ":passwd_layer",
-        ":tini_layer",
-    ],
-    user = "build",
-    visibility = ["//visibility:public"],
-)
-
 go_image(
     name = "bb_runner_bare_container",
     embed = [":go_default_library"],
     pure = "on",
     visibility = ["//visibility:public"],
-)
-
-container_push_official(
-    name = "bb_runner_ubuntu16_04_container_push",
-    component = "bb-runner-ubuntu16-04",
-    image = ":bb_runner_ubuntu16_04_container",
 )
 
 container_push_official(

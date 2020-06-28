@@ -39,11 +39,13 @@ following:
   `bb_worker` writes executables to disk, while `bb_runner` spawns them.
 
 This repository provides container images for each of these components.
-For `bb_runner`, it provides two container images based on Google RBE's
-[Debian 8](https://console.cloud.google.com/marketplace/details/google/rbe-debian8)
-and [Ubuntu 16.04](https://console.cloud.google.com/marketplace/details/google/rbe-ubuntu16-04)
-images. The advantage of using these container images is that the Bazel
-project provides [ready-to-use toolchain definitions](https://github.com/bazelbuild/bazel-toolchains)
+For `bb_runner`, it provides one image without a userland, and one that
+installs the `bb_runner` into another container on startup. The former
+is sufficient for [BuildStream](https://buildstream.build), while the
+latter can, for example, be used in combination with Google RBE's
+[Ubuntu 16.04 image](https://console.cloud.google.com/marketplace/details/google/rbe-ubuntu16-04).
+The advantage of using the Ubuntu 16.04 image is that the Bazel project
+provides [ready-to-use toolchain definitions](https://github.com/bazelbuild/bazel-toolchains)
 for them.
 
 Please refer to [the Buildbarn Deployments repository](https://github.com/buildbarn/bb-deployments)

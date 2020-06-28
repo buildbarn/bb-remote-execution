@@ -59,13 +59,6 @@ container_repositories()
 load("@io_bazel_rules_docker//container:container.bzl", "container_pull")
 
 container_pull(
-    name = "rbe_ubuntu16_04_base",
-    digest = "sha256:6ad1d0883742bfd30eba81e292c135b95067a6706f3587498374a083b7073cb9",
-    registry = "launcher.gcr.io",
-    repository = "google/rbe-ubuntu16-04",
-)
-
-container_pull(
     name = "busybox",
     digest = "sha256:a2490cec4484ee6c1068ba3a05f89934010c85242f736280b35343483b2264b6",  # 1.31.1-uclibc
     registry = "docker.io",
