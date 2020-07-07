@@ -9,6 +9,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-storage/pkg/clock"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/empty"
@@ -27,6 +28,7 @@ type BuildClient struct {
 	buildExecutor BuildExecutor
 	filePool      filesystem.FilePool
 	clock         clock.Clock
+	instanceName  digest.InstanceName
 
 	// Mutable fields that are always set.
 	request               remoteworker.SynchronizeRequest
@@ -39,16 +41,17 @@ type BuildClient struct {
 
 // NewBuildClient creates a new BuildClient instance that is set to the
 // initial state (i.e., being idle).
-func NewBuildClient(scheduler remoteworker.OperationQueueClient, buildExecutor BuildExecutor, filePool filesystem.FilePool, clock clock.Clock, browserURL *url.URL, workerID map[string]string, instanceName string, platform *remoteexecution.Platform) *BuildClient {
+func NewBuildClient(scheduler remoteworker.OperationQueueClient, buildExecutor BuildExecutor, filePool filesystem.FilePool, clock clock.Clock, browserURL *url.URL, workerID map[string]string, instanceName digest.InstanceName, platform *remoteexecution.Platform) *BuildClient {
 	return &BuildClient{
 		scheduler:     scheduler,
 		buildExecutor: buildExecutor,
 		filePool:      filePool,
 		clock:         clock,
+		instanceName:  instanceName,
 
 		request: remoteworker.SynchronizeRequest{
 			WorkerId:     workerID,
-			InstanceName: instanceName,
+			InstanceName: instanceName.String(),
 			Platform:     platform,
 			CurrentState: &remoteworker.CurrentState{
 				WorkerState: &remoteworker.CurrentState_Idle{
@@ -75,7 +78,7 @@ func (bc *BuildClient) startExecution(executionRequest *remoteworker.DesiredStat
 				Completed: bc.buildExecutor.Execute(
 					ctx,
 					bc.filePool,
-					bc.request.InstanceName,
+					bc.instanceName,
 					executionRequest,
 					updates),
 			},

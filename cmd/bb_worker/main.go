@@ -114,6 +114,11 @@ func main() {
 		int(configuration.MaximumMemoryCachedDirectories),
 		eviction.NewMetricsSet(eviction.NewRRSet(), "DirectoryCachingContentAddressableStorage"))
 
+	instanceName, err := digest.NewInstanceName(configuration.InstanceName)
+	if err != nil {
+		log.Fatalf("Invalid instance name %#v: %s", configuration.InstanceName, err)
+	}
+
 	if len(configuration.BuildDirectories) == 0 {
 		log.Fatal("Cannot start worker without any build directories")
 	}
@@ -310,7 +315,7 @@ func main() {
 						clock.SystemClock,
 						browserURL,
 						workerID,
-						configuration.InstanceName,
+						instanceName,
 						runnerConfiguration.Platform)
 					for {
 						if err := buildClient.Run(); err != nil {

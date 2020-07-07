@@ -705,7 +705,7 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 				Name:            "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
 				QueuedTimestamp: time.Unix(1070, 0).UTC(),
 			},
-			InstanceName: "main",
+			InstanceName: digest.MustNewInstanceName("main"),
 			Stage:        remoteexecution.ExecutionStage_QUEUED,
 		},
 	})
@@ -744,7 +744,7 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 				QueuedTimestamp: time.Unix(1070, 0).UTC(),
 				Timeout:         &timeout,
 			},
-			InstanceName: "main",
+			InstanceName: digest.MustNewInstanceName("main"),
 			Stage:        remoteexecution.ExecutionStage_QUEUED,
 		},
 	})
@@ -1310,8 +1310,9 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 	})
 
 	// The worker should not be drained by default.
+	instanceName := digest.MustNewInstanceName("main")
 	clock.EXPECT().Now().Return(time.Unix(1001, 0))
-	workerState, _, err := buildQueue.ListWorkerState("main", platform, false, 1000, nil)
+	workerState, _, err := buildQueue.ListWorkerState(instanceName, platform, false, 1000, nil)
 	require.NoError(t, err)
 	timeout := time.Unix(1060, 0)
 	require.Equal(t, []re_builder.WorkerState{
@@ -1328,12 +1329,12 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 	// Adding a drain that doesn't match the worker should cause no
 	// changes.
 	clock.EXPECT().Now().Return(time.Unix(1003, 0))
-	err = buildQueue.AddDrain("main", platform, map[string]string{
+	err = buildQueue.AddDrain(instanceName, platform, map[string]string{
 		"hostname": "worker124",
 	})
 	require.NoError(t, err)
 	clock.EXPECT().Now().Return(time.Unix(1004, 0))
-	workerState, _, err = buildQueue.ListWorkerState("main", platform, false, 1000, nil)
+	workerState, _, err = buildQueue.ListWorkerState(instanceName, platform, false, 1000, nil)
 	require.NoError(t, err)
 	require.Equal(t, []re_builder.WorkerState{
 		{
@@ -1349,12 +1350,12 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 	// Adding a drain that does match the worker should cause it to
 	// be reported as if being drained.
 	clock.EXPECT().Now().Return(time.Unix(1005, 0))
-	err = buildQueue.AddDrain("main", platform, map[string]string{
+	err = buildQueue.AddDrain(instanceName, platform, map[string]string{
 		"hostname": "worker123",
 	})
 	require.NoError(t, err)
 	clock.EXPECT().Now().Return(time.Unix(1006, 0))
-	workerState, _, err = buildQueue.ListWorkerState("main", platform, false, 1000, nil)
+	workerState, _, err = buildQueue.ListWorkerState(instanceName, platform, false, 1000, nil)
 	require.NoError(t, err)
 	require.Equal(t, []re_builder.WorkerState{
 		{
@@ -1433,7 +1434,7 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 	// Remove the drain. The scheduler should now return the
 	// operation if requested.
 	clock.EXPECT().Now().Return(time.Unix(1009, 0))
-	err = buildQueue.RemoveDrain("main", platform, map[string]string{
+	err = buildQueue.RemoveDrain(instanceName, platform, map[string]string{
 		"hostname": "worker123",
 	})
 	require.NoError(t, err)

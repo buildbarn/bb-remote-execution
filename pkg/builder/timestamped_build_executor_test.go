@@ -10,6 +10,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/golang/mock/gomock"
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
@@ -62,9 +63,9 @@ func TestTimestampedBuildExecutorExample(t *testing.T) {
 	baseBuildExecutor.EXPECT().Execute(
 		ctx,
 		filePool,
-		"main",
+		digest.MustNewInstanceName("main"),
 		request,
-		gomock.Any()).DoAndReturn(func(ctx context.Context, filePool filesystem.FilePool, instanceName string, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+		gomock.Any()).DoAndReturn(func(ctx context.Context, filePool filesystem.FilePool, instanceName digest.InstanceName, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 		clock.EXPECT().Now().Return(time.Unix(1001, 0))
 		executionStateUpdates <- updateFetchingInputs
 		clock.EXPECT().Now().Return(time.Unix(1002, 0))
@@ -88,7 +89,7 @@ func TestTimestampedBuildExecutorExample(t *testing.T) {
 	executeResponse := buildExecutor.Execute(
 		ctx,
 		filePool,
-		"main",
+		digest.MustNewInstanceName("main"),
 		request,
 		executionStateUpdates)
 

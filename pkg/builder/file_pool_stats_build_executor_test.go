@@ -11,6 +11,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/golang/mock/gomock"
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
@@ -37,9 +38,9 @@ func TestFilePoolStatsBuildExecutorExample(t *testing.T) {
 	baseBuildExecutor.EXPECT().Execute(
 		ctx,
 		gomock.Any(),
-		"hello",
+		digest.MustNewInstanceName("hello"),
 		request,
-		gomock.Any()).DoAndReturn(func(ctx context.Context, filePool filesystem.FilePool, instanceName string, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+		gomock.Any()).DoAndReturn(func(ctx context.Context, filePool filesystem.FilePool, instanceName digest.InstanceName, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 		f, err := filePool.NewFile()
 		require.NoError(t, err)
 		require.NoError(t, f.Truncate(5))
@@ -72,7 +73,7 @@ func TestFilePoolStatsBuildExecutorExample(t *testing.T) {
 	executeResponse := buildExecutor.Execute(
 		ctx,
 		filesystem.NewInMemoryFilePool(),
-		"hello",
+		digest.MustNewInstanceName("hello"),
 		request,
 		executionStateUpdates)
 

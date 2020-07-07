@@ -40,8 +40,8 @@ var (
 			}
 			return s
 		},
-		"action_url": func(browserURL *url.URL, instanceName string, actionDigest *remoteexecution.Digest) string {
-			d, err := digest.NewDigestFromPartialDigest(instanceName, actionDigest)
+		"action_url": func(browserURL *url.URL, instanceName digest.InstanceName, actionDigest *remoteexecution.Digest) string {
+			d, err := instanceName.NewDigestFromProto(actionDigest)
 			if err != nil {
 				return ""
 			}
@@ -521,7 +521,11 @@ func (s *buildQueueStateService) handleListDetailedOperationState(w http.Respons
 
 func (s *buildQueueStateService) handleListQueuedOperationState(w http.ResponseWriter, req *http.Request) {
 	query := req.URL.Query()
-	instanceName := query.Get("instance_name")
+	instanceName, err := digest.NewInstanceName(query.Get("instance_name"))
+	if err != nil {
+		http.Error(w, util.StatusWrapf(err, "Invalid instance name %#v", query.Get("instance_name")).Error(), http.StatusBadRequest)
+		return
+	}
 	var platform remoteexecution.Platform
 	if err := jsonpb.UnmarshalString(query.Get("platform"), &platform); err != nil {
 		http.Error(w, util.StatusWrap(err, "Failed to extract platform").Error(), http.StatusBadRequest)
@@ -554,7 +558,7 @@ func (s *buildQueueStateService) handleListQueuedOperationState(w http.ResponseW
 		return
 	}
 	if err := listQueuedOperationStateTemplate.Execute(w, struct {
-		InstanceName     string
+		InstanceName     digest.InstanceName
 		Platform         *remoteexecution.Platform
 		BrowserURL       *url.URL
 		Now              time.Time
@@ -574,7 +578,11 @@ func (s *buildQueueStateService) handleListQueuedOperationState(w http.ResponseW
 
 func (s *buildQueueStateService) handleListWorkerState(w http.ResponseWriter, req *http.Request) {
 	query := req.URL.Query()
-	instanceName := query.Get("instance_name")
+	instanceName, err := digest.NewInstanceName(query.Get("instance_name"))
+	if err != nil {
+		http.Error(w, util.StatusWrapf(err, "Invalid instance name %#v", query.Get("instance_name")).Error(), http.StatusBadRequest)
+		return
+	}
 	var platform remoteexecution.Platform
 	if err := jsonpb.UnmarshalString(query.Get("platform"), &platform); err != nil {
 		http.Error(w, util.StatusWrap(err, "Failed to extract platform").Error(), http.StatusBadRequest)
@@ -596,7 +604,7 @@ func (s *buildQueueStateService) handleListWorkerState(w http.ResponseWriter, re
 		return
 	}
 	if err := listWorkerStateTemplate.Execute(w, struct {
-		InstanceName         string
+		InstanceName         digest.InstanceName
 		Platform             *remoteexecution.Platform
 		BrowserURL           *url.URL
 		Now                  time.Time
@@ -618,7 +626,11 @@ func (s *buildQueueStateService) handleListWorkerState(w http.ResponseWriter, re
 
 func (s *buildQueueStateService) handleListDrainState(w http.ResponseWriter, req *http.Request) {
 	query := req.URL.Query()
-	instanceName := query.Get("instance_name")
+	instanceName, err := digest.NewInstanceName(query.Get("instance_name"))
+	if err != nil {
+		http.Error(w, util.StatusWrapf(err, "Invalid instance name %#v", query.Get("instance_name")).Error(), http.StatusBadRequest)
+		return
+	}
 	var platform remoteexecution.Platform
 	if err := jsonpb.UnmarshalString(query.Get("platform"), &platform); err != nil {
 		http.Error(w, util.StatusWrap(err, "Failed to extract platform").Error(), http.StatusBadRequest)
@@ -632,7 +644,7 @@ func (s *buildQueueStateService) handleListDrainState(w http.ResponseWriter, req
 		return
 	}
 	if err := listDrainStateTemplate.Execute(w, struct {
-		InstanceName string
+		InstanceName digest.InstanceName
 		Platform     *remoteexecution.Platform
 		Now          time.Time
 		Drains       []builder.DrainState
@@ -646,9 +658,13 @@ func (s *buildQueueStateService) handleListDrainState(w http.ResponseWriter, req
 	}
 }
 
-func handleModifyDrain(w http.ResponseWriter, req *http.Request, modifyFunc func(string, *remoteexecution.Platform, map[string]string) error) {
+func handleModifyDrain(w http.ResponseWriter, req *http.Request, modifyFunc func(digest.InstanceName, *remoteexecution.Platform, map[string]string) error) {
 	req.ParseForm()
-	instanceName := req.FormValue("instance_name")
+	instanceName, err := digest.NewInstanceName(req.FormValue("instance_name"))
+	if err != nil {
+		http.Error(w, util.StatusWrapf(err, "Invalid instance name %#v", req.FormValue("instance_name")).Error(), http.StatusBadRequest)
+		return
+	}
 	var platform remoteexecution.Platform
 	if err := jsonpb.UnmarshalString(req.FormValue("platform"), &platform); err != nil {
 		http.Error(w, util.StatusWrap(err, "Failed to extract platform").Error(), http.StatusBadRequest)

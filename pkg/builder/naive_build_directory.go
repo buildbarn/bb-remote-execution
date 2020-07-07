@@ -58,9 +58,10 @@ func (d *naiveBuildDirectory) mergeDirectoryContents(ctx context.Context, digest
 	}
 
 	// Create children.
+	instanceName := digest.GetInstanceName()
 	for _, file := range directory.Files {
 		childComponents := append(components, file.Name)
-		childDigest, err := digest.NewDerivedDigest(file.Digest)
+		childDigest, err := instanceName.NewDigestFromProto(file.Digest)
 		if err != nil {
 			return util.StatusWrapf(err, "Failed to extract digest for input file %#v", path.Join(childComponents...))
 		}
@@ -70,7 +71,7 @@ func (d *naiveBuildDirectory) mergeDirectoryContents(ctx context.Context, digest
 	}
 	for _, directory := range directory.Directories {
 		childComponents := append(components, directory.Name)
-		childDigest, err := digest.NewDerivedDigest(directory.Digest)
+		childDigest, err := instanceName.NewDigestFromProto(directory.Digest)
 		if err != nil {
 			return util.StatusWrapf(err, "Failed to extract digest for input directory %#v", path.Join(childComponents...))
 		}

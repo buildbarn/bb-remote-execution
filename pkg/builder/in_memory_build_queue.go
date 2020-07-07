@@ -241,7 +241,11 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 	// Addressable Storage (CAS) multiple times, the scheduler holds
 	// on to them and passes them on to the workers.
 	ctx := out.Context()
-	actionDigest, err := digest.NewDigestFromPartialDigest(in.InstanceName, in.ActionDigest)
+	instanceName, err := digest.NewInstanceName(in.InstanceName)
+	if err != nil {
+		return util.StatusWrapf(err, "Invalid instance name %#v", in.InstanceName)
+	}
+	actionDigest, err := instanceName.NewDigestFromProto(in.ActionDigest)
 	if err != nil {
 		return util.StatusWrap(err, "Failed to extract digest for action")
 	}
@@ -249,7 +253,7 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 	if err != nil {
 		return util.StatusWrap(err, "Failed to obtain action")
 	}
-	commandDigest, err := actionDigest.NewDerivedDigest(action.CommandDigest)
+	commandDigest, err := instanceName.NewDigestFromProto(action.CommandDigest)
 	if err != nil {
 		return util.StatusWrap(err, "Failed to extract digest for command")
 	}
@@ -257,7 +261,7 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 	if err != nil {
 		return util.StatusWrap(err, "Failed to obtain command")
 	}
-	platformKey, err := newPlatformKey(in.InstanceName, command.Platform)
+	platformKey, err := newPlatformKey(instanceName, command.Platform)
 	if err != nil {
 		return err
 	}
@@ -280,7 +284,7 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 			// giving workers time to reconnect.
 			code = codes.Unavailable
 		}
-		return status.Errorf(code, "No workers exist for instance %#v platform %s", platformKey.instance, platformKey.platform)
+		return status.Errorf(code, "No workers exist for instance %#v platform %s", platformKey.instanceName.String(), platformKey.platform)
 	}
 
 	// Create a new operation in case none exist against which this
@@ -302,7 +306,7 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 			},
 
 			name:         uuid.Must(bq.uuidGenerator()).String(),
-			instanceName: in.InstanceName,
+			instanceName: instanceName,
 			argv0:        argv0,
 
 			currentStageStartTime: bq.now,
@@ -345,7 +349,11 @@ func (bq *InMemoryBuildQueue) WaitExecution(in *remoteexecution.WaitExecutionReq
 // used by a worker to report the completion of an operation and to
 // request more work.
 func (bq *InMemoryBuildQueue) Synchronize(ctx context.Context, request *remoteworker.SynchronizeRequest) (*remoteworker.SynchronizeResponse, error) {
-	platformKey, err := newPlatformKey(request.InstanceName, request.Platform)
+	instanceName, err := digest.NewInstanceName(request.InstanceName)
+	if err != nil {
+		return nil, util.StatusWrapf(err, "Invalid instance name %#v", request.InstanceName)
+	}
+	platformKey, err := newPlatformKey(instanceName, request.Platform)
 	if err != nil {
 		return nil, err
 	}
@@ -444,7 +452,7 @@ func (bq *InMemoryBuildQueue) GetBuildQueueState() *BuildQueueState {
 			}
 		}
 		state.PlatformQueues = append(state.PlatformQueues, PlatformQueueState{
-			InstanceName:          platformKey.instance,
+			InstanceName:          platformKey.instanceName,
 			Platform:              *platformKey.getPlatform(),
 			Timeout:               bq.cleanupQueue.getTimestamp(pq.cleanupKey),
 			QueuedOperationsCount: len(pq.queuedOperations),
@@ -531,7 +539,7 @@ func (bq *InMemoryBuildQueue) ListDetailedOperationState(pageSize int, startAfte
 
 // ListQueuedOperationState returns properties of all queued
 // operations contained within a given platform queue.
-func (bq *InMemoryBuildQueue) ListQueuedOperationState(instanceName string, platform *remoteexecution.Platform, pageSize int, startAfterPriority *int32, startAfterQueuedTimestamp *time.Time) ([]QueuedOperationState, PaginationInfo, error) {
+func (bq *InMemoryBuildQueue) ListQueuedOperationState(instanceName digest.InstanceName, platform *remoteexecution.Platform, pageSize int, startAfterPriority *int32, startAfterQueuedTimestamp *time.Time) ([]QueuedOperationState, PaginationInfo, error) {
 	platformKey, err := newPlatformKey(instanceName, platform)
 	if err != nil {
 		return nil, PaginationInfo{}, err
@@ -576,7 +584,7 @@ func (bq *InMemoryBuildQueue) ListQueuedOperationState(instanceName string, plat
 
 // ListWorkerState returns basic properties of all workers for a given
 // platform queue.
-func (bq *InMemoryBuildQueue) ListWorkerState(instanceName string, platform *remoteexecution.Platform, justExecutingWorkers bool, pageSize int, startAfterWorkerID map[string]string) ([]WorkerState, PaginationInfo, error) {
+func (bq *InMemoryBuildQueue) ListWorkerState(instanceName digest.InstanceName, platform *remoteexecution.Platform, justExecutingWorkers bool, pageSize int, startAfterWorkerID map[string]string) ([]WorkerState, PaginationInfo, error) {
 	platformKey, err := newPlatformKey(instanceName, platform)
 	if err != nil {
 		return nil, PaginationInfo{}, err
@@ -630,7 +638,7 @@ func (bq *InMemoryBuildQueue) ListWorkerState(instanceName string, platform *rem
 
 // ListDrainState returns a list of all the drains that are present
 // within a given platform queue.
-func (bq *InMemoryBuildQueue) ListDrainState(instanceName string, platform *remoteexecution.Platform) ([]DrainState, error) {
+func (bq *InMemoryBuildQueue) ListDrainState(instanceName digest.InstanceName, platform *remoteexecution.Platform) ([]DrainState, error) {
 	platformKey, err := newPlatformKey(instanceName, platform)
 	if err != nil {
 		return nil, err
@@ -659,7 +667,7 @@ func (bq *InMemoryBuildQueue) ListDrainState(instanceName string, platform *remo
 	return results, nil
 }
 
-func (bq *InMemoryBuildQueue) modifyDrain(instanceName string, platform *remoteexecution.Platform, workerIDPattern map[string]string, modifyFunc func(pq *platformQueue, drainKey string)) error {
+func (bq *InMemoryBuildQueue) modifyDrain(instanceName digest.InstanceName, platform *remoteexecution.Platform, workerIDPattern map[string]string, modifyFunc func(pq *platformQueue, drainKey string)) error {
 	platformKey, err := newPlatformKey(instanceName, platform)
 	if err != nil {
 		return err
@@ -684,7 +692,7 @@ func (bq *InMemoryBuildQueue) modifyDrain(instanceName string, platform *remotee
 
 // AddDrain inserts a new drain into the list of drains currently
 // tracked by the platform queue.
-func (bq *InMemoryBuildQueue) AddDrain(instanceName string, platform *remoteexecution.Platform, workerIDPattern map[string]string) error {
+func (bq *InMemoryBuildQueue) AddDrain(instanceName digest.InstanceName, platform *remoteexecution.Platform, workerIDPattern map[string]string) error {
 	return bq.modifyDrain(instanceName, platform, workerIDPattern, func(pq *platformQueue, drainKey string) {
 		pq.drains[drainKey] = DrainState{
 			WorkerIDPattern:   workerIDPattern,
@@ -695,7 +703,7 @@ func (bq *InMemoryBuildQueue) AddDrain(instanceName string, platform *remoteexec
 
 // RemoveDrain removes a drain from the list of drains currently tracked
 // by the platform queue.
-func (bq *InMemoryBuildQueue) RemoveDrain(instanceName string, platform *remoteexecution.Platform, workerIDPattern map[string]string) error {
+func (bq *InMemoryBuildQueue) RemoveDrain(instanceName digest.InstanceName, platform *remoteexecution.Platform, workerIDPattern map[string]string) error {
 	return bq.modifyDrain(instanceName, platform, workerIDPattern, func(pq *platformQueue, drainKey string) {
 		delete(pq.drains, drainKey)
 	})
@@ -766,8 +774,8 @@ func (bq *InMemoryBuildQueue) leave() {
 // platformKey can be used as a key for maps to uniquely identify a
 // certain platform that should have its own operation queue.
 type platformKey struct {
-	instance string
-	platform string
+	instanceName digest.InstanceName
+	platform     string
 }
 
 // platformKeyList is a list of platformKey objects that is sortable. It
@@ -780,7 +788,9 @@ func (h platformKeyList) Len() int {
 }
 
 func (h platformKeyList) Less(i, j int) bool {
-	return h[i].instance < h[j].instance || (h[i].instance == h[j].instance && h[i].platform < h[j].platform)
+	ii := h[i].instanceName.String()
+	ij := h[j].instanceName.String()
+	return ii < ij || (ii == ij && h[i].platform < h[j].platform)
 }
 
 func (h platformKeyList) Swap(i, j int) {
@@ -799,7 +809,7 @@ func (k *platformKey) getPlatform() *remoteexecution.Platform {
 	return &platform
 }
 
-func newPlatformKey(instanceName string, platform *remoteexecution.Platform) (platformKey, error) {
+func newPlatformKey(instanceName digest.InstanceName, platform *remoteexecution.Platform) (platformKey, error) {
 	// Ensure that the platform properties are in normal form.
 	if platform == nil {
 		platform = &remoteexecution.Platform{}
@@ -818,8 +828,8 @@ func newPlatformKey(instanceName string, platform *remoteexecution.Platform) (pl
 		util.StatusWrapWithCode(err, codes.InvalidArgument, "Failed to marshal platform message")
 	}
 	return platformKey{
-		instance: instanceName,
-		platform: platformString,
+		instanceName: instanceName,
+		platform:     platformString,
 	}, nil
 }
 
@@ -863,11 +873,12 @@ type platformQueue struct {
 func newPlatformQueue(platformKey platformKey) *platformQueue {
 	// Force creation of all metrics associated with
 	// this platform queue to make recording rules work.
-	inMemoryBuildQueueOperationsExecutingDurationSeconds.WithLabelValues(platformKey.instance, platformKey.platform, "Success", "")
-	inMemoryBuildQueueOperationsExecutingRetries.WithLabelValues(platformKey.instance, platformKey.platform, "Success", "")
+	instanceName := platformKey.instanceName.String()
+	inMemoryBuildQueueOperationsExecutingDurationSeconds.WithLabelValues(instanceName, platformKey.platform, "Success", "")
+	inMemoryBuildQueueOperationsExecutingRetries.WithLabelValues(instanceName, platformKey.platform, "Success", "")
 
 	platformLabels := map[string]string{
-		"instance_name": platformKey.instance,
+		"instance_name": instanceName,
 		"platform":      platformKey.platform,
 	}
 	return &platformQueue{
@@ -880,15 +891,15 @@ func newPlatformQueue(platformKey platformKey) *platformQueue {
 		drains:       map[string]DrainState{},
 		drainsWakeup: make(chan struct{}),
 
-		operationsQueuedTotal:              inMemoryBuildQueueOperationsQueuedTotal.WithLabelValues(platformKey.instance, platformKey.platform),
-		operationsQueuedDurationSeconds:    inMemoryBuildQueueOperationsQueuedDurationSeconds.WithLabelValues(platformKey.instance, platformKey.platform),
+		operationsQueuedTotal:              inMemoryBuildQueueOperationsQueuedTotal.WithLabelValues(instanceName, platformKey.platform),
+		operationsQueuedDurationSeconds:    inMemoryBuildQueueOperationsQueuedDurationSeconds.WithLabelValues(instanceName, platformKey.platform),
 		operationsExecutingDurationSeconds: inMemoryBuildQueueOperationsExecutingDurationSeconds.MustCurryWith(platformLabels),
 		operationsExecutingRetries:         inMemoryBuildQueueOperationsExecutingRetries.MustCurryWith(platformLabels),
-		operationsCompletedDurationSeconds: inMemoryBuildQueueOperationsCompletedDurationSeconds.WithLabelValues(platformKey.instance, platformKey.platform),
+		operationsCompletedDurationSeconds: inMemoryBuildQueueOperationsCompletedDurationSeconds.WithLabelValues(instanceName, platformKey.platform),
 
-		workersCreatedTotal:          inMemoryBuildQueueWorkersCreatedTotal.WithLabelValues(platformKey.instance, platformKey.platform),
-		workersRemovedIdleTotal:      inMemoryBuildQueueWorkersRemovedTotal.WithLabelValues(platformKey.instance, platformKey.platform, "Idle"),
-		workersRemovedExecutingTotal: inMemoryBuildQueueWorkersRemovedTotal.WithLabelValues(platformKey.instance, platformKey.platform, "Executing"),
+		workersCreatedTotal:          inMemoryBuildQueueWorkersCreatedTotal.WithLabelValues(instanceName, platformKey.platform),
+		workersRemovedIdleTotal:      inMemoryBuildQueueWorkersRemovedTotal.WithLabelValues(instanceName, platformKey.platform, "Idle"),
+		workersRemovedExecutingTotal: inMemoryBuildQueueWorkersRemovedTotal.WithLabelValues(instanceName, platformKey.platform, "Executing"),
 	}
 }
 
@@ -1110,7 +1121,7 @@ type operation struct {
 	// BuildQueue and OperationQueueServer interfaces. They need to
 	// be present to implement BuildQueueStateProvider.
 	name         string
-	instanceName string
+	instanceName digest.InstanceName
 	argv0        string
 
 	waiters uint

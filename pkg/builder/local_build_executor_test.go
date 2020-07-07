@@ -40,7 +40,7 @@ func TestLocalBuildExecutorInvalidActionDigest(t *testing.T) {
 	executeResponse := localBuildExecutor.Execute(
 		ctx,
 		filePool,
-		"netbsd",
+		digest.MustNewInstanceName("netbsd"),
 		&remoteworker.DesiredState_Executing{
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      "This is not a valid action digest!",
@@ -84,7 +84,7 @@ func TestLocalBuildExecutorMissingAction(t *testing.T) {
 	executeResponse := localBuildExecutor.Execute(
 		ctx,
 		filePool,
-		"netbsd",
+		digest.MustNewInstanceName("netbsd"),
 		&remoteworker.DesiredState_Executing{
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      "5555555555555555555555555555555555555555555555555555555555555555",
@@ -122,7 +122,7 @@ func TestLocalBuildExecutorMissingCommand(t *testing.T) {
 	executeResponse := localBuildExecutor.Execute(
 		ctx,
 		filePool,
-		"netbsd",
+		digest.MustNewInstanceName("netbsd"),
 		&remoteworker.DesiredState_Executing{
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      "5555555555555555555555555555555555555555555555555555555555555555",
@@ -163,7 +163,7 @@ func TestLocalBuildExecutorBuildDirectoryCreatorFailedFailed(t *testing.T) {
 	executeResponse := localBuildExecutor.Execute(
 		ctx,
 		filePool,
-		"netbsd",
+		digest.MustNewInstanceName("netbsd"),
 		&remoteworker.DesiredState_Executing{
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      "5555555555555555555555555555555555555555555555555555555555555555",
@@ -223,7 +223,7 @@ func TestLocalBuildExecutorInputRootPopulationFailed(t *testing.T) {
 	executeResponse := localBuildExecutor.Execute(
 		ctx,
 		filePool,
-		"netbsd",
+		digest.MustNewInstanceName("netbsd"),
 		&remoteworker.DesiredState_Executing{
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      "5555555555555555555555555555555555555555555555555555555555555555",
@@ -284,7 +284,7 @@ func TestLocalBuildExecutorOutputDirectoryCreationFailure(t *testing.T) {
 	executeResponse := localBuildExecutor.Execute(
 		ctx,
 		filePool,
-		"fedora",
+		digest.MustNewInstanceName("fedora"),
 		&remoteworker.DesiredState_Executing{
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      "5555555555555555555555555555555555555555555555555555555555555555",
@@ -381,7 +381,7 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 	executeResponse := localBuildExecutor.Execute(
 		ctx,
 		filePool,
-		"nintendo64",
+		digest.MustNewInstanceName("nintendo64"),
 		&remoteworker.DesiredState_Executing{
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      "5555555555555555555555555555555555555555555555555555555555555555",
@@ -554,7 +554,7 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 	executeResponse := localBuildExecutor.Execute(
 		ctx,
 		filePool,
-		"ubuntu1804",
+		digest.MustNewInstanceName("ubuntu1804"),
 		&remoteworker.DesiredState_Executing{
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      "0000000000000000000000000000000000000000000000000000000000000001",
@@ -648,7 +648,7 @@ func TestLocalBuildExecutorCachingInvalidTimeout(t *testing.T) {
 	executeResponse := localBuildExecutor.Execute(
 		ctx,
 		filePool,
-		"ubuntu1804",
+		digest.MustNewInstanceName("ubuntu1804"),
 		&remoteworker.DesiredState_Executing{
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      "0000000000000000000000000000000000000000000000000000000000000001",
@@ -690,7 +690,7 @@ func TestLocalBuildExecutorCachingTimeoutTooHigh(t *testing.T) {
 	executeResponse := localBuildExecutor.Execute(
 		ctx,
 		filePool,
-		"ubuntu1804",
+		digest.MustNewInstanceName("ubuntu1804"),
 		&remoteworker.DesiredState_Executing{
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      "0000000000000000000000000000000000000000000000000000000000000001",
@@ -784,7 +784,7 @@ func TestLocalBuildExecutorInputRootIOFailureDuringExecution(t *testing.T) {
 	executeResponse := localBuildExecutor.Execute(
 		ctx,
 		filePool,
-		"ubuntu1804",
+		digest.MustNewInstanceName("ubuntu1804"),
 		&remoteworker.DesiredState_Executing{
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      "0000000000000000000000000000000000000000000000000000000000000001",
@@ -881,7 +881,7 @@ func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 	executeResponse := localBuildExecutor.Execute(
 		ctx,
 		filePool,
-		"ubuntu1804",
+		digest.MustNewInstanceName("ubuntu1804"),
 		&remoteworker.DesiredState_Executing{
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      "0000000000000000000000000000000000000000000000000000000000000001",
@@ -956,7 +956,7 @@ func TestLocalBuildExecutorCharacterDeviceNodeCreationFailed(t *testing.T) {
 	executeResponse := localBuildExecutor.Execute(
 		ctx,
 		filePool,
-		"ubuntu1804",
+		digest.MustNewInstanceName("ubuntu1804"),
 		&remoteworker.DesiredState_Executing{
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      "0000000000000000000000000000000000000000000000000000000000000001",

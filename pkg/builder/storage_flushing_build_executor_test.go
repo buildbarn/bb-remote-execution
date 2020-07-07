@@ -8,6 +8,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/golang/mock/gomock"
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/require"
@@ -95,8 +96,9 @@ func TestStorageFlushingBuildExecutor(t *testing.T) {
 	}
 
 	filePool := mock.NewMockFilePool(ctrl)
+	instanceName := digest.MustNewInstanceName("default")
 	baseBuildExecutor.EXPECT().Execute(
-		ctx, filePool, "default", request, updates,
+		ctx, filePool, instanceName, request, updates,
 	).Return(proto.Clone(response).(*remoteexecution.ExecuteResponse)).Times(2)
 
 	// When flushing succeeds, we should return the response in
@@ -104,7 +106,7 @@ func TestStorageFlushingBuildExecutor(t *testing.T) {
 	t.Run("FlushingSucceeded", func(t *testing.T) {
 		storageFlusher.EXPECT().Call(ctx).Return(nil)
 		require.True(t, proto.Equal(
-			buildExecutor.Execute(ctx, filePool, "default", request, updates),
+			buildExecutor.Execute(ctx, filePool, instanceName, request, updates),
 			response))
 	})
 
@@ -114,7 +116,7 @@ func TestStorageFlushingBuildExecutor(t *testing.T) {
 	t.Run("FlushingFailed", func(t *testing.T) {
 		storageFlusher.EXPECT().Call(ctx).Return(status.Error(codes.Internal, "Failed to flush blobs to storage"))
 		require.True(t, proto.Equal(
-			buildExecutor.Execute(ctx, filePool, "default", request, updates),
+			buildExecutor.Execute(ctx, filePool, instanceName, request, updates),
 			&remoteexecution.ExecuteResponse{
 				Result: &remoteexecution.ActionResult{
 					OutputFileSymlinks: []*remoteexecution.OutputSymlink{

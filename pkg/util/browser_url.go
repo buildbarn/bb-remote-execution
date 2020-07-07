@@ -17,7 +17,7 @@ func GetBrowserURL(browserURL *url.URL, objectType string, digest digest.Digest)
 		path.Join(
 			browserURL.EscapedPath(),
 			objectType,
-			digest.GetInstance(),
+			digest.GetInstanceName().String(),
 			digest.GetHashString(),
 			strconv.FormatInt(digest.GetSizeBytes(), 10)) + "/")
 	if err != nil {

@@ -265,7 +265,7 @@ func (s *uploadOutputsState) uploadDirectory(d filesystem.Directory, children ma
 			if childDigest, err := s.contentAddressableStorage.PutFile(s.context, d, name, s.parentDigest); err == nil {
 				directory.Files = append(directory.Files, &remoteexecution.FileNode{
 					Name:         name,
-					Digest:       childDigest.GetPartialDigest(),
+					Digest:       childDigest.GetProto(),
 					IsExecutable: fileType == filesystem.FileTypeExecutableFile,
 				})
 			} else {
@@ -284,7 +284,7 @@ func (s *uploadOutputsState) uploadDirectory(d filesystem.Directory, children ma
 						children[childDigest] = child
 						directory.Directories = append(directory.Directories, &remoteexecution.DirectoryNode{
 							Name:   name,
-							Digest: childDigest.GetPartialDigest(),
+							Digest: childDigest.GetProto(),
 						})
 					} else {
 						s.saveError(util.StatusWrapf(err, "Failed to compute digest of output directory %#v", s.dPath.join()))
@@ -332,7 +332,7 @@ func (s *uploadOutputsState) uploadOutputDirectoryEntered(d filesystem.Directory
 				s.actionResult.OutputDirectories,
 				&remoteexecution.OutputDirectory{
 					Path:       path,
-					TreeDigest: treeDigest.GetPartialDigest(),
+					TreeDigest: treeDigest.GetProto(),
 				})
 		}
 	} else {
@@ -360,7 +360,7 @@ func (s *uploadOutputsState) uploadOutputFile(d filesystem.Directory, name strin
 				s.actionResult.OutputFiles,
 				&remoteexecution.OutputFile{
 					Path:         path,
-					Digest:       digest.GetPartialDigest(),
+					Digest:       digest.GetProto(),
 					IsExecutable: fileType == filesystem.FileTypeExecutableFile,
 				})
 		}

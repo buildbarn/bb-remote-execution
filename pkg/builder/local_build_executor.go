@@ -91,7 +91,7 @@ func (be *localBuildExecutor) createCharacterDevices(inputRootDirectory BuildDir
 	return nil
 }
 
-func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, instanceName string, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, instanceName digest.InstanceName, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 	response := &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
@@ -129,7 +129,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	}
 
 	// Obtain build directory.
-	actionDigest, err := digest.NewDigestFromPartialDigest(instanceName, request.ActionDigest)
+	actionDigest, err := instanceName.NewDigestFromProto(request.ActionDigest)
 	if err != nil {
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to extract digest for action"))
 		return response
@@ -178,7 +178,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	}
 	defer inputRootDirectory.Close()
 
-	inputRootDigest, err := actionDigest.NewDerivedDigest(action.InputRootDigest)
+	inputRootDigest, err := instanceName.NewDigestFromProto(action.InputRootDigest)
 	if err != nil {
 		attachErrorToExecuteResponse(
 			response,
@@ -278,12 +278,12 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	if stdoutDigest, err := be.contentAddressableStorage.PutFile(ctx, buildDirectory, "stdout", actionDigest); err != nil {
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to store stdout"))
 	} else if stdoutDigest.GetSizeBytes() > 0 {
-		response.Result.StdoutDigest = stdoutDigest.GetPartialDigest()
+		response.Result.StdoutDigest = stdoutDigest.GetProto()
 	}
 	if stderrDigest, err := be.contentAddressableStorage.PutFile(ctx, buildDirectory, "stderr", actionDigest); err != nil {
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to store stderr"))
 	} else if stderrDigest.GetSizeBytes() > 0 {
-		response.Result.StderrDigest = stderrDigest.GetPartialDigest()
+		response.Result.StderrDigest = stderrDigest.GetProto()
 	}
 	if err := outputHierarchy.UploadOutputs(ctx, inputRootDirectory, be.contentAddressableStorage, actionDigest, response.Result); err != nil {
 		attachErrorToExecuteResponse(response, err)

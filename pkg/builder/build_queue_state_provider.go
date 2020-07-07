@@ -4,6 +4,7 @@ import (
 	"time"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 )
 
 // BuildQueueStateProvider is implemented by InMemoryBuildQueue to
@@ -14,13 +15,13 @@ type BuildQueueStateProvider interface {
 	GetDetailedOperationState(name string) (*DetailedOperationState, bool)
 	KillOperation(name string) bool
 	ListDetailedOperationState(pageSize int, startAfterOperation *string) ([]DetailedOperationState, PaginationInfo)
-	ListQueuedOperationState(instanceName string, platform *remoteexecution.Platform, pageSize int, startAfterPriority *int32, startAfterQueuedTimestamp *time.Time) ([]QueuedOperationState, PaginationInfo, error)
-	ListWorkerState(instanceName string, platform *remoteexecution.Platform, justExecutingWorkers bool, pageSize int, startAfterWorkerID map[string]string) ([]WorkerState, PaginationInfo, error)
+	ListQueuedOperationState(instanceName digest.InstanceName, platform *remoteexecution.Platform, pageSize int, startAfterPriority *int32, startAfterQueuedTimestamp *time.Time) ([]QueuedOperationState, PaginationInfo, error)
+	ListWorkerState(instanceName digest.InstanceName, platform *remoteexecution.Platform, justExecutingWorkers bool, pageSize int, startAfterWorkerID map[string]string) ([]WorkerState, PaginationInfo, error)
 
 	// Support for installing drains on workers.
-	ListDrainState(instanceName string, platform *remoteexecution.Platform) ([]DrainState, error)
-	AddDrain(instanceName string, platform *remoteexecution.Platform, workerIDPattern map[string]string) error
-	RemoveDrain(instanceName string, platform *remoteexecution.Platform, workerIDPattern map[string]string) error
+	ListDrainState(instanceName digest.InstanceName, platform *remoteexecution.Platform) ([]DrainState, error)
+	AddDrain(instanceName digest.InstanceName, platform *remoteexecution.Platform, workerIDPattern map[string]string) error
+	RemoveDrain(instanceName digest.InstanceName, platform *remoteexecution.Platform, workerIDPattern map[string]string) error
 
 	// Support for gracefully terminating workers.
 	MarkTerminatingAndWait(workerIDPattern map[string]string)
@@ -42,7 +43,7 @@ type BuildQueueState struct {
 
 // PlatformQueueState contains the state of a single per-platform queue.
 type PlatformQueueState struct {
-	InstanceName string
+	InstanceName digest.InstanceName
 	Platform     remoteexecution.Platform
 
 	Timeout               *time.Time
@@ -76,7 +77,7 @@ type QueuedOperationState struct {
 type DetailedOperationState struct {
 	BasicOperationState
 
-	InstanceName    string
+	InstanceName    digest.InstanceName
 	Stage           remoteexecution.ExecutionStage_Value
 	ExecuteResponse *remoteexecution.ExecuteResponse
 }
