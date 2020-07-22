@@ -113,13 +113,13 @@ func (sr *SQSReceiver) PerformSingleRequest() error {
 	for _, msg := range receivedMessageOutput.Messages {
 		go func() {
 			if err := sr.messageHandler.HandleMessage(*msg.Body); err != nil {
-				sqsReceiverMessagesProcessedDeletionFailure.Inc()
+				sqsReceiverMessagesProcessedHandlerFailure.Inc()
 				sr.errorLogger.Log(util.StatusWrapf(err, "Failed to process message %#v", *msg.MessageId))
 			} else if _, err := sr.sqs.DeleteMessage(&sqs.DeleteMessageInput{
 				QueueUrl:      sr.url,
 				ReceiptHandle: msg.ReceiptHandle,
 			}); err != nil {
-				sqsReceiverMessagesProcessedHandlerFailure.Inc()
+				sqsReceiverMessagesProcessedDeletionFailure.Inc()
 				sr.errorLogger.Log(util.StatusWrapfWithCode(err, codes.Internal, "Failed to delete message %#v", *msg.MessageId))
 			} else {
 				sqsReceiverMessagesProcessedSuccess.Inc()
