@@ -10,7 +10,6 @@ import (
 	re_util "github.com/buildbarn/bb-remote-execution/pkg/util"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
-	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	cas_proto "github.com/buildbarn/bb-storage/pkg/proto/cas"
 	"github.com/buildbarn/bb-storage/pkg/util"
@@ -21,7 +20,7 @@ import (
 
 type cachingBuildExecutor struct {
 	base                      BuildExecutor
-	contentAddressableStorage cas.ContentAddressableStorage
+	contentAddressableStorage blobstore.BlobAccess
 	actionCache               blobstore.BlobAccess
 	browserURL                *url.URL
 }
@@ -33,7 +32,7 @@ type cachingBuildExecutor struct {
 //
 // In both cases, a link to bb_browser is added to the ExecuteResponse,
 // so that the user may inspect the Action and ActionResult in detail.
-func NewCachingBuildExecutor(base BuildExecutor, contentAddressableStorage cas.ContentAddressableStorage, actionCache blobstore.BlobAccess, browserURL *url.URL) BuildExecutor {
+func NewCachingBuildExecutor(base BuildExecutor, contentAddressableStorage blobstore.BlobAccess, actionCache blobstore.BlobAccess, browserURL *url.URL) BuildExecutor {
 	return &cachingBuildExecutor{
 		base:                      base,
 		contentAddressableStorage: contentAddressableStorage,
@@ -59,8 +58,9 @@ func (be *cachingBuildExecutor) Execute(ctx context.Context, filePool filesystem
 		// Extension: store the result in the Content
 		// Addressable Storage, so the user can at least inspect
 		// it through bb_browser.
-		if uncachedActionResultDigest, err := be.contentAddressableStorage.PutUncachedActionResult(
+		if uncachedActionResultDigest, err := blobstore.CASPutProto(
 			ctx,
+			be.contentAddressableStorage,
 			&cas_proto.UncachedActionResult{
 				ActionDigest:    actionDigest.GetProto(),
 				ExecuteResponse: response,

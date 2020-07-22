@@ -4,8 +4,8 @@ import (
 	"context"
 	"path"
 
+	"github.com/buildbarn/bb-remote-execution/pkg/cas"
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
-	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/util"

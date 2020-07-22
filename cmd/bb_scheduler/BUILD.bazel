@@ -23,7 +23,6 @@ go_library(
         "@com_github_aws_aws_sdk_go//service/sqs:go_default_library",
         "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/blobstore/configuration:go_default_library",
-        "@com_github_buildbarn_bb_storage//pkg/cas:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/clock:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/digest:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/global:go_default_library",

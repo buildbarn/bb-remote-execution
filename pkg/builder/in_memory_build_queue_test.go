@@ -10,6 +10,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	re_builder "github.com/buildbarn/bb-remote-execution/pkg/builder"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
+	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/builder"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/golang/mock/gomock"
@@ -67,11 +68,11 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
 
-	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
-	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// ExecuteRequest contains an invalid action digest.
@@ -89,10 +90,10 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 
 	// Action cannot be found in the Content Addressable Storage (CAS).
 	t.Run("MissingAction", func(t *testing.T) {
-		contentAddressableStorage.EXPECT().GetAction(
+		contentAddressableStorage.EXPECT().Get(
 			gomock.Any(),
 			digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-		).Return(nil, status.Error(codes.FailedPrecondition, "Blob not found"))
+		).Return(buffer.NewBufferFromError(status.Error(codes.FailedPrecondition, "Blob not found")))
 
 		stream, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
 			InstanceName: "main",
@@ -108,15 +109,15 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 
 	// Action contains an invalid command digest.
 	t.Run("InvalidCommandDigest", func(t *testing.T) {
-		contentAddressableStorage.EXPECT().GetAction(
+		contentAddressableStorage.EXPECT().Get(
 			gomock.Any(),
 			digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-		).Return(&remoteexecution.Action{
+		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
 			CommandDigest: &remoteexecution.Digest{
 				Hash:      "This is not a valid hash",
 				SizeBytes: 456,
 			},
-		}, nil)
+		}, buffer.Irreparable))
 
 		stream, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
 			InstanceName: "main",
@@ -132,19 +133,19 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 
 	// Command cannot be found in the Content Addressable Storage (CAS).
 	t.Run("MissingCommand", func(t *testing.T) {
-		contentAddressableStorage.EXPECT().GetAction(
+		contentAddressableStorage.EXPECT().Get(
 			gomock.Any(),
 			digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-		).Return(&remoteexecution.Action{
+		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
 			CommandDigest: &remoteexecution.Digest{
 				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 				SizeBytes: 456,
 			},
-		}, nil)
-		contentAddressableStorage.EXPECT().GetCommand(
+		}, buffer.Irreparable))
+		contentAddressableStorage.EXPECT().Get(
 			gomock.Any(),
 			digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
-		).Return(nil, status.Error(codes.FailedPrecondition, "Blob not found"))
+		).Return(buffer.NewBufferFromError(status.Error(codes.FailedPrecondition, "Blob not found")))
 
 		stream, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
 			InstanceName: "main",
@@ -162,26 +163,26 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 	// Otherwise, there could be distinct queues that refer to the
 	// same platform.
 	t.Run("BadlySortedPlatformProperties", func(t *testing.T) {
-		contentAddressableStorage.EXPECT().GetAction(
+		contentAddressableStorage.EXPECT().Get(
 			gomock.Any(),
 			digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-		).Return(&remoteexecution.Action{
+		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
 			CommandDigest: &remoteexecution.Digest{
 				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 				SizeBytes: 456,
 			},
-		}, nil)
-		contentAddressableStorage.EXPECT().GetCommand(
+		}, buffer.Irreparable))
+		contentAddressableStorage.EXPECT().Get(
 			gomock.Any(),
 			digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
-		).Return(&remoteexecution.Command{
+		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
 			Platform: &remoteexecution.Platform{
 				Properties: []*remoteexecution.Platform_Property{
 					{Name: "os", Value: "linux"},
 					{Name: "cpu", Value: "armv6"},
 				},
 			},
-		}, nil)
+		}, buffer.Irreparable))
 
 		stream, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
 			InstanceName: "main",
@@ -200,26 +201,26 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 	// soft error code should be returned if this happens not long
 	// after startup, as workers may still appear.
 	t.Run("UnknownPlatformSoft", func(t *testing.T) {
-		contentAddressableStorage.EXPECT().GetAction(
+		contentAddressableStorage.EXPECT().Get(
 			gomock.Any(),
 			digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-		).Return(&remoteexecution.Action{
+		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
 			CommandDigest: &remoteexecution.Digest{
 				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 				SizeBytes: 456,
 			},
-		}, nil)
-		contentAddressableStorage.EXPECT().GetCommand(
+		}, buffer.Irreparable))
+		contentAddressableStorage.EXPECT().Get(
 			gomock.Any(),
 			digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
-		).Return(&remoteexecution.Command{
+		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
 			Platform: &remoteexecution.Platform{
 				Properties: []*remoteexecution.Platform_Property{
 					{Name: "cpu", Value: "armv6"},
 					{Name: "os", Value: "linux"},
 				},
 			},
-		}, nil)
+		}, buffer.Irreparable))
 		clock.EXPECT().Now().Return(time.Unix(899, 999999999))
 
 		stream, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
@@ -238,26 +239,26 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 	// amount of time has passed. We may then start returning a hard
 	// error code.
 	t.Run("UnknownPlatformHard", func(t *testing.T) {
-		contentAddressableStorage.EXPECT().GetAction(
+		contentAddressableStorage.EXPECT().Get(
 			gomock.Any(),
 			digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-		).Return(&remoteexecution.Action{
+		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
 			CommandDigest: &remoteexecution.Digest{
 				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 				SizeBytes: 456,
 			},
-		}, nil)
-		contentAddressableStorage.EXPECT().GetCommand(
+		}, buffer.Irreparable))
+		contentAddressableStorage.EXPECT().Get(
 			gomock.Any(),
 			digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
-		).Return(&remoteexecution.Command{
+		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
 			Platform: &remoteexecution.Platform{
 				Properties: []*remoteexecution.Platform_Property{
 					{Name: "cpu", Value: "armv6"},
 					{Name: "os", Value: "linux"},
 				},
 			},
-		}, nil)
+		}, buffer.Irreparable))
 		clock.EXPECT().Now().Return(time.Unix(900, 0))
 
 		stream, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
@@ -277,25 +278,27 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
 
-	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
-	contentAddressableStorage.EXPECT().GetAction(
-		gomock.Any(),
-		digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-	).Return(&remoteexecution.Action{
-		CommandDigest: &remoteexecution.Digest{
-			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
-			SizeBytes: 456,
-		},
-		DoNotCache: true,
-	}, nil).Times(10)
-	contentAddressableStorage.EXPECT().GetCommand(
-		gomock.Any(),
-		digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
-	).Return(&remoteexecution.Command{}, nil).Times(10)
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	for i := 0; i < 10; i++ {
+		contentAddressableStorage.EXPECT().Get(
+			gomock.Any(),
+			digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
+			CommandDigest: &remoteexecution.Digest{
+				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
+				SizeBytes: 456,
+			},
+			DoNotCache: true,
+		}, buffer.Irreparable))
+		contentAddressableStorage.EXPECT().Get(
+			gomock.Any(),
+			digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
+		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{}, buffer.Irreparable))
+	}
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
-	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -537,31 +540,33 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
 
-	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
-	contentAddressableStorage.EXPECT().GetAction(
-		gomock.Any(),
-		digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-	).Return(&remoteexecution.Action{
-		CommandDigest: &remoteexecution.Digest{
-			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
-			SizeBytes: 456,
-		},
-	}, nil).Times(2)
-	contentAddressableStorage.EXPECT().GetCommand(
-		gomock.Any(),
-		digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
-	).Return(&remoteexecution.Command{
-		Platform: &remoteexecution.Platform{
-			Properties: []*remoteexecution.Platform_Property{
-				{Name: "cpu", Value: "armv6"},
-				{Name: "os", Value: "linux"},
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	for i := 0; i < 2; i++ {
+		contentAddressableStorage.EXPECT().Get(
+			gomock.Any(),
+			digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
+			CommandDigest: &remoteexecution.Digest{
+				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
+				SizeBytes: 456,
 			},
-		},
-	}, nil).Times(2)
+		}, buffer.Irreparable))
+		contentAddressableStorage.EXPECT().Get(
+			gomock.Any(),
+			digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
+		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
+			Platform: &remoteexecution.Platform{
+				Properties: []*remoteexecution.Platform_Property{
+					{Name: "cpu", Value: "armv6"},
+					{Name: "os", Value: "linux"},
+				},
+			},
+		}, buffer.Irreparable))
+	}
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
-	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -769,31 +774,31 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
 
-	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
-	contentAddressableStorage.EXPECT().GetAction(
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage.EXPECT().Get(
 		gomock.Any(),
 		digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-	).Return(&remoteexecution.Action{
+	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
 		CommandDigest: &remoteexecution.Digest{
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 			SizeBytes: 456,
 		},
-	}, nil)
-	contentAddressableStorage.EXPECT().GetCommand(
+	}, buffer.Irreparable))
+	contentAddressableStorage.EXPECT().Get(
 		gomock.Any(),
 		digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
-	).Return(&remoteexecution.Command{
+	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
 		Platform: &remoteexecution.Platform{
 			Properties: []*remoteexecution.Platform_Property{
 				{Name: "cpu", Value: "armv6"},
 				{Name: "os", Value: "linux"},
 			},
 		},
-	}, nil)
+	}, buffer.Irreparable))
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
-	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -986,31 +991,31 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
 
-	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
-	contentAddressableStorage.EXPECT().GetAction(
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage.EXPECT().Get(
 		gomock.Any(),
 		digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-	).Return(&remoteexecution.Action{
+	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
 		CommandDigest: &remoteexecution.Digest{
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 			SizeBytes: 456,
 		},
-	}, nil)
-	contentAddressableStorage.EXPECT().GetCommand(
+	}, buffer.Irreparable))
+	contentAddressableStorage.EXPECT().Get(
 		gomock.Any(),
 		digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
-	).Return(&remoteexecution.Command{
+	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
 		Platform: &remoteexecution.Platform{
 			Properties: []*remoteexecution.Platform_Property{
 				{Name: "cpu", Value: "armv6"},
 				{Name: "os", Value: "linux"},
 			},
 		},
-	}, nil)
+	}, buffer.Irreparable))
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
-	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -1200,11 +1205,11 @@ func TestInMemoryBuildQueueIdleWorkerSynchronizationTimeout(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
 
-	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
-	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000)
 
 	// When no work appears, workers should still be woken up
 	// periodically to resynchronize. This ensures that workers that
@@ -1243,31 +1248,31 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
 
-	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
-	contentAddressableStorage.EXPECT().GetAction(
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage.EXPECT().Get(
 		gomock.Any(),
 		digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-	).Return(&remoteexecution.Action{
+	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
 		CommandDigest: &remoteexecution.Digest{
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 			SizeBytes: 456,
 		},
-	}, nil)
-	contentAddressableStorage.EXPECT().GetCommand(
+	}, buffer.Irreparable))
+	contentAddressableStorage.EXPECT().Get(
 		gomock.Any(),
 		digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
-	).Return(&remoteexecution.Command{
+	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
 		Platform: &remoteexecution.Platform{
 			Properties: []*remoteexecution.Platform_Property{
 				{Name: "cpu", Value: "armv6"},
 				{Name: "os", Value: "linux"},
 			},
 		},
-	}, nil)
+	}, buffer.Irreparable))
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
-	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.

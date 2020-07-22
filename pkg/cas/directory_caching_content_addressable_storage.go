@@ -5,13 +5,12 @@ import (
 	"sync"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
-	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/eviction"
 )
 
 type directoryCachingContentAddressableStorage struct {
-	cas.ContentAddressableStorage
+	ContentAddressableStorage
 
 	digestKeyFormat digest.KeyFormat
 	maxDirectories  int
@@ -25,7 +24,7 @@ type directoryCachingContentAddressableStorage struct {
 // ContentAddressableStorage that caches up a fixed number of
 // unmarshalled directory objects in memory. This reduces the amount of
 // network traffic needed.
-func NewDirectoryCachingContentAddressableStorage(base cas.ContentAddressableStorage, digestKeyFormat digest.KeyFormat, maxDirectories int, evictionSet eviction.Set) cas.ContentAddressableStorage {
+func NewDirectoryCachingContentAddressableStorage(base ContentAddressableStorage, digestKeyFormat digest.KeyFormat, maxDirectories int, evictionSet eviction.Set) ContentAddressableStorage {
 	return &directoryCachingContentAddressableStorage{
 		ContentAddressableStorage: base,
 

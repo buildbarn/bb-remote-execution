@@ -16,7 +16,7 @@ import (
 
 	re_blobstore "github.com/buildbarn/bb-remote-execution/pkg/blobstore"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
-	re_cas "github.com/buildbarn/bb-remote-execution/pkg/cas"
+	"github.com/buildbarn/bb-remote-execution/pkg/cas"
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_worker"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
@@ -26,7 +26,6 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	blobstore_configuration "github.com/buildbarn/bb-storage/pkg/blobstore/configuration"
 	"github.com/buildbarn/bb-storage/pkg/blockdevice"
-	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/eviction"
@@ -106,7 +105,7 @@ func main() {
 	// Cached read access for directory objects stored in the
 	// Content Addressable Storage. All workers make use of the same
 	// cache, to increase the hit rate.
-	globalContentAddressableStorage := re_cas.NewDirectoryCachingContentAddressableStorage(
+	globalContentAddressableStorage := cas.NewDirectoryCachingContentAddressableStorage(
 		cas.NewBlobAccessContentAddressableStorage(
 			re_blobstore.NewExistencePreconditionBlobAccess(globalContentAddressableStorageBlobAccess),
 			int(configuration.MaximumMessageSizeBytes)),
@@ -164,7 +163,7 @@ func main() {
 			if err != nil {
 				log.Fatal("Failed to create eviction set for cache directory: ", err)
 			}
-			perBuildDirectoryContentAddressableStorage = re_cas.NewHardlinkingContentAddressableStorage(
+			perBuildDirectoryContentAddressableStorage = cas.NewHardlinkingContentAddressableStorage(
 				globalContentAddressableStorage,
 				digest.KeyWithoutInstance,
 				cacheDirectory,
@@ -245,7 +244,7 @@ func main() {
 						contentAddressableStorageWriter,
 						clock.SystemClock,
 						"cas_batched_store")
-					perThreadContentAddressableStorage := re_cas.NewReadWriteDecouplingContentAddressableStorage(
+					perThreadContentAddressableStorage := cas.NewReadWriteDecouplingContentAddressableStorage(
 						perBuildDirectoryContentAddressableStorage,
 						cas.NewBlobAccessContentAddressableStorage(
 							contentAddressableStorageWriter,
@@ -288,7 +287,7 @@ func main() {
 									builder.NewTimestampedBuildExecutor(
 										builder.NewStorageFlushingBuildExecutor(
 											builder.NewLocalBuildExecutor(
-												perThreadContentAddressableStorage,
+												contentAddressableStorageWriter,
 												buildDirectoryCreator,
 												runner.NewRemoteRunner(runnerConnection),
 												clock.SystemClock,
@@ -298,9 +297,7 @@ func main() {
 											contentAddressableStorageFlusher),
 										clock.SystemClock,
 										string(workerName)))),
-							cas.NewBlobAccessContentAddressableStorage(
-								globalContentAddressableStorageBlobAccess,
-								int(configuration.MaximumMessageSizeBytes)),
+							globalContentAddressableStorageBlobAccess,
 							actionCache,
 							browserURL),
 						browserURL)

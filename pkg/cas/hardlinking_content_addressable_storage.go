@@ -4,14 +4,13 @@ import (
 	"context"
 	"sync"
 
-	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/eviction"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 )
 
 type hardlinkingContentAddressableStorage struct {
-	cas.ContentAddressableStorage
+	ContentAddressableStorage
 
 	digestKeyFormat digest.KeyFormat
 	cacheDirectory  filesystem.Directory
@@ -32,7 +31,7 @@ type hardlinkingContentAddressableStorage struct {
 // into the cache. Future calls for the same file will hardlink them from the
 // cache to the target location. This reduces the amount of network traffic
 // needed.
-func NewHardlinkingContentAddressableStorage(base cas.ContentAddressableStorage, digestKeyFormat digest.KeyFormat, cacheDirectory filesystem.Directory, maxFiles int, maxSize int64, evictionSet eviction.Set) cas.ContentAddressableStorage {
+func NewHardlinkingContentAddressableStorage(base ContentAddressableStorage, digestKeyFormat digest.KeyFormat, cacheDirectory filesystem.Directory, maxFiles int, maxSize int64, evictionSet eviction.Set) ContentAddressableStorage {
 	return &hardlinkingContentAddressableStorage{
 		ContentAddressableStorage: base,
 

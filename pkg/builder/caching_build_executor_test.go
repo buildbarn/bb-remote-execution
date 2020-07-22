@@ -44,7 +44,7 @@ func TestCachingBuildExecutorCachedSuccess(t *testing.T) {
 			StdoutRaw: []byte("Hello, world!"),
 		},
 	})
-	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	actionCache := mock.NewMockBlobAccess(ctrl)
 	actionCache.EXPECT().Put(
 		ctx,
@@ -97,7 +97,7 @@ func TestCachingBuildExecutorCachedSuccessExplicitOK(t *testing.T) {
 		},
 		Status: &status_pb.Status{Message: "This is not an error, because it has code zero"},
 	})
-	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	actionCache := mock.NewMockBlobAccess(ctrl)
 	actionCache.EXPECT().Put(
 		ctx,
@@ -153,7 +153,7 @@ func TestCachingBuildExecutorCachedSuccessNonZeroExitCode(t *testing.T) {
 			StderrRaw: []byte("Compiler error!"),
 		},
 	})
-	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	actionCache := mock.NewMockBlobAccess(ctrl)
 	actionCache.EXPECT().Put(
 		ctx,
@@ -207,7 +207,7 @@ func TestCachingBuildExecutorCachedStorageFailure(t *testing.T) {
 			StdoutRaw: []byte("Hello, world!"),
 		},
 	})
-	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	actionCache := mock.NewMockBlobAccess(ctrl)
 	actionCache.EXPECT().Put(
 		ctx,
@@ -259,10 +259,14 @@ func TestCachingBuildExecutorUncachedDoNotCache(t *testing.T) {
 			StdoutRaw: []byte("Hello, world!"),
 		},
 	})
-	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
-	contentAddressableStorage.EXPECT().PutUncachedActionResult(
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage.EXPECT().Put(
 		ctx,
-		&cas_proto.UncachedActionResult{
+		digest.MustNewDigest("freebsd12", "5ed2d5720b99f5575542bb4f89e84b5e00e34ab652292974fdb814ab7dc3c92e", 89),
+		gomock.Any()).DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
+		uncachedActionResult, err := b.ToProto(&cas_proto.UncachedActionResult{}, 10000)
+		require.NoError(t, err)
+		require.True(t, proto.Equal(&cas_proto.UncachedActionResult{
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
 				SizeBytes: 11,
@@ -272,10 +276,9 @@ func TestCachingBuildExecutorUncachedDoNotCache(t *testing.T) {
 					StdoutRaw: []byte("Hello, world!"),
 				},
 			},
-		},
-		gomock.Any()).Return(
-		digest.MustNewDigest("freebsd12", "1204703084039248092148032948092148032948034924802194802138213222", 582),
-		nil)
+		}, uncachedActionResult))
+		return nil
+	})
 	actionCache := mock.NewMockBlobAccess(ctrl)
 	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, contentAddressableStorage, actionCache, &url.URL{
 		Scheme: "http",
@@ -288,7 +291,7 @@ func TestCachingBuildExecutorUncachedDoNotCache(t *testing.T) {
 		Result: &remoteexecution.ActionResult{
 			StdoutRaw: []byte("Hello, world!"),
 		},
-		Message: "Action details (uncached result): http://example.com/some/sub/directory/uncached_action_result/freebsd12/1204703084039248092148032948092148032948034924802194802138213222/582/",
+		Message: "Action details (uncached result): http://example.com/some/sub/directory/uncached_action_result/freebsd12/5ed2d5720b99f5575542bb4f89e84b5e00e34ab652292974fdb814ab7dc3c92e/89/",
 	}, executeResponse))
 }
 
@@ -316,10 +319,14 @@ func TestCachingBuildExecutorUncachedError(t *testing.T) {
 		},
 		Status: status.New(codes.DeadlineExceeded, "Build took more than ten seconds").Proto(),
 	})
-	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
-	contentAddressableStorage.EXPECT().PutUncachedActionResult(
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage.EXPECT().Put(
 		ctx,
-		&cas_proto.UncachedActionResult{
+		digest.MustNewDigest("freebsd12", "a6e4f00dd21540b0b653dcd195b3d54ea4c0b3ca679cf6a69eb7b0dbd378c2cc", 126),
+		gomock.Any()).DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
+		uncachedActionResult, err := b.ToProto(&cas_proto.UncachedActionResult{}, 10000)
+		require.NoError(t, err)
+		require.True(t, proto.Equal(&cas_proto.UncachedActionResult{
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
 				SizeBytes: 11,
@@ -330,10 +337,9 @@ func TestCachingBuildExecutorUncachedError(t *testing.T) {
 				},
 				Status: status.New(codes.DeadlineExceeded, "Build took more than ten seconds").Proto(),
 			},
-		},
-		gomock.Any()).Return(
-		digest.MustNewDigest("freebsd12", "1204703084039248092148032948092148032948034924802194802138213222", 582),
-		nil)
+		}, uncachedActionResult))
+		return nil
+	})
 	actionCache := mock.NewMockBlobAccess(ctrl)
 	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, contentAddressableStorage, actionCache, &url.URL{
 		Scheme: "http",
@@ -347,7 +353,7 @@ func TestCachingBuildExecutorUncachedError(t *testing.T) {
 			StdoutRaw: []byte("Compiling..."),
 		},
 		Status:  status.New(codes.DeadlineExceeded, "Build took more than ten seconds").Proto(),
-		Message: "Action details (uncached result): http://example.com/some/sub/directory/uncached_action_result/freebsd12/1204703084039248092148032948092148032948034924802194802138213222/582/",
+		Message: "Action details (uncached result): http://example.com/some/sub/directory/uncached_action_result/freebsd12/a6e4f00dd21540b0b653dcd195b3d54ea4c0b3ca679cf6a69eb7b0dbd378c2cc/126/",
 	}, executeResponse))
 }
 
@@ -375,10 +381,14 @@ func TestCachingBuildExecutorUncachedStorageFailure(t *testing.T) {
 		},
 		Status: status.New(codes.DeadlineExceeded, "Build took more than ten seconds").Proto(),
 	})
-	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
-	contentAddressableStorage.EXPECT().PutUncachedActionResult(
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage.EXPECT().Put(
 		ctx,
-		&cas_proto.UncachedActionResult{
+		digest.MustNewDigest("freebsd12", "a6e4f00dd21540b0b653dcd195b3d54ea4c0b3ca679cf6a69eb7b0dbd378c2cc", 126),
+		gomock.Any()).DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
+		uncachedActionResult, err := b.ToProto(&cas_proto.UncachedActionResult{}, 10000)
+		require.NoError(t, err)
+		require.True(t, proto.Equal(&cas_proto.UncachedActionResult{
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
 				SizeBytes: 11,
@@ -389,10 +399,9 @@ func TestCachingBuildExecutorUncachedStorageFailure(t *testing.T) {
 				},
 				Status: status.New(codes.DeadlineExceeded, "Build took more than ten seconds").Proto(),
 			},
-		},
-		gomock.Any()).Return(
-		digest.MustNewDigest("freebsd12", "1204703084039248092148032948092148032948034924802194802138213222", 582),
-		status.Error(codes.Internal, "Cannot store uncached action result"))
+		}, uncachedActionResult))
+		return status.Error(codes.Internal, "Cannot store uncached action result")
+	})
 	actionCache := mock.NewMockBlobAccess(ctrl)
 	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, contentAddressableStorage, actionCache, &url.URL{
 		Scheme: "http",

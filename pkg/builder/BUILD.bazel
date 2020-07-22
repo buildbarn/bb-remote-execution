@@ -26,6 +26,7 @@ go_library(
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/builder",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/cas:go_default_library",
         "//pkg/filesystem:go_default_library",
         "//pkg/proto/remoteworker:go_default_library",
         "//pkg/proto/resourceusage:go_default_library",
@@ -38,7 +39,6 @@ go_library(
         "@com_github_buildbarn_bb_storage//pkg/blobstore:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/blobstore/buffer:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/builder:go_default_library",
-        "@com_github_buildbarn_bb_storage//pkg/cas:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/clock:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/digest:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/filesystem:go_default_library",

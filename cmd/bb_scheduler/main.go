@@ -19,7 +19,6 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_scheduler"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	blobstore_configuration "github.com/buildbarn/bb-storage/pkg/blobstore/configuration"
-	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/global"
 	bb_grpc "github.com/buildbarn/bb-storage/pkg/grpc"
@@ -51,7 +50,7 @@ func main() {
 	// and Command messages stored in the CAS to obtain platform
 	// properties.
 	grpcClientFactory := bb_grpc.NewDeduplicatingClientFactory(bb_grpc.BaseClientFactory)
-	contentAddressableStorageBlobAccess, err := blobstore_configuration.NewBlobAccessFromConfiguration(
+	contentAddressableStorage, err := blobstore_configuration.NewBlobAccessFromConfiguration(
 		configuration.ContentAddressableStorage,
 		blobstore_configuration.NewCASBlobAccessCreator(
 			grpcClientFactory,
@@ -59,11 +58,7 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to create Content Adddressable Storage: ", err)
 	}
-	contentAddressableStorage :=
-		cas.NewBlobAccessContentAddressableStorage(
-			re_blobstore.NewExistencePreconditionBlobAccess(
-				contentAddressableStorageBlobAccess),
-			int(configuration.MaximumMessageSizeBytes))
+	contentAddressableStorage = re_blobstore.NewExistencePreconditionBlobAccess(contentAddressableStorage)
 
 	// TODO: Make timeouts configurable.
 	buildQueue := builder.NewInMemoryBuildQueue(
@@ -83,7 +78,8 @@ func main() {
 			},
 			WorkerOperationRetryCount:           9,
 			WorkerWithNoSynchronizationsTimeout: time.Minute,
-		})
+		},
+		int(configuration.MaximumMessageSizeBytes))
 
 	// Spawn gRPC servers for client and worker traffic.
 	go func() {

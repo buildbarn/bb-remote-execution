@@ -13,8 +13,8 @@ import (
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/bazelbuild/remote-apis/build/bazel/semver"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
+	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/builder"
-	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/util"
@@ -147,11 +147,12 @@ type InMemoryBuildQueueConfiguration struct {
 // of the state of the build queue (i.e., list of queued execution
 // requests and list of workers) is kept in memory.
 type InMemoryBuildQueue struct {
-	contentAddressableStorage           cas.ContentAddressableStorage
+	contentAddressableStorage           blobstore.BlobAccess
 	clock                               clock.Clock
 	uuidGenerator                       util.UUIDGenerator
 	configuration                       *InMemoryBuildQueueConfiguration
 	platformQueueAbsenceHardFailureTime time.Time
+	maximumMessageSizeBytes             int
 
 	lock           sync.Mutex
 	platformQueues map[platformKey]*platformQueue
@@ -174,7 +175,7 @@ type InMemoryBuildQueue struct {
 // NewInMemoryBuildQueue creates a new InMemoryBuildQueue that is in the
 // initial state. It does not have any queues, workers or queued
 // execution requests. All of these are created by sending it RPCs.
-func NewInMemoryBuildQueue(contentAddressableStorage cas.ContentAddressableStorage, clock clock.Clock, uuidGenerator util.UUIDGenerator, configuration *InMemoryBuildQueueConfiguration) *InMemoryBuildQueue {
+func NewInMemoryBuildQueue(contentAddressableStorage blobstore.BlobAccess, clock clock.Clock, uuidGenerator util.UUIDGenerator, configuration *InMemoryBuildQueueConfiguration, maximumMessageSizeBytes int) *InMemoryBuildQueue {
 	inMemoryBuildQueuePrometheusMetrics.Do(func() {
 		prometheus.MustRegister(inMemoryBuildQueueOperationsQueuedTotal)
 		prometheus.MustRegister(inMemoryBuildQueueOperationsQueuedDurationSeconds)
@@ -192,6 +193,7 @@ func NewInMemoryBuildQueue(contentAddressableStorage cas.ContentAddressableStora
 		uuidGenerator:                       uuidGenerator,
 		configuration:                       configuration,
 		platformQueueAbsenceHardFailureTime: clock.Now().Add(configuration.PlatformQueueWithNoWorkersTimeout),
+		maximumMessageSizeBytes:             maximumMessageSizeBytes,
 		platformQueues:                      map[platformKey]*platformQueue{},
 		operationsNameMap:                   map[string]*operation{},
 	}
@@ -249,18 +251,20 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 	if err != nil {
 		return util.StatusWrap(err, "Failed to extract digest for action")
 	}
-	action, err := bq.contentAddressableStorage.GetAction(ctx, actionDigest)
+	actionMessage, err := bq.contentAddressableStorage.Get(ctx, actionDigest).ToProto(&remoteexecution.Action{}, bq.maximumMessageSizeBytes)
 	if err != nil {
 		return util.StatusWrap(err, "Failed to obtain action")
 	}
+	action := actionMessage.(*remoteexecution.Action)
 	commandDigest, err := instanceName.NewDigestFromProto(action.CommandDigest)
 	if err != nil {
 		return util.StatusWrap(err, "Failed to extract digest for command")
 	}
-	command, err := bq.contentAddressableStorage.GetCommand(ctx, commandDigest)
+	commandMessage, err := bq.contentAddressableStorage.Get(ctx, commandDigest).ToProto(&remoteexecution.Command{}, bq.maximumMessageSizeBytes)
 	if err != nil {
 		return util.StatusWrap(err, "Failed to obtain command")
 	}
+	command := commandMessage.(*remoteexecution.Command)
 	platformKey, err := newPlatformKey(instanceName, command.Platform)
 	if err != nil {
 		return err
