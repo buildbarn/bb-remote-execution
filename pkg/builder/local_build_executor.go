@@ -12,7 +12,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
 	"github.com/buildbarn/bb-remote-execution/pkg/runner"
-	"github.com/buildbarn/bb-storage/pkg/cas"
+	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/util"
@@ -51,7 +51,7 @@ func (el *capturingErrorLogger) GetError() error {
 }
 
 type localBuildExecutor struct {
-	contentAddressableStorage cas.ContentAddressableStorage
+	contentAddressableStorage blobstore.BlobAccess
 	buildDirectoryCreator     BuildDirectoryCreator
 	runner                    runner.Runner
 	clock                     clock.Clock
@@ -62,7 +62,7 @@ type localBuildExecutor struct {
 
 // NewLocalBuildExecutor returns a BuildExecutor that executes build
 // steps on the local system.
-func NewLocalBuildExecutor(contentAddressableStorage cas.ContentAddressableStorage, buildDirectoryCreator BuildDirectoryCreator, runner runner.Runner, clock clock.Clock, defaultExecutionTimeout time.Duration, maximumExecutionTimeout time.Duration, inputRootCharacterDevices map[string]int) BuildExecutor {
+func NewLocalBuildExecutor(contentAddressableStorage blobstore.BlobAccess, buildDirectoryCreator BuildDirectoryCreator, runner runner.Runner, clock clock.Clock, defaultExecutionTimeout time.Duration, maximumExecutionTimeout time.Duration, inputRootCharacterDevices map[string]int) BuildExecutor {
 	return &localBuildExecutor{
 		contentAddressableStorage: contentAddressableStorage,
 		buildDirectoryCreator:     buildDirectoryCreator,
@@ -199,16 +199,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 
 	// Create parent directories of output files and directories.
 	// These are not declared in the input root explicitly.
-	outputHierarchy := NewOutputHierarchy(command.WorkingDirectory)
-	for _, outputDirectory := range command.OutputDirectories {
-		outputHierarchy.AddDirectory(outputDirectory)
-	}
-	for _, outputFile := range command.OutputFiles {
-		outputHierarchy.AddFile(outputFile)
-	}
-	for _, outputPath := range command.OutputPaths {
-		outputHierarchy.AddPath(outputPath)
-	}
+	outputHierarchy := NewOutputHierarchy(command)
 	if err := outputHierarchy.CreateParentDirectories(inputRootDirectory); err != nil {
 		attachErrorToExecuteResponse(response, err)
 		return response
@@ -275,12 +266,12 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	// Upload command output. In the common case, the stdout and
 	// stderr files are empty. If that's the case, don't bother
 	// setting the digest to keep the ActionResult small.
-	if stdoutDigest, err := be.contentAddressableStorage.PutFile(ctx, buildDirectory, "stdout", actionDigest); err != nil {
+	if stdoutDigest, err := buildDirectory.UploadFile(ctx, "stdout", actionDigest); err != nil {
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to store stdout"))
 	} else if stdoutDigest.GetSizeBytes() > 0 {
 		response.Result.StdoutDigest = stdoutDigest.GetProto()
 	}
-	if stderrDigest, err := be.contentAddressableStorage.PutFile(ctx, buildDirectory, "stderr", actionDigest); err != nil {
+	if stderrDigest, err := buildDirectory.UploadFile(ctx, "stderr", actionDigest); err != nil {
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to store stderr"))
 	} else if stderrDigest.GetSizeBytes() > 0 {
 		response.Result.StderrDigest = stderrDigest.GetProto()

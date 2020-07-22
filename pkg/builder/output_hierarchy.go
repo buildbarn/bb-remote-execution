@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
-	"github.com/buildbarn/bb-storage/pkg/cas"
+	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/util"
@@ -146,7 +146,7 @@ func (on *outputNode) createParentDirectories(d filesystem.Directory, dPath *pat
 // UploadOutputs is recursively invoked by
 // OutputHierarchy.UploadOutputs() to upload output directories and
 // files from the locations where they are expected.
-func (on *outputNode) uploadOutputs(s *uploadOutputsState, d filesystem.Directory) {
+func (on *outputNode) uploadOutputs(s *uploadOutputsState, d UploadableDirectory) {
 	s.dPath.enter()
 	defer s.dPath.leave()
 
@@ -213,7 +213,7 @@ func (on *outputNode) uploadOutputs(s *uploadOutputsState, d filesystem.Director
 	for _, component := range on.getSubdirectoryNames() {
 		s.dPath.setLastComponent(component)
 		childNode := on.subdirectories[component]
-		if childDirectory, err := d.EnterDirectory(component); err == nil {
+		if childDirectory, err := d.EnterUploadableDirectory(component); err == nil {
 			childNode.uploadOutputs(s, childDirectory)
 			childDirectory.Close()
 		} else if !os.IsNotExist(err) {
@@ -226,7 +226,7 @@ func (on *outputNode) uploadOutputs(s *uploadOutputsState, d filesystem.Director
 // track common parameters during recursion.
 type uploadOutputsState struct {
 	context                   context.Context
-	contentAddressableStorage cas.ContentAddressableStorage
+	contentAddressableStorage blobstore.BlobAccess
 	parentDigest              digest.Digest
 	actionResult              *remoteexecution.ActionResult
 
@@ -246,7 +246,7 @@ func (s *uploadOutputsState) saveError(err error) {
 // UploadDirectory is called to upload a single directory. Elements in
 // the directory are stored in a remoteexecution.Directory, so that they
 // can be placed in a remoteexecution.Tree.
-func (s *uploadOutputsState) uploadDirectory(d filesystem.Directory, children map[digest.Digest]*remoteexecution.Directory) *remoteexecution.Directory {
+func (s *uploadOutputsState) uploadDirectory(d UploadableDirectory, children map[digest.Digest]*remoteexecution.Directory) *remoteexecution.Directory {
 	files, err := d.ReadDir()
 	if err != nil {
 		s.saveError(util.StatusWrapf(err, "Failed to read output directory %#v", s.dPath.join()))
@@ -262,7 +262,7 @@ func (s *uploadOutputsState) uploadDirectory(d filesystem.Directory, children ma
 		s.dPath.setLastComponent(name)
 		switch fileType := file.Type(); fileType {
 		case filesystem.FileTypeRegularFile, filesystem.FileTypeExecutableFile:
-			if childDigest, err := s.contentAddressableStorage.PutFile(s.context, d, name, s.parentDigest); err == nil {
+			if childDigest, err := d.UploadFile(s.context, name, s.parentDigest); err == nil {
 				directory.Files = append(directory.Files, &remoteexecution.FileNode{
 					Name:         name,
 					Digest:       childDigest.GetProto(),
@@ -272,7 +272,7 @@ func (s *uploadOutputsState) uploadDirectory(d filesystem.Directory, children ma
 				s.saveError(util.StatusWrapf(err, "Failed to store output file %#v", s.dPath.join()))
 			}
 		case filesystem.FileTypeDirectory:
-			if childDirectory, err := d.EnterDirectory(name); err == nil {
+			if childDirectory, err := d.EnterUploadableDirectory(name); err == nil {
 				child := s.uploadDirectory(childDirectory, children)
 				childDirectory.Close()
 
@@ -312,7 +312,7 @@ func (s *uploadOutputsState) uploadDirectory(d filesystem.Directory, children ma
 // UploadOutputDirectoryEntered is called to upload a single output
 // directory as a remoteexecution.Tree. The root directory is assumed to
 // already be opened.
-func (s *uploadOutputsState) uploadOutputDirectoryEntered(d filesystem.Directory, paths []string) {
+func (s *uploadOutputsState) uploadOutputDirectoryEntered(d UploadableDirectory, paths []string) {
 	children := map[digest.Digest]*remoteexecution.Directory{}
 	tree := &remoteexecution.Tree{
 		Root: s.uploadDirectory(d, children),
@@ -326,7 +326,7 @@ func (s *uploadOutputsState) uploadOutputDirectoryEntered(d filesystem.Directory
 		tree.Children = append(tree.Children, children[childDigest])
 	}
 
-	if treeDigest, err := s.contentAddressableStorage.PutTree(s.context, tree, s.parentDigest); err == nil {
+	if treeDigest, err := blobstore.CASPutProto(s.context, s.contentAddressableStorage, tree, s.parentDigest); err == nil {
 		for _, path := range paths {
 			s.actionResult.OutputDirectories = append(
 				s.actionResult.OutputDirectories,
@@ -343,8 +343,8 @@ func (s *uploadOutputsState) uploadOutputDirectoryEntered(d filesystem.Directory
 // UploadOutputDirectory is called to upload a single output directory
 // as a remoteexecution.Tree. The root directory is opened opened by
 // this function.
-func (s *uploadOutputsState) uploadOutputDirectory(d filesystem.Directory, name string, paths []string) {
-	if childDirectory, err := d.EnterDirectory(name); err == nil {
+func (s *uploadOutputsState) uploadOutputDirectory(d UploadableDirectory, name string, paths []string) {
+	if childDirectory, err := d.EnterUploadableDirectory(name); err == nil {
 		s.uploadOutputDirectoryEntered(childDirectory, paths)
 		childDirectory.Close()
 	} else {
@@ -353,8 +353,8 @@ func (s *uploadOutputsState) uploadOutputDirectory(d filesystem.Directory, name 
 }
 
 // UploadOutputDirectory is called to upload a single output file.
-func (s *uploadOutputsState) uploadOutputFile(d filesystem.Directory, name string, fileType filesystem.FileType, paths []string) {
-	if digest, err := s.contentAddressableStorage.PutFile(s.context, d, name, s.parentDigest); err == nil {
+func (s *uploadOutputsState) uploadOutputFile(d UploadableDirectory, name string, fileType filesystem.FileType, paths []string) {
+	if digest, err := d.UploadFile(s.context, name, s.parentDigest); err == nil {
 		for _, path := range paths {
 			s.actionResult.OutputFiles = append(
 				s.actionResult.OutputFiles,
@@ -371,7 +371,7 @@ func (s *uploadOutputsState) uploadOutputFile(d filesystem.Directory, name strin
 
 // UploadOutputDirectory is called to read the attributes of a single
 // output symlink.
-func (s *uploadOutputsState) uploadOutputSymlink(d filesystem.Directory, name string, outputSymlinks *[]*remoteexecution.OutputSymlink, paths []string) {
+func (s *uploadOutputsState) uploadOutputSymlink(d UploadableDirectory, name string, outputSymlinks *[]*remoteexecution.OutputSymlink, paths []string) {
 	if target, err := d.Readlink(name); err == nil {
 		for _, path := range paths {
 			*outputSymlinks = append(
@@ -397,13 +397,24 @@ type OutputHierarchy struct {
 	rootsToUpload    []string
 }
 
-// NewOutputHierarchy creates a new OutputHierarchy that is in the
-// initial state. It contains no output directories or files.
-func NewOutputHierarchy(workingDirectory string) *OutputHierarchy {
-	return &OutputHierarchy{
-		workingDirectory: workingDirectory,
+// NewOutputHierarchy creates a new OutputHierarchy that uses the
+// working directory and the output paths specified in an REv2 Command
+// message.
+func NewOutputHierarchy(command *remoteexecution.Command) *OutputHierarchy {
+	oh := &OutputHierarchy{
+		workingDirectory: command.WorkingDirectory,
 		root:             *newOutputDirectory(),
 	}
+	for _, outputDirectory := range command.OutputDirectories {
+		oh.addDirectory(outputDirectory)
+	}
+	for _, outputFile := range command.OutputFiles {
+		oh.addFile(outputFile)
+	}
+	for _, outputPath := range command.OutputPaths {
+		oh.addPath(outputPath)
+	}
+	return oh
 }
 
 func (oh *OutputHierarchy) pathToComponents(p string) ([]string, string, bool) {
@@ -438,9 +449,9 @@ func (oh *OutputHierarchy) lookup(components []string) *outputNode {
 	return on
 }
 
-// AddDirectory is called to indicate that the build action is expected
+// addDirectory is called to indicate that the build action is expected
 // to create an REv2.0 output directory.
-func (oh *OutputHierarchy) AddDirectory(path string) {
+func (oh *OutputHierarchy) addDirectory(path string) {
 	if dirName, fileName, notRoot := oh.pathToComponents(path); notRoot {
 		on := oh.lookup(dirName)
 		on.directoriesToUpload[fileName] = append(on.directoriesToUpload[fileName], path)
@@ -449,18 +460,18 @@ func (oh *OutputHierarchy) AddDirectory(path string) {
 	}
 }
 
-// AddFile is called to indicate that the build action is expected to
+// addFile is called to indicate that the build action is expected to
 // create an REv2.0 output file.
-func (oh *OutputHierarchy) AddFile(path string) {
+func (oh *OutputHierarchy) addFile(path string) {
 	if dirName, fileName, notRoot := oh.pathToComponents(path); notRoot {
 		on := oh.lookup(dirName)
 		on.filesToUpload[fileName] = append(on.filesToUpload[fileName], path)
 	}
 }
 
-// AddPath is called to indicate that the build action is expected to
+// addPath is called to indicate that the build action is expected to
 // create an REv2.1 output path.
-func (oh *OutputHierarchy) AddPath(path string) {
+func (oh *OutputHierarchy) addPath(path string) {
 	if dirName, fileName, notRoot := oh.pathToComponents(path); notRoot {
 		on := oh.lookup(dirName)
 		on.pathsToUpload[fileName] = append(on.pathsToUpload[fileName], path)
@@ -478,7 +489,7 @@ func (oh *OutputHierarchy) CreateParentDirectories(d filesystem.Directory) error
 
 // UploadOutputs uploads outputs of the build action into the CAS. This
 // function is called after executing the build action.
-func (oh *OutputHierarchy) UploadOutputs(ctx context.Context, d filesystem.Directory, contentAddressableStorage cas.ContentAddressableStorage, parentDigest digest.Digest, actionResult *remoteexecution.ActionResult) error {
+func (oh *OutputHierarchy) UploadOutputs(ctx context.Context, d UploadableDirectory, contentAddressableStorage blobstore.BlobAccess, parentDigest digest.Digest, actionResult *remoteexecution.ActionResult) error {
 	s := uploadOutputsState{
 		context:                   ctx,
 		contentAddressableStorage: contentAddressableStorage,

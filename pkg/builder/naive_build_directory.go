@@ -44,6 +44,10 @@ func (d *naiveBuildDirectory) EnterBuildDirectory(name string) (BuildDirectory, 
 	}, nil
 }
 
+func (d *naiveBuildDirectory) EnterUploadableDirectory(name string) (UploadableDirectory, error) {
+	return d.EnterBuildDirectory(name)
+}
+
 func (d *naiveBuildDirectory) InstallHooks(filePool re_filesystem.FilePool, errorLogger util.ErrorLogger) {
 	// Simply ignore the provided hooks, as POSIX offers no way to
 	// install them. This means no quota enforcement and detection
@@ -99,4 +103,8 @@ func (d *naiveBuildDirectory) mergeDirectoryContents(ctx context.Context, digest
 
 func (d *naiveBuildDirectory) MergeDirectoryContents(ctx context.Context, errorLogger util.ErrorLogger, digest digest.Digest) error {
 	return d.mergeDirectoryContents(ctx, digest, d.DirectoryCloser, []string{"."})
+}
+
+func (d *naiveBuildDirectory) UploadFile(ctx context.Context, name string, parentDigest digest.Digest) (digest.Digest, error) {
+	return d.contentAddressableStorage.PutFile(ctx, d, name, parentDigest)
 }

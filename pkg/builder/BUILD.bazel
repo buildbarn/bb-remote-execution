@@ -21,6 +21,7 @@ go_library(
         "shared_build_directory_creator.go",
         "storage_flushing_build_executor.go",
         "timestamped_build_executor.go",
+        "uploadable_directory.go",
     ],
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/builder",
     visibility = ["//visibility:public"],

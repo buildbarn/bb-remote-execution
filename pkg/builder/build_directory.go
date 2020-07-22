@@ -15,6 +15,7 @@ import (
 // more efficient and manageable way.
 type BuildDirectory interface {
 	filesystem.DirectoryCloser
+	UploadableDirectory
 
 	// Identical to EnterDirectory(), except that it returns a
 	// BuildDirectory object.

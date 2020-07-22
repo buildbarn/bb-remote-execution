@@ -20,6 +20,7 @@ gomock(
         "BuildExecutor",
         "BuildQueueStateProvider",
         "StorageFlusher",
+        "UploadableDirectory",
     ],
     library = "//pkg/builder:go_default_library",
     package = "mock",

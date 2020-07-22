@@ -11,10 +11,12 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
+	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/golang/mock/gomock"
+	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/any"
 	"github.com/golang/protobuf/ptypes/duration"
@@ -29,7 +31,7 @@ func TestLocalBuildExecutorInvalidActionDigest(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
 
-	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	runner := mock.NewMockRunner(ctrl)
 	clock := mock.NewMockClock(ctrl)
@@ -73,7 +75,7 @@ func TestLocalBuildExecutorMissingAction(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
 
-	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	runner := mock.NewMockRunner(ctrl)
 	clock := mock.NewMockClock(ctrl)
@@ -111,7 +113,7 @@ func TestLocalBuildExecutorMissingCommand(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
 
-	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	runner := mock.NewMockRunner(ctrl)
 	clock := mock.NewMockClock(ctrl)
@@ -148,7 +150,7 @@ func TestLocalBuildExecutorBuildDirectoryCreatorFailedFailed(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
 
-	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(
 		digest.MustNewDigest("netbsd", "5555555555555555555555555555555555555555555555555555555555555555", 7),
@@ -196,7 +198,7 @@ func TestLocalBuildExecutorInputRootPopulationFailed(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
 
-	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(
@@ -256,7 +258,7 @@ func TestLocalBuildExecutorOutputDirectoryCreationFailure(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
 
-	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(
@@ -317,20 +319,26 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
 
-	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
-	contentAddressableStorage.EXPECT().PutFile(ctx, buildDirectory, "stdout", gomock.Any()).Return(
+	buildDirectory.EXPECT().UploadFile(ctx, "stdout", gomock.Any()).Return(
 		digest.MustNewDigest("nintendo64", "0000000000000000000000000000000000000000000000000000000000000005", 567),
 		nil)
-	contentAddressableStorage.EXPECT().PutFile(ctx, buildDirectory, "stderr", gomock.Any()).Return(
+	buildDirectory.EXPECT().UploadFile(ctx, "stderr", gomock.Any()).Return(
 		digest.MustNewDigest("nintendo64", "0000000000000000000000000000000000000000000000000000000000000006", 678),
 		nil)
-	contentAddressableStorage.EXPECT().PutTree(ctx,
-		&remoteexecution.Tree{
-			Root: &remoteexecution.Directory{},
-		}, gomock.Any()).Return(
-		digest.MustNewDigest("nintendo64", "0000000000000000000000000000000000000000000000000000000000000007", 902),
-		nil)
+	contentAddressableStorage.EXPECT().Put(
+		ctx,
+		digest.MustNewDigest("nintendo64", "102b51b9765a56a3e899f7cf0ee38e5251f9c503b357b330a49183eb7b155604", 2),
+		gomock.Any()).
+		DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
+			m, err := b.ToProto(&remoteexecution.Tree{}, 10000)
+			require.NoError(t, err)
+			require.True(t, proto.Equal(&remoteexecution.Tree{
+				Root: &remoteexecution.Directory{},
+			}, m))
+			return nil
+		})
 
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(
@@ -361,9 +369,9 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 	}).Return(&runner_pb.RunResponse{
 		ExitCode: 0,
 	}, nil)
-	fooDirectory := mock.NewMockDirectoryCloser(ctrl)
+	fooDirectory := mock.NewMockUploadableDirectory(ctrl)
 	inputRootDirectory.EXPECT().Lstat("foo").Return(filesystem.NewFileInfo("foo", filesystem.FileTypeDirectory), nil)
-	inputRootDirectory.EXPECT().EnterDirectory("foo").Return(fooDirectory, nil)
+	inputRootDirectory.EXPECT().EnterUploadableDirectory("foo").Return(fooDirectory, nil)
 	fooDirectory.EXPECT().ReadDir().Return([]filesystem.FileInfo{
 		filesystem.NewFileInfo("bar", filesystem.FileTypeSymlink),
 	}, nil)
@@ -408,8 +416,8 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 				{
 					Path: "foo",
 					TreeDigest: &remoteexecution.Digest{
-						Hash:      "0000000000000000000000000000000000000000000000000000000000000007",
-						SizeBytes: 902,
+						Hash:      "102b51b9765a56a3e899f7cf0ee38e5251f9c503b357b330a49183eb7b155604",
+						SizeBytes: 2,
 					},
 				},
 			},
@@ -442,7 +450,7 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 	inputRootDirectory.EXPECT().EnterDirectory("bazel-out").Return(bazelOutDirectory, nil)
 	bazelOutDirectory.EXPECT().Close()
 	bazelOutDirectory.EXPECT().Mkdir("k8-fastbuild", os.FileMode(0777)).Return(nil)
-	k8FastbuildDirectory := mock.NewMockBuildDirectory(ctrl)
+	k8FastbuildDirectory := mock.NewMockDirectoryCloser(ctrl)
 	bazelOutDirectory.EXPECT().EnterDirectory("k8-fastbuild").Return(k8FastbuildDirectory, nil)
 	k8FastbuildDirectory.EXPECT().Close()
 	k8FastbuildDirectory.EXPECT().Mkdir("bin", os.FileMode(0777)).Return(nil)
@@ -456,39 +464,39 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 	objsDirectory.EXPECT().Mkdir("hello", os.FileMode(0777)).Return(nil)
 
 	// Uploading of files in bazel-out/k8-fastbuild/bin/_objs/hello.
-	bazelOutDirectory = mock.NewMockDirectoryCloser(ctrl)
-	inputRootDirectory.EXPECT().EnterDirectory("bazel-out").Return(bazelOutDirectory, nil)
-	bazelOutDirectory.EXPECT().Close()
-	k8FastbuildDirectory = mock.NewMockBuildDirectory(ctrl)
-	bazelOutDirectory.EXPECT().EnterDirectory("k8-fastbuild").Return(k8FastbuildDirectory, nil)
-	k8FastbuildDirectory.EXPECT().Close()
-	binDirectory = mock.NewMockDirectoryCloser(ctrl)
-	k8FastbuildDirectory.EXPECT().EnterDirectory("bin").Return(binDirectory, nil)
-	binDirectory.EXPECT().Close()
-	objsDirectory = mock.NewMockDirectoryCloser(ctrl)
-	binDirectory.EXPECT().EnterDirectory("_objs").Return(objsDirectory, nil)
-	objsDirectory.EXPECT().Close()
-	helloDirectory := mock.NewMockDirectoryCloser(ctrl)
-	objsDirectory.EXPECT().EnterDirectory("hello").Return(helloDirectory, nil)
-	helloDirectory.EXPECT().Lstat("hello.pic.d").Return(filesystem.NewFileInfo("hello.pic.d", filesystem.FileTypeRegularFile), nil)
-	helloDirectory.EXPECT().Lstat("hello.pic.o").Return(filesystem.NewFileInfo("hello.pic.o", filesystem.FileTypeExecutableFile), nil)
-	helloDirectory.EXPECT().Close()
+	bazelOutUploadableDirectory := mock.NewMockUploadableDirectory(ctrl)
+	inputRootDirectory.EXPECT().EnterUploadableDirectory("bazel-out").Return(bazelOutUploadableDirectory, nil)
+	bazelOutUploadableDirectory.EXPECT().Close()
+	k8sFastbuildUploadableDirectory := mock.NewMockBuildDirectory(ctrl)
+	bazelOutUploadableDirectory.EXPECT().EnterUploadableDirectory("k8-fastbuild").Return(k8sFastbuildUploadableDirectory, nil)
+	k8sFastbuildUploadableDirectory.EXPECT().Close()
+	binUploadableDirectory := mock.NewMockUploadableDirectory(ctrl)
+	k8sFastbuildUploadableDirectory.EXPECT().EnterUploadableDirectory("bin").Return(binUploadableDirectory, nil)
+	binUploadableDirectory.EXPECT().Close()
+	objsUploadableDirectory := mock.NewMockUploadableDirectory(ctrl)
+	binUploadableDirectory.EXPECT().EnterUploadableDirectory("_objs").Return(objsUploadableDirectory, nil)
+	objsUploadableDirectory.EXPECT().Close()
+	helloUploadableDirectory := mock.NewMockUploadableDirectory(ctrl)
+	objsUploadableDirectory.EXPECT().EnterUploadableDirectory("hello").Return(helloUploadableDirectory, nil)
+	helloUploadableDirectory.EXPECT().Lstat("hello.pic.d").Return(filesystem.NewFileInfo("hello.pic.d", filesystem.FileTypeRegularFile), nil)
+	helloUploadableDirectory.EXPECT().Lstat("hello.pic.o").Return(filesystem.NewFileInfo("hello.pic.o", filesystem.FileTypeExecutableFile), nil)
+	helloUploadableDirectory.EXPECT().Close()
 
 	// Read operations against the Content Addressable Storage.
-	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 
 	// Write operations against the Content Addressable Storage.
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
-	contentAddressableStorage.EXPECT().PutFile(ctx, buildDirectory, "stdout", gomock.Any()).Return(
+	buildDirectory.EXPECT().UploadFile(ctx, "stdout", gomock.Any()).Return(
 		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000005", 567),
 		nil)
-	contentAddressableStorage.EXPECT().PutFile(ctx, buildDirectory, "stderr", gomock.Any()).Return(
+	buildDirectory.EXPECT().UploadFile(ctx, "stderr", gomock.Any()).Return(
 		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000006", 678),
 		nil)
-	contentAddressableStorage.EXPECT().PutFile(ctx, helloDirectory, "hello.pic.d", gomock.Any()).Return(
+	helloUploadableDirectory.EXPECT().UploadFile(ctx, "hello.pic.d", gomock.Any()).Return(
 		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000007", 789),
 		nil)
-	contentAddressableStorage.EXPECT().PutFile(ctx, helloDirectory, "hello.pic.o", gomock.Any()).Return(
+	helloUploadableDirectory.EXPECT().UploadFile(ctx, "hello.pic.o", gomock.Any()).Return(
 		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000008", 890),
 		nil)
 
@@ -635,7 +643,7 @@ func TestLocalBuildExecutorCachingInvalidTimeout(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
 
-	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	runner := mock.NewMockRunner(ctrl)
 	clock := mock.NewMockClock(ctrl)
@@ -677,7 +685,7 @@ func TestLocalBuildExecutorCachingTimeoutTooHigh(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
 
-	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	runner := mock.NewMockRunner(ctrl)
 	clock := mock.NewMockClock(ctrl)
@@ -721,11 +729,11 @@ func TestLocalBuildExecutorInputRootIOFailureDuringExecution(t *testing.T) {
 
 	// Build directory.
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
-	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
-	contentAddressableStorage.EXPECT().PutFile(ctx, buildDirectory, "stdout", gomock.Any()).Return(
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	buildDirectory.EXPECT().UploadFile(ctx, "stdout", gomock.Any()).Return(
 		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000005", 567),
 		nil)
-	contentAddressableStorage.EXPECT().PutFile(ctx, buildDirectory, "stderr", gomock.Any()).Return(
+	buildDirectory.EXPECT().UploadFile(ctx, "stderr", gomock.Any()).Return(
 		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000006", 678),
 		nil)
 
@@ -826,11 +834,11 @@ func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 
 	// Build directory.
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
-	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
-	contentAddressableStorage.EXPECT().PutFile(ctx, buildDirectory, "stdout", gomock.Any()).Return(
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	buildDirectory.EXPECT().UploadFile(ctx, "stdout", gomock.Any()).Return(
 		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000005", 567),
 		nil)
-	contentAddressableStorage.EXPECT().PutFile(ctx, buildDirectory, "stderr", gomock.Any()).Return(
+	buildDirectory.EXPECT().UploadFile(ctx, "stderr", gomock.Any()).Return(
 		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000006", 678),
 		nil)
 
@@ -920,7 +928,7 @@ func TestLocalBuildExecutorCharacterDeviceNodeCreationFailed(t *testing.T) {
 
 	// Build directory.
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
-	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 
 	// Build environment.
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
