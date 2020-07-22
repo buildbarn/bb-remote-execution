@@ -8,7 +8,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/sqs"
@@ -20,6 +19,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	blobstore_configuration "github.com/buildbarn/bb-storage/pkg/blobstore/configuration"
 	"github.com/buildbarn/bb-storage/pkg/clock"
+	"github.com/buildbarn/bb-storage/pkg/cloud/aws"
 	"github.com/buildbarn/bb-storage/pkg/global"
 	bb_grpc "github.com/buildbarn/bb-storage/pkg/grpc"
 	"github.com/buildbarn/bb-storage/pkg/util"
@@ -104,7 +104,10 @@ func main() {
 
 	// Automatically drain workers based on AWS ASG lifecycle events.
 	if len(configuration.AwsAsgLifecycleHooks) > 0 {
-		sess := session.New()
+		sess, err := aws.NewSessionFromConfiguration(configuration.AwsSession)
+		if err != nil {
+			log.Fatal("Failed to create AWS session: ", err)
+		}
 		autoScaling := autoscaling.New(sess)
 		ec2 := ec2.New(sess)
 		sqs := sqs.New(sess)

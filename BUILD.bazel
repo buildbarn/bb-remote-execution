@@ -5,6 +5,8 @@ load("@bazel_gazelle//:def.bzl", "gazelle")
 # gazelle:resolve proto go build/bazel/remote/execution/v2/remote_execution.proto @com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:go_default_library
 # gazelle:resolve proto pkg/proto/configuration/blobstore/blobstore.proto @com_github_buildbarn_bb_storage//pkg/proto/configuration/blobstore:blobstore_proto
 # gazelle:resolve proto go pkg/proto/configuration/blobstore/blobstore.proto @com_github_buildbarn_bb_storage//pkg/proto/configuration/blobstore:go_default_library
+# gazelle:resolve proto pkg/proto/configuration/cloud/aws/aws.proto @com_github_buildbarn_bb_storage//pkg/proto/configuration/cloud/aws:aws_proto
+# gazelle:resolve proto go pkg/proto/configuration/cloud/aws/aws.proto @com_github_buildbarn_bb_storage//pkg/proto/configuration/cloud/aws:go_default_library
 # gazelle:resolve proto pkg/proto/configuration/eviction/eviction.proto @com_github_buildbarn_bb_storage//pkg/proto/configuration/eviction:eviction_proto
 # gazelle:resolve proto go pkg/proto/configuration/eviction/eviction.proto @com_github_buildbarn_bb_storage//pkg/proto/configuration/eviction:go_default_library
 # gazelle:resolve proto pkg/proto/configuration/global/global.proto @com_github_buildbarn_bb_storage//pkg/proto/configuration/global:global_proto

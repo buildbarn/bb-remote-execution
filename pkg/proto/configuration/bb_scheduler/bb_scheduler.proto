@@ -3,6 +3,7 @@ syntax = "proto3";
 package buildbarn.configuration.bb_scheduler;
 
 import "pkg/proto/configuration/blobstore/blobstore.proto";
+import "pkg/proto/configuration/cloud/aws/aws.proto";
 import "pkg/proto/configuration/global/global.proto";
 import "pkg/proto/configuration/grpc/grpc.proto";
 
@@ -43,6 +44,9 @@ message ApplicationConfiguration {
   // More details:
   // https://docs.aws.amazon.com/autoscaling/ec2/userguide/lifecycle-hooks.html
   repeated AWSASGLifecycleHookConfiguration aws_asg_lifecycle_hooks = 9;
+
+  // AWS access options and credentials.
+  buildbarn.configuration.cloud.aws.SessionConfiguration aws_session = 10;
 }
 
 message AWSASGLifecycleHookConfiguration {
