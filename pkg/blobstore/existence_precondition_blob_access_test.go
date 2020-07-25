@@ -18,7 +18,6 @@ import (
 
 func TestExistencePreconditionBlobAccessGetSuccess(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	// Let Get() return a reader from which we can read successfully.
 	bottomBlobAccess := mock.NewMockBlobAccess(ctrl)
@@ -38,7 +37,6 @@ func TestExistencePreconditionBlobAccessGetSuccess(t *testing.T) {
 
 func TestExistencePreconditionBlobAccessGetResourceExhausted(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	// Let Get() return ResourceExhausted.
 	bottomBlobAccess := mock.NewMockBlobAccess(ctrl)
@@ -59,7 +57,6 @@ func TestExistencePreconditionBlobAccessGetResourceExhausted(t *testing.T) {
 
 func TestExistencePreconditionBlobAccessGetNotFound(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	// Let Get() return NotFound.
 	bottomBlobAccess := mock.NewMockBlobAccess(ctrl)
@@ -92,7 +89,6 @@ func TestExistencePreconditionBlobAccessGetNotFound(t *testing.T) {
 
 func TestExistencePreconditionBlobAccessPutNotFound(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	// Let Put() return NotFound.
 	bottomBlobAccess := mock.NewMockBlobAccess(ctrl)

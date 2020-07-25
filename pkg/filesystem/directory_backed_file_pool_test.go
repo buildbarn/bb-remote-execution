@@ -14,7 +14,6 @@ import (
 
 func TestDirectoryBackedFilePool(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 
 	directory := mock.NewMockDirectory(ctrl)
 	fp := re_filesystem.NewDirectoryBackedFilePool(directory)

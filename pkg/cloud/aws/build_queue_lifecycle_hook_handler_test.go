@@ -17,7 +17,6 @@ import (
 
 func TestBuildQueueLifecycleHookHandler(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 
 	ec2Service := mock.NewMockEC2(ctrl)
 	buildQueue := mock.NewMockBuildQueueStateProvider(ctrl)

@@ -66,7 +66,6 @@ func getExecutionClient(t *testing.T, buildQueue builder.BuildQueue) remoteexecu
 
 func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	clock := mock.NewMockClock(ctrl)
@@ -276,7 +275,6 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 
 func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	for i := 0; i < 10; i++ {
@@ -538,7 +536,6 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 
 func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	for i := 0; i < 2; i++ {
@@ -772,7 +769,6 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 
 func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	contentAddressableStorage.EXPECT().Get(
@@ -989,7 +985,6 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 
 func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	contentAddressableStorage.EXPECT().Get(
@@ -1203,7 +1198,6 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 
 func TestInMemoryBuildQueueIdleWorkerSynchronizationTimeout(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	clock := mock.NewMockClock(ctrl)
@@ -1246,7 +1240,6 @@ func TestInMemoryBuildQueueIdleWorkerSynchronizationTimeout(t *testing.T) {
 
 func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	contentAddressableStorage.EXPECT().Get(

@@ -21,7 +21,6 @@ import (
 
 func TestFilePoolStatsBuildExecutorExample(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	// Recurring messages used by this test.
 	request := &remoteworker.DesiredState_Executing{

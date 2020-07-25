@@ -29,7 +29,6 @@ import (
 
 func TestLocalBuildExecutorInvalidActionDigest(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
@@ -73,7 +72,6 @@ func TestLocalBuildExecutorInvalidActionDigest(t *testing.T) {
 
 func TestLocalBuildExecutorMissingAction(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
@@ -111,7 +109,6 @@ func TestLocalBuildExecutorMissingAction(t *testing.T) {
 
 func TestLocalBuildExecutorMissingCommand(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
@@ -148,7 +145,6 @@ func TestLocalBuildExecutorMissingCommand(t *testing.T) {
 
 func TestLocalBuildExecutorBuildDirectoryCreatorFailedFailed(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
@@ -196,7 +192,6 @@ func TestLocalBuildExecutorBuildDirectoryCreatorFailedFailed(t *testing.T) {
 
 func TestLocalBuildExecutorInputRootPopulationFailed(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
@@ -256,7 +251,6 @@ func TestLocalBuildExecutorInputRootPopulationFailed(t *testing.T) {
 
 func TestLocalBuildExecutorOutputDirectoryCreationFailure(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
@@ -317,7 +311,6 @@ func TestLocalBuildExecutorOutputDirectoryCreationFailure(t *testing.T) {
 
 func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
@@ -439,7 +432,6 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 // build step, equivalent to compiling a simple C++ file.
 func TestLocalBuildExecutorSuccess(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	// File system operations that should occur against the input
 	// root directory. Creation of
@@ -641,7 +633,6 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 
 func TestLocalBuildExecutorCachingInvalidTimeout(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
@@ -683,7 +674,6 @@ func TestLocalBuildExecutorCachingInvalidTimeout(t *testing.T) {
 
 func TestLocalBuildExecutorCachingTimeoutTooHigh(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
@@ -725,7 +715,6 @@ func TestLocalBuildExecutorCachingTimeoutTooHigh(t *testing.T) {
 
 func TestLocalBuildExecutorInputRootIOFailureDuringExecution(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	// Build directory.
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
@@ -830,7 +819,6 @@ func TestLocalBuildExecutorInputRootIOFailureDuringExecution(t *testing.T) {
 
 func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	// Build directory.
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
@@ -924,7 +912,6 @@ func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 
 func TestLocalBuildExecutorCharacterDeviceNodeCreationFailed(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	// Build directory.
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)

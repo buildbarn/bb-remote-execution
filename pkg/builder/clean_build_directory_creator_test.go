@@ -17,7 +17,6 @@ import (
 
 func TestCleanBuildDirectoryCreatorAcquireFailure(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 
 	// Failure to create a build directory should simply be forwarded.
 	baseBuildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
@@ -36,7 +35,6 @@ func TestCleanBuildDirectoryCreatorAcquireFailure(t *testing.T) {
 
 func TestCleanBuildDirectoryCreatorRemoveAllChildrenFailure(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 
 	// Failure to clean the build subdirectory is always an internal error.
 	baseBuildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
@@ -59,7 +57,6 @@ func TestCleanBuildDirectoryCreatorRemoveAllChildrenFailure(t *testing.T) {
 
 func TestCleanBuildDirectoryCreatorSuccess(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 
 	// Successful build in a clean build directory.
 	baseBuildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)

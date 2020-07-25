@@ -25,7 +25,6 @@ import (
 // not set, are we allowed to store it in the Action Cache.
 func TestCachingBuildExecutorCachedSuccess(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 	baseBuildExecutor := mock.NewMockBuildExecutor(ctrl)
 	actionDigest := &remoteexecution.Digest{
 		Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
@@ -77,7 +76,6 @@ func TestCachingBuildExecutorCachedSuccess(t *testing.T) {
 // success. The entry should still be stored in the Action Cache.
 func TestCachingBuildExecutorCachedSuccessExplicitOK(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 	baseBuildExecutor := mock.NewMockBuildExecutor(ctrl)
 	actionDigest := &remoteexecution.Digest{
 		Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
@@ -133,7 +131,6 @@ func TestCachingBuildExecutorCachedSuccessExplicitOK(t *testing.T) {
 // https://github.com/bazelbuild/bazel/issues/7137
 func TestCachingBuildExecutorCachedSuccessNonZeroExitCode(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 	baseBuildExecutor := mock.NewMockBuildExecutor(ctrl)
 	actionDigest := &remoteexecution.Digest{
 		Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
@@ -188,7 +185,6 @@ func TestCachingBuildExecutorCachedSuccessNonZeroExitCode(t *testing.T) {
 // return the original response, but with the error attached to it.
 func TestCachingBuildExecutorCachedStorageFailure(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 	baseBuildExecutor := mock.NewMockBuildExecutor(ctrl)
 	actionDigest := &remoteexecution.Digest{
 		Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
@@ -240,7 +236,6 @@ func TestCachingBuildExecutorCachedStorageFailure(t *testing.T) {
 // Action Cache.
 func TestCachingBuildExecutorUncachedDoNotCache(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 	baseBuildExecutor := mock.NewMockBuildExecutor(ctrl)
 	actionDigest := &remoteexecution.Digest{
 		Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
@@ -299,7 +294,6 @@ func TestCachingBuildExecutorUncachedDoNotCache(t *testing.T) {
 // part of the ExecuteResponse.
 func TestCachingBuildExecutorUncachedError(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 	baseBuildExecutor := mock.NewMockBuildExecutor(ctrl)
 	actionDigest := &remoteexecution.Digest{
 		Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
@@ -361,7 +355,6 @@ func TestCachingBuildExecutorUncachedError(t *testing.T) {
 // overwrite the error that is already part of the ExecuteResponse.
 func TestCachingBuildExecutorUncachedStorageFailure(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 	baseBuildExecutor := mock.NewMockBuildExecutor(ctrl)
 	actionDigest := &remoteexecution.Digest{
 		Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",

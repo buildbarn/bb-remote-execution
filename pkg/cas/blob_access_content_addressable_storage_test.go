@@ -15,7 +15,6 @@ import (
 
 func TestBlobAccessContentAddressableStoragePutFileSuccess(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	directory := mock.NewMockDirectory(ctrl)
 	file := mock.NewMockFileReader(ctrl)

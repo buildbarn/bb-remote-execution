@@ -15,7 +15,6 @@ import (
 
 func TestFilteringProcessTable(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 
 	baseProcessTable := mock.NewMockProcessTable(ctrl)
 	processTable := ptc.NewFilteringProcessTable(

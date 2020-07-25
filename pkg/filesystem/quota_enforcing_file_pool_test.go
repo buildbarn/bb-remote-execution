@@ -53,7 +53,6 @@ func testRemainingQuota(t *testing.T, ctrl *gomock.Controller, underlyingPool *m
 
 func TestQuotaEnforcingFilePoolExample(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 
 	// An empty pool should have the advertised amount of space available.
 	underlyingPool := mock.NewMockFilePool(ctrl)

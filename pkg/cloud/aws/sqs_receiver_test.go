@@ -18,7 +18,6 @@ import (
 
 func TestSQSReceiver(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 
 	sqsService := mock.NewMockSQS(ctrl)
 	messageHandler := mock.NewMockSQSMessageHandler(ctrl)

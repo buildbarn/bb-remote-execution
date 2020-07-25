@@ -17,7 +17,6 @@ import (
 
 func TestLifecycleHookSQSMessageHandler(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 
 	autoScaling := mock.NewMockAutoScaling(ctrl)
 	handler := mock.NewMockLifecycleHookHandler(ctrl)

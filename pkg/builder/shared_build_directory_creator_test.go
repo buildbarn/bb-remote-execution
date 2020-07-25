@@ -16,7 +16,6 @@ import (
 
 func TestSharedBuildDirectoryCreatorGetBuildDirectoryFailure(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 
 	// Failure to create environment should simply be forwarded.
 	baseBuildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
@@ -35,7 +34,6 @@ func TestSharedBuildDirectoryCreatorGetBuildDirectoryFailure(t *testing.T) {
 
 func TestSharedBuildDirectoryCreatorMkdirFailure(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 
 	// Failure to create a build subdirectory is always an internal error.
 	baseBuildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
@@ -58,7 +56,6 @@ func TestSharedBuildDirectoryCreatorMkdirFailure(t *testing.T) {
 
 func TestSharedBuildDirectoryCreatorEnterBuildDirectoryFailure(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 
 	// Failure to enter a build subdirectory is always an internal error.
 	baseBuildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
@@ -82,7 +79,6 @@ func TestSharedBuildDirectoryCreatorEnterBuildDirectoryFailure(t *testing.T) {
 
 func TestSharedBuildDirectoryCreatorCloseChildFailure(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 
 	// Directory closure errors should be propagated.
 	baseBuildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
@@ -110,7 +106,6 @@ func TestSharedBuildDirectoryCreatorCloseChildFailure(t *testing.T) {
 
 func TestSharedBuildDirectoryCreatorRemoveAllFailure(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 
 	// Directory removal errors should be propagated. Permission
 	// errors should be converted to internal errors, as they
@@ -140,7 +135,6 @@ func TestSharedBuildDirectoryCreatorRemoveAllFailure(t *testing.T) {
 
 func TestSharedBuildDirectoryCreatorCloseParentFailure(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 
 	// Directory closure errors on the parent should also be
 	// propagated, but there is no need to prefix any additional
@@ -171,7 +165,6 @@ func TestSharedBuildDirectoryCreatorCloseParentFailure(t *testing.T) {
 
 func TestSharedBuildDirectoryCreatorSuccessNotParallel(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 
 	// Successful build in a subdirectory for an action that does
 	// not run in parallel. The subdirectory name is based on the
@@ -201,7 +194,6 @@ func TestSharedBuildDirectoryCreatorSuccessNotParallel(t *testing.T) {
 
 func TestSharedBuildDirectoryCreatorMkdirSuccessParallel(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 
 	baseBuildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	baseBuildDirectory := mock.NewMockBuildDirectory(ctrl)

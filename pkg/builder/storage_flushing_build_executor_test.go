@@ -19,7 +19,6 @@ import (
 
 func TestStorageFlushingBuildExecutor(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	baseBuildExecutor := mock.NewMockBuildExecutor(ctrl)
 	storageFlusher := mock.NewMockStorageFlusher(ctrl)

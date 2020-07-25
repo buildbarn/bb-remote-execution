@@ -18,7 +18,6 @@ import (
 
 func TestNaiveBuildDirectorySuccess(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	contentAddressableStorage.EXPECT().GetDirectory(
@@ -100,7 +99,6 @@ func TestNaiveBuildDirectorySuccess(t *testing.T) {
 
 func TestNaiveBuildDirectoryInputRootNotInStorage(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	contentAddressableStorage.EXPECT().GetDirectory(
@@ -120,7 +118,6 @@ func TestNaiveBuildDirectoryInputRootNotInStorage(t *testing.T) {
 
 func TestNaiveBuildDirectoryMissingInputDirectoryDigest(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	contentAddressableStorage.EXPECT().GetDirectory(
@@ -164,7 +161,6 @@ func TestNaiveBuildDirectoryMissingInputDirectoryDigest(t *testing.T) {
 
 func TestNaiveBuildDirectoryDirectoryCreationFailure(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	contentAddressableStorage.EXPECT().GetDirectory(
@@ -213,7 +209,6 @@ func TestNaiveBuildDirectoryDirectoryCreationFailure(t *testing.T) {
 
 func TestNaiveBuildDirectoryDirectoryEnterDirectoryFailure(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	contentAddressableStorage.EXPECT().GetDirectory(
@@ -263,7 +258,6 @@ func TestNaiveBuildDirectoryDirectoryEnterDirectoryFailure(t *testing.T) {
 
 func TestNaiveBuildDirectoryMissingInputFileDigest(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	contentAddressableStorage.EXPECT().GetDirectory(
@@ -307,7 +301,6 @@ func TestNaiveBuildDirectoryMissingInputFileDigest(t *testing.T) {
 
 func TestNaiveBuildDirectoryFileCreationFailure(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	contentAddressableStorage.EXPECT().GetDirectory(
@@ -361,7 +354,6 @@ func TestNaiveBuildDirectoryFileCreationFailure(t *testing.T) {
 
 func TestNaiveBuildDirectorySymlinkCreationFailure(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	contentAddressableStorage.EXPECT().GetDirectory(

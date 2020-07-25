@@ -17,7 +17,6 @@ import (
 
 func TestBatchedStoreBlobAccessSuccess(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	baseBlobAccess := mock.NewMockBlobAccess(ctrl)
 	blobAccess, flush := blobstore.NewBatchedStoreBlobAccess(baseBlobAccess, digest.KeyWithoutInstance, 2)
@@ -85,7 +84,6 @@ func TestBatchedStoreBlobAccessSuccess(t *testing.T) {
 
 func TestBatchedStoreBlobAccessFailure(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	baseBlobAccess := mock.NewMockBlobAccess(ctrl)
 	blobAccess, flush := blobstore.NewBatchedStoreBlobAccess(baseBlobAccess, digest.KeyWithoutInstance, 2)

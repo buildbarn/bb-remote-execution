@@ -13,7 +13,6 @@ import (
 
 func TestInitializer(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 
 	var initializer re_sync.Initializer
 	initializationFunc := mock.NewMockInitializationFunc(ctrl)

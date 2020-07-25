@@ -22,7 +22,6 @@ import (
 
 func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 
 	root := mock.NewMockDirectory(ctrl)
 
@@ -176,7 +175,6 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 
 func TestOutputHierarchyUploadOutputs(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
 
 	root := mock.NewMockUploadableDirectory(ctrl)
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
