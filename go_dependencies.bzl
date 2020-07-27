@@ -983,3 +983,9 @@ def go_dependencies():
         sum = "h1:2hRPrmiwPrp3fQX967rNJIhQPtiGXdlQWAxKbKw3VHA=",
         version = "v0.0.0-20180702182130-06c8688daad7",
     )
+    go_repository(
+        name = "com_github_gordonklaus_ineffassign",
+        importpath = "github.com/gordonklaus/ineffassign",
+        sum = "h1:vc7Dmrk4JwS0ZPS6WZvWlwDflgDTA26jItmbSj83nug=",
+        version = "v0.0.0-20200309095847-7953dde2c7bf",
+    )
