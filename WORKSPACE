@@ -44,14 +44,6 @@ http_archive(
     ],
 )
 
-load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
-
-git_repository(
-    name = "com_github_buildbarn_bb_storage",
-    commit = "fb2a1e6bee7c403cf2579613ca07fabf1478eb11",
-    remote = "https://github.com/buildbarn/bb-storage.git",
-)
-
 load("@io_bazel_rules_docker//repositories:repositories.bzl", container_repositories = "repositories")
 
 container_repositories()
@@ -79,14 +71,10 @@ load("@io_bazel_rules_docker//go:image.bzl", _go_image_repos = "repositories")
 
 _go_image_repos()
 
-# TODO: This refers to a copy of go_dependencies.bzl that is manually
-# copied from the bb-storage repository. This is a requirement to make
-# "gazelle:repository_macro" work.
-# Details: https://github.com/bazelbuild/bazel-gazelle/issues/752
-# gazelle:repository_macro go_dependencies_bb_storage.bzl%bb_storage_go_dependencies
-load(":go_dependencies_bb_storage.bzl", "bb_storage_go_dependencies")
+# gazelle:repository_macro go_dependencies.bzl%go_dependencies
+load(":go_dependencies.bzl", "go_dependencies")
 
-bb_storage_go_dependencies()
+go_dependencies()
 
 load("@com_github_bazelbuild_remote_apis//:repository_rules.bzl", "switched_rules_by_language")
 
