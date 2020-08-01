@@ -94,24 +94,25 @@ func main() {
 	}
 
 	// Storage access.
-	globalContentAddressableStorageBlobAccess, actionCache, err := blobstore_configuration.NewCASAndACBlobAccessFromConfiguration(
+	globalContentAddressableStorage, actionCache, err := blobstore_configuration.NewCASAndACBlobAccessFromConfiguration(
 		configuration.Blobstore,
 		grpcClientFactory,
 		int(configuration.MaximumMessageSizeBytes))
 	if err != nil {
 		log.Fatal(err)
 	}
+	globalContentAddressableStorage = re_blobstore.NewExistencePreconditionBlobAccess(globalContentAddressableStorage)
 
 	// Cached read access for directory objects stored in the
 	// Content Addressable Storage. All workers make use of the same
 	// cache, to increase the hit rate.
-	globalContentAddressableStorage := cas.NewDirectoryCachingContentAddressableStorage(
-		cas.NewBlobAccessContentAddressableStorage(
-			re_blobstore.NewExistencePreconditionBlobAccess(globalContentAddressableStorageBlobAccess),
+	directoryFetcher := cas.NewCachingDirectoryFetcher(
+		cas.NewBlobAccessDirectoryFetcher(
+			globalContentAddressableStorage,
 			int(configuration.MaximumMessageSizeBytes)),
 		digest.KeyWithoutInstance,
 		int(configuration.MaximumMemoryCachedDirectories),
-		eviction.NewMetricsSet(eviction.NewRRSet(), "DirectoryCachingContentAddressableStorage"))
+		eviction.NewMetricsSet(eviction.NewRRSet(), "CachingDirectoryFetcher"))
 
 	instanceName, err := digest.NewInstanceName(configuration.InstanceName)
 	if err != nil {
@@ -123,7 +124,7 @@ func main() {
 	}
 	for _, buildDirectoryConfiguration := range configuration.BuildDirectories {
 		var naiveBuildDirectory filesystem.DirectoryCloser
-		var perBuildDirectoryContentAddressableStorage cas.ContentAddressableStorage
+		var fileFetcher cas.FileFetcher
 		switch backend := buildDirectoryConfiguration.Backend.(type) {
 		case *bb_worker.BuildDirectoryConfiguration_Native:
 			// To ease privilege separation, clear the umask. This
@@ -143,12 +144,6 @@ func main() {
 			// files that can be hardlinked into build
 			// directory.
 			//
-			// TODO: Move ContentAddressableStorage.GetFile()
-			// into its own FilePlacer interface that is
-			// isolated to NaiveBuildDirectory. That would
-			// prevent the need for all of this wrapping and
-			// ReadWriteDecouplingContentAddressableStorage.
-			//
 			// TODO: Have a single process-wide hardlinking
 			// cache even if multiple build directories are
 			// used. This increases cache hit rate.
@@ -163,13 +158,13 @@ func main() {
 			if err != nil {
 				log.Fatal("Failed to create eviction set for cache directory: ", err)
 			}
-			perBuildDirectoryContentAddressableStorage = cas.NewHardlinkingContentAddressableStorage(
-				globalContentAddressableStorage,
+			fileFetcher = cas.NewHardlinkingFileFetcher(
+				cas.NewBlobAccessFileFetcher(globalContentAddressableStorage),
 				digest.KeyWithoutInstance,
 				cacheDirectory,
 				int(nativeConfiguration.MaximumCacheFileCount),
 				nativeConfiguration.MaximumCacheSizeBytes,
-				eviction.NewMetricsSet(evictionSet, "HardlinkingContentAddressableStorage"))
+				eviction.NewMetricsSet(evictionSet, "HardlinkingFileFetcher"))
 		default:
 			log.Fatal("No build directory specified")
 		}
@@ -238,21 +233,19 @@ func main() {
 					// Addressable Storage that batches writes after
 					// completing the build action.
 					contentAddressableStorageWriter, contentAddressableStorageFlusher := re_blobstore.NewBatchedStoreBlobAccess(
-						re_blobstore.NewExistencePreconditionBlobAccess(globalContentAddressableStorageBlobAccess),
-						digest.KeyWithoutInstance, 100)
+						globalContentAddressableStorage,
+						digest.KeyWithoutInstance,
+						100)
 					contentAddressableStorageWriter = blobstore.NewMetricsBlobAccess(
 						contentAddressableStorageWriter,
 						clock.SystemClock,
 						"cas_batched_store")
-					perThreadContentAddressableStorage := cas.NewReadWriteDecouplingContentAddressableStorage(
-						perBuildDirectoryContentAddressableStorage,
-						cas.NewBlobAccessContentAddressableStorage(
-							contentAddressableStorageWriter,
-							int(configuration.MaximumMessageSizeBytes)))
 
 					buildDirectory := builder.NewNaiveBuildDirectory(
 						naiveBuildDirectory,
-						perThreadContentAddressableStorage)
+						directoryFetcher,
+						fileFetcher,
+						contentAddressableStorageWriter)
 
 					// Create a per-action subdirectory in
 					// the build directory named after the
@@ -297,7 +290,7 @@ func main() {
 											contentAddressableStorageFlusher),
 										clock.SystemClock,
 										string(workerName)))),
-							globalContentAddressableStorageBlobAccess,
+							globalContentAddressableStorage,
 							actionCache,
 							browserURL),
 						browserURL)
