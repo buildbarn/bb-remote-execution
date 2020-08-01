@@ -47,7 +47,7 @@ func (be *cachingBuildExecutor) Execute(ctx context.Context, filePool filesystem
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to extract digest for action"))
 	} else if action := request.Action; action == nil {
 		attachErrorToExecuteResponse(response, status.Error(codes.InvalidArgument, "Request does not contain an action"))
-	} else if !action.DoNotCache && status.ErrorProto(response.Status) == nil {
+	} else if !action.DoNotCache && status.ErrorProto(response.Status) == nil && response.Result.ExitCode == 0 {
 		// Store result in the Action Cache.
 		if err := be.actionCache.Put(ctx, actionDigest, buffer.NewProtoBufferFromProto(response.Result, buffer.UserProvided)); err == nil {
 			response.Message = "Action details (cached result): " + re_util.GetBrowserURL(be.browserURL, "action", actionDigest)
