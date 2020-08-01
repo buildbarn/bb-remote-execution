@@ -21,10 +21,12 @@ require (
 	github.com/onsi/ginkgo v1.14.0 // indirect
 	github.com/prometheus/client_golang v1.7.1
 	github.com/stretchr/testify v1.6.1
-	go.opencensus.io v0.22.4 // indirect
+	go.opencensus.io v0.22.4
 	gocloud.dev v0.20.0 // indirect
 	golang.org/x/sys v0.0.0-20200727154430-2d971f7391a4
 	google.golang.org/api v0.29.0 // indirect
 	google.golang.org/genproto v0.0.0-20200726014623-da3ae01ef02d
 	google.golang.org/grpc v1.30.0
 )
+
+replace github.com/buildbarn/bb-storage => github.com/mixpanel/bb-storage v0.0.0-20200731225145-6af24a69808e

@@ -26,8 +26,9 @@ def go_dependencies():
     go_repository(
         name = "com_github_buildbarn_bb_storage",
         importpath = "github.com/buildbarn/bb-storage",
-        sum = "h1:wQ/fktOzYf1V3K46Ij6gs4iUA5TpGJybugbM+4ZQMRA=",
-        version = "v0.0.0-20200727204530-50b8d8a407a4",
+        replace = "github.com/mixpanel/bb-storage",
+        sum = "h1:3psT4bzxsJ9EuyEg3tQjGXcZAcxukLJ/0Tko/8jJoCs=",
+        version = "v0.0.0-20200731225145-6af24a69808e",
     )
     go_repository(
         name = "com_github_golang_mock",
@@ -361,6 +362,7 @@ def go_dependencies():
     )
     go_repository(
         name = "com_github_census_instrumentation_opencensus_proto",
+        build_extra_args = ["-exclude=src"],
         importpath = "github.com/census-instrumentation/opencensus-proto",
         sum = "h1:glEXhBS5PSLLv4IXzLA5yPRVX4bilULVyxxbrfOtDAk=",
         version = "v0.2.1",
@@ -842,8 +844,8 @@ def go_dependencies():
     go_repository(
         name = "io_opencensus_go_contrib_exporter_stackdriver",
         importpath = "contrib.go.opencensus.io/exporter/stackdriver",
-        sum = "h1:Dll2uFfOVI3fa8UzsHyP6z0M6fEc9ZTAMo+Y3z282Xg=",
-        version = "v0.12.1",
+        sum = "h1:ZRVpDigsb+nVI/yps/NLDOYzYjFFmm3OCsBhmYocxR0=",
+        version = "v0.12.9",
     )
     go_repository(
         name = "io_opencensus_go_contrib_integrations_ocsql",

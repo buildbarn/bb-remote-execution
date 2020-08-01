@@ -13,6 +13,8 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/empty"
+	"go.opencensus.io/trace"
+	"go.opencensus.io/trace/propagation"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -69,9 +71,15 @@ func (bc *BuildClient) startExecution(executionRequest *remoteworker.DesiredStat
 	// Spawn the execution of the build action.
 	var ctx context.Context
 	ctx, bc.executionCancellation = context.WithCancel(context.Background())
+
 	updates := make(chan *remoteworker.CurrentState_Executing, 10)
 	bc.executionUpdates = updates
 	go func() {
+		if tc, ok := propagation.FromBinary(executionRequest.TraceContext); ok {
+			var span *trace.Span
+			ctx, span = trace.StartSpanWithRemoteParent(ctx, "BuildClient.Execute", tc)
+			defer span.End()
+		}
 		updates <- &remoteworker.CurrentState_Executing{
 			ActionDigest: executionRequest.ActionDigest,
 			ExecutionState: &remoteworker.CurrentState_Executing_Completed{

@@ -25,6 +25,8 @@ import (
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.opencensus.io/trace"
+	"go.opencensus.io/trace/propagation"
 
 	"google.golang.org/genproto/googleapis/longrunning"
 	"google.golang.org/grpc/codes"
@@ -300,14 +302,22 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 		if argv := command.Arguments; len(argv) > 0 {
 			argv0 = argv[0]
 		}
+
+		desiredState := remoteworker.DesiredState_Executing{
+			ActionDigest:    in.ActionDigest,
+			Action:          action,
+			Command:         command,
+			QueuedTimestamp: bq.getCurrentTime(),
+		}
+
+		span := trace.FromContext(ctx)
+		if span != nil {
+			desiredState.TraceContext = propagation.Binary(span.SpanContext())
+		}
+
 		o = &operation{
 			platformQueue: pq,
-			desiredState: remoteworker.DesiredState_Executing{
-				ActionDigest:    in.ActionDigest,
-				Action:          action,
-				Command:         command,
-				QueuedTimestamp: bq.getCurrentTime(),
-			},
+			desiredState:  desiredState,
 
 			name:         uuid.Must(bq.uuidGenerator()).String(),
 			instanceName: instanceName,
@@ -317,6 +327,7 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 
 			completionWakeup: make(chan struct{}),
 		}
+
 		bq.operationsNameMap[o.name] = o
 		if !action.DoNotCache {
 			pq.inFlightDeduplicationMap[inFlightDeduplicationKey] = o
