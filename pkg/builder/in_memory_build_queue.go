@@ -29,6 +29,9 @@ import (
 	"google.golang.org/genproto/googleapis/longrunning"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"go.opencensus.io/trace"
+	"go.opencensus.io/trace/propagation"
 )
 
 var (
@@ -300,14 +303,22 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 		if argv := command.Arguments; len(argv) > 0 {
 			argv0 = argv[0]
 		}
+
+		desiredState := remoteworker.DesiredState_Executing{
+			ActionDigest:    in.ActionDigest,
+			Action:          action,
+			Command:         command,
+			QueuedTimestamp: bq.getCurrentTime(),
+		}
+
+		span := trace.FromContext(ctx)
+		if span != nil {
+			desiredState.TraceContext = propagation.Binary(span.SpanContext())
+		}
+
 		o = &operation{
 			platformQueue: pq,
-			desiredState: remoteworker.DesiredState_Executing{
-				ActionDigest:    in.ActionDigest,
-				Action:          action,
-				Command:         command,
-				QueuedTimestamp: bq.getCurrentTime(),
-			},
+			desiredState:  desiredState,
 
 			name:         uuid.Must(bq.uuidGenerator()).String(),
 			instanceName: instanceName,
