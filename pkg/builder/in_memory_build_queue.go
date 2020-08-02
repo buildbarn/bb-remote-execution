@@ -327,7 +327,6 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 
 			completionWakeup: make(chan struct{}),
 		}
-
 		bq.operationsNameMap[o.name] = o
 		if !action.DoNotCache {
 			pq.inFlightDeduplicationMap[inFlightDeduplicationKey] = o

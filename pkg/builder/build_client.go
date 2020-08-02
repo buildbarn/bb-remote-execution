@@ -71,7 +71,6 @@ func (bc *BuildClient) startExecution(executionRequest *remoteworker.DesiredStat
 	// Spawn the execution of the build action.
 	var ctx context.Context
 	ctx, bc.executionCancellation = context.WithCancel(context.Background())
-
 	updates := make(chan *remoteworker.CurrentState_Executing, 10)
 	bc.executionUpdates = updates
 	go func() {
