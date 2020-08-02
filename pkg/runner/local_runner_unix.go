@@ -1,3 +1,5 @@
+// +build darwin freebsd linux
+
 package runner
 
 import (
@@ -82,8 +84,6 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 		envPrependedArguments := []string{"/usr/bin/env", "--"}
 		envPrependedArguments = append(envPrependedArguments, request.Arguments...)
 		cmd = exec.CommandContext(ctx, envPrependedArguments[0], envPrependedArguments[1:]...)
-		// TODO: Convert WorkingDirectory and TemporaryDirectory to use
-		// platform specific path delimiters.
 		cmd.Dir = filepath.Join("/", request.WorkingDirectory)
 		cmd.SysProcAttr = &syscall.SysProcAttr{
 			Chroot: path.Join(r.buildDirectoryPath, request.InputRootDirectory),
