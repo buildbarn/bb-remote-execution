@@ -2,14 +2,11 @@ package processtablecleaning
 
 import (
 	"context"
-	"syscall"
 
 	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
 	"github.com/buildbarn/bb-remote-execution/pkg/runner"
 	"github.com/buildbarn/bb-remote-execution/pkg/sync"
 	"github.com/buildbarn/bb-storage/pkg/util"
-
-	"golang.org/x/sys/unix"
 )
 
 type processTableCleaningRunner struct {
@@ -35,7 +32,7 @@ func (r *processTableCleaningRunner) Run(ctx context.Context, request *runner_pb
 			return util.StatusWrap(err, "Failed to get processes from process table")
 		}
 		for _, process := range processes {
-			if err := unix.Kill(int(process.ProcessID), syscall.SIGKILL); err != nil && err != syscall.ESRCH {
+			if err := killProcess(int(process.ProcessID)); err != nil {
 				return util.StatusWrapf(err, "Failed to kill process %d", process.ProcessID)
 			}
 		}
