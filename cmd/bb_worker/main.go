@@ -9,9 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strconv"
-	"syscall"
 	"time"
 
 	re_blobstore "github.com/buildbarn/bb-remote-execution/pkg/blobstore"
@@ -36,8 +34,6 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gorilla/mux"
-
-	"golang.org/x/sys/unix"
 )
 
 func main() {
@@ -131,7 +127,7 @@ func main() {
 			// process either writes files into directories that can
 			// easily be closed off, or creates files with the
 			// appropriate mode to be secure.
-			syscall.Umask(0)
+			clearUmask()
 
 			// Directory where actual builds take place.
 			nativeConfiguration := backend.Native
@@ -192,17 +188,10 @@ func main() {
 			// Obtain raw device numbers of character
 			// devices that need to be available within the
 			// input root.
-			inputRootCharacterDevices := map[string]int{}
-			for _, device := range runnerConfiguration.InputRootCharacterDeviceNodes {
-				var stat unix.Stat_t
-				devicePath := filepath.Join("/dev", device)
-				if err := unix.Stat(devicePath, &stat); err != nil {
-					log.Fatalf("Unable to stat character device %#v: %s", devicePath, err)
-				}
-				if stat.Mode&syscall.S_IFMT != syscall.S_IFCHR {
-					log.Fatalf("The specified device %#v is not a character device", devicePath)
-				}
-				inputRootCharacterDevices[device] = int(stat.Rdev)
+			inputRootCharacterDevices, err := getInputRootCharacterDevices(
+				runnerConfiguration.InputRootCharacterDeviceNodes)
+			if err != nil {
+				log.Fatal(err)
 			}
 
 			// Execute commands using a separate runner process. Due to the
