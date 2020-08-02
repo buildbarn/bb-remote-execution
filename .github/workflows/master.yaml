@@ -1,94 +1,237 @@
-name: master
-on:
-  push:
-    branches:
-    - master
-jobs:
-  build_and_test:
-    runs-on: ubuntu-latest
-    container: docker://l.gcr.io/google/bazel:2.1.0
-    steps:
-    - name: Check out source code
-      uses: actions/checkout@v1
-
-    - name: Buildifier
-      run: bazel run @com_github_bazelbuild_buildtools//:buildifier
-    - name: Gazelle
-      run: bazel run //:gazelle -- update-repos -from_file=go.mod -to_macro go_dependencies.bzl%go_dependencies -prune && bazel run //:gazelle
-    - name: Gofmt
-      run: bazel run @go_sdk//:bin/gofmt -- -s -w .
-    - name: Clang format
-      run: find . -name '*.proto' -exec bazel run @llvm_toolchain//:bin/clang-format -- -i {} +
-    - name: Test style conformance
-      run: git diff --exit-code HEAD --
-    - name: Golint
-      run: bazel run @org_golang_x_lint//golint -- -set_exit_status $(pwd)/...
-    - name: Check for ineffective assignments
-      run: bazel run @com_github_gordonklaus_ineffassign//:ineffassign $(pwd)
-
-    - name: Linux build and test
-      run: bazel test --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //...
-    - name: Upload bb_runner for Linux
-      uses: actions/upload-artifact@v2-preview
-      with:
-        name: bb_runner.linux_amd64
-        path: bazel-bin/cmd/bb_runner/linux_amd64_pure_stripped/bb_runner
-    - name: Upload bb_scheduler for Linux
-      uses: actions/upload-artifact@v2-preview
-      with:
-        name: bb_scheduler.linux_amd64
-        path: bazel-bin/cmd/bb_scheduler/linux_amd64_pure_stripped/bb_scheduler
-    - name: Upload bb_worker for Linux
-      uses: actions/upload-artifact@v2-preview
-      with:
-        name: bb_worker.linux_amd64
-        path: bazel-bin/cmd/bb_worker/linux_amd64_pure_stripped/bb_worker
-
-    - name: macOS build
-      run: bazel build --platforms=@io_bazel_rules_go//go/toolchain:darwin_amd64 //...
-    - name: Upload bb_runner for macOS
-      uses: actions/upload-artifact@v2-preview
-      with:
-        name: bb_runner.darwin_amd64
-        path: bazel-bin/cmd/bb_runner/darwin_amd64_pure_stripped/bb_runner
-    - name: Upload bb_scheduler for macOS
-      uses: actions/upload-artifact@v2-preview
-      with:
-        name: bb_scheduler.darwin_amd64
-        path: bazel-bin/cmd/bb_scheduler/darwin_amd64_pure_stripped/bb_scheduler
-    - name: Upload bb_worker for macOS
-      uses: actions/upload-artifact@v2-preview
-      with:
-        name: bb_worker.darwin_amd64
-        path: bazel-bin/cmd/bb_worker/darwin_amd64_pure_stripped/bb_worker
-
-    - name: FreeBSD build
-      run: bazel build --platforms=@io_bazel_rules_go//go/toolchain:freebsd_amd64 //cmd/bb_runner //cmd/bb_scheduler //cmd/bb_worker
-    - name: Upload bb_runner for FreeBSD
-      uses: actions/upload-artifact@v2-preview
-      with:
-        name: bb_runner.freebsd_amd64
-        path: bazel-bin/cmd/bb_runner/freebsd_amd64_pure_stripped/bb_runner
-    - name: Upload bb_scheduler for FreeBSD
-      uses: actions/upload-artifact@v2-preview
-      with:
-        name: bb_scheduler.freebsd_amd64
-        path: bazel-bin/cmd/bb_scheduler/freebsd_amd64_pure_stripped/bb_scheduler
-    - name: Upload bb_worker for FreeBSD
-      uses: actions/upload-artifact@v2-preview
-      with:
-        name: bb_worker.freebsd_amd64
-        path: bazel-bin/cmd/bb_worker/freebsd_amd64_pure_stripped/bb_worker
-
-    - name: Install Docker credentials
-      run: mkdir ~/.docker && echo "${DOCKER_CONFIG_JSON}" > ~/.docker/config.json
-      env:
-        DOCKER_CONFIG_JSON: ${{ secrets.DOCKER_CONFIG_JSON }}
-    - name: Push container bb-runner-bare
-      run: bazel run //cmd/bb_runner:bb_runner_bare_container_push
-    - name: Push container bb-runner-installer
-      run: bazel run //cmd/bb_runner:bb_runner_installer_push
-    - name: Push container bb-scheduler
-      run: bazel run //cmd/bb_scheduler:bb_scheduler_container_push
-    - name: Push container bb-worker
-      run: bazel run //cmd/bb_worker:bb_worker_container_push
+{
+   "jobs": {
+      "build_and_test": {
+         "container": "docker://l.gcr.io/google/bazel:3.3.1",
+         "runs-on": "ubuntu-latest",
+         "steps": [
+            {
+               "name": "Check out source code",
+               "uses": "actions/checkout@v1"
+            },
+            {
+               "name": "Buildifier",
+               "run": "bazel run @com_github_bazelbuild_buildtools//:buildifier"
+            },
+            {
+               "name": "Gazelle",
+               "run": "bazel run //:gazelle -- update-repos -from_file=go.mod -to_macro go_dependencies.bzl%go_dependencies -prune && bazel run //:gazelle"
+            },
+            {
+               "name": "Gofmt",
+               "run": "bazel run @go_sdk//:bin/gofmt -- -s -w ."
+            },
+            {
+               "name": "Clang format",
+               "run": "find . -name '*.proto' -exec bazel run @llvm_toolchain//:bin/clang-format -- -i {} +"
+            },
+            {
+               "name": "GitHub workflows",
+               "run": "bazel build //tools/github_workflows && cp bazel-bin/tools/github_workflows/* .github/workflows"
+            },
+            {
+               "name": "Test style conformance",
+               "run": "git diff --exit-code HEAD --"
+            },
+            {
+               "name": "Golint",
+               "run": "bazel run @org_golang_x_lint//golint -- -set_exit_status $(pwd)/..."
+            },
+            {
+               "name": "Check for ineffective assignments",
+               "run": "bazel run @com_github_gordonklaus_ineffassign//:ineffassign $(pwd)"
+            },
+            {
+               "name": "linux_amd64: build and test",
+               "run": "bazel test --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //..."
+            },
+            {
+               "name": "linux_amd64: copy bb_runner",
+               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //cmd/bb_runner $(pwd)/bb_runner"
+            },
+            {
+               "name": "linux_amd64: upload bb_runner",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "bb_runner.linux_amd64",
+                  "path": "bb_runner"
+               }
+            },
+            {
+               "name": "linux_amd64: copy bb_scheduler",
+               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //cmd/bb_scheduler $(pwd)/bb_scheduler"
+            },
+            {
+               "name": "linux_amd64: upload bb_scheduler",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "bb_scheduler.linux_amd64",
+                  "path": "bb_scheduler"
+               }
+            },
+            {
+               "name": "linux_amd64: copy bb_worker",
+               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //cmd/bb_worker $(pwd)/bb_worker"
+            },
+            {
+               "name": "linux_amd64: upload bb_worker",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "bb_worker.linux_amd64",
+                  "path": "bb_worker"
+               }
+            },
+            {
+               "name": "darwin_amd64: build and test",
+               "run": "bazel build --platforms=@io_bazel_rules_go//go/toolchain:darwin_amd64 //..."
+            },
+            {
+               "name": "darwin_amd64: copy bb_runner",
+               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:darwin_amd64 //cmd/bb_runner $(pwd)/bb_runner"
+            },
+            {
+               "name": "darwin_amd64: upload bb_runner",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "bb_runner.darwin_amd64",
+                  "path": "bb_runner"
+               }
+            },
+            {
+               "name": "darwin_amd64: copy bb_scheduler",
+               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:darwin_amd64 //cmd/bb_scheduler $(pwd)/bb_scheduler"
+            },
+            {
+               "name": "darwin_amd64: upload bb_scheduler",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "bb_scheduler.darwin_amd64",
+                  "path": "bb_scheduler"
+               }
+            },
+            {
+               "name": "darwin_amd64: copy bb_worker",
+               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:darwin_amd64 //cmd/bb_worker $(pwd)/bb_worker"
+            },
+            {
+               "name": "darwin_amd64: upload bb_worker",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "bb_worker.darwin_amd64",
+                  "path": "bb_worker"
+               }
+            },
+            {
+               "name": "freebsd_amd64: build and test",
+               "run": "bazel build --platforms=@io_bazel_rules_go//go/toolchain:freebsd_amd64 //cmd/bb_runner //cmd/bb_scheduler //cmd/bb_worker"
+            },
+            {
+               "name": "freebsd_amd64: copy bb_runner",
+               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:freebsd_amd64 //cmd/bb_runner $(pwd)/bb_runner"
+            },
+            {
+               "name": "freebsd_amd64: upload bb_runner",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "bb_runner.freebsd_amd64",
+                  "path": "bb_runner"
+               }
+            },
+            {
+               "name": "freebsd_amd64: copy bb_scheduler",
+               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:freebsd_amd64 //cmd/bb_scheduler $(pwd)/bb_scheduler"
+            },
+            {
+               "name": "freebsd_amd64: upload bb_scheduler",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "bb_scheduler.freebsd_amd64",
+                  "path": "bb_scheduler"
+               }
+            },
+            {
+               "name": "freebsd_amd64: copy bb_worker",
+               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:freebsd_amd64 //cmd/bb_worker $(pwd)/bb_worker"
+            },
+            {
+               "name": "freebsd_amd64: upload bb_worker",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "bb_worker.freebsd_amd64",
+                  "path": "bb_worker"
+               }
+            },
+            {
+               "name": "windows_amd64: build and test",
+               "run": "bazel build --platforms=@io_bazel_rules_go//go/toolchain:windows_amd64 //..."
+            },
+            {
+               "name": "windows_amd64: copy bb_runner",
+               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:windows_amd64 //cmd/bb_runner $(pwd)/bb_runner.exe"
+            },
+            {
+               "name": "windows_amd64: upload bb_runner",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "bb_runner.windows_amd64",
+                  "path": "bb_runner.exe"
+               }
+            },
+            {
+               "name": "windows_amd64: copy bb_scheduler",
+               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:windows_amd64 //cmd/bb_scheduler $(pwd)/bb_scheduler.exe"
+            },
+            {
+               "name": "windows_amd64: upload bb_scheduler",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "bb_scheduler.windows_amd64",
+                  "path": "bb_scheduler.exe"
+               }
+            },
+            {
+               "name": "windows_amd64: copy bb_worker",
+               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:windows_amd64 //cmd/bb_worker $(pwd)/bb_worker.exe"
+            },
+            {
+               "name": "windows_amd64: upload bb_worker",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "bb_worker.windows_amd64",
+                  "path": "bb_worker.exe"
+               }
+            },
+            {
+               "env": {
+                  "DOCKER_CONFIG_JSON": "${{ secrets.DOCKER_CONFIG_JSON }}"
+               },
+               "name": "Install Docker credentials",
+               "run": "mkdir ~/.docker && echo \"${DOCKER_CONFIG_JSON}\" > ~/.docker/config.json"
+            },
+            {
+               "name": "Push container bb_runner:bb_runner_bare",
+               "run": "bazel run //cmd/bb_runner:bb_runner_bare_container_push"
+            },
+            {
+               "name": "Push container bb_runner:bb_runner_installer",
+               "run": "bazel run //cmd/bb_runner:bb_runner_installer_container_push"
+            },
+            {
+               "name": "Push container bb_scheduler:bb_scheduler",
+               "run": "bazel run //cmd/bb_scheduler:bb_scheduler_container_push"
+            },
+            {
+               "name": "Push container bb_worker:bb_worker",
+               "run": "bazel run //cmd/bb_worker:bb_worker_container_push"
+            }
+         ]
+      }
+   },
+   "name": "master",
+   "on": {
+      "push": {
+         "branches": [
+            "master"
+         ]
+      }
+   }
+}

@@ -1,0 +1,11 @@
+load("@io_bazel_rules_jsonnet//jsonnet:jsonnet.bzl", "jsonnet_library", "jsonnet_to_json")
+
+jsonnet_to_json(
+    name = "github_workflows",
+    src = "github_workflows.jsonnet",
+    outs = [
+        "master.yaml",
+        "pull-requests.yaml",
+    ],
+    deps = ["@com_github_buildbarn_bb_storage//tools/github_workflows:workflows_template"],
+)
