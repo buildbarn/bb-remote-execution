@@ -50,7 +50,7 @@ func main() {
 	// and Command messages stored in the CAS to obtain platform
 	// properties.
 	grpcClientFactory := bb_grpc.NewDeduplicatingClientFactory(bb_grpc.BaseClientFactory)
-	contentAddressableStorage, err := blobstore_configuration.NewBlobAccessFromConfiguration(
+	info, err := blobstore_configuration.NewBlobAccessFromConfiguration(
 		configuration.ContentAddressableStorage,
 		blobstore_configuration.NewCASBlobAccessCreator(
 			grpcClientFactory,
@@ -58,7 +58,7 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to create Content Adddressable Storage: ", err)
 	}
-	contentAddressableStorage = re_blobstore.NewExistencePreconditionBlobAccess(contentAddressableStorage)
+	contentAddressableStorage := re_blobstore.NewExistencePreconditionBlobAccess(info.BlobAccess)
 
 	// TODO: Make timeouts configurable.
 	buildQueue := builder.NewInMemoryBuildQueue(

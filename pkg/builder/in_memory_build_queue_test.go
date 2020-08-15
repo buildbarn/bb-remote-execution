@@ -116,7 +116,7 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 				Hash:      "This is not a valid hash",
 				SizeBytes: 456,
 			},
-		}, buffer.Irreparable))
+		}, buffer.UserProvided))
 
 		stream, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
 			InstanceName: "main",
@@ -140,7 +140,7 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 				SizeBytes: 456,
 			},
-		}, buffer.Irreparable))
+		}, buffer.UserProvided))
 		contentAddressableStorage.EXPECT().Get(
 			gomock.Any(),
 			digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
@@ -170,7 +170,7 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 				SizeBytes: 456,
 			},
-		}, buffer.Irreparable))
+		}, buffer.UserProvided))
 		contentAddressableStorage.EXPECT().Get(
 			gomock.Any(),
 			digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
@@ -181,7 +181,7 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 					{Name: "cpu", Value: "armv6"},
 				},
 			},
-		}, buffer.Irreparable))
+		}, buffer.UserProvided))
 
 		stream, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
 			InstanceName: "main",
@@ -208,7 +208,7 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 				SizeBytes: 456,
 			},
-		}, buffer.Irreparable))
+		}, buffer.UserProvided))
 		contentAddressableStorage.EXPECT().Get(
 			gomock.Any(),
 			digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
@@ -219,7 +219,7 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 					{Name: "os", Value: "linux"},
 				},
 			},
-		}, buffer.Irreparable))
+		}, buffer.UserProvided))
 		clock.EXPECT().Now().Return(time.Unix(899, 999999999))
 
 		stream, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
@@ -246,7 +246,7 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 				SizeBytes: 456,
 			},
-		}, buffer.Irreparable))
+		}, buffer.UserProvided))
 		contentAddressableStorage.EXPECT().Get(
 			gomock.Any(),
 			digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
@@ -257,7 +257,7 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 					{Name: "os", Value: "linux"},
 				},
 			},
-		}, buffer.Irreparable))
+		}, buffer.UserProvided))
 		clock.EXPECT().Now().Return(time.Unix(900, 0))
 
 		stream, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
@@ -287,11 +287,11 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 				SizeBytes: 456,
 			},
 			DoNotCache: true,
-		}, buffer.Irreparable))
+		}, buffer.UserProvided))
 		contentAddressableStorage.EXPECT().Get(
 			gomock.Any(),
 			digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
-		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{}, buffer.Irreparable))
+		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{}, buffer.UserProvided))
 	}
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
@@ -547,7 +547,7 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 				SizeBytes: 456,
 			},
-		}, buffer.Irreparable))
+		}, buffer.UserProvided))
 		contentAddressableStorage.EXPECT().Get(
 			gomock.Any(),
 			digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
@@ -558,7 +558,7 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 					{Name: "os", Value: "linux"},
 				},
 			},
-		}, buffer.Irreparable))
+		}, buffer.UserProvided))
 	}
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
@@ -779,7 +779,7 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 			SizeBytes: 456,
 		},
-	}, buffer.Irreparable))
+	}, buffer.UserProvided))
 	contentAddressableStorage.EXPECT().Get(
 		gomock.Any(),
 		digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
@@ -790,7 +790,7 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 				{Name: "os", Value: "linux"},
 			},
 		},
-	}, buffer.Irreparable))
+	}, buffer.UserProvided))
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -995,7 +995,7 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 			SizeBytes: 456,
 		},
-	}, buffer.Irreparable))
+	}, buffer.UserProvided))
 	contentAddressableStorage.EXPECT().Get(
 		gomock.Any(),
 		digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
@@ -1006,7 +1006,7 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 				{Name: "os", Value: "linux"},
 			},
 		},
-	}, buffer.Irreparable))
+	}, buffer.UserProvided))
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -1250,7 +1250,7 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 			SizeBytes: 456,
 		},
-	}, buffer.Irreparable))
+	}, buffer.UserProvided))
 	contentAddressableStorage.EXPECT().Get(
 		gomock.Any(),
 		digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
@@ -1261,7 +1261,7 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 				{Name: "os", Value: "linux"},
 			},
 		},
-	}, buffer.Irreparable))
+	}, buffer.UserProvided))
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
