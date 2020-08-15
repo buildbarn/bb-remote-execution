@@ -116,11 +116,7 @@ func (d *naiveBuildDirectory) MergeDirectoryContents(ctx context.Context, errorL
 }
 
 func (d *naiveBuildDirectory) UploadFile(ctx context.Context, name string, parentDigest digest.Digest) (digest.Digest, error) {
-	return casPutFile(ctx, d.contentAddressableStorage, d, name, parentDigest)
-}
-
-func casPutFile(ctx context.Context, contentAddressableStorage blobstore.BlobAccess, directory filesystem.Directory, name string, parentDigest digest.Digest) (digest.Digest, error) {
-	file, err := directory.OpenRead(name)
+	file, err := d.OpenRead(name)
 	if err != nil {
 		return digest.BadDigest, err
 	}
@@ -138,7 +134,7 @@ func casPutFile(ctx context.Context, contentAddressableStorage blobstore.BlobAcc
 	// used to compute the digest. This ensures uploads succeed,
 	// even if more data gets appended in the meantime. This is not
 	// uncommon, especially for stdout and stderr logs.
-	if err := contentAddressableStorage.Put(
+	if err := d.contentAddressableStorage.Put(
 		ctx,
 		blobDigest,
 		buffer.NewCASBufferFromReader(
