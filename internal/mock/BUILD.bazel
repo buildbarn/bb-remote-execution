@@ -128,10 +128,7 @@ gomock(
 gomock(
     name = "storage_builder",
     out = "storage_builder.go",
-    interfaces = [
-        "BuildQueue",
-        "BuildQueueGetter",
-    ],
+    interfaces = ["BuildQueue"],
     library = "@com_github_buildbarn_bb_storage//pkg/builder:go_default_library",
     package = "mock",
 )
