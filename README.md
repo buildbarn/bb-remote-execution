@@ -1,4 +1,4 @@
-# Buildbarn Remote Execution [![Build status](https://github.com/buildbarn/bb-remote-execution/workflows/master/badge.svg)](https://github.com/buildbarn/bb-remote-execution/actions) [![PkgGoDev](https://pkg.go.dev/badge/buildbarn/bb-remote-execution)](https://pkg.go.dev/buildbarn/bb-remote-execution) [![Go Report Card](https://goreportcard.com/badge/github.com/buildbarn/bb-remote-execution)](https://goreportcard.com/report/github.com/buildbarn/bb-remote-execution)
+# Buildbarn Remote Execution [![Build status](https://github.com/buildbarn/bb-remote-execution/workflows/master/badge.svg)](https://github.com/buildbarn/bb-remote-execution/actions) [![PkgGoDev](https://pkg.go.dev/badge/github.com/buildbarn/bb-remote-execution)](https://pkg.go.dev/github.com/buildbarn/bb-remote-execution) [![Go Report Card](https://goreportcard.com/badge/github.com/buildbarn/bb-remote-execution)](https://goreportcard.com/report/github.com/buildbarn/bb-remote-execution)
 
 This repository provides tools that can be used in combination with
 [the Buildbarn storage daemon](https://github.com/buildbarn/bb-storage)
