@@ -209,6 +209,10 @@ var _ BuildQueueStateProvider = (*InMemoryBuildQueue)(nil)
 // GetCapabilities returns the Remote Execution protocol capabilities
 // that this service supports.
 func (bq *InMemoryBuildQueue) GetCapabilities(ctx context.Context, in *remoteexecution.GetCapabilitiesRequest) (*remoteexecution.ServerCapabilities, error) {
+	trace.FromContext(ctx).Annotate([]trace.Attribute{
+		trace.StringAttribute("instance", in.InstanceName),
+	}, "InMemoryBuildQueue.GetCapabilities")
+
 	return &remoteexecution.ServerCapabilities{
 		CacheCapabilities: &remoteexecution.CacheCapabilities{
 			DigestFunction: digest.SupportedDigestFunctions,
@@ -246,6 +250,12 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 	// Addressable Storage (CAS) multiple times, the scheduler holds
 	// on to them and passes them on to the workers.
 	ctx := out.Context()
+	span := trace.FromContext(ctx)
+	span.AddAttributes(
+		trace.StringAttribute("instance", in.InstanceName),
+		trace.StringAttribute("digest", in.ActionDigest.Hash),
+	)
+
 	instanceName, err := digest.NewInstanceName(in.InstanceName)
 	if err != nil {
 		return util.StatusWrapf(err, "Invalid instance name %#v", in.InstanceName)
@@ -311,7 +321,6 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 			QueuedTimestamp: bq.getCurrentTime(),
 		}
 
-		span := trace.FromContext(ctx)
 		if span != nil {
 			desiredState.TraceContext = propagation.Binary(span.SpanContext())
 		}
@@ -343,6 +352,10 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 		pq.wakeupNextWorker()
 		pq.operationsQueuedTotal.Inc()
 	}
+
+	span.AddAttributes(
+		trace.StringAttribute("name", o.name),
+	)
 	return o.waitExecution(bq, out)
 }
 
@@ -352,6 +365,10 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 func (bq *InMemoryBuildQueue) WaitExecution(in *remoteexecution.WaitExecutionRequest, out remoteexecution.Execution_WaitExecutionServer) error {
 	bq.enter(bq.clock.Now())
 	defer bq.leave()
+
+	trace.FromContext(out.Context()).Annotate([]trace.Attribute{
+		trace.StringAttribute("name", in.Name),
+	}, "InMemoryBuildQueue.WaitExecution")
 
 	o, ok := bq.operationsNameMap[in.Name]
 	if !ok {
@@ -1180,6 +1197,11 @@ func (o *operation) getStage() remoteexecution.ExecutionStage_Value {
 func (o *operation) waitExecution(bq *InMemoryBuildQueue, out remoteexecution.Execution_ExecuteServer) error {
 	ctx := out.Context()
 
+	_, span := trace.StartSpan(ctx, "InMemoryBuildQueue.waitExecution")
+	// We will create multiple spans in this function; the last one
+	// will end when the function returns
+	defer func() { span.End() }()
+
 	// Bookkeeping for determining whether operations are abandoned
 	// by clients. Operations should be removed if there are no
 	// clients calling Execute() or WaitExecution() for a certain
@@ -1203,10 +1225,15 @@ func (o *operation) waitExecution(bq *InMemoryBuildQueue, out remoteexecution.Ex
 	for {
 		// Construct the longrunning.Operation that needs to be
 		// sent back to the client.
+		stage := o.getStage()
 		metadata, err := ptypes.MarshalAny(&remoteexecution.ExecuteOperationMetadata{
-			Stage:        o.getStage(),
+			Stage:        stage,
 			ActionDigest: o.desiredState.ActionDigest,
 		})
+		span.AddAttributes(
+			trace.StringAttribute("stage", stage.String()),
+			trace.StringAttribute("digest", o.desiredState.ActionDigest.Hash),
+		)
 		if err != nil {
 			return util.StatusWrap(err, "Failed to marshal execute operation metadata")
 		}
@@ -1230,6 +1257,9 @@ func (o *operation) waitExecution(bq *InMemoryBuildQueue, out remoteexecution.Ex
 			bq.enter(bq.clock.Now())
 			return err
 		}
+
+		span.End()
+		_, span = trace.StartSpan(ctx, "InMemoryBuildQueue.waitExecution")
 
 		// Suspend until the client closes the connection, the
 		// action completes or a certain amount of time has

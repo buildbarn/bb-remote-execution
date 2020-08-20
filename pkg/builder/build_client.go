@@ -75,20 +75,31 @@ func (bc *BuildClient) startExecution(executionRequest *remoteworker.DesiredStat
 	updates := make(chan *remoteworker.CurrentState_Executing, 10)
 	bc.executionUpdates = updates
 	go func() {
+		var span *trace.Span
 		if tc, ok := propagation.FromBinary(executionRequest.TraceContext); ok {
-			var span *trace.Span
 			ctx, span = trace.StartSpanWithRemoteParent(ctx, "BuildClient.Execute", tc)
 			defer span.End()
 		}
+
+		response := bc.buildExecutor.Execute(
+			ctx,
+			bc.filePool,
+			bc.instanceName,
+			executionRequest,
+			updates)
+
+		span.AddAttributes(
+			trace.StringAttribute("instance", bc.instanceName.String()),
+			trace.StringAttribute("digest", executionRequest.ActionDigest.Hash),
+			trace.BoolAttribute("cached", response.CachedResult),
+			trace.StringAttribute("message", response.Message),
+		)
+		span.SetStatus(trace.Status{Code: response.Status.Code, Message: response.Status.Message})
+
 		updates <- &remoteworker.CurrentState_Executing{
 			ActionDigest: executionRequest.ActionDigest,
 			ExecutionState: &remoteworker.CurrentState_Executing_Completed{
-				Completed: bc.buildExecutor.Execute(
-					ctx,
-					bc.filePool,
-					bc.instanceName,
-					executionRequest,
-					updates),
+				Completed: response,
 			},
 		}
 		close(updates)
