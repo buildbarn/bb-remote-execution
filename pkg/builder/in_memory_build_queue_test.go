@@ -20,6 +20,7 @@ import (
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/api/trace"
 	"google.golang.org/genproto/googleapis/longrunning"
 
 	"google.golang.org/grpc"
@@ -71,7 +72,7 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
-	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, trace.NoopTracer{}, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// ExecuteRequest contains an invalid action digest.
@@ -296,7 +297,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
-	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, trace.NoopTracer{}, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -563,7 +564,7 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
-	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, trace.NoopTracer{}, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -794,7 +795,7 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
-	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, trace.NoopTracer{}, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -1010,7 +1011,7 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
-	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, trace.NoopTracer{}, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -1203,7 +1204,7 @@ func TestInMemoryBuildQueueIdleWorkerSynchronizationTimeout(t *testing.T) {
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
-	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, trace.NoopTracer{}, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000)
 
 	// When no work appears, workers should still be woken up
 	// periodically to resynchronize. This ensures that workers that
@@ -1265,7 +1266,7 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
-	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, trace.NoopTracer{}, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
