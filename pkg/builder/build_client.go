@@ -94,7 +94,9 @@ func (bc *BuildClient) startExecution(executionRequest *remoteworker.DesiredStat
 			trace.BoolAttribute("cached", response.CachedResult),
 			trace.StringAttribute("message", response.Message),
 		)
-		span.SetStatus(trace.Status{Code: response.Status.Code, Message: response.Status.Message})
+		if response.Status != nil {
+			span.SetStatus(trace.Status{Code: response.Status.Code, Message: response.Status.Message})
+		}
 
 		updates <- &remoteworker.CurrentState_Executing{
 			ActionDigest: executionRequest.ActionDigest,
