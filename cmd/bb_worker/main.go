@@ -156,7 +156,6 @@ func main() {
 			}
 			fileFetcher = cas.NewHardlinkingFileFetcher(
 				cas.NewBlobAccessFileFetcher(globalContentAddressableStorage),
-				digest.KeyWithoutInstance,
 				cacheDirectory,
 				int(nativeConfiguration.MaximumCacheFileCount),
 				nativeConfiguration.MaximumCacheSizeBytes,
