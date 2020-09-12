@@ -61,7 +61,6 @@ gomock(
     out = "cloud_aws.go",
     interfaces = [
         "AutoScaling",
-        "EC2",
         "LifecycleHookHandler",
         "SQS",
         "SQSMessageHandler",

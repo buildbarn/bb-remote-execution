@@ -54,13 +54,18 @@ message AWSASGLifecycleHookConfiguration {
   // "autoscaling:EC2_INSTANCE_TERMINATING" events are posted.
   string sqs_url = 1;
 
-  // Label that should be used to match the private DNS name of the EC2
-  // instance (ip-*.*.compute.internal) against workers known by the
-  // scheduler. For example, if your workers are all called
-  // {"host": "ip-*.*.compute.internal", "thread": "*"}, then this
-  // configuration option should be set to "host".
+  // Label that should be used to match the instance ID of the EC2
+  // instance (i-*) against workers known by the scheduler. For example,
+  // if your workers are all called {"instance": "i-*", "thread": "*"},
+  // then this configuration option should be set to "instance".
+  //
+  // On systems like Amazon EKS, it is possible to attach an instance ID
+  // label to workers by creating an initContainer that stores the
+  // contents of http://169.254.169.254/latest/meta-data/instance-id in
+  // a file in an emptyDir. This file can then be loaded by bb_worker on
+  // startup using Jsonnet's importstr command.
   //
   // Setting this configuration option incorrectly may cause the
   // scheduler to not drain the right set of workers.
-  string private_dns_name_label = 2;
+  string instance_id_label = 2;
 }

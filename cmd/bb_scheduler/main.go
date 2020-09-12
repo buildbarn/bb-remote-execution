@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/service/autoscaling"
-	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/sqs"
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	re_blobstore "github.com/buildbarn/bb-remote-execution/pkg/blobstore"
@@ -109,7 +108,6 @@ func main() {
 			log.Fatal("Failed to create AWS session: ", err)
 		}
 		autoScaling := autoscaling.New(sess)
-		ec2 := ec2.New(sess)
 		sqs := sqs.New(sess)
 		for _, lifecycleHook := range configuration.AwsAsgLifecycleHooks {
 			r := re_aws.NewSQSReceiver(
@@ -119,9 +117,8 @@ func main() {
 				re_aws.NewLifecycleHookSQSMessageHandler(
 					autoScaling,
 					re_aws.NewBuildQueueLifecycleHookHandler(
-						ec2,
 						buildQueue,
-						lifecycleHook.PrivateDnsNameLabel)),
+						lifecycleHook.InstanceIdLabel)),
 				util.DefaultErrorLogger)
 			go func() {
 				for {
