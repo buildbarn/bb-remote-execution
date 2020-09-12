@@ -12,6 +12,14 @@ gomock(
 )
 
 gomock(
+    name = "blockdevice",
+    out = "blockdevice.go",
+    interfaces = ["BlockDevice"],
+    library = "@com_github_buildbarn_bb_storage//pkg/blockdevice:go_default_library",
+    package = "mock",
+)
+
+gomock(
     name = "builder",
     out = "builder.go",
     interfaces = [
@@ -145,6 +153,7 @@ go_library(
     name = "go_default_library",
     srcs = [
         ":blobstore.go",
+        ":blockdevice.go",
         ":builder.go",
         ":cas.go",
         ":clock.go",

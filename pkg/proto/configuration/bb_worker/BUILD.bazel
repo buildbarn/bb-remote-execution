@@ -9,6 +9,7 @@ proto_library(
     deps = [
         "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:remote_execution_proto",
         "@com_github_buildbarn_bb_storage//pkg/proto/configuration/blobstore:blobstore_proto",
+        "@com_github_buildbarn_bb_storage//pkg/proto/configuration/blockdevice:blockdevice_proto",
         "@com_github_buildbarn_bb_storage//pkg/proto/configuration/eviction:eviction_proto",
         "@com_github_buildbarn_bb_storage//pkg/proto/configuration/global:global_proto",
         "@com_github_buildbarn_bb_storage//pkg/proto/configuration/grpc:grpc_proto",
@@ -24,6 +25,7 @@ go_proto_library(
     deps = [
         "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/proto/configuration/blobstore:go_default_library",
+        "@com_github_buildbarn_bb_storage//pkg/proto/configuration/blockdevice:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/proto/configuration/eviction:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/proto/configuration/global:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/proto/configuration/grpc:go_default_library",

@@ -73,10 +73,10 @@ func main() {
 			log.Fatal("Failed to empty out file pool directory: ", err)
 		}
 		filePool = re_filesystem.NewDirectoryBackedFilePool(directory)
-	case *bb_worker.ApplicationConfiguration_FilePoolBlockDevicePath:
-		blockDevice, sectorSizeBytes, sectorCount, err := blockdevice.MemoryMapBlockDevice(backend.FilePoolBlockDevicePath)
+	case *bb_worker.ApplicationConfiguration_FilePoolBlockDevice:
+		blockDevice, sectorSizeBytes, sectorCount, err := blockdevice.NewBlockDeviceFromConfiguration(backend.FilePoolBlockDevice)
 		if err != nil {
-			log.Fatal("Failed to memory map file pool block device: ", err)
+			log.Fatal("Failed to open file pool block device: ", err)
 		}
 		if sectorCount > math.MaxUint32 {
 			log.Fatal("File pool block device has %d sectors, while only %d may be addressed", sectorCount, math.MaxUint32)

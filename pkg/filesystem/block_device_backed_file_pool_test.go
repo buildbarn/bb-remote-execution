@@ -17,7 +17,7 @@ import (
 func TestBlockDeviceBackedFilePool(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
-	blockDevice := mock.NewMockFileReadWriter(ctrl)
+	blockDevice := mock.NewMockBlockDevice(ctrl)
 	sectorAllocator := mock.NewMockSectorAllocator(ctrl)
 	pool := re_filesystem.NewBlockDeviceBackedFilePool(blockDevice, sectorAllocator, 16)
 

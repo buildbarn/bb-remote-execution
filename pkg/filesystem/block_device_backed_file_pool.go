@@ -12,7 +12,7 @@ import (
 )
 
 type blockDeviceBackedFilePool struct {
-	blockDevice     blockdevice.ReadWriterAt
+	blockDevice     blockdevice.BlockDevice
 	sectorAllocator SectorAllocator
 	sectorSizeBytes int
 	zeroSector      []byte
@@ -23,7 +23,7 @@ type blockDeviceBackedFilePool struct {
 // device tends to be faster than using a directory on a file system,
 // for the reason that no metadata (e.g., a directory hierarchy and
 // inode attributes) needs to be stored.
-func NewBlockDeviceBackedFilePool(blockDevice blockdevice.ReadWriterAt, sectorAllocator SectorAllocator, sectorSizeBytes int) FilePool {
+func NewBlockDeviceBackedFilePool(blockDevice blockdevice.BlockDevice, sectorAllocator SectorAllocator, sectorSizeBytes int) FilePool {
 	return &blockDeviceBackedFilePool{
 		blockDevice:     blockDevice,
 		sectorAllocator: sectorAllocator,
