@@ -7,7 +7,6 @@ import (
 	"sync/atomic"
 
 	"github.com/buildbarn/bb-storage/pkg/digest"
-	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/util"
 
 	"google.golang.org/grpc/codes"
@@ -95,7 +94,7 @@ func (dc *sharedBuildDirectoryCreator) GetBuildDirectory(actionDigest digest.Dig
 
 type sharedBuildDirectory struct {
 	BuildDirectory
-	parentDirectory    filesystem.DirectoryCloser
+	parentDirectory    BuildDirectory
 	childDirectoryName string
 	childDirectoryPath string
 }

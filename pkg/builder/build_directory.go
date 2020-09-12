@@ -2,20 +2,27 @@ package builder
 
 import (
 	"context"
+	"os"
 
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/digest"
-	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/util"
 )
 
-// BuildDirectory is a filesystem.Directory that may be used for the
-// purpose of running build actions. BuildDirectory has a couple of
-// special operations that implementations may use to run actions in a
-// more efficient and manageable way.
+// BuildDirectory is a directory that may be used for the purpose of
+// running build actions. BuildDirectory shares some operations with
+// filesystem.Directory, but it has a couple of custom operations that
+// implementations may use to run actions in a more efficient and
+// manageable way.
 type BuildDirectory interface {
-	filesystem.DirectoryCloser
 	UploadableDirectory
+
+	// Methods inherited from filesystem.Directory.
+	Mkdir(name string, perm os.FileMode) error
+	Mknod(name string, perm os.FileMode, dev int) error
+	Remove(name string) error
+	RemoveAll(name string) error
+	RemoveAllChildren() error
 
 	// Identical to EnterDirectory(), except that it returns a
 	// BuildDirectory object.

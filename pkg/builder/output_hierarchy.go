@@ -95,7 +95,7 @@ func newOutputDirectory() *outputNode {
 // OutputHierarchy.CreateParentDirectories() to create parent
 // directories of locations where output directories and files are
 // expected.
-func (on *outputNode) createParentDirectories(d filesystem.Directory, dPath *pathBuffer) error {
+func (on *outputNode) createParentDirectories(d BuildDirectory, dPath *pathBuffer) error {
 	dPath.enter()
 	defer dPath.leave()
 
@@ -107,7 +107,7 @@ func (on *outputNode) createParentDirectories(d filesystem.Directory, dPath *pat
 
 		// Recurse if we need to create one or more directories within.
 		if child := on.subdirectories[name]; len(child.subdirectories) > 0 || len(child.directoriesToUpload) > 0 {
-			childDirectory, err := d.EnterDirectory(name)
+			childDirectory, err := d.EnterBuildDirectory(name)
 			if err != nil {
 				return util.StatusWrapf(err, "Failed to enter output parent directory %#v", dPath.join())
 			}
@@ -482,7 +482,7 @@ func (oh *OutputHierarchy) addPath(path string) {
 
 // CreateParentDirectories creates parent directories of outputs. This
 // function is called prior to executing the build action.
-func (oh *OutputHierarchy) CreateParentDirectories(d filesystem.Directory) error {
+func (oh *OutputHierarchy) CreateParentDirectories(d BuildDirectory) error {
 	dPath := newPathBuffer()
 	return oh.root.createParentDirectories(d, &dPath)
 }

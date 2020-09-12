@@ -70,8 +70,8 @@ func (fp *statsCollectingFilePool) NewFile() (filesystem.FileReadWriter, error) 
 	fp.lock.Unlock()
 
 	return &statsCollectingFileReadWriter{
-		base: f,
-		pool: fp,
+		FileReadWriter: f,
+		pool:           fp,
 	}, nil
 }
 
@@ -79,7 +79,7 @@ func (fp *statsCollectingFilePool) NewFile() (filesystem.FileReadWriter, error) 
 // filesystem.FileReadWriter that measures the number of file operations
 // performed.
 type statsCollectingFileReadWriter struct {
-	base filesystem.FileReadWriter
+	filesystem.FileReadWriter
 	pool *statsCollectingFilePool
 
 	size uint64
@@ -96,7 +96,7 @@ func (f *statsCollectingFileReadWriter) updateSizeLocked(newSize uint64) {
 }
 
 func (f *statsCollectingFileReadWriter) ReadAt(p []byte, off int64) (int, error) {
-	n, err := f.base.ReadAt(p, off)
+	n, err := f.FileReadWriter.ReadAt(p, off)
 
 	fp := f.pool
 	fp.lock.Lock()
@@ -108,7 +108,7 @@ func (f *statsCollectingFileReadWriter) ReadAt(p []byte, off int64) (int, error)
 }
 
 func (f *statsCollectingFileReadWriter) WriteAt(p []byte, off int64) (int, error) {
-	n, err := f.base.WriteAt(p, off)
+	n, err := f.FileReadWriter.WriteAt(p, off)
 
 	fp := f.pool
 	fp.lock.Lock()
@@ -125,7 +125,7 @@ func (f *statsCollectingFileReadWriter) WriteAt(p []byte, off int64) (int, error
 }
 
 func (f *statsCollectingFileReadWriter) Truncate(length int64) error {
-	err := f.base.Truncate(length)
+	err := f.FileReadWriter.Truncate(length)
 
 	fp := f.pool
 	fp.lock.Lock()
@@ -139,8 +139,8 @@ func (f *statsCollectingFileReadWriter) Truncate(length int64) error {
 }
 
 func (f *statsCollectingFileReadWriter) Close() error {
-	err := f.base.Close()
-	f.base = nil
+	err := f.FileReadWriter.Close()
+	f.FileReadWriter = nil
 
 	fp := f.pool
 	fp.lock.Lock()

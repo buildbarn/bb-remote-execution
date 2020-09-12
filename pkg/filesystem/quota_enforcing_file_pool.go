@@ -59,21 +59,22 @@ func (fp *quotaEnforcingFilePool) NewFile() (filesystem.FileReadWriter, error) {
 		return nil, err
 	}
 	return &quotaEnforcingFile{
-		pool: fp,
-		file: f,
+		FileReadWriter: f,
+		pool:           fp,
 	}, nil
 }
 
 type quotaEnforcingFile struct {
+	filesystem.FileReadWriter
+
 	pool *quotaEnforcingFilePool
-	file filesystem.FileReadWriter
 	size int64
 }
 
 func (f *quotaEnforcingFile) Close() error {
 	// Close underlying file.
-	err := f.file.Close()
-	f.file = nil
+	err := f.FileReadWriter.Close()
+	f.FileReadWriter = nil
 
 	// Release associated resources.
 	f.pool.filesRemaining.release(1)
@@ -82,14 +83,10 @@ func (f *quotaEnforcingFile) Close() error {
 	return err
 }
 
-func (f *quotaEnforcingFile) ReadAt(p []byte, off int64) (int, error) {
-	return f.file.ReadAt(p, off)
-}
-
 func (f *quotaEnforcingFile) Truncate(size int64) error {
 	if size < f.size {
 		// File is shrinking.
-		if err := f.file.Truncate(size); err != nil {
+		if err := f.FileReadWriter.Truncate(size); err != nil {
 			return err
 		}
 		f.pool.bytesRemaining.release(f.size - size)
@@ -99,7 +96,7 @@ func (f *quotaEnforcingFile) Truncate(size int64) error {
 		if !f.pool.bytesRemaining.allocate(additionalSpace) {
 			return status.Error(codes.ResourceExhausted, "File size quota reached")
 		}
-		if err := f.file.Truncate(size); err != nil {
+		if err := f.FileReadWriter.Truncate(size); err != nil {
 			f.pool.bytesRemaining.release(additionalSpace)
 			return err
 		}
@@ -112,7 +109,7 @@ func (f *quotaEnforcingFile) WriteAt(p []byte, off int64) (int, error) {
 	// No need to allocate space if the file is not growing.
 	desiredSize := off + int64(len(p))
 	if desiredSize <= f.size {
-		return f.file.WriteAt(p, off)
+		return f.FileReadWriter.WriteAt(p, off)
 	}
 
 	// File is growing. Allocate space prior to writing. Release it,
@@ -120,7 +117,7 @@ func (f *quotaEnforcingFile) WriteAt(p []byte, off int64) (int, error) {
 	if !f.pool.bytesRemaining.allocate(desiredSize - f.size) {
 		return 0, status.Error(codes.ResourceExhausted, "File size quota reached")
 	}
-	n, err := f.file.WriteAt(p, off)
+	n, err := f.FileReadWriter.WriteAt(p, off)
 	actualSize := int64(0)
 	if n > 0 {
 		actualSize = off + int64(n)

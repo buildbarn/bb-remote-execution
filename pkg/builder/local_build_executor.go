@@ -78,7 +78,7 @@ func (be *localBuildExecutor) createCharacterDevices(inputRootDirectory BuildDir
 	if err := inputRootDirectory.Mkdir("dev", 0777); err != nil && !os.IsExist(err) {
 		return util.StatusWrap(err, "Unable to create /dev directory in input root")
 	}
-	deviceDirectory, err := inputRootDirectory.EnterDirectory("dev")
+	deviceDirectory, err := inputRootDirectory.EnterBuildDirectory("dev")
 	if err != nil {
 		return util.StatusWrap(err, "Unable to enter /dev directory in input root")
 	}
