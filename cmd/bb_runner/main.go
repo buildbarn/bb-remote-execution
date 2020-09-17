@@ -28,7 +28,8 @@ func main() {
 	if err := util.UnmarshalConfigurationFromFile(os.Args[1], &configuration); err != nil {
 		log.Fatalf("Failed to read configuration from %s: %s", os.Args[1], err)
 	}
-	if err := global.ApplyConfiguration(configuration.Global); err != nil {
+	lifecycleState, err := global.ApplyConfiguration(configuration.Global)
+	if err != nil {
 		log.Fatal("Failed to apply global configuration options: ", err)
 	}
 
@@ -56,7 +57,7 @@ func main() {
 	// Calling into a helper process to set up access to temporary
 	// directories prior to the execution of build actions.
 	if configuration.TemporaryDirectoryInstaller != nil {
-		tmpInstallerConnection, err := bb_grpc.BaseClientFactory.NewClientFromConfiguration(configuration.TemporaryDirectoryInstaller)
+		tmpInstallerConnection, err := bb_grpc.DefaultClientFactory.NewClientFromConfiguration(configuration.TemporaryDirectoryInstaller)
 		if err != nil {
 			log.Fatal("Failed to create temporary directory installer RPC client: ", err)
 		}
@@ -89,11 +90,15 @@ func main() {
 				}))
 	}
 
-	log.Fatal(
-		"gRPC server failure: ",
-		bb_grpc.NewServersFromConfigurationAndServe(
-			configuration.GrpcServers,
-			func(s *grpc.Server) {
-				runner_pb.RegisterRunnerServer(s, runner.NewRunnerServer(r))
-			}))
+	go func() {
+		log.Fatal(
+			"gRPC server failure: ",
+			bb_grpc.NewServersFromConfigurationAndServe(
+				configuration.GrpcServers,
+				func(s *grpc.Server) {
+					runner_pb.RegisterRunnerServer(s, runner.NewRunnerServer(r))
+				}))
+	}()
+
+	lifecycleState.MarkReadyAndWait()
 }

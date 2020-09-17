@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"net/http"
 	"net/url"
 	"os"
 	"strconv"
@@ -33,7 +32,6 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/empty"
-	"github.com/gorilla/mux"
 )
 
 func main() {
@@ -44,7 +42,8 @@ func main() {
 	if err := util.UnmarshalConfigurationFromFile(os.Args[1], &configuration); err != nil {
 		log.Fatalf("Failed to read configuration from %s: %s", os.Args[1], err)
 	}
-	if err := global.ApplyConfiguration(configuration.Global); err != nil {
+	lifecycleState, err := global.ApplyConfiguration(configuration.Global)
+	if err != nil {
 		log.Fatal("Failed to apply global configuration options: ", err)
 	}
 
@@ -54,8 +53,7 @@ func main() {
 	}
 
 	// Create connection with scheduler.
-	grpcClientFactory := bb_grpc.NewDeduplicatingClientFactory(bb_grpc.BaseClientFactory)
-	schedulerConnection, err := grpcClientFactory.NewClientFromConfiguration(configuration.Scheduler)
+	schedulerConnection, err := bb_grpc.DefaultClientFactory.NewClientFromConfiguration(configuration.Scheduler)
 	if err != nil {
 		log.Fatal("Failed to create scheduler RPC client: ", err)
 	}
@@ -92,7 +90,7 @@ func main() {
 	// Storage access.
 	globalContentAddressableStorage, actionCache, err := blobstore_configuration.NewCASAndACBlobAccessFromConfiguration(
 		configuration.Blobstore,
-		grpcClientFactory,
+		bb_grpc.DefaultClientFactory,
 		int(configuration.MaximumMessageSizeBytes))
 	if err != nil {
 		log.Fatal(err)
@@ -199,7 +197,7 @@ func main() {
 			// used in combination with a runner process. Having a separate
 			// runner process also makes it possible to apply privilege
 			// separation.
-			runnerConnection, err := grpcClientFactory.NewClientFromConfiguration(runnerConfiguration.Endpoint)
+			runnerConnection, err := bb_grpc.DefaultClientFactory.NewClientFromConfiguration(runnerConfiguration.Endpoint)
 			if err != nil {
 				log.Fatal("Failed to create runner RPC client: ", err)
 			}
@@ -306,8 +304,5 @@ func main() {
 		}
 	}
 
-	// Web server for metrics and profiling.
-	router := mux.NewRouter()
-	util.RegisterAdministrativeHTTPEndpoints(router)
-	log.Fatal(http.ListenAndServe(configuration.HttpListenAddress, router))
+	lifecycleState.MarkReadyAndWait()
 }

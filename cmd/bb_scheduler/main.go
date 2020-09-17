@@ -36,7 +36,8 @@ func main() {
 	if err := util.UnmarshalConfigurationFromFile(os.Args[1], &configuration); err != nil {
 		log.Fatalf("Failed to read configuration from %s: %s", os.Args[1], err)
 	}
-	if err := global.ApplyConfiguration(configuration.Global); err != nil {
+	lifecycleState, err := global.ApplyConfiguration(configuration.Global)
+	if err != nil {
 		log.Fatal("Failed to apply global configuration options: ", err)
 	}
 
@@ -48,11 +49,10 @@ func main() {
 	// Storage access. The scheduler requires access to the Action
 	// and Command messages stored in the CAS to obtain platform
 	// properties.
-	grpcClientFactory := bb_grpc.NewDeduplicatingClientFactory(bb_grpc.BaseClientFactory)
 	info, err := blobstore_configuration.NewBlobAccessFromConfiguration(
 		configuration.ContentAddressableStorage,
 		blobstore_configuration.NewCASBlobAccessCreator(
-			grpcClientFactory,
+			bb_grpc.DefaultClientFactory,
 			int(configuration.MaximumMessageSizeBytes)))
 	if err != nil {
 		log.Fatal("Failed to create Content Adddressable Storage: ", err)
@@ -134,6 +134,9 @@ func main() {
 	// Web server for metrics and profiling.
 	router := mux.NewRouter()
 	newBuildQueueStateService(buildQueue, clock.SystemClock, browserURL, router)
-	util.RegisterAdministrativeHTTPEndpoints(router)
-	log.Fatal(http.ListenAndServe(configuration.HttpListenAddress, router))
+	go func() {
+		log.Fatal(http.ListenAndServe(configuration.AdminHttpListenAddress, router))
+	}()
+
+	lifecycleState.MarkReadyAndWait()
 }

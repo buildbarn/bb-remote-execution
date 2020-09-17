@@ -10,9 +10,8 @@ import "pkg/proto/configuration/grpc/grpc.proto";
 option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_scheduler";
 
 message ApplicationConfiguration {
-  // Address on which to listen to expose the web UI and Prometheus
-  // metrics.
-  string http_listen_address = 2;
+  // Address on which to listen to expose the web UI.
+  string admin_http_listen_address = 2;
 
   // gRPC servers to spawn to listen for requests from clients
   // (bb_storage or Bazel).

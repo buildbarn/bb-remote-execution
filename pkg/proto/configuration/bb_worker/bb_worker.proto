@@ -25,8 +25,9 @@ message ApplicationConfiguration {
   // Endpoint of the scheduler to which to connect.
   buildbarn.configuration.grpc.ClientConfiguration scheduler = 8;
 
-  // Address on which to listen to expose Prometheus metrics.
-  string http_listen_address = 9;
+  // Was 'http_listen_address'. This option has been moved to
+  // 'global.diagnostics_http_listen_address'.
+  reserved 9;
 
   // Maximum number of directory listings to keep in memory.
   uint64 maximum_memory_cached_directories = 12;
