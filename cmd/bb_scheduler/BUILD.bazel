@@ -30,7 +30,6 @@ go_library(
         "@com_github_golang_protobuf//jsonpb:go_default_library_gen",
         "@com_github_google_uuid//:go_default_library",
         "@com_github_gorilla_mux//:go_default_library",
-        "@io_opentelemetry_go_contrib_instrumentation_github_com_gorilla_mux//:go_default_library",
         "@io_opentelemetry_go_otel//api/global:go_default_library",
         "@org_golang_google_grpc//:go_default_library",
         "@org_golang_google_grpc//status:go_default_library",

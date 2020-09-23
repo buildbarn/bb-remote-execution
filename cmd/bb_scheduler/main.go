@@ -24,7 +24,6 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	muxtrace "go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux"
 	otelglobal "go.opentelemetry.io/otel/api/global"
 
 	"google.golang.org/grpc"
@@ -138,7 +137,6 @@ func main() {
 
 	// Web server for metrics and profiling.
 	router := mux.NewRouter()
-	router.Use(muxtrace.Middleware("bb_scheduler"))
 	newBuildQueueStateService(buildQueue, clock.SystemClock, browserURL, router)
 	go func() {
 		log.Fatal(http.ListenAndServe(configuration.AdminHttpListenAddress, router))
