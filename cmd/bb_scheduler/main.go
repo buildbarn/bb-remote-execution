@@ -24,6 +24,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	otelglobal "go.opentelemetry.io/otel/api/global"
 
 	"google.golang.org/grpc"
 )
@@ -40,6 +41,8 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to apply global configuration options: ", err)
 	}
+
+	tracer := otelglobal.Tracer("github.com/buildbarn/bb-remote-execution/cmd/bb_scheduler")
 
 	browserURL, err := url.Parse(configuration.BrowserUrl)
 	if err != nil {
@@ -62,6 +65,7 @@ func main() {
 	// TODO: Make timeouts configurable.
 	buildQueue := builder.NewInMemoryBuildQueue(
 		contentAddressableStorage,
+		tracer,
 		clock.SystemClock,
 		uuid.NewRandom,
 		&builder.InMemoryBuildQueueConfiguration{

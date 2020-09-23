@@ -17,8 +17,9 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"go.opencensus.io/trace"
-	"go.opencensus.io/trace/propagation"
+	"go.opentelemetry.io/otel/api/trace"
+	otelcodes "go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/label"
 )
 
 // BuildClient is a client for the Remote Worker protocol. It can send
@@ -32,10 +33,12 @@ type BuildClient struct {
 	filePool      filesystem.FilePool
 	clock         clock.Clock
 	instanceName  digest.InstanceName
+	tracer        trace.Tracer
 
 	// Mutable fields that are always set.
 	request               remoteworker.SynchronizeRequest
 	nextSynchronizationAt time.Time
+	platformKey           platformKey
 
 	// Mutable fields that are only set when executing an action.
 	executionCancellation func()
@@ -44,13 +47,14 @@ type BuildClient struct {
 
 // NewBuildClient creates a new BuildClient instance that is set to the
 // initial state (i.e., being idle).
-func NewBuildClient(scheduler remoteworker.OperationQueueClient, buildExecutor BuildExecutor, filePool filesystem.FilePool, clock clock.Clock, browserURL *url.URL, workerID map[string]string, instanceName digest.InstanceName, platform *remoteexecution.Platform) *BuildClient {
+func NewBuildClient(scheduler remoteworker.OperationQueueClient, buildExecutor BuildExecutor, filePool filesystem.FilePool, clock clock.Clock, browserURL *url.URL, workerID map[string]string, instanceName digest.InstanceName, platform *remoteexecution.Platform, tracer trace.Tracer) *BuildClient {
 	return &BuildClient{
 		scheduler:     scheduler,
 		buildExecutor: buildExecutor,
 		filePool:      filePool,
 		clock:         clock,
 		instanceName:  instanceName,
+		tracer:        tracer,
 
 		request: remoteworker.SynchronizeRequest{
 			WorkerId:     workerID,
@@ -75,20 +79,33 @@ func (bc *BuildClient) startExecution(executionRequest *remoteworker.DesiredStat
 	updates := make(chan *remoteworker.CurrentState_Executing, 10)
 	bc.executionUpdates = updates
 	go func() {
-		if tc, ok := propagation.FromBinary(executionRequest.TraceContext); ok {
-			var span *trace.Span
-			ctx, span = trace.StartSpanWithRemoteParent(ctx, "BuildClient.Execute", tc)
-			defer span.End()
+		ctx = util.PropagateW3CTraceContextToContext(ctx, executionRequest.W3CTraceContext)
+		ctx, span := bc.tracer.Start(ctx, "bb_worker process",
+			trace.WithSpanKind(trace.SpanKindConsumer), withMessagingAttributes(bc.platformKey, executionRequest.ActionDigest),
+		)
+		defer span.End()
+
+		response := bc.buildExecutor.Execute(
+			ctx,
+			bc.filePool,
+			bc.instanceName,
+			executionRequest,
+			updates)
+
+		span.AddEvent(ctx, "BuildClient.ExecutionResponse",
+			label.Bool("cached", response.CachedResult),
+			label.String("message", response.Message),
+		)
+		if response.Status != nil {
+			// Errors are returned in ExecuteResponse instead of the
+			// grpc error code, so we map it here.
+			span.SetStatus(otelcodes.Code(response.Status.Code), response.Status.Message)
 		}
+
 		updates <- &remoteworker.CurrentState_Executing{
 			ActionDigest: executionRequest.ActionDigest,
 			ExecutionState: &remoteworker.CurrentState_Executing_Completed{
-				Completed: bc.buildExecutor.Execute(
-					ctx,
-					bc.filePool,
-					bc.instanceName,
-					executionRequest,
-					updates),
+				Completed: response,
 			},
 		}
 		close(updates)
@@ -153,6 +170,12 @@ func (bc *BuildClient) consumeExecutionUpdatesNonBlocking() {
 // Run a iteration of the Remote Worker client, by performing a single
 // synchronization against the scheduler.
 func (bc *BuildClient) Run() error {
+	var err error
+	bc.platformKey, err = newPlatformKey(bc.instanceName, bc.request.Platform)
+	if err != nil {
+		return err
+	}
+
 	// When executing an action, see if there are any updates on the
 	// execution state.
 	if bc.executionCancellation != nil {

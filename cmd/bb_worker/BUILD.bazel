@@ -33,6 +33,7 @@ go_library(
         "@com_github_buildbarn_bb_storage//pkg/util:go_default_library",
         "@com_github_golang_protobuf//ptypes:go_default_library_gen",
         "@io_bazel_rules_go//proto/wkt:empty_go_proto",
+        "@io_opentelemetry_go_otel//api/global:go_default_library",
     ] + select({
         "@io_bazel_rules_go//go/platform:android": [
             "@org_golang_google_grpc//codes:go_default_library",

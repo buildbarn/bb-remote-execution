@@ -145,10 +145,14 @@ message DesiredState {
     // queued_timestamp.
     google.protobuf.Timestamp queued_timestamp = 4;
 
-    // Trace/Span context data for the trace that started this execution.
-    // This is used to associate the worker's storage activity back to the
-    // trace that started the action.
-    bytes trace_context = 5;
+    // Format changed to w3c_trace_context
+    reserved 5;
+
+    // Trace/Span context data for the trace that started this
+    // execution.  This is used to associate the worker's storage
+    // activity back to the trace that started the action. This is
+    // formatted as W3C Trace Context headers.
+    map<string, string> w3c_trace_context = 6;
   }
 
   oneof worker_state {

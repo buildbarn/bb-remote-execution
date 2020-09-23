@@ -32,6 +32,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/empty"
+	otelglobal "go.opentelemetry.io/otel/api/global"
 )
 
 func main() {
@@ -46,6 +47,8 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to apply global configuration options: ", err)
 	}
+
+	tracer := otelglobal.Tracer("github.com/buildbarn/bb-remote-execution/cmd/bb_worker")
 
 	browserURL, err := url.Parse(configuration.BrowserUrl)
 	if err != nil {
@@ -292,7 +295,9 @@ func main() {
 						browserURL,
 						workerID,
 						instanceName,
-						runnerConfiguration.Platform)
+						runnerConfiguration.Platform,
+						tracer,
+					)
 					for {
 						if err := buildClient.Run(); err != nil {
 							log.Print(err)
