@@ -2,7 +2,9 @@ package builder_test
 
 import (
 	"context"
+	"io"
 	"net"
+	"strconv"
 	"testing"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/builder"
 	"github.com/buildbarn/bb-storage/pkg/digest"
+	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/golang/mock/gomock"
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
@@ -24,6 +27,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 )
@@ -34,7 +38,7 @@ var buildQueueConfigurationForTesting = re_builder.InMemoryBuildQueueConfigurati
 	PlatformQueueWithNoWorkersTimeout:    15 * time.Minute,
 	BusyWorkerSynchronizationInterval:    10 * time.Second,
 	GetIdleWorkerSynchronizationInterval: func() time.Duration { return time.Minute },
-	WorkerOperationRetryCount:            9,
+	WorkerTaskRetryCount:                 9,
 	WorkerWithNoSynchronizationsTimeout:  time.Minute,
 }
 
@@ -82,7 +86,7 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 		})
 		require.NoError(t, err)
 		_, err = stream.Recv()
-		require.Equal(t, err, status.Error(codes.InvalidArgument, "Failed to extract digest for action: Unknown digest hash length: 24 characters"))
+		testutil.RequireEqualStatus(t, err, status.Error(codes.InvalidArgument, "Failed to extract digest for action: Unknown digest hash length: 24 characters"))
 	})
 
 	// Action cannot be found in the Content Addressable Storage (CAS).
@@ -101,7 +105,7 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 		})
 		require.NoError(t, err)
 		_, err = stream.Recv()
-		require.Equal(t, err, status.Error(codes.FailedPrecondition, "Failed to obtain action: Blob not found"))
+		testutil.RequireEqualStatus(t, err, status.Error(codes.FailedPrecondition, "Failed to obtain action: Blob not found"))
 	})
 
 	// Action contains an invalid command digest.
@@ -125,7 +129,7 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 		})
 		require.NoError(t, err)
 		_, err = stream.Recv()
-		require.Equal(t, err, status.Error(codes.InvalidArgument, "Failed to extract digest for command: Unknown digest hash length: 24 characters"))
+		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Failed to extract digest for command: Unknown digest hash length: 24 characters"), err)
 	})
 
 	// Command cannot be found in the Content Addressable Storage (CAS).
@@ -153,7 +157,7 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 		})
 		require.NoError(t, err)
 		_, err = stream.Recv()
-		require.Equal(t, err, status.Error(codes.FailedPrecondition, "Failed to obtain command: Blob not found"))
+		testutil.RequireEqualStatus(t, err, status.Error(codes.FailedPrecondition, "Failed to obtain command: Blob not found"))
 	})
 
 	// Platform requirements should be provided in sorted order.
@@ -190,7 +194,7 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 		})
 		require.NoError(t, err)
 		_, err = stream.Recv()
-		require.Equal(t, err, status.Error(codes.InvalidArgument, "Platform properties are not sorted"))
+		testutil.RequireEqualStatus(t, err, status.Error(codes.InvalidArgument, "Platform properties are not sorted"))
 	})
 
 	// No workers have registered themselves against this queue,
@@ -229,7 +233,7 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 		})
 		require.NoError(t, err)
 		_, err = stream.Recv()
-		require.Equal(t, err, status.Error(codes.Unavailable, "No workers exist for instance \"main\" platform {\"properties\":[{\"name\":\"cpu\",\"value\":\"armv6\"},{\"name\":\"os\",\"value\":\"linux\"}]}"))
+		testutil.RequireEqualStatus(t, err, status.Error(codes.Unavailable, "No workers exist for instance \"main\" platform {\"properties\":[{\"name\":\"cpu\",\"value\":\"armv6\"},{\"name\":\"os\",\"value\":\"linux\"}]}"))
 	})
 
 	// We can be certain that no workers will appear if a sufficient
@@ -267,7 +271,7 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 		})
 		require.NoError(t, err)
 		_, err = stream.Recv()
-		require.Equal(t, err, status.Error(codes.FailedPrecondition, "No workers exist for instance \"main\" platform {\"properties\":[{\"name\":\"cpu\",\"value\":\"armv6\"},{\"name\":\"os\",\"value\":\"linux\"}]}"))
+		testutil.RequireEqualStatus(t, err, status.Error(codes.FailedPrecondition, "No workers exist for instance \"main\" platform {\"properties\":[{\"name\":\"cpu\",\"value\":\"armv6\"},{\"name\":\"os\",\"value\":\"linux\"}]}"))
 	})
 }
 
@@ -320,7 +324,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, response, &remoteworker.SynchronizeResponse{
+	testutil.RequireEqualProto(t, response, &remoteworker.SynchronizeResponse{
 		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1000},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Idle{
@@ -353,7 +357,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, update, &longrunning.Operation{
+	testutil.RequireEqualProto(t, update, &longrunning.Operation{
 		Name:     "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
 		Metadata: metadata,
 	})
@@ -373,7 +377,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.True(t, proto.Equal(response, &remoteworker.SynchronizeResponse{
+	testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
 		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1012},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Executing_{
@@ -394,7 +398,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 				},
 			},
 		},
-	}))
+	}, response)
 
 	// The next time the client receives an update on the operation,
 	// it should be in the EXECUTING state.
@@ -412,7 +416,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, update, &longrunning.Operation{
+	testutil.RequireEqualProto(t, update, &longrunning.Operation{
 		Name:     "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
 		Metadata: metadata,
 	})
@@ -435,10 +439,10 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 	})
 	require.NoError(t, err)
 	executeResponse, err := ptypes.MarshalAny(&remoteexecution.ExecuteResponse{
-		Status: status.New(codes.Unavailable, "Worker {\"hostname\":\"worker123\",\"thread\":\"42\"} disappeared while operation was executing").Proto(),
+		Status: status.New(codes.Unavailable, "Worker {\"hostname\":\"worker123\",\"thread\":\"42\"} disappeared while task was executing").Proto(),
 	})
 	require.NoError(t, err)
-	require.Equal(t, update, &longrunning.Operation{
+	testutil.RequireEqualProto(t, update, &longrunning.Operation{
 		Name:     "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
 		Metadata: metadata,
 		Done:     true,
@@ -484,7 +488,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		require.Equal(t, update, &longrunning.Operation{
+		testutil.RequireEqualProto(t, update, &longrunning.Operation{
 			Name:     fakeUUID,
 			Metadata: metadata,
 		})
@@ -503,7 +507,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 	})
 	require.NoError(t, err)
 	_, err = stream3.Recv()
-	require.Equal(t, err, status.Error(codes.FailedPrecondition, "No workers exist for instance \"main\" platform {}"))
+	testutil.RequireEqualStatus(t, err, status.Error(codes.FailedPrecondition, "No workers exist for instance \"main\" platform {}"))
 
 	// Operations that were queued should have been cancelled when
 	// the platform queue was garbage collected. All eight should
@@ -520,10 +524,10 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 		})
 		require.NoError(t, err)
 		executeResponse, err = ptypes.MarshalAny(&remoteexecution.ExecuteResponse{
-			Status: status.New(codes.Unavailable, "Workers for this instance and platform disappeared while operation was queued").Proto(),
+			Status: status.New(codes.Unavailable, "Workers for this instance name and platform disappeared while task was queued").Proto(),
 		})
 		require.NoError(t, err)
-		require.Equal(t, update, &longrunning.Operation{
+		testutil.RequireEqualProto(t, update, &longrunning.Operation{
 			Name:     fakeUUID,
 			Metadata: metadata,
 			Done:     true,
@@ -593,7 +597,7 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, response, &remoteworker.SynchronizeResponse{
+	testutil.RequireEqualProto(t, response, &remoteworker.SynchronizeResponse{
 		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1000},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Idle{
@@ -627,7 +631,7 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, update, &longrunning.Operation{
+	testutil.RequireEqualProto(t, update, &longrunning.Operation{
 		Name:     "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
 		Metadata: metadata,
 	})
@@ -658,7 +662,7 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, update, &longrunning.Operation{
+	testutil.RequireEqualProto(t, update, &longrunning.Operation{
 		Name:     "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
 		Metadata: metadata,
 	})
@@ -684,7 +688,7 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, update, &longrunning.Operation{
+	testutil.RequireEqualProto(t, update, &longrunning.Operation{
 		Name:     "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
 		Metadata: metadata,
 	})
@@ -693,11 +697,10 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 	// associated with it, as there are multiple waiters.
 	clock.EXPECT().Now().Return(time.Unix(1080, 0))
 	allOperations, paginationInfo := buildQueue.ListDetailedOperationState(10, nil)
-	require.True(t, proto.Equal(allOperations[0].ActionDigest,
-		&remoteexecution.Digest{
-			Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
-			SizeBytes: 123,
-		}))
+	testutil.RequireEqualProto(t, &remoteexecution.Digest{
+		Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+		SizeBytes: 123,
+	}, allOperations[0].ActionDigest)
 	allOperations[0].ActionDigest = nil
 	require.Equal(t, allOperations, []re_builder.DetailedOperationState{
 		{
@@ -730,11 +733,10 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 	// The operation should still be available up until the deadline.
 	clock.EXPECT().Now().Return(time.Unix(1149, 999999999))
 	allOperations, paginationInfo = buildQueue.ListDetailedOperationState(10, nil)
-	require.True(t, proto.Equal(allOperations[0].ActionDigest,
-		&remoteexecution.Digest{
-			Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
-			SizeBytes: 123,
-		}))
+	testutil.RequireEqualProto(t, &remoteexecution.Digest{
+		Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+		SizeBytes: 123,
+	}, allOperations[0].ActionDigest)
 	allOperations[0].ActionDigest = nil
 	timeout := time.Unix(1150, 0)
 	require.Equal(t, allOperations, []re_builder.DetailedOperationState{
@@ -824,7 +826,7 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, response, &remoteworker.SynchronizeResponse{
+	testutil.RequireEqualProto(t, response, &remoteworker.SynchronizeResponse{
 		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1000},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Idle{
@@ -857,7 +859,7 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, update, &longrunning.Operation{
+	testutil.RequireEqualProto(t, update, &longrunning.Operation{
 		Name:     "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
 		Metadata: metadata,
 	})
@@ -886,7 +888,7 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		require.True(t, proto.Equal(response, &remoteworker.SynchronizeResponse{
+		testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
 			NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1012 + i},
 			DesiredState: &remoteworker.DesiredState{
 				WorkerState: &remoteworker.DesiredState_Executing_{
@@ -913,7 +915,7 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 					},
 				},
 			},
-		}))
+		}, response)
 	}
 
 	// Requesting the same operation too many times should cause the
@@ -948,7 +950,7 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, response, &remoteworker.SynchronizeResponse{
+	testutil.RequireEqualProto(t, response, &remoteworker.SynchronizeResponse{
 		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1012},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Idle{
@@ -970,10 +972,10 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 	})
 	require.NoError(t, err)
 	executeResponse, err := ptypes.MarshalAny(&remoteexecution.ExecuteResponse{
-		Status: status.New(codes.Internal, "Attempted to execute operation 10 times, but it never completed. This operation may cause worker {\"hostname\":\"worker123\",\"thread\":\"42\"} to crash.").Proto(),
+		Status: status.New(codes.Internal, "Attempted to execute task 10 times, but it never completed. This task may cause worker {\"hostname\":\"worker123\",\"thread\":\"42\"} to crash.").Proto(),
 	})
 	require.NoError(t, err)
-	require.Equal(t, update, &longrunning.Operation{
+	testutil.RequireEqualProto(t, update, &longrunning.Operation{
 		Name:     "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
 		Metadata: metadata,
 		Done:     true,
@@ -1040,7 +1042,7 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, response, &remoteworker.SynchronizeResponse{
+	testutil.RequireEqualProto(t, response, &remoteworker.SynchronizeResponse{
 		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1000},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Idle{
@@ -1073,7 +1075,7 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, update, &longrunning.Operation{
+	testutil.RequireEqualProto(t, update, &longrunning.Operation{
 		Name:     "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
 		Metadata: metadata,
 	})
@@ -1099,7 +1101,7 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.True(t, proto.Equal(response, &remoteworker.SynchronizeResponse{
+	testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
 		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1012},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Executing_{
@@ -1126,7 +1128,7 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 				},
 			},
 		},
-	}))
+	}, response)
 
 	// Kill the operation.
 	clock.EXPECT().Now().Return(time.Unix(1007, 0)).Times(3)
@@ -1147,7 +1149,7 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 		Status: status.New(codes.Unavailable, "Operation was killed administratively").Proto(),
 	})
 	require.NoError(t, err)
-	require.Equal(t, update, &longrunning.Operation{
+	testutil.RequireEqualProto(t, update, &longrunning.Operation{
 		Name:     "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
 		Metadata: metadata,
 		Done:     true,
@@ -1184,7 +1186,7 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, response, &remoteworker.SynchronizeResponse{
+	testutil.RequireEqualProto(t, response, &remoteworker.SynchronizeResponse{
 		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1012},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Idle{
@@ -1231,7 +1233,7 @@ func TestInMemoryBuildQueueIdleWorkerSynchronizationTimeout(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, response, &remoteworker.SynchronizeResponse{
+	testutil.RequireEqualProto(t, response, &remoteworker.SynchronizeResponse{
 		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1060},
 	})
 }
@@ -1296,7 +1298,7 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, response, &remoteworker.SynchronizeResponse{
+	testutil.RequireEqualProto(t, response, &remoteworker.SynchronizeResponse{
 		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1000},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Idle{
@@ -1388,7 +1390,7 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, update, &longrunning.Operation{
+	testutil.RequireEqualProto(t, update, &longrunning.Operation{
 		Name:     "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
 		Metadata: metadata,
 	})
@@ -1418,7 +1420,7 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, response, &remoteworker.SynchronizeResponse{
+	testutil.RequireEqualProto(t, response, &remoteworker.SynchronizeResponse{
 		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1008},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Idle{
@@ -1457,7 +1459,7 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.True(t, proto.Equal(response, &remoteworker.SynchronizeResponse{
+	testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
 		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1020},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Executing_{
@@ -1484,7 +1486,697 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 				},
 			},
 		},
-	}))
+	}, response)
+}
+
+func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	clock := mock.NewMockClock(ctrl)
+	clock.EXPECT().Now().Return(time.Unix(0, 0))
+	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000)
+	executionClient := getExecutionClient(t, buildQueue)
+
+	// Announce a new worker, which creates a queue for operations.
+	platform := &remoteexecution.Platform{
+		Properties: []*remoteexecution.Platform_Property{
+			{Name: "cpu", Value: "armv6"},
+			{Name: "os", Value: "linux"},
+		},
+	}
+	clock.EXPECT().Now().Return(time.Unix(1000, 0))
+	response, err := buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
+		WorkerId: map[string]string{
+			"hostname": "worker123",
+			"thread":   "42",
+		},
+		InstanceName: "main",
+		Platform:     platform,
+		CurrentState: &remoteworker.CurrentState{
+			WorkerState: &remoteworker.CurrentState_Executing_{
+				Executing: &remoteworker.CurrentState_Executing{
+					ActionDigest: &remoteexecution.Digest{
+						Hash:      "099a3f6dc1e8e91dbcca4ea964cd2237d4b11733",
+						SizeBytes: 123,
+					},
+					ExecutionState: &remoteworker.CurrentState_Executing_FetchingInputs{
+						FetchingInputs: &empty.Empty{},
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, response, &remoteworker.SynchronizeResponse{
+		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1000},
+		DesiredState: &remoteworker.DesiredState{
+			WorkerState: &remoteworker.DesiredState_Idle{
+				Idle: &empty.Empty{},
+			},
+		},
+	})
+
+	operationParameters := [...]struct {
+		invocationID  string
+		actionHash    string
+		commandHash   string
+		operationName string
+	}{
+		{"dfe3ca8b-64bc-4efd-b8a9-2bdc3827f0ac", "f4d362da1f854e54984275aa78e2d9f8", "5fbd808d5cf24a219824664040a95c44", "93e2738a-837c-4524-9f0f-430b47caa889"},
+		{"dfe3ca8b-64bc-4efd-b8a9-2bdc3827f0ac", "25b997dcfbe34f95bbbab10bc02e1a61", "2ac9ddc1a64442fabd819358a206909e", "fadbaf2f-669f-47ee-bce4-35f255d2ba16"},
+		{"dfe3ca8b-64bc-4efd-b8a9-2bdc3827f0ac", "deb57a22d6b149b2b83d26dbc30d8f28", "5def73fca7c945d3998d984194879f5f", "1d320c02-399a-40bb-bb9a-031960c7e542"},
+		{"dfe3ca8b-64bc-4efd-b8a9-2bdc3827f0ac", "13590054c8aa457d88a2abc8a0a76d32", "6f9f4cc9c831495bbee40d5a4c9dd183", "a5fb4aeb-e444-4851-b207-7c4da7407955"},
+		{"dfe3ca8b-64bc-4efd-b8a9-2bdc3827f0ac", "697a50f669144463acb45cb23a195aee", "756a36b01ff148c88a43fcc240accb2b", "7359bd3c-32b0-40b9-9d8d-341420267d8e"},
+		{"4712de52-4518-4840-91d5-c9e13a38cc5a", "d35515d9ebe349639957da438a21bd3c", "9f58a3e3feb044e2a31ffad73479185b", "e7922f00-fc9b-4390-97fe-8564a00d190a"},
+		{"4712de52-4518-4840-91d5-c9e13a38cc5a", "f8362f9b02b04765b4873afce32aa7df", "6196409166614f5691f34b18affaa3a8", "76f7be3b-a685-4ac0-b770-d4305aabab5f"},
+		{"4712de52-4518-4840-91d5-c9e13a38cc5a", "1ee144ab7e7c43cfaa46ca1ccecad26e", "391d52750e9c494cac10dc72e8f7e3db", "7d206d16-9e83-4f91-a515-0ee8132026ee"},
+		{"4712de52-4518-4840-91d5-c9e13a38cc5a", "15f5459fc4004ab0b95f51a9b933648a", "352f5536cd304f24947019801b357ec1", "28ae0c5a-3b93-4ac0-b434-b2d104b43562"},
+		{"4712de52-4518-4840-91d5-c9e13a38cc5a", "916792a1220a4d81b6135adbae25c75d", "500673772b944b9f8ee654ea0adb2961", "bfeedf7c-29ec-437a-8b61-dedb2a73a3e4"},
+		{"351fdffe-04df-4fe0-98c7-b4f5a463fd52", "9a5d807902e048e896a0d7c437943598", "57efd9f34d664874a4bbba85e90a1515", "91a7f281-b9af-4f06-85f3-751a01baf7ba"},
+		{"351fdffe-04df-4fe0-98c7-b4f5a463fd52", "449a88c7885f4dbb94383e496646cfd2", "64fb977929214df794b30ad1d896c212", "081cffbb-4e14-44ff-b4a0-bd7c1ceadd6c"},
+		{"351fdffe-04df-4fe0-98c7-b4f5a463fd52", "6fcd0a2f3c0040f2902891d4557cddc0", "c3ad5148dd304a74b010d948f606784e", "489af73a-2c3a-429b-9fa0-22129fbddfd2"},
+		{"351fdffe-04df-4fe0-98c7-b4f5a463fd52", "219cc379cdcc4e4fa2cae57b251c5582", "d95707fc59364e4593947262d2d64cf9", "61fdcf8f-5212-45eb-8e72-30b913e8cce9"},
+		{"351fdffe-04df-4fe0-98c7-b4f5a463fd52", "97e481163453429a88cfdad7e8ce96f8", "1f12e1fb0ee9430b9a1b172b96dad01a", "a1384f92-1737-4d60-8714-f6e517fe4f5d"},
+		{"4fd2080e-d805-4d68-ab51-460106c8f372", "82fdcadeca184486a3c6a3aa780c6fe9", "493ea806febb4cd1803e6ad9ea58746b", "13787980-1f0c-4ff3-912a-866d86039696"},
+		{"4fd2080e-d805-4d68-ab51-460106c8f372", "d1384d0de35c4bab9f424a8be6283030", "9e14e453d9ef4abb9c6fc98edd248641", "8e20ef3a-0916-40b5-a733-8256257e05c8"},
+		{"4fd2080e-d805-4d68-ab51-460106c8f372", "eff21bbd08904e8188e2946285ff0de3", "c170201058794b9bb97b20e8258080cb", "1c26e52f-fa8b-4d73-bba6-cd423a099244"},
+		{"4fd2080e-d805-4d68-ab51-460106c8f372", "08183d1fcb694554b092cd629b5b9b47", "ef2de9a7bf5d4ed2bb08ead541c9f36c", "8f773c13-3d96-4024-b0a0-ca9502818366"},
+		{"4fd2080e-d805-4d68-ab51-460106c8f372", "f81d21e375fc4dc6ad5b74fe1f966ecf", "99d95d845f2e4aadbeab1c7b6192d1c8", "15d2c9be-220b-4a58-9052-9a19b58e571a"},
+		{"66275a66-8aad-498a-9b4a-26b4f5a66789", "69df79b84df94001bd261101f4e3b092", "ca42e214f92a4d6fab0d697b5f7f539a", "299bde44-6432-4ef6-a3fd-8349ada25a14"},
+		{"66275a66-8aad-498a-9b4a-26b4f5a66789", "51a015f6ab8f495a9bcba9569932b8d4", "1f8d98a889234c8288c94c333744b2a7", "e67f2cfa-88b0-4d2c-88d0-a4b025eb63d5"},
+		{"66275a66-8aad-498a-9b4a-26b4f5a66789", "94713786eca2417aa18f499a9d72a29b", "168696de2a0b408c933d316a55e52500", "63b3cf66-1401-4ae6-9177-aa2c7a1a2b7a"},
+		{"66275a66-8aad-498a-9b4a-26b4f5a66789", "88ed817ebd1340aab4711750196ed8b1", "087b8173438348be9ed2cd6e7a04d49f", "f158a947-a4ed-4c5c-9a6e-053f73b4039f"},
+		{"66275a66-8aad-498a-9b4a-26b4f5a66789", "e74171e0a6934f65b2895624a66680fc", "22af639fb2714f5f8b9beedb1fb519a6", "1a843f0e-f234-40c0-86c3-0dec2b2b9f21"},
+	}
+
+	// Let 5 clients (based on distinct invocation IDs) enqueue a
+	// total of 25 operations for different actions. No in-flight
+	// deduplication should take place.
+	streams := make([]remoteexecution.Execution_ExecuteClient, 0, 25)
+	for i, p := range operationParameters {
+		contentAddressableStorage.EXPECT().Get(
+			gomock.Any(),
+			digest.MustNewDigest("main", p.actionHash, 123),
+		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
+			CommandDigest: &remoteexecution.Digest{
+				Hash:      p.commandHash,
+				SizeBytes: 456,
+			},
+		}, buffer.UserProvided))
+		contentAddressableStorage.EXPECT().Get(
+			gomock.Any(),
+			digest.MustNewDigest("main", p.commandHash, 456),
+		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
+			Platform: platform,
+		}, buffer.UserProvided))
+
+		requestMetadataBin, err := proto.Marshal(&remoteexecution.RequestMetadata{
+			ToolInvocationId: p.invocationID,
+		})
+		require.NoError(t, err)
+
+		clock.EXPECT().Now().Return(time.Unix(1010+int64(i), 0))
+		timer := mock.NewMockTimer(ctrl)
+		clock.EXPECT().NewTimer(time.Minute).Return(timer, nil)
+		timer.EXPECT().Stop().Return(true)
+		uuidGenerator.EXPECT().Call().Return(uuid.Parse(p.operationName))
+		stream, err := executionClient.Execute(
+			metadata.AppendToOutgoingContext(
+				ctx,
+				"build.bazel.remote.execution.v2.requestmetadata-bin",
+				string(requestMetadataBin)),
+			&remoteexecution.ExecuteRequest{
+				InstanceName: "main",
+				ActionDigest: &remoteexecution.Digest{
+					Hash:      p.actionHash,
+					SizeBytes: 123,
+				},
+			})
+		require.NoError(t, err)
+		streams = append(streams, stream)
+		update, err := stream.Recv()
+		require.NoError(t, err)
+		metadata, err := ptypes.MarshalAny(&remoteexecution.ExecuteOperationMetadata{
+			Stage: remoteexecution.ExecutionStage_QUEUED,
+			ActionDigest: &remoteexecution.Digest{
+				Hash:      p.actionHash,
+				SizeBytes: 123,
+			},
+		})
+		require.NoError(t, err)
+		testutil.RequireEqualProto(t, update, &longrunning.Operation{
+			Name:     p.operationName,
+			Metadata: metadata,
+		})
+	}
+
+	// Check that ListInvocationState() reports all five
+	// invocations, both when justQueuedInvocations is true and
+	// false. When true, the invocations should be returned in
+	// scheduling order. Otherwise, they should be returned
+	// alphabetically.
+	clock.EXPECT().Now().Return(time.Unix(1036, 0))
+	invocationStates, err := buildQueue.ListInvocationState(
+		digest.MustNewInstanceName("main"),
+		platform,
+		true)
+	require.NoError(t, err)
+	require.Len(t, invocationStates, 5)
+	for i, invocationID := range []string{
+		"dfe3ca8b-64bc-4efd-b8a9-2bdc3827f0ac",
+		"4712de52-4518-4840-91d5-c9e13a38cc5a",
+		"351fdffe-04df-4fe0-98c7-b4f5a463fd52",
+		"4fd2080e-d805-4d68-ab51-460106c8f372",
+		"66275a66-8aad-498a-9b4a-26b4f5a66789",
+	} {
+		require.Equal(t, invocationID, invocationStates[i].InvocationID)
+		require.Equal(t, 5, invocationStates[i].QueuedOperationsCount)
+		require.Equal(t, 0, invocationStates[i].ExecutingOperationsCount)
+	}
+
+	clock.EXPECT().Now().Return(time.Unix(1036, 0))
+	invocationStates, err = buildQueue.ListInvocationState(
+		digest.MustNewInstanceName("main"),
+		platform,
+		false)
+	require.NoError(t, err)
+	require.Len(t, invocationStates, 5)
+	for i, invocationID := range []string{
+		"351fdffe-04df-4fe0-98c7-b4f5a463fd52",
+		"4712de52-4518-4840-91d5-c9e13a38cc5a",
+		"4fd2080e-d805-4d68-ab51-460106c8f372",
+		"66275a66-8aad-498a-9b4a-26b4f5a66789",
+		"dfe3ca8b-64bc-4efd-b8a9-2bdc3827f0ac",
+	} {
+		require.Equal(t, invocationID, invocationStates[i].InvocationID)
+		require.Equal(t, 5, invocationStates[i].QueuedOperationsCount)
+		require.Equal(t, 0, invocationStates[i].ExecutingOperationsCount)
+	}
+
+	// Let 25 workers execute the operations that were created
+	// previously. Because the operations originated from different
+	// client invocations, we should not execute them in the order
+	// in which they arrived. Instead, we should alternate between
+	// invocations, so that each of them gets their fair share.
+	for _, i := range []int{
+		0, 5, 10, 15, 20,
+		1, 6, 11, 16, 21,
+		2, 7, 12, 17, 22,
+		3, 8, 13, 18, 23,
+		4, 9, 14, 19, 24,
+	} {
+		p := operationParameters[i]
+		clock.EXPECT().Now().Return(time.Unix(1040, 0))
+		response, err := buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
+			WorkerId: map[string]string{
+				"hostname": "worker123",
+				"thread":   strconv.FormatInt(int64(i), 10),
+			},
+			InstanceName: "main",
+			Platform:     platform,
+			CurrentState: &remoteworker.CurrentState{
+				WorkerState: &remoteworker.CurrentState_Idle{
+					Idle: &empty.Empty{},
+				},
+			},
+		})
+		require.NoError(t, err)
+		testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
+			NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1050},
+			DesiredState: &remoteworker.DesiredState{
+				WorkerState: &remoteworker.DesiredState_Executing_{
+					Executing: &remoteworker.DesiredState_Executing{
+						ActionDigest: &remoteexecution.Digest{
+							Hash:      p.actionHash,
+							SizeBytes: 123,
+						},
+						Action: &remoteexecution.Action{
+							CommandDigest: &remoteexecution.Digest{
+								Hash:      p.commandHash,
+								SizeBytes: 456,
+							},
+						},
+						Command: &remoteexecution.Command{
+							Platform: platform,
+						},
+						QueuedTimestamp: &timestamp.Timestamp{Seconds: 1010 + int64(i)},
+					},
+				},
+			},
+		}, response)
+	}
+
+	// Call ListInvocationState() again. All operations should now
+	// be reported as executing, instead of being queued.
+	clock.EXPECT().Now().Return(time.Unix(1041, 0))
+	invocationStates, err = buildQueue.ListInvocationState(
+		digest.MustNewInstanceName("main"),
+		platform,
+		true)
+	require.NoError(t, err)
+	require.Empty(t, invocationStates)
+
+	clock.EXPECT().Now().Return(time.Unix(1042, 0))
+	invocationStates, err = buildQueue.ListInvocationState(
+		digest.MustNewInstanceName("main"),
+		platform,
+		false)
+	require.NoError(t, err)
+	require.Len(t, invocationStates, 5)
+	for i, invocationID := range []string{
+		"351fdffe-04df-4fe0-98c7-b4f5a463fd52",
+		"4712de52-4518-4840-91d5-c9e13a38cc5a",
+		"4fd2080e-d805-4d68-ab51-460106c8f372",
+		"66275a66-8aad-498a-9b4a-26b4f5a66789",
+		"dfe3ca8b-64bc-4efd-b8a9-2bdc3827f0ac",
+	} {
+		require.Equal(t, invocationID, invocationStates[i].InvocationID)
+		require.Equal(t, 0, invocationStates[i].QueuedOperationsCount)
+		require.Equal(t, 5, invocationStates[i].ExecutingOperationsCount)
+	}
+
+	// Call ListInvocationState() a final time after letting a
+	// sufficient amount of time pass. This should cause all workers
+	// to be removed from the scheduler, as they didn't provide any
+	// updates. All associated operations should be completed,
+	// meaning that no invocations will be reported.
+	clock.EXPECT().Now().Return(time.Unix(1200, 0)).Times(51)
+	invocationStates, err = buildQueue.ListInvocationState(
+		digest.MustNewInstanceName("main"),
+		platform,
+		true)
+	require.NoError(t, err)
+	require.Empty(t, invocationStates)
+
+	clock.EXPECT().Now().Return(time.Unix(1200, 0))
+	invocationStates, err = buildQueue.ListInvocationState(
+		digest.MustNewInstanceName("main"),
+		platform,
+		false)
+	require.NoError(t, err)
+	require.Empty(t, invocationStates)
+
+	// All clients should receive an error that their operations
+	// terminated due to the loss of workers.
+	for i, p := range operationParameters {
+		update, err := streams[i].Recv()
+		require.NoError(t, err)
+		metadata, err := ptypes.MarshalAny(&remoteexecution.ExecuteOperationMetadata{
+			Stage: remoteexecution.ExecutionStage_COMPLETED,
+			ActionDigest: &remoteexecution.Digest{
+				Hash:      p.actionHash,
+				SizeBytes: 123,
+			},
+		})
+		require.NoError(t, err)
+		executeResponse, err := ptypes.MarshalAny(&remoteexecution.ExecuteResponse{
+			Status: status.Newf(codes.Unavailable, "Worker {\"hostname\":\"worker123\",\"thread\":\"%d\"} disappeared while task was executing", i).Proto(),
+		})
+		require.NoError(t, err)
+		testutil.RequireEqualProto(t, update, &longrunning.Operation{
+			Name:     p.operationName,
+			Metadata: metadata,
+			Done:     true,
+			Result:   &longrunning.Operation_Response{Response: executeResponse},
+		})
+
+		_, err = streams[i].Recv()
+		require.Equal(t, io.EOF, err)
+	}
+}
+
+// Test what happens when multiple operations are in-flight deduplicated
+// against the same underlying task, and are subsequently abandoned
+// while being in the QUEUED stage. This should cause all associated
+// operations and invocations to be removed eventually.
+func TestInMemoryBuildQueueInFlightDeduplicationAbandonQueued(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	clock := mock.NewMockClock(ctrl)
+	clock.EXPECT().Now().Return(time.Unix(0, 0))
+	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000)
+	executionClient := getExecutionClient(t, buildQueue)
+
+	// Announce a new worker, which creates a queue for operations.
+	platform := &remoteexecution.Platform{
+		Properties: []*remoteexecution.Platform_Property{
+			{Name: "cpu", Value: "armv6"},
+			{Name: "os", Value: "linux"},
+		},
+	}
+	clock.EXPECT().Now().Return(time.Unix(1000, 0))
+	response, err := buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
+		WorkerId: map[string]string{
+			"hostname": "worker123",
+			"thread":   "42",
+		},
+		InstanceName: "main",
+		Platform:     platform,
+		CurrentState: &remoteworker.CurrentState{
+			WorkerState: &remoteworker.CurrentState_Executing_{
+				Executing: &remoteworker.CurrentState_Executing{
+					ActionDigest: &remoteexecution.Digest{
+						Hash:      "099a3f6dc1e8e91dbcca4ea964cd2237d4b11733",
+						SizeBytes: 123,
+					},
+					ExecutionState: &remoteworker.CurrentState_Executing_FetchingInputs{
+						FetchingInputs: &empty.Empty{},
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
+		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1000},
+		DesiredState: &remoteworker.DesiredState{
+			WorkerState: &remoteworker.DesiredState_Idle{
+				Idle: &empty.Empty{},
+			},
+		},
+	}, response)
+
+	// Let ten workers create ten operations. Because they all refer
+	// to the same action, all requests should be deduplicated into
+	// the same task.
+	operationParameters := [...]struct {
+		invocationID  string
+		operationName string
+	}{
+		{"0f0f22ec-908a-4ea7-8a78-b92ab4188e78", "b4667823-9f8e-451d-a3e4-4481ec67329f"},
+		{"0f67bd82-2867-45ec-9412-f058f27d2686", "1b9e4aaf-b984-4ebc-9b51-0e31bf1b0edb"},
+		{"3e3975fa-d723-42c6-bccb-a3358793f656", "e662fb47-f162-41b8-b29c-45b24fe9e273"},
+		{"557cd041-1d24-423c-9733-f94c8d2916b2", "def137ac-7724-43ff-98f9-b16a3ba01dcd"},
+		{"56a827ff-d0bb-4f90-839d-eb55d8060269", "64943e71-86c3-4153-a760-76c0ff30cd68"},
+		{"849810af-2e0b-45ae-965d-28642d6c6453", "da009be0-93fe-40ad-9e03-a14e2bee2ff9"},
+		{"9cadf0eb-1e28-49ea-b052-5d05cdc50303", "e0f4e177-369d-4412-a19c-b7b1969dd46e"},
+		{"9ff4fd36-7123-4b59-90e2-7f49cd0af05e", "34f633ac-c418-4a1d-8a69-796990008e9c"},
+		{"d0438436-cff3-45e1-9c0b-7e5af632c0a4", "46cdaa7c-6bfa-49e2-822e-31be760c51c5"},
+		{"e4896008-d596-44c7-8df6-6ced53dff6b0", "88929b3e-f664-4f11-873d-40324d06378e"},
+	}
+	for i, p := range operationParameters {
+		contentAddressableStorage.EXPECT().Get(
+			gomock.Any(),
+			digest.MustNewDigest("main", "fc96ea0eee854b45950d3a7448332445730886691b992cb7917da0853664f7c2", 123),
+		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
+			CommandDigest: &remoteexecution.Digest{
+				Hash:      "f7a3ac7c17e535bc9b54ab13dbbb95a52ca1f1edaf9503ce23ccb3eca331a4f5",
+				SizeBytes: 456,
+			},
+		}, buffer.UserProvided))
+		contentAddressableStorage.EXPECT().Get(
+			gomock.Any(),
+			digest.MustNewDigest("main", "f7a3ac7c17e535bc9b54ab13dbbb95a52ca1f1edaf9503ce23ccb3eca331a4f5", 456),
+		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
+			Platform: platform,
+		}, buffer.UserProvided))
+
+		requestMetadataBin, err := proto.Marshal(&remoteexecution.RequestMetadata{
+			ToolInvocationId: p.invocationID,
+		})
+		require.NoError(t, err)
+
+		ctxWithCancel, cancel := context.WithCancel(ctx)
+
+		clock.EXPECT().Now().Return(time.Unix(1010+int64(i), 0))
+		timer := mock.NewMockTimer(ctrl)
+		clock.EXPECT().NewTimer(time.Minute).Return(timer, nil)
+		timer.EXPECT().Stop().Return(true)
+		uuidGenerator.EXPECT().Call().Return(uuid.Parse(p.operationName))
+		stream, err := executionClient.Execute(
+			metadata.AppendToOutgoingContext(
+				ctxWithCancel,
+				"build.bazel.remote.execution.v2.requestmetadata-bin",
+				string(requestMetadataBin)),
+			&remoteexecution.ExecuteRequest{
+				InstanceName: "main",
+				ActionDigest: &remoteexecution.Digest{
+					Hash:      "fc96ea0eee854b45950d3a7448332445730886691b992cb7917da0853664f7c2",
+					SizeBytes: 123,
+				},
+			})
+		require.NoError(t, err)
+		update, err := stream.Recv()
+		require.NoError(t, err)
+		metadata, err := ptypes.MarshalAny(&remoteexecution.ExecuteOperationMetadata{
+			Stage: remoteexecution.ExecutionStage_QUEUED,
+			ActionDigest: &remoteexecution.Digest{
+				Hash:      "fc96ea0eee854b45950d3a7448332445730886691b992cb7917da0853664f7c2",
+				SizeBytes: 123,
+			},
+		})
+		require.NoError(t, err)
+		testutil.RequireEqualProto(t, &longrunning.Operation{
+			Name:     p.operationName,
+			Metadata: metadata,
+		}, update)
+
+		// Immediately cancel the request. The operation should
+		// still be valid for the next minute.
+		//
+		// Because cancelling the RPC happens asynchronously, we
+		// wait on clock.Now() to be called to ensure
+		// InMemoryBuildQueue has detected the cancelation.
+		cancelWait := make(chan struct{})
+		clock.EXPECT().Now().Return(time.Unix(1010+int64(i), 0)).Do(func() {
+			cancelWait <- struct{}{}
+		})
+		cancel()
+		<-cancelWait
+	}
+
+	// Get listings of invocations known by the scheduler. Because
+	// we're requesting this one minute after the operations were
+	// created, we should gradually see this list shrink. Eventually
+	// all invocations should be removed.
+	for i := 0; i <= len(operationParameters); i++ {
+		clock.EXPECT().Now().Return(time.Unix(1069+int64(i), 0)).Times(2)
+
+		invocationStates, err := buildQueue.ListInvocationState(
+			digest.MustNewInstanceName("main"),
+			platform,
+			false)
+		require.NoError(t, err)
+		require.Len(t, invocationStates, len(operationParameters)-i)
+
+		invocationStates, err = buildQueue.ListInvocationState(
+			digest.MustNewInstanceName("main"),
+			platform,
+			true)
+		require.NoError(t, err)
+		require.Len(t, invocationStates, len(operationParameters)-i)
+	}
+}
+
+// This test is identical to the previous one, except that the operation
+// is placed in the EXECUTING stage when being abandoned. The logic for
+// removing such operations is different from operations in the QUEUED
+// stage.
+func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	clock := mock.NewMockClock(ctrl)
+	clock.EXPECT().Now().Return(time.Unix(0, 0))
+	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000)
+	executionClient := getExecutionClient(t, buildQueue)
+
+	// Announce a new worker, which creates a queue for operations.
+	platform := &remoteexecution.Platform{
+		Properties: []*remoteexecution.Platform_Property{
+			{Name: "cpu", Value: "armv6"},
+			{Name: "os", Value: "linux"},
+		},
+	}
+	clock.EXPECT().Now().Return(time.Unix(1000, 0))
+	response, err := buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
+		WorkerId: map[string]string{
+			"hostname": "worker123",
+			"thread":   "42",
+		},
+		InstanceName: "main",
+		Platform:     platform,
+		CurrentState: &remoteworker.CurrentState{
+			WorkerState: &remoteworker.CurrentState_Executing_{
+				Executing: &remoteworker.CurrentState_Executing{
+					ActionDigest: &remoteexecution.Digest{
+						Hash:      "099a3f6dc1e8e91dbcca4ea964cd2237d4b11733",
+						SizeBytes: 123,
+					},
+					ExecutionState: &remoteworker.CurrentState_Executing_FetchingInputs{
+						FetchingInputs: &empty.Empty{},
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
+		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1000},
+		DesiredState: &remoteworker.DesiredState{
+			WorkerState: &remoteworker.DesiredState_Idle{
+				Idle: &empty.Empty{},
+			},
+		},
+	}, response)
+
+	// Let ten workers create ten operations. Because they all refer
+	// to the same action, all requests should be deduplicated into
+	// the same task.
+	operationParameters := [...]struct {
+		invocationID  string
+		operationName string
+	}{
+		{"0f0f22ec-908a-4ea7-8a78-b92ab4188e78", "b4667823-9f8e-451d-a3e4-4481ec67329f"},
+		{"0f67bd82-2867-45ec-9412-f058f27d2686", "1b9e4aaf-b984-4ebc-9b51-0e31bf1b0edb"},
+		{"3e3975fa-d723-42c6-bccb-a3358793f656", "e662fb47-f162-41b8-b29c-45b24fe9e273"},
+		{"557cd041-1d24-423c-9733-f94c8d2916b2", "def137ac-7724-43ff-98f9-b16a3ba01dcd"},
+		{"56a827ff-d0bb-4f90-839d-eb55d8060269", "64943e71-86c3-4153-a760-76c0ff30cd68"},
+		{"849810af-2e0b-45ae-965d-28642d6c6453", "da009be0-93fe-40ad-9e03-a14e2bee2ff9"},
+		{"9cadf0eb-1e28-49ea-b052-5d05cdc50303", "e0f4e177-369d-4412-a19c-b7b1969dd46e"},
+		{"9ff4fd36-7123-4b59-90e2-7f49cd0af05e", "34f633ac-c418-4a1d-8a69-796990008e9c"},
+		{"d0438436-cff3-45e1-9c0b-7e5af632c0a4", "46cdaa7c-6bfa-49e2-822e-31be760c51c5"},
+		{"e4896008-d596-44c7-8df6-6ced53dff6b0", "88929b3e-f664-4f11-873d-40324d06378e"},
+	}
+	for i, p := range operationParameters {
+		contentAddressableStorage.EXPECT().Get(
+			gomock.Any(),
+			digest.MustNewDigest("main", "fc96ea0eee854b45950d3a7448332445730886691b992cb7917da0853664f7c2", 123),
+		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
+			CommandDigest: &remoteexecution.Digest{
+				Hash:      "f7a3ac7c17e535bc9b54ab13dbbb95a52ca1f1edaf9503ce23ccb3eca331a4f5",
+				SizeBytes: 456,
+			},
+		}, buffer.UserProvided))
+		contentAddressableStorage.EXPECT().Get(
+			gomock.Any(),
+			digest.MustNewDigest("main", "f7a3ac7c17e535bc9b54ab13dbbb95a52ca1f1edaf9503ce23ccb3eca331a4f5", 456),
+		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
+			Platform: platform,
+		}, buffer.UserProvided))
+
+		requestMetadataBin, err := proto.Marshal(&remoteexecution.RequestMetadata{
+			ToolInvocationId: p.invocationID,
+		})
+		require.NoError(t, err)
+
+		ctxWithCancel, cancel := context.WithCancel(ctx)
+
+		clock.EXPECT().Now().Return(time.Unix(1010+int64(i), 0))
+		timer := mock.NewMockTimer(ctrl)
+		clock.EXPECT().NewTimer(time.Minute).Return(timer, nil)
+		timer.EXPECT().Stop().Return(true)
+		uuidGenerator.EXPECT().Call().Return(uuid.Parse(p.operationName))
+		stream, err := executionClient.Execute(
+			metadata.AppendToOutgoingContext(
+				ctxWithCancel,
+				"build.bazel.remote.execution.v2.requestmetadata-bin",
+				string(requestMetadataBin)),
+			&remoteexecution.ExecuteRequest{
+				InstanceName: "main",
+				ActionDigest: &remoteexecution.Digest{
+					Hash:      "fc96ea0eee854b45950d3a7448332445730886691b992cb7917da0853664f7c2",
+					SizeBytes: 123,
+				},
+			})
+		require.NoError(t, err)
+		update, err := stream.Recv()
+		require.NoError(t, err)
+		metadata, err := ptypes.MarshalAny(&remoteexecution.ExecuteOperationMetadata{
+			Stage: remoteexecution.ExecutionStage_QUEUED,
+			ActionDigest: &remoteexecution.Digest{
+				Hash:      "fc96ea0eee854b45950d3a7448332445730886691b992cb7917da0853664f7c2",
+				SizeBytes: 123,
+			},
+		})
+		require.NoError(t, err)
+		testutil.RequireEqualProto(t, &longrunning.Operation{
+			Name:     p.operationName,
+			Metadata: metadata,
+		}, update)
+
+		// Immediately cancel the request. The operation should
+		// still be valid for the next minute.
+		//
+		// Because cancelling the RPC happens asynchronously, we
+		// wait on clock.Now() to be called to ensure
+		// InMemoryBuildQueue has detected the cancelation.
+		cancelWait := make(chan struct{})
+		clock.EXPECT().Now().Return(time.Unix(1010+int64(i), 0)).Do(func() {
+			cancelWait <- struct{}{}
+		})
+		cancel()
+		<-cancelWait
+	}
+
+	// Let one worker execute the task. Because of in-flight
+	// deduplication, all ten operations should now be in the
+	// EXECUTING stage.
+	clock.EXPECT().Now().Return(time.Unix(1065, 0))
+	response, err = buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
+		WorkerId: map[string]string{
+			"hostname": "worker123",
+			"thread":   "42",
+		},
+		InstanceName: "main",
+		Platform:     platform,
+		CurrentState: &remoteworker.CurrentState{
+			WorkerState: &remoteworker.CurrentState_Idle{
+				Idle: &empty.Empty{},
+			},
+		},
+	})
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
+		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1075},
+		DesiredState: &remoteworker.DesiredState{
+			WorkerState: &remoteworker.DesiredState_Executing_{
+				Executing: &remoteworker.DesiredState_Executing{
+					ActionDigest: &remoteexecution.Digest{
+						Hash:      "fc96ea0eee854b45950d3a7448332445730886691b992cb7917da0853664f7c2",
+						SizeBytes: 123,
+					},
+					Action: &remoteexecution.Action{
+						CommandDigest: &remoteexecution.Digest{
+							Hash:      "f7a3ac7c17e535bc9b54ab13dbbb95a52ca1f1edaf9503ce23ccb3eca331a4f5",
+							SizeBytes: 456,
+						},
+					},
+					Command: &remoteexecution.Command{
+						Platform: platform,
+					},
+					QueuedTimestamp: &timestamp.Timestamp{Seconds: 1010},
+				},
+			},
+		},
+	}, response)
+
+	// Get listings of invocations known by the scheduler. Because
+	// we're requesting this one minute after the operations were
+	// created, we should gradually see this list shrink. Eventually
+	// all invocations should be removed.
+	for i := 0; i <= len(operationParameters); i++ {
+		clock.EXPECT().Now().Return(time.Unix(1069+int64(i), 0)).Times(2)
+
+		invocationStates, err := buildQueue.ListInvocationState(
+			digest.MustNewInstanceName("main"),
+			platform,
+			false)
+		require.NoError(t, err)
+		require.Len(t, invocationStates, len(operationParameters)-i)
+
+		invocationStates, err = buildQueue.ListInvocationState(
+			digest.MustNewInstanceName("main"),
+			platform,
+			true)
+		require.NoError(t, err)
+		require.Empty(t, invocationStates)
+	}
 }
 
 // TODO: Make testing coverage of InMemoryBuildQueue complete.
