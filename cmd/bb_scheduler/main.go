@@ -75,7 +75,7 @@ func main() {
 				// prevent recurring traffic spikes.
 				return time.Minute + time.Duration(rand.Intn(60*1e6))*time.Microsecond
 			},
-			WorkerOperationRetryCount:           9,
+			WorkerTaskRetryCount:                9,
 			WorkerWithNoSynchronizationsTimeout: time.Minute,
 		},
 		int(configuration.MaximumMessageSizeBytes))

@@ -11,12 +11,18 @@ import (
 // expose the current state of the scheduler in such a way that
 // bb_scheduler can serve it through a web interface.
 type BuildQueueStateProvider interface {
+	// Global operations.
 	GetBuildQueueState() *BuildQueueState
 	GetDetailedOperationState(name string) (*DetailedOperationState, bool)
-	KillOperation(name string) bool
 	ListDetailedOperationState(pageSize int, startAfterOperation *string) ([]DetailedOperationState, PaginationInfo)
-	ListQueuedOperationState(instanceName digest.InstanceName, platform *remoteexecution.Platform, pageSize int, startAfterPriority *int32, startAfterQueuedTimestamp *time.Time) ([]QueuedOperationState, PaginationInfo, error)
+	KillOperation(name string) bool
+
+	// Operations at the platform queue level.
+	ListInvocationState(instanceName digest.InstanceName, platform *remoteexecution.Platform, justQueuedInvocations bool) ([]InvocationState, error)
 	ListWorkerState(instanceName digest.InstanceName, platform *remoteexecution.Platform, justExecutingWorkers bool, pageSize int, startAfterWorkerID map[string]string) ([]WorkerState, PaginationInfo, error)
+
+	// Operations at the invocation level.
+	ListQueuedOperationState(instanceName digest.InstanceName, platform *remoteexecution.Platform, invocationID string, pageSize int, startAfterPriority *int32, startAfterQueuedTimestamp *time.Time) ([]QueuedOperationState, PaginationInfo, error)
 
 	// Support for installing drains on workers.
 	ListDrainState(instanceName digest.InstanceName, platform *remoteexecution.Platform) ([]DrainState, error)
@@ -46,11 +52,21 @@ type PlatformQueueState struct {
 	InstanceName digest.InstanceName
 	Platform     remoteexecution.Platform
 
-	Timeout               *time.Time
-	QueuedOperationsCount int
-	WorkersCount          int
-	ExecutingWorkersCount int
-	DrainsCount           int
+	Timeout                *time.Time
+	InvocationsCount       int
+	QueuedInvocationsCount int
+	WorkersCount           int
+	ExecutingWorkersCount  int
+	DrainsCount            int
+}
+
+// InvocationState contains the state of a single client invocation
+// inside a per-platform queue.
+type InvocationState struct {
+	InvocationID             string
+	QueuedOperationsCount    int
+	FirstQueuedOperation     *QueuedOperationState
+	ExecutingOperationsCount int
 }
 
 // BasicOperationState contains basic properties of an operation that
