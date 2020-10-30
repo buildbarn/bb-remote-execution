@@ -109,6 +109,7 @@ github.com/aws/aws-sdk-go v1.33.13 h1:3+AsCrxxnhiUQEhWV+j3kEs7aBCIn2qkDjA+elpxYP
 github.com/aws/aws-sdk-go v1.33.13/go.mod h1:5zCpMtNQVjRREroY7sYe8lOMRSxkhG6MZveU8YkpAk0=
 github.com/bazelbuild/remote-apis v0.0.0-20200708200203-1252343900d9 h1:cEFRynjrFOjUj9ZQj/ubiVbKPUcMG2kpMIbQkKGYlcI=
 github.com/bazelbuild/remote-apis v0.0.0-20200708200203-1252343900d9/go.mod h1:9Y+1FnaNUGVV6wKE0Jdh+mguqDUsyd9uUqokalrC7DQ=
+github.com/bazelbuild/remote-apis v0.0.0-20201030192148-aa8e718768c2/go.mod h1:9Y+1FnaNUGVV6wKE0Jdh+mguqDUsyd9uUqokalrC7DQ=
 github.com/benbjohnson/clock v1.0.3/go.mod h1:bGMdMPoPVvcYyt1gHDf4J2KE153Yf9BuiUKYMaxlTDM=
 github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24TaqPxmxbtue+5NUziq4I4S80YR8gNf3Q=
 github.com/beorn7/perks v1.0.0/go.mod h1:KWe93zE9D1o94FZ5RNwFwVgaQK1VOXiVxmqh+CedLV8=
@@ -136,6 +137,8 @@ github.com/buildbarn/bb-storage v0.0.0-20200915070217-0efcb2afc433 h1:3HOuAXpEEa
 github.com/buildbarn/bb-storage v0.0.0-20200915070217-0efcb2afc433/go.mod h1:aOvstaNocL/hnoEqcSZUJ9iFNsi+ToA/YAFGLTp1xCg=
 github.com/buildbarn/bb-storage v0.0.0-20200917193456-be1ddb93b029 h1:zhOzsA5cmzydLGXiFpwEippGOnY2n7caoCmKT6y1m2k=
 github.com/buildbarn/bb-storage v0.0.0-20200917193456-be1ddb93b029/go.mod h1:SERa46ZAAywJwCGZ6cBUxEP8VsxjIGhq5N+WsBQuOPc=
+github.com/buildbarn/bb-storage v0.0.0-20201030194121-a89a02790e5a h1:bLCzkRbH2Uz+3gAaAF7Okll7JPWzB+YaoK201RqoPDI=
+github.com/buildbarn/bb-storage v0.0.0-20201030194121-a89a02790e5a/go.mod h1:OacyIpoPMT5t2zdqnxrf/FhXgshrixyqtF9CdFz0uIc=
 github.com/census-instrumentation/opencensus-proto v0.2.0/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
 github.com/census-instrumentation/opencensus-proto v0.2.1 h1:glEXhBS5PSLLv4IXzLA5yPRVX4bilULVyxxbrfOtDAk=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
