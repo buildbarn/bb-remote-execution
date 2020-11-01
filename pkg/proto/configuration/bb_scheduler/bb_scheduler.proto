@@ -46,6 +46,9 @@ message ApplicationConfiguration {
 
   // AWS access options and credentials.
   buildbarn.configuration.cloud.aws.SessionConfiguration aws_session = 10;
+
+  // Keywords to display in web view
+  repeated string keywords = 11;
 }
 
 message AWSASGLifecycleHookConfiguration {

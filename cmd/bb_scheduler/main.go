@@ -77,6 +77,8 @@ func main() {
 			},
 			WorkerOperationRetryCount:           9,
 			WorkerWithNoSynchronizationsTimeout: time.Minute,
+			InvocationInfoTimeout:               60 * time.Minute,
+			RemoteExecutionMetadataKeys:         configuration.Keywords,
 		},
 		int(configuration.MaximumMessageSizeBytes))
 
