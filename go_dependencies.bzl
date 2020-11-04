@@ -23,8 +23,8 @@ def go_dependencies():
     go_repository(
         name = "com_github_buildbarn_bb_storage",
         importpath = "github.com/buildbarn/bb-storage",
-        sum = "h1:bLCzkRbH2Uz+3gAaAF7Okll7JPWzB+YaoK201RqoPDI=",
-        version = "v0.0.0-20201030194121-a89a02790e5a",
+        sum = "h1:f19huScWizGx+WRbCA51gaqKD59JBP78qQIGCSgik4k=",
+        version = "v0.0.0-20201104092644-c346ca331930",
     )
     go_repository(
         name = "com_github_golang_mock",
@@ -138,8 +138,8 @@ def go_dependencies():
     go_repository(
         name = "org_golang_x_sync",
         importpath = "golang.org/x/sync",
-        sum = "h1:WXEvlFVvvGxCJLG6REjsT03iWnKLEWinaScsxF2Vm2o=",
-        version = "v0.0.0-20200317015054-43a5402ce75a",
+        sum = "h1:qwRHBd0NqMbJxfbotnDhm2ByMI1Shq4Y6oRJo21SGJA=",
+        version = "v0.0.0-20200625203802-6e8e738ad208",
     )
     go_repository(
         name = "io_opencensus_go",
@@ -732,8 +732,8 @@ def go_dependencies():
     go_repository(
         name = "com_github_rogpeppe_go_internal",
         importpath = "github.com/rogpeppe/go-internal",
-        sum = "h1:RR9dF3JtopPvtkroDZuVD7qquD0bnHlKSqaQhgwt8yk=",
-        version = "v1.3.0",
+        sum = "h1:/FiVV8dS/e+YqF2JvO3yXRFbBLTIuSDkuC7aBOAvL+k=",
+        version = "v1.6.1",
     )
     go_repository(
         name = "com_github_sergi_go_diff",
@@ -756,8 +756,8 @@ def go_dependencies():
     go_repository(
         name = "com_github_yuin_goldmark",
         importpath = "github.com/yuin/goldmark",
-        sum = "h1:nqDD4MMMQA0lmWq03Z2/myGPYLQoXtmi0rGVs95ntbo=",
-        version = "v1.1.27",
+        sum = "h1:5tjfNdR2ki3yYQ842+eX2sQHeiwpKJ0RnHO4IYOc4V8=",
+        version = "v1.1.32",
     )
     go_repository(
         name = "com_google_cloud_go_bigquery",
@@ -954,8 +954,8 @@ def go_dependencies():
     go_repository(
         name = "org_golang_x_tools",
         importpath = "golang.org/x/tools",
-        sum = "h1:FD4wDsP+CQUqh2V12OBOt90pLHVToe58P++fUu3ggV4=",
-        version = "v0.0.0-20200618134242-20370b0cb4b2",
+        sum = "h1:qKpj8TpV+LEhel7H/fR788J+KvhWZ3o3V6N2fU/iuLU=",
+        version = "v0.0.0-20200731060945-b5fad4ed8dd6",
     )
     go_repository(
         name = "com_github_opentracing_opentracing_go",
@@ -1023,4 +1023,10 @@ def go_dependencies():
         importpath = "github.com/go-redis/redisext",
         sum = "h1:rgukAuvD0qvfw2CZF9bSEstzBb3WnSgRvHK+hj8Nwp0=",
         version = "v0.1.7",
+    )
+    go_repository(
+        name = "cc_mvdan_gofumpt",
+        importpath = "mvdan.cc/gofumpt",
+        sum = "h1:QQ9mYdTscaVSaHC8A1wtLkECzvpD/YO2E2GyPvU1D/Y=",
+        version = "v0.0.0-20201027171050-85d5401eb0f6",
     )

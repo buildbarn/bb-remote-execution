@@ -73,7 +73,7 @@ func (f *blockDeviceBackedFile) getInitialSectorIndex(off int64, n int) (int, in
 
 // incrementSectorIndex is called by ReadAt() and WriteAt() to progress
 // to the next sequence of contiguously stored sectors.
-func (f *blockDeviceBackedFile) incrementSectorIndex(sectorIndex *int, offsetWithinSector *int, n int) {
+func (f *blockDeviceBackedFile) incrementSectorIndex(sectorIndex, offsetWithinSector *int, n int) {
 	if (*offsetWithinSector+n)%f.fp.sectorSizeBytes != 0 {
 		panic("Read or write did not finish at sector boundary")
 	}
@@ -84,7 +84,7 @@ func (f *blockDeviceBackedFile) incrementSectorIndex(sectorIndex *int, offsetWit
 // getSectorsContiguous converts an index of a sector in a file to the
 // on-disk sector number. It also computes how many sectors are stored
 // contiguously starting at this point.
-func (f *blockDeviceBackedFile) getSectorsContiguous(firstSectorIndex int, lastSectorIndex int) (uint32, int) {
+func (f *blockDeviceBackedFile) getSectorsContiguous(firstSectorIndex, lastSectorIndex int) (uint32, int) {
 	firstSector := f.sectors[firstSectorIndex]
 	nContiguous := 1
 	if firstSector == 0 {
@@ -107,7 +107,7 @@ func (f *blockDeviceBackedFile) getSectorsContiguous(firstSectorIndex int, lastS
 // limitBufferToSectorBoundary limits the size of a buffer to a given
 // number of sectors. This function is used to restrict the size of a
 // write to just that part that can be written contiguously.
-func (f *blockDeviceBackedFile) limitBufferToSectorBoundary(p []byte, sectorCount int, offsetWithinSector int) []byte {
+func (f *blockDeviceBackedFile) limitBufferToSectorBoundary(p []byte, sectorCount, offsetWithinSector int) []byte {
 	if n := sectorCount*f.fp.sectorSizeBytes - offsetWithinSector; n < len(p) {
 		return p[:n]
 	}
@@ -118,7 +118,7 @@ func (f *blockDeviceBackedFile) limitBufferToSectorBoundary(p []byte, sectorCoun
 // attempts to read as much data into the output buffer as is possible
 // in a single read operation. If the file is fragmented, multiple reads
 // are necessary, requiring this function to be called repeatedly.
-func (f *blockDeviceBackedFile) readFromSectors(p []byte, sectorIndex int, lastSectorIndex int, offsetWithinSector int) (int, error) {
+func (f *blockDeviceBackedFile) readFromSectors(p []byte, sectorIndex, lastSectorIndex, offsetWithinSector int) (int, error) {
 	if sectorIndex >= len(f.sectors) {
 		// Attempted to read from a hole located at the
 		// end of the file. Fill up all of the remaining
@@ -313,7 +313,7 @@ func (f *blockDeviceBackedFile) insertSectorsContiguous(firstSectorIndex int, fi
 // in a single write operation. If the file is fragmented, multiple
 // writes are necessary, requiring this function to be called
 // repeatedly.
-func (f *blockDeviceBackedFile) writeToSectors(p []byte, sectorIndex int, lastSectorIndex int, offsetWithinSector int) (int, error) {
+func (f *blockDeviceBackedFile) writeToSectors(p []byte, sectorIndex, lastSectorIndex, offsetWithinSector int) (int, error) {
 	if sectorIndex >= len(f.sectors) {
 		// Attempted to write past the end-of-file or within a
 		// hole located at the end of a sparse file. Allocate

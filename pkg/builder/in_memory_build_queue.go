@@ -202,9 +202,11 @@ func NewInMemoryBuildQueue(contentAddressableStorage blobstore.BlobAccess, clock
 	}
 }
 
-var _ builder.BuildQueue = (*InMemoryBuildQueue)(nil)
-var _ remoteworker.OperationQueueServer = (*InMemoryBuildQueue)(nil)
-var _ BuildQueueStateProvider = (*InMemoryBuildQueue)(nil)
+var (
+	_ builder.BuildQueue                = (*InMemoryBuildQueue)(nil)
+	_ remoteworker.OperationQueueServer = (*InMemoryBuildQueue)(nil)
+	_ BuildQueueStateProvider           = (*InMemoryBuildQueue)(nil)
+)
 
 // GetCapabilities returns the Remote Execution protocol capabilities
 // that this service supports.
@@ -495,7 +497,7 @@ func (bq *InMemoryBuildQueue) GetDetailedOperationState(name string) (*DetailedO
 // getPaginationInfo uses binary searching to determine which
 // information should be returned by InMemoryBuildQueue's List*()
 // operations.
-func getPaginationInfo(n int, pageSize int, f func(int) bool) PaginationInfo {
+func getPaginationInfo(n, pageSize int, f func(int) bool) PaginationInfo {
 	startIndex := sort.Search(n, f)
 	endIndex := startIndex + pageSize
 	if endIndex > n {
@@ -918,7 +920,7 @@ func newPlatformQueue(platformKey platformKey) *platformQueue {
 	}
 }
 
-func workerMatchesPattern(workerID map[string]string, workerIDPattern map[string]string) bool {
+func workerMatchesPattern(workerID, workerIDPattern map[string]string) bool {
 	for key, value := range workerIDPattern {
 		if workerID[key] != value {
 			return false
@@ -1335,7 +1337,7 @@ func (o *operation) registerQueuedStageFinished(bq *InMemoryBuildQueue) {
 
 // registerQueuedStageFinished updates Prometheus metrics related to
 // operations finishing the EXECUTING stage.
-func (o *operation) registerExecutingStageFinished(bq *InMemoryBuildQueue, result string, grpcCode string) {
+func (o *operation) registerExecutingStageFinished(bq *InMemoryBuildQueue, result, grpcCode string) {
 	o.platformQueue.operationsExecutingDurationSeconds.WithLabelValues(result, grpcCode).Observe(bq.now.Sub(o.currentStageStartTime).Seconds())
 	o.platformQueue.operationsExecutingRetries.WithLabelValues(result, grpcCode).Observe(float64(o.retryCount))
 	o.currentStageStartTime = bq.now

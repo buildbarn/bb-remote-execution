@@ -28,17 +28,15 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 )
 
-var (
-	buildQueueConfigurationForTesting = re_builder.InMemoryBuildQueueConfiguration{
-		ExecutionUpdateInterval:              time.Minute,
-		OperationWithNoWaitersTimeout:        time.Minute,
-		PlatformQueueWithNoWorkersTimeout:    15 * time.Minute,
-		BusyWorkerSynchronizationInterval:    10 * time.Second,
-		GetIdleWorkerSynchronizationInterval: func() time.Duration { return time.Minute },
-		WorkerOperationRetryCount:            9,
-		WorkerWithNoSynchronizationsTimeout:  time.Minute,
-	}
-)
+var buildQueueConfigurationForTesting = re_builder.InMemoryBuildQueueConfiguration{
+	ExecutionUpdateInterval:              time.Minute,
+	OperationWithNoWaitersTimeout:        time.Minute,
+	PlatformQueueWithNoWorkersTimeout:    15 * time.Minute,
+	BusyWorkerSynchronizationInterval:    10 * time.Second,
+	GetIdleWorkerSynchronizationInterval: func() time.Duration { return time.Minute },
+	WorkerOperationRetryCount:            9,
+	WorkerWithNoSynchronizationsTimeout:  time.Minute,
+}
 
 // getExecutionClient creates a GRPC client for calling Execute() and
 // WaitExecution() operations against a build queue. These operations

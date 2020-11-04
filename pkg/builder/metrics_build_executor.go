@@ -237,7 +237,7 @@ func observeDuration(histogram prometheus.Observer, pb *duration.Duration) {
 	histogram.Observe(d.Seconds())
 }
 
-func observeTimestampDelta(histogram prometheus.Observer, pbStart *timestamp.Timestamp, pbCompleted *timestamp.Timestamp) {
+func observeTimestampDelta(histogram prometheus.Observer, pbStart, pbCompleted *timestamp.Timestamp) {
 	if pbStart == nil || pbCompleted == nil {
 		return
 	}

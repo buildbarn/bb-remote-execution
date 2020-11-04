@@ -32,7 +32,7 @@ type cachingBuildExecutor struct {
 //
 // In both cases, a link to bb_browser is added to the ExecuteResponse,
 // so that the user may inspect the Action and ActionResult in detail.
-func NewCachingBuildExecutor(base BuildExecutor, contentAddressableStorage blobstore.BlobAccess, actionCache blobstore.BlobAccess, browserURL *url.URL) BuildExecutor {
+func NewCachingBuildExecutor(base BuildExecutor, contentAddressableStorage, actionCache blobstore.BlobAccess, browserURL *url.URL) BuildExecutor {
 	return &cachingBuildExecutor{
 		base:                      base,
 		contentAddressableStorage: contentAddressableStorage,

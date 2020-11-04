@@ -57,7 +57,7 @@ var (
 		"proto_to_json":          jsonpbMarshaler.MarshalToString,
 		"proto_to_indented_json": jsonpbIndentedMarshaler.MarshalToString,
 		"error_proto":            status.ErrorProto,
-		"to_duration": func(large time.Time, small time.Time) string {
+		"to_duration": func(large, small time.Time) string {
 			return large.Sub(small).Truncate(time.Second).String()
 		},
 		"to_json": func(v interface{}) (string, error) {

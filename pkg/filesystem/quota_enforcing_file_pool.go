@@ -41,7 +41,7 @@ type quotaEnforcingFilePool struct {
 // FilePool, while also limiting the total size of all files that are
 // extracted. Space is reclaimed by either truncating files or closing
 // them.
-func NewQuotaEnforcingFilePool(base FilePool, maximumFileCount int64, maximumTotalSize int64) FilePool {
+func NewQuotaEnforcingFilePool(base FilePool, maximumFileCount, maximumTotalSize int64) FilePool {
 	return &quotaEnforcingFilePool{
 		base:           base,
 		filesRemaining: quotaMetric{remaining: maximumFileCount},

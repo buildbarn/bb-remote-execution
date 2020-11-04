@@ -150,7 +150,7 @@ func (d *naiveBuildDirectory) UploadFile(ctx context.Context, name string, paren
 // given offset, but stops with EOF after n bytes. This function is
 // identical to io.NewSectionReader(), except that it provides an
 // io.ReadCloser instead of an io.Reader.
-func newSectionReadCloser(r filesystem.FileReader, off int64, n int64) io.ReadCloser {
+func newSectionReadCloser(r filesystem.FileReader, off, n int64) io.ReadCloser {
 	return &struct {
 		io.SectionReader
 		io.Closer

@@ -17,7 +17,7 @@ type localRunner struct{}
 // NewLocalRunner returns a Runner capable of running commands on the
 // local system directly. On this operating system this functionality is
 // not available.
-func NewLocalRunner(buildDirectory filesystem.Directory, buildDirectoryPath string, setTmpdirEnvironmentVariable bool, chrootIntoInputRoot bool) Runner {
+func NewLocalRunner(buildDirectory filesystem.Directory, buildDirectoryPath string, setTmpdirEnvironmentVariable, chrootIntoInputRoot bool) Runner {
 	return &localRunner{}
 }
 
