@@ -12,8 +12,8 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	cas_proto "github.com/buildbarn/bb-storage/pkg/proto/cas"
+	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/golang/mock/gomock"
-	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/require"
 	status_pb "google.golang.org/genproto/googleapis/rpc/status"
 
@@ -52,9 +52,9 @@ func TestCachingBuildExecutorCachedSuccess(t *testing.T) {
 		DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 			actionResult, err := b.ToProto(&remoteexecution.ActionResult{}, 10000)
 			require.NoError(t, err)
-			require.True(t, proto.Equal(&remoteexecution.ActionResult{
+			testutil.RequireEqualProto(t, &remoteexecution.ActionResult{
 				StdoutRaw: []byte("Hello, world!"),
-			}, actionResult))
+			}, actionResult)
 			return nil
 		})
 	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, contentAddressableStorage, actionCache, &url.URL{
@@ -64,12 +64,12 @@ func TestCachingBuildExecutorCachedSuccess(t *testing.T) {
 	})
 
 	executeResponse := cachingBuildExecutor.Execute(ctx, filePool, instanceName, request, metadata)
-	require.True(t, proto.Equal(&remoteexecution.ExecuteResponse{
+	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			StdoutRaw: []byte("Hello, world!"),
 		},
 		Message: "Action details (cached result): https://example.com/some/sub/directory/action/freebsd12/64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c/11/",
-	}, executeResponse))
+	}, executeResponse)
 }
 
 // An explicit Status object with an 'OK' code should also be treated as
@@ -104,9 +104,9 @@ func TestCachingBuildExecutorCachedSuccessExplicitOK(t *testing.T) {
 		DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 			actionResult, err := b.ToProto(&remoteexecution.ActionResult{}, 10000)
 			require.NoError(t, err)
-			require.True(t, proto.Equal(&remoteexecution.ActionResult{
+			testutil.RequireEqualProto(t, &remoteexecution.ActionResult{
 				StdoutRaw: []byte("Hello, world!"),
-			}, actionResult))
+			}, actionResult)
 			return nil
 		})
 	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, contentAddressableStorage, actionCache, &url.URL{
@@ -116,13 +116,13 @@ func TestCachingBuildExecutorCachedSuccessExplicitOK(t *testing.T) {
 	})
 
 	executeResponse := cachingBuildExecutor.Execute(ctx, filePool, instanceName, request, metadata)
-	require.True(t, proto.Equal(&remoteexecution.ExecuteResponse{
+	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			StdoutRaw: []byte("Hello, world!"),
 		},
 		Status:  &status_pb.Status{Message: "This is not an error, because it has code zero"},
 		Message: "Action details (cached result): https://example.com/some/sub/directory/action/freebsd12/64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c/11/",
-	}, executeResponse))
+	}, executeResponse)
 }
 
 // When the exit code of the build action is non-zero, we may store the
@@ -161,7 +161,7 @@ func TestCachingBuildExecutorCachedSuccessNonZeroExitCode(t *testing.T) {
 		DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 			uncachedActionResult, err := b.ToProto(&cas_proto.UncachedActionResult{}, 10000)
 			require.NoError(t, err)
-			require.True(t, proto.Equal(&cas_proto.UncachedActionResult{
+			testutil.RequireEqualProto(t, &cas_proto.UncachedActionResult{
 				ActionDigest: &remoteexecution.Digest{
 					Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
 					SizeBytes: 11,
@@ -172,7 +172,7 @@ func TestCachingBuildExecutorCachedSuccessNonZeroExitCode(t *testing.T) {
 						StderrRaw: []byte("Compiler error!"),
 					},
 				},
-			}, uncachedActionResult))
+			}, uncachedActionResult)
 			return nil
 		})
 	actionCache := mock.NewMockBlobAccess(ctrl)
@@ -183,13 +183,13 @@ func TestCachingBuildExecutorCachedSuccessNonZeroExitCode(t *testing.T) {
 	})
 
 	executeResponse := cachingBuildExecutor.Execute(ctx, filePool, instanceName, request, metadata)
-	require.True(t, proto.Equal(&remoteexecution.ExecuteResponse{
+	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			ExitCode:  127,
 			StderrRaw: []byte("Compiler error!"),
 		},
 		Message: "Action details (uncached result): https://example.com/some/sub/directory/uncached_action_result/freebsd12/bb1107706f3aa379d68aa61062f56d99d24a667ec18d5756fb6df1ba9baa1fdc/93/",
-	}, executeResponse))
+	}, executeResponse)
 }
 
 // In case we fail to write an entry into the Action Cache, we should
@@ -223,9 +223,9 @@ func TestCachingBuildExecutorCachedStorageFailure(t *testing.T) {
 		DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 			actionResult, err := b.ToProto(&remoteexecution.ActionResult{}, 10000)
 			require.NoError(t, err)
-			require.True(t, proto.Equal(&remoteexecution.ActionResult{
+			testutil.RequireEqualProto(t, &remoteexecution.ActionResult{
 				StdoutRaw: []byte("Hello, world!"),
-			}, actionResult))
+			}, actionResult)
 			return status.Error(codes.Internal, "Network problems")
 		})
 	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, contentAddressableStorage, actionCache, &url.URL{
@@ -235,12 +235,12 @@ func TestCachingBuildExecutorCachedStorageFailure(t *testing.T) {
 	})
 
 	executeResponse := cachingBuildExecutor.Execute(ctx, filePool, instanceName, request, metadata)
-	require.True(t, proto.Equal(&remoteexecution.ExecuteResponse{
+	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			StdoutRaw: []byte("Hello, world!"),
 		},
 		Status: status.New(codes.Internal, "Failed to store cached action result: Network problems").Proto(),
-	}, executeResponse))
+	}, executeResponse)
 }
 
 // When the DoNotCache flag is set, we should not store results in the
@@ -273,7 +273,7 @@ func TestCachingBuildExecutorUncachedDoNotCache(t *testing.T) {
 		DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 			uncachedActionResult, err := b.ToProto(&cas_proto.UncachedActionResult{}, 10000)
 			require.NoError(t, err)
-			require.True(t, proto.Equal(&cas_proto.UncachedActionResult{
+			testutil.RequireEqualProto(t, &cas_proto.UncachedActionResult{
 				ActionDigest: &remoteexecution.Digest{
 					Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
 					SizeBytes: 11,
@@ -283,7 +283,7 @@ func TestCachingBuildExecutorUncachedDoNotCache(t *testing.T) {
 						StdoutRaw: []byte("Hello, world!"),
 					},
 				},
-			}, uncachedActionResult))
+			}, uncachedActionResult)
 			return nil
 		})
 	actionCache := mock.NewMockBlobAccess(ctrl)
@@ -294,12 +294,12 @@ func TestCachingBuildExecutorUncachedDoNotCache(t *testing.T) {
 	})
 
 	executeResponse := cachingBuildExecutor.Execute(ctx, filePool, instanceName, request, metadata)
-	require.True(t, proto.Equal(&remoteexecution.ExecuteResponse{
+	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			StdoutRaw: []byte("Hello, world!"),
 		},
 		Message: "Action details (uncached result): http://example.com/some/sub/directory/uncached_action_result/freebsd12/5ed2d5720b99f5575542bb4f89e84b5e00e34ab652292974fdb814ab7dc3c92e/89/",
-	}, executeResponse))
+	}, executeResponse)
 }
 
 // We should also not store results in the Action Cache when an error is
@@ -333,7 +333,7 @@ func TestCachingBuildExecutorUncachedError(t *testing.T) {
 		DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 			uncachedActionResult, err := b.ToProto(&cas_proto.UncachedActionResult{}, 10000)
 			require.NoError(t, err)
-			require.True(t, proto.Equal(&cas_proto.UncachedActionResult{
+			testutil.RequireEqualProto(t, &cas_proto.UncachedActionResult{
 				ActionDigest: &remoteexecution.Digest{
 					Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
 					SizeBytes: 11,
@@ -344,7 +344,7 @@ func TestCachingBuildExecutorUncachedError(t *testing.T) {
 					},
 					Status: status.New(codes.DeadlineExceeded, "Build took more than ten seconds").Proto(),
 				},
-			}, uncachedActionResult))
+			}, uncachedActionResult)
 			return nil
 		})
 	actionCache := mock.NewMockBlobAccess(ctrl)
@@ -355,13 +355,13 @@ func TestCachingBuildExecutorUncachedError(t *testing.T) {
 	})
 
 	executeResponse := cachingBuildExecutor.Execute(ctx, filePool, instanceName, request, metadata)
-	require.True(t, proto.Equal(&remoteexecution.ExecuteResponse{
+	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			StdoutRaw: []byte("Compiling..."),
 		},
 		Status:  status.New(codes.DeadlineExceeded, "Build took more than ten seconds").Proto(),
 		Message: "Action details (uncached result): http://example.com/some/sub/directory/uncached_action_result/freebsd12/a6e4f00dd21540b0b653dcd195b3d54ea4c0b3ca679cf6a69eb7b0dbd378c2cc/126/",
-	}, executeResponse))
+	}, executeResponse)
 }
 
 // An error generated by uploading the UncachedActionResult should not
@@ -395,7 +395,7 @@ func TestCachingBuildExecutorUncachedStorageFailure(t *testing.T) {
 		DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 			uncachedActionResult, err := b.ToProto(&cas_proto.UncachedActionResult{}, 10000)
 			require.NoError(t, err)
-			require.True(t, proto.Equal(&cas_proto.UncachedActionResult{
+			testutil.RequireEqualProto(t, &cas_proto.UncachedActionResult{
 				ActionDigest: &remoteexecution.Digest{
 					Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
 					SizeBytes: 11,
@@ -406,7 +406,7 @@ func TestCachingBuildExecutorUncachedStorageFailure(t *testing.T) {
 					},
 					Status: status.New(codes.DeadlineExceeded, "Build took more than ten seconds").Proto(),
 				},
-			}, uncachedActionResult))
+			}, uncachedActionResult)
 			return status.Error(codes.Internal, "Cannot store uncached action result")
 		})
 	actionCache := mock.NewMockBlobAccess(ctrl)
@@ -417,10 +417,10 @@ func TestCachingBuildExecutorUncachedStorageFailure(t *testing.T) {
 	})
 
 	executeResponse := cachingBuildExecutor.Execute(ctx, filePool, instanceName, request, metadata)
-	require.True(t, proto.Equal(&remoteexecution.ExecuteResponse{
+	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			StdoutRaw: []byte("Compiling..."),
 		},
 		Status: status.New(codes.DeadlineExceeded, "Build took more than ten seconds").Proto(),
-	}, executeResponse))
+	}, executeResponse)
 }

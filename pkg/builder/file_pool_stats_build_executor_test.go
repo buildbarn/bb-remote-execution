@@ -12,8 +12,8 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage"
 	"github.com/buildbarn/bb-storage/pkg/digest"
+	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/golang/mock/gomock"
-	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/any"
 	"github.com/stretchr/testify/require"
@@ -89,12 +89,12 @@ func TestFilePoolStatsBuildExecutorExample(t *testing.T) {
 		TruncatesCount:     2,
 	})
 	require.NoError(t, err)
-	require.True(t, proto.Equal(executeResponse, &remoteexecution.ExecuteResponse{
+	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			ExitCode: 1,
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
 				AuxiliaryMetadata: []*any.Any{resourceUsage},
 			},
 		},
-	}))
+	}, executeResponse)
 }

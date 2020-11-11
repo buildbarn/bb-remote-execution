@@ -12,8 +12,8 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
+	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/golang/mock/gomock"
-	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/require"
 
 	"google.golang.org/grpc/codes"
@@ -255,7 +255,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 				m, err := b.ToProto(&remoteexecution.Tree{}, 10000)
 				require.NoError(t, err)
-				require.True(t, proto.Equal(&remoteexecution.Tree{
+				testutil.RequireEqualProto(t, &remoteexecution.Tree{
 					Root: &remoteexecution.Directory{
 						Files: []*remoteexecution.FileNode{
 							{
@@ -293,7 +293,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 					Children: []*remoteexecution.Directory{
 						{},
 					},
-				}, m))
+				}, m)
 				return nil
 			})
 
@@ -309,9 +309,9 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 				m, err := b.ToProto(&remoteexecution.Tree{}, 10000)
 				require.NoError(t, err)
-				require.True(t, proto.Equal(&remoteexecution.Tree{
+				testutil.RequireEqualProto(t, &remoteexecution.Tree{
 					Root: &remoteexecution.Directory{},
-				}, m))
+				}, m)
 				return nil
 			})
 
@@ -493,9 +493,9 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 				m, err := b.ToProto(&remoteexecution.Tree{}, 10000)
 				require.NoError(t, err)
-				require.True(t, proto.Equal(&remoteexecution.Tree{
+				testutil.RequireEqualProto(t, &remoteexecution.Tree{
 					Root: &remoteexecution.Directory{},
-				}, m))
+				}, m)
 				return nil
 			})
 
@@ -529,9 +529,9 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 				m, err := b.ToProto(&remoteexecution.Tree{}, 10000)
 				require.NoError(t, err)
-				require.True(t, proto.Equal(&remoteexecution.Tree{
+				testutil.RequireEqualProto(t, &remoteexecution.Tree{
 					Root: &remoteexecution.Directory{},
-				}, m))
+				}, m)
 				return nil
 			})
 

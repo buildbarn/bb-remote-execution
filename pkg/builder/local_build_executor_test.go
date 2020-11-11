@@ -14,9 +14,9 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
+	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/golang/mock/gomock"
-	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/any"
 	"github.com/golang/protobuf/ptypes/duration"
@@ -62,7 +62,7 @@ func TestLocalBuildExecutorInvalidActionDigest(t *testing.T) {
 			},
 		},
 		metadata)
-	require.Equal(t, &remoteexecution.ExecuteResponse{
+	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
 		},
@@ -99,7 +99,7 @@ func TestLocalBuildExecutorMissingAction(t *testing.T) {
 			},
 		},
 		metadata)
-	require.Equal(t, &remoteexecution.ExecuteResponse{
+	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
 		},
@@ -135,7 +135,7 @@ func TestLocalBuildExecutorMissingCommand(t *testing.T) {
 			},
 		},
 		metadata)
-	require.Equal(t, &remoteexecution.ExecuteResponse{
+	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
 		},
@@ -182,7 +182,7 @@ func TestLocalBuildExecutorBuildDirectoryCreatorFailedFailed(t *testing.T) {
 			},
 		},
 		metadata)
-	require.Equal(t, &remoteexecution.ExecuteResponse{
+	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
 		},
@@ -241,7 +241,7 @@ func TestLocalBuildExecutorInputRootPopulationFailed(t *testing.T) {
 			},
 		},
 		metadata)
-	require.Equal(t, &remoteexecution.ExecuteResponse{
+	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
 		},
@@ -301,7 +301,7 @@ func TestLocalBuildExecutorOutputDirectoryCreationFailure(t *testing.T) {
 			},
 		},
 		metadata)
-	require.Equal(t, &remoteexecution.ExecuteResponse{
+	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
 		},
@@ -327,9 +327,9 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 		DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 			m, err := b.ToProto(&remoteexecution.Tree{}, 10000)
 			require.NoError(t, err)
-			require.True(t, proto.Equal(&remoteexecution.Tree{
+			testutil.RequireEqualProto(t, &remoteexecution.Tree{
 				Root: &remoteexecution.Directory{},
-			}, m))
+			}, m)
 			return nil
 		})
 
@@ -403,7 +403,7 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 			},
 		},
 		metadata)
-	require.Equal(t, &remoteexecution.ExecuteResponse{
+	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			OutputDirectories: []*remoteexecution.OutputDirectory{
 				{
@@ -597,7 +597,7 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 			},
 		},
 		metadata)
-	require.Equal(t, &remoteexecution.ExecuteResponse{
+	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			OutputFiles: []*remoteexecution.OutputFile{
 				{
@@ -664,7 +664,7 @@ func TestLocalBuildExecutorCachingInvalidTimeout(t *testing.T) {
 			},
 		},
 		metadata)
-	require.Equal(t, &remoteexecution.ExecuteResponse{
+	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
 		},
@@ -705,7 +705,7 @@ func TestLocalBuildExecutorCachingTimeoutTooHigh(t *testing.T) {
 			},
 		},
 		metadata)
-	require.Equal(t, &remoteexecution.ExecuteResponse{
+	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
 		},
@@ -801,7 +801,7 @@ func TestLocalBuildExecutorInputRootIOFailureDuringExecution(t *testing.T) {
 			},
 		},
 		metadata)
-	require.Equal(t, &remoteexecution.ExecuteResponse{
+	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			StdoutDigest: &remoteexecution.Digest{
 				Hash:      "0000000000000000000000000000000000000000000000000000000000000005",
@@ -894,7 +894,7 @@ func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 			},
 		},
 		metadata)
-	require.Equal(t, &remoteexecution.ExecuteResponse{
+	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			StdoutDigest: &remoteexecution.Digest{
 				Hash:      "0000000000000000000000000000000000000000000000000000000000000005",
@@ -968,7 +968,7 @@ func TestLocalBuildExecutorCharacterDeviceNodeCreationFailed(t *testing.T) {
 			},
 		},
 		metadata)
-	require.Equal(t, &remoteexecution.ExecuteResponse{
+	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
 		},

@@ -11,8 +11,8 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-storage/pkg/digest"
+	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/golang/mock/gomock"
-	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/any"
 	"github.com/golang/protobuf/ptypes/empty"
@@ -100,7 +100,7 @@ func TestTimestampedBuildExecutorExample(t *testing.T) {
 	// Execute response should be augmented to include metadata.
 	// Auxiliary metadata that is already part of the execution
 	// metadata should not be discarded.
-	require.True(t, proto.Equal(executeResponse, &remoteexecution.ExecuteResponse{
+	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			ExitCode: 1,
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
@@ -117,5 +117,5 @@ func TestTimestampedBuildExecutorExample(t *testing.T) {
 				AuxiliaryMetadata:              []*any.Any{auxiliaryMetadata},
 			},
 		},
-	}))
+	}, executeResponse)
 }

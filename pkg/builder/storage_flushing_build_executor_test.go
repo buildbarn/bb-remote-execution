@@ -9,9 +9,9 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-storage/pkg/digest"
+	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/golang/mock/gomock"
 	"github.com/golang/protobuf/proto"
-	"github.com/stretchr/testify/require"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -104,9 +104,10 @@ func TestStorageFlushingBuildExecutor(t *testing.T) {
 	// literal form.
 	t.Run("FlushingSucceeded", func(t *testing.T) {
 		storageFlusher.EXPECT().Call(ctx).Return(nil)
-		require.True(t, proto.Equal(
-			buildExecutor.Execute(ctx, filePool, instanceName, request, updates),
-			response))
+		testutil.RequireEqualProto(
+			t,
+			response,
+			buildExecutor.Execute(ctx, filePool, instanceName, request, updates))
 	})
 
 	// When flushing fails, some of the outputs may not have ended
@@ -114,8 +115,8 @@ func TestStorageFlushingBuildExecutor(t *testing.T) {
 	// removed.
 	t.Run("FlushingFailed", func(t *testing.T) {
 		storageFlusher.EXPECT().Call(ctx).Return(status.Error(codes.Internal, "Failed to flush blobs to storage"))
-		require.True(t, proto.Equal(
-			buildExecutor.Execute(ctx, filePool, instanceName, request, updates),
+		testutil.RequireEqualProto(
+			t,
 			&remoteexecution.ExecuteResponse{
 				Result: &remoteexecution.ActionResult{
 					OutputFileSymlinks: []*remoteexecution.OutputSymlink{
@@ -139,6 +140,7 @@ func TestStorageFlushingBuildExecutor(t *testing.T) {
 				},
 				Status:  status.New(codes.Internal, "Failed to flush blobs to storage").Proto(),
 				Message: "Uncached action result: http://....",
-			}))
+			},
+			buildExecutor.Execute(ctx, filePool, instanceName, request, updates))
 	})
 }

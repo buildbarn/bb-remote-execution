@@ -8,6 +8,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
+	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
@@ -50,9 +51,7 @@ func TestExistencePreconditionBlobAccessGetResourceExhausted(t *testing.T) {
 		ctx,
 		digest.MustNewDigest("ubuntu1604", "c916e71d733d06cb77a4775de5f77fd0b480a7e8", 8),
 	).ToByteSlice(100)
-	s := status.Convert(err)
-	require.Equal(t, codes.ResourceExhausted, s.Code())
-	require.Equal(t, "Out of luck!", s.Message())
+	testutil.RequireEqualStatus(t, status.Error(codes.ResourceExhausted, "Out of luck!"), err)
 }
 
 func TestExistencePreconditionBlobAccessGetNotFound(t *testing.T) {
@@ -66,18 +65,12 @@ func TestExistencePreconditionBlobAccessGetNotFound(t *testing.T) {
 	).Return(buffer.NewBufferFromError(status.Error(codes.NotFound, "Blob doesn't exist!")))
 
 	// The error should be translated to FailedPrecondition.
-	_, err := blobstore.NewExistencePreconditionBlobAccess(bottomBlobAccess).Get(
+	_, gotErr := blobstore.NewExistencePreconditionBlobAccess(bottomBlobAccess).Get(
 		ctx,
 		digest.MustNewDigest("ubuntu1604", "c015ad6ddaf8bb50689d2d7cbf1539dff6dd84473582a08ed1d15d841f4254f4", 7),
 	).ToByteSlice(100)
-	s := status.Convert(err)
-	require.Equal(t, codes.FailedPrecondition, s.Code())
-	require.Equal(t, "Blob doesn't exist!", s.Message())
 
-	// Metadata of the error should indicate which blob is missing.
-	details := s.Details()
-	require.Equal(t, 1, len(details))
-	require.Equal(t, details[0], &errdetails.PreconditionFailure{
+	wantErr, err := status.New(codes.FailedPrecondition, "Blob doesn't exist!").WithDetails(&errdetails.PreconditionFailure{
 		Violations: []*errdetails.PreconditionFailure_Violation{
 			{
 				Type:    "MISSING",
@@ -85,6 +78,9 @@ func TestExistencePreconditionBlobAccessGetNotFound(t *testing.T) {
 			},
 		},
 	})
+	require.NoError(t, err)
+
+	testutil.RequireEqualStatus(t, wantErr.Err(), gotErr)
 }
 
 func TestExistencePreconditionBlobAccessPutNotFound(t *testing.T) {
