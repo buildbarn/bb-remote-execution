@@ -141,6 +141,12 @@ github.com/buildbarn/bb-storage v0.0.0-20201030194121-a89a02790e5a h1:bLCzkRbH2U
 github.com/buildbarn/bb-storage v0.0.0-20201030194121-a89a02790e5a/go.mod h1:OacyIpoPMT5t2zdqnxrf/FhXgshrixyqtF9CdFz0uIc=
 github.com/buildbarn/bb-storage v0.0.0-20201104092644-c346ca331930 h1:f19huScWizGx+WRbCA51gaqKD59JBP78qQIGCSgik4k=
 github.com/buildbarn/bb-storage v0.0.0-20201104092644-c346ca331930/go.mod h1:qBYv0gmDMSubxaOMsaKDCbBvUhu4Rj6ZoOkU1X/12h8=
+github.com/buildbarn/bb-storage v0.0.0-20201111142643-59d2a7ad94c4 h1:dLsjBbTYIozuFQh1FC4hTADeOHMm5QGmF5l7HoUGAGo=
+github.com/buildbarn/bb-storage v0.0.0-20201111142643-59d2a7ad94c4/go.mod h1:qBYv0gmDMSubxaOMsaKDCbBvUhu4Rj6ZoOkU1X/12h8=
+github.com/buildbarn/bb-storage v0.0.0-20201111145106-7e0d57af70e3 h1:Y+xCqBUJ4418Q/zkTNaowYRJu79wi/Gc9I4HSthIFfo=
+github.com/buildbarn/bb-storage v0.0.0-20201111145106-7e0d57af70e3/go.mod h1:qBYv0gmDMSubxaOMsaKDCbBvUhu4Rj6ZoOkU1X/12h8=
+github.com/buildbarn/bb-storage v0.0.0-20201111150919-9ba4a525aa1f h1:g/gBNZIu8gR6mdcv018XrFnXkGF5TJv7NaLCQGReJMs=
+github.com/buildbarn/bb-storage v0.0.0-20201111150919-9ba4a525aa1f/go.mod h1:qBYv0gmDMSubxaOMsaKDCbBvUhu4Rj6ZoOkU1X/12h8=
 github.com/census-instrumentation/opencensus-proto v0.2.0/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
 github.com/census-instrumentation/opencensus-proto v0.2.1 h1:glEXhBS5PSLLv4IXzLA5yPRVX4bilULVyxxbrfOtDAk=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=

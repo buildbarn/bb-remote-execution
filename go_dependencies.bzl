@@ -23,8 +23,8 @@ def go_dependencies():
     go_repository(
         name = "com_github_buildbarn_bb_storage",
         importpath = "github.com/buildbarn/bb-storage",
-        sum = "h1:f19huScWizGx+WRbCA51gaqKD59JBP78qQIGCSgik4k=",
-        version = "v0.0.0-20201104092644-c346ca331930",
+        sum = "h1:g/gBNZIu8gR6mdcv018XrFnXkGF5TJv7NaLCQGReJMs=",
+        version = "v0.0.0-20201111150919-9ba4a525aa1f",
     )
     go_repository(
         name = "com_github_golang_mock",
