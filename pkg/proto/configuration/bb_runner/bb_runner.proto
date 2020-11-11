@@ -46,4 +46,23 @@ message ApplicationConfiguration {
   // other purposes (e.g., running multiple bb_runners), as this may
   // cause unrelated processes to be killed.
   bool clean_process_table = 8;
+
+  // If set, scan the entire filesystem to verify that the only writable paths
+  // on the filesystem are those specified as allowed (or children thereof).
+  FilesystemWritabilityCheckerConfiguration filesystem_writability_checker = 9;
+}
+
+message FilesystemWritabilityCheckerConfiguration {
+  // Paths which are allowed to be writable despite
+  // the checker being enabled.
+  // If these are directories, they are allowed children too.
+  //
+  // Note that on platforms with enumeratable virtual filesystems
+  // (e.g. /proc and /sys on Linux), you probably want to list them here.
+  //
+  // If you have any temporary directories set, you probably want to add them
+  // here.
+  // Depending on your configuration, you may also want to add the build
+  // directory path.
+  repeated string allowed_writable_paths = 1;
 }

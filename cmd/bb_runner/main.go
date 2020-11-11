@@ -4,8 +4,10 @@ import (
 	"context"
 	"log"
 	"os"
+	"path/filepath"
 	"time"
 
+	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_runner"
 	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/tmp_installer"
@@ -43,6 +45,28 @@ func main() {
 		configuration.BuildDirectoryPath,
 		configuration.SetTmpdirEnvironmentVariable,
 		configuration.ChrootIntoInputRoot)
+
+	if fswcConfig := configuration.FilesystemWritabilityChecker; fswcConfig != nil {
+		allowed := make(map[string]struct{})
+		var empty struct{}
+		for _, path := range fswcConfig.AllowedWritablePaths {
+			// Note that this does not traverse/canonicalise symlinks, it is purely symbolic.
+			// It will also expand foo/bar/.. to foo, even if bar is a symlink.
+			if !filepath.IsAbs(path) || filepath.Clean(path) != path {
+				log.Fatalf("When using filesystem writability checking, allowed writable paths must be absolute and clean, but got: %#v", path)
+			}
+			allowed[path] = empty
+		}
+
+		dir, err := filesystem.NewLocalDirectory("/")
+		if err != nil {
+			log.Fatalf("Failed to open root directory: %v", err)
+		}
+		if err := re_filesystem.CheckAllWritablePathsAreAllowed(dir, "/", allowed); err != nil {
+			log.Fatal("File system writability checker failed: ", err)
+		}
+		dir.Close()
+	}
 
 	// When temporary directories need cleaning prior to executing a build
 	// action, attach a series of TemporaryDirectoryCleaningRunners.
