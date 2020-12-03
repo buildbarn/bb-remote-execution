@@ -65,7 +65,7 @@ func (r *localRunner) openLog(logPath string) (filesystem.FileAppender, error) {
 
 func convertTimeval(t syscall.Timeval) *duration.Duration {
 	return &duration.Duration{
-		Seconds: t.Sec,
+		Seconds: int64(t.Sec),
 		Nanos:   int32(t.Usec) * 1000,
 	}
 }
@@ -134,17 +134,17 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 	posixResourceUsage, err := ptypes.MarshalAny(&resourceusage.POSIXResourceUsage{
 		UserTime:                   convertTimeval(rusage.Utime),
 		SystemTime:                 convertTimeval(rusage.Stime),
-		MaximumResidentSetSize:     rusage.Maxrss * maximumResidentSetSizeUnit,
-		PageReclaims:               rusage.Minflt,
-		PageFaults:                 rusage.Majflt,
-		Swaps:                      rusage.Nswap,
-		BlockInputOperations:       rusage.Inblock,
-		BlockOutputOperations:      rusage.Oublock,
-		MessagesSent:               rusage.Msgsnd,
-		MessagesReceived:           rusage.Msgrcv,
-		SignalsReceived:            rusage.Nsignals,
-		VoluntaryContextSwitches:   rusage.Nvcsw,
-		InvoluntaryContextSwitches: rusage.Nivcsw,
+		MaximumResidentSetSize:     int64(rusage.Maxrss) * maximumResidentSetSizeUnit,
+		PageReclaims:               int64(rusage.Minflt),
+		PageFaults:                 int64(rusage.Majflt),
+		Swaps:                      int64(rusage.Nswap),
+		BlockInputOperations:       int64(rusage.Inblock),
+		BlockOutputOperations:      int64(rusage.Oublock),
+		MessagesSent:               int64(rusage.Msgsnd),
+		MessagesReceived:           int64(rusage.Msgrcv),
+		SignalsReceived:            int64(rusage.Nsignals),
+		VoluntaryContextSwitches:   int64(rusage.Nvcsw),
+		InvoluntaryContextSwitches: int64(rusage.Nivcsw),
 	})
 	if err != nil {
 		return nil, util.StatusWrap(err, "Failed to marshal POSIX resource usage")
