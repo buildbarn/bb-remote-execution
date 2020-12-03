@@ -49,7 +49,7 @@ func (pt systemProcessTable) GetProcesses() ([]Process, error) {
 		processes = append(processes, Process{
 			ProcessID:    int(pid),
 			UserID:       int(stat.Uid),
-			CreationTime: time.Unix(stat.Ctim.Sec, stat.Ctim.Nsec),
+			CreationTime: time.Unix(int64(stat.Ctim.Sec), int64(stat.Ctim.Nsec)),
 		})
 	}
 	return processes, nil
