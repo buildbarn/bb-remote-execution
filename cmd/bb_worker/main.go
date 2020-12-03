@@ -77,7 +77,7 @@ func main() {
 			log.Fatal("Failed to open file pool block device: ", err)
 		}
 		if sectorCount > math.MaxUint32 {
-			log.Fatal("File pool block device has %d sectors, while only %d may be addressed", sectorCount, uint64(math.MaxUint32))
+			log.Fatalf("File pool block device has %d sectors, while only %d may be addressed", sectorCount, uint32(math.MaxUint32))
 		}
 		filePool = re_filesystem.NewBlockDeviceBackedFilePool(
 			blockDevice,
