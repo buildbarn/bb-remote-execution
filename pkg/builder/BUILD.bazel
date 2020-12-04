@@ -64,6 +64,7 @@ go_library(
 go_test(
     name = "go_default_test",
     srcs = [
+        "build_client_test.go",
         "caching_build_executor_test.go",
         "clean_build_directory_creator_test.go",
         "file_pool_stats_build_executor_test.go",
