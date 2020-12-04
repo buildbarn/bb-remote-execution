@@ -114,6 +114,14 @@ gomock(
 )
 
 gomock(
+    name = "remoteworker",
+    out = "remoteworker.go",
+    interfaces = ["OperationQueueClient"],
+    library = "//pkg/proto/remoteworker:go_default_library",
+    package = "mock",
+)
+
+gomock(
     name = "runner",
     out = "runner.go",
     interfaces = ["Runner"],
@@ -161,6 +169,7 @@ go_library(
         ":filesystem_re.go",
         ":processtablecleaning.go",
         ":remoteexecution.go",
+        ":remoteworker.go",
         ":runner.go",
         ":storage_builder.go",
         ":storage_util.go",
@@ -188,6 +197,7 @@ go_library(
         "@com_github_golang_mock//gomock:go_default_library",
         "@com_github_google_uuid//:go_default_library",
         "@go_googleapis//google/longrunning:longrunning_go_proto",
+        "@org_golang_google_grpc//:go_default_library",
         "@org_golang_google_grpc//metadata:go_default_library",
     ],
 )
