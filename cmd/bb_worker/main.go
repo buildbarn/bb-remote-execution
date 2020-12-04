@@ -131,7 +131,7 @@ func main() {
 			nativeConfiguration := backend.Native
 			naiveBuildDirectory, err = filesystem.NewLocalDirectory(nativeConfiguration.BuildDirectoryPath)
 			if err != nil {
-				log.Fatal("Failed to open build directory: ", err)
+				log.Fatalf("Failed to open build directory %v: %s", nativeConfiguration.BuildDirectoryPath, err)
 			}
 
 			// Create a cache directory that holds input
