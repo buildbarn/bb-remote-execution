@@ -2,7 +2,6 @@ package builder
 
 import (
 	"context"
-	"net/url"
 	"time"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
@@ -35,6 +34,7 @@ type BuildClient struct {
 
 	// Mutable fields that are always set.
 	request               remoteworker.SynchronizeRequest
+	inExecutingState      bool
 	nextSynchronizationAt time.Time
 
 	// Mutable fields that are only set when executing an action.
@@ -44,7 +44,7 @@ type BuildClient struct {
 
 // NewBuildClient creates a new BuildClient instance that is set to the
 // initial state (i.e., being idle).
-func NewBuildClient(scheduler remoteworker.OperationQueueClient, buildExecutor BuildExecutor, filePool filesystem.FilePool, clock clock.Clock, browserURL *url.URL, workerID map[string]string, instanceName digest.InstanceName, platform *remoteexecution.Platform) *BuildClient {
+func NewBuildClient(scheduler remoteworker.OperationQueueClient, buildExecutor BuildExecutor, filePool filesystem.FilePool, clock clock.Clock, workerID map[string]string, instanceName digest.InstanceName, platform *remoteexecution.Platform) *BuildClient {
 	return &BuildClient{
 		scheduler:     scheduler,
 		buildExecutor: buildExecutor,
@@ -80,16 +80,22 @@ func (bc *BuildClient) startExecution(executionRequest *remoteworker.DesiredStat
 			ctx, span = trace.StartSpanWithRemoteParent(ctx, "BuildClient.Execute", tc)
 			defer span.End()
 		}
+		executeResponse := bc.buildExecutor.Execute(
+			ctx,
+			bc.filePool,
+			bc.instanceName,
+			executionRequest,
+			updates)
 		updates <- &remoteworker.CurrentState_Executing{
 			ActionDigest: executionRequest.ActionDigest,
 			ExecutionState: &remoteworker.CurrentState_Executing_Completed{
-				Completed: bc.buildExecutor.Execute(
-					ctx,
-					bc.filePool,
-					bc.instanceName,
-					executionRequest,
-					updates),
+				Completed: executeResponse,
 			},
+			// In case execution failed with a serious
+			// error, request that the worker gets a brief
+			// amount of idle time, so that we can do some
+			// health checks prior to picking up more work.
+			PreferBeingIdle: status.ErrorProto(executeResponse.Status) != nil,
 		}
 		close(updates)
 	}()
@@ -103,6 +109,7 @@ func (bc *BuildClient) startExecution(executionRequest *remoteworker.DesiredStat
 			},
 		},
 	}
+	bc.inExecutingState = true
 }
 
 func (bc *BuildClient) stopExecution() {
@@ -122,6 +129,7 @@ func (bc *BuildClient) stopExecution() {
 	bc.request.CurrentState.WorkerState = &remoteworker.CurrentState_Idle{
 		Idle: &empty.Empty{},
 	}
+	bc.inExecutingState = false
 }
 
 func (bc *BuildClient) applyExecutionUpdate(update *remoteworker.CurrentState_Executing) {
@@ -202,4 +210,15 @@ func (bc *BuildClient) Run() error {
 		}
 	}
 	return nil
+}
+
+// InExecutingState returns true if the worker is executing an action,
+// or still needs to successfully synchronize against the scheduler to
+// communicate the completion of an action.
+//
+// If this function returns false, it is safe for the worker to stop
+// synchronizing against the scheduler without causing any operations to
+// fail.
+func (bc *BuildClient) InExecutingState() bool {
+	return bc.inExecutingState
 }

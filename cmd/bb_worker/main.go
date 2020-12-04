@@ -201,17 +201,7 @@ func main() {
 			if err != nil {
 				log.Fatal("Failed to create runner RPC client: ", err)
 			}
-
-			// Wait for the runner process to come online.
 			runnerClient := runner_pb.NewRunnerClient(runnerConnection)
-			for {
-				_, err := runnerClient.CheckReadiness(context.Background(), &empty.Empty{})
-				if err == nil {
-					break
-				}
-				log.Print("Runner is not ready yet: ", err)
-				time.Sleep(3 * time.Second)
-			}
 
 			for threadID := uint64(0); threadID < runnerConfiguration.Concurrency; threadID++ {
 				go func(runnerConfiguration *bb_worker.RunnerConfiguration, threadID uint64) {
@@ -289,13 +279,31 @@ func main() {
 							runnerConfiguration.MaximumFilePoolFileCount,
 							runnerConfiguration.MaximumFilePoolSizeBytes),
 						clock.SystemClock,
-						browserURL,
 						workerID,
 						instanceName,
 						runnerConfiguration.Platform)
+
+					// Contact the scheduler to ask for
+					// work. Hold off in case we're idle and
+					// our runner process isn't ready.
+					//
+					// TODO: Add a signal handler here, so
+					// that we can terminate workers without
+					// interrupting work.
 					for {
+						if !buildClient.InExecutingState() {
+							for {
+								_, err := runnerClient.CheckReadiness(context.Background(), &empty.Empty{})
+								if err == nil {
+									break
+								}
+								log.Printf("Runner for worker %s is not ready: %s", workerName, err)
+								time.Sleep(3 * time.Second)
+							}
+						}
+
 						if err := buildClient.Run(); err != nil {
-							log.Print(err)
+							log.Printf("Worker %s: %s", workerName, err)
 							time.Sleep(3 * time.Second)
 						}
 					}

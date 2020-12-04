@@ -485,7 +485,7 @@ func (bq *InMemoryBuildQueue) Synchronize(ctx context.Context, request *remotewo
 	}
 	switch workerState := currentState.WorkerState.(type) {
 	case *remoteworker.CurrentState_Idle:
-		return w.getCurrentOrNextTask(ctx, bq, pq, request.WorkerId)
+		return w.getCurrentOrNextTask(ctx, bq, pq, request.WorkerId, false)
 	case *remoteworker.CurrentState_Executing_:
 		executing := workerState.Executing
 		if executing.ActionDigest == nil {
@@ -493,9 +493,9 @@ func (bq *InMemoryBuildQueue) Synchronize(ctx context.Context, request *remotewo
 		}
 		switch executionState := executing.ExecutionState.(type) {
 		case *remoteworker.CurrentState_Executing_Completed:
-			return w.completeTask(ctx, bq, pq, request.WorkerId, executing.ActionDigest, executionState.Completed)
+			return w.completeTask(ctx, bq, pq, request.WorkerId, executing.ActionDigest, executionState.Completed, executing.PreferBeingIdle)
 		default:
-			return w.updateTask(bq, pq, request.WorkerId, executing.ActionDigest)
+			return w.updateTask(bq, pq, request.WorkerId, executing.ActionDigest, executing.PreferBeingIdle)
 		}
 	default:
 		return nil, status.Error(codes.InvalidArgument, "Worker provided an unknown current state")
@@ -914,6 +914,19 @@ func (bq *InMemoryBuildQueue) enter(t time.Time) {
 // leave releases the lock on the InMemoryBuildQueue.
 func (bq *InMemoryBuildQueue) leave() {
 	bq.lock.Unlock()
+}
+
+// getIdleSynchronizeResponse returns a synchronization response that
+// explicitly instructs a worker to return to the idle state.
+func (bq *InMemoryBuildQueue) getIdleSynchronizeResponse() *remoteworker.SynchronizeResponse {
+	return &remoteworker.SynchronizeResponse{
+		NextSynchronizationAt: bq.getCurrentTime(),
+		DesiredState: &remoteworker.DesiredState{
+			WorkerState: &remoteworker.DesiredState_Idle{
+				Idle: &empty.Empty{},
+			},
+		},
+	}
 }
 
 // platformKey can be used as a key for maps to uniquely identify a
@@ -1728,7 +1741,14 @@ func (w *worker) startTask(bq *InMemoryBuildQueue, pq *platformQueue, t *task) *
 // provided, this function either blocks until work is available or
 // returns immediately. When returning immediately, it instructs the
 // worker to go idle.
-func (w *worker) getNextTask(ctx context.Context, bq *InMemoryBuildQueue, pq *platformQueue, workerID map[string]string) (*remoteworker.SynchronizeResponse, error) {
+func (w *worker) getNextTask(ctx context.Context, bq *InMemoryBuildQueue, pq *platformQueue, workerID map[string]string, preferBeingIdle bool) (*remoteworker.SynchronizeResponse, error) {
+	if preferBeingIdle {
+		// The worker wants to terminate or is experiencing some
+		// issues. Explicitly instruct the worker to go idle, so
+		// that it knows it can hold off synchronizing.
+		return bq.getIdleSynchronizeResponse(), nil
+	}
+
 	if t, ok := w.getNextTaskNonBlocking(bq, pq, workerID); ok {
 		return w.startTask(bq, pq, t), nil
 	}
@@ -1739,21 +1759,17 @@ func (w *worker) getNextTask(ctx context.Context, bq *InMemoryBuildQueue, pq *pl
 		// the worker goes idle immediately. It will
 		// resynchronize as soon as it's done terminating its
 		// current build action.
-		return &remoteworker.SynchronizeResponse{
-			NextSynchronizationAt: bq.getCurrentTime(),
-			DesiredState: &remoteworker.DesiredState{
-				WorkerState: &remoteworker.DesiredState_Idle{
-					Idle: &empty.Empty{},
-				},
-			},
-		}, nil
+		return bq.getIdleSynchronizeResponse(), nil
 	}
 
 	t, err := w.getNextTaskBlocking(ctx, bq, pq, workerID)
 	if t == nil {
-		return &remoteworker.SynchronizeResponse{
-			NextSynchronizationAt: bq.getCurrentTime(),
-		}, err
+		// There is no work available, even after waiting for
+		// some time. Allow the worker to switch back to the
+		// idle state, so that it knows it doesn't need to hold
+		// on to any previous execute response and may terminate
+		// safely.
+		return bq.getIdleSynchronizeResponse(), err
 	}
 	return w.startTask(bq, pq, t), nil
 }
@@ -1762,7 +1778,7 @@ func (w *worker) getNextTask(ctx context.Context, bq *InMemoryBuildQueue, pq *pl
 // instructs the worker to run the task it should be running. When the
 // worker has no task assigned to it, it attempts to request a task from
 // the queue.
-func (w *worker) getCurrentOrNextTask(ctx context.Context, bq *InMemoryBuildQueue, pq *platformQueue, workerID map[string]string) (*remoteworker.SynchronizeResponse, error) {
+func (w *worker) getCurrentOrNextTask(ctx context.Context, bq *InMemoryBuildQueue, pq *platformQueue, workerID map[string]string, preferBeingIdle bool) (*remoteworker.SynchronizeResponse, error) {
 	if t := w.getCurrentTask(); t != nil {
 		if t.retryCount >= bq.configuration.WorkerTaskRetryCount {
 			t.complete(bq, &remoteexecution.ExecuteResponse{
@@ -1784,7 +1800,7 @@ func (w *worker) getCurrentOrNextTask(ctx context.Context, bq *InMemoryBuildQueu
 			}, nil
 		}
 	}
-	return w.getNextTask(ctx, bq, pq, workerID)
+	return w.getNextTask(ctx, bq, pq, workerID, preferBeingIdle)
 }
 
 // isRunningCorrectTask determines whether the worker is actually
@@ -1800,9 +1816,9 @@ func (w *worker) isRunningCorrectTask(actionDigest *remoteexecution.Digest) bool
 
 // updateTask processes execution status updates from the worker that do
 // not equal the 'completed' state.
-func (w *worker) updateTask(bq *InMemoryBuildQueue, pq *platformQueue, workerID map[string]string, actionDigest *remoteexecution.Digest) (*remoteworker.SynchronizeResponse, error) {
+func (w *worker) updateTask(bq *InMemoryBuildQueue, pq *platformQueue, workerID map[string]string, actionDigest *remoteexecution.Digest, preferBeingIdle bool) (*remoteworker.SynchronizeResponse, error) {
 	if !w.isRunningCorrectTask(actionDigest) {
-		return w.getCurrentOrNextTask(nil, bq, pq, workerID)
+		return w.getCurrentOrNextTask(nil, bq, pq, workerID, preferBeingIdle)
 	}
 	// The worker is doing fine. Allow it to continue with what it's
 	// doing right now.
@@ -1815,12 +1831,12 @@ func (w *worker) updateTask(bq *InMemoryBuildQueue, pq *platformQueue, workerID 
 // equal the 'completed' state. It causes the execute response to be
 // preserved and communicated to clients that are waiting on the
 // completion of the task.
-func (w *worker) completeTask(ctx context.Context, bq *InMemoryBuildQueue, pq *platformQueue, workerID map[string]string, actionDigest *remoteexecution.Digest, executeResponse *remoteexecution.ExecuteResponse) (*remoteworker.SynchronizeResponse, error) {
+func (w *worker) completeTask(ctx context.Context, bq *InMemoryBuildQueue, pq *platformQueue, workerID map[string]string, actionDigest *remoteexecution.Digest, executeResponse *remoteexecution.ExecuteResponse, preferBeingIdle bool) (*remoteworker.SynchronizeResponse, error) {
 	if !w.isRunningCorrectTask(actionDigest) {
-		return w.getCurrentOrNextTask(ctx, bq, pq, workerID)
+		return w.getCurrentOrNextTask(ctx, bq, pq, workerID, preferBeingIdle)
 	}
 	w.getCurrentTask().complete(bq, executeResponse)
-	return w.getNextTask(ctx, bq, pq, workerID)
+	return w.getNextTask(ctx, bq, pq, workerID, preferBeingIdle)
 }
 
 // cleanupKey is a handle that is used by cleanupQueue to refer to

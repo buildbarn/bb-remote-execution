@@ -1235,6 +1235,11 @@ func TestInMemoryBuildQueueIdleWorkerSynchronizationTimeout(t *testing.T) {
 	require.NoError(t, err)
 	testutil.RequireEqualProto(t, response, &remoteworker.SynchronizeResponse{
 		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1060},
+		DesiredState: &remoteworker.DesiredState{
+			WorkerState: &remoteworker.DesiredState_Idle{
+				Idle: &empty.Empty{},
+			},
+		},
 	})
 }
 
@@ -2177,6 +2182,209 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, invocationStates)
 	}
+}
+
+func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	clock := mock.NewMockClock(ctrl)
+	clock.EXPECT().Now().Return(time.Unix(0, 0))
+	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000)
+	executionClient := getExecutionClient(t, buildQueue)
+
+	// Announce a new worker, which creates a queue for operations.
+	platform := &remoteexecution.Platform{
+		Properties: []*remoteexecution.Platform_Property{
+			{Name: "cpu", Value: "armv6"},
+			{Name: "os", Value: "linux"},
+		},
+	}
+	clock.EXPECT().Now().Return(time.Unix(1000, 0))
+	response, err := buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
+		WorkerId: map[string]string{
+			"hostname": "worker123",
+			"thread":   "42",
+		},
+		InstanceName: "main",
+		Platform:     platform,
+		CurrentState: &remoteworker.CurrentState{
+			WorkerState: &remoteworker.CurrentState_Executing_{
+				Executing: &remoteworker.CurrentState_Executing{
+					ActionDigest: &remoteexecution.Digest{
+						Hash:      "099a3f6dc1e8e91dbcca4ea964cd2237d4b11733",
+						SizeBytes: 123,
+					},
+					ExecutionState: &remoteworker.CurrentState_Executing_FetchingInputs{
+						FetchingInputs: &empty.Empty{},
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
+		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1000},
+		DesiredState: &remoteworker.DesiredState{
+			WorkerState: &remoteworker.DesiredState_Idle{
+				Idle: &empty.Empty{},
+			},
+		},
+	}, response)
+
+	// Let a client enqueue an operation.
+	contentAddressableStorage.EXPECT().Get(
+		gomock.Any(),
+		digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
+		CommandDigest: &remoteexecution.Digest{
+			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
+			SizeBytes: 456,
+		},
+	}, buffer.UserProvided))
+	contentAddressableStorage.EXPECT().Get(
+		gomock.Any(),
+		digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
+	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
+		Platform: platform,
+	}, buffer.UserProvided))
+	clock.EXPECT().Now().Return(time.Unix(1001, 0))
+	timer := mock.NewMockTimer(ctrl)
+	clock.EXPECT().NewTimer(time.Minute).Return(timer, nil)
+	timer.EXPECT().Stop().Return(true)
+	uuidGenerator.EXPECT().Call().Return(uuid.Parse("b9bb6e2c-04ff-4fbd-802b-105be93a8fb7"))
+	stream, err := executionClient.Execute(
+		ctx,
+		&remoteexecution.ExecuteRequest{
+			InstanceName: "main",
+			ActionDigest: &remoteexecution.Digest{
+				Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+				SizeBytes: 123,
+			},
+		})
+	require.NoError(t, err)
+	update, err := stream.Recv()
+	require.NoError(t, err)
+	metadata, err := ptypes.MarshalAny(&remoteexecution.ExecuteOperationMetadata{
+		Stage: remoteexecution.ExecutionStage_QUEUED,
+		ActionDigest: &remoteexecution.Digest{
+			Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+			SizeBytes: 123,
+		},
+	})
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, &longrunning.Operation{
+		Name:     "b9bb6e2c-04ff-4fbd-802b-105be93a8fb7",
+		Metadata: metadata,
+	}, update)
+
+	// Let a worker pick up the operation.
+	clock.EXPECT().Now().Return(time.Unix(1002, 0))
+	response, err = buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
+		WorkerId: map[string]string{
+			"hostname": "worker123",
+			"thread":   "42",
+		},
+		InstanceName: "main",
+		Platform:     platform,
+		CurrentState: &remoteworker.CurrentState{
+			WorkerState: &remoteworker.CurrentState_Idle{
+				Idle: &empty.Empty{},
+			},
+		},
+	})
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
+		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1012},
+		DesiredState: &remoteworker.DesiredState{
+			WorkerState: &remoteworker.DesiredState_Executing_{
+				Executing: &remoteworker.DesiredState_Executing{
+					ActionDigest: &remoteexecution.Digest{
+						Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+						SizeBytes: 123,
+					},
+					Action: &remoteexecution.Action{
+						CommandDigest: &remoteexecution.Digest{
+							Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
+							SizeBytes: 456,
+						},
+					},
+					Command: &remoteexecution.Command{
+						Platform: platform,
+					},
+					QueuedTimestamp: &timestamp.Timestamp{Seconds: 1001},
+				},
+			},
+		},
+	}, response)
+
+	// Let the worker complete the execution of the operation.
+	// Normally this would be a blocking call, as it would wait
+	// until more work is available. However, because
+	// PreferBeingIdle is set, the call will return immediately,
+	// explicitly forcing the worker to the idle state. This allows
+	// workers to terminate gracefully.
+	clock.EXPECT().Now().Return(time.Unix(1003, 0)).Times(3)
+	response, err = buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
+		WorkerId: map[string]string{
+			"hostname": "worker123",
+			"thread":   "42",
+		},
+		InstanceName: "main",
+		Platform:     platform,
+		CurrentState: &remoteworker.CurrentState{
+			WorkerState: &remoteworker.CurrentState_Executing_{
+				Executing: &remoteworker.CurrentState_Executing{
+					ActionDigest: &remoteexecution.Digest{
+						Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+						SizeBytes: 123,
+					},
+					ExecutionState: &remoteworker.CurrentState_Executing_Completed{
+						Completed: &remoteexecution.ExecuteResponse{
+							Result: &remoteexecution.ActionResult{},
+						},
+					},
+					PreferBeingIdle: true,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
+		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1003},
+		DesiredState: &remoteworker.DesiredState{
+			WorkerState: &remoteworker.DesiredState_Idle{
+				Idle: &empty.Empty{},
+			},
+		},
+	}, response)
+
+	// The client should be informed the operation has been
+	// completed. This should be the last message to be returned.
+	update, err = stream.Recv()
+	require.NoError(t, err)
+	metadata, err = ptypes.MarshalAny(&remoteexecution.ExecuteOperationMetadata{
+		Stage: remoteexecution.ExecutionStage_COMPLETED,
+		ActionDigest: &remoteexecution.Digest{
+			Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+			SizeBytes: 123,
+		},
+	})
+	require.NoError(t, err)
+	executeResponse, err := ptypes.MarshalAny(&remoteexecution.ExecuteResponse{
+		Result: &remoteexecution.ActionResult{},
+	})
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, update, &longrunning.Operation{
+		Name:     "b9bb6e2c-04ff-4fbd-802b-105be93a8fb7",
+		Metadata: metadata,
+		Done:     true,
+		Result:   &longrunning.Operation_Response{Response: executeResponse},
+	})
+
+	_, err = stream.Recv()
+	require.Equal(t, io.EOF, err)
 }
 
 // TODO: Make testing coverage of InMemoryBuildQueue complete.
