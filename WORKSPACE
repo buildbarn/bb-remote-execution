@@ -4,6 +4,7 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 http_archive(
     name = "bazel_gomock",
+    patches = ["//:patches/bazel_gomock/tags-manual.diff"],
     sha256 = "5c4e7cde43a80d7bdef8cd3ff0741e33b24f9e2897ae9759bfe0ff2ba80125db",
     strip_prefix = "bazel_gomock-1.1",
     urls = ["https://github.com/jmhodges/bazel_gomock/archive/v1.1.tar.gz"],
