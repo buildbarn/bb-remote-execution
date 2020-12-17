@@ -35,10 +35,10 @@ func main() {
 		log.Fatal("Failed to apply global configuration options: ", err)
 	}
 
-	buildDirectory, err := filesystem.NewLocalDirectory(configuration.BuildDirectoryPath)
-	if err != nil {
-		log.Fatal("Failed to open build directory: ", err)
-	}
+	buildDirectory := re_filesystem.NewLazyDirectory(
+		func() (filesystem.DirectoryCloser, error) {
+			return filesystem.NewLocalDirectory(configuration.BuildDirectoryPath)
+		})
 
 	r := runner.NewLocalRunner(
 		buildDirectory,
