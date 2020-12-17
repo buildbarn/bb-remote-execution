@@ -4,6 +4,18 @@ load("@bazel_gomock//:gomock.bzl", "gomock")
 load("@io_bazel_rules_go//go:def.bzl", "go_library")
 
 gomock(
+    name = "aliases",
+    out = "aliases.go",
+    interfaces = [
+        "FUSEDirectory",
+        "FUSELeaf",
+    ],
+    library = "//internal/mock/aliases:go_default_library",
+    package = "mock",
+    tags = ["manual"],
+)
+
+gomock(
     name = "blobstore",
     out = "blobstore.go",
     interfaces = ["BlobAccess"],
@@ -87,11 +99,40 @@ gomock(
     name = "filesystem_re",
     out = "filesystem_re.go",
     interfaces = [
+        "DirectoryOpener",
         "FilePool",
         "SectorAllocator",
     ],
     library = "//pkg/filesystem:go_default_library",
     package = "mock",
+)
+
+gomock(
+    name = "fuse",
+    out = "fuse.go",
+    interfaces = [
+        "EntryNotifier",
+        "FileAllocator",
+        "InitialContentsFetcher",
+        "NativeLeaf",
+    ],
+    library = "//pkg/filesystem/fuse:go_default_library",
+    package = "mock",
+    tags = ["manual"],
+)
+
+gomock(
+    name = "go_fuse",
+    out = "go_fuse.go",
+    interfaces = [
+        "RawFileSystem",
+        "ReadDirEntryList",
+        "ReadDirPlusEntryList",
+        "ServerCallbacks",
+    ],
+    library = "@com_github_hanwen_go_fuse_v2//fuse:go_default_library",
+    package = "mock",
+    tags = ["manual"],
 )
 
 gomock(
@@ -174,12 +215,25 @@ go_library(
         ":storage_builder.go",
         ":storage_util.go",
         ":sync.go",
-    ],
+    ] + select({
+        "@io_bazel_rules_go//go/platform:darwin": [
+            ":aliases.go",
+            ":fuse.go",
+            ":go_fuse.go",
+        ],
+        "@io_bazel_rules_go//go/platform:linux": [
+            ":aliases.go",
+            ":fuse.go",
+            ":go_fuse.go",
+        ],
+        "//conditions:default": [],
+    }),
     importpath = "github.com/buildbarn/bb-remote-execution/internal/mock",
     visibility = ["//:__subpackages__"],
     deps = [
         "//pkg/builder:go_default_library",
         "//pkg/filesystem:go_default_library",
+        "//pkg/filesystem/fuse:go_default_library",
         "//pkg/proto/remoteworker:go_default_library",
         "//pkg/proto/runner:go_default_library",
         "//pkg/runner/processtablecleaning:go_default_library",
@@ -187,6 +241,7 @@ go_library(
         "@com_github_aws_aws_sdk_go//service/ec2:go_default_library",
         "@com_github_aws_aws_sdk_go//service/sqs:go_default_library",
         "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:go_default_library",
+        "@com_github_buildbarn_bb_storage//pkg/blobstore:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/blobstore/buffer:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/builder:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/clock:go_default_library",
@@ -199,5 +254,13 @@ go_library(
         "@go_googleapis//google/longrunning:longrunning_go_proto",
         "@org_golang_google_grpc//:go_default_library",
         "@org_golang_google_grpc//metadata:go_default_library",
-    ],
+    ] + select({
+        "@io_bazel_rules_go//go/platform:darwin": [
+            "@com_github_hanwen_go_fuse_v2//fuse:go_default_library",
+        ],
+        "@io_bazel_rules_go//go/platform:linux": [
+            "@com_github_hanwen_go_fuse_v2//fuse:go_default_library",
+        ],
+        "//conditions:default": [],
+    }),
 )

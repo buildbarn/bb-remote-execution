@@ -7,6 +7,7 @@ import "google/protobuf/duration.proto";
 import "pkg/proto/configuration/blobstore/blobstore.proto";
 import "pkg/proto/configuration/eviction/eviction.proto";
 import "pkg/proto/configuration/filesystem/filesystem.proto";
+import "pkg/proto/configuration/fuse/fuse.proto";
 import "pkg/proto/configuration/global/global.proto";
 import "pkg/proto/configuration/grpc/grpc.proto";
 
@@ -62,6 +63,21 @@ message BuildDirectoryConfiguration {
     // The disadvantage is that build actions with large input roots may
     // take long to initialize.
     NativeBuildDirectoryConfiguration native = 1;
+
+    // Perform builds in a FUSE mount that is managed by this process.
+    // The FUSE mount instantiates build input roots lazily and loads
+    // input files on demand. This means that build actions can be
+    // started instantaneously, downloading data gradually.
+    //
+    // The FUSE file system may impose a larger performance overhead for
+    // build actions that are I/O intensive. To provide adequate
+    // performance, it is important that a Content Addressable Storage
+    // backend is used that supports fast random access to blobs. It is
+    // suggested that workers use ReadCachingBlobAccess in combination
+    // with LocalBlobAccess to achieve this. When LocalBlobAcces is
+    // backed by a block device, 'disable_integrity_checking' must be
+    // enabled.
+    buildbarn.configuration.fuse.MountConfiguration fuse = 2;
   }
 
   // Runners to which to send requests to invoke build action commands.

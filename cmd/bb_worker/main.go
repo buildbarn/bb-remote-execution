@@ -14,6 +14,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
 	"github.com/buildbarn/bb-remote-execution/pkg/cas"
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
+	re_fuse "github.com/buildbarn/bb-remote-execution/pkg/filesystem/fuse"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_worker"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
@@ -96,9 +97,28 @@ func main() {
 		log.Fatal("Cannot start worker without any build directories")
 	}
 	for _, buildDirectoryConfiguration := range configuration.BuildDirectories {
+		var fuseBuildDirectory *re_fuse.InMemoryDirectory
 		var naiveBuildDirectory filesystem.DirectoryCloser
 		var fileFetcher cas.FileFetcher
 		switch backend := buildDirectoryConfiguration.Backend.(type) {
+		case *bb_worker.BuildDirectoryConfiguration_Fuse:
+			rootInodeNumberTree := re_fuse.NewRandomInodeNumberTree()
+			var serverCallbacks re_fuse.SimpleRawFileSystemServerCallbacks
+			fuseBuildDirectory = re_fuse.NewInMemoryDirectory(
+				re_fuse.NewPoolBackedFileAllocator(
+					re_filesystem.EmptyFilePool,
+					util.DefaultErrorLogger),
+				util.DefaultErrorLogger,
+				rootInodeNumberTree,
+				serverCallbacks.EntryNotify)
+			if err := re_fuse.NewMountFromConfiguration(
+				backend.Fuse,
+				fuseBuildDirectory,
+				rootInodeNumberTree.Get(),
+				&serverCallbacks,
+				"bb_worker"); err != nil {
+				log.Fatal("Failed to mount build directory: ", err)
+			}
 		case *bb_worker.BuildDirectoryConfiguration_Native:
 			// To ease privilege separation, clear the umask. This
 			// process either writes files into directories that can
@@ -196,11 +216,22 @@ func main() {
 						clock.SystemClock,
 						"cas_batched_store")
 
-					buildDirectory := builder.NewNaiveBuildDirectory(
-						naiveBuildDirectory,
-						directoryFetcher,
-						fileFetcher,
-						contentAddressableStorageWriter)
+					// When FUSE is enabled, we can lazily load the
+					// input root, as opposed to explicitly
+					// instantiating it before every build.
+					var buildDirectory builder.BuildDirectory
+					if fuseBuildDirectory != nil {
+						buildDirectory = builder.NewFUSEBuildDirectory(
+							fuseBuildDirectory,
+							directoryFetcher,
+							contentAddressableStorageWriter)
+					} else {
+						buildDirectory = builder.NewNaiveBuildDirectory(
+							naiveBuildDirectory,
+							directoryFetcher,
+							fileFetcher,
+							contentAddressableStorageWriter)
+					}
 
 					// Create a per-action subdirectory in
 					// the build directory named after the

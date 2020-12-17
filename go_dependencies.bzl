@@ -1031,3 +1031,27 @@ def go_dependencies():
         sum = "h1:QQ9mYdTscaVSaHC8A1wtLkECzvpD/YO2E2GyPvU1D/Y=",
         version = "v0.0.0-20201027171050-85d5401eb0f6",
     )
+    go_repository(
+        name = "com_github_hanwen_go_fuse",
+        importpath = "github.com/hanwen/go-fuse",
+        sum = "h1:GxS9Zrn6c35/BnfiVsZVWmsG803xwE7eVRDvcf/BEVc=",
+        version = "v1.0.0",
+    )
+    go_repository(
+        name = "com_github_hanwen_go_fuse_v2",
+        importpath = "github.com/hanwen/go-fuse/v2",
+        patches = [
+            "@com_github_buildbarn_bb_remote_execution//:patches/com_github_hanwen_go_fuse_v2/daemon_timeout.diff",
+            "@com_github_buildbarn_bb_remote_execution//:patches/com_github_hanwen_go_fuse_v2/direntrylist-testability.diff",
+            "@com_github_buildbarn_bb_remote_execution//:patches/com_github_hanwen_go_fuse_v2/fuse-712-for-invalidation.diff",
+            "@com_github_buildbarn_bb_remote_execution//:patches/com_github_hanwen_go_fuse_v2/notify-testability.diff",
+        ],
+        sum = "h1:kpV28BKeSyVgZREItBLnaVBvOEwv2PuhNdKetwnvNHo=",
+        version = "v2.0.3",
+    )
+    go_repository(
+        name = "com_github_kylelemons_godebug",
+        importpath = "github.com/kylelemons/godebug",
+        sum = "h1:MtvEpTB6LX3vkb4ax0b5D2DHbNAUsen0Gx5wZoq3lV4=",
+        version = "v0.0.0-20170820004349-d65d576e9348",
+    )

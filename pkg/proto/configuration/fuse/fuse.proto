@@ -1,0 +1,91 @@
+syntax = "proto3";
+
+package buildbarn.configuration.fuse;
+
+import "google/protobuf/duration.proto";
+
+option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/fuse";
+
+message MountConfiguration {
+  // Path where the FUSE mount needs to be created.
+  string mount_path = 1;
+
+  // The amount of time the kernel is permitted to cache directory
+  // entries. When left unset, the kernel is not permitted to cache this
+  // data at all, causing it to issue more LOOKUP requests.
+  //
+  // Because bb_worker is capable of sending NOTIFY_ENTRY messages to
+  // the kernel to actively invalidate directory entries, it is
+  // generally safe to turn on directory entry caching. For bb_clientd
+  // it is also safe to enable this option, as directory contents are
+  // immutable. Not all implementations may respect this option.
+  //
+  // Recommended value: 5m
+  google.protobuf.Duration directory_entry_validity = 2;
+
+  // The amount of time the kernel is permitted to cache inode
+  // attributes. When left unset, the kernel is not permitted to cache this
+  // data at all, causing it to issue more GETATTR requests.
+  //
+  // Because files placed in the FUSE file system by bb_worker itself
+  // are immutable, it is generally safe to turn on inode attribute
+  // caching. For bb_clientd it is also safe to enable this option, as
+  // files are immutable. Not all implementations may respect this
+  // option.
+  //
+  // Recommended value: 5m
+  google.protobuf.Duration inode_attribute_validity = 3;
+
+  // System-wide maximum of dirty pages this FUSE mount may have.
+  // Assigning a non-zero value causes the /sys/class/bdi/${device}/max_ratio
+  // sysfs value on Linux to be set. This option is documented here:
+  // https://www.kernel.org/doc/Documentation/ABI/testing/sysfs-class-bdi
+  //
+  // By default, Linux only allows 1% of vm.dirty_ratio of memory to be
+  // dirty pages belonging to the FUSE mount. This may be insufficient
+  // for workloads that depend on random access writes to large files.
+  // Increasing this value may speed up writes against the FUSE file
+  // system, at the cost of slowing down writes against other volumes.
+  //
+  // If random access writes against the FUSE file system are still
+  // slower than desired, performance may be increased by removing the
+  // use of BDI_CAP_STRICTLIMIT from the Linux kernel's fs/fuse/inode.c.
+  // Make this modification at your own risk. More details:
+  // https://sourceforge.net/p/fuse/mailman/message/36457896/
+  //
+  // Recommended value: unset
+  int32 maximum_dirty_pages_percentage = 4;
+
+  // POSIX doesn't guarantee that readdir() returns elements in any
+  // particular order. This is a common source of irreproducibility in
+  // builds. Because most file systems behave deterministically, it is
+  // typically hard to discover these problems without using multiple
+  // operating systems or file system types.
+  //
+  // Enabling this option causes the FUSE file system to return
+  // readdir() results in random order, making it easier to detect
+  // irreproducible build actions. Disabling this option causes results
+  // to be sorted alphabetically, which reduces storage usage for build
+  // actions that are known to be irreproducible.
+  bool shuffle_directory_listings = 5;
+
+  // Provide the "allow_other" mount option, thereby allowing other
+  // users on the system to access the FUSE mount point as well.
+  //
+  // This option needs to be enabled if bb_worker is configured to use
+  // privilege separation, as build actions wouldn't be able to access
+  // their build directory otherwise.
+  //
+  // This option may be useful for bb_clientd in case files need to be
+  // accessible to debugging tools that require administrative
+  // privileges. Care should be taken that other access controls (e.g.,
+  // permissions on parent directories) are in place to prevent
+  // unintended access to the mount point.
+  bool allow_other = 6;
+
+  // If set, the FUSE mount is created by calling mount() directly, as
+  // opposed to invoking the fusermount utility. This option needs to be
+  // enabled in environments where the fusermount utility is not
+  // available, such as the bb_worker container images.
+  bool direct_mount = 7;
+}

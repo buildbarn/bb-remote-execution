@@ -1,0 +1,125 @@
+diff --git fs/bridge.go fs/bridge.go
+index 3e81a8b..6c3b8e7 100644
+--- fs/bridge.go
++++ fs/bridge.go
+@@ -875,7 +875,7 @@ func (b *rawBridge) getStream(ctx context.Context, inode *Inode) (DirStream, sys
+ 	return NewListDirStream(r), 0
+ }
+ 
+-func (b *rawBridge) ReadDir(cancel <-chan struct{}, input *fuse.ReadIn, out *fuse.DirEntryList) fuse.Status {
++func (b *rawBridge) ReadDir(cancel <-chan struct{}, input *fuse.ReadIn, out fuse.ReadDirEntryList) fuse.Status {
+ 	n, f := b.inode(input.NodeId, input.Fh)
+ 
+ 	f.mu.Lock()
+@@ -906,7 +906,7 @@ func (b *rawBridge) ReadDir(cancel <-chan struct{}, input *fuse.ReadIn, out *fus
+ 	return fuse.OK
+ }
+ 
+-func (b *rawBridge) ReadDirPlus(cancel <-chan struct{}, input *fuse.ReadIn, out *fuse.DirEntryList) fuse.Status {
++func (b *rawBridge) ReadDirPlus(cancel <-chan struct{}, input *fuse.ReadIn, out fuse.ReadDirPlusEntryList) fuse.Status {
+ 	n, f := b.inode(input.NodeId, input.Fh)
+ 
+ 	f.mu.Lock()
+diff --git fuse/api.go fuse/api.go
+index 36d75ae..9820bb5 100644
+--- fuse/api.go
++++ fuse/api.go
+@@ -269,8 +269,8 @@ type RawFileSystem interface {
+ 
+ 	// Directory handling
+ 	OpenDir(cancel <-chan struct{}, input *OpenIn, out *OpenOut) (status Status)
+-	ReadDir(cancel <-chan struct{}, input *ReadIn, out *DirEntryList) Status
+-	ReadDirPlus(cancel <-chan struct{}, input *ReadIn, out *DirEntryList) Status
++	ReadDir(cancel <-chan struct{}, input *ReadIn, out ReadDirEntryList) Status
++	ReadDirPlus(cancel <-chan struct{}, input *ReadIn, out ReadDirPlusEntryList) Status
+ 	ReleaseDir(input *ReleaseIn)
+ 	FsyncDir(cancel <-chan struct{}, input *FsyncIn) (code Status)
+ 
+diff --git fuse/defaultraw.go fuse/defaultraw.go
+index df109bd..edb0629 100644
+--- fuse/defaultraw.go
++++ fuse/defaultraw.go
+@@ -140,11 +140,11 @@ func (fs *defaultRawFileSystem) Fsync(cancel <-chan struct{}, input *FsyncIn) (c
+ 	return ENOSYS
+ }
+ 
+-func (fs *defaultRawFileSystem) ReadDir(cancel <-chan struct{}, input *ReadIn, l *DirEntryList) Status {
++func (fs *defaultRawFileSystem) ReadDir(cancel <-chan struct{}, input *ReadIn, l ReadDirEntryList) Status {
+ 	return ENOSYS
+ }
+ 
+-func (fs *defaultRawFileSystem) ReadDirPlus(cancel <-chan struct{}, input *ReadIn, l *DirEntryList) Status {
++func (fs *defaultRawFileSystem) ReadDirPlus(cancel <-chan struct{}, input *ReadIn, l ReadDirPlusEntryList) Status {
+ 	return ENOSYS
+ }
+ 
+diff --git fuse/direntry.go fuse/direntry.go
+index 52cc893..f44b37f 100644
+--- fuse/direntry.go
++++ fuse/direntry.go
+@@ -132,3 +132,14 @@ func (l *DirEntryList) FixMode(mode uint32) {
+ func (l *DirEntryList) bytes() []byte {
+ 	return l.buf
+ }
++
++type ReadDirEntryList interface {
++	AddDirEntry(e DirEntry) bool
++	Add(prefix int, name string, inode uint64, mode uint32) bool
++	FixMode(mode uint32)
++}
++
++type ReadDirPlusEntryList interface {
++	AddDirLookupEntry(e DirEntry) *EntryOut
++	FixMode(mode uint32)
++}
+diff --git fuse/nodefs/dir.go fuse/nodefs/dir.go
+index 75cf75a..53c7917 100644
+--- fuse/nodefs/dir.go
++++ fuse/nodefs/dir.go
+@@ -22,7 +22,7 @@ type connectorDir struct {
+ 	stream []fuse.DirEntry
+ }
+ 
+-func (d *connectorDir) ReadDir(cancel <-chan struct{}, input *fuse.ReadIn, out *fuse.DirEntryList) (code fuse.Status) {
++func (d *connectorDir) ReadDir(cancel <-chan struct{}, input *fuse.ReadIn, out fuse.ReadDirEntryList) (code fuse.Status) {
+ 	d.mu.Lock()
+ 	defer d.mu.Unlock()
+ 
+@@ -62,7 +62,7 @@ func (d *connectorDir) ReadDir(cancel <-chan struct{}, input *fuse.ReadIn, out *
+ 	return fuse.OK
+ }
+ 
+-func (d *connectorDir) ReadDirPlus(cancel <-chan struct{}, input *fuse.ReadIn, out *fuse.DirEntryList) (code fuse.Status) {
++func (d *connectorDir) ReadDirPlus(cancel <-chan struct{}, input *fuse.ReadIn, out fuse.ReadDirPlusEntryList) (code fuse.Status) {
+ 	d.mu.Lock()
+ 	defer d.mu.Unlock()
+ 
+@@ -108,6 +108,6 @@ func (d *connectorDir) ReadDirPlus(cancel <-chan struct{}, input *fuse.ReadIn, o
+ }
+ 
+ type rawDir interface {
+-	ReadDir(out *fuse.DirEntryList, input *fuse.ReadIn, c *fuse.Context) fuse.Status
+-	ReadDirPlus(out *fuse.DirEntryList, input *fuse.ReadIn, c *fuse.Context) fuse.Status
++	ReadDir(out fuse.ReadDirEntryList, input *fuse.ReadIn, c *fuse.Context) fuse.Status
++	ReadDirPlus(out fuse.ReadDirPlusEntryList, input *fuse.ReadIn, c *fuse.Context) fuse.Status
+ }
+diff --git fuse/nodefs/fsops.go fuse/nodefs/fsops.go
+index 58b4a5e..f89a74a 100644
+--- fuse/nodefs/fsops.go
++++ fuse/nodefs/fsops.go
+@@ -172,13 +172,13 @@ func (c *rawBridge) OpenDir(cancel <-chan struct{}, input *fuse.OpenIn, out *fus
+ 	return fuse.OK
+ }
+ 
+-func (c *rawBridge) ReadDir(cancel <-chan struct{}, input *fuse.ReadIn, out *fuse.DirEntryList) fuse.Status {
++func (c *rawBridge) ReadDir(cancel <-chan struct{}, input *fuse.ReadIn, out fuse.ReadDirEntryList) fuse.Status {
+ 	node := c.toInode(input.NodeId)
+ 	opened := node.mount.getOpenedFile(input.Fh)
+ 	return opened.dir.ReadDir(cancel, input, out)
+ }
+ 
+-func (c *rawBridge) ReadDirPlus(cancel <-chan struct{}, input *fuse.ReadIn, out *fuse.DirEntryList) fuse.Status {
++func (c *rawBridge) ReadDirPlus(cancel <-chan struct{}, input *fuse.ReadIn, out fuse.ReadDirPlusEntryList) fuse.Status {
+ 	node := c.toInode(input.NodeId)
+ 	opened := node.mount.getOpenedFile(input.Fh)
+ 	return opened.dir.ReadDirPlus(cancel, input, out)

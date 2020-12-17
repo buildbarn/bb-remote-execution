@@ -1,0 +1,130 @@
+diff --git fuse/attr_darwin.go fuse/attr_darwin.go
+index 40cb072..e77b19e 100644
+--- fuse/attr_darwin.go
++++ fuse/attr_darwin.go
+@@ -23,4 +23,5 @@ func (a *Attr) FromStat(s *syscall.Stat_t) {
+ 	a.Uid = uint32(s.Uid)
+ 	a.Gid = uint32(s.Gid)
+ 	a.Rdev = uint32(s.Rdev)
++	a.Blksize = uint32(s.Blksize)
+ }
+diff --git fuse/print_darwin.go fuse/print_darwin.go
+index 38fbe5d..1d0ecfc 100644
+--- fuse/print_darwin.go
++++ fuse/print_darwin.go
+@@ -18,13 +18,13 @@ func (a *Attr) string() string {
+ 	return fmt.Sprintf(
+ 		"{M0%o SZ=%d L=%d "+
+ 			"%d:%d "+
+-			"%d %d:%d "+
++			"B%d*%d i%d:%d "+
+ 			"A %f "+
+ 			"M %f "+
+ 			"C %f}",
+ 		a.Mode, a.Size, a.Nlink,
+ 		a.Uid, a.Gid,
+-		a.Blocks,
++		a.Blocks, a.Blksize,
+ 		a.Rdev, a.Ino, ft(a.Atime, a.Atimensec), ft(a.Mtime, a.Mtimensec),
+ 		ft(a.Ctime, a.Ctimensec))
+ }
+diff --git fuse/request_darwin.go fuse/request_darwin.go
+index 6344624..6caddae 100644
+--- fuse/request_darwin.go
++++ fuse/request_darwin.go
+@@ -8,6 +8,6 @@ const outputHeaderSize = 200
+ 
+ const (
+ 	_FUSE_KERNEL_VERSION   = 7
+-	_MINIMUM_MINOR_VERSION = 8
+-	_OUR_MINOR_VERSION     = 8
++	_MINIMUM_MINOR_VERSION = 12
++	_OUR_MINOR_VERSION     = 12
+ )
+diff --git fuse/types_darwin.go fuse/types_darwin.go
+index 693fa69..c50dd69 100644
+--- fuse/types_darwin.go
++++ fuse/types_darwin.go
+@@ -30,8 +30,10 @@ type Attr struct {
+ 	Mode        uint32
+ 	Nlink       uint32
+ 	Owner
+-	Rdev   uint32
+-	Flags_ uint32 //  OS X
++	Rdev    uint32
++	Flags_  uint32 //  OS X
++	Blksize uint32
++	Padding uint32
+ }
+ 
+ const (
+@@ -67,38 +69,52 @@ const (
+ 
+ type GetAttrIn struct {
+ 	InHeader
++
++	Flags_ uint32
++	Dummy  uint32
++	Fh_    uint64
+ }
+ 
+ func (g *GetAttrIn) Flags() uint32 {
+-	return 0
++	return g.Flags_
+ }
+ 
+ func (g *GetAttrIn) Fh() uint64 {
+-	return 0
++	return g.Fh_
+ }
+ 
+ // Uses OpenIn struct for create.
+ type CreateIn struct {
+ 	InHeader
+-
+ 	Flags uint32
+-	Mode  uint32
++
++	// Mode for the new file; already takes Umask into account.
++	Mode uint32
++
++	// Umask used for this create call.
++	Umask   uint32
++	Padding uint32
+ }
+ 
+ type MknodIn struct {
+ 	InHeader
+ 
+-	Mode uint32
+-	Rdev uint32
++	// Mode to use, including the Umask value
++	Mode    uint32
++	Rdev    uint32
++	Umask   uint32
++	Padding uint32
+ }
+ 
+ type ReadIn struct {
+ 	InHeader
+-
+ 	Fh        uint64
+ 	Offset    uint64
+ 	Size      uint32
+ 	ReadFlags uint32
++	LockOwner uint64
++	Flags     uint32
++	Padding   uint32
+ }
+ 
+ type WriteIn struct {
+@@ -107,6 +123,9 @@ type WriteIn struct {
+ 	Offset     uint64
+ 	Size       uint32
+ 	WriteFlags uint32
++	LockOwner  uint64
++	Flags      uint32
++	Padding    uint32
+ }
+ 
+ type SetXAttrIn struct {

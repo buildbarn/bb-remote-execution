@@ -17,6 +17,7 @@ require (
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/mux v1.7.4
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
+	github.com/hanwen/go-fuse/v2 v2.0.3 // indirect
 	github.com/lazybeaver/xorshift v0.0.0-20170702203709-ce511d4823dd // indirect
 	github.com/prometheus/client_golang v1.7.1
 	github.com/stretchr/testify v1.6.1

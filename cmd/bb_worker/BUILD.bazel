@@ -16,6 +16,7 @@ go_library(
         "//pkg/builder:go_default_library",
         "//pkg/cas:go_default_library",
         "//pkg/filesystem:go_default_library",
+        "//pkg/filesystem/fuse:go_default_library",
         "//pkg/proto/configuration/bb_worker:go_default_library",
         "//pkg/proto/remoteworker:go_default_library",
         "//pkg/proto/runner:go_default_library",

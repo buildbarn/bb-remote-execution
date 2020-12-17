@@ -25,7 +25,8 @@ import (
 
 // capturingErrorLogger is an error logger that stores up to a single
 // error. When the error is stored, a context cancelation function is
-// invoked.
+// invoked. This is used by localBuildExecutor to kill a build action in
+// case an I/O error occurs on the FUSE file system.
 type capturingErrorLogger struct {
 	lock   sync.Mutex
 	cancel context.CancelFunc

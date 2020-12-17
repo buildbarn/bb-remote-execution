@@ -8,6 +8,8 @@ option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/resource
 
 // File pool resource usage statistics. File pools are used by bb_worker
 // to allocate temporary files that are created by build actions.
+// Temporary files include output files created through the FUSE file
+// system.
 message FilePoolResourceUsage {
   // Total number of files created.
   uint64 files_created = 1;
