@@ -20,5 +20,5 @@ type UploadableDirectory interface {
 	Readlink(name string) (string, error)
 
 	// Upload a file into the Content Addressable Storage.
-	UploadFile(ctx context.Context, name string, parentDigest digest.Digest) (digest.Digest, error)
+	UploadFile(ctx context.Context, name string, digestFunction digest.Function) (digest.Digest, error)
 }

@@ -227,7 +227,7 @@ func (on *outputNode) uploadOutputs(s *uploadOutputsState, d UploadableDirectory
 type uploadOutputsState struct {
 	context                   context.Context
 	contentAddressableStorage blobstore.BlobAccess
-	parentDigest              digest.Digest
+	digestFunction            digest.Function
 	actionResult              *remoteexecution.ActionResult
 
 	dPath      pathBuffer
@@ -262,7 +262,7 @@ func (s *uploadOutputsState) uploadDirectory(d UploadableDirectory, children map
 		s.dPath.setLastComponent(name)
 		switch fileType := file.Type(); fileType {
 		case filesystem.FileTypeRegularFile, filesystem.FileTypeExecutableFile:
-			if childDigest, err := d.UploadFile(s.context, name, s.parentDigest); err == nil {
+			if childDigest, err := d.UploadFile(s.context, name, s.digestFunction); err == nil {
 				directory.Files = append(directory.Files, &remoteexecution.FileNode{
 					Name:         name,
 					Digest:       childDigest.GetProto(),
@@ -278,7 +278,7 @@ func (s *uploadOutputsState) uploadDirectory(d UploadableDirectory, children map
 
 				// Compute digest of the child directory. This requires serializing it.
 				if data, err := proto.Marshal(child); err == nil {
-					digestGenerator := s.parentDigest.NewGenerator()
+					digestGenerator := s.digestFunction.NewGenerator()
 					if _, err := digestGenerator.Write(data); err == nil {
 						childDigest := digestGenerator.Sum()
 						children[childDigest] = child
@@ -326,7 +326,7 @@ func (s *uploadOutputsState) uploadOutputDirectoryEntered(d UploadableDirectory,
 		tree.Children = append(tree.Children, children[childDigest])
 	}
 
-	if treeDigest, err := blobstore.CASPutProto(s.context, s.contentAddressableStorage, tree, s.parentDigest); err == nil {
+	if treeDigest, err := blobstore.CASPutProto(s.context, s.contentAddressableStorage, tree, s.digestFunction); err == nil {
 		for _, path := range paths {
 			s.actionResult.OutputDirectories = append(
 				s.actionResult.OutputDirectories,
@@ -354,7 +354,7 @@ func (s *uploadOutputsState) uploadOutputDirectory(d UploadableDirectory, name s
 
 // UploadOutputDirectory is called to upload a single output file.
 func (s *uploadOutputsState) uploadOutputFile(d UploadableDirectory, name string, fileType filesystem.FileType, paths []string) {
-	if digest, err := d.UploadFile(s.context, name, s.parentDigest); err == nil {
+	if digest, err := d.UploadFile(s.context, name, s.digestFunction); err == nil {
 		for _, path := range paths {
 			s.actionResult.OutputFiles = append(
 				s.actionResult.OutputFiles,
@@ -489,11 +489,11 @@ func (oh *OutputHierarchy) CreateParentDirectories(d BuildDirectory) error {
 
 // UploadOutputs uploads outputs of the build action into the CAS. This
 // function is called after executing the build action.
-func (oh *OutputHierarchy) UploadOutputs(ctx context.Context, d UploadableDirectory, contentAddressableStorage blobstore.BlobAccess, parentDigest digest.Digest, actionResult *remoteexecution.ActionResult) error {
+func (oh *OutputHierarchy) UploadOutputs(ctx context.Context, d UploadableDirectory, contentAddressableStorage blobstore.BlobAccess, digestFunction digest.Function, actionResult *remoteexecution.ActionResult) error {
 	s := uploadOutputsState{
 		context:                   ctx,
 		contentAddressableStorage: contentAddressableStorage,
-		parentDigest:              parentDigest,
+		digestFunction:            digestFunction,
 		actionResult:              actionResult,
 
 		dPath: newPathBuffer(),

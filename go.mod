@@ -8,7 +8,7 @@ require (
 	github.com/Azure/azure-storage-blob-go v0.10.0 // indirect
 	github.com/aws/aws-sdk-go v1.33.13
 	github.com/bazelbuild/remote-apis v0.0.0-20201030192148-aa8e718768c2
-	github.com/buildbarn/bb-storage v0.0.0-20201203141359-8a800e78cdb1
+	github.com/buildbarn/bb-storage v0.0.0-20201217144417-4137f290ab38
 	github.com/go-redis/redis v6.15.8+incompatible // indirect
 	github.com/golang/lint v0.0.0-20180702182130-06c8688daad7 // indirect
 	github.com/golang/mock v1.4.4-0.20200406172829-6d816de489c1

@@ -178,7 +178,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 
 	root := mock.NewMockUploadableDirectory(ctrl)
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	parentDigest := digest.MustNewDigest("example", "8b1a9953c4611296a827abf8c47804d7", 5)
+	digestFunction := digest.MustNewDigest("example", "8b1a9953c4611296a827abf8c47804d7", 5).GetDigestFunction()
 
 	t.Run("Noop", func(t *testing.T) {
 		// Uploading of a build action with no declared outputs
@@ -187,7 +187,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 			WorkingDirectory: ".",
 		})
 		var actionResult remoteexecution.ActionResult
-		require.NoError(t, oh.UploadOutputs(ctx, root, contentAddressableStorage, parentDigest, &actionResult))
+		require.NoError(t, oh.UploadOutputs(ctx, root, contentAddressableStorage, digestFunction, &actionResult))
 		require.Equal(t, remoteexecution.ActionResult{}, actionResult)
 	})
 
@@ -214,14 +214,14 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 
 		// Inspection/uploading of all non-directory outputs.
 		foo.EXPECT().Readlink("directory-symlink").Return("directory-symlink-target", nil)
-		foo.EXPECT().UploadFile(ctx, "file-regular", parentDigest).
+		foo.EXPECT().UploadFile(ctx, "file-regular", gomock.Any()).
 			Return(digest.MustNewDigest("example", "a58c2f2281011ca2e631b39baa1ab657", 12), nil)
-		foo.EXPECT().UploadFile(ctx, "file-executable", parentDigest).
+		foo.EXPECT().UploadFile(ctx, "file-executable", gomock.Any()).
 			Return(digest.MustNewDigest("example", "7590e1b46240ecb5ea65a80db7ee6fae", 15), nil)
 		foo.EXPECT().Readlink("file-symlink").Return("file-symlink-target", nil)
-		foo.EXPECT().UploadFile(ctx, "path-regular", parentDigest).
+		foo.EXPECT().UploadFile(ctx, "path-regular", gomock.Any()).
 			Return(digest.MustNewDigest("example", "44206648b7bb2f3b0d2ed0c52ad2e269", 12), nil)
-		foo.EXPECT().UploadFile(ctx, "path-executable", parentDigest).
+		foo.EXPECT().UploadFile(ctx, "path-executable", gomock.Any()).
 			Return(digest.MustNewDigest("example", "87729325cd08d300fb0e238a3a8da443", 15), nil)
 		foo.EXPECT().Readlink("path-symlink").Return("path-symlink-target", nil)
 
@@ -242,9 +242,9 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		directoryDirectory.EXPECT().EnterUploadableDirectory("directory").Return(directoryDirectoryDirectory, nil)
 		directoryDirectoryDirectory.EXPECT().ReadDir().Return(nil, nil)
 		directoryDirectoryDirectory.EXPECT().Close()
-		directoryDirectory.EXPECT().UploadFile(ctx, "executable", parentDigest).
+		directoryDirectory.EXPECT().UploadFile(ctx, "executable", gomock.Any()).
 			Return(digest.MustNewDigest("example", "ee7004c7949d83f130592f15d98ca343", 10), nil)
-		directoryDirectory.EXPECT().UploadFile(ctx, "regular", parentDigest).
+		directoryDirectory.EXPECT().UploadFile(ctx, "regular", gomock.Any()).
 			Return(digest.MustNewDigest("example", "af37d08ae228a87dc6b265fd1019c97d", 7), nil)
 		directoryDirectory.EXPECT().Readlink("symlink").Return("symlink-target", nil)
 		directoryDirectory.EXPECT().Close()
@@ -351,7 +351,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 			},
 		})
 		var actionResult remoteexecution.ActionResult
-		require.NoError(t, oh.UploadOutputs(ctx, root, contentAddressableStorage, parentDigest, &actionResult))
+		require.NoError(t, oh.UploadOutputs(ctx, root, contentAddressableStorage, digestFunction, &actionResult))
 		require.Equal(t, remoteexecution.ActionResult{
 			OutputDirectories: []*remoteexecution.OutputDirectory{
 				{
@@ -504,7 +504,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 			OutputDirectories: []string{".."},
 		})
 		var actionResult remoteexecution.ActionResult
-		require.NoError(t, oh.UploadOutputs(ctx, root, contentAddressableStorage, parentDigest, &actionResult))
+		require.NoError(t, oh.UploadOutputs(ctx, root, contentAddressableStorage, digestFunction, &actionResult))
 		require.Equal(t, remoteexecution.ActionResult{
 			OutputDirectories: []*remoteexecution.OutputDirectory{
 				{
@@ -540,7 +540,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 			OutputPaths:      []string{".."},
 		})
 		var actionResult remoteexecution.ActionResult
-		require.NoError(t, oh.UploadOutputs(ctx, root, contentAddressableStorage, parentDigest, &actionResult))
+		require.NoError(t, oh.UploadOutputs(ctx, root, contentAddressableStorage, digestFunction, &actionResult))
 		require.Equal(t, remoteexecution.ActionResult{
 			OutputDirectories: []*remoteexecution.OutputDirectory{
 				{
@@ -567,7 +567,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		require.Equal(
 			t,
 			status.Error(codes.Internal, "Failed to read attributes of output directory \"foo\": I/O error"),
-			oh.UploadOutputs(ctx, root, contentAddressableStorage, parentDigest, &actionResult))
+			oh.UploadOutputs(ctx, root, contentAddressableStorage, digestFunction, &actionResult))
 		require.Equal(t, remoteexecution.ActionResult{}, actionResult)
 	})
 
@@ -584,7 +584,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		require.Equal(
 			t,
 			status.Error(codes.Internal, "Failed to read attributes of output file \"foo\": I/O error"),
-			oh.UploadOutputs(ctx, root, contentAddressableStorage, parentDigest, &actionResult))
+			oh.UploadOutputs(ctx, root, contentAddressableStorage, digestFunction, &actionResult))
 		require.Equal(t, remoteexecution.ActionResult{}, actionResult)
 	})
 
@@ -601,7 +601,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		require.Equal(
 			t,
 			status.Error(codes.Internal, "Failed to read attributes of output path \"foo\": I/O error"),
-			oh.UploadOutputs(ctx, root, contentAddressableStorage, parentDigest, &actionResult))
+			oh.UploadOutputs(ctx, root, contentAddressableStorage, digestFunction, &actionResult))
 		require.Equal(t, remoteexecution.ActionResult{}, actionResult)
 	})
 

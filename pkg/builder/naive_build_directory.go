@@ -115,14 +115,14 @@ func (d *naiveBuildDirectory) MergeDirectoryContents(ctx context.Context, errorL
 	return d.mergeDirectoryContents(ctx, digest, d.DirectoryCloser, []string{"."})
 }
 
-func (d *naiveBuildDirectory) UploadFile(ctx context.Context, name string, parentDigest digest.Digest) (digest.Digest, error) {
+func (d *naiveBuildDirectory) UploadFile(ctx context.Context, name string, digestFunction digest.Function) (digest.Digest, error) {
 	file, err := d.OpenRead(name)
 	if err != nil {
 		return digest.BadDigest, err
 	}
 
 	// Walk through the file to compute the digest.
-	digestGenerator := parentDigest.NewGenerator()
+	digestGenerator := digestFunction.NewGenerator()
 	sizeBytes, err := io.Copy(digestGenerator, io.NewSectionReader(file, 0, math.MaxInt64))
 	if err != nil {
 		file.Close()

@@ -65,7 +65,7 @@ func (be *cachingBuildExecutor) Execute(ctx context.Context, filePool filesystem
 				ActionDigest:    actionDigest.GetProto(),
 				ExecuteResponse: response,
 			},
-			actionDigest); err == nil {
+			actionDigest.GetDigestFunction()); err == nil {
 			response.Message = "Action details (uncached result): " + re_util.GetBrowserURL(be.browserURL, "uncached_action_result", uncachedActionResultDigest)
 		} else {
 			attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to store uncached action result"))

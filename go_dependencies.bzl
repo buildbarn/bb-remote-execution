@@ -23,8 +23,8 @@ def go_dependencies():
     go_repository(
         name = "com_github_buildbarn_bb_storage",
         importpath = "github.com/buildbarn/bb-storage",
-        sum = "h1:8kbT/6k/R8vfW6nRIKACErB++vd92NI6gssHMuy9b6U=",
-        version = "v0.0.0-20201203141359-8a800e78cdb1",
+        sum = "h1:suqs3NLVFL/Tzrc2x5Gzu/sp/BG6Gs6dvawsLrukhKA=",
+        version = "v0.0.0-20201217144417-4137f290ab38",
     )
     go_repository(
         name = "com_github_golang_mock",
@@ -48,6 +48,7 @@ def go_dependencies():
     go_repository(
         name = "com_github_grpc_ecosystem_go_grpc_prometheus",
         importpath = "github.com/grpc-ecosystem/go-grpc-prometheus",
+        patches = ["@com_github_buildbarn_bb_storage//:patches/com_github_grpc_ecosystem_go_grpc_prometheus/client-metrics-prevent-handled-twice.diff"],
         sum = "h1:Ovs26xHkKqVztRpIrF/92BcuyuQ/YW4NSIpoGtfXNho=",
         version = "v1.2.0",
     )

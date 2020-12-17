@@ -430,14 +430,12 @@ func TestNaiveBuildDirectoryUploadFile(t *testing.T) {
 		contentAddressableStorage)
 
 	helloWorldDigest := digest.MustNewDigest("default-scheduler", "3e25960a79dbc69b674cd4ec67a72c62", 11)
+	digestFunction := helloWorldDigest.GetDigestFunction()
 
 	t.Run("NonexistentFile", func(t *testing.T) {
 		buildDirectory.EXPECT().OpenRead("hello").Return(nil, syscall.ENOENT)
 
-		_, err := inputRootPopulator.UploadFile(
-			ctx,
-			"hello",
-			digest.MustNewDigest("default-scheduler", "d41d8cd98f00b204e9800998ecf8427e", 123))
+		_, err := inputRootPopulator.UploadFile(ctx, "hello", digestFunction)
 		require.Equal(t, syscall.ENOENT, err)
 	})
 
@@ -451,10 +449,7 @@ func TestNaiveBuildDirectoryUploadFile(t *testing.T) {
 				}),
 			file.EXPECT().Close().Return(nil))
 
-		_, err := inputRootPopulator.UploadFile(
-			ctx,
-			"hello",
-			digest.MustNewDigest("default-scheduler", "d41d8cd98f00b204e9800998ecf8427e", 123))
+		_, err := inputRootPopulator.UploadFile(ctx, "hello", digestFunction)
 		require.Equal(t, status.Error(codes.Unavailable, "Failed to compute file digest: Disk on fire"), err)
 	})
 
@@ -484,10 +479,7 @@ func TestNaiveBuildDirectoryUploadFile(t *testing.T) {
 				return err
 			})
 
-		_, err := inputRootPopulator.UploadFile(
-			ctx,
-			"hello",
-			digest.MustNewDigest("default-scheduler", "d41d8cd98f00b204e9800998ecf8427e", 123))
+		_, err := inputRootPopulator.UploadFile(ctx, "hello", digestFunction)
 		require.Equal(t, status.Error(codes.InvalidArgument, "Failed to upload file: Buffer is 9 bytes in size, while 11 bytes were expected"), err)
 	})
 
@@ -521,10 +513,7 @@ func TestNaiveBuildDirectoryUploadFile(t *testing.T) {
 				return nil
 			})
 
-		digest, err := inputRootPopulator.UploadFile(
-			ctx,
-			"hello",
-			digest.MustNewDigest("default-scheduler", "d41d8cd98f00b204e9800998ecf8427e", 123))
+		digest, err := inputRootPopulator.UploadFile(ctx, "hello", digestFunction)
 		require.NoError(t, err)
 		require.Equal(t, digest, helloWorldDigest)
 	})

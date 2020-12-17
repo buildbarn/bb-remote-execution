@@ -266,17 +266,18 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	// Upload command output. In the common case, the stdout and
 	// stderr files are empty. If that's the case, don't bother
 	// setting the digest to keep the ActionResult small.
-	if stdoutDigest, err := buildDirectory.UploadFile(ctx, "stdout", actionDigest); err != nil {
+	digestFunction := actionDigest.GetDigestFunction()
+	if stdoutDigest, err := buildDirectory.UploadFile(ctx, "stdout", digestFunction); err != nil {
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to store stdout"))
 	} else if stdoutDigest.GetSizeBytes() > 0 {
 		response.Result.StdoutDigest = stdoutDigest.GetProto()
 	}
-	if stderrDigest, err := buildDirectory.UploadFile(ctx, "stderr", actionDigest); err != nil {
+	if stderrDigest, err := buildDirectory.UploadFile(ctx, "stderr", digestFunction); err != nil {
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to store stderr"))
 	} else if stderrDigest.GetSizeBytes() > 0 {
 		response.Result.StderrDigest = stderrDigest.GetProto()
 	}
-	if err := outputHierarchy.UploadOutputs(ctx, inputRootDirectory, be.contentAddressableStorage, actionDigest, response.Result); err != nil {
+	if err := outputHierarchy.UploadOutputs(ctx, inputRootDirectory, be.contentAddressableStorage, digestFunction, response.Result); err != nil {
 		attachErrorToExecuteResponse(response, err)
 	}
 
