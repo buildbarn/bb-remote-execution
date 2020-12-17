@@ -27,9 +27,11 @@ import (
 // inMemoryFilesystem contains state that is shared across all
 // InMemoryDirectory objects that form a single hierarchy.
 type inMemoryFilesystem struct {
+	// Keep lastInodeSeed at the top to ensure proper alignment.
+	// See: https://github.com/golang/go/issues/13868
+	lastInodeSeed   uint64
 	entryNotifier   EntryNotifier
 	inodeNumberTree InodeNumberTree
-	lastInodeSeed   uint64
 }
 
 func (imf *inMemoryFilesystem) newInodeNumber() uint64 {
