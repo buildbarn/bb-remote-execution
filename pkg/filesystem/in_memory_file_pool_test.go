@@ -9,7 +9,7 @@ import (
 )
 
 func TestInMemoryFilePool(t *testing.T) {
-	fp := filesystem.NewInMemoryFilePool()
+	fp := filesystem.InMemoryFilePool
 
 	t.Run("EmptyFile", func(t *testing.T) {
 		f, err := fp.NewFile()

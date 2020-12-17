@@ -9,13 +9,7 @@ import (
 type inMemoryFilePool struct {
 }
 
-// NewInMemoryFilePool creates a FilePool that stores all data in
-// memory.
-func NewInMemoryFilePool() FilePool {
-	return &inMemoryFilePool{}
-}
-
-func (fp *inMemoryFilePool) NewFile() (filesystem.FileReadWriter, error) {
+func (fp inMemoryFilePool) NewFile() (filesystem.FileReadWriter, error) {
 	return &inMemoryFile{}, nil
 }
 
@@ -61,3 +55,6 @@ func (f *inMemoryFile) WriteAt(p []byte, off int64) (int, error) {
 	}
 	return copy(f.data[off:], p), nil
 }
+
+// InMemoryFilePool is a FilePool that stores all data in memory.
+var InMemoryFilePool FilePool = inMemoryFilePool{}

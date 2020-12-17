@@ -23,7 +23,6 @@ go_library(
         "//pkg/sync:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/blobstore:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/blobstore/configuration:go_default_library",
-        "@com_github_buildbarn_bb_storage//pkg/blockdevice:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/clock:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/digest:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/eviction:go_default_library",

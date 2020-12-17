@@ -71,7 +71,7 @@ func TestFilePoolStatsBuildExecutorExample(t *testing.T) {
 	buildExecutor := builder.NewFilePoolStatsBuildExecutor(baseBuildExecutor)
 	executeResponse := buildExecutor.Execute(
 		ctx,
-		filesystem.NewInMemoryFilePool(),
+		filesystem.InMemoryFilePool,
 		digest.MustNewInstanceName("hello"),
 		request,
 		executionStateUpdates)

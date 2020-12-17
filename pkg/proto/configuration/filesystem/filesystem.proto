@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package buildbarn.configuration.filesystem;
+
+import "google/protobuf/empty.proto";
+import "pkg/proto/configuration/blockdevice/blockdevice.proto";
+
+option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem";
+
+message FilePoolConfiguration {
+  oneof backend {
+    // Store all temporary files in memory.
+    google.protobuf.Empty in_memory = 1;
+
+    // Store all temporary files in a single directory on a file system.
+    // This option denotes the path of this directory.
+    string directory_path = 2;
+
+    // Store all temporary files in a single file on a file system or on
+    // a raw block device.
+    buildbarn.configuration.blockdevice.Configuration block_device = 3;
+  }
+}
