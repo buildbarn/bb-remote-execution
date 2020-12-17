@@ -2,14 +2,20 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "go_default_library",
-    srcs = ["initializer.go"],
+    srcs = [
+        "initializer.go",
+        "lock_pile.go",
+    ],
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/sync",
     visibility = ["//visibility:public"],
 )
 
 go_test(
     name = "go_default_test",
-    srcs = ["initializer_test.go"],
+    srcs = [
+        "initializer_test.go",
+        "lock_pile_test.go",
+    ],
     embed = [":go_default_library"],
     deps = [
         "//internal/mock:go_default_library",
