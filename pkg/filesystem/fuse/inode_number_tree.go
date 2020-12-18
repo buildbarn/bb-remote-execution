@@ -13,7 +13,7 @@ import (
 // identify the object.
 //
 // Applying the same sequence against the same InodeNumberTree will
-// yield the same inode number. The generation proces is deterministic.
+// yield the same inode number. The generation process is deterministic.
 // This means that the kernel's notion of inode equivalence corresponds
 // with that of the userspace file system.
 //
