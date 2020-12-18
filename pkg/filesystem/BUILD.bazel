@@ -19,6 +19,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/proto/configuration/filesystem:go_default_library",
+        "@com_github_buildbarn_bb_storage//pkg/atomic:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/blockdevice:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/filesystem:go_default_library",
         "@com_github_buildbarn_bb_storage//pkg/util:go_default_library",

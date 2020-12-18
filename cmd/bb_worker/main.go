@@ -20,6 +20,7 @@ import (
 	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
 	"github.com/buildbarn/bb-remote-execution/pkg/runner"
 	"github.com/buildbarn/bb-remote-execution/pkg/sync"
+	"github.com/buildbarn/bb-storage/pkg/atomic"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	blobstore_configuration "github.com/buildbarn/bb-storage/pkg/blobstore/configuration"
 	"github.com/buildbarn/bb-storage/pkg/clock"
@@ -162,7 +163,7 @@ func main() {
 		}
 
 		var buildDirectoryInitializer sync.Initializer
-		var sharedBuildDirectoryNextParallelActionID uint64
+		var sharedBuildDirectoryNextParallelActionID atomic.Uint64
 		if len(buildDirectoryConfiguration.Runners) == 0 {
 			log.Fatal("Cannot start worker without any runners")
 		}

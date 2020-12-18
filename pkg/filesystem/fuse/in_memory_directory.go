@@ -10,10 +10,10 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"syscall"
 
 	re_sync "github.com/buildbarn/bb-remote-execution/pkg/sync"
+	"github.com/buildbarn/bb-storage/pkg/atomic"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
@@ -27,15 +27,13 @@ import (
 // inMemoryFilesystem contains state that is shared across all
 // InMemoryDirectory objects that form a single hierarchy.
 type inMemoryFilesystem struct {
-	// Keep lastInodeSeed at the top to ensure proper alignment.
-	// See: https://github.com/golang/go/issues/13868
-	lastInodeSeed   uint64
 	entryNotifier   EntryNotifier
 	inodeNumberTree InodeNumberTree
+	lastInodeSeed   atomic.Uint64
 }
 
 func (imf *inMemoryFilesystem) newInodeNumber() uint64 {
-	return imf.inodeNumberTree.AddUint64(atomic.AddUint64(&imf.lastInodeSeed, 1)).Get()
+	return imf.inodeNumberTree.AddUint64(imf.lastInodeSeed.Add(1)).Get()
 }
 
 // inMemorySubtree contains state that is shared across all

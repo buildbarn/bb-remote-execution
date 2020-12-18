@@ -4,15 +4,15 @@ import (
 	"io"
 	"os"
 	"strconv"
-	"sync/atomic"
 
+	"github.com/buildbarn/bb-storage/pkg/atomic"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 )
 
 type directoryBackedFilePool struct {
 	directory filesystem.Directory
 
-	nextID uint64
+	nextID atomic.Uint64
 }
 
 // NewDirectoryBackedFilePool creates a FilePool that stores all data
@@ -33,7 +33,7 @@ func NewDirectoryBackedFilePool(directory filesystem.Directory) FilePool {
 func (fp *directoryBackedFilePool) NewFile() (filesystem.FileReadWriter, error) {
 	return &lazyOpeningSelfDeletingFile{
 		directory: fp.directory,
-		name:      strconv.FormatUint(atomic.AddUint64(&fp.nextID, 1), 10),
+		name:      strconv.FormatUint(fp.nextID.Add(1), 10),
 	}, nil
 }
 

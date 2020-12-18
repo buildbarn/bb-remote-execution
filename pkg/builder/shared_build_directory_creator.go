@@ -4,8 +4,8 @@ import (
 	"log"
 	"path"
 	"strconv"
-	"sync/atomic"
 
+	"github.com/buildbarn/bb-storage/pkg/atomic"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/util"
 
@@ -14,7 +14,7 @@ import (
 
 type sharedBuildDirectoryCreator struct {
 	base                 BuildDirectoryCreator
-	nextParallelActionID *uint64
+	nextParallelActionID *atomic.Uint64
 }
 
 // NewSharedBuildDirectoryCreator is an adapter for
@@ -27,7 +27,7 @@ type sharedBuildDirectoryCreator struct {
 // This adapter can be used to add concurrency to a single worker. When
 // executing build actions in parallel, every build action needs its own
 // build directory.
-func NewSharedBuildDirectoryCreator(base BuildDirectoryCreator, nextParallelActionID *uint64) BuildDirectoryCreator {
+func NewSharedBuildDirectoryCreator(base BuildDirectoryCreator, nextParallelActionID *atomic.Uint64) BuildDirectoryCreator {
 	return &sharedBuildDirectoryCreator{
 		base:                 base,
 		nextParallelActionID: nextParallelActionID,
@@ -51,7 +51,7 @@ func (dc *sharedBuildDirectoryCreator) GetBuildDirectory(actionDigest digest.Dig
 		// Number subdirectories incrementally to prevent
 		// collisions if multiple of them are scheduled on the
 		// same worker.
-		childDirectoryName = strconv.FormatUint(atomic.AddUint64(dc.nextParallelActionID, 1), 10)
+		childDirectoryName = strconv.FormatUint(dc.nextParallelActionID.Add(1), 10)
 	} else {
 		// This action is guaranteed not to run in parallel, due
 		// to the scheduler being permitted to deduplicate

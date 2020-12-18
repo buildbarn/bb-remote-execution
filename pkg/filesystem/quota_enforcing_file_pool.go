@@ -1,8 +1,7 @@
 package filesystem
 
 import (
-	"sync/atomic"
-
+	"github.com/buildbarn/bb-storage/pkg/atomic"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 
 	"google.golang.org/grpc/codes"
@@ -13,20 +12,23 @@ import (
 // subtracted/added atomically. It is used to store the number of files
 // and bytes of space available.
 type quotaMetric struct {
-	remaining int64
+	remaining atomic.Int64
 }
 
 func (m *quotaMetric) allocate(v int64) bool {
-	for m.remaining >= v {
-		if atomic.CompareAndSwapInt64(&m.remaining, m.remaining, m.remaining-v) {
+	for {
+		remaining := m.remaining.Load()
+		if remaining < v {
+			return false
+		}
+		if m.remaining.CompareAndSwap(remaining, remaining-v) {
 			return true
 		}
 	}
-	return false
 }
 
 func (m *quotaMetric) release(v int64) {
-	atomic.AddInt64(&m.remaining, v)
+	m.remaining.Add(v)
 }
 
 type quotaEnforcingFilePool struct {
@@ -42,11 +44,12 @@ type quotaEnforcingFilePool struct {
 // extracted. Space is reclaimed by either truncating files or closing
 // them.
 func NewQuotaEnforcingFilePool(base FilePool, maximumFileCount, maximumTotalSize int64) FilePool {
-	return &quotaEnforcingFilePool{
-		base:           base,
-		filesRemaining: quotaMetric{remaining: maximumFileCount},
-		bytesRemaining: quotaMetric{remaining: maximumTotalSize},
+	fp := &quotaEnforcingFilePool{
+		base: base,
 	}
+	fp.filesRemaining.remaining.Initialize(maximumFileCount)
+	fp.bytesRemaining.remaining.Initialize(maximumTotalSize)
+	return fp
 }
 
 func (fp *quotaEnforcingFilePool) NewFile() (filesystem.FileReadWriter, error) {

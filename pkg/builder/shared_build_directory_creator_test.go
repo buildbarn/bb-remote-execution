@@ -6,6 +6,7 @@ import (
 
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
+	"github.com/buildbarn/bb-storage/pkg/atomic"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -24,7 +25,7 @@ func TestSharedBuildDirectoryCreatorGetBuildDirectoryFailure(t *testing.T) {
 		false,
 	).Return(nil, "", status.Error(codes.Internal, "No space left on device"))
 
-	var nextParallelActionID uint64
+	var nextParallelActionID atomic.Uint64
 	buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(baseBuildDirectoryCreator, &nextParallelActionID)
 	_, _, err := buildDirectoryCreator.GetBuildDirectory(
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
@@ -46,7 +47,7 @@ func TestSharedBuildDirectoryCreatorMkdirFailure(t *testing.T) {
 		status.Error(codes.AlreadyExists, "Directory already exists"))
 	baseBuildDirectory.EXPECT().Close()
 
-	var nextParallelActionID uint64
+	var nextParallelActionID atomic.Uint64
 	buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(baseBuildDirectoryCreator, &nextParallelActionID)
 	_, _, err := buildDirectoryCreator.GetBuildDirectory(
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
@@ -69,7 +70,7 @@ func TestSharedBuildDirectoryCreatorEnterBuildDirectoryFailure(t *testing.T) {
 	baseBuildDirectory.EXPECT().Remove("e3b0c44298fc1c14")
 	baseBuildDirectory.EXPECT().Close()
 
-	var nextParallelActionID uint64
+	var nextParallelActionID atomic.Uint64
 	buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(baseBuildDirectoryCreator, &nextParallelActionID)
 	_, _, err := buildDirectoryCreator.GetBuildDirectory(
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
@@ -94,7 +95,7 @@ func TestSharedBuildDirectoryCreatorCloseChildFailure(t *testing.T) {
 	baseBuildDirectory.EXPECT().RemoveAll("e3b0c44298fc1c14")
 	baseBuildDirectory.EXPECT().Close()
 
-	var nextParallelActionID uint64
+	var nextParallelActionID atomic.Uint64
 	buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(baseBuildDirectoryCreator, &nextParallelActionID)
 	buildDirectory, buildDirectoryPath, err := buildDirectoryCreator.GetBuildDirectory(
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
@@ -123,7 +124,7 @@ func TestSharedBuildDirectoryCreatorRemoveAllFailure(t *testing.T) {
 	baseBuildDirectory.EXPECT().RemoveAll("e3b0c44298fc1c14").Return(status.Error(codes.PermissionDenied, "Directory is owned by another user"))
 	baseBuildDirectory.EXPECT().Close()
 
-	var nextParallelActionID uint64
+	var nextParallelActionID atomic.Uint64
 	buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(baseBuildDirectoryCreator, &nextParallelActionID)
 	buildDirectory, buildDirectoryPath, err := buildDirectoryCreator.GetBuildDirectory(
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
@@ -153,7 +154,7 @@ func TestSharedBuildDirectoryCreatorCloseParentFailure(t *testing.T) {
 	baseBuildDirectory.EXPECT().RemoveAll("e3b0c44298fc1c14")
 	baseBuildDirectory.EXPECT().Close().Return(status.Error(codes.Internal, "Bad file descriptor"))
 
-	var nextParallelActionID uint64
+	var nextParallelActionID atomic.Uint64
 	buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(baseBuildDirectoryCreator, &nextParallelActionID)
 	buildDirectory, buildDirectoryPath, err := buildDirectoryCreator.GetBuildDirectory(
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
@@ -182,7 +183,7 @@ func TestSharedBuildDirectoryCreatorSuccessNotParallel(t *testing.T) {
 	baseBuildDirectory.EXPECT().RemoveAll("e3b0c44298fc1c14")
 	baseBuildDirectory.EXPECT().Close()
 
-	var nextParallelActionID uint64
+	var nextParallelActionID atomic.Uint64
 	buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(baseBuildDirectoryCreator, &nextParallelActionID)
 	buildDirectory, buildDirectoryPath, err := buildDirectoryCreator.GetBuildDirectory(
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
@@ -197,7 +198,7 @@ func TestSharedBuildDirectoryCreatorMkdirSuccessParallel(t *testing.T) {
 
 	baseBuildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	baseBuildDirectory := mock.NewMockBuildDirectory(ctrl)
-	var nextParallelActionID uint64
+	var nextParallelActionID atomic.Uint64
 	buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(baseBuildDirectoryCreator, &nextParallelActionID)
 
 	// Build directories for actions that run in parallel are simply
