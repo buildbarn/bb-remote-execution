@@ -9,6 +9,7 @@ import (
 
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/fuse"
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/golang/mock/gomock"
 	go_fuse "github.com/hanwen/go-fuse/v2/fuse"
 	"github.com/stretchr/testify/require"
@@ -23,7 +24,7 @@ func TestSimpleRawFileSystemLookup(t *testing.T) {
 
 	t.Run("NotFound", func(t *testing.T) {
 		// Lookup failure errors should be propagated.
-		rootDirectory.EXPECT().FUSELookup("nonexistent", gomock.Any()).
+		rootDirectory.EXPECT().FUSELookup(path.MustNewComponent("nonexistent"), gomock.Any()).
 			Return(nil, nil, go_fuse.ENOENT)
 
 		var entryOut go_fuse.EntryOut
@@ -37,8 +38,8 @@ func TestSimpleRawFileSystemLookup(t *testing.T) {
 		// be returned. The inode number should be used as the
 		// node ID, so that future operations can refer to it.
 		childDirectory := mock.NewMockFUSEDirectory(ctrl)
-		rootDirectory.EXPECT().FUSELookup("directory", gomock.Any()).DoAndReturn(
-			func(name string, out *go_fuse.Attr) (fuse.Directory, fuse.Leaf, go_fuse.Status) {
+		rootDirectory.EXPECT().FUSELookup(path.MustNewComponent("directory"), gomock.Any()).DoAndReturn(
+			func(name path.Component, out *go_fuse.Attr) (fuse.Directory, fuse.Leaf, go_fuse.Status) {
 				out.Mode = go_fuse.S_IFDIR | 0700
 				out.Ino = 123
 				return childDirectory, nil, go_fuse.OK
@@ -59,7 +60,7 @@ func TestSimpleRawFileSystemLookup(t *testing.T) {
 		// Performing a successive lookup against the node ID of
 		// the directory should call into that directory; not
 		// the root directory.
-		childDirectory.EXPECT().FUSELookup("nonexistent", gomock.Any()).
+		childDirectory.EXPECT().FUSELookup(path.MustNewComponent("nonexistent"), gomock.Any()).
 			Return(nil, nil, go_fuse.ENOENT)
 
 		require.Equal(t, go_fuse.ENOENT, rfs.Lookup(nil, &go_fuse.InHeader{
@@ -70,8 +71,8 @@ func TestSimpleRawFileSystemLookup(t *testing.T) {
 	t.Run("File", func(t *testing.T) {
 		// Looking up a file should work similarly to the above.
 		childFile := mock.NewMockFUSELeaf(ctrl)
-		rootDirectory.EXPECT().FUSELookup("file", gomock.Any()).DoAndReturn(
-			func(name string, out *go_fuse.Attr) (fuse.Directory, fuse.Leaf, go_fuse.Status) {
+		rootDirectory.EXPECT().FUSELookup(path.MustNewComponent("file"), gomock.Any()).DoAndReturn(
+			func(name path.Component, out *go_fuse.Attr) (fuse.Directory, fuse.Leaf, go_fuse.Status) {
 				out.Mode = go_fuse.S_IFREG | 0600
 				out.Ino = 456
 				return nil, childFile, go_fuse.OK
@@ -102,8 +103,8 @@ func TestSimpleRawFileSystemForget(t *testing.T) {
 		// Perform ten lookups of the same directory.
 		childDirectory := mock.NewMockFUSEDirectory(ctrl)
 		for j := 0; j < 10; j++ {
-			rootDirectory.EXPECT().FUSELookup("directory", gomock.Any()).DoAndReturn(
-				func(name string, out *go_fuse.Attr) (fuse.Directory, fuse.Leaf, go_fuse.Status) {
+			rootDirectory.EXPECT().FUSELookup(path.MustNewComponent("directory"), gomock.Any()).DoAndReturn(
+				func(name path.Component, out *go_fuse.Attr) (fuse.Directory, fuse.Leaf, go_fuse.Status) {
 					out.Mode = go_fuse.S_IFDIR | 0700
 					out.Ino = 123
 					return childDirectory, nil, go_fuse.OK
@@ -156,8 +157,8 @@ func TestSimpleRawFileSystemForget(t *testing.T) {
 		// forgotten.
 		childFile := mock.NewMockFUSELeaf(ctrl)
 		for j := 0; j < 10; j++ {
-			rootDirectory.EXPECT().FUSELookup("file", gomock.Any()).DoAndReturn(
-				func(name string, out *go_fuse.Attr) (fuse.Directory, fuse.Leaf, go_fuse.Status) {
+			rootDirectory.EXPECT().FUSELookup(path.MustNewComponent("file"), gomock.Any()).DoAndReturn(
+				func(name path.Component, out *go_fuse.Attr) (fuse.Directory, fuse.Leaf, go_fuse.Status) {
 					out.Mode = go_fuse.S_IFREG | 0600
 					out.Ino = 123
 					return nil, childFile, go_fuse.OK
@@ -295,7 +296,7 @@ func TestSimpleRawFileSystemMknod(t *testing.T) {
 
 	t.Run("Failure", func(t *testing.T) {
 		// An mknod() call for a block device that is denied.
-		rootDirectory.EXPECT().FUSEMknod("hello", uint32(syscall.S_IFBLK|0777), uint32(456), gomock.Any()).
+		rootDirectory.EXPECT().FUSEMknod(path.MustNewComponent("hello"), uint32(syscall.S_IFBLK|0777), uint32(456), gomock.Any()).
 			Return(nil, go_fuse.EPERM)
 
 		var entryOut go_fuse.EntryOut
@@ -311,8 +312,8 @@ func TestSimpleRawFileSystemMknod(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		// An mknod() call for a FIFO that succeeds.
 		childLeaf := mock.NewMockFUSELeaf(ctrl)
-		rootDirectory.EXPECT().FUSEMknod("hello", uint32(go_fuse.S_IFIFO|0700), uint32(0), gomock.Any()).DoAndReturn(
-			func(name string, mode, dev uint32, out *go_fuse.Attr) (fuse.Leaf, go_fuse.Status) {
+		rootDirectory.EXPECT().FUSEMknod(path.MustNewComponent("hello"), uint32(go_fuse.S_IFIFO|0700), uint32(0), gomock.Any()).DoAndReturn(
+			func(name path.Component, mode, dev uint32, out *go_fuse.Attr) (fuse.Leaf, go_fuse.Status) {
 				out.Mode = go_fuse.S_IFIFO | 0700
 				out.Ino = 123
 				return childLeaf, go_fuse.OK
@@ -344,7 +345,7 @@ func TestSimpleRawFileSystemMkdir(t *testing.T) {
 
 	t.Run("Failure", func(t *testing.T) {
 		// An mkdir() call that fails due to an I/O error.
-		rootDirectory.EXPECT().FUSEMkdir("hello", uint32(0777), gomock.Any()).
+		rootDirectory.EXPECT().FUSEMkdir(path.MustNewComponent("hello"), uint32(0777), gomock.Any()).
 			Return(nil, go_fuse.EIO)
 
 		var entryOut go_fuse.EntryOut
@@ -359,8 +360,8 @@ func TestSimpleRawFileSystemMkdir(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		// An mkdir() call that succeeds.
 		childDirectory := mock.NewMockFUSEDirectory(ctrl)
-		rootDirectory.EXPECT().FUSEMkdir("hello", uint32(0777), gomock.Any()).DoAndReturn(
-			func(name string, mode uint32, out *go_fuse.Attr) (fuse.Directory, go_fuse.Status) {
+		rootDirectory.EXPECT().FUSEMkdir(path.MustNewComponent("hello"), uint32(0777), gomock.Any()).DoAndReturn(
+			func(name path.Component, mode uint32, out *go_fuse.Attr) (fuse.Directory, go_fuse.Status) {
 				out.Mode = go_fuse.S_IFDIR | 0777
 				out.Ino = 123
 				return childDirectory, go_fuse.OK
@@ -880,15 +881,15 @@ func TestSimpleRawFileSystemInit(t *testing.T) {
 		// node ID that the FUSE protocol uses for the root
 		// directory object.
 		mockServerCallbacks.EXPECT().EntryNotify(uint64(go_fuse.FUSE_ROOT_ID), "Hello")
-		serverCallbacks.EntryNotify(123, "Hello")
+		serverCallbacks.EntryNotify(123, path.MustNewComponent("Hello"))
 	})
 
 	t.Run("ChildDirectory", func(t *testing.T) {
 		// Add a second directory to the map of directories
 		// tracked by SimpleRawFileSystem.
 		childDirectory := mock.NewMockFUSEDirectory(ctrl)
-		rootDirectory.EXPECT().FUSELookup("directory", gomock.Any()).DoAndReturn(
-			func(name string, out *go_fuse.Attr) (fuse.Directory, fuse.Leaf, go_fuse.Status) {
+		rootDirectory.EXPECT().FUSELookup(path.MustNewComponent("directory"), gomock.Any()).DoAndReturn(
+			func(name path.Component, out *go_fuse.Attr) (fuse.Directory, fuse.Leaf, go_fuse.Status) {
 				out.Mode = go_fuse.S_IFDIR | 0700
 				out.Ino = 456
 				return childDirectory, nil, go_fuse.OK
@@ -909,13 +910,13 @@ func TestSimpleRawFileSystemInit(t *testing.T) {
 		// Calls to EntryNotify() should be forwarded to the
 		// underlying server in unmodified form.
 		mockServerCallbacks.EXPECT().EntryNotify(uint64(456), "hello")
-		serverCallbacks.EntryNotify(456, "hello")
+		serverCallbacks.EntryNotify(456, path.MustNewComponent("hello"))
 
 		// Once the kernel requests that the directory is
 		// forgotten, there is no longer any need for calling
 		// into the kernel to forget directory entries.
 		rfs.Forget(456, 1)
-		serverCallbacks.EntryNotify(456, "hello")
+		serverCallbacks.EntryNotify(456, path.MustNewComponent("hello"))
 	})
 }
 

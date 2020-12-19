@@ -8,6 +8,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/eviction"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
 
 	"google.golang.org/grpc/codes"
@@ -49,7 +50,7 @@ func (ff *hardlinkingFileFetcher) makeSpace(size int64) error {
 	for len(ff.filesSize) > 0 && (len(ff.filesSize) >= ff.maxFiles || ff.filesTotalSize+size > ff.maxSize) {
 		// Remove a file from disk.
 		key := ff.evictionSet.Peek()
-		if err := ff.cacheDirectory.Remove(key); err != nil && !os.IsNotExist(err) {
+		if err := ff.cacheDirectory.Remove(path.MustNewComponent(key)); err != nil && !os.IsNotExist(err) {
 			return util.StatusWrapfWithCode(err, codes.Internal, "Failed to remove cached file %#v", key)
 		}
 
@@ -61,7 +62,7 @@ func (ff *hardlinkingFileFetcher) makeSpace(size int64) error {
 	return nil
 }
 
-func (ff *hardlinkingFileFetcher) GetFile(ctx context.Context, blobDigest digest.Digest, directory filesystem.Directory, name string, isExecutable bool) error {
+func (ff *hardlinkingFileFetcher) GetFile(ctx context.Context, blobDigest digest.Digest, directory filesystem.Directory, name path.Component, isExecutable bool) error {
 	key := blobDigest.GetKey(digest.KeyWithoutInstance)
 	if isExecutable {
 		key += "+x"
@@ -77,7 +78,7 @@ func (ff *hardlinkingFileFetcher) GetFile(ctx context.Context, blobDigest digest
 		ff.evictionSet.Touch(key)
 		ff.evictionLock.Unlock()
 
-		if err := ff.cacheDirectory.Link(key, directory, name); err == nil {
+		if err := ff.cacheDirectory.Link(path.MustNewComponent(key), directory, name); err == nil {
 			// Successfully hardlinked the file to its destination.
 			ff.filesLock.RUnlock()
 			return nil
@@ -111,7 +112,7 @@ func (ff *hardlinkingFileFetcher) GetFile(ctx context.Context, blobDigest digest
 		}
 
 		// Hardlink the file into the cache.
-		if err := directory.Link(name, ff.cacheDirectory, key); err != nil && !os.IsExist(err) {
+		if err := directory.Link(name, ff.cacheDirectory, path.MustNewComponent(key)); err != nil && !os.IsExist(err) {
 			return util.StatusWrapfWithCode(err, codes.Internal, "Failed to add cached file %#v", key)
 		}
 		ff.evictionSet.Insert(key)
@@ -120,7 +121,7 @@ func (ff *hardlinkingFileFetcher) GetFile(ctx context.Context, blobDigest digest
 	} else if wasMissing {
 		// Even though the file is part of our bookkeeping, we
 		// observed it didn't exist. Repair this inconsistency.
-		if err := directory.Link(name, ff.cacheDirectory, key); err != nil && !os.IsExist(err) {
+		if err := directory.Link(name, ff.cacheDirectory, path.MustNewComponent(key)); err != nil && !os.IsExist(err) {
 			return util.StatusWrapfWithCode(err, codes.Internal, "Failed to repair cached file %#v", key)
 		}
 	}

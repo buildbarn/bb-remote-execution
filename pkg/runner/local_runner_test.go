@@ -8,13 +8,21 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
 	"github.com/buildbarn/bb-remote-execution/pkg/runner"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestLocalRunner(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
 	buildDirectoryPath := filepath.Join(os.Getenv("TEST_TMPDIR"), t.Name())
 	require.NoError(t, os.Mkdir(buildDirectoryPath, 0777))
 	buildDirectory, err := filesystem.NewLocalDirectory(buildDirectoryPath)
@@ -149,6 +157,30 @@ func TestLocalRunner(t *testing.T) {
 		stderr, err := ioutil.ReadFile(filepath.Join(testPath, "stderr"))
 		require.NoError(t, err)
 		require.Empty(t, stderr)
+	})
+
+	t.Run("BuildDirectoryEscape", func(t *testing.T) {
+		buildDirectory := mock.NewMockDirectory(ctrl)
+		helloDirectory := mock.NewMockDirectoryCloser(ctrl)
+		buildDirectory.EXPECT().EnterDirectory(path.MustNewComponent("hello")).Return(helloDirectory, nil)
+		helloDirectory.EXPECT().Close()
+
+		// The runner process may need to run with elevated
+		// privileges. It shouldn't be possible to trick the
+		// runner into opening files outside the build
+		// directory.
+		runner := runner.NewLocalRunner(buildDirectory, "/build", false, false)
+		_, err := runner.Run(context.Background(), &runner_pb.RunRequest{
+			Arguments:          []string{"/usr/bin/env"},
+			StdoutPath:         "hello/../../../../../../etc/passwd",
+			StderrPath:         "stderr",
+			InputRootDirectory: ".",
+			TemporaryDirectory: ".",
+		})
+		require.Equal(
+			t,
+			err,
+			status.Error(codes.InvalidArgument, "Failed to open stdout: Path resolves to a location outside the build directory"))
 	})
 
 	// TODO: Improve testing coverage of LocalRunner.

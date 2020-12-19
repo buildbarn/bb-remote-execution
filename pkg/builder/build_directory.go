@@ -6,6 +6,7 @@ import (
 
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/digest"
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
 )
 
@@ -18,15 +19,15 @@ type BuildDirectory interface {
 	UploadableDirectory
 
 	// Methods inherited from filesystem.Directory.
-	Mkdir(name string, perm os.FileMode) error
-	Mknod(name string, perm os.FileMode, dev int) error
-	Remove(name string) error
-	RemoveAll(name string) error
+	Mkdir(name path.Component, perm os.FileMode) error
+	Mknod(name path.Component, perm os.FileMode, dev int) error
+	Remove(name path.Component) error
+	RemoveAll(name path.Component) error
 	RemoveAllChildren() error
 
 	// Identical to EnterDirectory(), except that it returns a
 	// BuildDirectory object.
-	EnterBuildDirectory(name string) (BuildDirectory, error)
+	EnterBuildDirectory(name path.Component) (BuildDirectory, error)
 
 	// Installs a set of hooks into the directory to intercept I/O
 	// operations. The FilePool may be used to allocate storage

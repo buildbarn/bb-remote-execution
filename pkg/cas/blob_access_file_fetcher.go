@@ -7,6 +7,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 )
 
 type blobAccessFileFetcher struct {
@@ -21,7 +22,7 @@ func NewBlobAccessFileFetcher(blobAccess blobstore.BlobAccess) FileFetcher {
 	}
 }
 
-func (ff *blobAccessFileFetcher) GetFile(ctx context.Context, digest digest.Digest, directory filesystem.Directory, name string, isExecutable bool) error {
+func (ff *blobAccessFileFetcher) GetFile(ctx context.Context, digest digest.Digest, directory filesystem.Directory, name path.Component, isExecutable bool) error {
 	var mode os.FileMode = 0444
 	if isExecutable {
 		mode = 0555

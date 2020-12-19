@@ -8,7 +8,6 @@ import (
 	"log"
 	"os"
 	"sort"
-	"strings"
 	"sync"
 	"syscall"
 
@@ -17,6 +16,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/hanwen/go-fuse/v2/fuse"
 
@@ -80,19 +80,12 @@ type InMemoryDirectory struct {
 
 	lock                   sync.Mutex
 	initialContentsFetcher InitialContentsFetcher
-	directories            map[string]*InMemoryDirectory
-	leaves                 map[string]NativeLeaf
+	directories            map[path.Component]*InMemoryDirectory
+	leaves                 map[path.Component]NativeLeaf
 	isDeleted              bool
 }
 
 var _ Directory = (*InMemoryDirectory)(nil)
-
-func validateFilename(name string) error {
-	if name == "" || name == "." || name == ".." || strings.ContainsRune(name, '/') {
-		return status.Errorf(codes.InvalidArgument, "Invalid filename: %#v", name)
-	}
-	return nil
-}
 
 // NewInMemoryDirectory creates a new directory. As the filesystem API
 // does not allow traversing the hierarchy upwards, this directory can
@@ -108,8 +101,8 @@ func NewInMemoryDirectory(fileAllocator FileAllocator, errorLogger util.ErrorLog
 			errorLogger:   errorLogger,
 		},
 		inodeNumber: inodeNumberTree.Get(),
-		directories: map[string]*InMemoryDirectory{},
-		leaves:      map[string]NativeLeaf{},
+		directories: map[path.Component]*InMemoryDirectory{},
+		leaves:      map[path.Component]NativeLeaf{},
 	}
 }
 
@@ -127,8 +120,8 @@ func (i *InMemoryDirectory) initialize() error {
 		if err != nil {
 			return err
 		}
-		i.directories = map[string]*InMemoryDirectory{}
-		i.leaves = map[string]NativeLeaf{}
+		i.directories = map[path.Component]*InMemoryDirectory{}
+		i.leaves = map[path.Component]NativeLeaf{}
 		if err := i.mergeDirectoryContents(directories, leaves); err != nil {
 			i.directories = nil
 			i.leaves = nil
@@ -139,7 +132,7 @@ func (i *InMemoryDirectory) initialize() error {
 	return nil
 }
 
-func (i *InMemoryDirectory) attachDirectory(name string, child *InMemoryDirectory) {
+func (i *InMemoryDirectory) attachDirectory(name path.Component, child *InMemoryDirectory) {
 	if err := i.mayAttach(name); err != 0 {
 		panic(fmt.Sprintf("Directory %#v may not be attached: %s", name, err))
 	}
@@ -149,39 +142,39 @@ func (i *InMemoryDirectory) attachDirectory(name string, child *InMemoryDirector
 	i.directories[name] = child
 }
 
-func (i *InMemoryDirectory) attachEmptyDirectory(name string) *InMemoryDirectory {
+func (i *InMemoryDirectory) attachEmptyDirectory(name path.Component) *InMemoryDirectory {
 	child := &InMemoryDirectory{
 		inodeNumber: i.subtree.filesystem.newInodeNumber(),
 		subtree:     i.subtree,
-		directories: map[string]*InMemoryDirectory{},
-		leaves:      map[string]NativeLeaf{},
+		directories: map[path.Component]*InMemoryDirectory{},
+		leaves:      map[path.Component]NativeLeaf{},
 	}
 	i.attachDirectory(name, child)
 	return child
 }
 
-func (i *InMemoryDirectory) attachLeaf(name string, child NativeLeaf) {
+func (i *InMemoryDirectory) attachLeaf(name path.Component, child NativeLeaf) {
 	if err := i.mayAttach(name); err != 0 {
 		panic(fmt.Sprintf("Leaf %#v may not be attached: %s", name, err))
 	}
 	i.leaves[name] = child
 }
 
-func (i *InMemoryDirectory) detachDirectory(name string) {
+func (i *InMemoryDirectory) detachDirectory(name path.Component) {
 	if _, ok := i.directories[name]; !ok {
 		panic(fmt.Sprintf("Node %#v does not exist", name))
 	}
 	delete(i.directories, name)
 }
 
-func (i *InMemoryDirectory) detachLeaf(name string) {
+func (i *InMemoryDirectory) detachLeaf(name path.Component) {
 	if _, ok := i.leaves[name]; !ok {
 		panic(fmt.Sprintf("Node %#v does not exist", name))
 	}
 	delete(i.leaves, name)
 }
 
-func (i *InMemoryDirectory) exists(name string) bool {
+func (i *InMemoryDirectory) exists(name path.Component) bool {
 	if _, ok := i.directories[name]; ok {
 		return true
 	}
@@ -191,7 +184,7 @@ func (i *InMemoryDirectory) exists(name string) bool {
 	return false
 }
 
-func (i *InMemoryDirectory) mayAttach(name string) syscall.Errno {
+func (i *InMemoryDirectory) mayAttach(name path.Component) syscall.Errno {
 	if i.isDeleted {
 		return syscall.ENOENT
 	}
@@ -210,7 +203,7 @@ func (i *InMemoryDirectory) isEmpty() bool {
 // must respect the lock order. This may require this function to drop
 // the lock on current directories prior to picking up the lock of the
 // child directory.
-func (i *InMemoryDirectory) getAndLockDirectory(name string, lockPile *re_sync.LockPile) (*InMemoryDirectory, bool) {
+func (i *InMemoryDirectory) getAndLockDirectory(name path.Component, lockPile *re_sync.LockPile) (*InMemoryDirectory, bool) {
 	for {
 		child, ok := i.directories[name]
 		if !ok {
@@ -230,7 +223,7 @@ func (i *InMemoryDirectory) getAndLockDirectory(name string, lockPile *re_sync.L
 	}
 }
 
-func (i *InMemoryDirectory) mergeDirectoryContents(directories map[string]InitialContentsFetcher, leaves map[string]NativeLeaf) error {
+func (i *InMemoryDirectory) mergeDirectoryContents(directories map[path.Component]InitialContentsFetcher, leaves map[path.Component]NativeLeaf) error {
 	for name, initialContentFetcher := range directories {
 		if i.exists(name) {
 			return status.Errorf(codes.AlreadyExists, "Directory already contains a node with name %#v", name)
@@ -259,7 +252,7 @@ func (i *InMemoryDirectory) mergeDirectoryContents(directories map[string]Initia
 //
 // This function must not be called while holding any InMemoryDirectory
 // or FUSE locks.
-func (i *InMemoryDirectory) invalidate(name string) {
+func (i *InMemoryDirectory) invalidate(name path.Component) {
 	if s := i.subtree.filesystem.entryNotifier(i.inodeNumber, name); s != fuse.OK && s != fuse.ENOENT {
 		log.Printf("Failed to invalidate %#v in directory %d: %s", name, i.inodeNumber, s)
 	}
@@ -267,11 +260,7 @@ func (i *InMemoryDirectory) invalidate(name string) {
 
 // EnterInMemoryDirectory enters an existing directory contained within
 // the current directory, returning a handle to it.
-func (i *InMemoryDirectory) EnterInMemoryDirectory(name string) (*InMemoryDirectory, error) {
-	if err := validateFilename(name); err != nil {
-		return nil, err
-	}
-
+func (i *InMemoryDirectory) EnterInMemoryDirectory(name path.Component) (*InMemoryDirectory, error) {
 	i.lock.Lock()
 	defer i.lock.Unlock()
 
@@ -288,11 +277,7 @@ func (i *InMemoryDirectory) EnterInMemoryDirectory(name string) (*InMemoryDirect
 }
 
 // Lstat obtains the attributes of a file stored within the directory.
-func (i *InMemoryDirectory) Lstat(name string) (filesystem.FileInfo, error) {
-	if err := validateFilename(name); err != nil {
-		return filesystem.FileInfo{}, err
-	}
-
+func (i *InMemoryDirectory) Lstat(name path.Component) (filesystem.FileInfo, error) {
 	i.lock.Lock()
 	defer i.lock.Unlock()
 
@@ -310,11 +295,7 @@ func (i *InMemoryDirectory) Lstat(name string) (filesystem.FileInfo, error) {
 
 // Mkdir creates a directory with a given name within the current
 // directory.
-func (i *InMemoryDirectory) Mkdir(name string, perm os.FileMode) error {
-	if err := validateFilename(name); err != nil {
-		return err
-	}
-
+func (i *InMemoryDirectory) Mkdir(name path.Component, perm os.FileMode) error {
 	i.lock.Lock()
 	defer i.lock.Unlock()
 
@@ -331,10 +312,7 @@ func (i *InMemoryDirectory) Mkdir(name string, perm os.FileMode) error {
 // Mknod creates a device node with a given name within the current
 // directory. For our use case, it only needs to support creation of
 // character devices.
-func (i *InMemoryDirectory) Mknod(name string, perm os.FileMode, dev int) error {
-	if err := validateFilename(name); err != nil {
-		return err
-	}
+func (i *InMemoryDirectory) Mknod(name path.Component, perm os.FileMode, dev int) error {
 	if perm&os.ModeType != os.ModeDevice|os.ModeCharDevice {
 		return status.Error(codes.InvalidArgument, "The provided file mode is not for a character device")
 	}
@@ -378,11 +356,7 @@ func (i *InMemoryDirectory) ReadDir() ([]filesystem.FileInfo, error) {
 
 // Readlink reads the symlink target of a leaf node contained within the
 // directory.
-func (i *InMemoryDirectory) Readlink(name string) (string, error) {
-	if err := validateFilename(name); err != nil {
-		return "", err
-	}
-
+func (i *InMemoryDirectory) Readlink(name path.Component) (string, error) {
 	i.lock.Lock()
 	defer i.lock.Unlock()
 
@@ -400,11 +374,7 @@ func (i *InMemoryDirectory) Readlink(name string) (string, error) {
 }
 
 // Remove a single leaf or empty directory from the current directory.
-func (i *InMemoryDirectory) Remove(name string) error {
-	if err := validateFilename(name); err != nil {
-		return err
-	}
-
+func (i *InMemoryDirectory) Remove(name path.Component) error {
 	lockPile := re_sync.LockPile{}
 	defer lockPile.UnlockAll()
 	lockPile.Lock(&i.lock)
@@ -444,11 +414,7 @@ func (i *InMemoryDirectory) Remove(name string) error {
 
 // RemoveAll removes a single leaf or directory from the current
 // directory. When removing a directory, it is deleted recursively.
-func (i *InMemoryDirectory) RemoveAll(name string) error {
-	if err := validateFilename(name); err != nil {
-		return err
-	}
-
+func (i *InMemoryDirectory) RemoveAll(name path.Component) error {
 	i.lock.Lock()
 	if err := i.initialize(); err != nil {
 		i.lock.Unlock()
@@ -496,12 +462,12 @@ func (i *InMemoryDirectory) removeAllChildren(deleteParent bool) {
 		// children, forcefully initialize it as an empty
 		// directory.
 		i.initialContentsFetcher = nil
-		i.directories = map[string]*InMemoryDirectory{}
-		i.leaves = map[string]NativeLeaf{}
+		i.directories = map[path.Component]*InMemoryDirectory{}
+		i.leaves = map[path.Component]NativeLeaf{}
 		i.lock.Unlock()
 	} else {
 		// Detach all children from the directory.
-		names := make([]string, 0, len(i.directories)+len(i.leaves))
+		names := make([]path.Component, 0, len(i.directories)+len(i.leaves))
 		directories := make([]*InMemoryDirectory, 0, len(i.directories))
 		for name, child := range i.directories {
 			i.detachDirectory(name)
@@ -546,7 +512,7 @@ func (i *InMemoryDirectory) InstallHooks(fileAllocator FileAllocator, errorLogge
 // directories and leaves into the current directory. In the case of
 // Buildbarn's worker, this is used to project the input root on top of
 // an empty build directory.
-func (i *InMemoryDirectory) MergeDirectoryContents(directories map[string]InitialContentsFetcher, leaves map[string]NativeLeaf) error {
+func (i *InMemoryDirectory) MergeDirectoryContents(directories map[path.Component]InitialContentsFetcher, leaves map[path.Component]NativeLeaf) error {
 	i.lock.Lock()
 	defer i.lock.Unlock()
 
@@ -563,7 +529,7 @@ func (i *InMemoryDirectory) MergeDirectoryContents(directories map[string]Initia
 // Content Addressable Storage. File types are permitted to implement
 // this in optimized ways. For example, a file that is already backed by
 // the Content Addressable Storage may implement this as a no-op.
-func (i *InMemoryDirectory) UploadFile(ctx context.Context, name string, contentAddressableStorage blobstore.BlobAccess, digestFunction digest.Function) (digest.Digest, error) {
+func (i *InMemoryDirectory) UploadFile(ctx context.Context, name path.Component, contentAddressableStorage blobstore.BlobAccess, digestFunction digest.Function) (digest.Digest, error) {
 	i.lock.Lock()
 	if child, ok := i.leaves[name]; ok {
 		// Temporary increase the link count of the file, so
@@ -591,7 +557,7 @@ func (i *InMemoryDirectory) FUSEAccess(mask uint32) fuse.Status {
 }
 
 // FUSECreate creates a file within the directory.
-func (i *InMemoryDirectory) FUSECreate(name string, flags, mode uint32, out *fuse.Attr) (Leaf, fuse.Status) {
+func (i *InMemoryDirectory) FUSECreate(name path.Component, flags, mode uint32, out *fuse.Attr) (Leaf, fuse.Status) {
 	i.lock.Lock()
 	defer i.lock.Unlock()
 
@@ -603,7 +569,7 @@ func (i *InMemoryDirectory) FUSECreate(name string, flags, mode uint32, out *fus
 		i.subtree.filesystem.newInodeNumber(),
 		os.FileMode(mode))
 	if err != nil {
-		i.subtree.errorLogger.Log(util.StatusWrapf(err, "Failed to create new file with name %#v", name))
+		i.subtree.errorLogger.Log(util.StatusWrapf(err, "Failed to create new file with name %#v", name.String()))
 		return nil, fuse.EIO
 	}
 
@@ -637,7 +603,7 @@ func (i *InMemoryDirectory) FUSEGetXAttr(attr string, dest []byte) (uint32, fuse
 }
 
 // FUSELink links an existing file into the directory.
-func (i *InMemoryDirectory) FUSELink(name string, leaf Leaf, out *fuse.Attr) fuse.Status {
+func (i *InMemoryDirectory) FUSELink(name path.Component, leaf Leaf, out *fuse.Attr) fuse.Status {
 	i.lock.Lock()
 	defer i.lock.Unlock()
 
@@ -655,7 +621,7 @@ func (i *InMemoryDirectory) FUSELink(name string, leaf Leaf, out *fuse.Attr) fus
 
 // FUSELookup obtains the inode corresponding with a child stored within
 // the directory.
-func (i *InMemoryDirectory) FUSELookup(name string, out *fuse.Attr) (Directory, Leaf, fuse.Status) {
+func (i *InMemoryDirectory) FUSELookup(name path.Component, out *fuse.Attr) (Directory, Leaf, fuse.Status) {
 	lockPile := re_sync.LockPile{}
 	defer lockPile.UnlockAll()
 	lockPile.Lock(&i.lock)
@@ -680,7 +646,7 @@ func (i *InMemoryDirectory) FUSELookup(name string, out *fuse.Attr) (Directory, 
 }
 
 // FUSEMkdir creates a child directory within the current directory.
-func (i *InMemoryDirectory) FUSEMkdir(name string, mode uint32, out *fuse.Attr) (Directory, fuse.Status) {
+func (i *InMemoryDirectory) FUSEMkdir(name path.Component, mode uint32, out *fuse.Attr) (Directory, fuse.Status) {
 	i.lock.Lock()
 	defer i.lock.Unlock()
 
@@ -696,7 +662,7 @@ func (i *InMemoryDirectory) FUSEMkdir(name string, mode uint32, out *fuse.Attr) 
 // FUSEMknod creates a FIFO or UNIX domain socket within the current
 // directory. It does not permit the creation of character and block
 // devices.
-func (i *InMemoryDirectory) FUSEMknod(name string, mode, dev uint32, out *fuse.Attr) (Leaf, fuse.Status) {
+func (i *InMemoryDirectory) FUSEMknod(name path.Component, mode, dev uint32, out *fuse.Attr) (Leaf, fuse.Status) {
 	i.lock.Lock()
 	defer i.lock.Unlock()
 
@@ -724,12 +690,12 @@ func (i *InMemoryDirectory) FUSEReadDir() ([]fuse.DirEntry, fuse.Status) {
 		entries = append(entries, fuse.DirEntry{
 			Mode: fuse.S_IFDIR,
 			Ino:  child.inodeNumber,
-			Name: name,
+			Name: name.String(),
 		})
 	}
 	for name, child := range i.leaves {
 		directoryEntry := child.FUSEGetDirEntry()
-		directoryEntry.Name = name
+		directoryEntry.Name = name.String()
 		entries = append(entries, directoryEntry)
 	}
 
@@ -753,7 +719,7 @@ func (i *InMemoryDirectory) FUSEReadDirPlus() ([]DirectoryDirEntry, []LeafDirEnt
 			DirEntry: fuse.DirEntry{
 				Mode: fuse.S_IFDIR,
 				Ino:  child.inodeNumber,
-				Name: name,
+				Name: name.String(),
 			},
 		})
 		directoriesToInitialize = append(directoriesToInitialize, child)
@@ -762,7 +728,7 @@ func (i *InMemoryDirectory) FUSEReadDirPlus() ([]DirectoryDirEntry, []LeafDirEnt
 	leaves := make([]LeafDirEntry, 0, len(i.leaves))
 	for name, child := range i.leaves {
 		directoryEntry := child.FUSEGetDirEntry()
-		directoryEntry.Name = name
+		directoryEntry.Name = name.String()
 		leaves = append(leaves, LeafDirEntry{
 			Child:    child,
 			DirEntry: directoryEntry,
@@ -788,7 +754,7 @@ func (i *InMemoryDirectory) FUSEReadDirPlus() ([]DirectoryDirEntry, []LeafDirEnt
 
 // FUSERename renames a file stored in the current directory,
 // potentially moving it to another directory.
-func (i *InMemoryDirectory) FUSERename(oldName string, newDirectory Directory, newName string) fuse.Status {
+func (i *InMemoryDirectory) FUSERename(oldName path.Component, newDirectory Directory, newName path.Component) fuse.Status {
 	iOld := i
 	iNew, ok := newDirectory.(*InMemoryDirectory)
 	if !ok {
@@ -876,7 +842,7 @@ func (i *InMemoryDirectory) FUSERename(oldName string, newDirectory Directory, n
 
 // FUSERmdir removes an empty directory stored within the current
 // directory.
-func (i *InMemoryDirectory) FUSERmdir(name string) fuse.Status {
+func (i *InMemoryDirectory) FUSERmdir(name path.Component) fuse.Status {
 	lockPile := re_sync.LockPile{}
 	defer lockPile.UnlockAll()
 	lockPile.Lock(&i.lock)
@@ -914,7 +880,7 @@ func (i *InMemoryDirectory) FUSESetAttr(in *fuse.SetAttrIn, out *fuse.Attr) fuse
 }
 
 // FUSESymlink creates a symbolic link within the current directory.
-func (i *InMemoryDirectory) FUSESymlink(pointedTo, linkName string, out *fuse.Attr) (Leaf, fuse.Status) {
+func (i *InMemoryDirectory) FUSESymlink(pointedTo string, linkName path.Component, out *fuse.Attr) (Leaf, fuse.Status) {
 	i.lock.Lock()
 	defer i.lock.Unlock()
 
@@ -929,7 +895,7 @@ func (i *InMemoryDirectory) FUSESymlink(pointedTo, linkName string, out *fuse.At
 }
 
 // FUSEUnlink removes a leaf node from the current directory.
-func (i *InMemoryDirectory) FUSEUnlink(name string) fuse.Status {
+func (i *InMemoryDirectory) FUSEUnlink(name path.Component) fuse.Status {
 	i.lock.Lock()
 	defer i.lock.Unlock()
 

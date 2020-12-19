@@ -7,6 +7,7 @@ import (
 
 	"github.com/buildbarn/bb-storage/pkg/atomic"
 	"github.com/buildbarn/bb-storage/pkg/digest"
+	bb_path "github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
 
 	"google.golang.org/grpc/codes"
@@ -41,7 +42,7 @@ func (dc *sharedBuildDirectoryCreator) GetBuildDirectory(actionDigest digest.Dig
 	}
 
 	// Determine the name of the subdirectory.
-	var childDirectoryName string
+	var name string
 	if mayRunInParallel {
 		// Multiple instances of this action may run in
 		// parallel, as the scheduler is not permitted to
@@ -51,7 +52,7 @@ func (dc *sharedBuildDirectoryCreator) GetBuildDirectory(actionDigest digest.Dig
 		// Number subdirectories incrementally to prevent
 		// collisions if multiple of them are scheduled on the
 		// same worker.
-		childDirectoryName = strconv.FormatUint(dc.nextParallelActionID.Add(1), 10)
+		name = strconv.FormatUint(dc.nextParallelActionID.Add(1), 10)
 	} else {
 		// This action is guaranteed not to run in parallel, due
 		// to the scheduler being permitted to deduplicate
@@ -66,11 +67,12 @@ func (dc *sharedBuildDirectoryCreator) GetBuildDirectory(actionDigest digest.Dig
 		// sockaddr_un::sun_path size limits for stronger digest
 		// functions. 16 characters is more than sufficient to
 		// prevent collisions.
-		childDirectoryName = actionDigest.GetHashString()[:16]
+		name = actionDigest.GetHashString()[:16]
 	}
 
 	// Create the subdirectory.
-	childDirectoryPath := path.Join(parentDirectoryPath, childDirectoryName)
+	childDirectoryPath := path.Join(parentDirectoryPath, name)
+	childDirectoryName := bb_path.MustNewComponent(name)
 	if err := parentDirectory.Mkdir(childDirectoryName, 0777); err != nil {
 		parentDirectory.Close()
 		return nil, "", util.StatusWrapfWithCode(err, codes.Internal, "Failed to create build directory %#v", childDirectoryPath)
@@ -95,7 +97,7 @@ func (dc *sharedBuildDirectoryCreator) GetBuildDirectory(actionDigest digest.Dig
 type sharedBuildDirectory struct {
 	BuildDirectory
 	parentDirectory    BuildDirectory
-	childDirectoryName string
+	childDirectoryName bb_path.Component
 	childDirectoryPath string
 }
 

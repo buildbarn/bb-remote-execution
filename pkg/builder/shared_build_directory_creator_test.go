@@ -8,6 +8,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
 	"github.com/buildbarn/bb-storage/pkg/atomic"
 	"github.com/buildbarn/bb-storage/pkg/digest"
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
@@ -43,7 +44,7 @@ func TestSharedBuildDirectoryCreatorMkdirFailure(t *testing.T) {
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		false,
 	).Return(baseBuildDirectory, "base-directory", nil)
-	baseBuildDirectory.EXPECT().Mkdir("e3b0c44298fc1c14", os.FileMode(0777)).Return(
+	baseBuildDirectory.EXPECT().Mkdir(path.MustNewComponent("e3b0c44298fc1c14"), os.FileMode(0777)).Return(
 		status.Error(codes.AlreadyExists, "Directory already exists"))
 	baseBuildDirectory.EXPECT().Close()
 
@@ -65,9 +66,9 @@ func TestSharedBuildDirectoryCreatorEnterBuildDirectoryFailure(t *testing.T) {
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		false,
 	).Return(baseBuildDirectory, "base-directory", nil)
-	baseBuildDirectory.EXPECT().Mkdir("e3b0c44298fc1c14", os.FileMode(0777))
-	baseBuildDirectory.EXPECT().EnterBuildDirectory("e3b0c44298fc1c14").Return(nil, status.Error(codes.ResourceExhausted, "Out of file descriptors"))
-	baseBuildDirectory.EXPECT().Remove("e3b0c44298fc1c14")
+	baseBuildDirectory.EXPECT().Mkdir(path.MustNewComponent("e3b0c44298fc1c14"), os.FileMode(0777))
+	baseBuildDirectory.EXPECT().EnterBuildDirectory(path.MustNewComponent("e3b0c44298fc1c14")).Return(nil, status.Error(codes.ResourceExhausted, "Out of file descriptors"))
+	baseBuildDirectory.EXPECT().Remove(path.MustNewComponent("e3b0c44298fc1c14"))
 	baseBuildDirectory.EXPECT().Close()
 
 	var nextParallelActionID atomic.Uint64
@@ -88,11 +89,11 @@ func TestSharedBuildDirectoryCreatorCloseChildFailure(t *testing.T) {
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		false,
 	).Return(baseBuildDirectory, "base-directory", nil)
-	baseBuildDirectory.EXPECT().Mkdir("e3b0c44298fc1c14", os.FileMode(0777))
+	baseBuildDirectory.EXPECT().Mkdir(path.MustNewComponent("e3b0c44298fc1c14"), os.FileMode(0777))
 	subDirectory := mock.NewMockBuildDirectory(ctrl)
-	baseBuildDirectory.EXPECT().EnterBuildDirectory("e3b0c44298fc1c14").Return(subDirectory, nil)
+	baseBuildDirectory.EXPECT().EnterBuildDirectory(path.MustNewComponent("e3b0c44298fc1c14")).Return(subDirectory, nil)
 	subDirectory.EXPECT().Close().Return(status.Error(codes.Internal, "Bad file descriptor"))
-	baseBuildDirectory.EXPECT().RemoveAll("e3b0c44298fc1c14")
+	baseBuildDirectory.EXPECT().RemoveAll(path.MustNewComponent("e3b0c44298fc1c14"))
 	baseBuildDirectory.EXPECT().Close()
 
 	var nextParallelActionID atomic.Uint64
@@ -117,11 +118,11 @@ func TestSharedBuildDirectoryCreatorRemoveAllFailure(t *testing.T) {
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		false,
 	).Return(baseBuildDirectory, "base-directory", nil)
-	baseBuildDirectory.EXPECT().Mkdir("e3b0c44298fc1c14", os.FileMode(0777))
+	baseBuildDirectory.EXPECT().Mkdir(path.MustNewComponent("e3b0c44298fc1c14"), os.FileMode(0777))
 	subDirectory := mock.NewMockBuildDirectory(ctrl)
-	baseBuildDirectory.EXPECT().EnterBuildDirectory("e3b0c44298fc1c14").Return(subDirectory, nil)
+	baseBuildDirectory.EXPECT().EnterBuildDirectory(path.MustNewComponent("e3b0c44298fc1c14")).Return(subDirectory, nil)
 	subDirectory.EXPECT().Close()
-	baseBuildDirectory.EXPECT().RemoveAll("e3b0c44298fc1c14").Return(status.Error(codes.PermissionDenied, "Directory is owned by another user"))
+	baseBuildDirectory.EXPECT().RemoveAll(path.MustNewComponent("e3b0c44298fc1c14")).Return(status.Error(codes.PermissionDenied, "Directory is owned by another user"))
 	baseBuildDirectory.EXPECT().Close()
 
 	var nextParallelActionID atomic.Uint64
@@ -147,11 +148,11 @@ func TestSharedBuildDirectoryCreatorCloseParentFailure(t *testing.T) {
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		false,
 	).Return(baseBuildDirectory, "base-directory", nil)
-	baseBuildDirectory.EXPECT().Mkdir("e3b0c44298fc1c14", os.FileMode(0777))
+	baseBuildDirectory.EXPECT().Mkdir(path.MustNewComponent("e3b0c44298fc1c14"), os.FileMode(0777))
 	subDirectory := mock.NewMockBuildDirectory(ctrl)
-	baseBuildDirectory.EXPECT().EnterBuildDirectory("e3b0c44298fc1c14").Return(subDirectory, nil)
+	baseBuildDirectory.EXPECT().EnterBuildDirectory(path.MustNewComponent("e3b0c44298fc1c14")).Return(subDirectory, nil)
 	subDirectory.EXPECT().Close()
-	baseBuildDirectory.EXPECT().RemoveAll("e3b0c44298fc1c14")
+	baseBuildDirectory.EXPECT().RemoveAll(path.MustNewComponent("e3b0c44298fc1c14"))
 	baseBuildDirectory.EXPECT().Close().Return(status.Error(codes.Internal, "Bad file descriptor"))
 
 	var nextParallelActionID atomic.Uint64
@@ -176,11 +177,11 @@ func TestSharedBuildDirectoryCreatorSuccessNotParallel(t *testing.T) {
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		false,
 	).Return(baseBuildDirectory, "base-directory", nil)
-	baseBuildDirectory.EXPECT().Mkdir("e3b0c44298fc1c14", os.FileMode(0777))
+	baseBuildDirectory.EXPECT().Mkdir(path.MustNewComponent("e3b0c44298fc1c14"), os.FileMode(0777))
 	subDirectory := mock.NewMockBuildDirectory(ctrl)
-	baseBuildDirectory.EXPECT().EnterBuildDirectory("e3b0c44298fc1c14").Return(subDirectory, nil)
+	baseBuildDirectory.EXPECT().EnterBuildDirectory(path.MustNewComponent("e3b0c44298fc1c14")).Return(subDirectory, nil)
 	subDirectory.EXPECT().Close()
-	baseBuildDirectory.EXPECT().RemoveAll("e3b0c44298fc1c14")
+	baseBuildDirectory.EXPECT().RemoveAll(path.MustNewComponent("e3b0c44298fc1c14"))
 	baseBuildDirectory.EXPECT().Close()
 
 	var nextParallelActionID atomic.Uint64
@@ -207,7 +208,7 @@ func TestSharedBuildDirectoryCreatorMkdirSuccessParallel(t *testing.T) {
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		true,
 	).Return(baseBuildDirectory, "base-directory", nil)
-	baseBuildDirectory.EXPECT().Mkdir("1", os.FileMode(0777)).Return(
+	baseBuildDirectory.EXPECT().Mkdir(path.MustNewComponent("1"), os.FileMode(0777)).Return(
 		status.Error(codes.Internal, "Foo"))
 	baseBuildDirectory.EXPECT().Close()
 	_, _, err := buildDirectoryCreator.GetBuildDirectory(
@@ -219,7 +220,7 @@ func TestSharedBuildDirectoryCreatorMkdirSuccessParallel(t *testing.T) {
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		true,
 	).Return(baseBuildDirectory, "base-directory", nil)
-	baseBuildDirectory.EXPECT().Mkdir("2", os.FileMode(0777)).Return(
+	baseBuildDirectory.EXPECT().Mkdir(path.MustNewComponent("2"), os.FileMode(0777)).Return(
 		status.Error(codes.Internal, "Foo"))
 	baseBuildDirectory.EXPECT().Close()
 	_, _, err = buildDirectoryCreator.GetBuildDirectory(

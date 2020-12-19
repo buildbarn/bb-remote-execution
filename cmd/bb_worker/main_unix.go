@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
 
 	"golang.org/x/sys/unix"
@@ -17,8 +18,8 @@ func clearUmask() {
 	syscall.Umask(0)
 }
 
-func getInputRootCharacterDevices(names []string) (map[string]int, error) {
-	inputRootCharacterDevices := map[string]int{}
+func getInputRootCharacterDevices(names []string) (map[path.Component]int, error) {
+	inputRootCharacterDevices := map[path.Component]int{}
 	for _, device := range names {
 		var stat unix.Stat_t
 		devicePath := filepath.Join("/dev", device)
@@ -28,7 +29,11 @@ func getInputRootCharacterDevices(names []string) (map[string]int, error) {
 		if stat.Mode&syscall.S_IFMT != syscall.S_IFCHR {
 			return nil, status.Errorf(codes.InvalidArgument, "The specified device %#v is not a character device", devicePath)
 		}
-		inputRootCharacterDevices[device] = int(stat.Rdev)
+		component, ok := path.NewComponent(device)
+		if !ok {
+			return nil, status.Errorf(codes.InvalidArgument, "Device %#v has an invalid name", devicePath)
+		}
+		inputRootCharacterDevices[component] = int(stat.Rdev)
 	}
 	return inputRootCharacterDevices, nil
 }

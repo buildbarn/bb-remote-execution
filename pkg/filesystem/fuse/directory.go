@@ -3,6 +3,7 @@
 package fuse
 
 import (
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/hanwen/go-fuse/v2/fuse"
 )
 
@@ -13,7 +14,7 @@ import (
 //
 // It is advised that this callback is invoked without holding any other
 // locks, as it writes to the FUSE character device, which may block.
-type EntryNotifier func(parent uint64, name string) fuse.Status
+type EntryNotifier func(parent uint64, name path.Component) fuse.Status
 
 // DirectoryDirEntry contains information about a directory node that is
 // returned by FUSEReadDirPlus().
@@ -36,15 +37,15 @@ type LeafDirEntry struct {
 type Directory interface {
 	node
 
-	FUSECreate(name string, flags, mode uint32, out *fuse.Attr) (Leaf, fuse.Status)
-	FUSELink(name string, leaf Leaf, out *fuse.Attr) fuse.Status
-	FUSELookup(name string, out *fuse.Attr) (Directory, Leaf, fuse.Status)
-	FUSEMkdir(name string, mode uint32, out *fuse.Attr) (Directory, fuse.Status)
-	FUSEMknod(name string, mode, dev uint32, out *fuse.Attr) (Leaf, fuse.Status)
+	FUSECreate(name path.Component, flags, mode uint32, out *fuse.Attr) (Leaf, fuse.Status)
+	FUSELink(name path.Component, leaf Leaf, out *fuse.Attr) fuse.Status
+	FUSELookup(name path.Component, out *fuse.Attr) (Directory, Leaf, fuse.Status)
+	FUSEMkdir(name path.Component, mode uint32, out *fuse.Attr) (Directory, fuse.Status)
+	FUSEMknod(name path.Component, mode, dev uint32, out *fuse.Attr) (Leaf, fuse.Status)
 	FUSEReadDir() ([]fuse.DirEntry, fuse.Status)
 	FUSEReadDirPlus() ([]DirectoryDirEntry, []LeafDirEntry, fuse.Status)
-	FUSERename(oldName string, newDirectory Directory, newName string) fuse.Status
-	FUSERmdir(name string) fuse.Status
-	FUSESymlink(pointedTo, linkName string, out *fuse.Attr) (Leaf, fuse.Status)
-	FUSEUnlink(name string) fuse.Status
+	FUSERename(oldName path.Component, newDirectory Directory, newName path.Component) fuse.Status
+	FUSERmdir(name path.Component) fuse.Status
+	FUSESymlink(pointedTo string, linkName path.Component, out *fuse.Attr) (Leaf, fuse.Status)
+	FUSEUnlink(name path.Component) fuse.Status
 }

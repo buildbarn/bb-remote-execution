@@ -12,6 +12,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -20,6 +21,46 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+func TestOutputHierarchyCreation(t *testing.T) {
+	t.Run("AbsoluteWorkingDirectory", func(t *testing.T) {
+		_, err := builder.NewOutputHierarchy(&remoteexecution.Command{
+			WorkingDirectory: "/tmp/hello/../..",
+		})
+		require.Equal(t, err, status.Error(codes.InvalidArgument, "Invalid working directory: Path is absolute, while a relative path was expected"))
+	})
+
+	t.Run("InvalidWorkingDirectory", func(t *testing.T) {
+		_, err := builder.NewOutputHierarchy(&remoteexecution.Command{
+			WorkingDirectory: "hello/../..",
+		})
+		require.Equal(t, err, status.Error(codes.InvalidArgument, "Invalid working directory: Path resolves to a location outside the input root directory"))
+	})
+
+	t.Run("AbsoluteOutputDirectory", func(t *testing.T) {
+		_, err := builder.NewOutputHierarchy(&remoteexecution.Command{
+			WorkingDirectory:  ".",
+			OutputDirectories: []string{"/etc/passwd"},
+		})
+		require.Equal(t, err, status.Error(codes.InvalidArgument, "Invalid output directory \"/etc/passwd\": Path is absolute, while a relative path was expected"))
+	})
+
+	t.Run("InvalidOutputDirectory", func(t *testing.T) {
+		_, err := builder.NewOutputHierarchy(&remoteexecution.Command{
+			WorkingDirectory:  "hello",
+			OutputDirectories: []string{"../.."},
+		})
+		require.Equal(t, err, status.Error(codes.InvalidArgument, "Invalid output directory \"../..\": Path resolves to a location outside the input root directory"))
+	})
+
+	t.Run("InvalidOutputFile", func(t *testing.T) {
+		_, err := builder.NewOutputHierarchy(&remoteexecution.Command{
+			WorkingDirectory: "hello",
+			OutputFiles:      []string{".."},
+		})
+		require.Equal(t, err, status.Error(codes.InvalidArgument, "Output file \"..\" resolves to the input root directory"))
+	})
+}
+
 func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
@@ -27,9 +68,10 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 
 	t.Run("Noop", func(t *testing.T) {
 		// No parent directories should be created.
-		oh := builder.NewOutputHierarchy(&remoteexecution.Command{
+		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory: ".",
 		})
+		require.NoError(t, err)
 		require.NoError(t, oh.CreateParentDirectories(root))
 	})
 
@@ -38,9 +80,10 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 		// must be a directory that exists in the input root.
 		// Using a subdirectory as a working directory should
 		// not cause any Mkdir() calls.
-		oh := builder.NewOutputHierarchy(&remoteexecution.Command{
+		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory: "foo/bar",
 		})
+		require.NoError(t, err)
 		require.NoError(t, oh.CreateParentDirectories(root))
 	})
 
@@ -48,53 +91,56 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 		// All of the provided paths expand to (locations under)
 		// the root directory. There is thus no need to create
 		// any output directories.
-		oh := builder.NewOutputHierarchy(&remoteexecution.Command{
+		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory:  "foo",
 			OutputDirectories: []string{".."},
 			OutputFiles:       []string{"../file"},
 			OutputPaths:       []string{"../path"},
 		})
+		require.NoError(t, err)
 		require.NoError(t, oh.CreateParentDirectories(root))
 	})
 
 	t.Run("Success", func(t *testing.T) {
 		// Create /foo/bar/baz.
-		root.EXPECT().Mkdir("foo", os.FileMode(0777))
+		root.EXPECT().Mkdir(path.MustNewComponent("foo"), os.FileMode(0777))
 		foo := mock.NewMockBuildDirectory(ctrl)
-		root.EXPECT().EnterBuildDirectory("foo").Return(foo, nil)
-		foo.EXPECT().Mkdir("bar", os.FileMode(0777))
+		root.EXPECT().EnterBuildDirectory(path.MustNewComponent("foo")).Return(foo, nil)
+		foo.EXPECT().Mkdir(path.MustNewComponent("bar"), os.FileMode(0777))
 		bar := mock.NewMockBuildDirectory(ctrl)
-		foo.EXPECT().EnterBuildDirectory("bar").Return(bar, nil)
-		bar.EXPECT().Mkdir("baz", os.FileMode(0777))
+		foo.EXPECT().EnterBuildDirectory(path.MustNewComponent("bar")).Return(bar, nil)
+		bar.EXPECT().Mkdir(path.MustNewComponent("baz"), os.FileMode(0777))
 		bar.EXPECT().Close()
 		// Create /foo/qux.
-		foo.EXPECT().Mkdir("qux", os.FileMode(0777))
+		foo.EXPECT().Mkdir(path.MustNewComponent("qux"), os.FileMode(0777))
 		foo.EXPECT().Close()
 		// Create /alice.
-		root.EXPECT().Mkdir("alice", os.FileMode(0777))
+		root.EXPECT().Mkdir(path.MustNewComponent("alice"), os.FileMode(0777))
 
-		oh := builder.NewOutputHierarchy(&remoteexecution.Command{
+		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory:  "foo",
 			OutputDirectories: []string{"bar/baz"},
 			OutputFiles:       []string{"../foo/qux/xyzzy"},
 			OutputPaths:       []string{"../alice/bob"},
 		})
+		require.NoError(t, err)
 		require.NoError(t, oh.CreateParentDirectories(root))
 	})
 
 	t.Run("MkdirFailureParent", func(t *testing.T) {
 		// Failure to create the parent directory of a location
 		// where an output file is expected.
-		root.EXPECT().Mkdir("foo", os.FileMode(0777))
+		root.EXPECT().Mkdir(path.MustNewComponent("foo"), os.FileMode(0777))
 		foo := mock.NewMockBuildDirectory(ctrl)
-		root.EXPECT().EnterBuildDirectory("foo").Return(foo, nil)
-		foo.EXPECT().Mkdir("bar", os.FileMode(0777)).Return(status.Error(codes.Internal, "I/O error"))
+		root.EXPECT().EnterBuildDirectory(path.MustNewComponent("foo")).Return(foo, nil)
+		foo.EXPECT().Mkdir(path.MustNewComponent("bar"), os.FileMode(0777)).Return(status.Error(codes.Internal, "I/O error"))
 		foo.EXPECT().Close()
 
-		oh := builder.NewOutputHierarchy(&remoteexecution.Command{
+		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory: "foo",
 			OutputFiles:      []string{"bar/baz"},
 		})
+		require.NoError(t, err)
 		require.Equal(
 			t,
 			status.Error(codes.Internal, "Failed to create output parent directory \"foo/bar\": I/O error"),
@@ -105,32 +151,34 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 		// This test is identical to the previous, except that
 		// the error is EEXIST. This should not cause a hard
 		// failure.
-		root.EXPECT().Mkdir("foo", os.FileMode(0777))
+		root.EXPECT().Mkdir(path.MustNewComponent("foo"), os.FileMode(0777))
 		foo := mock.NewMockBuildDirectory(ctrl)
-		root.EXPECT().EnterBuildDirectory("foo").Return(foo, nil)
-		foo.EXPECT().Mkdir("bar", os.FileMode(0777)).Return(syscall.EEXIST)
+		root.EXPECT().EnterBuildDirectory(path.MustNewComponent("foo")).Return(foo, nil)
+		foo.EXPECT().Mkdir(path.MustNewComponent("bar"), os.FileMode(0777)).Return(syscall.EEXIST)
 		foo.EXPECT().Close()
 
-		oh := builder.NewOutputHierarchy(&remoteexecution.Command{
+		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory: "foo",
 			OutputFiles:      []string{"bar/baz"},
 		})
+		require.NoError(t, err)
 		require.NoError(t, oh.CreateParentDirectories(root))
 	})
 
 	t.Run("MkdirFailureOutput", func(t *testing.T) {
 		// Failure to create a location where an output
 		// directory is expected.
-		root.EXPECT().Mkdir("foo", os.FileMode(0777))
+		root.EXPECT().Mkdir(path.MustNewComponent("foo"), os.FileMode(0777))
 		foo := mock.NewMockBuildDirectory(ctrl)
-		root.EXPECT().EnterBuildDirectory("foo").Return(foo, nil)
-		foo.EXPECT().Mkdir("bar", os.FileMode(0777)).Return(status.Error(codes.Internal, "I/O error"))
+		root.EXPECT().EnterBuildDirectory(path.MustNewComponent("foo")).Return(foo, nil)
+		foo.EXPECT().Mkdir(path.MustNewComponent("bar"), os.FileMode(0777)).Return(status.Error(codes.Internal, "I/O error"))
 		foo.EXPECT().Close()
 
-		oh := builder.NewOutputHierarchy(&remoteexecution.Command{
+		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory:  "foo",
 			OutputDirectories: []string{"bar"},
 		})
+		require.NoError(t, err)
 		require.Equal(
 			t,
 			status.Error(codes.Internal, "Failed to create output directory \"foo/bar\": I/O error"),
@@ -141,31 +189,33 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 		// This test is identical to the previous, except that
 		// the error is EEXIST. This should not cause a hard
 		// failure.
-		root.EXPECT().Mkdir("foo", os.FileMode(0777))
+		root.EXPECT().Mkdir(path.MustNewComponent("foo"), os.FileMode(0777))
 		foo := mock.NewMockBuildDirectory(ctrl)
-		root.EXPECT().EnterBuildDirectory("foo").Return(foo, nil)
-		foo.EXPECT().Mkdir("bar", os.FileMode(0777)).Return(syscall.EEXIST)
+		root.EXPECT().EnterBuildDirectory(path.MustNewComponent("foo")).Return(foo, nil)
+		foo.EXPECT().Mkdir(path.MustNewComponent("bar"), os.FileMode(0777)).Return(syscall.EEXIST)
 		foo.EXPECT().Close()
 
-		oh := builder.NewOutputHierarchy(&remoteexecution.Command{
+		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory:  "foo",
 			OutputDirectories: []string{"bar"},
 		})
+		require.NoError(t, err)
 		require.NoError(t, oh.CreateParentDirectories(root))
 	})
 
 	t.Run("EnterFailure", func(t *testing.T) {
-		root.EXPECT().Mkdir("foo", os.FileMode(0777))
+		root.EXPECT().Mkdir(path.MustNewComponent("foo"), os.FileMode(0777))
 		foo := mock.NewMockBuildDirectory(ctrl)
-		root.EXPECT().EnterBuildDirectory("foo").Return(foo, nil)
-		foo.EXPECT().Mkdir("bar", os.FileMode(0777))
-		foo.EXPECT().EnterBuildDirectory("bar").Return(nil, status.Error(codes.Internal, "I/O error"))
+		root.EXPECT().EnterBuildDirectory(path.MustNewComponent("foo")).Return(foo, nil)
+		foo.EXPECT().Mkdir(path.MustNewComponent("bar"), os.FileMode(0777))
+		foo.EXPECT().EnterBuildDirectory(path.MustNewComponent("bar")).Return(nil, status.Error(codes.Internal, "I/O error"))
 		foo.EXPECT().Close()
 
-		oh := builder.NewOutputHierarchy(&remoteexecution.Command{
+		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory:  "foo",
 			OutputDirectories: []string{"bar/baz"},
 		})
+		require.NoError(t, err)
 		require.Equal(
 			t,
 			status.Error(codes.Internal, "Failed to enter output parent directory \"foo/bar\": I/O error"),
@@ -183,9 +233,10 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 	t.Run("Noop", func(t *testing.T) {
 		// Uploading of a build action with no declared outputs
 		// should not trigger any I/O.
-		oh := builder.NewOutputHierarchy(&remoteexecution.Command{
+		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory: ".",
 		})
+		require.NoError(t, err)
 		var actionResult remoteexecution.ActionResult
 		require.NoError(t, oh.UploadOutputs(ctx, root, contentAddressableStorage, digestFunction, &actionResult))
 		require.Equal(t, remoteexecution.ActionResult{}, actionResult)
@@ -196,57 +247,57 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		// of these output types, let them match one of the
 		// valid file types.
 		foo := mock.NewMockUploadableDirectory(ctrl)
-		root.EXPECT().EnterUploadableDirectory("foo").Return(foo, nil)
+		root.EXPECT().EnterUploadableDirectory(path.MustNewComponent("foo")).Return(foo, nil)
 
 		// Calls triggered to obtain the file type of the outputs.
-		foo.EXPECT().Lstat("directory-directory").Return(filesystem.NewFileInfo("directory-directory", filesystem.FileTypeDirectory), nil)
-		foo.EXPECT().Lstat("directory-symlink").Return(filesystem.NewFileInfo("directory-symlink", filesystem.FileTypeSymlink), nil)
-		foo.EXPECT().Lstat("directory-enoent").Return(filesystem.FileInfo{}, syscall.ENOENT)
-		foo.EXPECT().Lstat("file-regular").Return(filesystem.NewFileInfo("file-regular", filesystem.FileTypeRegularFile), nil)
-		foo.EXPECT().Lstat("file-executable").Return(filesystem.NewFileInfo("file-executable", filesystem.FileTypeExecutableFile), nil)
-		foo.EXPECT().Lstat("file-symlink").Return(filesystem.NewFileInfo("file-symlink", filesystem.FileTypeSymlink), nil)
-		foo.EXPECT().Lstat("file-enoent").Return(filesystem.FileInfo{}, syscall.ENOENT)
-		foo.EXPECT().Lstat("path-regular").Return(filesystem.NewFileInfo("path-regular", filesystem.FileTypeRegularFile), nil)
-		foo.EXPECT().Lstat("path-executable").Return(filesystem.NewFileInfo("path-executable", filesystem.FileTypeExecutableFile), nil)
-		foo.EXPECT().Lstat("path-directory").Return(filesystem.NewFileInfo("path-directory", filesystem.FileTypeDirectory), nil)
-		foo.EXPECT().Lstat("path-symlink").Return(filesystem.NewFileInfo("path-symlink", filesystem.FileTypeSymlink), nil)
-		foo.EXPECT().Lstat("path-enoent").Return(filesystem.FileInfo{}, syscall.ENOENT)
+		foo.EXPECT().Lstat(path.MustNewComponent("directory-directory")).Return(filesystem.NewFileInfo(path.MustNewComponent("directory-directory"), filesystem.FileTypeDirectory), nil)
+		foo.EXPECT().Lstat(path.MustNewComponent("directory-symlink")).Return(filesystem.NewFileInfo(path.MustNewComponent("directory-symlink"), filesystem.FileTypeSymlink), nil)
+		foo.EXPECT().Lstat(path.MustNewComponent("directory-enoent")).Return(filesystem.FileInfo{}, syscall.ENOENT)
+		foo.EXPECT().Lstat(path.MustNewComponent("file-regular")).Return(filesystem.NewFileInfo(path.MustNewComponent("file-regular"), filesystem.FileTypeRegularFile), nil)
+		foo.EXPECT().Lstat(path.MustNewComponent("file-executable")).Return(filesystem.NewFileInfo(path.MustNewComponent("file-executable"), filesystem.FileTypeExecutableFile), nil)
+		foo.EXPECT().Lstat(path.MustNewComponent("file-symlink")).Return(filesystem.NewFileInfo(path.MustNewComponent("file-symlink"), filesystem.FileTypeSymlink), nil)
+		foo.EXPECT().Lstat(path.MustNewComponent("file-enoent")).Return(filesystem.FileInfo{}, syscall.ENOENT)
+		foo.EXPECT().Lstat(path.MustNewComponent("path-regular")).Return(filesystem.NewFileInfo(path.MustNewComponent("path-regular"), filesystem.FileTypeRegularFile), nil)
+		foo.EXPECT().Lstat(path.MustNewComponent("path-executable")).Return(filesystem.NewFileInfo(path.MustNewComponent("path-executable"), filesystem.FileTypeExecutableFile), nil)
+		foo.EXPECT().Lstat(path.MustNewComponent("path-directory")).Return(filesystem.NewFileInfo(path.MustNewComponent("path-directory"), filesystem.FileTypeDirectory), nil)
+		foo.EXPECT().Lstat(path.MustNewComponent("path-symlink")).Return(filesystem.NewFileInfo(path.MustNewComponent("path-symlink"), filesystem.FileTypeSymlink), nil)
+		foo.EXPECT().Lstat(path.MustNewComponent("path-enoent")).Return(filesystem.FileInfo{}, syscall.ENOENT)
 
 		// Inspection/uploading of all non-directory outputs.
-		foo.EXPECT().Readlink("directory-symlink").Return("directory-symlink-target", nil)
-		foo.EXPECT().UploadFile(ctx, "file-regular", gomock.Any()).
+		foo.EXPECT().Readlink(path.MustNewComponent("directory-symlink")).Return("directory-symlink-target", nil)
+		foo.EXPECT().UploadFile(ctx, path.MustNewComponent("file-regular"), gomock.Any()).
 			Return(digest.MustNewDigest("example", "a58c2f2281011ca2e631b39baa1ab657", 12), nil)
-		foo.EXPECT().UploadFile(ctx, "file-executable", gomock.Any()).
+		foo.EXPECT().UploadFile(ctx, path.MustNewComponent("file-executable"), gomock.Any()).
 			Return(digest.MustNewDigest("example", "7590e1b46240ecb5ea65a80db7ee6fae", 15), nil)
-		foo.EXPECT().Readlink("file-symlink").Return("file-symlink-target", nil)
-		foo.EXPECT().UploadFile(ctx, "path-regular", gomock.Any()).
+		foo.EXPECT().Readlink(path.MustNewComponent("file-symlink")).Return("file-symlink-target", nil)
+		foo.EXPECT().UploadFile(ctx, path.MustNewComponent("path-regular"), gomock.Any()).
 			Return(digest.MustNewDigest("example", "44206648b7bb2f3b0d2ed0c52ad2e269", 12), nil)
-		foo.EXPECT().UploadFile(ctx, "path-executable", gomock.Any()).
+		foo.EXPECT().UploadFile(ctx, path.MustNewComponent("path-executable"), gomock.Any()).
 			Return(digest.MustNewDigest("example", "87729325cd08d300fb0e238a3a8da443", 15), nil)
-		foo.EXPECT().Readlink("path-symlink").Return("path-symlink-target", nil)
+		foo.EXPECT().Readlink(path.MustNewComponent("path-symlink")).Return("path-symlink-target", nil)
 
 		// Uploading of /foo/directory-directory. Files with an
 		// unknown type (UNIX sockets, FIFOs) should be ignored.
 		// Returning a hard error makes debugging harder (e.g.,
 		// in case the full input root is declared as an output).
 		directoryDirectory := mock.NewMockUploadableDirectory(ctrl)
-		foo.EXPECT().EnterUploadableDirectory("directory-directory").Return(directoryDirectory, nil)
+		foo.EXPECT().EnterUploadableDirectory(path.MustNewComponent("directory-directory")).Return(directoryDirectory, nil)
 		directoryDirectory.EXPECT().ReadDir().Return([]filesystem.FileInfo{
-			filesystem.NewFileInfo("directory", filesystem.FileTypeDirectory),
-			filesystem.NewFileInfo("executable", filesystem.FileTypeExecutableFile),
-			filesystem.NewFileInfo("other", filesystem.FileTypeOther),
-			filesystem.NewFileInfo("regular", filesystem.FileTypeRegularFile),
-			filesystem.NewFileInfo("symlink", filesystem.FileTypeSymlink),
+			filesystem.NewFileInfo(path.MustNewComponent("directory"), filesystem.FileTypeDirectory),
+			filesystem.NewFileInfo(path.MustNewComponent("executable"), filesystem.FileTypeExecutableFile),
+			filesystem.NewFileInfo(path.MustNewComponent("other"), filesystem.FileTypeOther),
+			filesystem.NewFileInfo(path.MustNewComponent("regular"), filesystem.FileTypeRegularFile),
+			filesystem.NewFileInfo(path.MustNewComponent("symlink"), filesystem.FileTypeSymlink),
 		}, nil)
 		directoryDirectoryDirectory := mock.NewMockUploadableDirectory(ctrl)
-		directoryDirectory.EXPECT().EnterUploadableDirectory("directory").Return(directoryDirectoryDirectory, nil)
+		directoryDirectory.EXPECT().EnterUploadableDirectory(path.MustNewComponent("directory")).Return(directoryDirectoryDirectory, nil)
 		directoryDirectoryDirectory.EXPECT().ReadDir().Return(nil, nil)
 		directoryDirectoryDirectory.EXPECT().Close()
-		directoryDirectory.EXPECT().UploadFile(ctx, "executable", gomock.Any()).
+		directoryDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("executable"), gomock.Any()).
 			Return(digest.MustNewDigest("example", "ee7004c7949d83f130592f15d98ca343", 10), nil)
-		directoryDirectory.EXPECT().UploadFile(ctx, "regular", gomock.Any()).
+		directoryDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("regular"), gomock.Any()).
 			Return(digest.MustNewDigest("example", "af37d08ae228a87dc6b265fd1019c97d", 7), nil)
-		directoryDirectory.EXPECT().Readlink("symlink").Return("symlink-target", nil)
+		directoryDirectory.EXPECT().Readlink(path.MustNewComponent("symlink")).Return("symlink-target", nil)
 		directoryDirectory.EXPECT().Close()
 		contentAddressableStorage.EXPECT().Put(
 			ctx,
@@ -299,7 +350,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 
 		// Uploading of /foo/path-directory.
 		pathDirectory := mock.NewMockUploadableDirectory(ctrl)
-		foo.EXPECT().EnterUploadableDirectory("path-directory").Return(pathDirectory, nil)
+		foo.EXPECT().EnterUploadableDirectory(path.MustNewComponent("path-directory")).Return(pathDirectory, nil)
 		pathDirectory.EXPECT().ReadDir().Return(nil, nil)
 		pathDirectory.EXPECT().Close()
 		contentAddressableStorage.EXPECT().Put(
@@ -317,7 +368,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 
 		foo.EXPECT().Close()
 
-		oh := builder.NewOutputHierarchy(&remoteexecution.Command{
+		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory: "foo",
 			OutputDirectories: []string{
 				"directory-directory",
@@ -350,6 +401,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 				"../foo/path-enoent",
 			},
 		})
+		require.NoError(t, err)
 		var actionResult remoteexecution.ActionResult
 		require.NoError(t, oh.UploadOutputs(ctx, root, contentAddressableStorage, digestFunction, &actionResult))
 		require.Equal(t, remoteexecution.ActionResult{
@@ -499,10 +551,11 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 				return nil
 			})
 
-		oh := builder.NewOutputHierarchy(&remoteexecution.Command{
+		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory:  "foo",
 			OutputDirectories: []string{".."},
 		})
+		require.NoError(t, err)
 		var actionResult remoteexecution.ActionResult
 		require.NoError(t, oh.UploadOutputs(ctx, root, contentAddressableStorage, digestFunction, &actionResult))
 		require.Equal(t, remoteexecution.ActionResult{
@@ -535,10 +588,11 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 				return nil
 			})
 
-		oh := builder.NewOutputHierarchy(&remoteexecution.Command{
+		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory: "foo",
 			OutputPaths:      []string{".."},
 		})
+		require.NoError(t, err)
 		var actionResult remoteexecution.ActionResult
 		require.NoError(t, oh.UploadOutputs(ctx, root, contentAddressableStorage, digestFunction, &actionResult))
 		require.Equal(t, remoteexecution.ActionResult{
@@ -557,12 +611,13 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 	t.Run("LstatFailureDirectory", func(t *testing.T) {
 		// Failure to Lstat() an output directory should cause
 		// it to be skipped.
-		root.EXPECT().Lstat("foo").Return(filesystem.FileInfo{}, status.Error(codes.Internal, "I/O error"))
+		root.EXPECT().Lstat(path.MustNewComponent("foo")).Return(filesystem.FileInfo{}, status.Error(codes.Internal, "I/O error"))
 
-		oh := builder.NewOutputHierarchy(&remoteexecution.Command{
+		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory:  "",
 			OutputDirectories: []string{"foo"},
 		})
+		require.NoError(t, err)
 		var actionResult remoteexecution.ActionResult
 		require.Equal(
 			t,
@@ -574,12 +629,13 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 	t.Run("LstatFailureFile", func(t *testing.T) {
 		// Failure to Lstat() an output file should cause it to
 		// be skipped.
-		root.EXPECT().Lstat("foo").Return(filesystem.FileInfo{}, status.Error(codes.Internal, "I/O error"))
+		root.EXPECT().Lstat(path.MustNewComponent("foo")).Return(filesystem.FileInfo{}, status.Error(codes.Internal, "I/O error"))
 
-		oh := builder.NewOutputHierarchy(&remoteexecution.Command{
+		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory: "",
 			OutputFiles:      []string{"foo"},
 		})
+		require.NoError(t, err)
 		var actionResult remoteexecution.ActionResult
 		require.Equal(
 			t,
@@ -591,12 +647,13 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 	t.Run("LstatFailurePath", func(t *testing.T) {
 		// Failure to Lstat() an output path should cause it to
 		// be skipped.
-		root.EXPECT().Lstat("foo").Return(filesystem.FileInfo{}, status.Error(codes.Internal, "I/O error"))
+		root.EXPECT().Lstat(path.MustNewComponent("foo")).Return(filesystem.FileInfo{}, status.Error(codes.Internal, "I/O error"))
 
-		oh := builder.NewOutputHierarchy(&remoteexecution.Command{
+		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory: "",
 			OutputPaths:      []string{"foo"},
 		})
+		require.NoError(t, err)
 		var actionResult remoteexecution.ActionResult
 		require.Equal(
 			t,

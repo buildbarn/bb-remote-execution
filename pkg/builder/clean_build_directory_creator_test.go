@@ -8,6 +8,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
 	"github.com/buildbarn/bb-remote-execution/pkg/sync"
 	"github.com/buildbarn/bb-storage/pkg/digest"
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
@@ -66,7 +67,7 @@ func TestCleanBuildDirectoryCreatorSuccess(t *testing.T) {
 		false,
 	).Return(baseBuildDirectory, "base-directory", nil)
 	baseBuildDirectory.EXPECT().RemoveAllChildren().Return(nil)
-	baseBuildDirectory.EXPECT().Mkdir("hello", os.FileMode(0700))
+	baseBuildDirectory.EXPECT().Mkdir(path.MustNewComponent("hello"), os.FileMode(0700))
 	baseBuildDirectory.EXPECT().Close()
 
 	var initializer sync.Initializer
@@ -76,6 +77,6 @@ func TestCleanBuildDirectoryCreatorSuccess(t *testing.T) {
 		false)
 	require.NoError(t, err)
 	require.Equal(t, "base-directory", buildDirectoryPath)
-	require.NoError(t, buildDirectory.Mkdir("hello", os.FileMode(0700)))
+	require.NoError(t, buildDirectory.Mkdir(path.MustNewComponent("hello"), os.FileMode(0700)))
 	buildDirectory.Close()
 }

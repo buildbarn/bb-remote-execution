@@ -34,7 +34,7 @@ func CheckAllWritablePathsAreAllowed(dir filesystem.Directory, currentPath strin
 	}
 
 	for _, child := range children {
-		childPath := filepath.Join(currentPath, child.Name())
+		childPath := filepath.Join(currentPath, child.Name().String())
 		if _, ok := allowed[childPath]; ok {
 			continue
 		}

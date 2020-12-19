@@ -7,12 +7,12 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
-	"strings"
 	"syscall"
 
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
+	bb_path "github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/any"
@@ -21,6 +21,52 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+// logFileResolver is an implementation of path.ComponentWalker that is
+// used by localRunner.Run() to traverse to the directory of stdout and
+// stderr log files, so that they may be opened.
+//
+// TODO: This code seems fairly generic. Should move it to the
+// filesystem package?
+type logFileResolver struct {
+	stack []filesystem.DirectoryCloser
+	name  *bb_path.Component
+}
+
+func (r *logFileResolver) OnDirectory(name bb_path.Component) (bb_path.GotDirectoryOrSymlink, error) {
+	d := r.stack[len(r.stack)-1]
+	child, err := d.EnterDirectory(name)
+	if err != nil {
+		return nil, err
+	}
+	r.stack = append(r.stack, child)
+	return bb_path.GotDirectory{
+		Child:        r,
+		IsReversible: true,
+	}, nil
+}
+
+func (r *logFileResolver) OnTerminal(name bb_path.Component) (*bb_path.GotSymlink, error) {
+	r.name = &name
+	return nil, nil
+}
+
+func (r *logFileResolver) OnUp() (bb_path.ComponentWalker, error) {
+	if len(r.stack) == 1 {
+		return nil, status.Error(codes.InvalidArgument, "Path resolves to a location outside the build directory")
+	}
+	if err := r.stack[len(r.stack)-1].Close(); err != nil {
+		return nil, err
+	}
+	r.stack = r.stack[:len(r.stack)-1]
+	return r, nil
+}
+
+func (r *logFileResolver) closeAll() {
+	for _, d := range r.stack {
+		d.Close()
+	}
+}
 
 type localRunner struct {
 	buildDirectory               filesystem.Directory
@@ -41,26 +87,18 @@ func NewLocalRunner(buildDirectory filesystem.Directory, buildDirectoryPath stri
 }
 
 func (r *localRunner) openLog(logPath string) (filesystem.FileAppender, error) {
-	components := strings.FieldsFunc(logPath, func(r rune) bool { return r == '/' })
-	if len(components) < 1 {
-		return nil, status.Error(codes.InvalidArgument, "Insufficient pathname components in filename")
+	logFileResolver := logFileResolver{
+		stack: []filesystem.DirectoryCloser{filesystem.NopDirectoryCloser(r.buildDirectory)},
 	}
-
-	// Traverse to directory where log should be created.
-	d := filesystem.NopDirectoryCloser(r.buildDirectory)
-	for n, component := range components[:len(components)-1] {
-		d2, err := d.EnterDirectory(component)
-		d.Close()
-		if err != nil {
-			return nil, util.StatusWrapf(err, "Failed to enter directory %#v", path.Join(components[:n+1]...))
-		}
-		d = d2
+	defer logFileResolver.closeAll()
+	if err := bb_path.Resolve(logPath, bb_path.NewRelativeScopeWalker(&logFileResolver)); err != nil {
+		return nil, err
 	}
-
-	// Create log file within.
-	f, err := d.OpenAppend(components[len(components)-1], filesystem.CreateExcl(0666))
-	d.Close()
-	return f, err
+	if logFileResolver.name == nil {
+		return nil, status.Error(codes.InvalidArgument, "Path resolves to a directory")
+	}
+	d := logFileResolver.stack[len(logFileResolver.stack)-1]
+	return d.OpenAppend(*logFileResolver.name, filesystem.CreateExcl(0666))
 }
 
 func convertTimeval(t syscall.Timeval) *duration.Duration {
@@ -113,6 +151,7 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 		return nil, util.StatusWrap(err, "Failed to open stderr")
 	}
 	cmd.Stderr = stderr
+
 	// Start the subprocess. We can already close the output files
 	// while the process is running.
 	err = cmd.Start()

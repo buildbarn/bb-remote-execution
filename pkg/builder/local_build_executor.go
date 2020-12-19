@@ -15,6 +15,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
+	bb_path "github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/empty"
@@ -58,12 +59,12 @@ type localBuildExecutor struct {
 	clock                     clock.Clock
 	defaultExecutionTimeout   time.Duration
 	maximumExecutionTimeout   time.Duration
-	inputRootCharacterDevices map[string]int
+	inputRootCharacterDevices map[bb_path.Component]int
 }
 
 // NewLocalBuildExecutor returns a BuildExecutor that executes build
 // steps on the local system.
-func NewLocalBuildExecutor(contentAddressableStorage blobstore.BlobAccess, buildDirectoryCreator BuildDirectoryCreator, runner runner.Runner, clock clock.Clock, defaultExecutionTimeout, maximumExecutionTimeout time.Duration, inputRootCharacterDevices map[string]int) BuildExecutor {
+func NewLocalBuildExecutor(contentAddressableStorage blobstore.BlobAccess, buildDirectoryCreator BuildDirectoryCreator, runner runner.Runner, clock clock.Clock, defaultExecutionTimeout, maximumExecutionTimeout time.Duration, inputRootCharacterDevices map[bb_path.Component]int) BuildExecutor {
 	return &localBuildExecutor{
 		contentAddressableStorage: contentAddressableStorage,
 		buildDirectoryCreator:     buildDirectoryCreator,
@@ -76,17 +77,18 @@ func NewLocalBuildExecutor(contentAddressableStorage blobstore.BlobAccess, build
 }
 
 func (be *localBuildExecutor) createCharacterDevices(inputRootDirectory BuildDirectory) error {
-	if err := inputRootDirectory.Mkdir("dev", 0777); err != nil && !os.IsExist(err) {
+	directoryName := bb_path.MustNewComponent("dev")
+	if err := inputRootDirectory.Mkdir(directoryName, 0777); err != nil && !os.IsExist(err) {
 		return util.StatusWrap(err, "Unable to create /dev directory in input root")
 	}
-	deviceDirectory, err := inputRootDirectory.EnterBuildDirectory("dev")
+	deviceDirectory, err := inputRootDirectory.EnterBuildDirectory(directoryName)
 	if err != nil {
 		return util.StatusWrap(err, "Unable to enter /dev directory in input root")
 	}
 	defer deviceDirectory.Close()
 	for name, number := range be.inputRootCharacterDevices {
 		if err := deviceDirectory.Mknod(name, os.ModeDevice|os.ModeCharDevice|0666, number); err != nil {
-			return util.StatusWrapf(err, "Failed to create character device %#v", name)
+			return util.StatusWrapf(err, "Failed to create character device %#v", name.String())
 		}
 	}
 	return nil
@@ -164,13 +166,14 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	}
 
 	// Create input root directory inside of build directory.
-	if err := buildDirectory.Mkdir("root", 0777); err != nil {
+	inputRootDirectoryName := bb_path.MustNewComponent("root")
+	if err := buildDirectory.Mkdir(inputRootDirectoryName, 0777); err != nil {
 		attachErrorToExecuteResponse(
 			response,
 			util.StatusWrap(err, "Failed to create input root directory"))
 		return response
 	}
-	inputRootDirectory, err := buildDirectory.EnterBuildDirectory("root")
+	inputRootDirectory, err := buildDirectory.EnterBuildDirectory(inputRootDirectoryName)
 	if err != nil {
 		attachErrorToExecuteResponse(
 			response,
@@ -200,7 +203,11 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 
 	// Create parent directories of output files and directories.
 	// These are not declared in the input root explicitly.
-	outputHierarchy := NewOutputHierarchy(command)
+	outputHierarchy, err := NewOutputHierarchy(command)
+	if err != nil {
+		attachErrorToExecuteResponse(response, err)
+		return response
+	}
 	if err := outputHierarchy.CreateParentDirectories(inputRootDirectory); err != nil {
 		attachErrorToExecuteResponse(response, err)
 		return response
@@ -211,7 +218,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	// temporary files are automatically removed when the build
 	// action completes. When using FUSE, it also causes quotas to
 	// be applied to them.
-	if err := buildDirectory.Mkdir("tmp", 0777); err != nil {
+	if err := buildDirectory.Mkdir(bb_path.MustNewComponent("tmp"), 0777); err != nil {
 		attachErrorToExecuteResponse(
 			response,
 			util.StatusWrap(err, "Failed to create temporary directory inside build directory"))
@@ -268,12 +275,12 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	// stderr files are empty. If that's the case, don't bother
 	// setting the digest to keep the ActionResult small.
 	digestFunction := actionDigest.GetDigestFunction()
-	if stdoutDigest, err := buildDirectory.UploadFile(ctx, "stdout", digestFunction); err != nil {
+	if stdoutDigest, err := buildDirectory.UploadFile(ctx, bb_path.MustNewComponent("stdout"), digestFunction); err != nil {
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to store stdout"))
 	} else if stdoutDigest.GetSizeBytes() > 0 {
 		response.Result.StdoutDigest = stdoutDigest.GetProto()
 	}
-	if stderrDigest, err := buildDirectory.UploadFile(ctx, "stderr", digestFunction); err != nil {
+	if stderrDigest, err := buildDirectory.UploadFile(ctx, bb_path.MustNewComponent("stderr"), digestFunction); err != nil {
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to store stderr"))
 	} else if stderrDigest.GetSizeBytes() > 0 {
 		response.Result.StderrDigest = stderrDigest.GetProto()

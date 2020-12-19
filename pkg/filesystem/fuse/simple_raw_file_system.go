@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/hanwen/go-fuse/v2/fuse"
 )
 
@@ -59,7 +60,7 @@ type SimpleRawFileSystemServerCallbacks struct {
 // EntryNotify can be called to report that directory entries have been
 // removed. This causes them to be removed from the directory entry
 // cache used by FUSE as well.
-func (sc *SimpleRawFileSystemServerCallbacks) EntryNotify(parent uint64, name string) fuse.Status {
+func (sc *SimpleRawFileSystemServerCallbacks) EntryNotify(parent uint64, name path.Component) fuse.Status {
 	sc.lock.RLock()
 	initializedServers := sc.initializedServers
 	sc.lock.RUnlock()
@@ -70,7 +71,7 @@ func (sc *SimpleRawFileSystemServerCallbacks) EntryNotify(parent uint64, name st
 			// Even though we permit the root directory to
 			// have an arbitrary inode number, FUSE requires
 			// that the root directory uses node ID 1.
-			if s := initializedServer.server.EntryNotify(fuse.FUSE_ROOT_ID, name); s != fuse.OK {
+			if s := initializedServer.server.EntryNotify(fuse.FUSE_ROOT_ID, name.String()); s != fuse.OK {
 				return s
 			}
 		} else {
@@ -81,7 +82,7 @@ func (sc *SimpleRawFileSystemServerCallbacks) EntryNotify(parent uint64, name st
 			_, ok := rfs.directories[parent]
 			rfs.nodeLock.RUnlock()
 			if ok {
-				if s := initializedServer.server.EntryNotify(parent, name); s != fuse.OK {
+				if s := initializedServer.server.EntryNotify(parent, name.String()); s != fuse.OK {
 					return s
 				}
 			}
@@ -215,7 +216,7 @@ func (rfs *simpleRawFileSystem) Lookup(cancel <-chan struct{}, header *fuse.InHe
 	i := rfs.getDirectoryLocked(header.NodeId)
 	rfs.nodeLock.RUnlock()
 
-	directory, leaf, s := i.FUSELookup(name, &out.Attr)
+	directory, leaf, s := i.FUSELookup(path.MustNewComponent(name), &out.Attr)
 	if s != fuse.OK {
 		// TODO: Should we add support for generating negative
 		// cache entries? Preliminary testing shows that this
@@ -288,7 +289,7 @@ func (rfs *simpleRawFileSystem) Mknod(cancel <-chan struct{}, input *fuse.MknodI
 	i := rfs.getDirectoryLocked(input.NodeId)
 	rfs.nodeLock.RUnlock()
 
-	child, s := i.FUSEMknod(name, input.Mode, input.Rdev, &out.Attr)
+	child, s := i.FUSEMknod(path.MustNewComponent(name), input.Mode, input.Rdev, &out.Attr)
 	if s != fuse.OK {
 		return s
 	}
@@ -301,7 +302,7 @@ func (rfs *simpleRawFileSystem) Mkdir(cancel <-chan struct{}, input *fuse.MkdirI
 	i := rfs.getDirectoryLocked(input.NodeId)
 	rfs.nodeLock.RUnlock()
 
-	child, s := i.FUSEMkdir(name, input.Mode, &out.Attr)
+	child, s := i.FUSEMkdir(path.MustNewComponent(name), input.Mode, &out.Attr)
 	if s != fuse.OK {
 		return s
 	}
@@ -314,7 +315,7 @@ func (rfs *simpleRawFileSystem) Unlink(cancel <-chan struct{}, header *fuse.InHe
 	i := rfs.getDirectoryLocked(header.NodeId)
 	rfs.nodeLock.RUnlock()
 
-	return i.FUSEUnlink(name)
+	return i.FUSEUnlink(path.MustNewComponent(name))
 }
 
 func (rfs *simpleRawFileSystem) Rmdir(cancel <-chan struct{}, header *fuse.InHeader, name string) fuse.Status {
@@ -322,7 +323,7 @@ func (rfs *simpleRawFileSystem) Rmdir(cancel <-chan struct{}, header *fuse.InHea
 	i := rfs.getDirectoryLocked(header.NodeId)
 	rfs.nodeLock.RUnlock()
 
-	return i.FUSERmdir(name)
+	return i.FUSERmdir(path.MustNewComponent(name))
 }
 
 func (rfs *simpleRawFileSystem) Rename(cancel <-chan struct{}, input *fuse.RenameIn, oldName, newName string) fuse.Status {
@@ -331,7 +332,7 @@ func (rfs *simpleRawFileSystem) Rename(cancel <-chan struct{}, input *fuse.Renam
 	iNew := rfs.getDirectoryLocked(input.Newdir)
 	rfs.nodeLock.RUnlock()
 
-	return iOld.FUSERename(oldName, iNew, newName)
+	return iOld.FUSERename(path.MustNewComponent(oldName), iNew, path.MustNewComponent(newName))
 }
 
 func (rfs *simpleRawFileSystem) Link(cancel <-chan struct{}, input *fuse.LinkIn, filename string, out *fuse.EntryOut) fuse.Status {
@@ -340,7 +341,7 @@ func (rfs *simpleRawFileSystem) Link(cancel <-chan struct{}, input *fuse.LinkIn,
 	iChild := rfs.getLeafLocked(input.Oldnodeid)
 	rfs.nodeLock.RUnlock()
 
-	if s := iParent.FUSELink(filename, iChild, &out.Attr); s != fuse.OK {
+	if s := iParent.FUSELink(path.MustNewComponent(filename), iChild, &out.Attr); s != fuse.OK {
 		return s
 	}
 	rfs.addLeaf(iChild, out)
@@ -352,7 +353,7 @@ func (rfs *simpleRawFileSystem) Symlink(cancel <-chan struct{}, header *fuse.InH
 	i := rfs.getDirectoryLocked(header.NodeId)
 	rfs.nodeLock.RUnlock()
 
-	child, s := i.FUSESymlink(pointedTo, linkName, &out.Attr)
+	child, s := i.FUSESymlink(pointedTo, path.MustNewComponent(linkName), &out.Attr)
 	if s != fuse.OK {
 		return s
 	}
@@ -401,7 +402,7 @@ func (rfs *simpleRawFileSystem) Create(cancel <-chan struct{}, input *fuse.Creat
 	i := rfs.getDirectoryLocked(input.NodeId)
 	rfs.nodeLock.RUnlock()
 
-	child, s := i.FUSECreate(name, input.Flags, input.Mode, &out.Attr)
+	child, s := i.FUSECreate(path.MustNewComponent(name), input.Flags, input.Mode, &out.Attr)
 	if s != fuse.OK {
 		return s
 	}

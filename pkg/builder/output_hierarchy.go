@@ -5,12 +5,12 @@ import (
 	"os"
 	"path"
 	"sort"
-	"strings"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
+	bb_path "github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/golang/protobuf/proto"
 
@@ -37,8 +37,8 @@ func (pb *pathBuffer) enter() {
 }
 
 // SetLastComponent updates the last component of the pathname.
-func (pb *pathBuffer) setLastComponent(component string) {
-	pb.components[len(pb.components)-1] = component
+func (pb *pathBuffer) setLastComponent(component bb_path.Component) {
+	pb.components[len(pb.components)-1] = component.String()
 }
 
 // Leave a directory. Pop the last filename off the pathname.
@@ -52,30 +52,45 @@ func (pb *pathBuffer) join() string {
 	return path.Join(pb.components...)
 }
 
+// componentsList is a sortable list of filenames in a directory.
+type componentsList []bb_path.Component
+
+func (l componentsList) Len() int {
+	return len(l)
+}
+
+func (l componentsList) Less(i, j int) bool {
+	return l[i].String() < l[j].String()
+}
+
+func (l componentsList) Swap(i, j int) {
+	l[i], l[j] = l[j], l[i]
+}
+
 // OutputNode is a node in a directory hierarchy that contains one or
 // more locations where output directories and files are expected.
 type outputNode struct {
-	directoriesToUpload map[string][]string
-	filesToUpload       map[string][]string
-	pathsToUpload       map[string][]string
-	subdirectories      map[string]*outputNode
+	directoriesToUpload map[bb_path.Component][]string
+	filesToUpload       map[bb_path.Component][]string
+	pathsToUpload       map[bb_path.Component][]string
+	subdirectories      map[bb_path.Component]*outputNode
 }
 
-func (on *outputNode) getSubdirectoryNames() []string {
-	l := make([]string, 0, len(on.subdirectories))
+func (on *outputNode) getSubdirectoryNames() []bb_path.Component {
+	l := make(componentsList, 0, len(on.subdirectories))
 	for k := range on.subdirectories {
 		l = append(l, k)
 	}
-	sort.Strings(l)
+	sort.Sort(l)
 	return l
 }
 
-func sortToUpload(m map[string][]string) []string {
-	l := make([]string, 0, len(m))
+func sortToUpload(m map[bb_path.Component][]string) []bb_path.Component {
+	l := make(componentsList, 0, len(m))
 	for k := range m {
 		l = append(l, k)
 	}
-	sort.Strings(l)
+	sort.Sort(l)
 	return l
 }
 
@@ -84,10 +99,10 @@ func sortToUpload(m map[string][]string) []string {
 // expected.
 func newOutputDirectory() *outputNode {
 	return &outputNode{
-		directoriesToUpload: map[string][]string{},
-		filesToUpload:       map[string][]string{},
-		pathsToUpload:       map[string][]string{},
-		subdirectories:      map[string]*outputNode{},
+		directoriesToUpload: map[bb_path.Component][]string{},
+		filesToUpload:       map[bb_path.Component][]string{},
+		pathsToUpload:       map[bb_path.Component][]string{},
+		subdirectories:      map[bb_path.Component]*outputNode{},
 	}
 }
 
@@ -264,7 +279,7 @@ func (s *uploadOutputsState) uploadDirectory(d UploadableDirectory, children map
 		case filesystem.FileTypeRegularFile, filesystem.FileTypeExecutableFile:
 			if childDigest, err := d.UploadFile(s.context, name, s.digestFunction); err == nil {
 				directory.Files = append(directory.Files, &remoteexecution.FileNode{
-					Name:         name,
+					Name:         name.String(),
 					Digest:       childDigest.GetProto(),
 					IsExecutable: fileType == filesystem.FileTypeExecutableFile,
 				})
@@ -283,7 +298,7 @@ func (s *uploadOutputsState) uploadDirectory(d UploadableDirectory, children map
 						childDigest := digestGenerator.Sum()
 						children[childDigest] = child
 						directory.Directories = append(directory.Directories, &remoteexecution.DirectoryNode{
-							Name:   name,
+							Name:   name.String(),
 							Digest: childDigest.GetProto(),
 						})
 					} else {
@@ -298,7 +313,7 @@ func (s *uploadOutputsState) uploadDirectory(d UploadableDirectory, children map
 		case filesystem.FileTypeSymlink:
 			if target, err := d.Readlink(name); err == nil {
 				directory.Symlinks = append(directory.Symlinks, &remoteexecution.SymlinkNode{
-					Name:   name,
+					Name:   name.String(),
 					Target: target,
 				})
 			} else {
@@ -343,7 +358,7 @@ func (s *uploadOutputsState) uploadOutputDirectoryEntered(d UploadableDirectory,
 // UploadOutputDirectory is called to upload a single output directory
 // as a remoteexecution.Tree. The root directory is opened opened by
 // this function.
-func (s *uploadOutputsState) uploadOutputDirectory(d UploadableDirectory, name string, paths []string) {
+func (s *uploadOutputsState) uploadOutputDirectory(d UploadableDirectory, name bb_path.Component, paths []string) {
 	if childDirectory, err := d.EnterUploadableDirectory(name); err == nil {
 		s.uploadOutputDirectoryEntered(childDirectory, paths)
 		childDirectory.Close()
@@ -353,7 +368,7 @@ func (s *uploadOutputsState) uploadOutputDirectory(d UploadableDirectory, name s
 }
 
 // UploadOutputDirectory is called to upload a single output file.
-func (s *uploadOutputsState) uploadOutputFile(d UploadableDirectory, name string, fileType filesystem.FileType, paths []string) {
+func (s *uploadOutputsState) uploadOutputFile(d UploadableDirectory, name bb_path.Component, fileType filesystem.FileType, paths []string) {
 	if digest, err := d.UploadFile(s.context, name, s.digestFunction); err == nil {
 		for _, path := range paths {
 			s.actionResult.OutputFiles = append(
@@ -371,7 +386,7 @@ func (s *uploadOutputsState) uploadOutputFile(d UploadableDirectory, name string
 
 // UploadOutputDirectory is called to read the attributes of a single
 // output symlink.
-func (s *uploadOutputsState) uploadOutputSymlink(d UploadableDirectory, name string, outputSymlinks *[]*remoteexecution.OutputSymlink, paths []string) {
+func (s *uploadOutputsState) uploadOutputSymlink(d UploadableDirectory, name bb_path.Component, outputSymlinks *[]*remoteexecution.OutputSymlink, paths []string) {
 	if target, err := d.Readlink(name); err == nil {
 		for _, path := range paths {
 			*outputSymlinks = append(
@@ -386,59 +401,118 @@ func (s *uploadOutputsState) uploadOutputSymlink(d UploadableDirectory, name str
 	}
 }
 
+// outputNodePath is an implementation of path.ComponentWalker that is
+// used by NewOutputHierarchy() to compute normalized paths of outputs
+// of a build action.
+//
+// It might have been cleaner if path.Resolve() was performed directly
+// against the tree of outputNode objects. Unfortunately, the Remote
+// Execution protocol requires us to create the parent directories of
+// outputs, while the working directory needs to be part of the input
+// root explicitly. Operating directly against outputNode objects would
+// make it harder to achieve that.
+type outputNodePath struct {
+	components []bb_path.Component
+}
+
+func (onp *outputNodePath) OnDirectory(name bb_path.Component) (bb_path.GotDirectoryOrSymlink, error) {
+	onp.components = append(onp.components, name)
+	return bb_path.GotDirectory{
+		Child:        onp,
+		IsReversible: true,
+	}, nil
+}
+
+func (onp *outputNodePath) OnTerminal(name bb_path.Component) (*bb_path.GotSymlink, error) {
+	onp.components = append(onp.components, name)
+	return nil, nil
+}
+
+func (onp *outputNodePath) OnUp() (bb_path.ComponentWalker, error) {
+	if len(onp.components) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "Path resolves to a location outside the input root directory")
+	}
+	onp.components = onp.components[:len(onp.components)-1]
+	return onp, nil
+}
+
 // OutputHierarchy is used by LocalBuildExecutor to track output
 // directories and files that are expected to be generated by the build
 // action. OutputHierarchy can be used to create parent directories of
 // outputs prior to execution, and to upload outputs into the CAS after
 // execution.
 type OutputHierarchy struct {
-	workingDirectory string
-	root             outputNode
-	rootsToUpload    []string
+	root          outputNode
+	rootsToUpload []string
 }
 
 // NewOutputHierarchy creates a new OutputHierarchy that uses the
 // working directory and the output paths specified in an REv2 Command
 // message.
-func NewOutputHierarchy(command *remoteexecution.Command) *OutputHierarchy {
-	oh := &OutputHierarchy{
-		workingDirectory: command.WorkingDirectory,
-		root:             *newOutputDirectory(),
+func NewOutputHierarchy(command *remoteexecution.Command) (*OutputHierarchy, error) {
+	var workingDirectory outputNodePath
+	if err := bb_path.Resolve(command.WorkingDirectory, bb_path.NewRelativeScopeWalker(&workingDirectory)); err != nil {
+		return nil, util.StatusWrap(err, "Invalid working directory")
 	}
-	for _, outputDirectory := range command.OutputDirectories {
-		oh.addDirectory(outputDirectory)
-	}
-	for _, outputFile := range command.OutputFiles {
-		oh.addFile(outputFile)
-	}
-	for _, outputPath := range command.OutputPaths {
-		oh.addPath(outputPath)
-	}
-	return oh
-}
 
-func (oh *OutputHierarchy) pathToComponents(p string) ([]string, string, bool) {
-	// Join path with working directory and obtain pathname components.
-	rawComponents := strings.FieldsFunc(
-		path.Join(oh.workingDirectory, p),
-		func(r rune) bool { return r == '/' })
-	components := make([]string, 0, len(rawComponents))
-	for _, component := range rawComponents {
-		if component != "." {
-			components = append(components, component)
+	oh := &OutputHierarchy{
+		root: *newOutputDirectory(),
+	}
+
+	// Register REv2.0 output directories.
+	for _, outputDirectory := range command.OutputDirectories {
+		if on, name, err := oh.lookup(workingDirectory, outputDirectory); err != nil {
+			return nil, util.StatusWrapf(err, "Invalid output directory %#v", outputDirectory)
+		} else if on == nil {
+			oh.rootsToUpload = append(oh.rootsToUpload, outputDirectory)
+		} else {
+			on.directoriesToUpload[*name] = append(on.directoriesToUpload[*name], outputDirectory)
 		}
 	}
-	if len(components) == 0 {
-		// Pathname expands to the root directory.
-		return nil, "", false
+
+	// Register REv2.0 output files.
+	for _, outputFile := range command.OutputFiles {
+		if on, name, err := oh.lookup(workingDirectory, outputFile); err != nil {
+			return nil, util.StatusWrapf(err, "Invalid output file %#v", outputFile)
+		} else if on == nil {
+			return nil, status.Errorf(codes.InvalidArgument, "Output file %#v resolves to the input root directory", outputFile)
+		} else {
+			on.filesToUpload[*name] = append(on.filesToUpload[*name], outputFile)
+		}
 	}
-	// Pathname expands to a location underneath the root directory.
-	return components[:len(components)-1], components[len(components)-1], true
+
+	// Register REv2.1 output paths.
+	for _, outputPath := range command.OutputPaths {
+		if on, name, err := oh.lookup(workingDirectory, outputPath); err != nil {
+			return nil, util.StatusWrapf(err, "Invalid output path %#v", outputPath)
+		} else if on == nil {
+			oh.rootsToUpload = append(oh.rootsToUpload, outputPath)
+		} else {
+			on.pathsToUpload[*name] = append(on.pathsToUpload[*name], outputPath)
+		}
+	}
+	return oh, nil
 }
 
-func (oh *OutputHierarchy) lookup(components []string) *outputNode {
+func (oh *OutputHierarchy) lookup(workingDirectory outputNodePath, path string) (*outputNode, *bb_path.Component, error) {
+	// Resolve the path of the output relative to the working directory.
+	outputPath := outputNodePath{
+		components: append([]bb_path.Component(nil), workingDirectory.components...),
+	}
+	if err := bb_path.Resolve(path, bb_path.NewRelativeScopeWalker(&outputPath)); err != nil {
+		return nil, nil, err
+	}
+
+	components := outputPath.components
+	if len(components) == 0 {
+		// Path resolves to the root directory.
+		return nil, nil, nil
+	}
+
+	// Path resolves to a location inside the root directory,
+	// meaning it is named. Create all parent directories.
 	on := &oh.root
-	for _, component := range components {
+	for _, component := range components[:len(components)-1] {
 		child, ok := on.subdirectories[component]
 		if !ok {
 			child = newOutputDirectory()
@@ -446,38 +520,7 @@ func (oh *OutputHierarchy) lookup(components []string) *outputNode {
 		}
 		on = child
 	}
-	return on
-}
-
-// addDirectory is called to indicate that the build action is expected
-// to create an REv2.0 output directory.
-func (oh *OutputHierarchy) addDirectory(path string) {
-	if dirName, fileName, notRoot := oh.pathToComponents(path); notRoot {
-		on := oh.lookup(dirName)
-		on.directoriesToUpload[fileName] = append(on.directoriesToUpload[fileName], path)
-	} else {
-		oh.rootsToUpload = append(oh.rootsToUpload, path)
-	}
-}
-
-// addFile is called to indicate that the build action is expected to
-// create an REv2.0 output file.
-func (oh *OutputHierarchy) addFile(path string) {
-	if dirName, fileName, notRoot := oh.pathToComponents(path); notRoot {
-		on := oh.lookup(dirName)
-		on.filesToUpload[fileName] = append(on.filesToUpload[fileName], path)
-	}
-}
-
-// addPath is called to indicate that the build action is expected to
-// create an REv2.1 output path.
-func (oh *OutputHierarchy) addPath(path string) {
-	if dirName, fileName, notRoot := oh.pathToComponents(path); notRoot {
-		on := oh.lookup(dirName)
-		on.pathsToUpload[fileName] = append(on.pathsToUpload[fileName], path)
-	} else {
-		oh.rootsToUpload = append(oh.rootsToUpload, path)
-	}
+	return on, &components[len(components)-1], nil
 }
 
 // CreateParentDirectories creates parent directories of outputs. This

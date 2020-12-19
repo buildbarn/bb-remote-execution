@@ -7,6 +7,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
@@ -24,11 +25,11 @@ func TestLazyDirectory(t *testing.T) {
 		underlyingDirectory := mock.NewMockDirectoryCloser(ctrl)
 		directoryOpener.EXPECT().Call().Return(underlyingDirectory, nil)
 		childDirectory := mock.NewMockDirectoryCloser(ctrl)
-		underlyingDirectory.EXPECT().EnterDirectory("sub").Return(childDirectory, nil)
+		underlyingDirectory.EXPECT().EnterDirectory(path.MustNewComponent("sub")).Return(childDirectory, nil)
 		underlyingDirectory.EXPECT().Close().Return(nil)
 
 		// Call should be forwarded literally.
-		returnedDirectory, err := directory.EnterDirectory("sub")
+		returnedDirectory, err := directory.EnterDirectory(path.MustNewComponent("sub"))
 		require.NoError(t, err)
 		require.Equal(t, returnedDirectory, childDirectory)
 	})
@@ -40,7 +41,7 @@ func TestLazyDirectory(t *testing.T) {
 		// don't want to propagate the underlying error code, as
 		// that could cause confusion/invalid behaviour (e.g.,
 		// NotFound).
-		_, err := directory.EnterDirectory("sub")
+		_, err := directory.EnterDirectory(path.MustNewComponent("sub"))
 		require.Equal(t, err, status.Error(codes.Internal, "Failed to open underlying directory: Not allowed to access build directory"))
 	})
 
@@ -48,34 +49,34 @@ func TestLazyDirectory(t *testing.T) {
 		underlyingDirectory := mock.NewMockDirectoryCloser(ctrl)
 		directoryOpener.EXPECT().Call().Return(underlyingDirectory, nil)
 		otherDirectory := mock.NewMockDirectoryCloser(ctrl)
-		underlyingDirectory.EXPECT().Link("old", otherDirectory, "new").Return(nil)
+		underlyingDirectory.EXPECT().Link(path.MustNewComponent("old"), otherDirectory, path.MustNewComponent("new")).Return(nil)
 		underlyingDirectory.EXPECT().Close().Return(nil)
 
 		// Call should be forwarded literally.
-		err := directory.Link("old", otherDirectory, "new")
+		err := directory.Link(path.MustNewComponent("old"), otherDirectory, path.MustNewComponent("new"))
 		require.NoError(t, err)
 	})
 
 	t.Run("LstatSuccess", func(t *testing.T) {
 		underlyingDirectory := mock.NewMockDirectoryCloser(ctrl)
 		directoryOpener.EXPECT().Call().Return(underlyingDirectory, nil)
-		underlyingDirectory.EXPECT().Lstat("foo").Return(filesystem.NewFileInfo("foo", filesystem.FileTypeDirectory), nil)
+		underlyingDirectory.EXPECT().Lstat(path.MustNewComponent("foo")).Return(filesystem.NewFileInfo(path.MustNewComponent("foo"), filesystem.FileTypeDirectory), nil)
 		underlyingDirectory.EXPECT().Close().Return(nil)
 
 		// Call should be forwarded literally.
-		fileInfo, err := directory.Lstat("foo")
+		fileInfo, err := directory.Lstat(path.MustNewComponent("foo"))
 		require.NoError(t, err)
-		require.Equal(t, fileInfo, filesystem.NewFileInfo("foo", filesystem.FileTypeDirectory))
+		require.Equal(t, fileInfo, filesystem.NewFileInfo(path.MustNewComponent("foo"), filesystem.FileTypeDirectory))
 	})
 
 	t.Run("MkdirSuccess", func(t *testing.T) {
 		underlyingDirectory := mock.NewMockDirectoryCloser(ctrl)
 		directoryOpener.EXPECT().Call().Return(underlyingDirectory, nil)
-		underlyingDirectory.EXPECT().Mkdir("sub", os.FileMode(0777)).Return(nil)
+		underlyingDirectory.EXPECT().Mkdir(path.MustNewComponent("sub"), os.FileMode(0777)).Return(nil)
 		underlyingDirectory.EXPECT().Close().Return(nil)
 
 		// Call should be forwarded literally.
-		err := directory.Mkdir("sub", 0777)
+		err := directory.Mkdir(path.MustNewComponent("sub"), 0777)
 		require.NoError(t, err)
 	})
 
@@ -83,11 +84,11 @@ func TestLazyDirectory(t *testing.T) {
 		underlyingDirectory := mock.NewMockDirectoryCloser(ctrl)
 		directoryOpener.EXPECT().Call().Return(underlyingDirectory, nil)
 		childFile := mock.NewMockFileReader(ctrl)
-		underlyingDirectory.EXPECT().OpenRead("file").Return(childFile, nil)
+		underlyingDirectory.EXPECT().OpenRead(path.MustNewComponent("file")).Return(childFile, nil)
 		underlyingDirectory.EXPECT().Close().Return(nil)
 
 		// Call should be forwarded literally.
-		f, err := directory.OpenRead("file")
+		f, err := directory.OpenRead(path.MustNewComponent("file"))
 		require.NoError(t, err)
 		require.Equal(t, f, childFile)
 	})
@@ -96,8 +97,8 @@ func TestLazyDirectory(t *testing.T) {
 		underlyingDirectory := mock.NewMockDirectoryCloser(ctrl)
 		directoryOpener.EXPECT().Call().Return(underlyingDirectory, nil)
 		underlyingDirectory.EXPECT().ReadDir().Return([]filesystem.FileInfo{
-			filesystem.NewFileInfo("a", filesystem.FileTypeDirectory),
-			filesystem.NewFileInfo("b", filesystem.FileTypeRegularFile),
+			filesystem.NewFileInfo(path.MustNewComponent("a"), filesystem.FileTypeDirectory),
+			filesystem.NewFileInfo(path.MustNewComponent("b"), filesystem.FileTypeRegularFile),
 		}, nil)
 		underlyingDirectory.EXPECT().Close().Return(nil)
 
@@ -105,19 +106,19 @@ func TestLazyDirectory(t *testing.T) {
 		contents, err := directory.ReadDir()
 		require.NoError(t, err)
 		require.Equal(t, contents, []filesystem.FileInfo{
-			filesystem.NewFileInfo("a", filesystem.FileTypeDirectory),
-			filesystem.NewFileInfo("b", filesystem.FileTypeRegularFile),
+			filesystem.NewFileInfo(path.MustNewComponent("a"), filesystem.FileTypeDirectory),
+			filesystem.NewFileInfo(path.MustNewComponent("b"), filesystem.FileTypeRegularFile),
 		})
 	})
 
 	t.Run("ReadlinkSuccess", func(t *testing.T) {
 		underlyingDirectory := mock.NewMockDirectoryCloser(ctrl)
 		directoryOpener.EXPECT().Call().Return(underlyingDirectory, nil)
-		underlyingDirectory.EXPECT().Readlink("symlink").Return("target", nil)
+		underlyingDirectory.EXPECT().Readlink(path.MustNewComponent("symlink")).Return("target", nil)
 		underlyingDirectory.EXPECT().Close().Return(nil)
 
 		// Call should be forwarded literally.
-		target, err := directory.Readlink("symlink")
+		target, err := directory.Readlink(path.MustNewComponent("symlink"))
 		require.NoError(t, err)
 		require.Equal(t, target, "target")
 	})
@@ -125,22 +126,22 @@ func TestLazyDirectory(t *testing.T) {
 	t.Run("RemoveSuccess", func(t *testing.T) {
 		underlyingDirectory := mock.NewMockDirectoryCloser(ctrl)
 		directoryOpener.EXPECT().Call().Return(underlyingDirectory, nil)
-		underlyingDirectory.EXPECT().Remove("file").Return(nil)
+		underlyingDirectory.EXPECT().Remove(path.MustNewComponent("file")).Return(nil)
 		underlyingDirectory.EXPECT().Close().Return(nil)
 
 		// Call should be forwarded literally.
-		err := directory.Remove("file")
+		err := directory.Remove(path.MustNewComponent("file"))
 		require.NoError(t, err)
 	})
 
 	t.Run("RemoveAllSuccess", func(t *testing.T) {
 		underlyingDirectory := mock.NewMockDirectoryCloser(ctrl)
 		directoryOpener.EXPECT().Call().Return(underlyingDirectory, nil)
-		underlyingDirectory.EXPECT().RemoveAll("directory").Return(nil)
+		underlyingDirectory.EXPECT().RemoveAll(path.MustNewComponent("directory")).Return(nil)
 		underlyingDirectory.EXPECT().Close().Return(nil)
 
 		// Call should be forwarded literally.
-		err := directory.RemoveAll("directory")
+		err := directory.RemoveAll(path.MustNewComponent("directory"))
 		require.NoError(t, err)
 	})
 
@@ -159,20 +160,20 @@ func TestLazyDirectory(t *testing.T) {
 		underlyingDirectory := mock.NewMockDirectoryCloser(ctrl)
 		directoryOpener.EXPECT().Call().Return(underlyingDirectory, nil)
 		otherDirectory := mock.NewMockDirectoryCloser(ctrl)
-		underlyingDirectory.EXPECT().Rename("old", otherDirectory, "new")
+		underlyingDirectory.EXPECT().Rename(path.MustNewComponent("old"), otherDirectory, path.MustNewComponent("new"))
 		underlyingDirectory.EXPECT().Close()
 
-		require.NoError(t, directory.Rename("old", otherDirectory, "new"))
+		require.NoError(t, directory.Rename(path.MustNewComponent("old"), otherDirectory, path.MustNewComponent("new")))
 	})
 
 	t.Run("SymlinkSuccess", func(t *testing.T) {
 		underlyingDirectory := mock.NewMockDirectoryCloser(ctrl)
 		directoryOpener.EXPECT().Call().Return(underlyingDirectory, nil)
-		underlyingDirectory.EXPECT().Symlink("old", "new").Return(nil)
+		underlyingDirectory.EXPECT().Symlink("old", path.MustNewComponent("new")).Return(nil)
 		underlyingDirectory.EXPECT().Close().Return(nil)
 
 		// Call should be forwarded literally.
-		err := directory.Symlink("old", "new")
+		err := directory.Symlink("old", path.MustNewComponent("new"))
 		require.NoError(t, err)
 	})
 

@@ -12,6 +12,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/fuse"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/golang/mock/gomock"
 	go_fuse "github.com/hanwen/go-fuse/v2/fuse"
 	"github.com/stretchr/testify/require"
@@ -19,27 +20,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
-
-func TestInMemoryDirectoryEnterBadName(t *testing.T) {
-	ctrl := gomock.NewController(t)
-
-	fileAllocator := mock.NewMockFileAllocator(ctrl)
-	errorLogger := mock.NewMockErrorLogger(ctrl)
-	entryNotifier := mock.NewMockEntryNotifier(ctrl)
-	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
-
-	// Empty filename.
-	_, err := d.EnterInMemoryDirectory("")
-	require.Equal(t, status.Error(codes.InvalidArgument, "Invalid filename: \"\""), err)
-	// Attempt to bypass directory hierarchy.
-	_, err = d.EnterInMemoryDirectory(".")
-	require.Equal(t, status.Error(codes.InvalidArgument, "Invalid filename: \".\""), err)
-	_, err = d.EnterInMemoryDirectory("..")
-	require.Equal(t, status.Error(codes.InvalidArgument, "Invalid filename: \"..\""), err)
-	// Skipping of intermediate directory levels.
-	_, err = d.EnterInMemoryDirectory("foo/bar")
-	require.Equal(t, status.Error(codes.InvalidArgument, "Invalid filename: \"foo/bar\""), err)
-}
 
 func TestInMemoryDirectoryEnterNonExistent(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -49,7 +29,7 @@ func TestInMemoryDirectoryEnterNonExistent(t *testing.T) {
 	entryNotifier := mock.NewMockEntryNotifier(ctrl)
 	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
 
-	_, err := d.EnterInMemoryDirectory("nonexistent")
+	_, err := d.EnterInMemoryDirectory(path.MustNewComponent("nonexistent"))
 	require.True(t, os.IsNotExist(err))
 }
 
@@ -62,9 +42,11 @@ func TestInMemoryDirectoryEnterFile(t *testing.T) {
 	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
 
 	leaf := mock.NewMockNativeLeaf(ctrl)
-	require.NoError(t, d.MergeDirectoryContents(nil, map[string]fuse.NativeLeaf{"file": leaf}))
+	require.NoError(t, d.MergeDirectoryContents(nil, map[path.Component]fuse.NativeLeaf{
+		path.MustNewComponent("file"): leaf,
+	}))
 
-	_, err := d.EnterInMemoryDirectory("file")
+	_, err := d.EnterInMemoryDirectory(path.MustNewComponent("file"))
 	require.Equal(t, syscall.ENOTDIR, err)
 }
 
@@ -76,27 +58,9 @@ func TestInMemoryDirectoryEnterSuccess(t *testing.T) {
 	entryNotifier := mock.NewMockEntryNotifier(ctrl)
 	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
 
-	require.NoError(t, d.Mkdir("subdir", 0777))
-	_, err := d.EnterInMemoryDirectory("subdir")
+	require.NoError(t, d.Mkdir(path.MustNewComponent("subdir"), 0777))
+	_, err := d.EnterInMemoryDirectory(path.MustNewComponent("subdir"))
 	require.NoError(t, err)
-}
-
-func TestInMemoryDirectoryLstatBadName(t *testing.T) {
-	ctrl := gomock.NewController(t)
-
-	fileAllocator := mock.NewMockFileAllocator(ctrl)
-	errorLogger := mock.NewMockErrorLogger(ctrl)
-	entryNotifier := mock.NewMockEntryNotifier(ctrl)
-	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
-
-	_, err := d.Lstat("")
-	require.Equal(t, status.Error(codes.InvalidArgument, "Invalid filename: \"\""), err)
-	_, err = d.Lstat(".")
-	require.Equal(t, status.Error(codes.InvalidArgument, "Invalid filename: \".\""), err)
-	_, err = d.Lstat("..")
-	require.Equal(t, status.Error(codes.InvalidArgument, "Invalid filename: \"..\""), err)
-	_, err = d.Lstat("foo/bar")
-	require.Equal(t, status.Error(codes.InvalidArgument, "Invalid filename: \"foo/bar\""), err)
 }
 
 func TestInMemoryDirectoryLstatNonExistent(t *testing.T) {
@@ -107,7 +71,7 @@ func TestInMemoryDirectoryLstatNonExistent(t *testing.T) {
 	entryNotifier := mock.NewMockEntryNotifier(ctrl)
 	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
 
-	_, err := d.Lstat("hello")
+	_, err := d.Lstat(path.MustNewComponent("hello"))
 	require.True(t, os.IsNotExist(err))
 }
 
@@ -120,12 +84,14 @@ func TestInMemoryDirectoryLstatFile(t *testing.T) {
 	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
 
 	leaf := mock.NewMockNativeLeaf(ctrl)
-	require.NoError(t, d.MergeDirectoryContents(nil, map[string]fuse.NativeLeaf{"file": leaf}))
+	require.NoError(t, d.MergeDirectoryContents(nil, map[path.Component]fuse.NativeLeaf{
+		path.MustNewComponent("file"): leaf,
+	}))
 
 	leaf.EXPECT().GetFileType().Return(filesystem.FileTypeRegularFile)
-	fi, err := d.Lstat("file")
+	fi, err := d.Lstat(path.MustNewComponent("file"))
 	require.NoError(t, err)
-	require.Equal(t, "file", fi.Name())
+	require.Equal(t, "file", fi.Name().String())
 	require.Equal(t, filesystem.FileTypeRegularFile, fi.Type())
 }
 
@@ -137,25 +103,11 @@ func TestInMemoryDirectoryLstatDirectory(t *testing.T) {
 	entryNotifier := mock.NewMockEntryNotifier(ctrl)
 	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
 
-	require.NoError(t, d.Mkdir("directory", 0700))
-	fi, err := d.Lstat("directory")
+	require.NoError(t, d.Mkdir(path.MustNewComponent("directory"), 0700))
+	fi, err := d.Lstat(path.MustNewComponent("directory"))
 	require.NoError(t, err)
-	require.Equal(t, "directory", fi.Name())
+	require.Equal(t, "directory", fi.Name().String())
 	require.Equal(t, filesystem.FileTypeDirectory, fi.Type())
-}
-
-func TestInMemoryDirectoryMkdirBadName(t *testing.T) {
-	ctrl := gomock.NewController(t)
-
-	fileAllocator := mock.NewMockFileAllocator(ctrl)
-	errorLogger := mock.NewMockErrorLogger(ctrl)
-	entryNotifier := mock.NewMockEntryNotifier(ctrl)
-	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
-
-	require.Equal(t, status.Error(codes.InvalidArgument, "Invalid filename: \"\""), d.Mkdir("", 0777))
-	require.Equal(t, status.Error(codes.InvalidArgument, "Invalid filename: \".\""), d.Mkdir(".", 0777))
-	require.Equal(t, status.Error(codes.InvalidArgument, "Invalid filename: \"..\""), d.Mkdir("..", 0777))
-	require.Equal(t, status.Error(codes.InvalidArgument, "Invalid filename: \"foo/bar\""), d.Mkdir("foo/bar", 0777))
 }
 
 func TestInMemoryDirectoryMkdirExisting(t *testing.T) {
@@ -167,9 +119,11 @@ func TestInMemoryDirectoryMkdirExisting(t *testing.T) {
 	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
 
 	leaf := mock.NewMockNativeLeaf(ctrl)
-	require.NoError(t, d.MergeDirectoryContents(nil, map[string]fuse.NativeLeaf{"file": leaf}))
+	require.NoError(t, d.MergeDirectoryContents(nil, map[path.Component]fuse.NativeLeaf{
+		path.MustNewComponent("file"): leaf,
+	}))
 
-	require.True(t, os.IsExist(d.Mkdir("file", 0777)))
+	require.True(t, os.IsExist(d.Mkdir(path.MustNewComponent("file"), 0777)))
 }
 
 func TestInMemoryDirectoryMkdirInRemovedDirectory(t *testing.T) {
@@ -181,14 +135,14 @@ func TestInMemoryDirectoryMkdirInRemovedDirectory(t *testing.T) {
 	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
 
 	// Create a reference to a removed child directory.
-	require.NoError(t, d.Mkdir("directory", 0700))
-	child, err := d.EnterInMemoryDirectory("directory")
+	require.NoError(t, d.Mkdir(path.MustNewComponent("directory"), 0700))
+	child, err := d.EnterInMemoryDirectory(path.MustNewComponent("directory"))
 	require.NoError(t, err)
-	entryNotifier.EXPECT().Call(uint64(578437695752307201), "directory")
-	require.NoError(t, d.RemoveAll("directory"))
+	entryNotifier.EXPECT().Call(uint64(578437695752307201), path.MustNewComponent("directory"))
+	require.NoError(t, d.RemoveAll(path.MustNewComponent("directory")))
 
 	// Creating a directory inside of it should fail with ENOENT.
-	require.True(t, os.IsNotExist(child.Mkdir("directory", 0777)))
+	require.True(t, os.IsNotExist(child.Mkdir(path.MustNewComponent("directory"), 0777)))
 }
 
 func TestInMemoryDirectoryMkdirSuccess(t *testing.T) {
@@ -199,33 +153,7 @@ func TestInMemoryDirectoryMkdirSuccess(t *testing.T) {
 	entryNotifier := mock.NewMockEntryNotifier(ctrl)
 	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
 
-	require.NoError(t, d.Mkdir("directory", 0777))
-}
-
-func TestInMemoryDirectoryMknodBadName(t *testing.T) {
-	ctrl := gomock.NewController(t)
-
-	fileAllocator := mock.NewMockFileAllocator(ctrl)
-	errorLogger := mock.NewMockErrorLogger(ctrl)
-	entryNotifier := mock.NewMockEntryNotifier(ctrl)
-	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
-
-	require.Equal(
-		t,
-		status.Error(codes.InvalidArgument, "Invalid filename: \"\""),
-		d.Mknod("", os.ModeDevice|os.ModeCharDevice|0666, 123))
-	require.Equal(
-		t,
-		status.Error(codes.InvalidArgument, "Invalid filename: \".\""),
-		d.Mknod(".", os.ModeDevice|os.ModeCharDevice|0666, 123))
-	require.Equal(
-		t,
-		status.Error(codes.InvalidArgument, "Invalid filename: \"..\""),
-		d.Mknod("..", os.ModeDevice|os.ModeCharDevice|0666, 123))
-	require.Equal(
-		t,
-		status.Error(codes.InvalidArgument, "Invalid filename: \"foo/bar\""),
-		d.Mknod("foo/bar", os.ModeDevice|os.ModeCharDevice|0666, 123))
+	require.NoError(t, d.Mkdir(path.MustNewComponent("directory"), 0777))
 }
 
 func TestInMemoryDirectoryMknodExisting(t *testing.T) {
@@ -237,9 +165,11 @@ func TestInMemoryDirectoryMknodExisting(t *testing.T) {
 	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
 
 	leaf := mock.NewMockNativeLeaf(ctrl)
-	require.NoError(t, d.MergeDirectoryContents(nil, map[string]fuse.NativeLeaf{"symlink": leaf}))
+	require.NoError(t, d.MergeDirectoryContents(nil, map[path.Component]fuse.NativeLeaf{
+		path.MustNewComponent("symlink"): leaf,
+	}))
 
-	require.True(t, os.IsExist(d.Mknod("symlink", os.ModeDevice|os.ModeCharDevice|0666, 259)))
+	require.True(t, os.IsExist(d.Mknod(path.MustNewComponent("symlink"), os.ModeDevice|os.ModeCharDevice|0666, 259)))
 }
 
 func TestInMemoryDirectoryMknodSuccessCharacterDevice(t *testing.T) {
@@ -250,18 +180,18 @@ func TestInMemoryDirectoryMknodSuccessCharacterDevice(t *testing.T) {
 	entryNotifier := mock.NewMockEntryNotifier(ctrl)
 	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
 
-	require.NoError(t, d.Mknod("null", os.ModeDevice|os.ModeCharDevice|0666, 259))
-	fi, err := d.Lstat("null")
+	require.NoError(t, d.Mknod(path.MustNewComponent("null"), os.ModeDevice|os.ModeCharDevice|0666, 259))
+	fi, err := d.Lstat(path.MustNewComponent("null"))
 	require.NoError(t, err)
 
 	// Character device should simply be reported as 'other' when
 	// requested through Lstat().
-	require.Equal(t, filesystem.NewFileInfo("null", filesystem.FileTypeOther), fi)
+	require.Equal(t, filesystem.NewFileInfo(path.MustNewComponent("null"), filesystem.FileTypeOther), fi)
 
 	// When requested through FUSE, the provided device properties
 	// should be returned properly.
 	var attr go_fuse.Attr
-	_, _, s := d.FUSELookup("null", &attr)
+	_, _, s := d.FUSELookup(path.MustNewComponent("null"), &attr)
 	require.Equal(t, go_fuse.OK, s)
 	require.Equal(t, attr, go_fuse.Attr{
 		Mode:  syscall.S_IFCHR | 0666,
@@ -281,8 +211,10 @@ func TestInMemoryDirectoryReadDir(t *testing.T) {
 
 	// Prepare file system.
 	leaf := mock.NewMockNativeLeaf(ctrl)
-	require.NoError(t, d.MergeDirectoryContents(nil, map[string]fuse.NativeLeaf{"file": leaf}))
-	require.NoError(t, d.Mkdir("directory", 0777))
+	require.NoError(t, d.MergeDirectoryContents(nil, map[path.Component]fuse.NativeLeaf{
+		path.MustNewComponent("file"): leaf,
+	}))
+	require.NoError(t, d.Mkdir(path.MustNewComponent("directory"), 0777))
 
 	// Validate directory listing.
 	leaf.EXPECT().GetFileType().Return(filesystem.FileTypeRegularFile)
@@ -290,27 +222,9 @@ func TestInMemoryDirectoryReadDir(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, files,
 		[]filesystem.FileInfo{
-			filesystem.NewFileInfo("directory", filesystem.FileTypeDirectory),
-			filesystem.NewFileInfo("file", filesystem.FileTypeRegularFile),
+			filesystem.NewFileInfo(path.MustNewComponent("directory"), filesystem.FileTypeDirectory),
+			filesystem.NewFileInfo(path.MustNewComponent("file"), filesystem.FileTypeRegularFile),
 		})
-}
-
-func TestInMemoryDirectoryReadlinkBadName(t *testing.T) {
-	ctrl := gomock.NewController(t)
-
-	fileAllocator := mock.NewMockFileAllocator(ctrl)
-	errorLogger := mock.NewMockErrorLogger(ctrl)
-	entryNotifier := mock.NewMockEntryNotifier(ctrl)
-	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
-
-	_, err := d.Readlink("")
-	require.Equal(t, status.Error(codes.InvalidArgument, "Invalid filename: \"\""), err)
-	_, err = d.Readlink(".")
-	require.Equal(t, status.Error(codes.InvalidArgument, "Invalid filename: \".\""), err)
-	_, err = d.Readlink("..")
-	require.Equal(t, status.Error(codes.InvalidArgument, "Invalid filename: \"..\""), err)
-	_, err = d.Readlink("foo/bar")
-	require.Equal(t, status.Error(codes.InvalidArgument, "Invalid filename: \"foo/bar\""), err)
 }
 
 func TestInMemoryDirectoryReadlinkNonExistent(t *testing.T) {
@@ -321,7 +235,7 @@ func TestInMemoryDirectoryReadlinkNonExistent(t *testing.T) {
 	entryNotifier := mock.NewMockEntryNotifier(ctrl)
 	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
 
-	_, err := d.Readlink("nonexistent")
+	_, err := d.Readlink(path.MustNewComponent("nonexistent"))
 	require.True(t, os.IsNotExist(err))
 }
 
@@ -333,8 +247,8 @@ func TestInMemoryDirectoryReadlinkDirectory(t *testing.T) {
 	entryNotifier := mock.NewMockEntryNotifier(ctrl)
 	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
 
-	require.NoError(t, d.Mkdir("directory", 0777))
-	_, err := d.Readlink("directory")
+	require.NoError(t, d.Mkdir(path.MustNewComponent("directory"), 0777))
+	_, err := d.Readlink(path.MustNewComponent("directory"))
 	require.Equal(t, syscall.EINVAL, err)
 }
 
@@ -347,10 +261,12 @@ func TestInMemoryDirectoryReadlinkFile(t *testing.T) {
 	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
 
 	leaf := mock.NewMockNativeLeaf(ctrl)
-	require.NoError(t, d.MergeDirectoryContents(nil, map[string]fuse.NativeLeaf{"file": leaf}))
+	require.NoError(t, d.MergeDirectoryContents(nil, map[path.Component]fuse.NativeLeaf{
+		path.MustNewComponent("file"): leaf,
+	}))
 
 	leaf.EXPECT().Readlink().Return("", syscall.EINVAL)
-	_, err := d.Readlink("file")
+	_, err := d.Readlink(path.MustNewComponent("file"))
 	require.Equal(t, syscall.EINVAL, err)
 }
 
@@ -363,26 +279,12 @@ func TestInMemoryDirectoryReadlinkSuccess(t *testing.T) {
 	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
 
 	var out go_fuse.Attr
-	_, s := d.FUSESymlink("/foo/bar/baz", "symlink", &out)
+	_, s := d.FUSESymlink("/foo/bar/baz", path.MustNewComponent("symlink"), &out)
 	require.Equal(t, go_fuse.OK, s)
 
-	target, err := d.Readlink("symlink")
+	target, err := d.Readlink(path.MustNewComponent("symlink"))
 	require.NoError(t, err)
 	require.Equal(t, "/foo/bar/baz", target)
-}
-
-func TestInMemoryDirectoryRemoveBadName(t *testing.T) {
-	ctrl := gomock.NewController(t)
-
-	fileAllocator := mock.NewMockFileAllocator(ctrl)
-	errorLogger := mock.NewMockErrorLogger(ctrl)
-	entryNotifier := mock.NewMockEntryNotifier(ctrl)
-	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
-
-	require.Equal(t, status.Error(codes.InvalidArgument, "Invalid filename: \"\""), d.Remove(""))
-	require.Equal(t, status.Error(codes.InvalidArgument, "Invalid filename: \".\""), d.Remove("."))
-	require.Equal(t, status.Error(codes.InvalidArgument, "Invalid filename: \"..\""), d.Remove(".."))
-	require.Equal(t, status.Error(codes.InvalidArgument, "Invalid filename: \"foo/bar\""), d.Remove("foo/bar"))
 }
 
 func TestInMemoryDirectoryRemoveNonExistent(t *testing.T) {
@@ -393,7 +295,7 @@ func TestInMemoryDirectoryRemoveNonExistent(t *testing.T) {
 	entryNotifier := mock.NewMockEntryNotifier(ctrl)
 	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
 
-	require.True(t, os.IsNotExist(d.Remove("nonexistent")))
+	require.True(t, os.IsNotExist(d.Remove(path.MustNewComponent("nonexistent"))))
 }
 
 func TestInMemoryDirectoryRemoveDirectory(t *testing.T) {
@@ -406,9 +308,9 @@ func TestInMemoryDirectoryRemoveDirectory(t *testing.T) {
 
 	// Test that removing a directory through filesystem.Directory
 	// also triggers FUSE invalidations.
-	require.NoError(t, d.Mkdir("directory", 0777))
-	entryNotifier.EXPECT().Call(uint64(578437695752307201), "directory")
-	require.NoError(t, d.Remove("directory"))
+	require.NoError(t, d.Mkdir(path.MustNewComponent("directory"), 0777))
+	entryNotifier.EXPECT().Call(uint64(578437695752307201), path.MustNewComponent("directory"))
+	require.NoError(t, d.Remove(path.MustNewComponent("directory")))
 }
 
 func TestInMemoryDirectoryRemoveDirectoryNotEmpty(t *testing.T) {
@@ -419,11 +321,11 @@ func TestInMemoryDirectoryRemoveDirectoryNotEmpty(t *testing.T) {
 	entryNotifier := mock.NewMockEntryNotifier(ctrl)
 	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
 
-	require.NoError(t, d.Mkdir("directory", 0777))
-	child, err := d.EnterInMemoryDirectory("directory")
+	require.NoError(t, d.Mkdir(path.MustNewComponent("directory"), 0777))
+	child, err := d.EnterInMemoryDirectory(path.MustNewComponent("directory"))
 	require.NoError(t, err)
-	require.NoError(t, child.Mkdir("subdirectory", 0777))
-	require.Equal(t, syscall.ENOTEMPTY, d.Remove("directory"))
+	require.NoError(t, child.Mkdir(path.MustNewComponent("subdirectory"), 0777))
+	require.Equal(t, syscall.ENOTEMPTY, d.Remove(path.MustNewComponent("directory")))
 }
 
 func TestInMemoryDirectoryRemoveFile(t *testing.T) {
@@ -435,11 +337,13 @@ func TestInMemoryDirectoryRemoveFile(t *testing.T) {
 	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
 
 	leaf := mock.NewMockNativeLeaf(ctrl)
-	require.NoError(t, d.MergeDirectoryContents(nil, map[string]fuse.NativeLeaf{"file": leaf}))
+	require.NoError(t, d.MergeDirectoryContents(nil, map[path.Component]fuse.NativeLeaf{
+		path.MustNewComponent("file"): leaf,
+	}))
 
 	leaf.EXPECT().Unlink()
-	entryNotifier.EXPECT().Call(uint64(578437695752307201), "file")
-	require.NoError(t, d.Remove("file"))
+	entryNotifier.EXPECT().Call(uint64(578437695752307201), path.MustNewComponent("file"))
+	require.NoError(t, d.Remove(path.MustNewComponent("file")))
 }
 
 // TODO: Add testing coverage for RemoveAll().
@@ -458,11 +362,11 @@ func TestInMemoryDirectoryMergeDirectoryContentsSuccess(t *testing.T) {
 	topLevelFile := mock.NewMockNativeLeaf(ctrl)
 	require.NoError(t,
 		d.MergeDirectoryContents(
-			map[string]fuse.InitialContentsFetcher{
-				"dir": subdirectoryFetcher,
+			map[path.Component]fuse.InitialContentsFetcher{
+				path.MustNewComponent("dir"): subdirectoryFetcher,
 			},
-			map[string]fuse.NativeLeaf{
-				"file": topLevelFile,
+			map[path.Component]fuse.NativeLeaf{
+				path.MustNewComponent("file"): topLevelFile,
 			}))
 
 	// Validate top-level directory listing.
@@ -471,18 +375,18 @@ func TestInMemoryDirectoryMergeDirectoryContentsSuccess(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, entries,
 		[]filesystem.FileInfo{
-			filesystem.NewFileInfo("dir", filesystem.FileTypeDirectory),
-			filesystem.NewFileInfo("file", filesystem.FileTypeRegularFile),
+			filesystem.NewFileInfo(path.MustNewComponent("dir"), filesystem.FileTypeDirectory),
+			filesystem.NewFileInfo(path.MustNewComponent("file"), filesystem.FileTypeRegularFile),
 		})
 
 	// Validate subdirectory listing.
-	subdirectory, err := d.EnterInMemoryDirectory("dir")
+	subdirectory, err := d.EnterInMemoryDirectory(path.MustNewComponent("dir"))
 	require.NoError(t, err)
 	subdirectoryFile := mock.NewMockNativeLeaf(ctrl)
 	subdirectoryFetcher.EXPECT().FetchContents().Return(
-		map[string]fuse.InitialContentsFetcher{},
-		map[string]fuse.NativeLeaf{
-			"file": subdirectoryFile,
+		map[path.Component]fuse.InitialContentsFetcher{},
+		map[path.Component]fuse.NativeLeaf{
+			path.MustNewComponent("file"): subdirectoryFile,
 		},
 		nil)
 	subdirectoryFile.EXPECT().GetFileType().Return(filesystem.FileTypeRegularFile)
@@ -490,7 +394,7 @@ func TestInMemoryDirectoryMergeDirectoryContentsSuccess(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, entries,
 		[]filesystem.FileInfo{
-			filesystem.NewFileInfo("file", filesystem.FileTypeRegularFile),
+			filesystem.NewFileInfo(path.MustNewComponent("file"), filesystem.FileTypeRegularFile),
 		})
 }
 
@@ -503,17 +407,17 @@ func TestInMemoryDirectoryMergeDirectoryContentsInRemovedDirectory(t *testing.T)
 	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
 
 	// Create a reference to a removed child directory.
-	require.NoError(t, d.Mkdir("directory", 0700))
-	child, err := d.EnterInMemoryDirectory("directory")
+	require.NoError(t, d.Mkdir(path.MustNewComponent("directory"), 0700))
+	child, err := d.EnterInMemoryDirectory(path.MustNewComponent("directory"))
 	require.NoError(t, err)
-	entryNotifier.EXPECT().Call(uint64(578437695752307201), "directory")
-	require.NoError(t, d.Remove("directory"))
+	entryNotifier.EXPECT().Call(uint64(578437695752307201), path.MustNewComponent("directory"))
+	require.NoError(t, d.Remove(path.MustNewComponent("directory")))
 
 	// Merging files into the removed directory should fail.
 	require.Equal(t,
 		child.MergeDirectoryContents(
-			map[string]fuse.InitialContentsFetcher{},
-			map[string]fuse.NativeLeaf{}),
+			map[path.Component]fuse.InitialContentsFetcher{},
+			map[path.Component]fuse.NativeLeaf{}),
 		status.Error(codes.InvalidArgument, "Cannot merge contents into a directory that has already been deleted"))
 }
 
@@ -534,17 +438,17 @@ func TestInMemoryDirectoryInstallHooks(t *testing.T) {
 	fileAllocator2.EXPECT().NewFile(uint64(16619996191411179235), os.FileMode(0644)).Return(nil, status.Error(codes.DataLoss, "Hard disk on fire"))
 	errorLogger2.EXPECT().Log(status.Error(codes.DataLoss, "Failed to create new file with name \"foo\": Hard disk on fire"))
 	var attr go_fuse.Attr
-	_, s := d.FUSECreate("foo", uint32(os.O_WRONLY), 0644, &attr)
+	_, s := d.FUSECreate(path.MustNewComponent("foo"), uint32(os.O_WRONLY), 0644, &attr)
 	require.Equal(t, s, go_fuse.Status(syscall.EIO))
 
 	// Validate that a subdirectory uses the new file allocator
 	// and error logger as well.
-	require.NoError(t, d.Mkdir("dir", os.FileMode(0700)))
-	_, err := d.EnterInMemoryDirectory("dir")
+	require.NoError(t, d.Mkdir(path.MustNewComponent("dir"), os.FileMode(0700)))
+	_, err := d.EnterInMemoryDirectory(path.MustNewComponent("dir"))
 	require.NoError(t, err)
 	fileAllocator2.EXPECT().NewFile(uint64(14113423708532309633), os.FileMode(0644)).Return(nil, status.Error(codes.DataLoss, "Hard disk on fire"))
 	errorLogger2.EXPECT().Log(status.Error(codes.DataLoss, "Failed to create new file with name \"foo\": Hard disk on fire"))
-	_, s = d.FUSECreate("foo", uint32(os.O_WRONLY), 0644, &attr)
+	_, s = d.FUSECreate(path.MustNewComponent("foo"), uint32(os.O_WRONLY), 0644, &attr)
 	require.Equal(t, s, go_fuse.Status(syscall.EIO))
 }
 
@@ -561,11 +465,11 @@ func TestInMemoryDirectoryUploadFile(t *testing.T) {
 	childDirectory := mock.NewMockInitialContentsFetcher(ctrl)
 	childFile := mock.NewMockNativeLeaf(ctrl)
 	require.NoError(t, d.MergeDirectoryContents(
-		map[string]fuse.InitialContentsFetcher{
-			"directory": childDirectory,
+		map[path.Component]fuse.InitialContentsFetcher{
+			path.MustNewComponent("directory"): childDirectory,
 		},
-		map[string]fuse.NativeLeaf{
-			"file": childFile,
+		map[path.Component]fuse.NativeLeaf{
+			path.MustNewComponent("file"): childFile,
 		},
 	))
 
@@ -582,7 +486,7 @@ func TestInMemoryDirectoryUploadFile(t *testing.T) {
 			childFile.EXPECT().UploadFile(ctx, contentAddressableStorage, gomock.Any()).Return(childDigest, nil),
 			childFile.EXPECT().Unlink())
 
-		actualDigest, err := d.UploadFile(ctx, "file", contentAddressableStorage, digestFunction)
+		actualDigest, err := d.UploadFile(ctx, path.MustNewComponent("file"), contentAddressableStorage, digestFunction)
 		require.NoError(t, err)
 		require.Equal(t, childDigest, actualDigest)
 	})
@@ -594,17 +498,17 @@ func TestInMemoryDirectoryUploadFile(t *testing.T) {
 			childFile.EXPECT().UploadFile(ctx, contentAddressableStorage, gomock.Any()).Return(digest.BadDigest, status.Error(codes.Internal, "Server on fire")),
 			childFile.EXPECT().Unlink())
 
-		_, err := d.UploadFile(ctx, "file", contentAddressableStorage, digestFunction)
+		_, err := d.UploadFile(ctx, path.MustNewComponent("file"), contentAddressableStorage, digestFunction)
 		require.Equal(t, status.Error(codes.Internal, "Server on fire"), err)
 	})
 
 	t.Run("Directory", func(t *testing.T) {
-		_, err := d.UploadFile(ctx, "directory", contentAddressableStorage, digestFunction)
+		_, err := d.UploadFile(ctx, path.MustNewComponent("directory"), contentAddressableStorage, digestFunction)
 		require.Equal(t, syscall.EISDIR, err)
 	})
 
 	t.Run("Nonexistent", func(t *testing.T) {
-		_, err := d.UploadFile(ctx, "nonexistent", contentAddressableStorage, digestFunction)
+		_, err := d.UploadFile(ctx, path.MustNewComponent("nonexistent"), contentAddressableStorage, digestFunction)
 		require.Equal(t, syscall.ENOENT, err)
 	})
 }
@@ -619,11 +523,13 @@ func TestInMemoryDirectoryFUSECreateFileExists(t *testing.T) {
 
 	// Create a file at the desired target location.
 	leaf := mock.NewMockNativeLeaf(ctrl)
-	require.NoError(t, d.MergeDirectoryContents(nil, map[string]fuse.NativeLeaf{"target": leaf}))
+	require.NoError(t, d.MergeDirectoryContents(nil, map[path.Component]fuse.NativeLeaf{
+		path.MustNewComponent("target"): leaf,
+	}))
 
 	// Trying to create the file through FUSE should fail.
 	var attr go_fuse.Attr
-	_, s := d.FUSECreate("target", uint32(os.O_WRONLY), 0644, &attr)
+	_, s := d.FUSECreate(path.MustNewComponent("target"), uint32(os.O_WRONLY), 0644, &attr)
 	require.Equal(t, s, go_fuse.Status(syscall.EEXIST))
 }
 
@@ -636,12 +542,12 @@ func TestInMemoryDirectoryFUSECreateDirectoryExists(t *testing.T) {
 	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
 
 	// Create a directory at the desired target location.
-	err := d.Mkdir("target", 0777)
+	err := d.Mkdir(path.MustNewComponent("target"), 0777)
 	require.NoError(t, err)
 
 	// Trying to create the file through FUSE should fail.
 	var attr go_fuse.Attr
-	_, s := d.FUSECreate("target", uint32(os.O_WRONLY), 0644, &attr)
+	_, s := d.FUSECreate(path.MustNewComponent("target"), uint32(os.O_WRONLY), 0644, &attr)
 	require.Equal(t, s, go_fuse.Status(syscall.EEXIST))
 }
 
@@ -658,7 +564,7 @@ func TestInMemoryDirectoryFUSECreateAllocationFailure(t *testing.T) {
 	// File allocation errors should translate to EIO. The actual
 	// error should get forwarded to the error logger.
 	var attr go_fuse.Attr
-	_, s := d.FUSECreate("target", uint32(os.O_WRONLY), 0644, &attr)
+	_, s := d.FUSECreate(path.MustNewComponent("target"), uint32(os.O_WRONLY), 0644, &attr)
 	require.Equal(t, s, go_fuse.EIO)
 }
 
@@ -677,7 +583,7 @@ func TestInMemoryDirectoryFUSECreateOpenFailure(t *testing.T) {
 	// Creation should succeed, but failure to open should cause the
 	// creation to be undone.
 	var attr go_fuse.Attr
-	_, s := d.FUSECreate("target", uint32(os.O_WRONLY), 0644, &attr)
+	_, s := d.FUSECreate(path.MustNewComponent("target"), uint32(os.O_WRONLY), 0644, &attr)
 	require.Equal(t, s, go_fuse.EIO)
 
 	entries, err := d.ReadDir()
@@ -694,15 +600,15 @@ func TestInMemoryDirectoryFUSECreateInRemovedDirectory(t *testing.T) {
 	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
 
 	// Create a reference to a removed child directory.
-	require.NoError(t, d.Mkdir("directory", 0700))
-	child, err := d.EnterInMemoryDirectory("directory")
+	require.NoError(t, d.Mkdir(path.MustNewComponent("directory"), 0700))
+	child, err := d.EnterInMemoryDirectory(path.MustNewComponent("directory"))
 	require.NoError(t, err)
-	entryNotifier.EXPECT().Call(uint64(578437695752307201), "directory")
-	require.NoError(t, d.Remove("directory"))
+	entryNotifier.EXPECT().Call(uint64(578437695752307201), path.MustNewComponent("directory"))
+	require.NoError(t, d.Remove(path.MustNewComponent("directory")))
 
 	// Trying to create the file through FUSE should return ENOENT.
 	var attr go_fuse.Attr
-	_, s := child.FUSECreate("target", uint32(os.O_WRONLY), 0644, &attr)
+	_, s := child.FUSECreate(path.MustNewComponent("target"), uint32(os.O_WRONLY), 0644, &attr)
 	require.Equal(t, s, go_fuse.ENOENT)
 }
 
@@ -725,7 +631,7 @@ func TestInMemoryDirectoryFUSECreateSuccess(t *testing.T) {
 	// Creation of the directory should fully succeed. The file
 	// should be present within the directory afterwards.
 	var attr go_fuse.Attr
-	newChild, s := d.FUSECreate("target", uint32(os.O_WRONLY), 0644, &attr)
+	newChild, s := d.FUSECreate(path.MustNewComponent("target"), uint32(os.O_WRONLY), 0644, &attr)
 	require.Equal(t, go_fuse.OK, s)
 	require.Equal(t, child, newChild)
 	require.Equal(t, go_fuse.Attr{
@@ -737,7 +643,7 @@ func TestInMemoryDirectoryFUSECreateSuccess(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, entries,
 		[]filesystem.FileInfo{
-			filesystem.NewFileInfo("target", filesystem.FileTypeRegularFile),
+			filesystem.NewFileInfo(path.MustNewComponent("target"), filesystem.FileTypeRegularFile),
 		})
 }
 
@@ -761,9 +667,11 @@ func TestInMemoryDirectoryFUSEGetAttr(t *testing.T) {
 	// Creating non-directory nodes within the directory should not
 	// cause the link count to be increased.
 	leaf := mock.NewMockNativeLeaf(ctrl)
-	require.NoError(t, d.MergeDirectoryContents(nil, map[string]fuse.NativeLeaf{"target": leaf}))
+	require.NoError(t, d.MergeDirectoryContents(nil, map[path.Component]fuse.NativeLeaf{
+		path.MustNewComponent("target"): leaf,
+	}))
 	var attr2 go_fuse.Attr
-	_, s := d.FUSESymlink("/", "symlink", &attr2)
+	_, s := d.FUSESymlink("/", path.MustNewComponent("symlink"), &attr2)
 	require.Equal(t, go_fuse.OK, s)
 
 	var attr3 go_fuse.Attr
@@ -775,8 +683,8 @@ func TestInMemoryDirectoryFUSEGetAttr(t *testing.T) {
 	})
 
 	// Creating child directories should increase the link count.
-	require.NoError(t, d.Mkdir("dir1", 0777))
-	require.NoError(t, d.Mkdir("dir2", 0777))
+	require.NoError(t, d.Mkdir(path.MustNewComponent("dir1"), 0777))
+	require.NoError(t, d.Mkdir(path.MustNewComponent("dir2"), 0777))
 	var attr4 go_fuse.Attr
 	d.FUSEGetAttr(&attr4)
 	require.Equal(t, attr4, go_fuse.Attr{
@@ -796,9 +704,9 @@ func TestInMemoryDirectoryFUSELinkExists(t *testing.T) {
 	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
 
 	// Attempting to link to a file that already exists should fail.
-	require.NoError(t, d.Mkdir("dir", 0777))
+	require.NoError(t, d.Mkdir(path.MustNewComponent("dir"), 0777))
 	var attr go_fuse.Attr
-	require.Equal(t, go_fuse.Status(syscall.EEXIST), d.FUSELink("dir", child, &attr))
+	require.Equal(t, go_fuse.Status(syscall.EEXIST), d.FUSELink(path.MustNewComponent("dir"), child, &attr))
 }
 
 func TestInMemoryDirectoryFUSELinkInRemovedDirectory(t *testing.T) {
@@ -811,15 +719,15 @@ func TestInMemoryDirectoryFUSELinkInRemovedDirectory(t *testing.T) {
 	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
 
 	// Create a reference to a removed child directory.
-	require.NoError(t, d.Mkdir("directory", 0700))
-	child, err := d.EnterInMemoryDirectory("directory")
+	require.NoError(t, d.Mkdir(path.MustNewComponent("directory"), 0700))
+	child, err := d.EnterInMemoryDirectory(path.MustNewComponent("directory"))
 	require.NoError(t, err)
-	entryNotifier.EXPECT().Call(uint64(578437695752307201), "directory")
-	require.NoError(t, d.Remove("directory"))
+	entryNotifier.EXPECT().Call(uint64(578437695752307201), path.MustNewComponent("directory"))
+	require.NoError(t, d.Remove(path.MustNewComponent("directory")))
 
 	// Linking a file into it should fail with ENOENT.
 	var attr go_fuse.Attr
-	require.Equal(t, go_fuse.ENOENT, child.FUSELink("target", target, &attr))
+	require.Equal(t, go_fuse.ENOENT, child.FUSELink(path.MustNewComponent("target"), target, &attr))
 }
 
 func TestInMemoryDirectoryFUSELinkSuccess(t *testing.T) {
@@ -838,7 +746,7 @@ func TestInMemoryDirectoryFUSELinkSuccess(t *testing.T) {
 
 	// We should return the attributes of the existing leaf.
 	var attr go_fuse.Attr
-	require.Equal(t, go_fuse.OK, d.FUSELink("target", child, &attr))
+	require.Equal(t, go_fuse.OK, d.FUSELink(path.MustNewComponent("target"), child, &attr))
 	require.Equal(t, go_fuse.Attr{
 		Mode: go_fuse.S_IFREG | 0644,
 		Ino:  123,
@@ -854,22 +762,24 @@ func TestInMemoryDirectoryFUSELookup(t *testing.T) {
 	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
 
 	// Create an example directory and file that we'll try to look up.
-	require.NoError(t, d.Mkdir("dir", 0777))
-	directory, err := d.EnterInMemoryDirectory("dir")
+	require.NoError(t, d.Mkdir(path.MustNewComponent("dir"), 0777))
+	directory, err := d.EnterInMemoryDirectory(path.MustNewComponent("dir"))
 	require.NoError(t, err)
 
 	file := mock.NewMockNativeLeaf(ctrl)
-	require.NoError(t, d.MergeDirectoryContents(nil, map[string]fuse.NativeLeaf{"file": file}))
+	require.NoError(t, d.MergeDirectoryContents(nil, map[path.Component]fuse.NativeLeaf{
+		path.MustNewComponent("file"): file,
+	}))
 
 	t.Run("NotFound", func(*testing.T) {
 		var attr go_fuse.Attr
-		_, _, s := d.FUSELookup("missing", &attr)
+		_, _, s := d.FUSELookup(path.MustNewComponent("missing"), &attr)
 		require.Equal(t, go_fuse.ENOENT, s)
 	})
 
 	t.Run("FoundDirectory", func(*testing.T) {
 		var attr go_fuse.Attr
-		newDirectory, newLeaf, s := d.FUSELookup("dir", &attr)
+		newDirectory, newLeaf, s := d.FUSELookup(path.MustNewComponent("dir"), &attr)
 		require.Equal(t, go_fuse.OK, s)
 		require.Equal(t, directory, newDirectory)
 		require.Nil(t, newLeaf)
@@ -889,7 +799,7 @@ func TestInMemoryDirectoryFUSELookup(t *testing.T) {
 		})
 
 		var attr go_fuse.Attr
-		newDirectory, newLeaf, s := d.FUSELookup("file", &attr)
+		newDirectory, newLeaf, s := d.FUSELookup(path.MustNewComponent("file"), &attr)
 		require.Equal(t, go_fuse.OK, s)
 		require.Nil(t, newDirectory)
 		require.Equal(t, file, newLeaf)
@@ -911,9 +821,9 @@ func TestInMemoryDirectoryFUSEMknodExists(t *testing.T) {
 	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
 
 	// Files may not be overwritten by mknod().
-	require.NoError(t, d.Mkdir("dir", 0777))
+	require.NoError(t, d.Mkdir(path.MustNewComponent("dir"), 0777))
 	var attr go_fuse.Attr
-	_, s := d.FUSEMknod("dir", go_fuse.S_IFIFO|0666, 0, &attr)
+	_, s := d.FUSEMknod(path.MustNewComponent("dir"), go_fuse.S_IFIFO|0666, 0, &attr)
 	require.Equal(t, go_fuse.Status(syscall.EEXIST), s)
 }
 
@@ -928,9 +838,9 @@ func TestInMemoryDirectoryFUSEMknodPermissionDenied(t *testing.T) {
 	// This implementation should not allow the creation of block
 	// devices and character devices.
 	var attr go_fuse.Attr
-	_, s := d.FUSEMknod("blk", syscall.S_IFBLK|0666, 123, &attr)
+	_, s := d.FUSEMknod(path.MustNewComponent("blk"), syscall.S_IFBLK|0666, 123, &attr)
 	require.Equal(t, go_fuse.EPERM, s)
-	_, s = d.FUSEMknod("chr", syscall.S_IFCHR|0666, 123, &attr)
+	_, s = d.FUSEMknod(path.MustNewComponent("chr"), syscall.S_IFCHR|0666, 123, &attr)
 	require.Equal(t, go_fuse.EPERM, s)
 }
 
@@ -944,7 +854,7 @@ func TestInMemoryDirectoryFUSEMknodSuccess(t *testing.T) {
 
 	// Create a FIFO and a UNIX domain socket.
 	var fifoAttr go_fuse.Attr
-	i, s := d.FUSEMknod("fifo", go_fuse.S_IFIFO|0666, 123, &fifoAttr)
+	i, s := d.FUSEMknod(path.MustNewComponent("fifo"), go_fuse.S_IFIFO|0666, 123, &fifoAttr)
 	require.Equal(t, go_fuse.OK, s)
 	require.NotNil(t, i)
 	require.Equal(t, go_fuse.Attr{
@@ -955,7 +865,7 @@ func TestInMemoryDirectoryFUSEMknodSuccess(t *testing.T) {
 	}, fifoAttr)
 
 	var socketAttr go_fuse.Attr
-	i, s = d.FUSEMknod("socket", syscall.S_IFSOCK|0666, 456, &socketAttr)
+	i, s = d.FUSEMknod(path.MustNewComponent("socket"), syscall.S_IFSOCK|0666, 456, &socketAttr)
 	require.Equal(t, go_fuse.OK, s)
 	require.NotNil(t, i)
 	require.Equal(t, go_fuse.Attr{
@@ -971,8 +881,8 @@ func TestInMemoryDirectoryFUSEMknodSuccess(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t,
 		[]filesystem.FileInfo{
-			filesystem.NewFileInfo("fifo", filesystem.FileTypeOther),
-			filesystem.NewFileInfo("socket", filesystem.FileTypeOther),
+			filesystem.NewFileInfo(path.MustNewComponent("fifo"), filesystem.FileTypeOther),
+			filesystem.NewFileInfo(path.MustNewComponent("socket"), filesystem.FileTypeOther),
 		}, entries)
 
 	// The FUSE file system should report the proper file types.
@@ -997,11 +907,11 @@ func TestInMemoryDirectoryFUSEReadDir(t *testing.T) {
 	childDirectory := mock.NewMockInitialContentsFetcher(ctrl)
 	childFile := mock.NewMockNativeLeaf(ctrl)
 	require.NoError(t, d.MergeDirectoryContents(
-		map[string]fuse.InitialContentsFetcher{
-			"directory": childDirectory,
+		map[path.Component]fuse.InitialContentsFetcher{
+			path.MustNewComponent("directory"): childDirectory,
 		},
-		map[string]fuse.NativeLeaf{
-			"file": childFile,
+		map[path.Component]fuse.NativeLeaf{
+			path.MustNewComponent("file"): childFile,
 		},
 	))
 
@@ -1035,11 +945,11 @@ func TestInMemoryDirectoryFUSEReadDirPlus(t *testing.T) {
 	childDirectory := mock.NewMockInitialContentsFetcher(ctrl)
 	childFile := mock.NewMockNativeLeaf(ctrl)
 	require.NoError(t, d.MergeDirectoryContents(
-		map[string]fuse.InitialContentsFetcher{
-			"directory": childDirectory,
+		map[path.Component]fuse.InitialContentsFetcher{
+			path.MustNewComponent("directory"): childDirectory,
 		},
-		map[string]fuse.NativeLeaf{
-			"file": childFile,
+		map[path.Component]fuse.NativeLeaf{
+			path.MustNewComponent("file"): childFile,
 		},
 	))
 
@@ -1069,11 +979,11 @@ func TestInMemoryDirectoryFUSEReadDirPlus(t *testing.T) {
 		subDirectory := mock.NewMockInitialContentsFetcher(ctrl)
 		subFile := mock.NewMockNativeLeaf(ctrl)
 		childDirectory.EXPECT().FetchContents().Return(
-			map[string]fuse.InitialContentsFetcher{
-				"directory": subDirectory,
+			map[path.Component]fuse.InitialContentsFetcher{
+				path.MustNewComponent("directory"): subDirectory,
 			},
-			map[string]fuse.NativeLeaf{
-				"file": subFile,
+			map[path.Component]fuse.NativeLeaf{
+				path.MustNewComponent("file"): subFile,
 			},
 			nil)
 
@@ -1120,17 +1030,17 @@ func TestInMemoryDirectoryFUSERenameSelfDirectory(t *testing.T) {
 
 	// Renaming a directory to itself should be permitted, even when
 	// it is not empty.
-	require.NoError(t, d.Mkdir("dir", 0777))
-	child, err := d.EnterInMemoryDirectory("dir")
+	require.NoError(t, d.Mkdir(path.MustNewComponent("dir"), 0777))
+	child, err := d.EnterInMemoryDirectory(path.MustNewComponent("dir"))
 	require.NoError(t, err)
-	require.NoError(t, child.Mkdir("subdir", 0777))
-	require.Equal(t, go_fuse.OK, d.FUSERename("dir", d, "dir"))
+	require.NoError(t, child.Mkdir(path.MustNewComponent("subdir"), 0777))
+	require.Equal(t, go_fuse.OK, d.FUSERename(path.MustNewComponent("dir"), d, path.MustNewComponent("dir")))
 
 	entries, err := d.ReadDir()
 	require.NoError(t, err)
 	require.Equal(t, entries,
 		[]filesystem.FileInfo{
-			filesystem.NewFileInfo("dir", filesystem.FileTypeDirectory),
+			filesystem.NewFileInfo(path.MustNewComponent("dir"), filesystem.FileTypeDirectory),
 		})
 }
 
@@ -1143,7 +1053,9 @@ func TestInMemoryDirectoryFUSERenameSelfFile(t *testing.T) {
 	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
 
 	leaf := mock.NewMockNativeLeaf(ctrl)
-	require.NoError(t, d.MergeDirectoryContents(nil, map[string]fuse.NativeLeaf{"a": leaf}))
+	require.NoError(t, d.MergeDirectoryContents(nil, map[path.Component]fuse.NativeLeaf{
+		path.MustNewComponent("a"): leaf,
+	}))
 
 	leaf.EXPECT().FUSEGetAttr(gomock.Any()).Do(func(out *go_fuse.Attr) {
 		out.Mode = go_fuse.S_IFREG | 0666
@@ -1153,12 +1065,12 @@ func TestInMemoryDirectoryFUSERenameSelfFile(t *testing.T) {
 	})
 	var out go_fuse.Attr
 	leaf.EXPECT().Link()
-	require.Equal(t, go_fuse.OK, d.FUSELink("b", leaf, &out))
+	require.Equal(t, go_fuse.OK, d.FUSELink(path.MustNewComponent("b"), leaf, &out))
 
 	// Renaming a file to itself should have no effect. This even
 	// applies to hard links. Though not intuitive, this means that
 	// the source file may continue to exist.
-	require.Equal(t, go_fuse.OK, d.FUSERename("a", d, "b"))
+	require.Equal(t, go_fuse.OK, d.FUSERename(path.MustNewComponent("a"), d, path.MustNewComponent("b")))
 
 	leaf.EXPECT().GetFileType().Return(filesystem.FileTypeRegularFile)
 	leaf.EXPECT().GetFileType().Return(filesystem.FileTypeRegularFile)
@@ -1166,8 +1078,8 @@ func TestInMemoryDirectoryFUSERenameSelfFile(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, entries,
 		[]filesystem.FileInfo{
-			filesystem.NewFileInfo("a", filesystem.FileTypeRegularFile),
-			filesystem.NewFileInfo("b", filesystem.FileTypeRegularFile),
+			filesystem.NewFileInfo(path.MustNewComponent("a"), filesystem.FileTypeRegularFile),
+			filesystem.NewFileInfo(path.MustNewComponent("b"), filesystem.FileTypeRegularFile),
 		})
 }
 
@@ -1180,21 +1092,21 @@ func TestInMemoryDirectoryFUSERenameDirectoryInRemovedDirectory(t *testing.T) {
 	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
 
 	// Create a reference to a removed child directory.
-	require.NoError(t, d.Mkdir("removed", 0700))
-	child, err := d.EnterInMemoryDirectory("removed")
+	require.NoError(t, d.Mkdir(path.MustNewComponent("removed"), 0700))
+	child, err := d.EnterInMemoryDirectory(path.MustNewComponent("removed"))
 	require.NoError(t, err)
-	entryNotifier.EXPECT().Call(uint64(578437695752307201), "removed")
-	require.NoError(t, d.Remove("removed"))
+	entryNotifier.EXPECT().Call(uint64(578437695752307201), path.MustNewComponent("removed"))
+	require.NoError(t, d.Remove(path.MustNewComponent("removed")))
 
 	// Moving a directory into it should fail with ENOENT.
-	require.NoError(t, d.Mkdir("dir", 0777))
-	require.Equal(t, go_fuse.ENOENT, d.FUSERename("dir", child, "dir"))
+	require.NoError(t, d.Mkdir(path.MustNewComponent("dir"), 0777))
+	require.Equal(t, go_fuse.ENOENT, d.FUSERename(path.MustNewComponent("dir"), child, path.MustNewComponent("dir")))
 
 	entries, err := d.ReadDir()
 	require.NoError(t, err)
 	require.Equal(t, entries,
 		[]filesystem.FileInfo{
-			filesystem.NewFileInfo("dir", filesystem.FileTypeDirectory),
+			filesystem.NewFileInfo(path.MustNewComponent("dir"), filesystem.FileTypeDirectory),
 		})
 }
 
@@ -1207,23 +1119,26 @@ func TestInMemoryDirectoryFUSERenameFileInRemovedDirectory(t *testing.T) {
 	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
 
 	// Create a reference to a removed child directory.
-	require.NoError(t, d.Mkdir("removed", 0700))
-	child, err := d.EnterInMemoryDirectory("removed")
+	require.NoError(t, d.Mkdir(path.MustNewComponent("removed"), 0700))
+	child, err := d.EnterInMemoryDirectory(path.MustNewComponent("removed"))
 	require.NoError(t, err)
-	entryNotifier.EXPECT().Call(uint64(578437695752307201), "removed")
-	require.NoError(t, d.Remove("removed"))
+	entryNotifier.EXPECT().Call(uint64(578437695752307201), path.MustNewComponent("removed"))
+	require.NoError(t, d.Remove(path.MustNewComponent("removed")))
 
 	// Moving a file into it should fail with ENOENT.
 	leaf := mock.NewMockNativeLeaf(ctrl)
-	require.NoError(t, d.MergeDirectoryContents(nil, map[string]fuse.NativeLeaf{"file": leaf}))
-	require.Equal(t, go_fuse.ENOENT, d.FUSERename("file", child, "file"))
+	require.NoError(t, d.MergeDirectoryContents(nil, map[path.Component]fuse.NativeLeaf{
+		path.MustNewComponent("file"): leaf,
+	},
+	))
+	require.Equal(t, go_fuse.ENOENT, d.FUSERename(path.MustNewComponent("file"), child, path.MustNewComponent("file")))
 
 	leaf.EXPECT().GetFileType().Return(filesystem.FileTypeRegularFile)
 	entries, err := d.ReadDir()
 	require.NoError(t, err)
 	require.Equal(t, entries,
 		[]filesystem.FileInfo{
-			filesystem.NewFileInfo("file", filesystem.FileTypeRegularFile),
+			filesystem.NewFileInfo(path.MustNewComponent("file"), filesystem.FileTypeRegularFile),
 		})
 }
 
@@ -1236,28 +1151,28 @@ func TestInMemoryDirectoryFUSERenameDirectoryTwice(t *testing.T) {
 	d := fuse.NewInMemoryDirectory(fileAllocator, errorLogger, fuse.DeterministicInodeNumberTree, entryNotifier.Call)
 
 	// Create two empty directories.
-	require.NoError(t, d.Mkdir("a", 0700))
-	childA, err := d.EnterInMemoryDirectory("a")
+	require.NoError(t, d.Mkdir(path.MustNewComponent("a"), 0700))
+	childA, err := d.EnterInMemoryDirectory(path.MustNewComponent("a"))
 	require.NoError(t, err)
-	require.NoError(t, d.Mkdir("b", 0700))
-	childB, err := d.EnterInMemoryDirectory("b")
+	require.NoError(t, d.Mkdir(path.MustNewComponent("b"), 0700))
+	childB, err := d.EnterInMemoryDirectory(path.MustNewComponent("b"))
 	require.NoError(t, err)
 
 	// Move "a" to "b" to "c". Afterwards, only "c" should remain.
-	require.Equal(t, go_fuse.OK, d.FUSERename("a", d, "b"))
-	require.Equal(t, go_fuse.OK, d.FUSERename("b", d, "c"))
+	require.Equal(t, go_fuse.OK, d.FUSERename(path.MustNewComponent("a"), d, path.MustNewComponent("b")))
+	require.Equal(t, go_fuse.OK, d.FUSERename(path.MustNewComponent("b"), d, path.MustNewComponent("c")))
 
 	entries, err := d.ReadDir()
 	require.NoError(t, err)
 	require.Equal(t, entries,
 		[]filesystem.FileInfo{
-			filesystem.NewFileInfo("c", filesystem.FileTypeDirectory),
+			filesystem.NewFileInfo(path.MustNewComponent("c"), filesystem.FileTypeDirectory),
 		})
 
 	// Directory "a" got moved over "b", meaning that only the
 	// former should still be usable. The latter has been deleted.
-	require.NoError(t, childA.Mkdir("subdirectory", 0700))
-	require.Equal(t, syscall.ENOENT, childB.Mkdir("subdirectory", 0700))
+	require.NoError(t, childA.Mkdir(path.MustNewComponent("subdirectory"), 0700))
+	require.Equal(t, syscall.ENOENT, childB.Mkdir(path.MustNewComponent("subdirectory"), 0700))
 }
 
 func TestInMemoryDirectoryFUSERenameCrossDevice1(t *testing.T) {
@@ -1273,7 +1188,7 @@ func TestInMemoryDirectoryFUSERenameCrossDevice1(t *testing.T) {
 	// Attempting to rename a file to a directory that is of a
 	// completely different type is not possible. We can only rename
 	// objects between instances of InMemoryDirectory.
-	require.Equal(t, go_fuse.EXDEV, d1.FUSERename("src", d2, "dst"))
+	require.Equal(t, go_fuse.EXDEV, d1.FUSERename(path.MustNewComponent("src"), d2, path.MustNewComponent("dst")))
 }
 
 func TestInMemoryDirectoryFUSERenameCrossDevice2(t *testing.T) {
@@ -1292,17 +1207,17 @@ func TestInMemoryDirectoryFUSERenameCrossDevice2(t *testing.T) {
 	// It should not be possible to rename directories from one
 	// hierarchy to another, as this completely messes up
 	// InMemoryDirectory's internal bookkeeping.
-	require.NoError(t, d1.Mkdir("src", 0700))
-	require.NoError(t, d2.Mkdir("dst", 0700))
-	require.Equal(t, go_fuse.EXDEV, d1.FUSERename("src", d2, "dst"))
-	require.Equal(t, go_fuse.EXDEV, d1.FUSERename("src", d2, "nonexistent"))
+	require.NoError(t, d1.Mkdir(path.MustNewComponent("src"), 0700))
+	require.NoError(t, d2.Mkdir(path.MustNewComponent("dst"), 0700))
+	require.Equal(t, go_fuse.EXDEV, d1.FUSERename(path.MustNewComponent("src"), d2, path.MustNewComponent("dst")))
+	require.Equal(t, go_fuse.EXDEV, d1.FUSERename(path.MustNewComponent("src"), d2, path.MustNewComponent("nonexistent")))
 
 	// Renaming files leaf files between directory hierarchies is
 	// completely safe. It's generally not useful to do this, but
 	// even if we disallowed this explicitly, it would still be
 	// possible to achieve this by hardlinking.
-	require.NoError(t, d1.Mknod("leaf", os.ModeDevice|os.ModeCharDevice|0666, 123))
-	require.Equal(t, go_fuse.OK, d1.FUSERename("leaf", d2, "leaf"))
+	require.NoError(t, d1.Mknod(path.MustNewComponent("leaf"), os.ModeDevice|os.ModeCharDevice|0666, 123))
+	require.Equal(t, go_fuse.OK, d1.FUSERename(path.MustNewComponent("leaf"), d2, path.MustNewComponent("leaf")))
 }
 
 // TODO: Missing testing coverage for FUSEMkdir(), FUSEReadDir(),

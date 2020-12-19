@@ -8,7 +8,11 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/digest"
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type contentAddressableStorageInitialContentsFetcherOptions struct {
@@ -49,7 +53,7 @@ func NewContentAddressableStorageInitialContentsFetcher(context context.Context,
 	return f
 }
 
-func (f *contentAddressableStorageInitialContentsFetcher) FetchContents() (map[string]InitialContentsFetcher, map[string]NativeLeaf, error) {
+func (f *contentAddressableStorageInitialContentsFetcher) FetchContents() (map[path.Component]InitialContentsFetcher, map[path.Component]NativeLeaf, error) {
 	directory, err := f.options.directoryFetcher.GetDirectory(f.options.context, f.digest)
 	if err != nil {
 		return nil, nil, err
@@ -59,21 +63,29 @@ func (f *contentAddressableStorageInitialContentsFetcher) FetchContents() (map[s
 	// These can yield even more InitialContentsFetchers for
 	// grandchildren.
 	instanceName := f.digest.GetInstanceName()
-	directories := map[string]InitialContentsFetcher{}
+	directories := map[path.Component]InitialContentsFetcher{}
 	for _, entry := range directory.Directories {
+		component, ok := path.NewComponent(entry.Name)
+		if !ok {
+			return nil, nil, status.Errorf(codes.InvalidArgument, "Directory %#v has an invalid name", entry.Name)
+		}
 		childDigest, err := instanceName.NewDigestFromProto(entry.Digest)
 		if err != nil {
 			return nil, nil, util.StatusWrapf(err, "Failed to obtain digest for directory %#v", entry.Name)
 		}
-		directories[entry.Name] = &contentAddressableStorageInitialContentsFetcher{
+		directories[component] = &contentAddressableStorageInitialContentsFetcher{
 			options: f.options,
 			digest:  childDigest,
 		}
 	}
 
 	// Create Content Addressable Storage backed read-only files.
-	leaves := map[string]NativeLeaf{}
+	leaves := map[path.Component]NativeLeaf{}
 	for _, entry := range directory.Files {
+		component, ok := path.NewComponent(entry.Name)
+		if !ok {
+			return nil, nil, status.Errorf(codes.InvalidArgument, "File %#v has an invalid name", entry.Name)
+		}
 		childDigest, err := instanceName.NewDigestFromProto(entry.Digest)
 		if err != nil {
 			return nil, nil, util.StatusWrapf(err, "Failed to obtain digest for file %#v", entry.Name)
@@ -94,7 +106,7 @@ func (f *contentAddressableStorageInitialContentsFetcher) FetchContents() (map[s
 		if entry.IsExecutable {
 			inodeNumberTree = &f.options.executableInodeNumberTree
 		}
-		leaves[entry.Name] = NewContentAddressableStorageFile(
+		leaves[component] = NewContentAddressableStorageFile(
 			f.options.context,
 			f.options.contentAddressableStorage,
 			f.options.errorLogger,
@@ -103,7 +115,11 @@ func (f *contentAddressableStorageInitialContentsFetcher) FetchContents() (map[s
 			entry.IsExecutable)
 	}
 	for _, entry := range directory.Symlinks {
-		leaves[entry.Name] = NewSymlink(entry.Target)
+		component, ok := path.NewComponent(entry.Name)
+		if !ok {
+			return nil, nil, status.Errorf(codes.InvalidArgument, "Symlink %#v has an invalid name", entry.Name)
+		}
+		leaves[component] = NewSymlink(entry.Target)
 	}
 
 	return directories, leaves, nil

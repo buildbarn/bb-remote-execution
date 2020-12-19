@@ -12,7 +12,11 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
+	bb_path "github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type naiveBuildDirectory struct {
@@ -41,7 +45,7 @@ func NewNaiveBuildDirectory(directory filesystem.DirectoryCloser, directoryFetch
 	}
 }
 
-func (d *naiveBuildDirectory) EnterBuildDirectory(name string) (BuildDirectory, error) {
+func (d *naiveBuildDirectory) EnterBuildDirectory(name bb_path.Component) (BuildDirectory, error) {
 	child, err := d.EnterDirectory(name)
 	if err != nil {
 		return nil, err
@@ -54,7 +58,7 @@ func (d *naiveBuildDirectory) EnterBuildDirectory(name string) (BuildDirectory, 
 	}, nil
 }
 
-func (d *naiveBuildDirectory) EnterUploadableDirectory(name string) (UploadableDirectory, error) {
+func (d *naiveBuildDirectory) EnterUploadableDirectory(name bb_path.Component) (UploadableDirectory, error) {
 	return d.EnterBuildDirectory(name)
 }
 
@@ -74,25 +78,33 @@ func (d *naiveBuildDirectory) mergeDirectoryContents(ctx context.Context, digest
 	// Create children.
 	instanceName := digest.GetInstanceName()
 	for _, file := range directory.Files {
+		component, ok := bb_path.NewComponent(file.Name)
+		if !ok {
+			return status.Errorf(codes.InvalidArgument, "File %#v has an invalid name", file.Name)
+		}
 		childComponents := append(components, file.Name)
 		childDigest, err := instanceName.NewDigestFromProto(file.Digest)
 		if err != nil {
 			return util.StatusWrapf(err, "Failed to extract digest for input file %#v", path.Join(childComponents...))
 		}
-		if err := d.fileFetcher.GetFile(ctx, childDigest, inputDirectory, file.Name, file.IsExecutable); err != nil {
+		if err := d.fileFetcher.GetFile(ctx, childDigest, inputDirectory, component, file.IsExecutable); err != nil {
 			return util.StatusWrapf(err, "Failed to obtain input file %#v", path.Join(childComponents...))
 		}
 	}
 	for _, directory := range directory.Directories {
+		component, ok := bb_path.NewComponent(directory.Name)
+		if !ok {
+			return status.Errorf(codes.InvalidArgument, "Directory %#v has an invalid name", directory.Name)
+		}
 		childComponents := append(components, directory.Name)
 		childDigest, err := instanceName.NewDigestFromProto(directory.Digest)
 		if err != nil {
 			return util.StatusWrapf(err, "Failed to extract digest for input directory %#v", path.Join(childComponents...))
 		}
-		if err := inputDirectory.Mkdir(directory.Name, 0777); err != nil {
+		if err := inputDirectory.Mkdir(component, 0777); err != nil {
 			return util.StatusWrapf(err, "Failed to create input directory %#v", path.Join(childComponents...))
 		}
-		childDirectory, err := inputDirectory.EnterDirectory(directory.Name)
+		childDirectory, err := inputDirectory.EnterDirectory(component)
 		if err != nil {
 			return util.StatusWrapf(err, "Failed to enter input directory %#v", path.Join(childComponents...))
 		}
@@ -103,8 +115,12 @@ func (d *naiveBuildDirectory) mergeDirectoryContents(ctx context.Context, digest
 		}
 	}
 	for _, symlink := range directory.Symlinks {
+		component, ok := bb_path.NewComponent(symlink.Name)
+		if !ok {
+			return status.Errorf(codes.InvalidArgument, "Symlink %#v has an invalid name", symlink.Name)
+		}
 		childComponents := append(components, symlink.Name)
-		if err := inputDirectory.Symlink(symlink.Target, symlink.Name); err != nil {
+		if err := inputDirectory.Symlink(symlink.Target, component); err != nil {
 			return util.StatusWrapf(err, "Failed to create input symlink %#v", path.Join(childComponents...))
 		}
 	}
@@ -115,7 +131,7 @@ func (d *naiveBuildDirectory) MergeDirectoryContents(ctx context.Context, errorL
 	return d.mergeDirectoryContents(ctx, digest, d.DirectoryCloser, []string{"."})
 }
 
-func (d *naiveBuildDirectory) UploadFile(ctx context.Context, name string, digestFunction digest.Function) (digest.Digest, error) {
+func (d *naiveBuildDirectory) UploadFile(ctx context.Context, name bb_path.Component, digestFunction digest.Function) (digest.Digest, error) {
 	file, err := d.OpenRead(name)
 	if err != nil {
 		return digest.BadDigest, err

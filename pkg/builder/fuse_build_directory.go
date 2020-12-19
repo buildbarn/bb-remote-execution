@@ -10,6 +10,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/fuse"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/digest"
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
 )
 
@@ -33,7 +34,7 @@ func NewFUSEBuildDirectory(directory *fuse.InMemoryDirectory, directoryFetcher c
 	}
 }
 
-func (d *fuseBuildDirectory) EnterBuildDirectory(name string) (BuildDirectory, error) {
+func (d *fuseBuildDirectory) EnterBuildDirectory(name path.Component) (BuildDirectory, error) {
 	child, err := d.EnterInMemoryDirectory(name)
 	if err != nil {
 		return nil, err
@@ -50,7 +51,7 @@ func (d *fuseBuildDirectory) Close() error {
 	return nil
 }
 
-func (d *fuseBuildDirectory) EnterUploadableDirectory(name string) (UploadableDirectory, error) {
+func (d *fuseBuildDirectory) EnterUploadableDirectory(name path.Component) (UploadableDirectory, error) {
 	return d.EnterBuildDirectory(name)
 }
 
@@ -74,6 +75,6 @@ func (d *fuseBuildDirectory) MergeDirectoryContents(ctx context.Context, errorLo
 	return d.InMemoryDirectory.MergeDirectoryContents(directories, leaves)
 }
 
-func (d *fuseBuildDirectory) UploadFile(ctx context.Context, name string, digestFunction digest.Function) (digest.Digest, error) {
+func (d *fuseBuildDirectory) UploadFile(ctx context.Context, name path.Component, digestFunction digest.Function) (digest.Digest, error) {
 	return d.InMemoryDirectory.UploadFile(ctx, name, d.contentAddressableStorage, digestFunction)
 }

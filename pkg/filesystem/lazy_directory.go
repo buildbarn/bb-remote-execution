@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
 
 	"google.golang.org/grpc/codes"
@@ -47,7 +48,7 @@ func (d *lazyDirectory) openUnderlying() (filesystem.DirectoryCloser, error) {
 	return underlying, nil
 }
 
-func (d *lazyDirectory) EnterDirectory(name string) (filesystem.DirectoryCloser, error) {
+func (d *lazyDirectory) EnterDirectory(name path.Component) (filesystem.DirectoryCloser, error) {
 	underlying, err := d.openUnderlying()
 	if err != nil {
 		return nil, err
@@ -56,7 +57,7 @@ func (d *lazyDirectory) EnterDirectory(name string) (filesystem.DirectoryCloser,
 	return underlying.EnterDirectory(name)
 }
 
-func (d *lazyDirectory) OpenAppend(name string, creationMode filesystem.CreationMode) (filesystem.FileAppender, error) {
+func (d *lazyDirectory) OpenAppend(name path.Component, creationMode filesystem.CreationMode) (filesystem.FileAppender, error) {
 	underlying, err := d.openUnderlying()
 	if err != nil {
 		return nil, err
@@ -65,7 +66,7 @@ func (d *lazyDirectory) OpenAppend(name string, creationMode filesystem.Creation
 	return underlying.OpenAppend(name, creationMode)
 }
 
-func (d *lazyDirectory) OpenRead(name string) (filesystem.FileReader, error) {
+func (d *lazyDirectory) OpenRead(name path.Component) (filesystem.FileReader, error) {
 	underlying, err := d.openUnderlying()
 	if err != nil {
 		return nil, err
@@ -74,7 +75,7 @@ func (d *lazyDirectory) OpenRead(name string) (filesystem.FileReader, error) {
 	return underlying.OpenRead(name)
 }
 
-func (d *lazyDirectory) OpenReadWrite(name string, creationMode filesystem.CreationMode) (filesystem.FileReadWriter, error) {
+func (d *lazyDirectory) OpenReadWrite(name path.Component, creationMode filesystem.CreationMode) (filesystem.FileReadWriter, error) {
 	underlying, err := d.openUnderlying()
 	if err != nil {
 		return nil, err
@@ -83,7 +84,7 @@ func (d *lazyDirectory) OpenReadWrite(name string, creationMode filesystem.Creat
 	return underlying.OpenReadWrite(name, creationMode)
 }
 
-func (d *lazyDirectory) OpenWrite(name string, creationMode filesystem.CreationMode) (filesystem.FileWriter, error) {
+func (d *lazyDirectory) OpenWrite(name path.Component, creationMode filesystem.CreationMode) (filesystem.FileWriter, error) {
 	underlying, err := d.openUnderlying()
 	if err != nil {
 		return nil, err
@@ -92,7 +93,7 @@ func (d *lazyDirectory) OpenWrite(name string, creationMode filesystem.CreationM
 	return underlying.OpenWrite(name, creationMode)
 }
 
-func (d *lazyDirectory) Link(oldName string, newDirectory filesystem.Directory, newName string) error {
+func (d *lazyDirectory) Link(oldName path.Component, newDirectory filesystem.Directory, newName path.Component) error {
 	underlying, err := d.openUnderlying()
 	if err != nil {
 		return err
@@ -101,7 +102,7 @@ func (d *lazyDirectory) Link(oldName string, newDirectory filesystem.Directory, 
 	return underlying.Link(oldName, newDirectory, newName)
 }
 
-func (d *lazyDirectory) Lstat(name string) (filesystem.FileInfo, error) {
+func (d *lazyDirectory) Lstat(name path.Component) (filesystem.FileInfo, error) {
 	underlying, err := d.openUnderlying()
 	if err != nil {
 		return filesystem.FileInfo{}, err
@@ -110,7 +111,7 @@ func (d *lazyDirectory) Lstat(name string) (filesystem.FileInfo, error) {
 	return underlying.Lstat(name)
 }
 
-func (d *lazyDirectory) Mkdir(name string, perm os.FileMode) error {
+func (d *lazyDirectory) Mkdir(name path.Component, perm os.FileMode) error {
 	underlying, err := d.openUnderlying()
 	if err != nil {
 		return err
@@ -119,7 +120,7 @@ func (d *lazyDirectory) Mkdir(name string, perm os.FileMode) error {
 	return underlying.Mkdir(name, perm)
 }
 
-func (d *lazyDirectory) Mknod(name string, perm os.FileMode, dev int) error {
+func (d *lazyDirectory) Mknod(name path.Component, perm os.FileMode, dev int) error {
 	underlying, err := d.openUnderlying()
 	if err != nil {
 		return err
@@ -137,7 +138,7 @@ func (d *lazyDirectory) ReadDir() ([]filesystem.FileInfo, error) {
 	return underlying.ReadDir()
 }
 
-func (d *lazyDirectory) Readlink(name string) (string, error) {
+func (d *lazyDirectory) Readlink(name path.Component) (string, error) {
 	underlying, err := d.openUnderlying()
 	if err != nil {
 		return "", err
@@ -146,7 +147,7 @@ func (d *lazyDirectory) Readlink(name string) (string, error) {
 	return underlying.Readlink(name)
 }
 
-func (d *lazyDirectory) Remove(name string) error {
+func (d *lazyDirectory) Remove(name path.Component) error {
 	underlying, err := d.openUnderlying()
 	if err != nil {
 		return err
@@ -155,7 +156,7 @@ func (d *lazyDirectory) Remove(name string) error {
 	return underlying.Remove(name)
 }
 
-func (d *lazyDirectory) RemoveAll(name string) error {
+func (d *lazyDirectory) RemoveAll(name path.Component) error {
 	underlying, err := d.openUnderlying()
 	if err != nil {
 		return err
@@ -173,7 +174,7 @@ func (d *lazyDirectory) RemoveAllChildren() error {
 	return underlying.RemoveAllChildren()
 }
 
-func (d *lazyDirectory) Rename(oldName string, newDirectory filesystem.Directory, newName string) error {
+func (d *lazyDirectory) Rename(oldName path.Component, newDirectory filesystem.Directory, newName path.Component) error {
 	underlying, err := d.openUnderlying()
 	if err != nil {
 		return err
@@ -182,7 +183,7 @@ func (d *lazyDirectory) Rename(oldName string, newDirectory filesystem.Directory
 	return underlying.Rename(oldName, newDirectory, newName)
 }
 
-func (d *lazyDirectory) Symlink(oldName, newName string) error {
+func (d *lazyDirectory) Symlink(oldName string, newName path.Component) error {
 	underlying, err := d.openUnderlying()
 	if err != nil {
 		return err
@@ -200,7 +201,7 @@ func (d *lazyDirectory) Sync() error {
 	return underlying.Sync()
 }
 
-func (d *lazyDirectory) Chtimes(name string, atime, mtime time.Time) error {
+func (d *lazyDirectory) Chtimes(name path.Component, atime, mtime time.Time) error {
 	underlying, err := d.openUnderlying()
 	if err != nil {
 		return err
@@ -218,7 +219,7 @@ func (d *lazyDirectory) IsWritable() (bool, error) {
 	return underlying.IsWritable()
 }
 
-func (d *lazyDirectory) IsWritableChild(name string) (bool, error) {
+func (d *lazyDirectory) IsWritableChild(name path.Component) (bool, error) {
 	underlying, err := d.openUnderlying()
 	if err != nil {
 		return false, err

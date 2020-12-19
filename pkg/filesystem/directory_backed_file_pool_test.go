@@ -8,6 +8,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
@@ -24,13 +25,13 @@ func TestDirectoryBackedFilePool(t *testing.T) {
 
 		// Underlying file should not yet exist. This should be
 		// interpreted as if the file is empty.
-		directory.EXPECT().OpenRead("1").Return(nil, syscall.ENOENT)
+		directory.EXPECT().OpenRead(path.MustNewComponent("1")).Return(nil, syscall.ENOENT)
 		var p [10]byte
 		n, err := f.ReadAt(p[:], 0)
 		require.Equal(t, 0, n)
 		require.Equal(t, io.EOF, err)
 
-		directory.EXPECT().Remove("1").Return(syscall.ENOENT)
+		directory.EXPECT().Remove(path.MustNewComponent("1")).Return(syscall.ENOENT)
 		require.NoError(t, f.Close())
 	})
 
@@ -40,7 +41,7 @@ func TestDirectoryBackedFilePool(t *testing.T) {
 
 		// Write a piece of text into the file.
 		fileWriter := mock.NewMockFileWriter(ctrl)
-		directory.EXPECT().OpenWrite("2", filesystem.CreateReuse(0600)).Return(fileWriter, nil)
+		directory.EXPECT().OpenWrite(path.MustNewComponent("2"), filesystem.CreateReuse(0600)).Return(fileWriter, nil)
 		fileWriter.EXPECT().WriteAt([]byte("Hello, world"), int64(123)).Return(12, nil)
 		fileWriter.EXPECT().Close()
 		n, err := f.WriteAt([]byte("Hello, world"), 123)
@@ -49,14 +50,14 @@ func TestDirectoryBackedFilePool(t *testing.T) {
 
 		// Truncate a part of it.
 		fileWriter = mock.NewMockFileWriter(ctrl)
-		directory.EXPECT().OpenWrite("2", filesystem.CreateReuse(0600)).Return(fileWriter, nil)
+		directory.EXPECT().OpenWrite(path.MustNewComponent("2"), filesystem.CreateReuse(0600)).Return(fileWriter, nil)
 		fileWriter.EXPECT().Truncate(int64(128))
 		fileWriter.EXPECT().Close()
 		require.NoError(t, f.Truncate(128))
 
 		// Read back the end of the file.
 		fileReader := mock.NewMockFileReader(ctrl)
-		directory.EXPECT().OpenRead("2").Return(fileReader, nil)
+		directory.EXPECT().OpenRead(path.MustNewComponent("2")).Return(fileReader, nil)
 		fileReader.EXPECT().ReadAt(gomock.Any(), int64(120)).DoAndReturn(
 			func(p []byte, off int64) (int, error) {
 				require.Len(t, p, 10)
@@ -70,7 +71,7 @@ func TestDirectoryBackedFilePool(t *testing.T) {
 		require.Equal(t, io.EOF, err)
 		require.Equal(t, []byte("\x00\x00\x00Hello"), p[:8])
 
-		directory.EXPECT().Remove("2").Return(nil)
+		directory.EXPECT().Remove(path.MustNewComponent("2")).Return(nil)
 		require.NoError(t, f.Close())
 	})
 }
