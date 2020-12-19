@@ -1,0 +1,46 @@
+diff --git language/go/generate.go language/go/generate.go
+index c9b398e..0cbd9a9 100644
+--- language/go/generate.go
++++ language/go/generate.go
+@@ -455,7 +455,7 @@ func (g *generator) generateLib(pkg *goPackage, embed string) *rule.Rule {
+ 	} else {
+ 		visibility = g.commonVisibility(pkg.importPath)
+ 	}
+-	g.setCommonAttrs(goLibrary, pkg.rel, visibility, pkg.library, embed)
++	g.setCommonAttrs(goLibrary, pkg.rel, visibility, pkg.library, embed, true)
+ 	g.setImportAttrs(goLibrary, pkg.importPath)
+ 	return goLibrary
+ }
+@@ -467,7 +467,7 @@ func (g *generator) generateBin(pkg *goPackage, library string) *rule.Rule {
+ 		return goBinary // empty
+ 	}
+ 	visibility := g.commonVisibility(pkg.importPath)
+-	g.setCommonAttrs(goBinary, pkg.rel, visibility, pkg.binary, library)
++	g.setCommonAttrs(goBinary, pkg.rel, visibility, pkg.binary, library, true)
+ 	return goBinary
+ }
+ 
+@@ -476,16 +476,20 @@ func (g *generator) generateTest(pkg *goPackage, library string) *rule.Rule {
+ 	if !pkg.test.sources.hasGo() {
+ 		return goTest // empty
+ 	}
+-	g.setCommonAttrs(goTest, pkg.rel, nil, pkg.test, library)
++	g.setCommonAttrs(goTest, pkg.rel, nil, pkg.test, library, false)
+ 	if pkg.hasTestdata {
+ 		goTest.SetAttr("data", rule.GlobValue{Patterns: []string{"testdata/**"}})
+ 	}
+ 	return goTest
+ }
+ 
+-func (g *generator) setCommonAttrs(r *rule.Rule, pkgRel string, visibility []string, target goTarget, embed string) {
++func (g *generator) setCommonAttrs(r *rule.Rule, pkgRel string, visibility []string, target goTarget, embed string, flattenSrcs bool) {
+ 	if !target.sources.isEmpty() {
+-		r.SetAttr("srcs", target.sources.buildFlat())
++		if flattenSrcs {
++			r.SetAttr("srcs", target.sources.buildFlat())
++		} else {
++			r.SetAttr("srcs", target.sources.build())
++		}
+ 	}
+ 	if target.cgo {
+ 		r.SetAttr("cgo", true)
