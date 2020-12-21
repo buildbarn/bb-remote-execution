@@ -5,9 +5,9 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 http_archive(
     name = "bazel_gomock",
     patches = ["//:patches/bazel_gomock/tags-manual.diff"],
-    sha256 = "5c4e7cde43a80d7bdef8cd3ff0741e33b24f9e2897ae9759bfe0ff2ba80125db",
-    strip_prefix = "bazel_gomock-1.1",
-    urls = ["https://github.com/jmhodges/bazel_gomock/archive/v1.1.tar.gz"],
+    sha256 = "a7411ff1316eedf4d9344b393a507b9cd8f51651d65013af5f21dcf4e70fc5eb",
+    strip_prefix = "bazel_gomock-7e1f48084f0b833bfd1e607555b456639f24bb6e",
+    urls = ["https://github.com/KarolisL/bazel_gomock/archive/7e1f48084f0b833bfd1e607555b456639f24bb6e.tar.gz"],
 )
 
 http_archive(
@@ -29,20 +29,19 @@ http_archive(
 
 http_archive(
     name = "io_bazel_rules_go",
-    sha256 = "142dd33e38b563605f0d20e89d9ef9eda0fc3cb539a14be1bdb1350de2eda659",
+    sha256 = "6f111c57fd50baf5b8ee9d63024874dd2a014b069426156c55adbf6d3d22cb7b",
     urls = [
-        "https://mirror.bazel.build/github.com/bazelbuild/rules_go/releases/download/v0.22.2/rules_go-v0.22.2.tar.gz",
-        "https://github.com/bazelbuild/rules_go/releases/download/v0.22.2/rules_go-v0.22.2.tar.gz",
+        "https://mirror.bazel.build/github.com/bazelbuild/rules_go/releases/download/v0.25.0/rules_go-v0.25.0.tar.gz",
+        "https://github.com/bazelbuild/rules_go/releases/download/v0.25.0/rules_go-v0.25.0.tar.gz",
     ],
 )
 
 http_archive(
     name = "bazel_gazelle",
-    patches = ["//:patches/bazel_gazelle/dont-flatten-srcs.diff"],
-    sha256 = "d8c45ee70ec39a57e7a05e5027c32b1576cc7f16d9dd37135b0eddde45cf1b10",
+    sha256 = "b85f48fa105c4403326e9525ad2b2cc437babaa6e15a3fc0b1dbab0ab064bc7c",
     urls = [
-        "https://storage.googleapis.com/bazel-mirror/github.com/bazelbuild/bazel-gazelle/releases/download/v0.20.0/bazel-gazelle-v0.20.0.tar.gz",
-        "https://github.com/bazelbuild/bazel-gazelle/releases/download/v0.20.0/bazel-gazelle-v0.20.0.tar.gz",
+        "https://mirror.bazel.build/github.com/bazelbuild/bazel-gazelle/releases/download/v0.22.2/bazel-gazelle-v0.22.2.tar.gz",
+        "https://github.com/bazelbuild/bazel-gazelle/releases/download/v0.22.2/bazel-gazelle-v0.22.2.tar.gz",
     ],
 )
 
@@ -50,7 +49,7 @@ load("@io_bazel_rules_go//go:deps.bzl", "go_register_toolchains", "go_rules_depe
 
 go_rules_dependencies()
 
-go_register_toolchains()
+go_register_toolchains(version = "1.15.5")
 
 # gazelle:repository_macro go_dependencies.bzl%go_dependencies
 load(":go_dependencies.bzl", "go_dependencies")
