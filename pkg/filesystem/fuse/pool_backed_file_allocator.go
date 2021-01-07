@@ -258,10 +258,6 @@ func (f *fileBackedFile) FUSEGetDirEntry() fuse.DirEntry {
 	}
 }
 
-func (f *fileBackedFile) FUSEGetXAttr(attr string, dest []byte) (uint32, fuse.Status) {
-	return 0, fuse.ENOATTR
-}
-
 func (f *fileBackedFile) FUSEOpen(flags uint32) fuse.Status {
 	if !f.acquire(false) {
 		// This function may be called by go-fuse, even if the

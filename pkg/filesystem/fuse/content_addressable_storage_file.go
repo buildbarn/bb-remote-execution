@@ -100,24 +100,6 @@ func (f *contentAddressableStorageFile) FUSEGetDirEntry() fuse.DirEntry {
 	}
 }
 
-func (f *contentAddressableStorageFile) FUSEGetXAttr(attr string, dest []byte) (uint32, fuse.Status) {
-	// Provide an extended attribute that allows consumers to
-	// reobtain the digest of the file without loading its actual
-	// contents. This attribute is hidden from listxattr() to ensure
-	// tools like cp(1) don't copy it to mutable files.
-	//
-	// More details: https://github.com/bazelbuild/bazel/pull/11662
-	if attr == f.digest.GetHashXAttrName() {
-		h := []byte(f.digest.GetHashBytes())
-		if len(dest) < len(h) {
-			return uint32(len(h)), fuse.ERANGE
-		}
-		copy(dest, h)
-		return uint32(len(h)), fuse.OK
-	}
-	return 0, fuse.ENOATTR
-}
-
 func (f *contentAddressableStorageFile) FUSEOpen(flags uint32) fuse.Status {
 	if flags&fuse.O_ANYWRITE != 0 {
 		return fuse.EACCES

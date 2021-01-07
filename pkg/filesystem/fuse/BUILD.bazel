@@ -155,28 +155,24 @@ go_test(
         "inode_number_tree_test.go",
     ] + select({
         "@io_bazel_rules_go//go/platform:android": [
-            "content_addressable_storage_file_test.go",
             "default_attributes_injecting_raw_file_system_test.go",
             "in_memory_directory_test.go",
             "pool_backed_file_allocator_test.go",
             "simple_raw_file_system_test.go",
         ],
         "@io_bazel_rules_go//go/platform:darwin": [
-            "content_addressable_storage_file_test.go",
             "default_attributes_injecting_raw_file_system_test.go",
             "in_memory_directory_test.go",
             "pool_backed_file_allocator_test.go",
             "simple_raw_file_system_test.go",
         ],
         "@io_bazel_rules_go//go/platform:ios": [
-            "content_addressable_storage_file_test.go",
             "default_attributes_injecting_raw_file_system_test.go",
             "in_memory_directory_test.go",
             "pool_backed_file_allocator_test.go",
             "simple_raw_file_system_test.go",
         ],
         "@io_bazel_rules_go//go/platform:linux": [
-            "content_addressable_storage_file_test.go",
             "default_attributes_injecting_raw_file_system_test.go",
             "in_memory_directory_test.go",
             "pool_backed_file_allocator_test.go",

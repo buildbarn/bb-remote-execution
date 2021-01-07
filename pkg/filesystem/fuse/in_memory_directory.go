@@ -597,11 +597,6 @@ func (i *InMemoryDirectory) FUSEGetAttr(out *fuse.Attr) {
 	i.lock.Unlock()
 }
 
-// FUSEGetXAttr obtains extended attributes of the directory.
-func (i *InMemoryDirectory) FUSEGetXAttr(attr string, dest []byte) (uint32, fuse.Status) {
-	return 0, fuse.ENOATTR
-}
-
 // FUSELink links an existing file into the directory.
 func (i *InMemoryDirectory) FUSELink(name path.Component, leaf Leaf, out *fuse.Attr) fuse.Status {
 	i.lock.Lock()

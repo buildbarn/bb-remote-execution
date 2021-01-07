@@ -76,10 +76,6 @@ func (f *device) FUSEGetDirEntry() fuse.DirEntry {
 	}
 }
 
-func (f *device) FUSEGetXAttr(attr string, dest []byte) (uint32, fuse.Status) {
-	return 0, fuse.ENOATTR
-}
-
 func (f *device) FUSEOpen(flags uint32) fuse.Status {
 	panic("Request to open device should have been intercepted")
 }

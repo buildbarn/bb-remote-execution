@@ -40,7 +40,6 @@ type leafEntry struct {
 type node interface {
 	FUSEAccess(mask uint32) fuse.Status
 	FUSEGetAttr(out *fuse.Attr)
-	FUSEGetXAttr(attr string, dest []byte) (uint32, fuse.Status)
 	FUSESetAttr(in *fuse.SetAttrIn, out *fuse.Attr) fuse.Status
 }
 
@@ -378,11 +377,7 @@ func (rfs *simpleRawFileSystem) Access(cancel <-chan struct{}, input *fuse.Acces
 }
 
 func (rfs *simpleRawFileSystem) GetXAttr(cancel <-chan struct{}, header *fuse.InHeader, attr string, dest []byte) (uint32, fuse.Status) {
-	rfs.nodeLock.RLock()
-	i := rfs.getNodeLocked(header.NodeId)
-	rfs.nodeLock.RUnlock()
-
-	return i.FUSEGetXAttr(attr, dest)
+	return 0, fuse.ENOATTR
 }
 
 func (rfs *simpleRawFileSystem) ListXAttr(cancel <-chan struct{}, header *fuse.InHeader, dest []byte) (uint32, fuse.Status) {
