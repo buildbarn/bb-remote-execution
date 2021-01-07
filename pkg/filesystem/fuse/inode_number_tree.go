@@ -4,7 +4,8 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"hash"
-	"math/rand"
+
+	"github.com/buildbarn/bb-storage/pkg/random"
 )
 
 // InodeNumberTree is a helper type that can be used to generate inode
@@ -39,7 +40,7 @@ var DeterministicInodeNumberTree = InodeNumberTree{
 // randomized initial state.
 func NewRandomInodeNumberTree() InodeNumberTree {
 	var it InodeNumberTree
-	rand.Read(it.sum[:])
+	random.CryptoThreadSafeGenerator.Read(it.sum[:])
 	return it
 }
 

@@ -1,8 +1,9 @@
 package fuse
 
 import (
-	"math/rand"
 	"sort"
+
+	"github.com/buildbarn/bb-storage/pkg/random"
 )
 
 // Sorter is a function type for a sorting algorithm. Its signature is
@@ -19,5 +20,5 @@ var _ Sorter = sort.Sort
 
 // Shuffle elements in a list using the Fisher-Yates algorithm.
 func Shuffle(data sort.Interface) {
-	rand.Shuffle(data.Len(), data.Swap)
+	random.FastThreadSafeGenerator.Shuffle(data.Len(), data.Swap)
 }

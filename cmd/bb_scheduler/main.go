@@ -2,7 +2,6 @@ package main
 
 import (
 	"log"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
@@ -21,6 +20,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/cloud/aws"
 	"github.com/buildbarn/bb-storage/pkg/global"
 	bb_grpc "github.com/buildbarn/bb-storage/pkg/grpc"
+	"github.com/buildbarn/bb-storage/pkg/random"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -60,6 +60,7 @@ func main() {
 	contentAddressableStorage := re_blobstore.NewExistencePreconditionBlobAccess(info.BlobAccess)
 
 	// TODO: Make timeouts configurable.
+	generator := random.NewFastSingleThreadedGenerator()
 	buildQueue := builder.NewInMemoryBuildQueue(
 		contentAddressableStorage,
 		clock.SystemClock,
@@ -73,7 +74,7 @@ func main() {
 				// Let synchronization calls block somewhere
 				// between 1 and 2 minutes. Add jitter to
 				// prevent recurring traffic spikes.
-				return time.Minute + time.Duration(rand.Intn(60*1e6))*time.Microsecond
+				return time.Minute + time.Duration(generator.Intn(60*1e6))*time.Microsecond
 			},
 			WorkerTaskRetryCount:                9,
 			WorkerWithNoSynchronizationsTimeout: time.Minute,
