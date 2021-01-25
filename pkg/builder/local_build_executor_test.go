@@ -671,7 +671,7 @@ func TestLocalBuildExecutorCachingInvalidTimeout(t *testing.T) {
 		Result: &remoteexecution.ActionResult{
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
 		},
-		Status: status.New(codes.InvalidArgument, "Invalid execution timeout: duration: nanos:1000000000 : nanos out of range").Proto(),
+		Status: status.New(codes.InvalidArgument, "Invalid execution timeout: duration: nanos:1000000000: nanos out of range").Proto(),
 	}, executeResponse)
 }
 

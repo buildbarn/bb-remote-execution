@@ -18,7 +18,7 @@ go_proto_library(
 )
 
 go_library(
-    name = "go_default_library",
+    name = "tmp_installer",
     embed = [":tmp_installer_go_proto"],
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/proto/tmp_installer",
     visibility = ["//visibility:public"],

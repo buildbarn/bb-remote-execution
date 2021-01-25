@@ -17,7 +17,7 @@ go_proto_library(
 )
 
 go_library(
-    name = "go_default_library",
+    name = "resourceusage",
     embed = [":resourceusage_go_proto"],
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage",
     visibility = ["//visibility:public"],

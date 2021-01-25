@@ -36,7 +36,7 @@ func NewFilePoolFromConfiguration(configuration *pb.FilePoolConfiguration) (File
 		}
 		return NewDirectoryBackedFilePool(directory), nil
 	case *pb.FilePoolConfiguration_BlockDevice:
-		blockDevice, sectorSizeBytes, sectorCount, err := blockdevice.NewBlockDeviceFromConfiguration(backend.BlockDevice)
+		blockDevice, sectorSizeBytes, sectorCount, err := blockdevice.NewBlockDeviceFromConfiguration(backend.BlockDevice, true)
 		if err != nil {
 			return nil, util.StatusWrap(err, "Failed to create block device")
 		}

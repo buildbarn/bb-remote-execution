@@ -1,7 +1,7 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
-    name = "go_default_library",
+    name = "processtablecleaning",
     srcs = [
         "filtering_process_table.go",
         "process_table.go",
@@ -14,54 +14,54 @@ go_library(
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/runner/processtablecleaning",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/proto/runner:go_default_library",
-        "//pkg/runner:go_default_library",
-        "//pkg/sync:go_default_library",
-        "@com_github_buildbarn_bb_storage//pkg/util:go_default_library",
+        "//pkg/proto/runner",
+        "//pkg/runner",
+        "//pkg/sync",
+        "@com_github_buildbarn_bb_storage//pkg/util",
     ] + select({
         "@io_bazel_rules_go//go/platform:android": [
-            "@org_golang_google_grpc//codes:go_default_library",
-            "@org_golang_x_sys//unix:go_default_library",
+            "@org_golang_google_grpc//codes",
+            "@org_golang_x_sys//unix",
         ],
         "@io_bazel_rules_go//go/platform:darwin": [
-            "@org_golang_google_grpc//codes:go_default_library",
-            "@org_golang_google_grpc//status:go_default_library",
-            "@org_golang_x_sys//unix:go_default_library",
+            "@org_golang_google_grpc//codes",
+            "@org_golang_google_grpc//status",
+            "@org_golang_x_sys//unix",
         ],
         "@io_bazel_rules_go//go/platform:freebsd": [
-            "@org_golang_google_grpc//codes:go_default_library",
-            "@org_golang_google_grpc//status:go_default_library",
-            "@org_golang_x_sys//unix:go_default_library",
+            "@org_golang_google_grpc//codes",
+            "@org_golang_google_grpc//status",
+            "@org_golang_x_sys//unix",
         ],
         "@io_bazel_rules_go//go/platform:ios": [
-            "@org_golang_google_grpc//codes:go_default_library",
-            "@org_golang_google_grpc//status:go_default_library",
-            "@org_golang_x_sys//unix:go_default_library",
+            "@org_golang_google_grpc//codes",
+            "@org_golang_google_grpc//status",
+            "@org_golang_x_sys//unix",
         ],
         "@io_bazel_rules_go//go/platform:linux": [
-            "@org_golang_google_grpc//codes:go_default_library",
-            "@org_golang_x_sys//unix:go_default_library",
+            "@org_golang_google_grpc//codes",
+            "@org_golang_x_sys//unix",
         ],
         "@io_bazel_rules_go//go/platform:windows": [
-            "@org_golang_google_grpc//codes:go_default_library",
-            "@org_golang_google_grpc//status:go_default_library",
+            "@org_golang_google_grpc//codes",
+            "@org_golang_google_grpc//status",
         ],
         "//conditions:default": [],
     }),
 )
 
 go_test(
-    name = "go_default_test",
+    name = "processtablecleaning_test",
     srcs = [
         "filtering_process_table_test.go",
         "system_process_table_test.go",
     ],
-    embed = [":go_default_library"],
+    embed = [":processtablecleaning"],
     deps = [
         "//internal/mock:go_default_library",
-        "@com_github_golang_mock//gomock:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
-        "@org_golang_google_grpc//codes:go_default_library",
-        "@org_golang_google_grpc//status:go_default_library",
+        "@com_github_golang_mock//gomock",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
     ],
 )

@@ -21,7 +21,7 @@ go_proto_library(
 )
 
 go_library(
-    name = "go_default_library",
+    name = "runner",
     embed = [":runner_go_proto"],
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/proto/runner",
     visibility = ["//visibility:public"],

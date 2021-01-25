@@ -1,7 +1,7 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
-    name = "go_default_library",
+    name = "aws",
     srcs = [
         "build_queue_lifecycle_hook_handler.go",
         "lifecycle_hook_sqs_message_handler.go",
@@ -10,34 +10,34 @@ go_library(
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/cloud/aws",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/builder:go_default_library",
-        "@com_github_aws_aws_sdk_go//aws:go_default_library",
-        "@com_github_aws_aws_sdk_go//aws/awserr:go_default_library",
-        "@com_github_aws_aws_sdk_go//service/autoscaling:go_default_library",
-        "@com_github_aws_aws_sdk_go//service/sqs:go_default_library",
-        "@com_github_buildbarn_bb_storage//pkg/util:go_default_library",
-        "@com_github_prometheus_client_golang//prometheus:go_default_library",
-        "@org_golang_google_grpc//codes:go_default_library",
+        "//pkg/builder",
+        "@com_github_aws_aws_sdk_go//aws",
+        "@com_github_aws_aws_sdk_go//aws/awserr",
+        "@com_github_aws_aws_sdk_go//service/autoscaling",
+        "@com_github_aws_aws_sdk_go//service/sqs",
+        "@com_github_buildbarn_bb_storage//pkg/util",
+        "@com_github_prometheus_client_golang//prometheus",
+        "@org_golang_google_grpc//codes",
     ],
 )
 
 go_test(
-    name = "go_default_test",
+    name = "aws_test",
     srcs = [
         "build_queue_lifecycle_hook_handler_test.go",
         "lifecycle_hook_sqs_message_handler_test.go",
         "sqs_receiver_test.go",
     ],
-    embed = [":go_default_library"],
+    embed = [":aws"],
     deps = [
         "//internal/mock:go_default_library",
-        "@com_github_aws_aws_sdk_go//aws:go_default_library",
-        "@com_github_aws_aws_sdk_go//aws/awserr:go_default_library",
-        "@com_github_aws_aws_sdk_go//service/autoscaling:go_default_library",
-        "@com_github_aws_aws_sdk_go//service/sqs:go_default_library",
-        "@com_github_golang_mock//gomock:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
-        "@org_golang_google_grpc//codes:go_default_library",
-        "@org_golang_google_grpc//status:go_default_library",
+        "@com_github_aws_aws_sdk_go//aws",
+        "@com_github_aws_aws_sdk_go//aws/awserr",
+        "@com_github_aws_aws_sdk_go//service/autoscaling",
+        "@com_github_aws_aws_sdk_go//service/sqs",
+        "@com_github_golang_mock//gomock",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
     ],
 )

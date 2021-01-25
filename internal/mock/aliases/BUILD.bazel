@@ -1,9 +1,9 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_library")
 
 go_library(
-    name = "go_default_library",
+    name = "aliases",
     srcs = ["aliases.go"],
     importpath = "github.com/buildbarn/bb-remote-execution/internal/mock/aliases",
     visibility = ["//:__subpackages__"],
-    deps = ["//pkg/filesystem/fuse:go_default_library"],
+    deps = ["//pkg/filesystem/fuse"],
 )

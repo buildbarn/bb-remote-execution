@@ -17,7 +17,7 @@ go_proto_library(
 )
 
 go_library(
-    name = "go_default_library",
+    name = "fuse",
     embed = [":fuse_go_proto"],
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/fuse",
     visibility = ["//visibility:public"],

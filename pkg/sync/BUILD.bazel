@@ -1,7 +1,7 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
-    name = "go_default_library",
+    name = "sync",
     srcs = [
         "initializer.go",
         "lock_pile.go",
@@ -11,15 +11,15 @@ go_library(
 )
 
 go_test(
-    name = "go_default_test",
+    name = "sync_test",
     srcs = [
         "initializer_test.go",
         "lock_pile_test.go",
     ],
-    embed = [":go_default_library"],
+    embed = [":sync"],
     deps = [
         "//internal/mock:go_default_library",
-        "@com_github_golang_mock//gomock:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_golang_mock//gomock",
+        "@com_github_stretchr_testify//require",
     ],
 )

@@ -1,7 +1,7 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
-    name = "go_default_library",
+    name = "filesystem",
     srcs = [
         "bitmap_sector_allocator.go",
         "block_device_backed_file_pool.go",
@@ -18,19 +18,19 @@ go_library(
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/filesystem",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/proto/configuration/filesystem:go_default_library",
-        "@com_github_buildbarn_bb_storage//pkg/atomic:go_default_library",
-        "@com_github_buildbarn_bb_storage//pkg/blockdevice:go_default_library",
-        "@com_github_buildbarn_bb_storage//pkg/filesystem:go_default_library",
-        "@com_github_buildbarn_bb_storage//pkg/filesystem/path:go_default_library",
-        "@com_github_buildbarn_bb_storage//pkg/util:go_default_library",
-        "@org_golang_google_grpc//codes:go_default_library",
-        "@org_golang_google_grpc//status:go_default_library",
+        "//pkg/proto/configuration/filesystem",
+        "@com_github_buildbarn_bb_storage//pkg/atomic",
+        "@com_github_buildbarn_bb_storage//pkg/blockdevice",
+        "@com_github_buildbarn_bb_storage//pkg/filesystem",
+        "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
+        "@com_github_buildbarn_bb_storage//pkg/util",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
     ],
 )
 
 go_test(
-    name = "go_default_test",
+    name = "filesystem_test",
     srcs = [
         "bitmap_sector_allocator_test.go",
         "block_device_backed_file_pool_test.go",
@@ -41,14 +41,14 @@ go_test(
         "quota_enforcing_file_pool_test.go",
         "writable_path_checker_test.go",
     ],
-    embed = [":go_default_library"],
+    embed = [":filesystem"],
     deps = [
         "//internal/mock:go_default_library",
-        "@com_github_buildbarn_bb_storage//pkg/filesystem:go_default_library",
-        "@com_github_buildbarn_bb_storage//pkg/filesystem/path:go_default_library",
-        "@com_github_golang_mock//gomock:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
-        "@org_golang_google_grpc//codes:go_default_library",
-        "@org_golang_google_grpc//status:go_default_library",
+        "@com_github_buildbarn_bb_storage//pkg/filesystem",
+        "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
+        "@com_github_golang_mock//gomock",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
     ],
 )
