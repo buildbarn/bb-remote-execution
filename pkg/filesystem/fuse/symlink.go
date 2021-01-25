@@ -22,9 +22,9 @@ type symlink struct {
 }
 
 // NewSymlink creates a symbolic link node that may be added to an
-// InMemoryDirectory. It is an inmutable file; the target to which it
-// points can only be altered by replacing the node entirely (e.g., by
-// first unlinking it from the directory).
+// PrepopulatedDirectory. It is an inmutable file; the target to which
+// it points can only be altered by replacing the node entirely (e.g.,
+// by first unlinking it from the directory).
 func NewSymlink(target string) NativeLeaf {
 	// Simply let the inode number be based on the target. That way
 	// identical symlinks are deduplicated by the kernel.
@@ -51,6 +51,10 @@ func (f *symlink) Unlink() {
 
 func (f *symlink) UploadFile(ctx context.Context, contentAddressableStorage blobstore.BlobAccess, digestFunction digest.Function) (digest.Digest, error) {
 	return digest.BadDigest, status.Error(codes.InvalidArgument, "This file cannot be uploaded, as it is a symbolic link")
+}
+
+func (f *symlink) GetContainingDigests() digest.Set {
+	return digest.EmptySet
 }
 
 func (f *symlink) FUSEAccess(mask uint32) fuse.Status {

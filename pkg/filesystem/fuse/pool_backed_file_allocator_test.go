@@ -5,6 +5,7 @@ package fuse_test
 import (
 	"context"
 	"io"
+	"os"
 	"syscall"
 	"testing"
 
@@ -33,10 +34,14 @@ func TestPoolBackedFileAllocatorFUSEOpenStaleAfterUnlink(t *testing.T) {
 	pool.EXPECT().NewFile().Return(underlyingFile, nil)
 	underlyingFile.EXPECT().Close()
 	errorLogger := mock.NewMockErrorLogger(ctrl)
+	inodeNumberGenerator := mock.NewMockThreadSafeGenerator(ctrl)
+	inodeNumberGenerator.EXPECT().Uint64().Return(uint64(42))
 
-	f, err := fuse.NewPoolBackedFileAllocator(pool, errorLogger).NewFile(123, 0666)
-	require.NoError(t, err)
+	f, s := fuse.NewPoolBackedFileAllocator(pool, errorLogger, inodeNumberGenerator).
+		NewFile(uint32(os.O_RDWR), 0666)
+	require.Equal(t, go_fuse.OK, s)
 
+	f.FUSERelease()
 	f.Unlink()
 
 	require.Equal(t, go_fuse.Status(syscall.ESTALE), f.FUSEOpen(0))
@@ -53,11 +58,13 @@ func TestPoolBackedFileAllocatorFUSEOpenStaleAfterClose(t *testing.T) {
 	pool.EXPECT().NewFile().Return(underlyingFile, nil)
 	underlyingFile.EXPECT().Close()
 	errorLogger := mock.NewMockErrorLogger(ctrl)
+	inodeNumberGenerator := mock.NewMockThreadSafeGenerator(ctrl)
+	inodeNumberGenerator.EXPECT().Uint64().Return(uint64(42))
 
-	f, err := fuse.NewPoolBackedFileAllocator(pool, errorLogger).NewFile(123, 0666)
-	require.NoError(t, err)
+	f, s := fuse.NewPoolBackedFileAllocator(pool, errorLogger, inodeNumberGenerator).
+		NewFile(uint32(os.O_RDWR), 0666)
+	require.Equal(t, go_fuse.OK, s)
 
-	require.Equal(t, go_fuse.OK, f.FUSEOpen(0))
 	f.Unlink()
 	f.FUSERelease()
 
@@ -79,11 +86,14 @@ func TestPoolBackedFileAllocatorFUSEReadFailure(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	errorLogger.EXPECT().Log(status.Error(codes.Unavailable, "Failed to read from file at offset 42: Storage backends offline"))
 
-	f, err := fuse.NewPoolBackedFileAllocator(pool, errorLogger).NewFile(123, 0666)
-	require.NoError(t, err)
+	inodeNumberGenerator := mock.NewMockThreadSafeGenerator(ctrl)
+	inodeNumberGenerator.EXPECT().Uint64().Return(uint64(42))
 
-	require.Equal(t, go_fuse.OK, f.FUSEOpen(0))
-	_, s := f.FUSERead(p[:], 42)
+	f, s := fuse.NewPoolBackedFileAllocator(pool, errorLogger, inodeNumberGenerator).
+		NewFile(uint32(os.O_RDWR), 0666)
+	require.Equal(t, go_fuse.OK, s)
+
+	_, s = f.FUSERead(p[:], 42)
 	require.Equal(t, s, go_fuse.EIO)
 	f.FUSERelease()
 	f.Unlink()
@@ -105,11 +115,13 @@ func TestPoolBackedFileAllocatorFUSEReadEOF(t *testing.T) {
 		})
 	underlyingFile.EXPECT().Close()
 	errorLogger := mock.NewMockErrorLogger(ctrl)
+	inodeNumberGenerator := mock.NewMockThreadSafeGenerator(ctrl)
+	inodeNumberGenerator.EXPECT().Uint64().Return(uint64(42))
 
-	f, err := fuse.NewPoolBackedFileAllocator(pool, errorLogger).NewFile(123, 0666)
-	require.NoError(t, err)
+	f, s := fuse.NewPoolBackedFileAllocator(pool, errorLogger, inodeNumberGenerator).
+		NewFile(uint32(os.O_RDWR), 0666)
+	require.Equal(t, go_fuse.OK, s)
 
-	require.Equal(t, go_fuse.OK, f.FUSEOpen(0))
 	r, s := f.FUSERead(p[:], 42)
 	require.Equal(t, go_fuse.OK, s)
 	require.Equal(t, 5, r.Size())
@@ -132,10 +144,13 @@ func TestPoolBackedFileAllocatorFUSETruncateFailure(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	errorLogger.EXPECT().Log(status.Error(codes.Unavailable, "Failed to truncate file to length 42: Storage backends offline"))
 
-	f, err := fuse.NewPoolBackedFileAllocator(pool, errorLogger).NewFile(123, 0666)
-	require.NoError(t, err)
+	inodeNumberGenerator := mock.NewMockThreadSafeGenerator(ctrl)
+	inodeNumberGenerator.EXPECT().Uint64().Return(uint64(42))
 
-	require.Equal(t, go_fuse.OK, f.FUSEOpen(0))
+	f, s := fuse.NewPoolBackedFileAllocator(pool, errorLogger, inodeNumberGenerator).
+		NewFile(uint32(os.O_RDWR), 0666)
+	require.Equal(t, go_fuse.OK, s)
+
 	var setAttrIn go_fuse.SetAttrIn
 	setAttrIn.Valid = go_fuse.FATTR_SIZE
 	setAttrIn.Size = 42
@@ -160,10 +175,13 @@ func TestPoolBackedFileAllocatorFUSEWriteFailure(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	errorLogger.EXPECT().Log(status.Error(codes.Unavailable, "Failed to write to file at offset 42: Storage backends offline"))
 
-	f, err := fuse.NewPoolBackedFileAllocator(pool, errorLogger).NewFile(123, 0666)
-	require.NoError(t, err)
-	require.Equal(t, go_fuse.OK, f.FUSEOpen(0))
-	_, s := f.FUSEWrite(p[:], 42)
+	inodeNumberGenerator := mock.NewMockThreadSafeGenerator(ctrl)
+	inodeNumberGenerator.EXPECT().Uint64().Return(uint64(42))
+
+	f, s := fuse.NewPoolBackedFileAllocator(pool, errorLogger, inodeNumberGenerator).
+		NewFile(uint32(os.O_RDWR), 0666)
+	require.Equal(t, go_fuse.OK, s)
+	_, s = f.FUSEWrite(p[:], 42)
 	require.Equal(t, s, go_fuse.EIO)
 	f.FUSERelease()
 	f.Unlink()
@@ -177,8 +195,12 @@ func TestPoolBackedFileAllocatorFUSEUploadFile(t *testing.T) {
 	underlyingFile := mock.NewMockFileReadWriter(ctrl)
 	pool.EXPECT().NewFile().Return(underlyingFile, nil)
 	errorLogger := mock.NewMockErrorLogger(ctrl)
-	f, err := fuse.NewPoolBackedFileAllocator(pool, errorLogger).NewFile(123, 0666)
-	require.NoError(t, err)
+	inodeNumberGenerator := mock.NewMockThreadSafeGenerator(ctrl)
+	inodeNumberGenerator.EXPECT().Uint64().Return(uint64(42))
+
+	f, s := fuse.NewPoolBackedFileAllocator(pool, errorLogger, inodeNumberGenerator).
+		NewFile(uint32(os.O_RDWR), 0666)
+	require.Equal(t, go_fuse.OK, s)
 
 	// Initialize the file with the contents "Hello".
 	underlyingFile.EXPECT().WriteAt([]byte("Hello"), int64(0)).Return(5, nil)
@@ -283,5 +305,16 @@ func TestPoolBackedFileAllocatorFUSEUploadFile(t *testing.T) {
 	})
 
 	underlyingFile.EXPECT().Close()
+	f.FUSERelease()
 	f.Unlink()
+
+	t.Run("Stale", func(t *testing.T) {
+		contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+
+		// Uploading a file that has already been released
+		// should fail. It should not cause accidental access to
+		// the closed file handle.
+		_, err := f.UploadFile(ctx, contentAddressableStorage, digestFunction)
+		require.Equal(t, status.Error(codes.NotFound, "File was unlinked before uploading could start"), err)
+	})
 }

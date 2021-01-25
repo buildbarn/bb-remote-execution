@@ -6,7 +6,6 @@ import (
 	"context"
 	"io"
 	"math"
-	"os"
 	"sync"
 	"syscall"
 
@@ -15,47 +14,53 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
+	"github.com/buildbarn/bb-storage/pkg/random"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/hanwen/go-fuse/v2/fuse"
 
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type poolBackedFileAllocator struct {
-	pool        re_filesystem.FilePool
-	errorLogger util.ErrorLogger
+	pool                 re_filesystem.FilePool
+	errorLogger          util.ErrorLogger
+	inodeNumberGenerator random.ThreadSafeGenerator
 }
 
 // NewPoolBackedFileAllocator creates an allocator for a leaf node that
-// may be stored in an InMemoryDirectory, representing a mutable regular
-// file. All operations to mutate file contents (reads, writes and
-// truncations) are forwarded to a file obtained from a FilePool.
+// may be stored in an PrepopulatedDirectory, representing a mutable
+// regular file. All operations to mutate file contents (reads, writes
+// and truncations) are forwarded to a file obtained from a FilePool.
 //
 // When the file becomes unreachable (i.e., both its link count and open
 // file descriptor count reach zero), Close() is called on the
 // underlying backing file descriptor. This may be used to request
 // deletion from underlying storage.
-func NewPoolBackedFileAllocator(pool re_filesystem.FilePool, errorLogger util.ErrorLogger) FileAllocator {
+func NewPoolBackedFileAllocator(pool re_filesystem.FilePool, errorLogger util.ErrorLogger, inodeNumberGenerator random.ThreadSafeGenerator) FileAllocator {
 	return &poolBackedFileAllocator{
-		pool:        pool,
-		errorLogger: errorLogger,
+		pool:                 pool,
+		errorLogger:          errorLogger,
+		inodeNumberGenerator: inodeNumberGenerator,
 	}
 }
 
-func (fa *poolBackedFileAllocator) NewFile(inodeNumber uint64, perm os.FileMode) (NativeLeaf, error) {
+func (fa *poolBackedFileAllocator) NewFile(flags, mode uint32) (NativeLeaf, fuse.Status) {
 	file, err := fa.pool.NewFile()
 	if err != nil {
-		return nil, err
+		fa.errorLogger.Log(util.StatusWrapf(err, "Failed to create new file"))
+		return nil, fuse.EIO
 	}
 	return &fileBackedFile{
-		inodeNumber: inodeNumber,
+		inodeNumber: fa.inodeNumberGenerator.Uint64(),
 		errorLogger: fa.errorLogger,
 
-		file:           file,
-		isExecutable:   (perm & 0111) != 0,
-		nlink:          1,
-		unfreezeWakeup: make(chan struct{}),
-	}, nil
+		file:            file,
+		isExecutable:    (mode & 0111) != 0,
+		nlink:           1,
+		openDescriptors: 1,
+		unfreezeWakeup:  make(chan struct{}),
+	}, fuse.OK
 }
 
 type fileBackedFile struct {
@@ -148,15 +153,6 @@ func (f *fileBackedFile) Link() {
 	f.nlink++
 }
 
-func (f *fileBackedFile) mustAcquire(frozen bool) {
-	if !f.acquire(frozen) {
-		// As this function is always called with the containing
-		// InMemoryDirectory being locked, it should not be
-		// possible for the underlying file to be removed.
-		panic("Attempted to acquire removed file")
-	}
-}
-
 func (f *fileBackedFile) Readlink() (string, error) {
 	return "", syscall.EINVAL
 }
@@ -177,7 +173,9 @@ func (f *fileBackedFile) UploadFile(ctx context.Context, contentAddressableStora
 	// this file. This ensures that the file's contents don't change
 	// between the digest computation and upload phase. This allows
 	// us to safely use NewValidatedBufferFromFileReader().
-	f.mustAcquire(true)
+	if !f.acquire(true) {
+		return digest.BadDigest, status.Error(codes.NotFound, "File was unlinked before uploading could start")
+	}
 
 	digestGenerator := digestFunction.NewGenerator()
 	sizeBytes, err := io.Copy(digestGenerator, io.NewSectionReader(f, 0, math.MaxInt64))
@@ -194,6 +192,10 @@ func (f *fileBackedFile) UploadFile(ctx context.Context, contentAddressableStora
 		return digest.BadDigest, util.StatusWrap(err, "Failed to upload file")
 	}
 	return blobDigest, nil
+}
+
+func (f *fileBackedFile) GetContainingDigests() digest.Set {
+	return digest.EmptySet
 }
 
 func (f *fileBackedFile) Close() error {
@@ -260,11 +262,10 @@ func (f *fileBackedFile) FUSEGetDirEntry() fuse.DirEntry {
 
 func (f *fileBackedFile) FUSEOpen(flags uint32) fuse.Status {
 	if !f.acquire(false) {
-		// This function may be called by go-fuse, even if the
-		// file has been unlinked. The filesystem.Directory
-		// operations implemented by InMemoryDirectory cannot
-		// invalidate the inode cache maintained by go-fuse.
-		// Treat the file as stale if this were to happen.
+		// The file was removed through the
+		// PrepopulatedDirectory API, but is still being
+		// accessed through the FUSE file system. Treat the file
+		// as stale if this were to happen.
 		return fuse.Status(syscall.ESTALE)
 	}
 	return fuse.OK

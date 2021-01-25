@@ -11,20 +11,34 @@ import (
 	"github.com/hanwen/go-fuse/v2/fuse"
 )
 
-// NativeLeaf objects are non-directory nodes that can be placed in an
-// InMemoryDirectory. Examples of leaves are files and symbolic links.
-// As InMemoryDirectory can both be accessed as a filesystem.Directory
-// (by bb-worker itself) or through FUSE (by build actions spawned by
-// bb-runner), NativeLeaf nodes need to implement two sets of
-// operations.
+// NativeLeaf objects are non-directory nodes that can be placed in a
+// PrepopulatedDirectory.
 type NativeLeaf interface {
 	Leaf
 
+	// Operations called into by implementations of
+	// PrepopulatedDirectory.
 	GetFileType() filesystem.FileType
 	Link()
-	Readlink() (string, error)
 	Unlink()
-	UploadFile(ctx context.Context, contentAddressableStorage blobstore.BlobAccess, digestFunction digest.Function) (digest.Digest, error)
-
 	FUSEGetDirEntry() fuse.DirEntry
+
+	// Additional operations that are used by consumers of
+	// PrepopulatedDirectory.
+	//
+	// TODO: Remove these once Go supports generics. We could turn
+	// PrepopulatedDirectory and InitialContentsFetcher into
+	// parameterized types, where the leaves could be any type
+	// that's based on NativeLeaf.
+	Readlink() (string, error)
+	UploadFile(ctx context.Context, contentAddressableStorage blobstore.BlobAccess, digestFunction digest.Function) (digest.Digest, error)
+	// GetContainingDigests() returns a set of digests of objects in
+	// the Content Addressable Storage that back the contents of
+	// this file.
+	//
+	// The set returned by this function may be passed to
+	// ContentAddressableStorage.FindMissingBlobs() to check whether
+	// the file still exists in its entirety, and to prevent that
+	// the file is removed in the nearby future.
+	GetContainingDigests() digest.Set
 }

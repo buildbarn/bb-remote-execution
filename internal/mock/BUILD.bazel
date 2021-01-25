@@ -51,6 +51,7 @@ gomock(
     out = "cas.go",
     interfaces = [
         "DirectoryFetcher",
+        "DirectoryWalker",
         "FileFetcher",
     ],
     library = "//pkg/cas",
@@ -111,6 +112,7 @@ gomock(
     name = "fuse",
     out = "fuse.go",
     interfaces = [
+        "CASFileFactory",
         "EntryNotifier",
         "FileAllocator",
         "InitialContentsFetcher",
@@ -140,6 +142,14 @@ gomock(
     out = "processtablecleaning.go",
     interfaces = ["ProcessTable"],
     library = "//pkg/runner/processtablecleaning",
+    package = "mock",
+)
+
+gomock(
+    name = "random",
+    out = "random.go",
+    interfaces = ["ThreadSafeGenerator"],
+    library = "@com_github_buildbarn_bb_storage//pkg/random",
     package = "mock",
 )
 
@@ -209,6 +219,7 @@ go_library(
         ":filesystem.go",
         ":filesystem_re.go",
         ":processtablecleaning.go",
+        ":random.go",
         ":remoteexecution.go",
         ":remoteworker.go",
         ":runner.go",
@@ -232,6 +243,7 @@ go_library(
     visibility = ["//:__subpackages__"],
     deps = [
         "//pkg/builder",
+        "//pkg/cas",
         "//pkg/filesystem",
         "//pkg/filesystem/fuse",
         "//pkg/proto/remoteworker",

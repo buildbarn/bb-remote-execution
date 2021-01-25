@@ -3,12 +3,15 @@
 package fuse
 
 import (
-	"os"
+	"github.com/hanwen/go-fuse/v2/fuse"
 )
 
-// FileAllocator is called into by InMemoryDirectory to create new files
-// within the file system. Such files could either be stored in memory,
-// on disk, remotely, etc.
+// FileAllocator is called into by InMemoryPrepopulatedDirectory to
+// create new files within the file system. Such files could either be
+// stored in memory, on disk, remotely, etc.
+//
+// Files returned by this interface should have a link count of 1, and
+// have 1 open file descriptor.
 type FileAllocator interface {
-	NewFile(inodeNumber uint64, perm os.FileMode) (NativeLeaf, error)
+	NewFile(flags, mode uint32) (NativeLeaf, fuse.Status)
 }

@@ -5,6 +5,7 @@ package fuse
 import (
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	pb "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/fuse"
+	"github.com/buildbarn/bb-storage/pkg/random"
 	"github.com/buildbarn/bb-storage/pkg/util"
 
 	"google.golang.org/grpc/codes"
@@ -24,11 +25,9 @@ type FileAllocator interface{}
 
 type InitialContentsFetcher interface{}
 
-type InMemoryDirectory struct{}
-
 type Leaf interface{}
 
-type NativeLeaf interface{}
+type PrepopulatedDirectory interface{}
 
 type SimpleRawFileSystemServerCallbacks struct{}
 
@@ -36,14 +35,14 @@ func (sc *SimpleRawFileSystemServerCallbacks) EntryNotify() {
 	panic("FUSE is not supported on this platform")
 }
 
-func NewInMemoryDirectory(fileAllocator FileAllocator, errorLogger util.ErrorLogger, inodeNumberTree InodeNumberTree, entryNotifier EntryNotifier) *InMemoryDirectory {
-	return &InMemoryDirectory{}
+func NewInMemoryPrepopulatedDirectory(fileAllocator FileAllocator, errorLogger util.ErrorLogger, rootInodeNumber uint64, inodeNumberGenerator random.ThreadSafeGenerator, entryNotifier EntryNotifier) PrepopulatedDirectory {
+	return nil
 }
 
 func NewMountFromConfiguration(configuration *pb.MountConfiguration, rootDirectory Directory, rootDirectoryInodeNumber uint64, serverCallbacks *SimpleRawFileSystemServerCallbacks, fsName string) error {
 	return status.Error(codes.Unimplemented, "FUSE is not supported on this platform")
 }
 
-func NewPoolBackedFileAllocator(pool re_filesystem.FilePool, errorLogger util.ErrorLogger) FileAllocator {
+func NewPoolBackedFileAllocator(pool re_filesystem.FilePool, errorLogger util.ErrorLogger, inodeNumberGenerator random.ThreadSafeGenerator) FileAllocator {
 	return nil
 }

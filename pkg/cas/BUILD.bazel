@@ -6,7 +6,9 @@ go_library(
         "blob_access_directory_fetcher.go",
         "blob_access_file_fetcher.go",
         "caching_directory_fetcher.go",
+        "decomposed_directory_walker.go",
         "directory_fetcher.go",
+        "directory_walker.go",
         "file_fetcher.go",
         "hardlinking_file_fetcher.go",
     ],
@@ -26,13 +28,18 @@ go_library(
 
 go_test(
     name = "cas_test",
-    srcs = ["hardlinking_file_fetcher_test.go"],
+    srcs = [
+        "decomposed_directory_walker_test.go",
+        "hardlinking_file_fetcher_test.go",
+    ],
     embed = [":cas"],
     deps = [
         "//internal/mock:go_default_library",
+        "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:execution",
         "@com_github_buildbarn_bb_storage//pkg/digest",
         "@com_github_buildbarn_bb_storage//pkg/eviction",
         "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
+        "@com_github_buildbarn_bb_storage//pkg/testutil",
         "@com_github_golang_mock//gomock",
         "@com_github_stretchr_testify//require",
         "@org_golang_google_grpc//codes",

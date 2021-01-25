@@ -8,6 +8,6 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 )
 
-func NewFUSEBuildDirectory(directory *fuse.InMemoryDirectory, directoryFetcher cas.DirectoryFetcher, contentAddressableStorage blobstore.BlobAccess) BuildDirectory {
+func NewFUSEBuildDirectory(directory fuse.PrepopulatedDirectory, directoryFetcher cas.DirectoryFetcher, contentAddressableStorage blobstore.BlobAccess, inodeNumberTree fuse.InodeNumberTree) BuildDirectory {
 	panic("FUSE is not supported on this platform")
 }

@@ -65,18 +65,22 @@ go_library(
     ] + select({
         "@io_bazel_rules_go//go/platform:android": [
             "//pkg/filesystem/fuse",
+            "@com_github_buildbarn_bb_storage//pkg/random",
         ],
         "@io_bazel_rules_go//go/platform:darwin": [
             "//pkg/filesystem/fuse",
+            "@com_github_buildbarn_bb_storage//pkg/random",
         ],
         "@io_bazel_rules_go//go/platform:freebsd": [
             "//pkg/filesystem/fuse",
         ],
         "@io_bazel_rules_go//go/platform:ios": [
             "//pkg/filesystem/fuse",
+            "@com_github_buildbarn_bb_storage//pkg/random",
         ],
         "@io_bazel_rules_go//go/platform:linux": [
             "//pkg/filesystem/fuse",
+            "@com_github_buildbarn_bb_storage//pkg/random",
         ],
         "@io_bazel_rules_go//go/platform:windows": [
             "//pkg/filesystem/fuse",
