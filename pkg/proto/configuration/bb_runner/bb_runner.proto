@@ -41,15 +41,26 @@ message ApplicationConfiguration {
   // running in the background.
   //
   // Enabling this feature causes all processes to be killed that run as
-  // the same user ID as bb_runner and were spawned after bb_runner.
-  // This feature must not be enabled when the same user ID is used for
-  // other purposes (e.g., running multiple bb_runners), as this may
-  // cause unrelated processes to be killed.
+  // the same user ID as bb_runner (or the one configured through
+  // 'run_commands_as') and were spawned after bb_runner. This feature
+  // must not be enabled when the same user ID is used for other
+  // purposes (e.g., running multiple bb_runners), as this may cause
+  // unrelated processes to be killed.
   bool clean_process_table = 8;
 
   // If set, scan the entire filesystem to verify that the only writable paths
   // on the filesystem are those specified as allowed (or children thereof).
   FilesystemWritabilityCheckerConfiguration filesystem_writability_checker = 9;
+
+  // List of paths that need to exist on the system for the runner to be
+  // considered healthy. This option may be set to let a runner stop
+  // accepting more work in case a remote file system becomes
+  // unavailable.
+  repeated string readiness_checking_pathnames = 10;
+
+  // When set, run commands as another user. On most platforms, this
+  // requires bb_runner to run as root.
+  UNIXCredentialsConfiguration run_commands_as = 11;
 }
 
 message FilesystemWritabilityCheckerConfiguration {
@@ -65,4 +76,15 @@ message FilesystemWritabilityCheckerConfiguration {
   // Depending on your configuration, you may also want to add the build
   // directory path.
   repeated string allowed_writable_paths = 1;
+}
+
+message UNIXCredentialsConfiguration {
+  // The user ID that should be used to run commands.
+  uint32 user_id = 1;
+
+  // The primary group ID that should be used to run commands.
+  uint32 group_id = 2;
+
+  // Additional groups of which the process should be a member.
+  repeated uint32 additional_group_ids = 3;
 }

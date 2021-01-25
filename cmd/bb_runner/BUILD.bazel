@@ -5,7 +5,11 @@ load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
 
 go_library(
     name = "bb_runner_lib",
-    srcs = ["main.go"],
+    srcs = [
+        "main.go",
+        "main_nonunix.go",
+        "main_unix.go",
+    ],
     importpath = "github.com/buildbarn/bb-remote-execution/cmd/bb_runner",
     visibility = ["//visibility:private"],
     deps = [
@@ -16,12 +20,19 @@ go_library(
         "//pkg/runner",
         "//pkg/runner/processtablecleaning",
         "@com_github_buildbarn_bb_storage//pkg/filesystem",
+        "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
         "@com_github_buildbarn_bb_storage//pkg/global",
         "@com_github_buildbarn_bb_storage//pkg/grpc",
         "@com_github_buildbarn_bb_storage//pkg/util",
         "@io_bazel_rules_go//proto/wkt:empty_go_proto",
         "@org_golang_google_grpc//:go_default_library",
-    ],
+    ] + select({
+        "@io_bazel_rules_go//go/platform:windows": [
+            "@org_golang_google_grpc//codes",
+            "@org_golang_google_grpc//status",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 go_binary(

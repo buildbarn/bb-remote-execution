@@ -14,6 +14,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/runner"
 	ptc "github.com/buildbarn/bb-remote-execution/pkg/runner/processtablecleaning"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/global"
 	bb_grpc "github.com/buildbarn/bb-storage/pkg/grpc"
 	"github.com/buildbarn/bb-storage/pkg/util"
@@ -34,17 +35,6 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to apply global configuration options: ", err)
 	}
-
-	buildDirectory := re_filesystem.NewLazyDirectory(
-		func() (filesystem.DirectoryCloser, error) {
-			return filesystem.NewLocalDirectory(configuration.BuildDirectoryPath)
-		})
-
-	r := runner.NewLocalRunner(
-		buildDirectory,
-		configuration.BuildDirectoryPath,
-		configuration.SetTmpdirEnvironmentVariable,
-		configuration.ChrootIntoInputRoot)
 
 	if fswcConfig := configuration.FilesystemWritabilityChecker; fswcConfig != nil {
 		allowed := make(map[string]struct{})
@@ -67,6 +57,27 @@ func main() {
 		}
 		dir.Close()
 	}
+
+	buildDirectory := re_filesystem.NewLazyDirectory(
+		func() (filesystem.DirectoryCloser, error) {
+			return filesystem.NewLocalDirectory(configuration.BuildDirectoryPath)
+		})
+	buildDirectoryPath, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
+	if err := path.Resolve(configuration.BuildDirectoryPath, scopeWalker); err != nil {
+		log.Fatal("Failed to resolve build directory: ", err)
+	}
+
+	sysProcAttr, processTableCleaningUserID, err := getSysProcAttrFromConfiguration(configuration.RunCommandsAs)
+	if err != nil {
+		log.Fatal("Failed to extract credentials from configuration: ", err)
+	}
+
+	r := runner.NewLocalRunner(
+		buildDirectory,
+		buildDirectoryPath,
+		sysProcAttr,
+		configuration.SetTmpdirEnvironmentVariable,
+		configuration.ChrootIntoInputRoot)
 
 	// When temporary directories need cleaning prior to executing a build
 	// action, attach a series of TemporaryDirectoryCleaningRunners.
@@ -102,14 +113,13 @@ func main() {
 	// user that were created after bb_runner is spawned, as we
 	// don't want to kill unrelated processes.
 	if configuration.CleanProcessTable {
-		currentUserID := os.Getuid()
 		startupTime := time.Now()
 		r = ptc.NewProcessTableCleaningRunner(
 			r,
 			ptc.NewFilteringProcessTable(
 				ptc.SystemProcessTable,
 				func(process *ptc.Process) bool {
-					return process.UserID == currentUserID &&
+					return process.UserID == processTableCleaningUserID &&
 						process.CreationTime.After(startupTime)
 				}))
 	}
@@ -120,7 +130,11 @@ func main() {
 			bb_grpc.NewServersFromConfigurationAndServe(
 				configuration.GrpcServers,
 				func(s *grpc.Server) {
-					runner_pb.RegisterRunnerServer(s, runner.NewRunnerServer(r))
+					runner_pb.RegisterRunnerServer(
+						s,
+						runner.NewRunnerServer(
+							r,
+							configuration.ReadinessCheckingPathnames))
 				}))
 	}()
 

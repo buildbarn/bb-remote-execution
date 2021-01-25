@@ -66,6 +66,7 @@ go_library(
             "@org_golang_google_grpc//status",
         ],
         "@io_bazel_rules_go//go/platform:windows": [
+            "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
             "@org_golang_google_grpc//status",
         ],
         "//conditions:default": [],
@@ -74,15 +75,20 @@ go_library(
 
 go_test(
     name = "runner_test",
-    srcs = ["local_runner_test.go"],
+    srcs = [
+        "local_runner_test.go",
+        "runner_server_test.go",
+    ],
     embed = [":runner"],
     deps = [
         "//internal/mock:go_default_library",
         "//pkg/proto/runner",
         "@com_github_buildbarn_bb_storage//pkg/filesystem",
         "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
+        "@com_github_buildbarn_bb_storage//pkg/testutil",
         "@com_github_golang_mock//gomock",
         "@com_github_stretchr_testify//require",
+        "@io_bazel_rules_go//proto/wkt:empty_go_proto",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//status",
     ],

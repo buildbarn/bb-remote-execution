@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
@@ -23,11 +24,13 @@ import (
 func TestLocalRunner(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
-	buildDirectoryPath := filepath.Join(os.Getenv("TEST_TMPDIR"), t.Name())
-	require.NoError(t, os.Mkdir(buildDirectoryPath, 0777))
+	buildDirectoryPath := t.TempDir()
 	buildDirectory, err := filesystem.NewLocalDirectory(buildDirectoryPath)
 	require.NoError(t, err)
 	defer buildDirectory.Close()
+
+	buildDirectoryPathBuilder, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
+	require.NoError(t, path.Resolve(buildDirectoryPath, scopeWalker))
 
 	t.Run("EmptyEnvironment", func(t *testing.T) {
 		testPath := filepath.Join(buildDirectoryPath, "EmptyEnvironment")
@@ -39,7 +42,7 @@ func TestLocalRunner(t *testing.T) {
 		// variables should cause the process to be executed in
 		// an empty environment. It should not inherit the
 		// environment of the runner.
-		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPath, false, false)
+		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, &syscall.SysProcAttr{}, false, false)
 		response, err := runner.Run(context.Background(), &runner_pb.RunRequest{
 			Arguments:          []string{"/usr/bin/env"},
 			StdoutPath:         "EmptyEnvironment/stdout",
@@ -69,7 +72,7 @@ func TestLocalRunner(t *testing.T) {
 		// The environment variables provided in the RunRequest
 		// should be respected. If automatic injection of TMPDIR
 		// is enabled, that variable should also be added.
-		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPath, true, false)
+		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, &syscall.SysProcAttr{}, true, false)
 		response, err := runner.Run(context.Background(), &runner_pb.RunRequest{
 			Arguments: []string{"/usr/bin/env"},
 			EnvironmentVariables: map[string]string{
@@ -106,7 +109,7 @@ func TestLocalRunner(t *testing.T) {
 
 		// Automatic injection of TMPDIR should have no effect
 		// if the command to be run provides its own TMPDIR.
-		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPath, true, false)
+		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, &syscall.SysProcAttr{}, true, false)
 		response, err := runner.Run(context.Background(), &runner_pb.RunRequest{
 			Arguments: []string{"/usr/bin/env"},
 			EnvironmentVariables: map[string]string{
@@ -139,7 +142,7 @@ func TestLocalRunner(t *testing.T) {
 		// RunResponse. POSIX 2008 and later added support for
 		// 32-bit signed exit codes. Most implementations still
 		// truncate the exit code to 8 bits.
-		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPath, false, false)
+		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, &syscall.SysProcAttr{}, false, false)
 		response, err := runner.Run(context.Background(), &runner_pb.RunRequest{
 			Arguments:          []string{"/bin/sh", "-c", "exit 255"},
 			StdoutPath:         "NonZeroExitCode/stdout",
@@ -169,7 +172,7 @@ func TestLocalRunner(t *testing.T) {
 		// privileges. It shouldn't be possible to trick the
 		// runner into opening files outside the build
 		// directory.
-		runner := runner.NewLocalRunner(buildDirectory, "/build", false, false)
+		runner := runner.NewLocalRunner(buildDirectory, &path.EmptyBuilder, &syscall.SysProcAttr{}, false, false)
 		_, err := runner.Run(context.Background(), &runner_pb.RunRequest{
 			Arguments:          []string{"/usr/bin/env"},
 			StdoutPath:         "hello/../../../../../../etc/passwd",

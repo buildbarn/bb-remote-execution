@@ -5,14 +5,12 @@ package runner
 import (
 	"context"
 	"os/exec"
-	"path"
-	"path/filepath"
 	"syscall"
 
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
-	bb_path "github.com/buildbarn/bb-storage/pkg/filesystem/path"
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/any"
@@ -30,28 +28,28 @@ import (
 // filesystem package?
 type logFileResolver struct {
 	stack []filesystem.DirectoryCloser
-	name  *bb_path.Component
+	name  *path.Component
 }
 
-func (r *logFileResolver) OnDirectory(name bb_path.Component) (bb_path.GotDirectoryOrSymlink, error) {
+func (r *logFileResolver) OnDirectory(name path.Component) (path.GotDirectoryOrSymlink, error) {
 	d := r.stack[len(r.stack)-1]
 	child, err := d.EnterDirectory(name)
 	if err != nil {
 		return nil, err
 	}
 	r.stack = append(r.stack, child)
-	return bb_path.GotDirectory{
+	return path.GotDirectory{
 		Child:        r,
 		IsReversible: true,
 	}, nil
 }
 
-func (r *logFileResolver) OnTerminal(name bb_path.Component) (*bb_path.GotSymlink, error) {
+func (r *logFileResolver) OnTerminal(name path.Component) (*path.GotSymlink, error) {
 	r.name = &name
 	return nil, nil
 }
 
-func (r *logFileResolver) OnUp() (bb_path.ComponentWalker, error) {
+func (r *logFileResolver) OnUp() (path.ComponentWalker, error) {
 	if len(r.stack) == 1 {
 		return nil, status.Error(codes.InvalidArgument, "Path resolves to a location outside the build directory")
 	}
@@ -70,17 +68,19 @@ func (r *logFileResolver) closeAll() {
 
 type localRunner struct {
 	buildDirectory               filesystem.Directory
-	buildDirectoryPath           string
+	buildDirectoryPath           *path.Builder
+	sysProcAttr                  *syscall.SysProcAttr
 	setTmpdirEnvironmentVariable bool
 	chrootIntoInputRoot          bool
 }
 
 // NewLocalRunner returns a Runner capable of running commands on the
 // local system directly.
-func NewLocalRunner(buildDirectory filesystem.Directory, buildDirectoryPath string, setTmpdirEnvironmentVariable, chrootIntoInputRoot bool) Runner {
+func NewLocalRunner(buildDirectory filesystem.Directory, buildDirectoryPath *path.Builder, sysProcAttr *syscall.SysProcAttr, setTmpdirEnvironmentVariable, chrootIntoInputRoot bool) Runner {
 	return &localRunner{
 		buildDirectory:               buildDirectory,
 		buildDirectoryPath:           buildDirectoryPath,
+		sysProcAttr:                  sysProcAttr,
 		setTmpdirEnvironmentVariable: setTmpdirEnvironmentVariable,
 		chrootIntoInputRoot:          chrootIntoInputRoot,
 	}
@@ -91,7 +91,7 @@ func (r *localRunner) openLog(logPath string) (filesystem.FileAppender, error) {
 		stack: []filesystem.DirectoryCloser{filesystem.NopDirectoryCloser(r.buildDirectory)},
 	}
 	defer logFileResolver.closeAll()
-	if err := bb_path.Resolve(logPath, bb_path.NewRelativeScopeWalker(&logFileResolver)); err != nil {
+	if err := path.Resolve(logPath, path.NewRelativeScopeWalker(&logFileResolver)); err != nil {
 		return nil, err
 	}
 	if logFileResolver.name == nil {
@@ -112,7 +112,14 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 	if len(request.Arguments) < 1 {
 		return nil, status.Error(codes.InvalidArgument, "Insufficient number of command arguments")
 	}
+
+	inputRootDirectory, scopeWalker := r.buildDirectoryPath.Join(path.VoidScopeWalker)
+	if err := path.Resolve(request.InputRootDirectory, scopeWalker); err != nil {
+		return nil, util.StatusWrap(err, "Failed to resolve input root directory")
+	}
+
 	var cmd *exec.Cmd
+	var workingDirectoryBase *path.Builder
 	if r.chrootIntoInputRoot {
 		// The addition of /usr/bin/env is necessary as the PATH resolution
 		// will take place prior to the chroot, so the executable may not be
@@ -122,21 +129,35 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 		envPrependedArguments := []string{"/usr/bin/env", "--"}
 		envPrependedArguments = append(envPrependedArguments, request.Arguments...)
 		cmd = exec.CommandContext(ctx, envPrependedArguments[0], envPrependedArguments[1:]...)
-		cmd.Dir = filepath.Join("/", request.WorkingDirectory)
-		cmd.SysProcAttr = &syscall.SysProcAttr{
-			Chroot: path.Join(r.buildDirectoryPath, request.InputRootDirectory),
-		}
+		sysProcAttr := *r.sysProcAttr
+		sysProcAttr.Chroot = inputRootDirectory.String()
+		cmd.SysProcAttr = &sysProcAttr
+		workingDirectoryBase = &path.RootBuilder
 	} else {
 		cmd = exec.CommandContext(ctx, request.Arguments[0], request.Arguments[1:]...)
-		cmd.Dir = filepath.Join(r.buildDirectoryPath, request.InputRootDirectory, request.WorkingDirectory)
+		cmd.SysProcAttr = r.sysProcAttr
+		workingDirectoryBase = inputRootDirectory
 	}
+
+	// Set the environment variable.
 	cmd.Env = make([]string, 0, len(request.EnvironmentVariables)+1)
 	if r.setTmpdirEnvironmentVariable && request.TemporaryDirectory != "" {
-		cmd.Env = append(cmd.Env, "TMPDIR="+filepath.Join(r.buildDirectoryPath, request.TemporaryDirectory))
+		temporaryDirectory, scopeWalker := r.buildDirectoryPath.Join(path.VoidScopeWalker)
+		if err := path.Resolve(request.TemporaryDirectory, scopeWalker); err != nil {
+			return nil, util.StatusWrap(err, "Failed to resolve temporary directory")
+		}
+		cmd.Env = append(cmd.Env, "TMPDIR="+temporaryDirectory.String())
 	}
 	for name, value := range request.EnvironmentVariables {
 		cmd.Env = append(cmd.Env, name+"="+value)
 	}
+
+	// Set the working directory.
+	workingDirectory, scopeWalker := workingDirectoryBase.Join(path.VoidScopeWalker)
+	if err := path.Resolve(request.WorkingDirectory, scopeWalker); err != nil {
+		return nil, util.StatusWrap(err, "Failed to resolve working directory")
+	}
+	cmd.Dir = workingDirectory.String()
 
 	// Open output files for logging.
 	stdout, err := r.openLog(request.StdoutPath)
