@@ -4,7 +4,10 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 http_archive(
     name = "bazel_gomock",
-    patches = ["@com_github_buildbarn_bb_storage//:patches/bazel_gomock/upstream-pr-50.diff"],
+    patches = [
+        "//:patches/bazel_gomock/tags-manual.diff",
+        "@com_github_buildbarn_bb_storage//:patches/bazel_gomock/upstream-pr-50.diff",
+    ],
     sha256 = "4baf3389ca48c30d8b072a027923c91c45915ab8061e39e7a0c62706332e096e",
     strip_prefix = "bazel_gomock-1.2",
     urls = ["https://github.com/jmhodges/bazel_gomock/archive/v1.2.tar.gz"],
