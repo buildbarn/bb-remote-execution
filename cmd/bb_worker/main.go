@@ -101,6 +101,7 @@ func main() {
 		var fuseBuildDirectory *re_fuse.InMemoryDirectory
 		var naiveBuildDirectory filesystem.DirectoryCloser
 		var fileFetcher cas.FileFetcher
+		uploadBatchSize := blobstore.RecommendedFindMissingDigestsCount
 		switch backend := buildDirectoryConfiguration.Backend.(type) {
 		case *bb_worker.BuildDirectoryConfiguration_Fuse:
 			rootInodeNumberTree := re_fuse.NewRandomInodeNumberTree()
@@ -158,6 +159,12 @@ func main() {
 				int(nativeConfiguration.MaximumCacheFileCount),
 				nativeConfiguration.MaximumCacheSizeBytes,
 				eviction.NewMetricsSet(evictionSet, "HardlinkingFileFetcher"))
+
+			// Using a native file system requires us to
+			// hold on to file descriptors while uploading
+			// outputs. Limit the batch size to ensure that
+			// we don't exhaust file descriptors.
+			uploadBatchSize = 100
 		default:
 			log.Fatal("No build directory specified")
 		}
@@ -211,7 +218,7 @@ func main() {
 					contentAddressableStorageWriter, contentAddressableStorageFlusher := re_blobstore.NewBatchedStoreBlobAccess(
 						globalContentAddressableStorage,
 						digest.KeyWithoutInstance,
-						100)
+						uploadBatchSize)
 					contentAddressableStorageWriter = blobstore.NewMetricsBlobAccess(
 						contentAddressableStorageWriter,
 						clock.SystemClock,
