@@ -28,36 +28,36 @@ var (
 			Help:      "Amount of time spent per build execution stage, in seconds.",
 			Buckets:   util.DecimalExponentialBuckets(-3, 6, 2),
 		},
-		[]string{"stage"})
-	buildExecutorDurationSecondsInputFetch   = buildExecutorDurationSeconds.WithLabelValues("FetchingInputs")
-	buildExecutorDurationSecondsExecution    = buildExecutorDurationSeconds.WithLabelValues("Running")
-	buildExecutorDurationSecondsOutputUpload = buildExecutorDurationSeconds.WithLabelValues("UploadingOutputs")
+		[]string{"result", "grpc_code", "stage"})
 
 	// Metrics for FilePoolResourceUsage.
-	buildExecutorFilePoolFilesCreated = prometheus.NewHistogram(
+	buildExecutorFilePoolFilesCreated = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
 			Subsystem: "builder",
 			Name:      "build_executor_file_pool_files_created",
 			Help:      "Number of files created by a build action.",
 			Buckets:   util.DecimalExponentialBuckets(0, 6, 2),
-		})
-	buildExecutorFilePoolFilesCountPeak = prometheus.NewHistogram(
+		},
+		[]string{"result", "grpc_code"})
+	buildExecutorFilePoolFilesCountPeak = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
 			Subsystem: "builder",
 			Name:      "build_executor_file_pool_files_count_peak",
 			Help:      "Peak number of files created by a build action.",
 			Buckets:   util.DecimalExponentialBuckets(0, 6, 2),
-		})
-	buildExecutorFilePoolFilesSizeBytesPeak = prometheus.NewHistogram(
+		},
+		[]string{"result", "grpc_code"})
+	buildExecutorFilePoolFilesSizeBytesPeak = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
 			Subsystem: "builder",
 			Name:      "build_executor_file_pool_files_size_bytes_peak",
 			Help:      "Peak size of files created by a build action, in bytes.",
 			Buckets:   prometheus.ExponentialBuckets(1.0, 2.0, 33),
-		})
+		},
+		[]string{"result", "grpc_code"})
 	buildExecutorFilePoolFilesOperationsCount = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
@@ -66,11 +66,8 @@ var (
 			Help:      "Number of file pool operations performed by build actions.",
 			Buckets:   util.DecimalExponentialBuckets(0, 6, 2),
 		},
-		[]string{"operation"})
-	buildExecutorFilePoolFilesOperationsCountRead     = buildExecutorFilePoolFilesOperationsCount.WithLabelValues("Read")
-	buildExecutorFilePoolFilesOperationsCountWrite    = buildExecutorFilePoolFilesOperationsCount.WithLabelValues("Write")
-	buildExecutorFilePoolFilesOperationsCountTruncate = buildExecutorFilePoolFilesOperationsCount.WithLabelValues("Truncate")
-	buildExecutorFilePoolFilesOperationsSizeBytes     = prometheus.NewHistogramVec(
+		[]string{"result", "grpc_code", "operation"})
+	buildExecutorFilePoolFilesOperationsSizeBytes = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
 			Subsystem: "builder",
@@ -78,115 +75,126 @@ var (
 			Help:      "Total size of file pool operations performed by build actions, in bytes.",
 			Buckets:   prometheus.ExponentialBuckets(1.0, 2.0, 33),
 		},
-		[]string{"operation"})
-	buildExecutorFilePoolFilesOperationsSizeBytesRead  = buildExecutorFilePoolFilesOperationsSizeBytes.WithLabelValues("Read")
-	buildExecutorFilePoolFilesOperationsSizeBytesWrite = buildExecutorFilePoolFilesOperationsSizeBytes.WithLabelValues("Write")
+		[]string{"result", "grpc_code", "operation"})
 
 	// Metrics for POSIXResourceUsage.
-	buildExecutorPOSIXUserTime = prometheus.NewHistogram(
+	buildExecutorPOSIXUserTime = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
 			Subsystem: "builder",
 			Name:      "build_executor_posix_user_time",
 			Help:      "Amount of time spent in userspace by build actions, in seconds.",
 			Buckets:   util.DecimalExponentialBuckets(-3, 6, 2),
-		})
-	buildExecutorPOSIXSystemTime = prometheus.NewHistogram(
+		},
+		[]string{"result", "grpc_code"})
+	buildExecutorPOSIXSystemTime = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
 			Subsystem: "builder",
 			Name:      "build_executor_posix_system_time",
 			Help:      "Amount of time spent in kernelspace by build actions, in seconds.",
 			Buckets:   util.DecimalExponentialBuckets(-3, 6, 2),
-		})
-	buildExecutorPOSIXMaximumResidentSetSize = prometheus.NewHistogram(
+		},
+		[]string{"result", "grpc_code"})
+	buildExecutorPOSIXMaximumResidentSetSize = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
 			Subsystem: "builder",
 			Name:      "build_executor_posix_maximum_resident_set_size",
 			Help:      "Maximum resident set size of build actions, in bytes.",
 			Buckets:   prometheus.ExponentialBuckets(1024.0, 2.0, 23),
-		})
-	buildExecutorPOSIXPageReclaims = prometheus.NewHistogram(
+		},
+		[]string{"result", "grpc_code"})
+	buildExecutorPOSIXPageReclaims = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
 			Subsystem: "builder",
 			Name:      "build_executor_posix_page_reclaims",
 			Help:      "Number of page reclaims caused by build actions.",
 			Buckets:   util.DecimalExponentialBuckets(0, 9, 2),
-		})
-	buildExecutorPOSIXPageFaults = prometheus.NewHistogram(
+		},
+		[]string{"result", "grpc_code"})
+	buildExecutorPOSIXPageFaults = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
 			Subsystem: "builder",
 			Name:      "build_executor_posix_page_faults",
 			Help:      "Number of page faults caused by build actions.",
 			Buckets:   util.DecimalExponentialBuckets(0, 9, 2),
-		})
-	buildExecutorPOSIXSwaps = prometheus.NewHistogram(
+		},
+		[]string{"result", "grpc_code"})
+	buildExecutorPOSIXSwaps = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
 			Subsystem: "builder",
 			Name:      "build_executor_posix_swaps",
 			Help:      "Number of swaps caused by build actions.",
 			Buckets:   util.DecimalExponentialBuckets(0, 9, 2),
-		})
-	buildExecutorPOSIXBlockInputOperations = prometheus.NewHistogram(
+		},
+		[]string{"result", "grpc_code"})
+	buildExecutorPOSIXBlockInputOperations = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
 			Subsystem: "builder",
 			Name:      "build_executor_posix_block_input_operations",
 			Help:      "Number of block input operations performed by build actions.",
 			Buckets:   util.DecimalExponentialBuckets(0, 9, 2),
-		})
-	buildExecutorPOSIXBlockOutputOperations = prometheus.NewHistogram(
+		},
+		[]string{"result", "grpc_code"})
+	buildExecutorPOSIXBlockOutputOperations = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
 			Subsystem: "builder",
 			Name:      "build_executor_posix_block_output_operations",
 			Help:      "Number of block output operations performed by build actions.",
 			Buckets:   util.DecimalExponentialBuckets(0, 9, 2),
-		})
-	buildExecutorPOSIXMessagesSent = prometheus.NewHistogram(
+		},
+		[]string{"result", "grpc_code"})
+	buildExecutorPOSIXMessagesSent = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
 			Subsystem: "builder",
 			Name:      "build_executor_posix_messages_sent",
 			Help:      "Number of messages sent by build actions.",
 			Buckets:   util.DecimalExponentialBuckets(0, 9, 2),
-		})
-	buildExecutorPOSIXMessagesReceived = prometheus.NewHistogram(
+		},
+		[]string{"result", "grpc_code"})
+	buildExecutorPOSIXMessagesReceived = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
 			Subsystem: "builder",
 			Name:      "build_executor_posix_messages_received",
 			Help:      "Number of messages received by build actions.",
 			Buckets:   util.DecimalExponentialBuckets(0, 9, 2),
-		})
-	buildExecutorPOSIXSignalsReceived = prometheus.NewHistogram(
+		},
+		[]string{"result", "grpc_code"})
+	buildExecutorPOSIXSignalsReceived = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
 			Subsystem: "builder",
 			Name:      "build_executor_posix_signals_received",
 			Help:      "Number of signals received by build actions.",
 			Buckets:   util.DecimalExponentialBuckets(0, 6, 2),
-		})
-	buildExecutorPOSIXVoluntaryContextSwitches = prometheus.NewHistogram(
+		},
+		[]string{"result", "grpc_code"})
+	buildExecutorPOSIXVoluntaryContextSwitches = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
 			Subsystem: "builder",
 			Name:      "build_executor_posix_voluntary_context_switches",
 			Help:      "Number of voluntary context switches caused by build actions.",
 			Buckets:   util.DecimalExponentialBuckets(0, 9, 2),
-		})
-	buildExecutorPOSIXInvoluntaryContextSwitches = prometheus.NewHistogram(
+		},
+		[]string{"result", "grpc_code"})
+	buildExecutorPOSIXInvoluntaryContextSwitches = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
 			Subsystem: "builder",
 			Name:      "build_executor_posix_involuntary_context_switches",
 			Help:      "Number of involuntary context switches caused by build actions.",
 			Buckets:   util.DecimalExponentialBuckets(0, 9, 2),
-		})
+		},
+		[]string{"result", "grpc_code"})
 )
 
 type metricsBuildExecutor struct {
@@ -254,41 +262,48 @@ func observeTimestampDelta(histogram prometheus.Observer, pbStart, pbCompleted *
 
 func (be *metricsBuildExecutor) Execute(ctx context.Context, filePool filesystem.FilePool, instanceName digest.InstanceName, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 	response := be.buildExecutor.Execute(ctx, filePool, instanceName, request, executionStateUpdates)
+	result, grpcCode := getResultAndGRPCCodeFromExecuteResponse(response)
 
 	// Expose metrics for timestamps stored in ExecutedActionMetadata.
 	metadata := response.Result.ExecutionMetadata
-	observeTimestampDelta(buildExecutorDurationSecondsInputFetch, metadata.InputFetchStartTimestamp, metadata.InputFetchCompletedTimestamp)
-	observeTimestampDelta(buildExecutorDurationSecondsExecution, metadata.ExecutionStartTimestamp, metadata.ExecutionCompletedTimestamp)
-	observeTimestampDelta(buildExecutorDurationSecondsOutputUpload, metadata.OutputUploadStartTimestamp, metadata.OutputUploadCompletedTimestamp)
+	observeTimestampDelta(
+		buildExecutorDurationSeconds.WithLabelValues(result, grpcCode, "FetchingInputs"),
+		metadata.InputFetchStartTimestamp, metadata.InputFetchCompletedTimestamp)
+	observeTimestampDelta(
+		buildExecutorDurationSeconds.WithLabelValues(result, grpcCode, "Running"),
+		metadata.ExecutionStartTimestamp, metadata.ExecutionCompletedTimestamp)
+	observeTimestampDelta(
+		buildExecutorDurationSeconds.WithLabelValues(result, grpcCode, "UploadingOutputs"),
+		metadata.OutputUploadStartTimestamp, metadata.OutputUploadCompletedTimestamp)
 
 	for _, auxiliaryMetadata := range metadata.AuxiliaryMetadata {
 		var filePool resourceusage.FilePoolResourceUsage
 		var posix resourceusage.POSIXResourceUsage
 		if ptypes.UnmarshalAny(auxiliaryMetadata, &filePool) == nil {
 			// Expose metrics stored in FilePoolResourceUsage.
-			buildExecutorFilePoolFilesCreated.Observe(float64(filePool.FilesCreated))
-			buildExecutorFilePoolFilesCountPeak.Observe(float64(filePool.FilesCountPeak))
-			buildExecutorFilePoolFilesSizeBytesPeak.Observe(float64(filePool.FilesSizeBytesPeak))
-			buildExecutorFilePoolFilesOperationsCountRead.Observe(float64(filePool.ReadsCount))
-			buildExecutorFilePoolFilesOperationsSizeBytesRead.Observe(float64(filePool.ReadsSizeBytes))
-			buildExecutorFilePoolFilesOperationsCountWrite.Observe(float64(filePool.WritesCount))
-			buildExecutorFilePoolFilesOperationsSizeBytesWrite.Observe(float64(filePool.WritesSizeBytes))
-			buildExecutorFilePoolFilesOperationsCountTruncate.Observe(float64(filePool.TruncatesCount))
+			buildExecutorFilePoolFilesCreated.WithLabelValues(result, grpcCode).Observe(float64(filePool.FilesCreated))
+			buildExecutorFilePoolFilesCountPeak.WithLabelValues(result, grpcCode).Observe(float64(filePool.FilesCountPeak))
+			buildExecutorFilePoolFilesSizeBytesPeak.WithLabelValues(result, grpcCode).Observe(float64(filePool.FilesSizeBytesPeak))
+			buildExecutorFilePoolFilesOperationsCount.WithLabelValues(result, grpcCode, "Read").Observe(float64(filePool.ReadsCount))
+			buildExecutorFilePoolFilesOperationsSizeBytes.WithLabelValues(result, grpcCode, "Read").Observe(float64(filePool.ReadsSizeBytes))
+			buildExecutorFilePoolFilesOperationsCount.WithLabelValues(result, grpcCode, "Write").Observe(float64(filePool.WritesCount))
+			buildExecutorFilePoolFilesOperationsSizeBytes.WithLabelValues(result, grpcCode, "Write").Observe(float64(filePool.WritesSizeBytes))
+			buildExecutorFilePoolFilesOperationsCount.WithLabelValues(result, grpcCode, "Truncate").Observe(float64(filePool.TruncatesCount))
 		} else if ptypes.UnmarshalAny(auxiliaryMetadata, &posix) == nil {
 			// Expose metrics stored in POSIXResourceUsage.
-			observeDuration(buildExecutorPOSIXUserTime, posix.UserTime)
-			observeDuration(buildExecutorPOSIXSystemTime, posix.SystemTime)
-			buildExecutorPOSIXMaximumResidentSetSize.Observe(float64(posix.MaximumResidentSetSize))
-			buildExecutorPOSIXPageReclaims.Observe(float64(posix.PageReclaims))
-			buildExecutorPOSIXPageFaults.Observe(float64(posix.PageFaults))
-			buildExecutorPOSIXSwaps.Observe(float64(posix.Swaps))
-			buildExecutorPOSIXBlockInputOperations.Observe(float64(posix.BlockInputOperations))
-			buildExecutorPOSIXBlockOutputOperations.Observe(float64(posix.BlockOutputOperations))
-			buildExecutorPOSIXMessagesSent.Observe(float64(posix.MessagesSent))
-			buildExecutorPOSIXMessagesReceived.Observe(float64(posix.MessagesReceived))
-			buildExecutorPOSIXSignalsReceived.Observe(float64(posix.SignalsReceived))
-			buildExecutorPOSIXVoluntaryContextSwitches.Observe(float64(posix.VoluntaryContextSwitches))
-			buildExecutorPOSIXInvoluntaryContextSwitches.Observe(float64(posix.InvoluntaryContextSwitches))
+			observeDuration(buildExecutorPOSIXUserTime.WithLabelValues(result, grpcCode), posix.UserTime)
+			observeDuration(buildExecutorPOSIXSystemTime.WithLabelValues(result, grpcCode), posix.SystemTime)
+			buildExecutorPOSIXMaximumResidentSetSize.WithLabelValues(result, grpcCode).Observe(float64(posix.MaximumResidentSetSize))
+			buildExecutorPOSIXPageReclaims.WithLabelValues(result, grpcCode).Observe(float64(posix.PageReclaims))
+			buildExecutorPOSIXPageFaults.WithLabelValues(result, grpcCode).Observe(float64(posix.PageFaults))
+			buildExecutorPOSIXSwaps.WithLabelValues(result, grpcCode).Observe(float64(posix.Swaps))
+			buildExecutorPOSIXBlockInputOperations.WithLabelValues(result, grpcCode).Observe(float64(posix.BlockInputOperations))
+			buildExecutorPOSIXBlockOutputOperations.WithLabelValues(result, grpcCode).Observe(float64(posix.BlockOutputOperations))
+			buildExecutorPOSIXMessagesSent.WithLabelValues(result, grpcCode).Observe(float64(posix.MessagesSent))
+			buildExecutorPOSIXMessagesReceived.WithLabelValues(result, grpcCode).Observe(float64(posix.MessagesReceived))
+			buildExecutorPOSIXSignalsReceived.WithLabelValues(result, grpcCode).Observe(float64(posix.SignalsReceived))
+			buildExecutorPOSIXVoluntaryContextSwitches.WithLabelValues(result, grpcCode).Observe(float64(posix.VoluntaryContextSwitches))
+			buildExecutorPOSIXInvoluntaryContextSwitches.WithLabelValues(result, grpcCode).Observe(float64(posix.InvoluntaryContextSwitches))
 		}
 	}
 

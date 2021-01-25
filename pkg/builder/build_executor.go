@@ -8,6 +8,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
@@ -21,6 +22,23 @@ func attachErrorToExecuteResponse(response *remoteexecution.ExecuteResponse, err
 	if status.ErrorProto(response.Status) == nil {
 		response.Status = status.Convert(err).Proto()
 	}
+}
+
+// getResultAndGRPCCodeFromExecuteResponse converts an ExecuteResponse
+// to a pair of strings that describe the execution outcome. These
+// strings can be used as part of metrics labels.
+func getResultAndGRPCCodeFromExecuteResponse(response *remoteexecution.ExecuteResponse) (result, grpcCode string) {
+	if c := status.FromProto(response.Status).Code(); c != codes.OK {
+		result = "Failure"
+		grpcCode = c.String()
+	} else if actionResult := response.Result; actionResult == nil {
+		result = "ActionResultMissing"
+	} else if actionResult.ExitCode == 0 {
+		result = "Success"
+	} else {
+		result = "NonZeroExitCode"
+	}
+	return
 }
 
 // BuildExecutor is the interface for the ability to run Bazel execute

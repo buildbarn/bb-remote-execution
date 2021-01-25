@@ -1671,17 +1671,7 @@ func (t *task) complete(bq *InMemoryBuildQueue, executeResponse *remoteexecution
 		t.desiredState.Command = nil
 		t.completionWakeup = nil
 
-		var result, grpcCode string
-		if s := status.FromProto(executeResponse.Status); s.Err() != nil {
-			result = "Failure"
-			grpcCode = s.Code().String()
-		} else if actionResult := executeResponse.Result; actionResult == nil {
-			result = "ActionResultMissing"
-		} else if actionResult.ExitCode == 0 {
-			result = "Success"
-		} else {
-			result = "NonZeroExitCode"
-		}
+		result, grpcCode := getResultAndGRPCCodeFromExecuteResponse(executeResponse)
 		t.registerExecutingStageFinished(bq, result, grpcCode)
 	}
 }
