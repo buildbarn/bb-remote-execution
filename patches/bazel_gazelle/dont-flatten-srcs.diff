@@ -1,8 +1,8 @@
 diff --git language/go/generate.go language/go/generate.go
-index c9b398e..0cbd9a9 100644
+index 2892948..cb55fdb 100644
 --- language/go/generate.go
 +++ language/go/generate.go
-@@ -455,7 +455,7 @@ func (g *generator) generateLib(pkg *goPackage, embed string) *rule.Rule {
+@@ -477,7 +477,7 @@ func (g *generator) generateLib(pkg *goPackage, embed string) *rule.Rule {
  	} else {
  		visibility = g.commonVisibility(pkg.importPath)
  	}
@@ -11,7 +11,7 @@ index c9b398e..0cbd9a9 100644
  	g.setImportAttrs(goLibrary, pkg.importPath)
  	return goLibrary
  }
-@@ -467,7 +467,7 @@ func (g *generator) generateBin(pkg *goPackage, library string) *rule.Rule {
+@@ -506,7 +506,7 @@ func (g *generator) generateBin(pkg *goPackage, library string) *rule.Rule {
  		return goBinary // empty
  	}
  	visibility := g.commonVisibility(pkg.importPath)
@@ -20,7 +20,7 @@ index c9b398e..0cbd9a9 100644
  	return goBinary
  }
  
-@@ -476,16 +476,20 @@ func (g *generator) generateTest(pkg *goPackage, library string) *rule.Rule {
+@@ -517,7 +517,7 @@ func (g *generator) generateTest(pkg *goPackage, library string) *rule.Rule {
  	if !pkg.test.sources.hasGo() {
  		return goTest // empty
  	}
@@ -29,7 +29,17 @@ index c9b398e..0cbd9a9 100644
  	if pkg.hasTestdata {
  		goTest.SetAttr("data", rule.GlobValue{Patterns: []string{"testdata/**"}})
  	}
- 	return goTest
+@@ -550,7 +550,7 @@ func (g *generator) maybeGenerateToolLib(lib *rule.Rule, pkg *goPackage) *rule.R
+ 	} else {
+ 		visibility = g.commonVisibility(pkg.importPath)
+ 	}
+-	g.setCommonAttrs(toolLib, pkg.rel, visibility, pkg.library, "")
++	g.setCommonAttrs(toolLib, pkg.rel, visibility, pkg.library, "", true)
+ 	g.setImportAttrs(toolLib, pkg.importPath)
+ 	return toolLib
+ }
+@@ -645,9 +645,13 @@ func (g *generator) maybeGenerateExtraLib(lib *rule.Rule, pkg *goPackage) *rule.
+ 	return r
  }
  
 -func (g *generator) setCommonAttrs(r *rule.Rule, pkgRel string, visibility []string, target goTarget, embed string) {
