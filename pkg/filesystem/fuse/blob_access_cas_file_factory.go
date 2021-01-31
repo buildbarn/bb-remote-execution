@@ -7,6 +7,7 @@ import (
 	"io"
 	"syscall"
 
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteoutputservice"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
@@ -110,6 +111,21 @@ func (f *blobAccessCASFile) UploadFile(ctx context.Context, contentAddressableSt
 
 func (f *blobAccessCASFile) GetContainingDigests() digest.Set {
 	return f.digest.ToSingletonSet()
+}
+
+func (f *blobAccessCASFile) GetOutputServiceFileStatus(digestFunction *digest.Function) (*remoteoutputservice.FileStatus, error) {
+	fileStatusFile := remoteoutputservice.FileStatus_File{}
+	if digestFunction != nil {
+		// Assume that the file uses the same hash algorithm as
+		// the provided digest function. Incompatible files are
+		// removed from storage at the start of the build.
+		fileStatusFile.Digest = f.digest.GetProto()
+	}
+	return &remoteoutputservice.FileStatus{
+		FileType: &remoteoutputservice.FileStatus_File_{
+			File: &fileStatusFile,
+		},
+	}, nil
 }
 
 func (f *blobAccessCASFile) FUSEFallocate(off, size uint64) fuse.Status {

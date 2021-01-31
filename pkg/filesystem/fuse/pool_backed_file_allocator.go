@@ -10,6 +10,7 @@ import (
 	"syscall"
 
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteoutputservice"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
@@ -168,6 +169,14 @@ func (f *fileBackedFile) Unlink() {
 	f.closeIfNeeded()
 }
 
+func (f *fileBackedFile) getDigest(digestFunction digest.Function) (digest.Digest, error) {
+	digestGenerator := digestFunction.NewGenerator()
+	if _, err := io.Copy(digestGenerator, io.NewSectionReader(f, 0, math.MaxInt64)); err != nil {
+		return digest.BadDigest, util.StatusWrapWithCode(err, codes.Internal, "Failed to compute file digest")
+	}
+	return digestGenerator.Sum(), nil
+}
+
 func (f *fileBackedFile) UploadFile(ctx context.Context, contentAddressableStorage blobstore.BlobAccess, digestFunction digest.Function) (digest.Digest, error) {
 	// Create a file handle that temporarily freezes the contents of
 	// this file. This ensures that the file's contents don't change
@@ -177,18 +186,16 @@ func (f *fileBackedFile) UploadFile(ctx context.Context, contentAddressableStora
 		return digest.BadDigest, status.Error(codes.NotFound, "File was unlinked before uploading could start")
 	}
 
-	digestGenerator := digestFunction.NewGenerator()
-	sizeBytes, err := io.Copy(digestGenerator, io.NewSectionReader(f, 0, math.MaxInt64))
+	blobDigest, err := f.getDigest(digestFunction)
 	if err != nil {
 		f.Close()
-		return digest.BadDigest, util.StatusWrapWithCode(err, codes.Internal, "Failed to compute file digest")
+		return digest.BadDigest, err
 	}
-	blobDigest := digestGenerator.Sum()
 
 	if err := contentAddressableStorage.Put(
 		ctx,
 		blobDigest,
-		buffer.NewValidatedBufferFromReaderAt(f, sizeBytes)); err != nil {
+		buffer.NewValidatedBufferFromReaderAt(f, blobDigest.GetSizeBytes())); err != nil {
 		return digest.BadDigest, util.StatusWrap(err, "Failed to upload file")
 	}
 	return blobDigest, nil
@@ -196,6 +203,27 @@ func (f *fileBackedFile) UploadFile(ctx context.Context, contentAddressableStora
 
 func (f *fileBackedFile) GetContainingDigests() digest.Set {
 	return digest.EmptySet
+}
+
+func (f *fileBackedFile) GetOutputServiceFileStatus(digestFunction *digest.Function) (*remoteoutputservice.FileStatus, error) {
+	fileStatus := &remoteoutputservice.FileStatus_File{}
+	if digestFunction != nil {
+		if !f.acquire(false) {
+			return nil, status.Error(codes.NotFound, "File was unlinked before digest computation could start")
+		}
+		defer f.release(false)
+
+		blobDigest, err := f.getDigest(*digestFunction)
+		if err != nil {
+			return nil, err
+		}
+		fileStatus.Digest = blobDigest.GetProto()
+	}
+	return &remoteoutputservice.FileStatus{
+		FileType: &remoteoutputservice.FileStatus_File_{
+			File: fileStatus,
+		},
+	}, nil
 }
 
 func (f *fileBackedFile) Close() error {

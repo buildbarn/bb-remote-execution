@@ -247,6 +247,7 @@ go_library(
         "//pkg/cas",
         "//pkg/filesystem",
         "//pkg/filesystem/fuse",
+        "//pkg/proto/remoteoutputservice",
         "//pkg/proto/remoteworker",
         "//pkg/proto/runner",
         "//pkg/runner/processtablecleaning",

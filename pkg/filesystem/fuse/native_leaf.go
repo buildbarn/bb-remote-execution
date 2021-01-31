@@ -5,6 +5,7 @@ package fuse
 import (
 	"context"
 
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteoutputservice"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
@@ -41,4 +42,11 @@ type NativeLeaf interface {
 	// the file still exists in its entirety, and to prevent that
 	// the file is removed in the nearby future.
 	GetContainingDigests() digest.Set
+	// GetOutputServiceFileStatus() returns the status of the leaf
+	// node in the form of a FileStatus message that is used by the
+	// Remote Output Service protocol.
+	//
+	// When digestFunction is not nil, a FileStatus responses for
+	// regular files should include the digest.
+	GetOutputServiceFileStatus(digestFunction *digest.Function) (*remoteoutputservice.FileStatus, error)
 }

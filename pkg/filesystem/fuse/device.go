@@ -6,6 +6,7 @@ import (
 	"context"
 	"syscall"
 
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteoutputservice"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
@@ -53,6 +54,10 @@ func (f *device) UploadFile(ctx context.Context, contentAddressableStorage blobs
 
 func (f *device) GetContainingDigests() digest.Set {
 	return digest.EmptySet
+}
+
+func (f *device) GetOutputServiceFileStatus(digestFunction *digest.Function) (*remoteoutputservice.FileStatus, error) {
+	return &remoteoutputservice.FileStatus{}, nil
 }
 
 func (f *device) FUSEAccess(mask uint32) fuse.Status {

@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteoutputservice"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
@@ -55,6 +56,16 @@ func (f *symlink) UploadFile(ctx context.Context, contentAddressableStorage blob
 
 func (f *symlink) GetContainingDigests() digest.Set {
 	return digest.EmptySet
+}
+
+func (f *symlink) GetOutputServiceFileStatus(digestFunction *digest.Function) (*remoteoutputservice.FileStatus, error) {
+	return &remoteoutputservice.FileStatus{
+		FileType: &remoteoutputservice.FileStatus_Symlink_{
+			Symlink: &remoteoutputservice.FileStatus_Symlink{
+				Target: f.target,
+			},
+		},
+	}, nil
 }
 
 func (f *symlink) FUSEAccess(mask uint32) fuse.Status {
