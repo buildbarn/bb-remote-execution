@@ -113,6 +113,7 @@ gomock(
     out = "fuse.go",
     interfaces = [
         "CASFileFactory",
+        "ChildFilter",
         "EntryNotifier",
         "FileAllocator",
         "InitialContentsFetcher",

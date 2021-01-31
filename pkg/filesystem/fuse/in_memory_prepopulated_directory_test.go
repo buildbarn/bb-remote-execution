@@ -292,6 +292,71 @@ func TestInMemoryPrepopulatedDirectoryInstallHooks(t *testing.T) {
 	require.Equal(t, s, go_fuse.Status(syscall.EIO))
 }
 
+func TestInMemoryPrepopulatedDirectoryFilterChildren(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	fileAllocator := mock.NewMockFileAllocator(ctrl)
+	errorLogger := mock.NewMockErrorLogger(ctrl)
+	inodeNumberGenerator := mock.NewMockThreadSafeGenerator(ctrl)
+	entryNotifier := mock.NewMockEntryNotifier(ctrl)
+	d := fuse.NewInMemoryPrepopulatedDirectory(fileAllocator, errorLogger, 100, inodeNumberGenerator, entryNotifier.Call)
+
+	// In the initial state, InMemoryPrepopulatedDirectory will have
+	// an EmptyInitialContentsFetcher associated with it.
+	childFilter1 := mock.NewMockChildFilter(ctrl)
+	childFilter1.EXPECT().Call(fuse.InitialNode{Directory: fuse.EmptyInitialContentsFetcher}, gomock.Any()).Return(true)
+	require.NoError(t, d.FilterChildren(childFilter1.Call))
+
+	// After attempting to access the directory's contents, the
+	// InitialContentsFetcher should be evaluated. Successive
+	// FilterChildren() calls will no longer report it.
+	entries, err := d.ReadDir()
+	require.NoError(t, err)
+	require.Empty(t, entries)
+
+	childFilter2 := mock.NewMockChildFilter(ctrl)
+	require.NoError(t, d.FilterChildren(childFilter2.Call))
+
+	// Create some children and call FilterChildren() again. All
+	// children should be reported. Remove some of them.
+	inodeNumberGenerator.EXPECT().Uint64().Return(uint64(101))
+	directory1 := mock.NewMockInitialContentsFetcher(ctrl)
+	inodeNumberGenerator.EXPECT().Uint64().Return(uint64(102))
+	directory2 := mock.NewMockInitialContentsFetcher(ctrl)
+	leaf1 := mock.NewMockNativeLeaf(ctrl)
+	leaf2 := fuse.NewSymlink("target")
+	require.NoError(t, d.CreateChildren(map[path.Component]fuse.InitialNode{
+		path.MustNewComponent("directory1"): {Directory: directory1},
+		path.MustNewComponent("directory2"): {Directory: directory2},
+		path.MustNewComponent("leaf1"):      {Leaf: leaf1},
+		path.MustNewComponent("leaf2"):      {Leaf: leaf2},
+	}, false))
+
+	childFilter3 := mock.NewMockChildFilter(ctrl)
+	childFilter3.EXPECT().Call(fuse.InitialNode{Directory: directory1}, gomock.Any()).
+		DoAndReturn(func(initialNode fuse.InitialNode, remove func() error) bool {
+			require.NoError(t, remove())
+			return true
+		})
+	childFilter3.EXPECT().Call(fuse.InitialNode{Directory: directory2}, gomock.Any()).Return(true)
+	childFilter3.EXPECT().Call(fuse.InitialNode{Leaf: leaf1}, gomock.Any()).
+		DoAndReturn(func(initialNode fuse.InitialNode, remove func() error) bool {
+			leaf1.EXPECT().Unlink()
+			entryNotifier.EXPECT().Call(uint64(100), path.MustNewComponent("leaf1"))
+			require.NoError(t, remove())
+			return true
+		})
+	childFilter3.EXPECT().Call(fuse.InitialNode{Leaf: leaf2}, gomock.Any()).Return(true)
+	require.NoError(t, d.FilterChildren(childFilter3.Call))
+
+	// Another call to FilterChildren() should only report the
+	// children that were not removed previously.
+	childFilter4 := mock.NewMockChildFilter(ctrl)
+	childFilter4.EXPECT().Call(fuse.InitialNode{Directory: directory2}, gomock.Any()).Return(true)
+	childFilter4.EXPECT().Call(fuse.InitialNode{Leaf: leaf2}, gomock.Any()).Return(true)
+	require.NoError(t, d.FilterChildren(childFilter4.Call))
+}
+
 func TestInMemoryPrepopulatedDirectoryFUSECreateFileExists(t *testing.T) {
 	ctrl := gomock.NewController(t)
 

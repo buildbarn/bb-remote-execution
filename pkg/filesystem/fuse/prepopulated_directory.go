@@ -8,6 +8,20 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/util"
 )
 
+// ChildFilter is a callback that is invoked by
+// PrepopulatedDirectory.FilterChildren() for each of the children
+// underneath the current directory hierarchy.
+//
+// For each of the children, an InitialNode object is provided that
+// describes the contents of that file or directory. In addition to
+// that, a callback is provided that can remove the file or the contents
+// of the directory. This callback may be invoked synchronously or
+// asynchronously, potentially after FilterChildren() has completed.
+//
+// The boolean return value of this function signals whether traversal
+// should continue. When false, traversal will stop immediately.
+type ChildFilter func(node InitialNode, remove func() error) bool
+
 // PrepopulatedDirectory is a Directory that is writable and can contain
 // files of type NativeLeaf.
 //
@@ -55,6 +69,16 @@ type PrepopulatedDirectory interface {
 	// except that it uses the FUSE specific FileAllocator instead
 	// of FilePool.
 	InstallHooks(fileAllocator FileAllocator, errorLogger util.ErrorLogger)
+	// FilterChildren() can be used to traverse over all of the
+	// InitialContentsFetcher and NativeLeaf objects stored in this
+	// directory hierarchy. For each of the objects, a callback is
+	// provided that can be used to remove the file or the contents
+	// of the directory associated with this object.
+	//
+	// This function can be used by bb_clientd to purge files or
+	// directories that are no longer present in the Content
+	// Addressable Storage at the start of the build.
+	FilterChildren(childFilter ChildFilter) error
 
 	// Functions inherited from filesystem.Directory.
 	ReadDir() ([]filesystem.FileInfo, error)

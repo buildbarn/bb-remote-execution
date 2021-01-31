@@ -481,6 +481,59 @@ func (i *inMemoryPrepopulatedDirectory) CreateAndEnterPrepopulatedDirectory(name
 	return child, nil
 }
 
+func (i *inMemoryPrepopulatedDirectory) filterChildrenRecursive(childFilter ChildFilter) bool {
+	i.lock.Lock()
+	if initialContentsFetcher := i.initialContentsFetcher; initialContentsFetcher != nil {
+		// Directory is not initialized. There is no need to
+		// instantiate it. Simply provide the
+		// InitialContentsFetcher to the callback.
+		i.lock.Unlock()
+		return childFilter(InitialNode{Directory: initialContentsFetcher}, func() error {
+			return i.RemoveAllChildren(false)
+		})
+	}
+
+	// Directory is already initialized. Gather the contents.
+	type leafInfo struct {
+		name path.Component
+		leaf NativeLeaf
+	}
+	leaves := make([]leafInfo, 0, len(i.contents.leaves))
+	for name, child := range i.contents.leaves {
+		leaves = append(leaves, leafInfo{
+			name: name,
+			leaf: child,
+		})
+	}
+
+	directories := make([]*inMemoryPrepopulatedDirectory, 0, len(i.contents.directories))
+	for _, child := range i.contents.directories {
+		directories = append(directories, child)
+	}
+	i.lock.Unlock()
+
+	// Invoke the callback for all children.
+	for _, child := range leaves {
+		name := child.name
+		if !childFilter(InitialNode{Leaf: child.leaf}, func() error {
+			return i.Remove(name)
+		}) {
+			return false
+		}
+	}
+	for _, child := range directories {
+		if !child.filterChildrenRecursive(childFilter) {
+			return false
+		}
+	}
+	return true
+}
+
+func (i *inMemoryPrepopulatedDirectory) FilterChildren(childFilter ChildFilter) error {
+	i.filterChildrenRecursive(childFilter)
+	return nil
+}
+
 func (i *inMemoryPrepopulatedDirectory) fuseGetContents() (*inMemoryDirectoryContents, fuse.Status) {
 	contents, err := i.getContents()
 	if err != nil {
