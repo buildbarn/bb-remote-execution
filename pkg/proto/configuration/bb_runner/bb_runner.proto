@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package buildbarn.configuration.bb_runner;
 
+import "pkg/proto/configuration/credentials/credentials.proto";
 import "pkg/proto/configuration/global/global.proto";
 import "pkg/proto/configuration/grpc/grpc.proto";
 
@@ -48,9 +49,8 @@ message ApplicationConfiguration {
   // unrelated processes to be killed.
   bool clean_process_table = 8;
 
-  // If set, scan the entire filesystem to verify that the only writable paths
-  // on the filesystem are those specified as allowed (or children thereof).
-  FilesystemWritabilityCheckerConfiguration filesystem_writability_checker = 9;
+  // Was filesystem_writability_checker which has been removed.
+  reserved 9;
 
   // List of paths that need to exist on the system for the runner to be
   // considered healthy. This option may be set to let a runner stop
@@ -60,31 +60,6 @@ message ApplicationConfiguration {
 
   // When set, run commands as another user. On most platforms, this
   // requires bb_runner to run as root.
-  UNIXCredentialsConfiguration run_commands_as = 11;
-}
-
-message FilesystemWritabilityCheckerConfiguration {
-  // Paths which are allowed to be writable despite
-  // the checker being enabled.
-  // If these are directories, they are allowed children too.
-  //
-  // Note that on platforms with enumeratable virtual filesystems
-  // (e.g. /proc and /sys on Linux), you probably want to list them here.
-  //
-  // If you have any temporary directories set, you probably want to add them
-  // here.
-  // Depending on your configuration, you may also want to add the build
-  // directory path.
-  repeated string allowed_writable_paths = 1;
-}
-
-message UNIXCredentialsConfiguration {
-  // The user ID that should be used to run commands.
-  uint32 user_id = 1;
-
-  // The primary group ID that should be used to run commands.
-  uint32 group_id = 2;
-
-  // Additional groups of which the process should be a member.
-  repeated uint32 additional_group_ids = 3;
+  buildbarn.configuration.credentials.UNIXCredentialsConfiguration
+      run_commands_as = 11;
 }

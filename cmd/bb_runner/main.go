@@ -4,9 +4,9 @@ import (
 	"context"
 	"log"
 	"os"
-	"path/filepath"
 	"time"
 
+	"github.com/buildbarn/bb-remote-execution/pkg/credentials"
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_runner"
 	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
@@ -36,28 +36,6 @@ func main() {
 		log.Fatal("Failed to apply global configuration options: ", err)
 	}
 
-	if fswcConfig := configuration.FilesystemWritabilityChecker; fswcConfig != nil {
-		allowed := make(map[string]struct{})
-		var empty struct{}
-		for _, path := range fswcConfig.AllowedWritablePaths {
-			// Note that this does not traverse/canonicalise symlinks, it is purely symbolic.
-			// It will also expand foo/bar/.. to foo, even if bar is a symlink.
-			if !filepath.IsAbs(path) || filepath.Clean(path) != path {
-				log.Fatalf("When using filesystem writability checking, allowed writable paths must be absolute and clean, but got: %#v", path)
-			}
-			allowed[path] = empty
-		}
-
-		dir, err := filesystem.NewLocalDirectory("/")
-		if err != nil {
-			log.Fatalf("Failed to open root directory: %v", err)
-		}
-		if err := re_filesystem.CheckAllWritablePathsAreAllowed(dir, "/", allowed); err != nil {
-			log.Fatal("File system writability checker failed: ", err)
-		}
-		dir.Close()
-	}
-
 	buildDirectory := re_filesystem.NewLazyDirectory(
 		func() (filesystem.DirectoryCloser, error) {
 			return filesystem.NewLocalDirectory(configuration.BuildDirectoryPath)
@@ -67,7 +45,7 @@ func main() {
 		log.Fatal("Failed to resolve build directory: ", err)
 	}
 
-	sysProcAttr, processTableCleaningUserID, err := getSysProcAttrFromConfiguration(configuration.RunCommandsAs)
+	sysProcAttr, processTableCleaningUserID, err := credentials.GetSysProcAttrFromConfiguration(configuration.RunCommandsAs)
 	if err != nil {
 		log.Fatal("Failed to extract credentials from configuration: ", err)
 	}
