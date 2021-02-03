@@ -8,6 +8,10 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/util"
 )
 
+// ChildRemover is a callback that is provided to ChildFilter to remove
+// the provided file or contents of the provided directory.
+type ChildRemover func() error
+
 // ChildFilter is a callback that is invoked by
 // PrepopulatedDirectory.FilterChildren() for each of the children
 // underneath the current directory hierarchy.
@@ -20,7 +24,7 @@ import (
 //
 // The boolean return value of this function signals whether traversal
 // should continue. When false, traversal will stop immediately.
-type ChildFilter func(node InitialNode, remove func() error) bool
+type ChildFilter func(node InitialNode, remove ChildRemover) bool
 
 // PrepopulatedDirectory is a Directory that is writable and can contain
 // files of type NativeLeaf.
