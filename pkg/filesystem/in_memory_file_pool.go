@@ -6,8 +6,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 )
 
-type inMemoryFilePool struct {
-}
+type inMemoryFilePool struct{}
 
 func (fp inMemoryFilePool) NewFile() (filesystem.FileReadWriter, error) {
 	return &inMemoryFile{}, nil
