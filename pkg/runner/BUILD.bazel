@@ -81,7 +81,7 @@ go_test(
     ],
     embed = [":runner"],
     deps = [
-        "//internal/mock:go_default_library",
+        "//internal/mock",
         "//pkg/proto/runner",
         "@com_github_buildbarn_bb_storage//pkg/filesystem",
         "@com_github_buildbarn_bb_storage//pkg/filesystem/path",

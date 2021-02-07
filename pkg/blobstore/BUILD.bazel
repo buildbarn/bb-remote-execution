@@ -27,7 +27,7 @@ go_test(
     ],
     embed = [":blobstore"],
     deps = [
-        "//internal/mock:go_default_library",
+        "//internal/mock",
         "@com_github_buildbarn_bb_storage//pkg/blobstore/buffer",
         "@com_github_buildbarn_bb_storage//pkg/digest",
         "@com_github_buildbarn_bb_storage//pkg/testutil",

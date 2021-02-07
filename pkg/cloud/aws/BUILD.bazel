@@ -30,7 +30,7 @@ go_test(
     ],
     embed = [":aws"],
     deps = [
-        "//internal/mock:go_default_library",
+        "//internal/mock",
         "@com_github_aws_aws_sdk_go//aws",
         "@com_github_aws_aws_sdk_go//aws/awserr",
         "@com_github_aws_aws_sdk_go//service/autoscaling",
