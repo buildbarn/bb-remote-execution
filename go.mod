@@ -1,30 +1,22 @@
 module github.com/buildbarn/bb-remote-execution
 
-go 1.14
+go 1.15
 
 require (
-	contrib.go.opencensus.io/exporter/jaeger v0.2.0 // indirect
-	contrib.go.opencensus.io/exporter/prometheus v0.2.0 // indirect
-	github.com/Azure/azure-storage-blob-go v0.10.0 // indirect
-	github.com/aws/aws-sdk-go v1.33.13
-	github.com/bazelbuild/remote-apis v0.0.0-20201030192148-aa8e718768c2
-	github.com/buildbarn/bb-storage v0.0.0-20210131130004-9cb6a9efe057
-	github.com/go-redis/redis v6.15.8+incompatible // indirect
-	github.com/golang/lint v0.0.0-20180702182130-06c8688daad7 // indirect
-	github.com/golang/mock v1.4.4-0.20200406172829-6d816de489c1
-	github.com/golang/protobuf v1.4.2
-	github.com/google/go-jsonnet v0.16.0 // indirect
-	github.com/google/uuid v1.1.1
-	github.com/gorilla/mux v1.7.4
-	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
-	github.com/hanwen/go-fuse/v2 v2.0.3 // indirect
-	github.com/lazybeaver/xorshift v0.0.0-20170702203709-ce511d4823dd // indirect
-	github.com/prometheus/client_golang v1.7.1
-	github.com/stretchr/testify v1.6.1
-	go.opencensus.io v0.22.4
-	gocloud.dev v0.20.0 // indirect
-	golang.org/x/sys v0.0.0-20200727154430-2d971f7391a4
-	google.golang.org/api v0.29.0 // indirect
-	google.golang.org/genproto v0.0.0-20200726014623-da3ae01ef02d
-	google.golang.org/grpc v1.31.0
+	github.com/aws/aws-sdk-go v1.37.6
+	github.com/bazelbuild/remote-apis v0.0.0-20201209220655-9e72daff42c9
+	github.com/buildbarn/bb-storage v0.0.0-20210207101039-9507e33a5caf
+	github.com/golang/protobuf v1.4.3
+	github.com/google/uuid v1.2.0
+	github.com/gorilla/mux v1.8.0
+	github.com/hanwen/go-fuse/v2 v2.0.3
+	github.com/prometheus/client_golang v1.9.0
+	go.opencensus.io v0.22.6
+	golang.org/x/sys v0.0.0-20210124154548-22da62e12c0c
+	google.golang.org/genproto v0.0.0-20210207032614-bba0dbe2a9ea
+	google.golang.org/grpc v1.35.0
 )
+
+replace github.com/golang/mock => github.com/golang/mock v1.4.4-0.20201026142858-99aa9272d551
+
+replace github.com/gordonklaus/ineffassign => github.com/gordonklaus/ineffassign v0.0.0-20201223204552-cba2d2a1d5d9
