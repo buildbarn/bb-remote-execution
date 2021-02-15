@@ -18,6 +18,7 @@ import (
 	bb_path "github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/golang/protobuf/ptypes"
+	"github.com/golang/protobuf/ptypes/any"
 	"github.com/golang/protobuf/ptypes/empty"
 
 	"google.golang.org/grpc/codes"
@@ -97,7 +98,9 @@ func (be *localBuildExecutor) createCharacterDevices(inputRootDirectory BuildDir
 func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, instanceName digest.InstanceName, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 	response := &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
-			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
+			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
+				AuxiliaryMetadata: append([]*any.Any(nil), request.AuxiliaryMetadata...),
+			},
 		},
 	}
 
@@ -259,7 +262,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	// Attach the exit code or execution error.
 	if runErr == nil {
 		response.Result.ExitCode = runResponse.ExitCode
-		response.Result.ExecutionMetadata.AuxiliaryMetadata = runResponse.ResourceUsage
+		response.Result.ExecutionMetadata.AuxiliaryMetadata = append(response.Result.ExecutionMetadata.AuxiliaryMetadata, runResponse.ResourceUsage...)
 	} else {
 		attachErrorToExecuteResponse(response, util.StatusWrap(runErr, "Failed to run command"))
 	}

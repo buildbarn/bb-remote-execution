@@ -553,6 +553,10 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 	}
 	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, inputRootCharacterDevices)
 
+	requestMetadata, err := ptypes.MarshalAny(&remoteexecution.RequestMetadata{
+		ToolInvocationId: "666b72d8-c43e-4998-866c-9312a31fe86d",
+	})
+	require.NoError(t, err)
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
 	executeResponse := localBuildExecutor.Execute(
 		ctx,
@@ -598,6 +602,7 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 					},
 				},
 			},
+			AuxiliaryMetadata: []*any.Any{requestMetadata},
 		},
 		metadata)
 	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
@@ -628,7 +633,7 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 				SizeBytes: 678,
 			},
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
-				AuxiliaryMetadata: []*any.Any{resourceUsage},
+				AuxiliaryMetadata: []*any.Any{requestMetadata, resourceUsage},
 			},
 		},
 	}, executeResponse)
