@@ -3,6 +3,7 @@ syntax = "proto3";
 package buildbarn.remoteworker;
 
 import "build/bazel/remote/execution/v2/remote_execution.proto";
+import "google/protobuf/any.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 
@@ -158,6 +159,11 @@ message DesiredState {
     // This is used to associate the worker's storage activity back to the
     // trace that started the action.
     bytes trace_context = 5;
+
+    // Auxiliary metadata that the client sent or the scheduler
+    // generated. The worker can attach this data to
+    // ExecutedActionMetadata's auxiliary_metadata.
+    repeated google.protobuf.Any auxiliary_metadata = 6;
   }
 
   oneof worker_state {
