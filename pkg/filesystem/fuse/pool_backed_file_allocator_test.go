@@ -36,7 +36,7 @@ func TestPoolBackedFileAllocatorGetOutputServiceFileStatus(t *testing.T) {
 	inodeNumberGenerator.EXPECT().Uint64().Return(uint64(42))
 
 	f, s := fuse.NewPoolBackedFileAllocator(pool, errorLogger, inodeNumberGenerator).
-		NewFile(uint32(os.O_RDWR), 0666)
+		NewFile(uint32(os.O_RDWR), 0o666)
 	require.Equal(t, go_fuse.OK, s)
 
 	underlyingFile.EXPECT().WriteAt([]byte("Hello"), int64(0)).Return(5, nil)
@@ -98,7 +98,7 @@ func TestPoolBackedFileAllocatorFUSEOpenStaleAfterUnlink(t *testing.T) {
 	inodeNumberGenerator.EXPECT().Uint64().Return(uint64(42))
 
 	f, s := fuse.NewPoolBackedFileAllocator(pool, errorLogger, inodeNumberGenerator).
-		NewFile(uint32(os.O_RDWR), 0666)
+		NewFile(uint32(os.O_RDWR), 0o666)
 	require.Equal(t, go_fuse.OK, s)
 
 	f.FUSERelease()
@@ -122,7 +122,7 @@ func TestPoolBackedFileAllocatorFUSEOpenStaleAfterClose(t *testing.T) {
 	inodeNumberGenerator.EXPECT().Uint64().Return(uint64(42))
 
 	f, s := fuse.NewPoolBackedFileAllocator(pool, errorLogger, inodeNumberGenerator).
-		NewFile(uint32(os.O_RDWR), 0666)
+		NewFile(uint32(os.O_RDWR), 0o666)
 	require.Equal(t, go_fuse.OK, s)
 
 	f.Unlink()
@@ -150,7 +150,7 @@ func TestPoolBackedFileAllocatorFUSEReadFailure(t *testing.T) {
 	inodeNumberGenerator.EXPECT().Uint64().Return(uint64(42))
 
 	f, s := fuse.NewPoolBackedFileAllocator(pool, errorLogger, inodeNumberGenerator).
-		NewFile(uint32(os.O_RDWR), 0666)
+		NewFile(uint32(os.O_RDWR), 0o666)
 	require.Equal(t, go_fuse.OK, s)
 
 	_, s = f.FUSERead(p[:], 42)
@@ -179,7 +179,7 @@ func TestPoolBackedFileAllocatorFUSEReadEOF(t *testing.T) {
 	inodeNumberGenerator.EXPECT().Uint64().Return(uint64(42))
 
 	f, s := fuse.NewPoolBackedFileAllocator(pool, errorLogger, inodeNumberGenerator).
-		NewFile(uint32(os.O_RDWR), 0666)
+		NewFile(uint32(os.O_RDWR), 0o666)
 	require.Equal(t, go_fuse.OK, s)
 
 	r, s := f.FUSERead(p[:], 42)
@@ -208,7 +208,7 @@ func TestPoolBackedFileAllocatorFUSETruncateFailure(t *testing.T) {
 	inodeNumberGenerator.EXPECT().Uint64().Return(uint64(42))
 
 	f, s := fuse.NewPoolBackedFileAllocator(pool, errorLogger, inodeNumberGenerator).
-		NewFile(uint32(os.O_RDWR), 0666)
+		NewFile(uint32(os.O_RDWR), 0o666)
 	require.Equal(t, go_fuse.OK, s)
 
 	var setAttrIn go_fuse.SetAttrIn
@@ -239,7 +239,7 @@ func TestPoolBackedFileAllocatorFUSEWriteFailure(t *testing.T) {
 	inodeNumberGenerator.EXPECT().Uint64().Return(uint64(42))
 
 	f, s := fuse.NewPoolBackedFileAllocator(pool, errorLogger, inodeNumberGenerator).
-		NewFile(uint32(os.O_RDWR), 0666)
+		NewFile(uint32(os.O_RDWR), 0o666)
 	require.Equal(t, go_fuse.OK, s)
 	_, s = f.FUSEWrite(p[:], 42)
 	require.Equal(t, s, go_fuse.EIO)
@@ -259,7 +259,7 @@ func TestPoolBackedFileAllocatorFUSEUploadFile(t *testing.T) {
 	inodeNumberGenerator.EXPECT().Uint64().Return(uint64(42))
 
 	f, s := fuse.NewPoolBackedFileAllocator(pool, errorLogger, inodeNumberGenerator).
-		NewFile(uint32(os.O_RDWR), 0666)
+		NewFile(uint32(os.O_RDWR), 0o666)
 	require.Equal(t, go_fuse.OK, s)
 
 	// Initialize the file with the contents "Hello".
@@ -339,7 +339,7 @@ func TestPoolBackedFileAllocatorFUSEUploadFile(t *testing.T) {
 				require.Equal(t, go_fuse.OK, f.FUSESetAttr(&go_fuse.SetAttrIn{
 					SetAttrInCommon: go_fuse.SetAttrInCommon{
 						Valid: go_fuse.FATTR_MODE,
-						Mode:  0777,
+						Mode:  0o777,
 					},
 				}, &go_fuse.Attr{}))
 

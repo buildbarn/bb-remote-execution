@@ -31,7 +31,7 @@ func TestBlobAccessCASFileFactoryGetContainingDigests(t *testing.T) {
 	var out go_fuse.Attr
 	f := casFileFactory.LookupFile(digest, true, &out)
 	require.Equal(t, go_fuse.Attr{
-		Mode:  go_fuse.S_IFREG | 0555,
+		Mode:  go_fuse.S_IFREG | 0o555,
 		Ino:   casFileFactory.GetFileInodeNumber(digest, true),
 		Size:  400,
 		Nlink: fuse.StatelessLeafLinkCount,
@@ -54,7 +54,7 @@ func TestBlobAccessCASFileFactoryGetOutputServiceFileStatus(t *testing.T) {
 	var out go_fuse.Attr
 	f := casFileFactory.LookupFile(digest, false, &out)
 	require.Equal(t, go_fuse.Attr{
-		Mode:  go_fuse.S_IFREG | 0444,
+		Mode:  go_fuse.S_IFREG | 0o444,
 		Ino:   casFileFactory.GetFileInodeNumber(digest, false),
 		Size:  123,
 		Nlink: fuse.StatelessLeafLinkCount,

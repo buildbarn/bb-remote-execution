@@ -73,7 +73,7 @@ func (f *device) FUSEFallocate(off, size uint64) fuse.Status {
 
 func (f *device) FUSEGetAttr(out *fuse.Attr) {
 	out.Ino = f.inodeNumber
-	out.Mode = f.fileType | 0666
+	out.Mode = f.fileType | 0o666
 	out.Nlink = StatelessLeafLinkCount
 	out.Rdev = f.deviceNumber
 }

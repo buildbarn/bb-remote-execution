@@ -200,7 +200,7 @@ func (f *regularBlobAccessCASFile) FUSEAccess(mask uint32) fuse.Status {
 
 func (f *regularBlobAccessCASFile) FUSEGetAttr(out *fuse.Attr) {
 	f.fuseGetAttrCommon(out)
-	out.Mode = fuse.S_IFREG | 0444
+	out.Mode = fuse.S_IFREG | 0o444
 }
 
 func (f *regularBlobAccessCASFile) FUSESetAttr(in *fuse.SetAttrIn, out *fuse.Attr) fuse.Status {
@@ -230,7 +230,7 @@ func (f *executableBlobAccessCASFile) FUSEAccess(mask uint32) fuse.Status {
 
 func (f *executableBlobAccessCASFile) FUSEGetAttr(out *fuse.Attr) {
 	f.fuseGetAttrCommon(out)
-	out.Mode = fuse.S_IFREG | 0555
+	out.Mode = fuse.S_IFREG | 0o555
 }
 
 func (f *executableBlobAccessCASFile) FUSESetAttr(in *fuse.SetAttrIn, out *fuse.Attr) fuse.Status {

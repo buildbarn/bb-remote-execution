@@ -23,9 +23,9 @@ func NewBlobAccessFileFetcher(blobAccess blobstore.BlobAccess) FileFetcher {
 }
 
 func (ff *blobAccessFileFetcher) GetFile(ctx context.Context, digest digest.Digest, directory filesystem.Directory, name path.Component, isExecutable bool) error {
-	var mode os.FileMode = 0444
+	var mode os.FileMode = 0o444
 	if isExecutable {
-		mode = 0555
+		mode = 0o555
 	}
 
 	w, err := directory.OpenAppend(name, filesystem.CreateExcl(mode))

@@ -26,7 +26,7 @@ func SetMaximumDirtyPagesPercentage(mountPath string, percentage int) error {
 	}
 	maxRatioPath := fmt.Sprintf("/sys/class/bdi/%d:%d/max_ratio", unix.Major(sb.Dev), unix.Minor(sb.Dev))
 
-	f, err := os.OpenFile(maxRatioPath, os.O_TRUNC|os.O_WRONLY, 0666)
+	f, err := os.OpenFile(maxRatioPath, os.O_TRUNC|os.O_WRONLY, 0o666)
 	if err != nil {
 		return util.StatusWrapf(err, "Failed to open %#v corresponding to FUSE mount %#v", maxRatioPath, mountPath)
 	}

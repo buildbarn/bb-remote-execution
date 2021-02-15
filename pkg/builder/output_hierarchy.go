@@ -116,7 +116,7 @@ func (on *outputNode) createParentDirectories(d BuildDirectory, dPath *pathBuffe
 
 	for _, name := range on.getSubdirectoryNames() {
 		dPath.setLastComponent(name)
-		if err := d.Mkdir(name, 0777); err != nil && !os.IsExist(err) {
+		if err := d.Mkdir(name, 0o777); err != nil && !os.IsExist(err) {
 			return util.StatusWrapf(err, "Failed to create output parent directory %#v", dPath.join())
 		}
 
@@ -150,7 +150,7 @@ func (on *outputNode) createParentDirectories(d BuildDirectory, dPath *pathBuffe
 	for _, name := range sortToUpload(on.directoriesToUpload) {
 		if _, ok := on.subdirectories[name]; !ok {
 			dPath.setLastComponent(name)
-			if err := d.Mkdir(name, 0777); err != nil && !os.IsExist(err) {
+			if err := d.Mkdir(name, 0o777); err != nil && !os.IsExist(err) {
 				return util.StatusWrapf(err, "Failed to create output directory %#v", dPath.join())
 			}
 		}

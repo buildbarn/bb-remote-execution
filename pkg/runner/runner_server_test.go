@@ -60,7 +60,7 @@ func TestRunnerServer(t *testing.T) {
 
 	// Create the file used for readiness checking and repeat the
 	// tests above.
-	f, err := os.OpenFile(readinessCheckingFilename, os.O_CREATE|os.O_WRONLY, 0666)
+	f, err := os.OpenFile(readinessCheckingFilename, os.O_CREATE|os.O_WRONLY, 0o666)
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
 

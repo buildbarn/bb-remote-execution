@@ -277,9 +277,9 @@ func TestInMemoryPrepopulatedDirectoryInstallHooks(t *testing.T) {
 
 	// Validate that the top-level directory uses both the new file
 	// allocator and error logger.
-	fileAllocator2.EXPECT().NewFile(uint32(os.O_WRONLY), uint32(0644)).Return(nil, go_fuse.EIO)
+	fileAllocator2.EXPECT().NewFile(uint32(os.O_WRONLY), uint32(0o644)).Return(nil, go_fuse.EIO)
 	var attr go_fuse.Attr
-	_, s := d.FUSECreate(path.MustNewComponent("foo"), uint32(os.O_WRONLY), 0644, &attr)
+	_, s := d.FUSECreate(path.MustNewComponent("foo"), uint32(os.O_WRONLY), 0o644, &attr)
 	require.Equal(t, s, go_fuse.Status(syscall.EIO))
 
 	// Validate that a subdirectory uses the new file allocator
@@ -287,8 +287,8 @@ func TestInMemoryPrepopulatedDirectoryInstallHooks(t *testing.T) {
 	inodeNumberGenerator.EXPECT().Uint64().Return(uint64(101))
 	child, err := d.CreateAndEnterPrepopulatedDirectory(path.MustNewComponent("dir"))
 	require.NoError(t, err)
-	fileAllocator2.EXPECT().NewFile(uint32(os.O_WRONLY), uint32(0644)).Return(nil, go_fuse.EIO)
-	_, s = child.FUSECreate(path.MustNewComponent("foo"), uint32(os.O_WRONLY), 0644, &attr)
+	fileAllocator2.EXPECT().NewFile(uint32(os.O_WRONLY), uint32(0o644)).Return(nil, go_fuse.EIO)
+	_, s = child.FUSECreate(path.MustNewComponent("foo"), uint32(os.O_WRONLY), 0o644, &attr)
 	require.Equal(t, s, go_fuse.Status(syscall.EIO))
 }
 
@@ -376,7 +376,7 @@ func TestInMemoryPrepopulatedDirectoryFUSECreateFileExists(t *testing.T) {
 
 	// Trying to create the file through FUSE should fail.
 	var attr go_fuse.Attr
-	_, s := d.FUSECreate(path.MustNewComponent("target"), uint32(os.O_WRONLY), 0644, &attr)
+	_, s := d.FUSECreate(path.MustNewComponent("target"), uint32(os.O_WRONLY), 0o644, &attr)
 	require.Equal(t, s, go_fuse.Status(syscall.EEXIST))
 }
 
@@ -399,7 +399,7 @@ func TestInMemoryPrepopulatedDirectoryFUSECreateDirectoryExists(t *testing.T) {
 
 	// Trying to create the file through FUSE should fail.
 	var attr go_fuse.Attr
-	_, s := d.FUSECreate(path.MustNewComponent("target"), uint32(os.O_WRONLY), 0644, &attr)
+	_, s := d.FUSECreate(path.MustNewComponent("target"), uint32(os.O_WRONLY), 0o644, &attr)
 	require.Equal(t, s, go_fuse.Status(syscall.EEXIST))
 }
 
@@ -407,7 +407,7 @@ func TestInMemoryPrepopulatedDirectoryFUSECreateAllocationFailure(t *testing.T) 
 	ctrl := gomock.NewController(t)
 
 	fileAllocator := mock.NewMockFileAllocator(ctrl)
-	fileAllocator.EXPECT().NewFile(uint32(os.O_WRONLY), uint32(0644)).Return(nil, go_fuse.EIO)
+	fileAllocator.EXPECT().NewFile(uint32(os.O_WRONLY), uint32(0o644)).Return(nil, go_fuse.EIO)
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	inodeNumberGenerator := mock.NewMockThreadSafeGenerator(ctrl)
 	entryNotifier := mock.NewMockEntryNotifier(ctrl)
@@ -416,7 +416,7 @@ func TestInMemoryPrepopulatedDirectoryFUSECreateAllocationFailure(t *testing.T) 
 	// File allocation errors should translate to EIO. The actual
 	// error should get forwarded to the error logger.
 	var attr go_fuse.Attr
-	_, s := d.FUSECreate(path.MustNewComponent("target"), uint32(os.O_WRONLY), 0644, &attr)
+	_, s := d.FUSECreate(path.MustNewComponent("target"), uint32(os.O_WRONLY), 0o644, &attr)
 	require.Equal(t, s, go_fuse.EIO)
 }
 
@@ -438,7 +438,7 @@ func TestInMemoryPrepopulatedDirectoryFUSECreateInRemovedDirectory(t *testing.T)
 
 	// Trying to create the file through FUSE should return ENOENT.
 	var attr go_fuse.Attr
-	_, s := child.FUSECreate(path.MustNewComponent("target"), uint32(os.O_WRONLY), 0644, &attr)
+	_, s := child.FUSECreate(path.MustNewComponent("target"), uint32(os.O_WRONLY), 0o644, &attr)
 	require.Equal(t, s, go_fuse.ENOENT)
 }
 
@@ -447,9 +447,9 @@ func TestInMemoryPrepopulatedDirectoryFUSECreateSuccess(t *testing.T) {
 
 	fileAllocator := mock.NewMockFileAllocator(ctrl)
 	child := mock.NewMockNativeLeaf(ctrl)
-	fileAllocator.EXPECT().NewFile(uint32(os.O_WRONLY), uint32(0644)).Return(child, go_fuse.OK)
+	fileAllocator.EXPECT().NewFile(uint32(os.O_WRONLY), uint32(0o644)).Return(child, go_fuse.OK)
 	child.EXPECT().FUSEGetAttr(gomock.Any()).Do(func(out *go_fuse.Attr) {
-		out.Mode = go_fuse.S_IFREG | 0644
+		out.Mode = go_fuse.S_IFREG | 0o644
 		out.Ino = 2
 	})
 	child.EXPECT().GetFileType().Return(filesystem.FileTypeRegularFile)
@@ -461,11 +461,11 @@ func TestInMemoryPrepopulatedDirectoryFUSECreateSuccess(t *testing.T) {
 	// Creation of the directory should fully succeed. The file
 	// should be present within the directory afterwards.
 	var attr go_fuse.Attr
-	newChild, s := d.FUSECreate(path.MustNewComponent("target"), uint32(os.O_WRONLY), 0644, &attr)
+	newChild, s := d.FUSECreate(path.MustNewComponent("target"), uint32(os.O_WRONLY), 0o644, &attr)
 	require.Equal(t, go_fuse.OK, s)
 	require.Equal(t, child, newChild)
 	require.Equal(t, go_fuse.Attr{
-		Mode: go_fuse.S_IFREG | 0644,
+		Mode: go_fuse.S_IFREG | 0o644,
 		Ino:  2,
 	}, attr)
 
@@ -489,7 +489,7 @@ func TestInMemoryPrepopulatedDirectoryFUSEGetAttr(t *testing.T) {
 	var attr1 go_fuse.Attr
 	d.FUSEGetAttr(&attr1)
 	require.Equal(t, attr1, go_fuse.Attr{
-		Mode:  go_fuse.S_IFDIR | 0777,
+		Mode:  go_fuse.S_IFDIR | 0o777,
 		Ino:   100,
 		Nlink: fuse.ImplicitDirectoryLinkCount,
 	})
@@ -562,7 +562,7 @@ func TestInMemoryPrepopulatedDirectoryFUSELinkSuccess(t *testing.T) {
 	child := mock.NewMockNativeLeaf(ctrl)
 	child.EXPECT().Link()
 	child.EXPECT().FUSEGetAttr(gomock.Any()).Do(func(out *go_fuse.Attr) {
-		out.Mode = go_fuse.S_IFREG | 0644
+		out.Mode = go_fuse.S_IFREG | 0o644
 		out.Ino = 123
 	})
 	errorLogger := mock.NewMockErrorLogger(ctrl)
@@ -574,7 +574,7 @@ func TestInMemoryPrepopulatedDirectoryFUSELinkSuccess(t *testing.T) {
 	var attr go_fuse.Attr
 	require.Equal(t, go_fuse.OK, d.FUSELink(path.MustNewComponent("target"), child, &attr))
 	require.Equal(t, go_fuse.Attr{
-		Mode: go_fuse.S_IFREG | 0644,
+		Mode: go_fuse.S_IFREG | 0o644,
 		Ino:  123,
 	}, attr)
 }
@@ -613,7 +613,7 @@ func TestInMemoryPrepopulatedDirectoryFUSELookup(t *testing.T) {
 		require.NotNil(t, newDirectory)
 		require.Nil(t, newLeaf)
 		require.Equal(t, go_fuse.Attr{
-			Mode:  go_fuse.S_IFDIR | 0777,
+			Mode:  go_fuse.S_IFDIR | 0o777,
 			Ino:   101,
 			Nlink: fuse.ImplicitDirectoryLinkCount,
 		}, attr)
@@ -621,7 +621,7 @@ func TestInMemoryPrepopulatedDirectoryFUSELookup(t *testing.T) {
 
 	t.Run("FoundFile", func(*testing.T) {
 		file.EXPECT().FUSEGetAttr(gomock.Any()).Do(func(out *go_fuse.Attr) {
-			out.Mode = go_fuse.S_IFREG | 0666
+			out.Mode = go_fuse.S_IFREG | 0o666
 			out.Ino = 3
 			out.Size = 123
 			out.Nlink = 1
@@ -633,7 +633,7 @@ func TestInMemoryPrepopulatedDirectoryFUSELookup(t *testing.T) {
 		require.Nil(t, newDirectory)
 		require.Equal(t, file, newLeaf)
 		require.Equal(t, go_fuse.Attr{
-			Mode:  go_fuse.S_IFREG | 0666,
+			Mode:  go_fuse.S_IFREG | 0o666,
 			Ino:   3,
 			Size:  123,
 			Nlink: 1,
@@ -658,7 +658,7 @@ func TestInMemoryPrepopulatedDirectoryFUSEMknodExists(t *testing.T) {
 		},
 	}, false))
 	var attr go_fuse.Attr
-	_, s := d.FUSEMknod(path.MustNewComponent("dir"), go_fuse.S_IFIFO|0666, 0, &attr)
+	_, s := d.FUSEMknod(path.MustNewComponent("dir"), go_fuse.S_IFIFO|0o666, 0, &attr)
 	require.Equal(t, go_fuse.Status(syscall.EEXIST), s)
 }
 
@@ -674,9 +674,9 @@ func TestInMemoryPrepopulatedDirectoryFUSEMknodPermissionDenied(t *testing.T) {
 	// This implementation should not allow the creation of block
 	// devices and character devices.
 	var attr go_fuse.Attr
-	_, s := d.FUSEMknod(path.MustNewComponent("blk"), syscall.S_IFBLK|0666, 123, &attr)
+	_, s := d.FUSEMknod(path.MustNewComponent("blk"), syscall.S_IFBLK|0o666, 123, &attr)
 	require.Equal(t, go_fuse.EPERM, s)
-	_, s = d.FUSEMknod(path.MustNewComponent("chr"), syscall.S_IFCHR|0666, 123, &attr)
+	_, s = d.FUSEMknod(path.MustNewComponent("chr"), syscall.S_IFCHR|0o666, 123, &attr)
 	require.Equal(t, go_fuse.EPERM, s)
 }
 
@@ -692,11 +692,11 @@ func TestInMemoryPrepopulatedDirectoryFUSEMknodSuccess(t *testing.T) {
 	// Create a FIFO and a UNIX domain socket.
 	inodeNumberGenerator.EXPECT().Uint64().Return(uint64(101))
 	var fifoAttr go_fuse.Attr
-	i, s := d.FUSEMknod(path.MustNewComponent("fifo"), go_fuse.S_IFIFO|0666, 123, &fifoAttr)
+	i, s := d.FUSEMknod(path.MustNewComponent("fifo"), go_fuse.S_IFIFO|0o666, 123, &fifoAttr)
 	require.Equal(t, go_fuse.OK, s)
 	require.NotNil(t, i)
 	require.Equal(t, go_fuse.Attr{
-		Mode:  go_fuse.S_IFIFO | 0666,
+		Mode:  go_fuse.S_IFIFO | 0o666,
 		Ino:   101,
 		Nlink: fuse.StatelessLeafLinkCount,
 		Rdev:  123,
@@ -704,11 +704,11 @@ func TestInMemoryPrepopulatedDirectoryFUSEMknodSuccess(t *testing.T) {
 
 	inodeNumberGenerator.EXPECT().Uint64().Return(uint64(102))
 	var socketAttr go_fuse.Attr
-	i, s = d.FUSEMknod(path.MustNewComponent("socket"), syscall.S_IFSOCK|0666, 456, &socketAttr)
+	i, s = d.FUSEMknod(path.MustNewComponent("socket"), syscall.S_IFSOCK|0o666, 456, &socketAttr)
 	require.Equal(t, go_fuse.OK, s)
 	require.NotNil(t, i)
 	require.Equal(t, go_fuse.Attr{
-		Mode:  syscall.S_IFSOCK | 0666,
+		Mode:  syscall.S_IFSOCK | 0o666,
 		Ino:   102,
 		Nlink: fuse.StatelessLeafLinkCount,
 		Rdev:  456,
@@ -843,7 +843,7 @@ func TestInMemoryPrepopulatedDirectoryFUSEReadDirPlus(t *testing.T) {
 		var attr go_fuse.Attr
 		directories[0].Child.FUSEGetAttr(&attr)
 		require.Equal(t, attr, go_fuse.Attr{
-			Mode:  go_fuse.S_IFDIR | 0777,
+			Mode:  go_fuse.S_IFDIR | 0o777,
 			Ino:   101,
 			Nlink: fuse.ImplicitDirectoryLinkCount,
 		})
@@ -897,7 +897,7 @@ func TestInMemoryPrepopulatedDirectoryFUSERenameSelfFile(t *testing.T) {
 	}, false))
 
 	leaf.EXPECT().FUSEGetAttr(gomock.Any()).Do(func(out *go_fuse.Attr) {
-		out.Mode = go_fuse.S_IFREG | 0666
+		out.Mode = go_fuse.S_IFREG | 0o666
 		out.Ino = 3
 		out.Size = 123
 		out.Nlink = 1

@@ -572,7 +572,7 @@ func (i *inMemoryPrepopulatedDirectory) FUSECreate(name path.Component, flags, m
 
 func (i *inMemoryPrepopulatedDirectory) FUSEGetAttr(out *fuse.Attr) {
 	out.Ino = i.inodeNumber
-	out.Mode = fuse.S_IFDIR | 0777
+	out.Mode = fuse.S_IFDIR | 0o777
 	// To be consistent with traditional UNIX file systems, this
 	// would need to be 2 + len(i.directories), but that would
 	// require us to initialize the directory, which is undesirable.

@@ -78,7 +78,7 @@ func NewLocalBuildExecutor(contentAddressableStorage blobstore.BlobAccess, build
 
 func (be *localBuildExecutor) createCharacterDevices(inputRootDirectory BuildDirectory) error {
 	directoryName := bb_path.MustNewComponent("dev")
-	if err := inputRootDirectory.Mkdir(directoryName, 0777); err != nil && !os.IsExist(err) {
+	if err := inputRootDirectory.Mkdir(directoryName, 0o777); err != nil && !os.IsExist(err) {
 		return util.StatusWrap(err, "Unable to create /dev directory in input root")
 	}
 	deviceDirectory, err := inputRootDirectory.EnterBuildDirectory(directoryName)
@@ -87,7 +87,7 @@ func (be *localBuildExecutor) createCharacterDevices(inputRootDirectory BuildDir
 	}
 	defer deviceDirectory.Close()
 	for name, number := range be.inputRootCharacterDevices {
-		if err := deviceDirectory.Mknod(name, os.ModeDevice|os.ModeCharDevice|0666, number); err != nil {
+		if err := deviceDirectory.Mknod(name, os.ModeDevice|os.ModeCharDevice|0o666, number); err != nil {
 			return util.StatusWrapf(err, "Failed to create character device %#v", name.String())
 		}
 	}
@@ -167,7 +167,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 
 	// Create input root directory inside of build directory.
 	inputRootDirectoryName := bb_path.MustNewComponent("root")
-	if err := buildDirectory.Mkdir(inputRootDirectoryName, 0777); err != nil {
+	if err := buildDirectory.Mkdir(inputRootDirectoryName, 0o777); err != nil {
 		attachErrorToExecuteResponse(
 			response,
 			util.StatusWrap(err, "Failed to create input root directory"))
@@ -218,7 +218,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	// temporary files are automatically removed when the build
 	// action completes. When using FUSE, it also causes quotas to
 	// be applied to them.
-	if err := buildDirectory.Mkdir(bb_path.MustNewComponent("tmp"), 0777); err != nil {
+	if err := buildDirectory.Mkdir(bb_path.MustNewComponent("tmp"), 0o777); err != nil {
 		attachErrorToExecuteResponse(
 			response,
 			util.StatusWrap(err, "Failed to create temporary directory inside build directory"))

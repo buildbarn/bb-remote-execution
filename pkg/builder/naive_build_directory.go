@@ -101,7 +101,7 @@ func (d *naiveBuildDirectory) mergeDirectoryContents(ctx context.Context, digest
 		if err != nil {
 			return util.StatusWrapf(err, "Failed to extract digest for input directory %#v", path.Join(childComponents...))
 		}
-		if err := inputDirectory.Mkdir(component, 0777); err != nil {
+		if err := inputDirectory.Mkdir(component, 0o777); err != nil {
 			return util.StatusWrapf(err, "Failed to create input directory %#v", path.Join(childComponents...))
 		}
 		childDirectory, err := inputDirectory.EnterDirectory(component)

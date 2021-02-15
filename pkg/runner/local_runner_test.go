@@ -34,9 +34,9 @@ func TestLocalRunner(t *testing.T) {
 
 	t.Run("EmptyEnvironment", func(t *testing.T) {
 		testPath := filepath.Join(buildDirectoryPath, "EmptyEnvironment")
-		require.NoError(t, os.Mkdir(testPath, 0777))
-		require.NoError(t, os.Mkdir(filepath.Join(testPath, "root"), 0777))
-		require.NoError(t, os.Mkdir(filepath.Join(testPath, "tmp"), 0777))
+		require.NoError(t, os.Mkdir(testPath, 0o777))
+		require.NoError(t, os.Mkdir(filepath.Join(testPath, "root"), 0o777))
+		require.NoError(t, os.Mkdir(filepath.Join(testPath, "tmp"), 0o777))
 
 		// Running a command without specifying any environment
 		// variables should cause the process to be executed in
@@ -64,10 +64,10 @@ func TestLocalRunner(t *testing.T) {
 
 	t.Run("NonEmptyEnvironment", func(t *testing.T) {
 		testPath := filepath.Join(buildDirectoryPath, "NonEmptyEnvironment")
-		require.NoError(t, os.Mkdir(testPath, 0777))
-		require.NoError(t, os.Mkdir(filepath.Join(testPath, "root"), 0777))
+		require.NoError(t, os.Mkdir(testPath, 0o777))
+		require.NoError(t, os.Mkdir(filepath.Join(testPath, "root"), 0o777))
 		tmpPath := filepath.Join(testPath, "tmp")
-		require.NoError(t, os.Mkdir(tmpPath, 0777))
+		require.NoError(t, os.Mkdir(tmpPath, 0o777))
 
 		// The environment variables provided in the RunRequest
 		// should be respected. If automatic injection of TMPDIR
@@ -102,10 +102,10 @@ func TestLocalRunner(t *testing.T) {
 
 	t.Run("OverridingTmpdir", func(t *testing.T) {
 		testPath := filepath.Join(buildDirectoryPath, "OverridingTmpdir")
-		require.NoError(t, os.Mkdir(testPath, 0777))
-		require.NoError(t, os.Mkdir(filepath.Join(testPath, "root"), 0777))
+		require.NoError(t, os.Mkdir(testPath, 0o777))
+		require.NoError(t, os.Mkdir(filepath.Join(testPath, "root"), 0o777))
 		tmpPath := filepath.Join(testPath, "tmp")
-		require.NoError(t, os.Mkdir(tmpPath, 0777))
+		require.NoError(t, os.Mkdir(tmpPath, 0o777))
 
 		// Automatic injection of TMPDIR should have no effect
 		// if the command to be run provides its own TMPDIR.
@@ -134,9 +134,9 @@ func TestLocalRunner(t *testing.T) {
 
 	t.Run("NonZeroExitCode", func(t *testing.T) {
 		testPath := filepath.Join(buildDirectoryPath, "NonZeroExitCode")
-		require.NoError(t, os.Mkdir(testPath, 0777))
-		require.NoError(t, os.Mkdir(filepath.Join(testPath, "root"), 0777))
-		require.NoError(t, os.Mkdir(filepath.Join(testPath, "tmp"), 0777))
+		require.NoError(t, os.Mkdir(testPath, 0o777))
+		require.NoError(t, os.Mkdir(filepath.Join(testPath, "root"), 0o777))
+		require.NoError(t, os.Mkdir(filepath.Join(testPath, "tmp"), 0o777))
 
 		// Non-zero exit codes should be captured in the
 		// RunResponse. POSIX 2008 and later added support for

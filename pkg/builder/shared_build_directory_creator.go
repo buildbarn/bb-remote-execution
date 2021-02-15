@@ -73,7 +73,7 @@ func (dc *sharedBuildDirectoryCreator) GetBuildDirectory(actionDigest digest.Dig
 	// Create the subdirectory.
 	childDirectoryPath := path.Join(parentDirectoryPath, name)
 	childDirectoryName := bb_path.MustNewComponent(name)
-	if err := parentDirectory.Mkdir(childDirectoryName, 0777); err != nil {
+	if err := parentDirectory.Mkdir(childDirectoryName, 0o777); err != nil {
 		parentDirectory.Close()
 		return nil, "", util.StatusWrapfWithCode(err, codes.Internal, "Failed to create build directory %#v", childDirectoryPath)
 	}

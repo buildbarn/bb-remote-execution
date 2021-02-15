@@ -98,7 +98,7 @@ func (r *localRunner) openLog(logPath string) (filesystem.FileAppender, error) {
 		return nil, status.Error(codes.InvalidArgument, "Path resolves to a directory")
 	}
 	d := logFileResolver.stack[len(logFileResolver.stack)-1]
-	return d.OpenAppend(*logFileResolver.name, filesystem.CreateExcl(0666))
+	return d.OpenAppend(*logFileResolver.name, filesystem.CreateExcl(0o666))
 }
 
 func convertTimeval(t syscall.Timeval) *duration.Duration {

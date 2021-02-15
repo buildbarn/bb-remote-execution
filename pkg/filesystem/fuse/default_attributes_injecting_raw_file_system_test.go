@@ -38,7 +38,7 @@ func TestDefaultAttributesInjectingRawFileSystem(t *testing.T) {
 			out.NodeId = 6
 			out.Ino = 6
 			out.Size = 12
-			out.Mode = go_fuse.S_IFLNK | 0777
+			out.Mode = go_fuse.S_IFLNK | 0o777
 			out.Nlink = 1
 			out.Mtime = 123
 			return go_fuse.OK
@@ -60,7 +60,7 @@ func TestDefaultAttributesInjectingRawFileSystem(t *testing.T) {
 				Attr: go_fuse.Attr{
 					Ino:   6,
 					Size:  12,
-					Mode:  go_fuse.S_IFLNK | 0777,
+					Mode:  go_fuse.S_IFLNK | 0o777,
 					Nlink: 1,
 					Atime: 1596207097,
 					Mtime: 123,
@@ -79,7 +79,7 @@ func TestDefaultAttributesInjectingRawFileSystem(t *testing.T) {
 		).DoAndReturn(func(cancel <-chan struct{}, input *go_fuse.GetAttrIn, out *go_fuse.AttrOut) go_fuse.Status {
 			out.Ino = 6
 			out.Size = 12
-			out.Mode = go_fuse.S_IFLNK | 0777
+			out.Mode = go_fuse.S_IFLNK | 0o777
 			out.Nlink = 1
 			out.Mtime = 123
 			return go_fuse.OK
@@ -98,7 +98,7 @@ func TestDefaultAttributesInjectingRawFileSystem(t *testing.T) {
 				Attr: go_fuse.Attr{
 					Ino:   6,
 					Size:  12,
-					Mode:  go_fuse.S_IFLNK | 0777,
+					Mode:  go_fuse.S_IFLNK | 0o777,
 					Nlink: 1,
 					Atime: 1596207097,
 					Mtime: 123,
@@ -124,7 +124,7 @@ func TestDefaultAttributesInjectingRawFileSystem(t *testing.T) {
 			e.NodeId = 6
 			e.Ino = 6
 			e.Size = 12
-			e.Mode = go_fuse.S_IFLNK | 0777
+			e.Mode = go_fuse.S_IFLNK | 0o777
 			e.Nlink = 1
 			e.Mtime = 123
 
@@ -136,7 +136,7 @@ func TestDefaultAttributesInjectingRawFileSystem(t *testing.T) {
 			e.NodeId = 7
 			e.Ino = 7
 			e.Size = 42
-			e.Mode = go_fuse.S_IFREG | 0644
+			e.Mode = go_fuse.S_IFREG | 0o644
 			e.Nlink = 2
 			e.Mtime = 123
 
@@ -180,7 +180,7 @@ func TestDefaultAttributesInjectingRawFileSystem(t *testing.T) {
 				Attr: go_fuse.Attr{
 					Ino:   6,
 					Size:  12,
-					Mode:  go_fuse.S_IFLNK | 0777,
+					Mode:  go_fuse.S_IFLNK | 0o777,
 					Nlink: 1,
 					Atime: 1596207097,
 					Mtime: 123,
@@ -198,7 +198,7 @@ func TestDefaultAttributesInjectingRawFileSystem(t *testing.T) {
 				Attr: go_fuse.Attr{
 					Ino:   7,
 					Size:  42,
-					Mode:  go_fuse.S_IFREG | 0644,
+					Mode:  go_fuse.S_IFREG | 0o644,
 					Nlink: 2,
 					Atime: 1596207097,
 					Mtime: 123,

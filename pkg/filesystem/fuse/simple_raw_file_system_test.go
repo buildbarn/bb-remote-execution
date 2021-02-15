@@ -40,7 +40,7 @@ func TestSimpleRawFileSystemLookup(t *testing.T) {
 		childDirectory := mock.NewMockFUSEDirectory(ctrl)
 		rootDirectory.EXPECT().FUSELookup(path.MustNewComponent("directory"), gomock.Any()).DoAndReturn(
 			func(name path.Component, out *go_fuse.Attr) (fuse.Directory, fuse.Leaf, go_fuse.Status) {
-				out.Mode = go_fuse.S_IFDIR | 0700
+				out.Mode = go_fuse.S_IFDIR | 0o700
 				out.Ino = 123
 				return childDirectory, nil, go_fuse.OK
 			})
@@ -52,7 +52,7 @@ func TestSimpleRawFileSystemLookup(t *testing.T) {
 		require.Equal(t, go_fuse.EntryOut{
 			NodeId: 123,
 			Attr: go_fuse.Attr{
-				Mode: go_fuse.S_IFDIR | 0700,
+				Mode: go_fuse.S_IFDIR | 0o700,
 				Ino:  123,
 			},
 		}, entryOut)
@@ -73,7 +73,7 @@ func TestSimpleRawFileSystemLookup(t *testing.T) {
 		childFile := mock.NewMockFUSELeaf(ctrl)
 		rootDirectory.EXPECT().FUSELookup(path.MustNewComponent("file"), gomock.Any()).DoAndReturn(
 			func(name path.Component, out *go_fuse.Attr) (fuse.Directory, fuse.Leaf, go_fuse.Status) {
-				out.Mode = go_fuse.S_IFREG | 0600
+				out.Mode = go_fuse.S_IFREG | 0o600
 				out.Ino = 456
 				return nil, childFile, go_fuse.OK
 			})
@@ -85,7 +85,7 @@ func TestSimpleRawFileSystemLookup(t *testing.T) {
 		require.Equal(t, go_fuse.EntryOut{
 			NodeId: 456,
 			Attr: go_fuse.Attr{
-				Mode: go_fuse.S_IFREG | 0600,
+				Mode: go_fuse.S_IFREG | 0o600,
 				Ino:  456,
 			},
 		}, entryOut)
@@ -105,7 +105,7 @@ func TestSimpleRawFileSystemForget(t *testing.T) {
 		for j := 0; j < 10; j++ {
 			rootDirectory.EXPECT().FUSELookup(path.MustNewComponent("directory"), gomock.Any()).DoAndReturn(
 				func(name path.Component, out *go_fuse.Attr) (fuse.Directory, fuse.Leaf, go_fuse.Status) {
-					out.Mode = go_fuse.S_IFDIR | 0700
+					out.Mode = go_fuse.S_IFDIR | 0o700
 					out.Ino = 123
 					return childDirectory, nil, go_fuse.OK
 				})
@@ -117,7 +117,7 @@ func TestSimpleRawFileSystemForget(t *testing.T) {
 			require.Equal(t, go_fuse.EntryOut{
 				NodeId: 123,
 				Attr: go_fuse.Attr{
-					Mode: go_fuse.S_IFDIR | 0700,
+					Mode: go_fuse.S_IFDIR | 0o700,
 					Ino:  123,
 				},
 			}, entryOut)
@@ -127,7 +127,7 @@ func TestSimpleRawFileSystemForget(t *testing.T) {
 		// should all be forwarded to the directory object.
 		childDirectory.EXPECT().FUSEGetAttr(gomock.Any()).DoAndReturn(
 			func(out *go_fuse.Attr) {
-				out.Mode = go_fuse.S_IFDIR | 0700
+				out.Mode = go_fuse.S_IFDIR | 0o700
 				out.Ino = 123
 			})
 
@@ -139,7 +139,7 @@ func TestSimpleRawFileSystemForget(t *testing.T) {
 		}, &directoryAttrOut))
 		require.Equal(t, go_fuse.AttrOut{
 			Attr: go_fuse.Attr{
-				Mode: go_fuse.S_IFDIR | 0700,
+				Mode: go_fuse.S_IFDIR | 0o700,
 				Ino:  123,
 			},
 		}, directoryAttrOut)
@@ -159,7 +159,7 @@ func TestSimpleRawFileSystemForget(t *testing.T) {
 		for j := 0; j < 10; j++ {
 			rootDirectory.EXPECT().FUSELookup(path.MustNewComponent("file"), gomock.Any()).DoAndReturn(
 				func(name path.Component, out *go_fuse.Attr) (fuse.Directory, fuse.Leaf, go_fuse.Status) {
-					out.Mode = go_fuse.S_IFREG | 0600
+					out.Mode = go_fuse.S_IFREG | 0o600
 					out.Ino = 123
 					return nil, childFile, go_fuse.OK
 				})
@@ -171,7 +171,7 @@ func TestSimpleRawFileSystemForget(t *testing.T) {
 			require.Equal(t, go_fuse.EntryOut{
 				NodeId: 123,
 				Attr: go_fuse.Attr{
-					Mode: go_fuse.S_IFREG | 0600,
+					Mode: go_fuse.S_IFREG | 0o600,
 					Ino:  123,
 				},
 			}, entryOut)
@@ -181,7 +181,7 @@ func TestSimpleRawFileSystemForget(t *testing.T) {
 		// the file -- not the directory.
 		childFile.EXPECT().FUSEGetAttr(gomock.Any()).DoAndReturn(
 			func(out *go_fuse.Attr) {
-				out.Mode = go_fuse.S_IFREG | 0600
+				out.Mode = go_fuse.S_IFREG | 0o600
 				out.Ino = 123
 			})
 
@@ -193,7 +193,7 @@ func TestSimpleRawFileSystemForget(t *testing.T) {
 		}, &fileAttrOut))
 		require.Equal(t, go_fuse.AttrOut{
 			Attr: go_fuse.Attr{
-				Mode: go_fuse.S_IFREG | 0600,
+				Mode: go_fuse.S_IFREG | 0o600,
 				Ino:  123,
 			},
 		}, fileAttrOut)
@@ -214,7 +214,7 @@ func TestSimpleRawFileSystemGetAttr(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		rootDirectory.EXPECT().FUSEGetAttr(gomock.Any()).DoAndReturn(
 			func(out *go_fuse.Attr) {
-				out.Mode = go_fuse.S_IFDIR | 0700
+				out.Mode = go_fuse.S_IFDIR | 0o700
 				out.Ino = go_fuse.FUSE_ROOT_ID
 			})
 
@@ -226,7 +226,7 @@ func TestSimpleRawFileSystemGetAttr(t *testing.T) {
 		}, &attrOut))
 		require.Equal(t, go_fuse.AttrOut{
 			Attr: go_fuse.Attr{
-				Mode: go_fuse.S_IFDIR | 0700,
+				Mode: go_fuse.S_IFDIR | 0o700,
 				Ino:  go_fuse.FUSE_ROOT_ID,
 			},
 		}, attrOut)
@@ -265,7 +265,7 @@ func TestSimpleRawFileSystemSetAttr(t *testing.T) {
 		// A chown() call that is permitted.
 		rootDirectory.EXPECT().FUSESetAttr(request, gomock.Any()).DoAndReturn(
 			func(in *go_fuse.SetAttrIn, out *go_fuse.Attr) go_fuse.Status {
-				out.Mode = go_fuse.S_IFDIR | 0700
+				out.Mode = go_fuse.S_IFDIR | 0o700
 				out.Ino = go_fuse.FUSE_ROOT_ID
 				out.Uid = 1000
 				out.Gid = 1000
@@ -276,7 +276,7 @@ func TestSimpleRawFileSystemSetAttr(t *testing.T) {
 		require.Equal(t, go_fuse.OK, rfs.SetAttr(nil, request, &attrOut))
 		require.Equal(t, go_fuse.AttrOut{
 			Attr: go_fuse.Attr{
-				Mode: go_fuse.S_IFDIR | 0700,
+				Mode: go_fuse.S_IFDIR | 0o700,
 				Ino:  go_fuse.FUSE_ROOT_ID,
 				Owner: go_fuse.Owner{
 					Uid: 1000,
@@ -296,7 +296,7 @@ func TestSimpleRawFileSystemMknod(t *testing.T) {
 
 	t.Run("Failure", func(t *testing.T) {
 		// An mknod() call for a block device that is denied.
-		rootDirectory.EXPECT().FUSEMknod(path.MustNewComponent("hello"), uint32(syscall.S_IFBLK|0777), uint32(456), gomock.Any()).
+		rootDirectory.EXPECT().FUSEMknod(path.MustNewComponent("hello"), uint32(syscall.S_IFBLK|0o777), uint32(456), gomock.Any()).
 			Return(nil, go_fuse.EPERM)
 
 		var entryOut go_fuse.EntryOut
@@ -304,7 +304,7 @@ func TestSimpleRawFileSystemMknod(t *testing.T) {
 			InHeader: go_fuse.InHeader{
 				NodeId: go_fuse.FUSE_ROOT_ID,
 			},
-			Mode: syscall.S_IFBLK | 0777,
+			Mode: syscall.S_IFBLK | 0o777,
 			Rdev: 456,
 		}, "hello", &entryOut))
 	})
@@ -312,9 +312,9 @@ func TestSimpleRawFileSystemMknod(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		// An mknod() call for a FIFO that succeeds.
 		childLeaf := mock.NewMockFUSELeaf(ctrl)
-		rootDirectory.EXPECT().FUSEMknod(path.MustNewComponent("hello"), uint32(go_fuse.S_IFIFO|0700), uint32(0), gomock.Any()).DoAndReturn(
+		rootDirectory.EXPECT().FUSEMknod(path.MustNewComponent("hello"), uint32(go_fuse.S_IFIFO|0o700), uint32(0), gomock.Any()).DoAndReturn(
 			func(name path.Component, mode, dev uint32, out *go_fuse.Attr) (fuse.Leaf, go_fuse.Status) {
-				out.Mode = go_fuse.S_IFIFO | 0700
+				out.Mode = go_fuse.S_IFIFO | 0o700
 				out.Ino = 123
 				return childLeaf, go_fuse.OK
 			})
@@ -324,12 +324,12 @@ func TestSimpleRawFileSystemMknod(t *testing.T) {
 			InHeader: go_fuse.InHeader{
 				NodeId: go_fuse.FUSE_ROOT_ID,
 			},
-			Mode: go_fuse.S_IFIFO | 0700,
+			Mode: go_fuse.S_IFIFO | 0o700,
 		}, "hello", &entryOut))
 		require.Equal(t, go_fuse.EntryOut{
 			NodeId: 123,
 			Attr: go_fuse.Attr{
-				Mode: go_fuse.S_IFIFO | 0700,
+				Mode: go_fuse.S_IFIFO | 0o700,
 				Ino:  123,
 			},
 		}, entryOut)
@@ -345,7 +345,7 @@ func TestSimpleRawFileSystemMkdir(t *testing.T) {
 
 	t.Run("Failure", func(t *testing.T) {
 		// An mkdir() call that fails due to an I/O error.
-		rootDirectory.EXPECT().FUSEMkdir(path.MustNewComponent("hello"), uint32(0777), gomock.Any()).
+		rootDirectory.EXPECT().FUSEMkdir(path.MustNewComponent("hello"), uint32(0o777), gomock.Any()).
 			Return(nil, go_fuse.EIO)
 
 		var entryOut go_fuse.EntryOut
@@ -353,16 +353,16 @@ func TestSimpleRawFileSystemMkdir(t *testing.T) {
 			InHeader: go_fuse.InHeader{
 				NodeId: go_fuse.FUSE_ROOT_ID,
 			},
-			Mode: 0777,
+			Mode: 0o777,
 		}, "hello", &entryOut))
 	})
 
 	t.Run("Success", func(t *testing.T) {
 		// An mkdir() call that succeeds.
 		childDirectory := mock.NewMockFUSEDirectory(ctrl)
-		rootDirectory.EXPECT().FUSEMkdir(path.MustNewComponent("hello"), uint32(0777), gomock.Any()).DoAndReturn(
+		rootDirectory.EXPECT().FUSEMkdir(path.MustNewComponent("hello"), uint32(0o777), gomock.Any()).DoAndReturn(
 			func(name path.Component, mode uint32, out *go_fuse.Attr) (fuse.Directory, go_fuse.Status) {
-				out.Mode = go_fuse.S_IFDIR | 0777
+				out.Mode = go_fuse.S_IFDIR | 0o777
 				out.Ino = 123
 				return childDirectory, go_fuse.OK
 			})
@@ -372,12 +372,12 @@ func TestSimpleRawFileSystemMkdir(t *testing.T) {
 			InHeader: go_fuse.InHeader{
 				NodeId: go_fuse.FUSE_ROOT_ID,
 			},
-			Mode: 0777,
+			Mode: 0o777,
 		}, "hello", &entryOut))
 		require.Equal(t, go_fuse.EntryOut{
 			NodeId: 123,
 			Attr: go_fuse.Attr{
-				Mode: go_fuse.S_IFDIR | 0777,
+				Mode: go_fuse.S_IFDIR | 0o777,
 				Ino:  123,
 			},
 		}, entryOut)
@@ -588,12 +588,12 @@ func TestSimpleRawFileSystemReadDirPlus(t *testing.T) {
 		// contained within the resulting directory listing.
 		childDirectory.EXPECT().FUSEGetAttr(gomock.Any()).DoAndReturn(
 			func(out *go_fuse.Attr) {
-				out.Mode = go_fuse.S_IFDIR | 0700
+				out.Mode = go_fuse.S_IFDIR | 0o700
 				out.Ino = 2
 			}).Times(30 + 1)
 		childLeaf.EXPECT().FUSEGetAttr(gomock.Any()).DoAndReturn(
 			func(out *go_fuse.Attr) {
-				out.Mode = go_fuse.S_IFREG | 0600
+				out.Mode = go_fuse.S_IFREG | 0o600
 				out.Ino = 3
 			}).Times(40 + 1)
 
@@ -638,14 +638,14 @@ func TestSimpleRawFileSystemReadDirPlus(t *testing.T) {
 			require.Equal(t, go_fuse.EntryOut{
 				NodeId: 2,
 				Attr: go_fuse.Attr{
-					Mode: go_fuse.S_IFDIR | 0700,
+					Mode: go_fuse.S_IFDIR | 0o700,
 					Ino:  2,
 				},
 			}, entryOut3)
 			require.Equal(t, go_fuse.EntryOut{
 				NodeId: 3,
 				Attr: go_fuse.Attr{
-					Mode: go_fuse.S_IFREG | 0600,
+					Mode: go_fuse.S_IFREG | 0o600,
 					Ino:  3,
 				},
 			}, entryOut4)
@@ -662,7 +662,7 @@ func TestSimpleRawFileSystemReadDirPlus(t *testing.T) {
 		}, &directoryAttrOut))
 		require.Equal(t, go_fuse.AttrOut{
 			Attr: go_fuse.Attr{
-				Mode: go_fuse.S_IFDIR | 0700,
+				Mode: go_fuse.S_IFDIR | 0o700,
 				Ino:  2,
 			},
 		}, directoryAttrOut)
@@ -675,7 +675,7 @@ func TestSimpleRawFileSystemReadDirPlus(t *testing.T) {
 		}, &leafAttrOut))
 		require.Equal(t, go_fuse.AttrOut{
 			Attr: go_fuse.Attr{
-				Mode: go_fuse.S_IFREG | 0600,
+				Mode: go_fuse.S_IFREG | 0o600,
 				Ino:  3,
 			},
 		}, leafAttrOut)
@@ -750,12 +750,12 @@ func TestSimpleRawFileSystemReadDirPlus(t *testing.T) {
 
 		childDirectory.EXPECT().FUSEGetAttr(gomock.Any()).DoAndReturn(
 			func(out *go_fuse.Attr) {
-				out.Mode = go_fuse.S_IFDIR | 0700
+				out.Mode = go_fuse.S_IFDIR | 0o700
 				out.Ino = 2
 			}).Times(3)
 		childLeaf.EXPECT().FUSEGetAttr(gomock.Any()).DoAndReturn(
 			func(out *go_fuse.Attr) {
-				out.Mode = go_fuse.S_IFREG | 0600
+				out.Mode = go_fuse.S_IFREG | 0o600
 				out.Ino = 3
 			}).Times(3)
 
@@ -815,14 +815,14 @@ func TestSimpleRawFileSystemReadDirPlus(t *testing.T) {
 		require.Equal(t, go_fuse.EntryOut{
 			NodeId: 2,
 			Attr: go_fuse.Attr{
-				Mode: go_fuse.S_IFDIR | 0700,
+				Mode: go_fuse.S_IFDIR | 0o700,
 				Ino:  2,
 			},
 		}, entryOutDirectory)
 		require.Equal(t, go_fuse.EntryOut{
 			NodeId: 3,
 			Attr: go_fuse.Attr{
-				Mode: go_fuse.S_IFREG | 0600,
+				Mode: go_fuse.S_IFREG | 0o600,
 				Ino:  3,
 			},
 		}, entryOutLeaf)
@@ -890,7 +890,7 @@ func TestSimpleRawFileSystemInit(t *testing.T) {
 		childDirectory := mock.NewMockFUSEDirectory(ctrl)
 		rootDirectory.EXPECT().FUSELookup(path.MustNewComponent("directory"), gomock.Any()).DoAndReturn(
 			func(name path.Component, out *go_fuse.Attr) (fuse.Directory, fuse.Leaf, go_fuse.Status) {
-				out.Mode = go_fuse.S_IFDIR | 0700
+				out.Mode = go_fuse.S_IFDIR | 0o700
 				out.Ino = 456
 				return childDirectory, nil, go_fuse.OK
 			})
@@ -902,7 +902,7 @@ func TestSimpleRawFileSystemInit(t *testing.T) {
 		require.Equal(t, go_fuse.EntryOut{
 			NodeId: 456,
 			Attr: go_fuse.Attr{
-				Mode: go_fuse.S_IFDIR | 0700,
+				Mode: go_fuse.S_IFDIR | 0o700,
 				Ino:  456,
 			},
 		}, entryOut)

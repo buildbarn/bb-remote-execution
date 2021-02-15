@@ -68,7 +68,7 @@ func (f *lazyOpeningSelfDeletingFile) ReadAt(p []byte, off int64) (int, error) {
 }
 
 func (f *lazyOpeningSelfDeletingFile) Truncate(size int64) error {
-	fh, err := f.directory.OpenWrite(f.name, filesystem.CreateReuse(0600))
+	fh, err := f.directory.OpenWrite(f.name, filesystem.CreateReuse(0o600))
 	if err != nil {
 		return err
 	}
@@ -77,7 +77,7 @@ func (f *lazyOpeningSelfDeletingFile) Truncate(size int64) error {
 }
 
 func (f *lazyOpeningSelfDeletingFile) WriteAt(p []byte, off int64) (int, error) {
-	fh, err := f.directory.OpenWrite(f.name, filesystem.CreateReuse(0600))
+	fh, err := f.directory.OpenWrite(f.name, filesystem.CreateReuse(0o600))
 	if err != nil {
 		return 0, err
 	}

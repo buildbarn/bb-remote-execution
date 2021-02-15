@@ -79,7 +79,7 @@ func (f *symlink) FUSEFallocate(off, size uint64) fuse.Status {
 func (f *symlink) FUSEGetAttr(out *fuse.Attr) {
 	out.Ino = f.inodeNumber
 	out.Size = uint64(len(f.target))
-	out.Mode = fuse.S_IFLNK | 0777
+	out.Mode = fuse.S_IFLNK | 0o777
 	out.Nlink = StatelessLeafLinkCount
 }
 

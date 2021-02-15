@@ -57,7 +57,7 @@ func (fa *poolBackedFileAllocator) NewFile(flags, mode uint32) (NativeLeaf, fuse
 		errorLogger: fa.errorLogger,
 
 		file:            file,
-		isExecutable:    (mode & 0111) != 0,
+		isExecutable:    (mode & 0o111) != 0,
 		nlink:           1,
 		openDescriptors: 1,
 		unfreezeWakeup:  make(chan struct{}),
@@ -268,9 +268,9 @@ func (f *fileBackedFile) FUSEFallocate(off, size uint64) fuse.Status {
 func (f *fileBackedFile) fuseGetAttrLocked(out *fuse.Attr) {
 	out.Ino = f.inodeNumber
 	out.Size = f.size
-	out.Mode = fuse.S_IFREG | 0666
+	out.Mode = fuse.S_IFREG | 0o666
 	if f.isExecutable {
-		out.Mode |= 0111
+		out.Mode |= 0o111
 	}
 	out.Nlink = f.nlink
 }
@@ -339,7 +339,7 @@ func (f *fileBackedFile) FUSESetAttr(in *fuse.SetAttrIn, out *fuse.Attr) fuse.St
 		f.size = in.Size
 	}
 	if in.Valid&fuse.FATTR_MODE != 0 {
-		f.isExecutable = (in.Mode & 0111) != 0
+		f.isExecutable = (in.Mode & 0o111) != 0
 	}
 	f.fuseGetAttrLocked(out)
 	return fuse.OK

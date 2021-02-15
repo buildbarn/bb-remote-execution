@@ -41,7 +41,7 @@ func TestDirectoryBackedFilePool(t *testing.T) {
 
 		// Write a piece of text into the file.
 		fileWriter := mock.NewMockFileWriter(ctrl)
-		directory.EXPECT().OpenWrite(path.MustNewComponent("2"), filesystem.CreateReuse(0600)).Return(fileWriter, nil)
+		directory.EXPECT().OpenWrite(path.MustNewComponent("2"), filesystem.CreateReuse(0o600)).Return(fileWriter, nil)
 		fileWriter.EXPECT().WriteAt([]byte("Hello, world"), int64(123)).Return(12, nil)
 		fileWriter.EXPECT().Close()
 		n, err := f.WriteAt([]byte("Hello, world"), 123)
@@ -50,7 +50,7 @@ func TestDirectoryBackedFilePool(t *testing.T) {
 
 		// Truncate a part of it.
 		fileWriter = mock.NewMockFileWriter(ctrl)
-		directory.EXPECT().OpenWrite(path.MustNewComponent("2"), filesystem.CreateReuse(0600)).Return(fileWriter, nil)
+		directory.EXPECT().OpenWrite(path.MustNewComponent("2"), filesystem.CreateReuse(0o600)).Return(fileWriter, nil)
 		fileWriter.EXPECT().Truncate(int64(128))
 		fileWriter.EXPECT().Close()
 		require.NoError(t, f.Truncate(128))

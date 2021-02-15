@@ -72,11 +72,11 @@ func TestLazyDirectory(t *testing.T) {
 	t.Run("MkdirSuccess", func(t *testing.T) {
 		underlyingDirectory := mock.NewMockDirectoryCloser(ctrl)
 		directoryOpener.EXPECT().Call().Return(underlyingDirectory, nil)
-		underlyingDirectory.EXPECT().Mkdir(path.MustNewComponent("sub"), os.FileMode(0777)).Return(nil)
+		underlyingDirectory.EXPECT().Mkdir(path.MustNewComponent("sub"), os.FileMode(0o777)).Return(nil)
 		underlyingDirectory.EXPECT().Close().Return(nil)
 
 		// Call should be forwarded literally.
-		err := directory.Mkdir(path.MustNewComponent("sub"), 0777)
+		err := directory.Mkdir(path.MustNewComponent("sub"), 0o777)
 		require.NoError(t, err)
 	})
 
