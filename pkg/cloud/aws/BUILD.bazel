@@ -10,7 +10,7 @@ go_library(
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/cloud/aws",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/builder",
+        "//pkg/proto/buildqueuestate",
         "@com_github_aws_aws_sdk_go//aws",
         "@com_github_aws_aws_sdk_go//aws/awserr",
         "@com_github_aws_aws_sdk_go//service/autoscaling",
@@ -31,12 +31,14 @@ go_test(
     embed = [":aws"],
     deps = [
         "//internal/mock",
+        "//pkg/proto/buildqueuestate",
         "@com_github_aws_aws_sdk_go//aws",
         "@com_github_aws_aws_sdk_go//aws/awserr",
         "@com_github_aws_aws_sdk_go//service/autoscaling",
         "@com_github_aws_aws_sdk_go//service/sqs",
         "@com_github_golang_mock//gomock",
         "@com_github_stretchr_testify//require",
+        "@io_bazel_rules_go//proto/wkt:empty_go_proto",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//status",
     ],

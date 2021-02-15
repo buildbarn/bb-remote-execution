@@ -38,11 +38,18 @@ gomock(
         "BuildDirectory",
         "BuildDirectoryCreator",
         "BuildExecutor",
-        "BuildQueueStateProvider",
         "StorageFlusher",
         "UploadableDirectory",
     ],
     library = "//pkg/builder",
+    package = "mock",
+)
+
+gomock(
+    name = "buildqueuestate",
+    out = "buildqueuestate.go",
+    interfaces = ["BuildQueueStateServer"],
+    library = "//pkg/proto/buildqueuestate",
     package = "mock",
 )
 
@@ -214,6 +221,7 @@ go_library(
         ":blobstore.go",
         ":blockdevice.go",
         ":builder.go",
+        ":buildqueuestate.go",
         ":cas.go",
         ":clock.go",
         ":cloud_aws.go",
@@ -247,6 +255,7 @@ go_library(
         "//pkg/cas",
         "//pkg/filesystem",
         "//pkg/filesystem/fuse",
+        "//pkg/proto/buildqueuestate",
         "//pkg/proto/remoteoutputservice",
         "//pkg/proto/remoteworker",
         "//pkg/proto/runner",
@@ -269,6 +278,7 @@ go_library(
         "@go_googleapis//google/longrunning:longrunning_go_proto",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//metadata",
+        "@org_golang_google_protobuf//types/known/emptypb:go_default_library",
     ] + select({
         "@io_bazel_rules_go//go/platform:darwin": [
             "@com_github_hanwen_go_fuse_v2//fuse",

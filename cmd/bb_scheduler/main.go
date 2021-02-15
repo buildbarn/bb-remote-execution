@@ -13,6 +13,7 @@ import (
 	re_blobstore "github.com/buildbarn/bb-remote-execution/pkg/blobstore"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
 	re_aws "github.com/buildbarn/bb-remote-execution/pkg/cloud/aws"
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/buildqueuestate"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_scheduler"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	blobstore_configuration "github.com/buildbarn/bb-storage/pkg/blobstore/configuration"
@@ -99,6 +100,15 @@ func main() {
 				configuration.WorkerGrpcServers,
 				func(s *grpc.Server) {
 					remoteworker.RegisterOperationQueueServer(s, buildQueue)
+				}))
+	}()
+	go func() {
+		log.Fatal(
+			"Build queue state gRPC server failure: ",
+			bb_grpc.NewServersFromConfigurationAndServe(
+				configuration.BuildQueueStateGrpcServers,
+				func(s *grpc.Server) {
+					buildqueuestate.RegisterBuildQueueStateServer(s, buildQueue)
 				}))
 	}()
 

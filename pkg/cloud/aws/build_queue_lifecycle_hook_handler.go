@@ -1,11 +1,13 @@
 package aws
 
 import (
-	"github.com/buildbarn/bb-remote-execution/pkg/builder"
+	"context"
+
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/buildqueuestate"
 )
 
 type buildQueueLifecycleHookHandler struct {
-	buildQueue      builder.BuildQueueStateProvider
+	buildQueue      buildqueuestate.BuildQueueStateServer
 	instanceIDLabel string
 }
 
@@ -14,15 +16,20 @@ type buildQueueLifecycleHookHandler struct {
 // queue. This causes the build queue to drain any workers running on
 // this EC2 instance, while ensuring that the EC2 instance is not
 // terminated before existing operations finish.
-func NewBuildQueueLifecycleHookHandler(buildQueue builder.BuildQueueStateProvider, instanceIDLabel string) LifecycleHookHandler {
+func NewBuildQueueLifecycleHookHandler(buildQueue buildqueuestate.BuildQueueStateServer, instanceIDLabel string) LifecycleHookHandler {
 	return &buildQueueLifecycleHookHandler{
 		buildQueue:      buildQueue,
 		instanceIDLabel: instanceIDLabel,
 	}
 }
 
-func (lhh *buildQueueLifecycleHookHandler) HandleEC2InstanceTerminating(instanceID string) {
-	lhh.buildQueue.MarkTerminatingAndWait(map[string]string{
-		lhh.instanceIDLabel: instanceID,
-	})
+func (lhh *buildQueueLifecycleHookHandler) HandleEC2InstanceTerminating(instanceID string) error {
+	_, err := lhh.buildQueue.TerminateWorkers(
+		context.Background(),
+		&buildqueuestate.TerminateWorkersRequest{
+			WorkerIdPattern: map[string]string{
+				lhh.instanceIDLabel: instanceID,
+			},
+		})
+	return err
 }

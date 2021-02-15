@@ -11,6 +11,7 @@ import (
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	re_builder "github.com/buildbarn/bb-remote-execution/pkg/builder"
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/buildqueuestate"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/builder"
@@ -695,28 +696,40 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 
 	// The operation should be present without any timeout
 	// associated with it, as there are multiple waiters.
-	clock.EXPECT().Now().Return(time.Unix(1080, 0))
-	allOperations, paginationInfo := buildQueue.ListDetailedOperationState(10, nil)
-	testutil.RequireEqualProto(t, &remoteexecution.Digest{
-		Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
-		SizeBytes: 123,
-	}, allOperations[0].ActionDigest)
-	allOperations[0].ActionDigest = nil
-	require.Equal(t, allOperations, []re_builder.DetailedOperationState{
-		{
-			BasicOperationState: re_builder.BasicOperationState{
-				Name:            "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
-				QueuedTimestamp: time.Unix(1070, 0).UTC(),
+	platformQueueName := &buildqueuestate.PlatformQueueName{
+		InstanceName: "main",
+		Platform: &remoteexecution.Platform{
+			Properties: []*remoteexecution.Platform_Property{
+				{Name: "cpu", Value: "armv6"},
+				{Name: "os", Value: "linux"},
 			},
-			InstanceName: digest.MustNewInstanceName("main"),
-			Stage:        remoteexecution.ExecutionStage_QUEUED,
 		},
+	}
+	clock.EXPECT().Now().Return(time.Unix(1080, 0))
+	allOperations, err := buildQueue.ListOperations(ctx, &buildqueuestate.ListOperationsRequest{
+		PageSize: 10,
 	})
-	require.Equal(t, paginationInfo, re_builder.PaginationInfo{
-		StartIndex:   0,
-		EndIndex:     1,
-		TotalEntries: 1,
-	})
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, &buildqueuestate.ListOperationsResponse{
+		Operations: []*buildqueuestate.OperationState{
+			{
+				Name:              "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
+				PlatformQueueName: platformQueueName,
+				QueuedTimestamp:   &timestamp.Timestamp{Seconds: 1070},
+				ActionDigest: &remoteexecution.Digest{
+					Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+					SizeBytes: 123,
+				},
+				Stage: &buildqueuestate.OperationState_Queued_{
+					Queued: &buildqueuestate.OperationState_Queued{},
+				},
+			},
+		},
+		PaginationInfo: &buildqueuestate.PaginationInfo{
+			StartIndex:   0,
+			TotalEntries: 1,
+		},
+	}, allOperations)
 
 	// Cancel all Execute() and WaitExecution() calls.
 	cancelWait := make(chan struct{})
@@ -732,39 +745,44 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 
 	// The operation should still be available up until the deadline.
 	clock.EXPECT().Now().Return(time.Unix(1149, 999999999))
-	allOperations, paginationInfo = buildQueue.ListDetailedOperationState(10, nil)
-	testutil.RequireEqualProto(t, &remoteexecution.Digest{
-		Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
-		SizeBytes: 123,
-	}, allOperations[0].ActionDigest)
-	allOperations[0].ActionDigest = nil
-	timeout := time.Unix(1150, 0)
-	require.Equal(t, allOperations, []re_builder.DetailedOperationState{
-		{
-			BasicOperationState: re_builder.BasicOperationState{
-				Name:            "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
-				QueuedTimestamp: time.Unix(1070, 0).UTC(),
-				Timeout:         &timeout,
+	allOperations, err = buildQueue.ListOperations(ctx, &buildqueuestate.ListOperationsRequest{
+		PageSize: 10,
+	})
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, &buildqueuestate.ListOperationsResponse{
+		Operations: []*buildqueuestate.OperationState{
+			{
+				Name:              "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
+				PlatformQueueName: platformQueueName,
+				QueuedTimestamp:   &timestamp.Timestamp{Seconds: 1070},
+				ActionDigest: &remoteexecution.Digest{
+					Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+					SizeBytes: 123,
+				},
+				Timeout: &timestamp.Timestamp{Seconds: 1150},
+				Stage: &buildqueuestate.OperationState_Queued_{
+					Queued: &buildqueuestate.OperationState_Queued{},
+				},
 			},
-			InstanceName: digest.MustNewInstanceName("main"),
-			Stage:        remoteexecution.ExecutionStage_QUEUED,
 		},
-	})
-	require.Equal(t, paginationInfo, re_builder.PaginationInfo{
-		StartIndex:   0,
-		EndIndex:     1,
-		TotalEntries: 1,
-	})
+		PaginationInfo: &buildqueuestate.PaginationInfo{
+			StartIndex:   0,
+			TotalEntries: 1,
+		},
+	}, allOperations)
 
 	// And it should be gone after it.
 	clock.EXPECT().Now().Return(time.Unix(1150, 0))
-	allOperations, paginationInfo = buildQueue.ListDetailedOperationState(10, nil)
-	require.Empty(t, allOperations)
-	require.Equal(t, paginationInfo, re_builder.PaginationInfo{
-		StartIndex:   0,
-		EndIndex:     0,
-		TotalEntries: 0,
+	allOperations, err = buildQueue.ListOperations(ctx, &buildqueuestate.ListOperationsRequest{
+		PageSize: 10,
 	})
+	require.NoError(t, err)
+	require.True(t, proto.Equal(&buildqueuestate.ListOperationsResponse{
+		PaginationInfo: &buildqueuestate.PaginationInfo{
+			StartIndex:   0,
+			TotalEntries: 0,
+		},
+	}, allOperations))
 }
 
 func TestInMemoryBuildQueueKillOperation(t *testing.T) {
@@ -1132,7 +1150,10 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 
 	// Kill the operation.
 	clock.EXPECT().Now().Return(time.Unix(1007, 0)).Times(3)
-	require.True(t, buildQueue.KillOperation("36ebab65-3c4f-4faf-818b-2eabb4cd1b02"))
+	_, err = buildQueue.KillOperation(ctx, &buildqueuestate.KillOperationRequest{
+		OperationName: "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
+	})
+	require.NoError(t, err)
 
 	// The client should be informed that the operation was killed.
 	update, err = stream1.Recv()
@@ -1313,61 +1334,101 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 	})
 
 	// The worker should not be drained by default.
-	instanceName := digest.MustNewInstanceName("main")
-	clock.EXPECT().Now().Return(time.Unix(1001, 0))
-	workerState, _, err := buildQueue.ListWorkerState(instanceName, platform, false, 1000, nil)
-	require.NoError(t, err)
-	timeout := time.Unix(1060, 0)
-	require.Equal(t, []re_builder.WorkerState{
-		{
-			WorkerID: map[string]string{
-				"hostname": "worker123",
-				"thread":   "42",
+	platformQueueName := &buildqueuestate.PlatformQueueName{
+		InstanceName: "main",
+		Platform: &remoteexecution.Platform{
+			Properties: []*remoteexecution.Platform_Property{
+				{Name: "cpu", Value: "armv6"},
+				{Name: "os", Value: "linux"},
 			},
-			Timeout: &timeout,
-			Drained: false,
+		},
+	}
+	clock.EXPECT().Now().Return(time.Unix(1001, 0))
+	workerState, err := buildQueue.ListWorkers(ctx, &buildqueuestate.ListWorkersRequest{
+		PlatformQueueName: platformQueueName,
+		PageSize:          1000,
+	})
+	require.NoError(t, err)
+	require.Equal(t, &buildqueuestate.ListWorkersResponse{
+		Workers: []*buildqueuestate.WorkerState{
+			{
+				Id: map[string]string{
+					"hostname": "worker123",
+					"thread":   "42",
+				},
+				Timeout: &timestamp.Timestamp{Seconds: 1060},
+				Drained: false,
+			},
+		},
+		PaginationInfo: &buildqueuestate.PaginationInfo{
+			StartIndex:   0,
+			TotalEntries: 1,
 		},
 	}, workerState)
 
 	// Adding a drain that doesn't match the worker should cause no
 	// changes.
 	clock.EXPECT().Now().Return(time.Unix(1003, 0))
-	err = buildQueue.AddDrain(instanceName, platform, map[string]string{
-		"hostname": "worker124",
+	_, err = buildQueue.AddDrain(ctx, &buildqueuestate.AddOrRemoveDrainRequest{
+		PlatformQueueName: platformQueueName,
+		WorkerIdPattern: map[string]string{
+			"hostname": "worker124",
+		},
 	})
 	require.NoError(t, err)
 	clock.EXPECT().Now().Return(time.Unix(1004, 0))
-	workerState, _, err = buildQueue.ListWorkerState(instanceName, platform, false, 1000, nil)
+	workerState, err = buildQueue.ListWorkers(ctx, &buildqueuestate.ListWorkersRequest{
+		PlatformQueueName: platformQueueName,
+		PageSize:          1000,
+	})
 	require.NoError(t, err)
-	require.Equal(t, []re_builder.WorkerState{
-		{
-			WorkerID: map[string]string{
-				"hostname": "worker123",
-				"thread":   "42",
+	require.Equal(t, &buildqueuestate.ListWorkersResponse{
+		Workers: []*buildqueuestate.WorkerState{
+			{
+				Id: map[string]string{
+					"hostname": "worker123",
+					"thread":   "42",
+				},
+				Timeout: &timestamp.Timestamp{Seconds: 1060},
+				Drained: false,
 			},
-			Timeout: &timeout,
-			Drained: false,
+		},
+		PaginationInfo: &buildqueuestate.PaginationInfo{
+			StartIndex:   0,
+			TotalEntries: 1,
 		},
 	}, workerState)
 
 	// Adding a drain that does match the worker should cause it to
 	// be reported as if being drained.
 	clock.EXPECT().Now().Return(time.Unix(1005, 0))
-	err = buildQueue.AddDrain(instanceName, platform, map[string]string{
-		"hostname": "worker123",
+	_, err = buildQueue.AddDrain(ctx, &buildqueuestate.AddOrRemoveDrainRequest{
+		PlatformQueueName: platformQueueName,
+		WorkerIdPattern: map[string]string{
+			"hostname": "worker123",
+		},
 	})
 	require.NoError(t, err)
 	clock.EXPECT().Now().Return(time.Unix(1006, 0))
-	workerState, _, err = buildQueue.ListWorkerState(instanceName, platform, false, 1000, nil)
+	workerState, err = buildQueue.ListWorkers(ctx, &buildqueuestate.ListWorkersRequest{
+		PlatformQueueName: platformQueueName,
+		PageSize:          1000,
+	})
 	require.NoError(t, err)
-	require.Equal(t, []re_builder.WorkerState{
-		{
-			WorkerID: map[string]string{
-				"hostname": "worker123",
-				"thread":   "42",
+	require.Equal(t, &buildqueuestate.ListWorkersResponse{
+		Workers: []*buildqueuestate.WorkerState{
+			{
+				Id: map[string]string{
+					"hostname": "worker123",
+					"thread":   "42",
+				},
+				Timeout: &timestamp.Timestamp{Seconds: 1060},
+				Drained: true,
 			},
-			Timeout: &timeout,
-			Drained: true,
+		},
+		PaginationInfo: &buildqueuestate.PaginationInfo{
+			StartIndex:   0,
+			TotalEntries: 1,
 		},
 	}, workerState)
 
@@ -1437,8 +1498,11 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 	// Remove the drain. The scheduler should now return the
 	// operation if requested.
 	clock.EXPECT().Now().Return(time.Unix(1009, 0))
-	err = buildQueue.RemoveDrain(instanceName, platform, map[string]string{
-		"hostname": "worker123",
+	_, err = buildQueue.RemoveDrain(ctx, &buildqueuestate.AddOrRemoveDrainRequest{
+		PlatformQueueName: platformQueueName,
+		WorkerIdPattern: map[string]string{
+			"hostname": "worker123",
+		},
 	})
 	require.NoError(t, err)
 	clock.EXPECT().Now().Return(time.Unix(1010, 0))
@@ -1637,18 +1701,21 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 		})
 	}
 
-	// Check that ListInvocationState() reports all five
-	// invocations, both when justQueuedInvocations is true and
-	// false. When true, the invocations should be returned in
-	// scheduling order. Otherwise, they should be returned
-	// alphabetically.
+	// Check that ListInvocations() reports all five invocations,
+	// both when justQueuedInvocations is true and false. When true,
+	// the invocations should be returned in scheduling order.
+	// Otherwise, they should be returned alphabetically.
+	platformQueueName := &buildqueuestate.PlatformQueueName{
+		InstanceName: "main",
+		Platform:     platform,
+	}
 	clock.EXPECT().Now().Return(time.Unix(1036, 0))
-	invocationStates, err := buildQueue.ListInvocationState(
-		digest.MustNewInstanceName("main"),
-		platform,
-		true)
+	invocationStates, err := buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
+		PlatformQueueName:     platformQueueName,
+		JustQueuedInvocations: true,
+	})
 	require.NoError(t, err)
-	require.Len(t, invocationStates, 5)
+	require.Len(t, invocationStates.Invocations, 5)
 	for i, invocationID := range []string{
 		"dfe3ca8b-64bc-4efd-b8a9-2bdc3827f0ac",
 		"4712de52-4518-4840-91d5-c9e13a38cc5a",
@@ -1656,18 +1723,18 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 		"4fd2080e-d805-4d68-ab51-460106c8f372",
 		"66275a66-8aad-498a-9b4a-26b4f5a66789",
 	} {
-		require.Equal(t, invocationID, invocationStates[i].InvocationID)
-		require.Equal(t, 5, invocationStates[i].QueuedOperationsCount)
-		require.Equal(t, 0, invocationStates[i].ExecutingOperationsCount)
+		require.Equal(t, invocationID, invocationStates.Invocations[i].Id)
+		require.Equal(t, uint32(5), invocationStates.Invocations[i].QueuedOperationsCount)
+		require.Equal(t, uint32(0), invocationStates.Invocations[i].ExecutingOperationsCount)
 	}
 
 	clock.EXPECT().Now().Return(time.Unix(1036, 0))
-	invocationStates, err = buildQueue.ListInvocationState(
-		digest.MustNewInstanceName("main"),
-		platform,
-		false)
+	invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
+		PlatformQueueName:     platformQueueName,
+		JustQueuedInvocations: false,
+	})
 	require.NoError(t, err)
-	require.Len(t, invocationStates, 5)
+	require.Len(t, invocationStates.Invocations, 5)
 	for i, invocationID := range []string{
 		"351fdffe-04df-4fe0-98c7-b4f5a463fd52",
 		"4712de52-4518-4840-91d5-c9e13a38cc5a",
@@ -1675,9 +1742,9 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 		"66275a66-8aad-498a-9b4a-26b4f5a66789",
 		"dfe3ca8b-64bc-4efd-b8a9-2bdc3827f0ac",
 	} {
-		require.Equal(t, invocationID, invocationStates[i].InvocationID)
-		require.Equal(t, 5, invocationStates[i].QueuedOperationsCount)
-		require.Equal(t, 0, invocationStates[i].ExecutingOperationsCount)
+		require.Equal(t, invocationID, invocationStates.Invocations[i].Id)
+		require.Equal(t, uint32(5), invocationStates.Invocations[i].QueuedOperationsCount)
+		require.Equal(t, uint32(0), invocationStates.Invocations[i].ExecutingOperationsCount)
 	}
 
 	// Let 25 workers execute the operations that were created
@@ -1733,23 +1800,23 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 		}, response)
 	}
 
-	// Call ListInvocationState() again. All operations should now
-	// be reported as executing, instead of being queued.
+	// Call ListInvocations() again. All operations should now be
+	// reported as executing, instead of being queued.
 	clock.EXPECT().Now().Return(time.Unix(1041, 0))
-	invocationStates, err = buildQueue.ListInvocationState(
-		digest.MustNewInstanceName("main"),
-		platform,
-		true)
+	invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
+		PlatformQueueName:     platformQueueName,
+		JustQueuedInvocations: true,
+	})
 	require.NoError(t, err)
-	require.Empty(t, invocationStates)
+	require.Empty(t, invocationStates.Invocations)
 
 	clock.EXPECT().Now().Return(time.Unix(1042, 0))
-	invocationStates, err = buildQueue.ListInvocationState(
-		digest.MustNewInstanceName("main"),
-		platform,
-		false)
+	invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
+		PlatformQueueName:     platformQueueName,
+		JustQueuedInvocations: false,
+	})
 	require.NoError(t, err)
-	require.Len(t, invocationStates, 5)
+	require.Len(t, invocationStates.Invocations, 5)
 	for i, invocationID := range []string{
 		"351fdffe-04df-4fe0-98c7-b4f5a463fd52",
 		"4712de52-4518-4840-91d5-c9e13a38cc5a",
@@ -1757,31 +1824,31 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 		"66275a66-8aad-498a-9b4a-26b4f5a66789",
 		"dfe3ca8b-64bc-4efd-b8a9-2bdc3827f0ac",
 	} {
-		require.Equal(t, invocationID, invocationStates[i].InvocationID)
-		require.Equal(t, 0, invocationStates[i].QueuedOperationsCount)
-		require.Equal(t, 5, invocationStates[i].ExecutingOperationsCount)
+		require.Equal(t, invocationID, invocationStates.Invocations[i].Id)
+		require.Equal(t, uint32(0), invocationStates.Invocations[i].QueuedOperationsCount)
+		require.Equal(t, uint32(5), invocationStates.Invocations[i].ExecutingOperationsCount)
 	}
 
-	// Call ListInvocationState() a final time after letting a
+	// Call ListInvocations() a final time after letting a
 	// sufficient amount of time pass. This should cause all workers
 	// to be removed from the scheduler, as they didn't provide any
 	// updates. All associated operations should be completed,
 	// meaning that no invocations will be reported.
 	clock.EXPECT().Now().Return(time.Unix(1200, 0)).Times(51)
-	invocationStates, err = buildQueue.ListInvocationState(
-		digest.MustNewInstanceName("main"),
-		platform,
-		true)
+	invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
+		PlatformQueueName:     platformQueueName,
+		JustQueuedInvocations: true,
+	})
 	require.NoError(t, err)
-	require.Empty(t, invocationStates)
+	require.Empty(t, invocationStates.Invocations)
 
 	clock.EXPECT().Now().Return(time.Unix(1200, 0))
-	invocationStates, err = buildQueue.ListInvocationState(
-		digest.MustNewInstanceName("main"),
-		platform,
-		false)
+	invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
+		PlatformQueueName:     platformQueueName,
+		JustQueuedInvocations: false,
+	})
 	require.NoError(t, err)
-	require.Empty(t, invocationStates)
+	require.Empty(t, invocationStates.Invocations)
 
 	// All clients should receive an error that their operations
 	// terminated due to the loss of workers.
@@ -1958,22 +2025,26 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonQueued(t *testing.T) {
 	// we're requesting this one minute after the operations were
 	// created, we should gradually see this list shrink. Eventually
 	// all invocations should be removed.
+	platformQueueName := &buildqueuestate.PlatformQueueName{
+		InstanceName: "main",
+		Platform:     platform,
+	}
 	for i := 0; i <= len(operationParameters); i++ {
 		clock.EXPECT().Now().Return(time.Unix(1069+int64(i), 0)).Times(2)
 
-		invocationStates, err := buildQueue.ListInvocationState(
-			digest.MustNewInstanceName("main"),
-			platform,
-			false)
+		invocationStates, err := buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
+			PlatformQueueName:     platformQueueName,
+			JustQueuedInvocations: false,
+		})
 		require.NoError(t, err)
-		require.Len(t, invocationStates, len(operationParameters)-i)
+		require.Len(t, invocationStates.Invocations, len(operationParameters)-i)
 
-		invocationStates, err = buildQueue.ListInvocationState(
-			digest.MustNewInstanceName("main"),
-			platform,
-			true)
+		invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
+			PlatformQueueName:     platformQueueName,
+			JustQueuedInvocations: true,
+		})
 		require.NoError(t, err)
-		require.Len(t, invocationStates, len(operationParameters)-i)
+		require.Len(t, invocationStates.Invocations, len(operationParameters)-i)
 	}
 }
 
@@ -2165,22 +2236,26 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 	// we're requesting this one minute after the operations were
 	// created, we should gradually see this list shrink. Eventually
 	// all invocations should be removed.
+	platformQueueName := &buildqueuestate.PlatformQueueName{
+		InstanceName: "main",
+		Platform:     platform,
+	}
 	for i := 0; i <= len(operationParameters); i++ {
 		clock.EXPECT().Now().Return(time.Unix(1069+int64(i), 0)).Times(2)
 
-		invocationStates, err := buildQueue.ListInvocationState(
-			digest.MustNewInstanceName("main"),
-			platform,
-			false)
+		invocationStates, err := buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
+			PlatformQueueName:     platformQueueName,
+			JustQueuedInvocations: false,
+		})
 		require.NoError(t, err)
-		require.Len(t, invocationStates, len(operationParameters)-i)
+		require.Len(t, invocationStates.Invocations, len(operationParameters)-i)
 
-		invocationStates, err = buildQueue.ListInvocationState(
-			digest.MustNewInstanceName("main"),
-			platform,
-			true)
+		invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
+			PlatformQueueName:     platformQueueName,
+			JustQueuedInvocations: true,
+		})
 		require.NoError(t, err)
-		require.Empty(t, invocationStates)
+		require.Empty(t, invocationStates.Invocations)
 	}
 }
 

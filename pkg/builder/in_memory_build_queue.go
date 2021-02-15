@@ -12,6 +12,7 @@ import (
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/bazelbuild/remote-apis/build/bazel/semver"
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/buildqueuestate"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/builder"
@@ -204,9 +205,9 @@ func NewInMemoryBuildQueue(contentAddressableStorage blobstore.BlobAccess, clock
 }
 
 var (
-	_ builder.BuildQueue                = (*InMemoryBuildQueue)(nil)
-	_ remoteworker.OperationQueueServer = (*InMemoryBuildQueue)(nil)
-	_ BuildQueueStateProvider           = (*InMemoryBuildQueue)(nil)
+	_ builder.BuildQueue                    = (*InMemoryBuildQueue)(nil)
+	_ remoteworker.OperationQueueServer     = (*InMemoryBuildQueue)(nil)
+	_ buildqueuestate.BuildQueueStateServer = (*InMemoryBuildQueue)(nil)
 )
 
 // GetCapabilities returns the Remote Execution protocol capabilities
@@ -343,8 +344,7 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 			platformQueue: pq,
 			desiredState:  desiredState,
 
-			instanceName: instanceName,
-			argv0:        argv0,
+			argv0: argv0,
 
 			currentStageStartTime: bq.now,
 
@@ -502,9 +502,9 @@ func (bq *InMemoryBuildQueue) Synchronize(ctx context.Context, request *remotewo
 	}
 }
 
-// GetBuildQueueState returns global state of the InMemoryBuildQueue
-// that may be displayed by the main bb_scheduler information page.
-func (bq *InMemoryBuildQueue) GetBuildQueueState() *BuildQueueState {
+// ListPlatformQueues returns a list of all platform queues currently
+// managed by the scheduler.
+func (bq *InMemoryBuildQueue) ListPlatformQueues(ctx context.Context, request *empty.Empty) (*buildqueuestate.ListPlatformQueuesResponse, error) {
 	bq.enter(bq.clock.Now())
 	defer bq.leave()
 
@@ -516,81 +516,83 @@ func (bq *InMemoryBuildQueue) GetBuildQueueState() *BuildQueueState {
 	sort.Sort(platformKeyList)
 
 	// Extract status.
-	state := &BuildQueueState{
-		OperationsCount: len(bq.operationsNameMap),
-	}
+	platformQueues := make([]*buildqueuestate.PlatformQueueState, 0, len(bq.platformQueues))
 	for _, platformKey := range platformKeyList {
 		pq := bq.platformQueues[platformKey]
-		executingWorkersCount := 0
+		executingWorkersCount := uint32(0)
 		for _, w := range pq.workers {
 			if w.getCurrentTask() != nil {
 				executingWorkersCount++
 			}
 		}
-		state.PlatformQueues = append(state.PlatformQueues, PlatformQueueState{
-			InstanceName:           platformKey.instanceName,
-			Platform:               *platformKey.getPlatform(),
+		platformQueues = append(platformQueues, &buildqueuestate.PlatformQueueState{
+			Name:                   platformKey.getPlatformQueueName(),
 			Timeout:                bq.cleanupQueue.getTimestamp(pq.cleanupKey),
-			InvocationsCount:       len(pq.invocations),
-			QueuedInvocationsCount: pq.queuedInvocations.Len(),
-			WorkersCount:           len(pq.workers),
+			InvocationsCount:       uint32(len(pq.invocations)),
+			QueuedInvocationsCount: uint32(pq.queuedInvocations.Len()),
+			WorkersCount:           uint32(len(pq.workers)),
 			ExecutingWorkersCount:  executingWorkersCount,
-			DrainsCount:            len(pq.drains),
+			DrainsCount:            uint32(len(pq.drains)),
 		})
 	}
-	return state
+	return &buildqueuestate.ListPlatformQueuesResponse{
+		PlatformQueues: platformQueues,
+	}, nil
 }
 
-// GetDetailedOperationState returns detailed information about a single
-// operation identified by name.
-func (bq *InMemoryBuildQueue) GetDetailedOperationState(name string) (*DetailedOperationState, bool) {
+// GetOperation returns detailed information about a single operation
+// identified by name.
+func (bq *InMemoryBuildQueue) GetOperation(ctx context.Context, request *buildqueuestate.GetOperationRequest) (*buildqueuestate.GetOperationResponse, error) {
 	bq.enter(bq.clock.Now())
 	defer bq.leave()
 
-	o, ok := bq.operationsNameMap[name]
+	o, ok := bq.operationsNameMap[request.OperationName]
 	if !ok {
-		return nil, false
+		return nil, status.Errorf(codes.NotFound, "Operation %#v not found", request.OperationName)
 	}
-	return o.getDetailedOperationState(bq), true
+	s := o.getOperationState(bq)
+	s.Name = ""
+	return &buildqueuestate.GetOperationResponse{
+		Operation: s,
+	}, nil
 }
 
 // getPaginationInfo uses binary searching to determine which
 // information should be returned by InMemoryBuildQueue's List*()
 // operations.
-func getPaginationInfo(n, pageSize int, f func(int) bool) PaginationInfo {
-	startIndex := sort.Search(n, f)
-	endIndex := startIndex + pageSize
-	if endIndex > n {
-		endIndex = n
+func getPaginationInfo(n int, pageSize uint32, f func(int) bool) (*buildqueuestate.PaginationInfo, int) {
+	startIndex := uint32(sort.Search(n, f))
+	endIndex := uint32(n)
+	if endIndex-startIndex > pageSize {
+		endIndex = startIndex + pageSize
 	}
-	return PaginationInfo{
+	return &buildqueuestate.PaginationInfo{
 		StartIndex:   startIndex,
-		EndIndex:     endIndex,
-		TotalEntries: n,
-	}
+		TotalEntries: uint32(n),
+	}, int(endIndex)
 }
 
 // KillOperation requests that an operation that is currently QUEUED or
 // EXECUTING is moved the COMPLETED stage immediately. The next time any
 // worker associated with the operation contacts the scheduler, it is
 // requested to stop executing the operation.
-func (bq *InMemoryBuildQueue) KillOperation(name string) bool {
+func (bq *InMemoryBuildQueue) KillOperation(ctx context.Context, request *buildqueuestate.KillOperationRequest) (*empty.Empty, error) {
 	bq.enter(bq.clock.Now())
 	defer bq.leave()
 
-	o, ok := bq.operationsNameMap[name]
+	o, ok := bq.operationsNameMap[request.OperationName]
 	if !ok {
-		return false
+		return nil, status.Errorf(codes.NotFound, "Operation %#v not found", request.OperationName)
 	}
 	o.task.complete(bq, &remoteexecution.ExecuteResponse{
 		Status: status.New(codes.Unavailable, "Operation was killed administratively").Proto(),
 	})
-	return true
+	return &empty.Empty{}, nil
 }
 
-// ListDetailedOperationState returns detailed information about all of
-// the operations tracked by the InMemoryBuildQueue.
-func (bq *InMemoryBuildQueue) ListDetailedOperationState(pageSize int, startAfterOperation *string) ([]DetailedOperationState, PaginationInfo) {
+// ListOperations returns detailed information about all of the
+// operations tracked by the InMemoryBuildQueue.
+func (bq *InMemoryBuildQueue) ListOperations(ctx context.Context, request *buildqueuestate.ListOperationsRequest) (*buildqueuestate.ListOperationsResponse, error) {
 	bq.enter(bq.clock.Now())
 	defer bq.leave()
 
@@ -600,21 +602,24 @@ func (bq *InMemoryBuildQueue) ListDetailedOperationState(pageSize int, startAfte
 		nameList = append(nameList, name)
 	}
 	sort.Strings(nameList)
-	paginationInfo := getPaginationInfo(len(nameList), pageSize, func(i int) bool {
-		return startAfterOperation == nil || nameList[i] > *startAfterOperation
+	paginationInfo, endIndex := getPaginationInfo(len(nameList), request.PageSize, func(i int) bool {
+		return request.StartAfter == nil || nameList[i] > request.StartAfter.OperationName
 	})
 
 	// Extract status.
-	nameListRegion := nameList[paginationInfo.StartIndex:paginationInfo.EndIndex]
-	results := make([]DetailedOperationState, 0, len(nameListRegion))
+	nameListRegion := nameList[paginationInfo.StartIndex:endIndex]
+	operations := make([]*buildqueuestate.OperationState, 0, len(nameListRegion))
 	for _, name := range nameListRegion {
 		o := bq.operationsNameMap[name]
-		results = append(results, *o.getDetailedOperationState(bq))
+		operations = append(operations, o.getOperationState(bq))
 	}
-	return results, paginationInfo
+	return &buildqueuestate.ListOperationsResponse{
+		Operations:     operations,
+		PaginationInfo: paginationInfo,
+	}, nil
 }
 
-// ListInvocationState returns properties of all client invocations for
+// ListInvocations returns properties of all client invocations for
 // which one or more operations are either queued or executing within a
 // given platform queue.
 //
@@ -625,8 +630,8 @@ func (bq *InMemoryBuildQueue) ListDetailedOperationState(pageSize int, startAfte
 // When justQueuedInvocations is true, entries for invocations are
 // returned only if they have queued operations. Entries will be sorted
 // by priority at which operations are scheduled.
-func (bq *InMemoryBuildQueue) ListInvocationState(instanceName digest.InstanceName, platform *remoteexecution.Platform, justQueuedInvocations bool) ([]InvocationState, error) {
-	platformKey, err := newPlatformKey(instanceName, platform)
+func (bq *InMemoryBuildQueue) ListInvocations(ctx context.Context, request *buildqueuestate.ListInvocationsRequest) (*buildqueuestate.ListInvocationsResponse, error) {
+	platformKey, err := newPlatformKeyFromName(request.PlatformQueueName)
 	if err != nil {
 		return nil, err
 	}
@@ -639,15 +644,17 @@ func (bq *InMemoryBuildQueue) ListInvocationState(instanceName digest.InstanceNa
 		return nil, status.Error(codes.NotFound, "No workers for this instance name and platform exist")
 	}
 
-	if justQueuedInvocations {
+	if request.JustQueuedInvocations {
 		// Return invocations with one or more queued
 		// operations, sorted by scheduling order.
-		results := make([]InvocationState, 0, pq.queuedInvocations.Len())
+		invocations := make([]*buildqueuestate.InvocationState, 0, pq.queuedInvocations.Len())
 		sort.Sort(&pq.queuedInvocations)
 		for _, i := range pq.queuedInvocations {
-			results = append(results, *i.getInvocationState(bq))
+			invocations = append(invocations, i.getInvocationState(bq))
 		}
-		return results, nil
+		return &buildqueuestate.ListInvocationsResponse{
+			Invocations: invocations,
+		}, nil
 	}
 
 	// Return all invocations in alphabetic order.
@@ -657,20 +664,22 @@ func (bq *InMemoryBuildQueue) ListInvocationState(instanceName digest.InstanceNa
 	}
 	sort.Strings(keyList)
 
-	results := make([]InvocationState, 0, len(pq.invocations))
+	invocations := make([]*buildqueuestate.InvocationState, 0, len(pq.invocations))
 	for _, invocationID := range keyList {
 		i := pq.invocations[invocationID]
-		results = append(results, *i.getInvocationState(bq))
+		invocations = append(invocations, i.getInvocationState(bq))
 	}
-	return results, nil
+	return &buildqueuestate.ListInvocationsResponse{
+		Invocations: invocations,
+	}, nil
 }
 
-// ListQueuedOperationState returns properties of all queued operations
+// ListQueuedOperations returns properties of all queued operations
 // contained for a given invocation within a platform queue.
-func (bq *InMemoryBuildQueue) ListQueuedOperationState(instanceName digest.InstanceName, platform *remoteexecution.Platform, invocationID string, pageSize int, startAfterPriority *int32, startAfterQueuedTimestamp *time.Time) ([]QueuedOperationState, PaginationInfo, error) {
-	platformKey, err := newPlatformKey(instanceName, platform)
+func (bq *InMemoryBuildQueue) ListQueuedOperations(ctx context.Context, request *buildqueuestate.ListQueuedOperationsRequest) (*buildqueuestate.ListQueuedOperationsResponse, error) {
+	platformKey, err := newPlatformKeyFromName(request.PlatformQueueName)
 	if err != nil {
-		return nil, PaginationInfo{}, err
+		return nil, err
 	}
 
 	bq.enter(bq.clock.Now())
@@ -678,49 +687,64 @@ func (bq *InMemoryBuildQueue) ListQueuedOperationState(instanceName digest.Insta
 
 	pq, ok := bq.platformQueues[platformKey]
 	if !ok {
-		return nil, PaginationInfo{}, status.Error(codes.NotFound, "No workers for this instance name and platform exist")
+		return nil, status.Error(codes.NotFound, "No workers for this instance name and platform exist")
 	}
-	i, ok := pq.invocations[invocationID]
+	i, ok := pq.invocations[request.InvocationId]
 	if !ok {
-		return nil, PaginationInfo{}, status.Error(codes.NotFound, "No operations for this invocation ID exist")
+		return nil, status.Error(codes.NotFound, "No operations for this invocation ID exist")
+	}
+
+	startAfter := request.StartAfter
+	var startAfterQueuedTimestamp time.Time
+	if startAfter != nil {
+		startAfterQueuedTimestamp, err = ptypes.Timestamp(startAfter.QueuedTimestamp)
+		if err != nil {
+			return nil, util.StatusWrapWithCode(err, codes.InvalidArgument, "Invalid queued timestamp")
+		}
 	}
 
 	// As every sorted list is also a valid binary heap, simply sort
 	// the queued operations list prior to emitting it.
 	sort.Sort(i.queuedOperations)
-	paginationInfo := getPaginationInfo(i.queuedOperations.Len(), pageSize, func(idx int) bool {
+	paginationInfo, endIndex := getPaginationInfo(i.queuedOperations.Len(), request.PageSize, func(idx int) bool {
 		e := i.queuedOperations[idx]
-		if startAfterPriority == nil || startAfterQueuedTimestamp == nil || e.priority > *startAfterPriority {
+		if startAfter == nil || e.priority > startAfter.Priority {
 			return true
 		}
-		if e.priority < *startAfterPriority {
+		if e.priority < startAfter.Priority {
 			return false
 		}
 		queuedTimestamp, err := ptypes.Timestamp(e.operation.task.desiredState.QueuedTimestamp)
 		if err != nil {
 			panic(fmt.Sprintf("Failed to parse previously generated timestamp: %s", err))
 		}
-		return queuedTimestamp.After(*startAfterQueuedTimestamp)
+		return queuedTimestamp.After(startAfterQueuedTimestamp)
 	})
 
-	queuedOperationsRegion := i.queuedOperations[paginationInfo.StartIndex:paginationInfo.EndIndex]
-	results := make([]QueuedOperationState, 0, queuedOperationsRegion.Len())
+	queuedOperationsRegion := i.queuedOperations[paginationInfo.StartIndex:endIndex]
+	queuedOperations := make([]*buildqueuestate.OperationState, 0, queuedOperationsRegion.Len())
 	for _, entry := range queuedOperationsRegion {
-		results = append(results, *entry.getQueuedOperationState(bq))
+		s := entry.operation.getOperationState(bq)
+		s.PlatformQueueName = nil
+		s.InvocationId = ""
+		queuedOperations = append(queuedOperations, s)
 	}
-	return results, paginationInfo, nil
+	return &buildqueuestate.ListQueuedOperationsResponse{
+		QueuedOperations: queuedOperations,
+		PaginationInfo:   paginationInfo,
+	}, nil
 }
 
-// ListWorkerState returns basic properties of all workers for a given
+// ListWorkers returns basic properties of all workers for a given
 // platform queue.
-func (bq *InMemoryBuildQueue) ListWorkerState(instanceName digest.InstanceName, platform *remoteexecution.Platform, justExecutingWorkers bool, pageSize int, startAfterWorkerID map[string]string) ([]WorkerState, PaginationInfo, error) {
-	platformKey, err := newPlatformKey(instanceName, platform)
+func (bq *InMemoryBuildQueue) ListWorkers(ctx context.Context, request *buildqueuestate.ListWorkersRequest) (*buildqueuestate.ListWorkersResponse, error) {
+	platformKey, err := newPlatformKeyFromName(request.PlatformQueueName)
 	if err != nil {
-		return nil, PaginationInfo{}, err
+		return nil, err
 	}
 	var startAfterWorkerKey *string
-	if startAfterWorkerID != nil {
-		workerKey := string(newWorkerKey(startAfterWorkerID))
+	if startAfter := request.StartAfter; startAfter != nil {
+		workerKey := string(newWorkerKey(startAfter.WorkerId))
 		startAfterWorkerKey = &workerKey
 	}
 
@@ -729,28 +753,28 @@ func (bq *InMemoryBuildQueue) ListWorkerState(instanceName digest.InstanceName, 
 
 	pq, ok := bq.platformQueues[platformKey]
 	if !ok {
-		return nil, PaginationInfo{}, status.Error(codes.NotFound, "No workers for this instance name and platform exist")
+		return nil, status.Error(codes.NotFound, "No workers for this instance name and platform exist")
 	}
 
 	// Obtain IDs of all workers in sorted order.
 	var keyList []string
 	for workerKey, w := range pq.workers {
-		if !justExecutingWorkers || w.getCurrentTask() != nil {
+		if !request.JustExecutingWorkers || w.getCurrentTask() != nil {
 			keyList = append(keyList, string(workerKey))
 		}
 	}
 	sort.Strings(keyList)
-	paginationInfo := getPaginationInfo(len(keyList), pageSize, func(i int) bool {
+	paginationInfo, endIndex := getPaginationInfo(len(keyList), request.PageSize, func(i int) bool {
 		return startAfterWorkerKey == nil || keyList[i] > *startAfterWorkerKey
 	})
 
 	// Extract status.
-	keyListRegion := keyList[paginationInfo.StartIndex:paginationInfo.EndIndex]
-	results := make([]WorkerState, 0, len(keyListRegion))
+	keyListRegion := keyList[paginationInfo.StartIndex:endIndex]
+	workers := make([]*buildqueuestate.WorkerState, 0, len(keyListRegion))
 	for _, key := range keyListRegion {
 		workerKey := workerKey(key)
 		w := pq.workers[workerKey]
-		var currentOperation *BasicOperationState
+		var currentOperation *buildqueuestate.OperationState
 		if t := w.getCurrentTask(); t != nil {
 			// A task may have more than one operation
 			// associated with it, in case deduplication of
@@ -768,23 +792,27 @@ func (bq *InMemoryBuildQueue) ListWorkerState(instanceName digest.InstanceName, 
 					o = oCheck
 				}
 			}
-			currentOperation = o.getBasicOperationState(bq)
+			currentOperation = o.getOperationState(bq)
+			currentOperation.PlatformQueueName = nil
 		}
 		workerID := workerKey.getWorkerID()
-		results = append(results, WorkerState{
-			WorkerID:         workerID,
+		workers = append(workers, &buildqueuestate.WorkerState{
+			Id:               workerID,
 			Timeout:          bq.cleanupQueue.getTimestamp(w.cleanupKey),
 			CurrentOperation: currentOperation,
 			Drained:          w.isDrained(pq, workerID),
 		})
 	}
-	return results, paginationInfo, nil
+	return &buildqueuestate.ListWorkersResponse{
+		Workers:        workers,
+		PaginationInfo: paginationInfo,
+	}, nil
 }
 
-// ListDrainState returns a list of all the drains that are present
-// within a given platform queue.
-func (bq *InMemoryBuildQueue) ListDrainState(instanceName digest.InstanceName, platform *remoteexecution.Platform) ([]DrainState, error) {
-	platformKey, err := newPlatformKey(instanceName, platform)
+// ListDrains returns a list of all the drains that are present within a
+// given platform queue.
+func (bq *InMemoryBuildQueue) ListDrains(ctx context.Context, request *buildqueuestate.ListDrainsRequest) (*buildqueuestate.ListDrainsResponse, error) {
+	platformKey, err := newPlatformKeyFromName(request.PlatformQueueName)
 	if err != nil {
 		return nil, err
 	}
@@ -805,21 +833,23 @@ func (bq *InMemoryBuildQueue) ListDrainState(instanceName digest.InstanceName, p
 	sort.Strings(keyList)
 
 	// Extract drains.
-	results := make([]DrainState, 0, len(keyList))
+	drains := make([]*buildqueuestate.DrainState, 0, len(keyList))
 	for _, key := range keyList {
-		results = append(results, pq.drains[key])
+		drains = append(drains, pq.drains[key])
 	}
-	return results, nil
+	return &buildqueuestate.ListDrainsResponse{
+		Drains: drains,
+	}, nil
 }
 
-func (bq *InMemoryBuildQueue) modifyDrain(instanceName digest.InstanceName, platform *remoteexecution.Platform, workerIDPattern map[string]string, modifyFunc func(pq *platformQueue, drainKey string)) error {
-	platformKey, err := newPlatformKey(instanceName, platform)
+func (bq *InMemoryBuildQueue) modifyDrain(request *buildqueuestate.AddOrRemoveDrainRequest, modifyFunc func(pq *platformQueue, drainKey string)) (*empty.Empty, error) {
+	platformKey, err := newPlatformKeyFromName(request.PlatformQueueName)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	drainKey, err := json.Marshal(workerIDPattern)
+	drainKey, err := json.Marshal(request.WorkerIdPattern)
 	if err != nil {
-		return util.StatusWrapWithCode(err, codes.InvalidArgument, "Failed to marshal worker ID pattern")
+		return nil, util.StatusWrapWithCode(err, codes.InvalidArgument, "Failed to marshal worker ID pattern")
 	}
 
 	bq.enter(bq.clock.Now())
@@ -827,43 +857,43 @@ func (bq *InMemoryBuildQueue) modifyDrain(instanceName digest.InstanceName, plat
 
 	pq, ok := bq.platformQueues[platformKey]
 	if !ok {
-		return status.Error(codes.NotFound, "No workers for this instance name and platform exist")
+		return nil, status.Error(codes.NotFound, "No workers for this instance name and platform exist")
 	}
 	modifyFunc(pq, string(drainKey))
 	close(pq.drainsWakeup)
 	pq.drainsWakeup = make(chan struct{})
-	return nil
+	return &empty.Empty{}, nil
 }
 
 // AddDrain inserts a new drain into the list of drains currently
 // tracked by the platform queue.
-func (bq *InMemoryBuildQueue) AddDrain(instanceName digest.InstanceName, platform *remoteexecution.Platform, workerIDPattern map[string]string) error {
-	return bq.modifyDrain(instanceName, platform, workerIDPattern, func(pq *platformQueue, drainKey string) {
-		pq.drains[drainKey] = DrainState{
-			WorkerIDPattern:   workerIDPattern,
-			CreationTimestamp: bq.now,
+func (bq *InMemoryBuildQueue) AddDrain(ctx context.Context, request *buildqueuestate.AddOrRemoveDrainRequest) (*empty.Empty, error) {
+	return bq.modifyDrain(request, func(pq *platformQueue, drainKey string) {
+		pq.drains[drainKey] = &buildqueuestate.DrainState{
+			WorkerIdPattern:  request.WorkerIdPattern,
+			CreatedTimestamp: bq.getCurrentTime(),
 		}
 	})
 }
 
 // RemoveDrain removes a drain from the list of drains currently tracked
 // by the platform queue.
-func (bq *InMemoryBuildQueue) RemoveDrain(instanceName digest.InstanceName, platform *remoteexecution.Platform, workerIDPattern map[string]string) error {
-	return bq.modifyDrain(instanceName, platform, workerIDPattern, func(pq *platformQueue, drainKey string) {
+func (bq *InMemoryBuildQueue) RemoveDrain(ctx context.Context, request *buildqueuestate.AddOrRemoveDrainRequest) (*empty.Empty, error) {
+	return bq.modifyDrain(request, func(pq *platformQueue, drainKey string) {
 		delete(pq.drains, drainKey)
 	})
 }
 
-// MarkTerminatingAndWait can be used to indicate that workers are going
-// to be terminated in the nearby future. This function will block until
-// any operations running on the workers complete, thereby allowing the
+// TerminateWorkers can be used to indicate that workers are going to be
+// terminated in the nearby future. This function will block until any
+// operations running on the workers complete, thereby allowing the
 // workers to be terminated without interrupting operations.
-func (bq *InMemoryBuildQueue) MarkTerminatingAndWait(workerIDPattern map[string]string) {
+func (bq *InMemoryBuildQueue) TerminateWorkers(ctx context.Context, request *buildqueuestate.TerminateWorkersRequest) (*empty.Empty, error) {
 	var completionWakeups []chan struct{}
 	bq.enter(bq.clock.Now())
 	for _, pq := range bq.platformQueues {
 		for workerKey, w := range pq.workers {
-			if workerMatchesPattern(workerKey.getWorkerID(), workerIDPattern) {
+			if workerMatchesPattern(workerKey.getWorkerID(), request.WorkerIdPattern) {
 				w.terminating = true
 				if t := w.getCurrentTask(); t != nil {
 					completionWakeups = append(completionWakeups, t.completionWakeup)
@@ -874,8 +904,15 @@ func (bq *InMemoryBuildQueue) MarkTerminatingAndWait(workerIDPattern map[string]
 	bq.leave()
 
 	for _, completionWakeup := range completionWakeups {
-		<-completionWakeup
+		select {
+		case <-completionWakeup:
+			// Worker has become idle.
+		case <-ctx.Done():
+			// Client has canceled the request.
+			return nil, util.StatusFromContext(ctx)
+		}
 	}
+	return &empty.Empty{}, nil
 }
 
 // getNextSynchronizationAtDelay generates a timestamp that is attached
@@ -955,16 +992,19 @@ func (h platformKeyList) Swap(i, j int) {
 	h[i], h[j] = h[j], h[i]
 }
 
-// getPlatform reobtains the Platform message that was used to construct
-// the platformKey. As this is only used infrequently, we don't bother
-// keeping the unmarshalled Platform message around to preserve memory
-// usage.
-func (k *platformKey) getPlatform() *remoteexecution.Platform {
+// getPlatformQueueName reobtains the instance name Platform message
+// that was used to construct the platformKey. As this is only used
+// infrequently, we don't bother keeping the unmarshalled Platform
+// message around to preserve memory usage.
+func (k *platformKey) getPlatformQueueName() *buildqueuestate.PlatformQueueName {
 	var platform remoteexecution.Platform
 	if err := jsonpb.UnmarshalString(k.platform, &platform); err != nil {
 		panic(fmt.Sprintf("Failed to unmarshal previously marshalled platform: %s", err))
 	}
-	return &platform
+	return &buildqueuestate.PlatformQueueName{
+		InstanceName: k.instanceName.String(),
+		Platform:     &platform,
+	}
 }
 
 func newPlatformKey(instanceName digest.InstanceName, platform *remoteexecution.Platform) (platformKey, error) {
@@ -983,12 +1023,23 @@ func newPlatformKey(instanceName digest.InstanceName, platform *remoteexecution.
 	marshaler := jsonpb.Marshaler{}
 	platformString, err := marshaler.MarshalToString(platform)
 	if err != nil {
-		util.StatusWrapWithCode(err, codes.InvalidArgument, "Failed to marshal platform message")
+		return platformKey{}, util.StatusWrapWithCode(err, codes.InvalidArgument, "Failed to marshal platform message")
 	}
 	return platformKey{
 		instanceName: instanceName,
 		platform:     platformString,
 	}, nil
+}
+
+func newPlatformKeyFromName(name *buildqueuestate.PlatformQueueName) (platformKey, error) {
+	if name == nil {
+		return platformKey{}, status.Error(codes.InvalidArgument, "No platform queue name provided")
+	}
+	instanceName, err := digest.NewInstanceName(name.InstanceName)
+	if err != nil {
+		return platformKey{}, util.StatusWrapf(err, "Invalid instance name %#v", name.InstanceName)
+	}
+	return newPlatformKey(instanceName, name.Platform)
 }
 
 // inFlightDeduplicationKey can be used as a key for maps to uniquely
@@ -1014,7 +1065,7 @@ type platformQueue struct {
 	workers                  map[workerKey]*worker
 	cleanupKey               cleanupKey
 
-	drains       map[string]DrainState
+	drains       map[string]*buildqueuestate.DrainState
 	drainsWakeup chan struct{}
 
 	// Prometheus metrics.
@@ -1048,7 +1099,7 @@ func newPlatformQueue(platformKey platformKey) *platformQueue {
 		queuedInvocationsWakeup:  make(chan struct{}, 1),
 		workers:                  map[workerKey]*worker{},
 
-		drains:       map[string]DrainState{},
+		drains:       map[string]*buildqueuestate.DrainState{},
 		drainsWakeup: make(chan struct{}),
 
 		tasksQueuedTotal:              inMemoryBuildQueueTasksQueuedTotal.WithLabelValues(instanceName, platformKey.platform),
@@ -1079,7 +1130,7 @@ func (w *worker) isDrained(pq *platformQueue, workerID map[string]string) bool {
 		return true
 	}
 	for _, drain := range pq.drains {
-		if workerMatchesPattern(workerID, drain.WorkerIDPattern) {
+		if workerMatchesPattern(workerID, drain.WorkerIdPattern) {
 			return true
 		}
 	}
@@ -1311,17 +1362,19 @@ type invocation struct {
 	queueIndex    int
 
 	queuedOperations         queuedOperationsHeap
-	executingOperationsCount int
+	executingOperationsCount uint32
 }
 
-func (i *invocation) getInvocationState(bq *InMemoryBuildQueue) *InvocationState {
-	is := &InvocationState{
-		InvocationID:             i.invocationID,
-		QueuedOperationsCount:    i.queuedOperations.Len(),
+func (i *invocation) getInvocationState(bq *InMemoryBuildQueue) *buildqueuestate.InvocationState {
+	is := &buildqueuestate.InvocationState{
+		Id:                       i.invocationID,
+		QueuedOperationsCount:    uint32(i.queuedOperations.Len()),
 		ExecutingOperationsCount: i.executingOperationsCount,
 	}
 	if is.QueuedOperationsCount > 0 {
-		is.FirstQueuedOperation = i.queuedOperations[0].getQueuedOperationState(bq)
+		is.FirstQueuedOperation = i.queuedOperations[0].operation.getOperationState(bq)
+		is.FirstQueuedOperation.PlatformQueueName = nil
+		is.FirstQueuedOperation.InvocationId = ""
 	}
 	return is
 }
@@ -1329,13 +1382,6 @@ func (i *invocation) getInvocationState(bq *InMemoryBuildQueue) *InvocationState
 type queuedOperationsEntry struct {
 	priority  int32
 	operation *operation
-}
-
-func (e *queuedOperationsEntry) getQueuedOperationState(bq *InMemoryBuildQueue) *QueuedOperationState {
-	return &QueuedOperationState{
-		BasicOperationState: *e.operation.getBasicOperationState(bq),
-		Priority:            e.priority,
-	}
 }
 
 // decrementExecutingOperationsCount decrements the number of operations
@@ -1556,29 +1602,35 @@ func (o *operation) remove(bq *InMemoryBuildQueue) {
 	delete(t.operations, o.invocation)
 }
 
-func (o *operation) getBasicOperationState(bq *InMemoryBuildQueue) *BasicOperationState {
+func (o *operation) getOperationState(bq *InMemoryBuildQueue) *buildqueuestate.OperationState {
+	i := o.invocation
 	t := o.task
-	queuedTimestamp, err := ptypes.Timestamp(t.desiredState.QueuedTimestamp)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to parse previously generated timestamp: %s", err))
+	s := &buildqueuestate.OperationState{
+		Name:              o.name,
+		PlatformQueueName: i.platformQueue.platformKey.getPlatformQueueName(),
+		InvocationId:      i.invocationID,
+		QueuedTimestamp:   t.desiredState.QueuedTimestamp,
+		ActionDigest:      t.desiredState.ActionDigest,
+		Argv0:             t.argv0,
+		Timeout:           bq.cleanupQueue.getTimestamp(o.cleanupKey),
 	}
-	return &BasicOperationState{
-		Name:            o.name,
-		QueuedTimestamp: queuedTimestamp,
-		ActionDigest:    t.desiredState.ActionDigest,
-		Argv0:           t.argv0,
-		Timeout:         bq.cleanupQueue.getTimestamp(o.cleanupKey),
+	switch t.getStage() {
+	case remoteexecution.ExecutionStage_QUEUED:
+		s.Stage = &buildqueuestate.OperationState_Queued_{
+			Queued: &buildqueuestate.OperationState_Queued{
+				Priority: i.queuedOperations[o.queueIndex].priority,
+			},
+		}
+	case remoteexecution.ExecutionStage_EXECUTING:
+		s.Stage = &buildqueuestate.OperationState_Executing{
+			Executing: &empty.Empty{},
+		}
+	case remoteexecution.ExecutionStage_COMPLETED:
+		s.Stage = &buildqueuestate.OperationState_Completed{
+			Completed: t.executeResponse,
+		}
 	}
-}
-
-func (o *operation) getDetailedOperationState(bq *InMemoryBuildQueue) *DetailedOperationState {
-	t := o.task
-	return &DetailedOperationState{
-		BasicOperationState: *o.getBasicOperationState(bq),
-		InstanceName:        t.instanceName,
-		Stage:               t.getStage(),
-		ExecuteResponse:     t.executeResponse,
-	}
+	return s
 }
 
 // Task state that is created for every piece of work that needs to be
@@ -1591,11 +1643,10 @@ type task struct {
 	platformQueue *platformQueue
 	desiredState  remoteworker.DesiredState_Executing
 
-	// These fields are not strictly necessary to implement the
-	// BuildQueue and OperationQueueServer interfaces. They need to
-	// be present to implement BuildQueueStateProvider.
-	instanceName digest.InstanceName
-	argv0        string
+	// This field is not strictly necessary to implement the
+	// BuildQueue and OperationQueueServer interfaces. It needs to
+	// be present to implement BuildQueueState.
+	argv0 string
 
 	// currentStageStartTime is used by register*StageFinished() to
 	// obtain Prometheus metrics.
@@ -1923,10 +1974,13 @@ func (q *cleanupQueue) run(now time.Time) {
 	}
 }
 
-func (q *cleanupQueue) getTimestamp(key cleanupKey) *time.Time {
+func (q *cleanupQueue) getTimestamp(key cleanupKey) *timestamp.Timestamp {
 	if key == 0 {
 		return nil
 	}
-	t := q.heap[key-1].timestamp
-	return &t
+	t, err := ptypes.TimestampProto(q.heap[key-1].timestamp)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to compute cleanup key timestamp: %s", err))
+	}
+	return t
 }

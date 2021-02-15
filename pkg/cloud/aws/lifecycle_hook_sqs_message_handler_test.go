@@ -71,6 +71,29 @@ func TestLifecycleHookSQSMessageHandler(t *testing.T) {
 			}`))
 	})
 
+	t.Run("EC2InstanceTerminatingHandlerFailure", func(t *testing.T) {
+		// The handler for EC2 instance termination events had a
+		// failure. We should not call out to complete the
+		// lifecycle action.
+		handler.EXPECT().HandleEC2InstanceTerminating("i-59042803948349524").
+			Return(status.Error(codes.Internal, "Failed to release EC2 instance"))
+
+		require.Equal(
+			t,
+			status.Error(codes.Internal, "Failed to release EC2 instance"),
+			smh.HandleMessage(`{
+				"AccountId": "059843095823",
+				"AutoScalingGroupName": "MyClusterASGName",
+				"EC2InstanceId": "i-59042803948349524",
+				"LifecycleActionToken": "2c0d4442-c2bf-4ee5-9685-d8c11f840723",
+				"LifecycleHookName": "MyClusterTerminationHook",
+				"LifecycleTransition": "autoscaling:EC2_INSTANCE_TERMINATING",
+				"RequestId": "0ce01006-a243-406a-8e5a-5b8bd6cfe587",
+				"Service": "AWS Auto Scaling",
+				"Time": "2020-01-01T01:01:00.000Z"
+			}`))
+	})
+
 	t.Run("EC2InstanceTerminatingCompletionStale", func(t *testing.T) {
 		// An EC2_INSTANCE_TERMINATING lifecycle event that
 		// already spent so much time in the queue, that it can

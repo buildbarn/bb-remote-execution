@@ -24,7 +24,7 @@ var _ AutoScaling = (*autoscaling.AutoScaling)(nil)
 // for every valid lifecycle event message received through SQS. Right
 // now only termination events are forwarded.
 type LifecycleHookHandler interface {
-	HandleEC2InstanceTerminating(instanceID string)
+	HandleEC2InstanceTerminating(instanceID string) error
 }
 
 // lifecycleHookMessage is a message that Amazon Auto Scaling Groups
@@ -71,7 +71,9 @@ func (smh *lifecycleHookSQSMessageHandler) HandleMessage(body string) error {
 	}
 
 	// Invoke the handler.
-	smh.handler.HandleEC2InstanceTerminating(message.EC2InstanceID)
+	if err := smh.handler.HandleEC2InstanceTerminating(message.EC2InstanceID); err != nil {
+		return err
+	}
 
 	// Allow AWS to go ahead with termination of the EC2 instance.
 	if _, err := smh.autoScaling.CompleteLifecycleAction(&autoscaling.CompleteLifecycleActionInput{

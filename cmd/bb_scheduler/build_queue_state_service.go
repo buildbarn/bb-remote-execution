@@ -1,22 +1,25 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"html/template"
 	"log"
 	"net/http"
 	"net/url"
-	"reflect"
 	"strconv"
 	"time"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
-	"github.com/buildbarn/bb-remote-execution/pkg/builder"
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/buildqueuestate"
 	re_util "github.com/buildbarn/bb-remote-execution/pkg/util"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/golang/protobuf/jsonpb"
+	"github.com/golang/protobuf/ptypes"
+	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/gorilla/mux"
 
 	"google.golang.org/grpc/status"
@@ -40,25 +43,54 @@ var (
 			}
 			return s
 		},
-		"action_url": func(browserURL *url.URL, instanceName digest.InstanceName, actionDigest *remoteexecution.Digest) string {
-			d, err := instanceName.NewDigestFromProto(actionDigest)
+		"action_url": func(browserURL *url.URL, instanceName string, actionDigest *remoteexecution.Digest) string {
+			i, err := digest.NewInstanceName(instanceName)
+			if err != nil {
+				return ""
+			}
+			d, err := i.NewDigestFromProto(actionDigest)
 			if err != nil {
 				return ""
 			}
 			return re_util.GetBrowserURL(browserURL, "action", d)
 		},
-		"last_element": func(s interface{}) interface{} {
-			v := reflect.ValueOf(s)
-			if l := v.Len(); l > 0 {
-				return v.Index(l - 1).Interface()
+		"operation_stage_queued": func(o *buildqueuestate.OperationState) *buildqueuestate.OperationState_Queued {
+			if s, ok := o.Stage.(*buildqueuestate.OperationState_Queued_); ok {
+				return s.Queued
+			}
+			return nil
+		},
+		"operation_stage_executing": func(o *buildqueuestate.OperationState) *empty.Empty {
+			if s, ok := o.Stage.(*buildqueuestate.OperationState_Executing); ok {
+				return s.Executing
+			}
+			return nil
+		},
+		"operation_stage_completed": func(o *buildqueuestate.OperationState) *remoteexecution.ExecuteResponse {
+			if s, ok := o.Stage.(*buildqueuestate.OperationState_Completed); ok {
+				return s.Completed
 			}
 			return nil
 		},
 		"proto_to_json":          jsonpbMarshaler.MarshalToString,
 		"proto_to_indented_json": jsonpbIndentedMarshaler.MarshalToString,
 		"error_proto":            status.ErrorProto,
-		"to_duration": func(large, small time.Time) string {
-			return large.Sub(small).Truncate(time.Second).String()
+		"time_future": func(t *timestamp.Timestamp, now time.Time) string {
+			if t == nil {
+				return "∞"
+			}
+			ts, err := ptypes.Timestamp(t)
+			if err != nil {
+				return "?"
+			}
+			return ts.Sub(now).Truncate(time.Second).String()
+		},
+		"time_past": func(t *timestamp.Timestamp, now time.Time) string {
+			ts, err := ptypes.Timestamp(t)
+			if err != nil {
+				return "?"
+			}
+			return now.Sub(ts).Truncate(time.Second).String()
 		},
 		"to_json": func(v interface{}) (string, error) {
 			b, err := json.Marshal(v)
@@ -89,7 +121,7 @@ var (
   </head>
   <body>
     <h1>Buildbarn Scheduler</h1>
-    <p>Total number of operations: <a href="operations">{{.State.OperationsCount}}</a></p>
+    <p>Total number of operations: <a href="operations">{{.OperationsCount}}</a></p>
     <h2>Platform queues</h2>
     <table>
       <thead>
@@ -103,24 +135,25 @@ var (
         </tr>
       </thead>
       {{$now := .Now}}
-      {{range .State.PlatformQueues}}
-        {{$platform := proto_to_json .Platform}}
+      {{range .PlatformQueues}}
+        {{$platform := proto_to_json .Name.Platform}}
         <tr>
-          <td>{{.InstanceName.String | printf "%#v"}}</td>
+          <td>{{.Name.GetInstanceName | printf "%#v"}}</td>
           <td>{{$platform}}</td>
-          <td>{{with .Timeout}}{{to_duration . $now}}{{else}}∞{{end}}</td>
+          <td>{{time_future .Timeout $now}}</td>
+          {{$platformQueueName := proto_to_json .Name}}
           <td>
-            <a href="invocations?instance_name={{.InstanceName}}&amp;platform={{$platform}}&amp;just_queued_invocations=true">{{.QueuedInvocationsCount}}</a>
+            <a href="invocations?platform_queue_name={{$platformQueueName}}&amp;just_queued_invocations=true">{{.QueuedInvocationsCount}}</a>
             /
-            <a href="invocations?instance_name={{.InstanceName}}&amp;platform={{$platform}}">{{.InvocationsCount}}</a>
+            <a href="invocations?platform_queue_name={{$platformQueueName}}">{{.InvocationsCount}}</a>
           </td>
           <td>
-            <a href="workers?instance_name={{.InstanceName}}&amp;platform={{$platform}}&amp;just_executing_workers=true">{{.ExecutingWorkersCount}}</a>
+            <a href="workers?platform_queue_name={{$platformQueueName}}&amp;just_executing_workers=true">{{.ExecutingWorkersCount}}</a>
             /
-            <a href="workers?instance_name={{.InstanceName}}&amp;platform={{$platform}}">{{.WorkersCount}}</a>
+            <a href="workers?platform_queue_name={{$platformQueueName}}">{{.WorkersCount}}</a>
           </td>
           <td>
-            <a href="drains?instance_name={{.InstanceName}}&amp;platform={{$platform}}">{{.DrainsCount}}</a>
+            <a href="drains?platform_queue_name={{$platformQueueName}}">{{.DrainsCount}}</a>
           </td>
         </tr>
       {{end}}
@@ -128,53 +161,55 @@ var (
   </body>
 </html>
 `))
-	getDetailedOperationStateTemplate = template.Must(template.New("GetDetailedOperationState").Funcs(templateFuncMap).Parse(`
+	getOperationStateTemplate = template.Must(template.New("GetOperationState").Funcs(templateFuncMap).Parse(`
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Operation {{.DetailedOperation.Name}}</title>
+    <title>Operation {{.OperationName}}</title>
     <style>
       html { font-family: sans-serif; }
     </style>
   </head>
   <body>
-    <h1>Operation {{.DetailedOperation.Name}}</h1>
+    <h1>Operation {{.OperationName}}</h1>
     {{$now := .Now}}
-    <p>Age: {{to_duration $now .DetailedOperation.QueuedTimestamp}}<br/>
-    Timeout: {{with .DetailedOperation.Timeout}}{{to_duration . $now}}{{else}}∞{{end}}<br/>
-    Instance name: {{.DetailedOperation.InstanceName.String | printf "%#v"}}<br/>
-    Action digest: <a href="{{action_url .BrowserURL .DetailedOperation.InstanceName .DetailedOperation.ActionDigest}}">{{proto_to_json .DetailedOperation.ActionDigest}}</a><br/>
-    Argv[0]: {{.DetailedOperation.Argv0}}<br/>
+    <p>Instance name: {{.Operation.PlatformQueueName.InstanceName | printf "%#v"}}<br/>
+    Platform: {{proto_to_json .Operation.PlatformQueueName.Platform}}<br/>
+    Invocation ID: {{.Operation.InvocationId | printf "%#v"}}<br/>
+    Action digest: <a href="{{action_url .BrowserURL .Operation.PlatformQueueName.InstanceName .Operation.ActionDigest}}">{{proto_to_json .Operation.ActionDigest}}</a><br/>
+    Age: {{time_past .Operation.QueuedTimestamp $now}}<br/>
+    Timeout: {{time_future .Operation.Timeout $now}}<br/>
+    Argv[0]: {{.Operation.Argv0}}<br/>
     Stage:
-      {{with .DetailedOperation.ExecuteResponse}}
-        {{with error_proto .Status}}
-          Failed with {{.}}
-        {{else}}
-          {{with .Result}}
-            Completed with exit code {{.ExitCode}}
-          {{else}}
-            Action result missing
-          {{end}}
-        {{end}}
+      {{with operation_stage_queued .Operation}}
+        Queued at priority {{.Priority}}
       {{else}}
-        {{if eq .DetailedOperation.Stage 2}}
-          Queued
+        {{with operation_stage_executing .Operation}}
+          Executing
         {{else}}
-          {{if eq .DetailedOperation.Stage 3}}
-            Executing
+          {{with operation_stage_completed .Operation}}
+            {{with error_proto .Status}}
+              Failed with {{.}}
+            {{else}}
+              {{with .Result}}
+                Completed with exit code {{.ExitCode}}
+              {{else}}
+                Action result missing
+              {{end}}
+            {{end}}
           {{else}}
             Unknown
           {{end}}
         {{end}}
       {{end}}
     </p>
-    {{with .DetailedOperation.ExecuteResponse}}
+    {{with operation_stage_completed .Operation}}
       <h2>Execute response</h2>
       <pre>{{proto_to_indented_json .}}</pre>
     {{else}}
       <form action="kill_operation" method="post">
         <p>
-          <input name="name" type="hidden" value="{{.DetailedOperation.Name}}"/>
+          <input name="name" type="hidden" value="{{.OperationName}}"/>
           <input type="submit" value="Kill operation"/>
         </p>
       </form>
@@ -182,7 +217,7 @@ var (
   </body>
 </html>
 `))
-	listDetailedOperationStateTemplate = template.Must(template.New("ListDetailedOperationState").Funcs(templateFuncMap).Parse(`
+	listOperationStateTemplate = template.Must(template.New("ListOperationState").Funcs(templateFuncMap).Parse(`
 <!DOCTYPE html>
 <html>
   <head>
@@ -197,9 +232,9 @@ var (
   </head>
   <body>
     <h1>All operations</h1>
-    <p>Showing operations [{{.PaginationInfo.StartIndex}}, {{.PaginationInfo.EndIndex}}) of {{.PaginationInfo.TotalEntries}} in total.
-      {{with last_element .DetailedOperations}}
-        <a href="?start_after_operation={{.Name}}">&gt;&gt;&gt;</a>
+    <p>Showing operations [{{.PaginationInfo.StartIndex}}, {{.EndIndex}}) of {{.PaginationInfo.TotalEntries}} in total.
+      {{with .StartAfter}}
+        <a href="?start_after={{proto_to_json .}}">&gt;&gt;&gt;</a>
       {{end}}
     </p>
     <table>
@@ -214,36 +249,36 @@ var (
       </thead>
       {{$browserURL := .BrowserURL}}
       {{$now := .Now}}
-      {{range .DetailedOperations}}
+      {{range .Operations}}
         <tr>
-          <td>{{with .Timeout}}{{to_duration . $now}}{{else}}∞{{end}}</td>
+          <td>{{time_future .Timeout $now}}</td>
           <td style="background-color: {{to_background_color .Name}}">
             <a class="text-monospace" href="operation?name={{.Name}}" style="color: {{to_foreground_color .Name}}">{{abbreviate .Name}}</a>
           </td>
           <td style="background-color: {{to_background_color .ActionDigest.Hash}}">
-            <a class="text-monospace" href="{{action_url $browserURL .InstanceName .ActionDigest}}" style="color: {{to_foreground_color .ActionDigest.Hash}}">{{abbreviate .ActionDigest.Hash}}</a>
+            <a class="text-monospace" href="{{action_url $browserURL .PlatformQueueName.InstanceName .ActionDigest}}" style="color: {{to_foreground_color .ActionDigest.Hash}}">{{abbreviate .ActionDigest.Hash}}</a>
           </td>
           <td>{{.Argv0}}</td>
-          {{with .ExecuteResponse}}
-            {{with error_proto .Status}}
-              <td style="background-color: red">Failed with {{.}}</td>
-            {{else}}
-              {{with .Result}}
-                {{if eq .ExitCode 0}}
-                  <td style="background-color: lightgreen">Completed with exit code {{.ExitCode}}</td>
-                {{else}}
-                  <td style="background-color: orange">Completed with exit code {{.ExitCode}}</td>
-                {{end}}
-              {{else}}
-                <td style="background-color: red">Action result missing</td>
-              {{end}}
-            {{end}}
+          {{with operation_stage_queued .}}
+            <td>Queued at priority {{.Priority}}</td>
           {{else}}
-            {{if eq .Stage 2}}
-              <td>Queued</td>
+            {{with operation_stage_executing .}}
+              <td style="background-color: lightblue">Executing</td>
             {{else}}
-              {{if eq .Stage 3}}
-                <td style="background-color: lightblue">Executing</td>
+              {{with operation_stage_completed .}}
+                {{with error_proto .Status}}
+                  <td style="background-color: red">Failed with {{.}}</td>
+                {{else}}
+                  {{with .Result}}
+                    {{if eq .ExitCode 0}}
+                      <td style="background-color: lightgreen">Completed with exit code {{.ExitCode}}</td>
+                    {{else}}
+                      <td style="background-color: orange">Completed with exit code {{.ExitCode}}</td>
+                    {{end}}
+                  {{else}}
+                    <td style="background-color: red">Action result missing</td>
+                  {{end}}
+                {{end}}
               {{else}}
                 <td style="background-color: red">Unknown</td>
               {{end}}
@@ -270,10 +305,8 @@ var (
   </head>
   <body>
     <h1>{{if .JustQueuedInvocations}}Queued{{else}}All{{end}} invocations</h1>
-    {{$instanceName := .InstanceName}}
-    <p>Instance name: {{$instanceName.String | printf "%#v"}}<br/>
-    {{$platform := proto_to_json .Platform}}
-    Platform: {{$platform}}<br/></p>
+    <p>Instance name: {{.PlatformQueueName.InstanceName | printf "%#v"}}<br/>
+    Platform: {{proto_to_json .PlatformQueueName.Platform}}</p>
     <table>
       <thead>
         <tr>
@@ -285,15 +318,16 @@ var (
         </tr>
       </thead>
       {{$now := .Now}}
+      {{$platformQueueName := .PlatformQueueName}}
       {{range .Invocations}}
         <tr>
-          <td>{{.InvocationID | printf "%#v"}}</td>
-          <td><a href="queued_operations?instance_name={{$instanceName}}&amp;platform={{$platform}}&amp;invocation_id={{.InvocationID}}">{{.QueuedOperationsCount}}</a></td>
+          <td>{{.Id | printf "%#v"}}</td>
+          <td><a href="queued_operations?platform_queue_name={{proto_to_json $platformQueueName}}&amp;invocation_id={{.Id}}">{{.QueuedOperationsCount}}</a></td>
           {{with .FirstQueuedOperation}}
-            <td>{{.Priority}}</td>
-            <td>{{to_duration $now .QueuedTimestamp}}</td>
+            <td>{{with operation_stage_queued .}}{{.Priority}}{{else}}Unknown{{end}}</td>
+            <td>{{time_past .QueuedTimestamp $now}}</td>
           {{else}}
-            <td colspan="2">no operations queued</td>
+            <td colspan="2">No operations queued</td>
           {{end}}
           <td>{{.ExecutingOperationsCount}}</td>
         </tr>
@@ -317,15 +351,14 @@ var (
   </head>
   <body>
     <h1>Queued operations</h1>
-    {{$instanceName := .InstanceName}}
-    <p>Instance name: {{$instanceName.String | printf "%#v"}}<br/>
-    {{$platform := proto_to_json .Platform}}
-    Platform: {{$platform}}<br/>
+    {{$platformQueueName := .PlatformQueueName}}
+    <p>Instance name: {{$platformQueueName.InstanceName | printf "%#v"}}<br/>
+    Platform: {{proto_to_json $platformQueueName.Platform}}<br/>
     {{$invocationID := .InvocationID}}
     Invocation ID: {{$invocationID | printf "%#v"}}</p>
-    <p>Showing queued operations [{{.PaginationInfo.StartIndex}}, {{.PaginationInfo.EndIndex}}) of {{.PaginationInfo.TotalEntries}} in total.
-      {{with last_element .QueuedOperations}}
-        <a href="?instance_name={{$instanceName}}&amp;platform={{$platform}}&amp;invocation_id={{$invocationID}}&amp;start_after_priority={{.Priority}}&amp;start_after_queued_timestamp={{to_json .QueuedTimestamp}}">&gt;&gt;&gt;</a>
+    <p>Showing queued operations [{{.PaginationInfo.StartIndex}}, {{.EndIndex}}) of {{.PaginationInfo.TotalEntries}} in total.
+      {{with .StartAfter}}
+        <a href="?platform_queue_name={{proto_to_json $platformQueueName}}&amp;invocation_id={{$invocationID}}&amp;start_after={{proto_to_json .}}">&gt;&gt;&gt;</a>
       {{end}}
     </p>
     <table>
@@ -343,14 +376,14 @@ var (
       {{$now := .Now}}
       {{range .QueuedOperations}}
         <tr>
-          <td>{{.Priority}}</td>
-          <td>{{to_duration $now .QueuedTimestamp}}</td>
-          <td>{{with .Timeout}}{{to_duration . $now}}{{else}}∞{{end}}</td>
+          <td>{{with operation_stage_queued .}}{{.Priority}}{{else}}Unknown{{end}}</td>
+          <td>{{time_past .QueuedTimestamp $now}}</td>
+          <td>{{time_future .Timeout $now}}</td>
           <td style="background-color: {{to_background_color .Name}}">
             <a class="text-monospace" href="operation?name={{.Name}}" style="color: {{to_foreground_color .Name}}">{{abbreviate .Name}}</a>
           </td>
           <td style="background-color: {{to_background_color .ActionDigest.Hash}}">
-            <a class="text-monospace" href="{{action_url $browserURL $instanceName .ActionDigest}}" style="color: {{to_foreground_color .ActionDigest.Hash}}">{{abbreviate .ActionDigest.Hash}}</a>
+            <a class="text-monospace" href="{{action_url $browserURL $platformQueueName.InstanceName .ActionDigest}}" style="color: {{to_foreground_color .ActionDigest.Hash}}">{{abbreviate .ActionDigest.Hash}}</a>
           </td>
           <td>{{.Argv0}}</td>
         </tr>
@@ -374,13 +407,12 @@ var (
   </head>
   <body>
     <h1>{{if .JustExecutingWorkers}}Executing{{else}}All{{end}} workers</h1>
-    {{$instanceName := .InstanceName}}
-    {{$platform := proto_to_json .Platform}}
-    <p>Instance name: {{$instanceName.String | printf "%#v"}}<br/>
-    Platform: {{$platform}}</p>
-    <p>Showing workers [{{.PaginationInfo.StartIndex}}, {{.PaginationInfo.EndIndex}}) of {{.PaginationInfo.TotalEntries}} in total.
-      {{with last_element .Workers}}
-        <a href="?instance_name={{$instanceName}}&amp;platform={{$platform}}&amp;start_after_worker_id={{to_json .WorkerID}}">&gt;&gt;&gt;</a>
+    {{$platformQueueName := .PlatformQueueName}}
+    <p>Instance name: {{$platformQueueName.InstanceName | printf "%#v"}}<br/>
+    Platform: {{proto_to_json $platformQueueName.Platform}}</p>
+    <p>Showing workers [{{.PaginationInfo.StartIndex}}, {{.EndIndex}}) of {{.PaginationInfo.TotalEntries}} in total.
+      {{with .StartAfter}}
+        <a href="?platform_queue_name={{proto_to_json $platformQueueName}}&amp;start_after={{proto_to_json .}}">&gt;&gt;&gt;</a>
       {{end}}
     </p>
     <table>
@@ -397,17 +429,17 @@ var (
       {{$browserURL := .BrowserURL}}
       {{$now := .Now}}
       {{range .Workers}}
-        {{$workerID := to_json .WorkerID}}
+        {{$workerID := to_json .Id}}
         <tr>
           <td>{{$workerID}}</td>
-          <td>{{with .Timeout}}{{to_duration . $now}}{{else}}∞{{end}}</td>
+          <td>{{with .Timeout}}{{time_future . $now}}{{else}}∞{{end}}</td>
           {{with .CurrentOperation}}
-            <td>{{with .Timeout}}{{to_duration . $now}}{{else}}∞{{end}}</td>
+            <td>{{with .Timeout}}{{time_future . $now}}{{else}}∞{{end}}</td>
             <td style="background-color: {{to_background_color .Name}}">
               <a class="text-monospace" href="operation?name={{.Name}}" style="color: {{to_foreground_color .Name}}">{{abbreviate .Name}}</a>
             </td>
             <td style="background-color: {{to_background_color .ActionDigest.Hash}}">
-              <a class="text-monospace" href="{{action_url $browserURL $instanceName .ActionDigest}}" style="color: {{to_foreground_color .ActionDigest.Hash}}">{{abbreviate .ActionDigest.Hash}}</a>
+              <a class="text-monospace" href="{{action_url $browserURL $platformQueueName.InstanceName .ActionDigest}}" style="color: {{to_foreground_color .ActionDigest.Hash}}">{{abbreviate .ActionDigest.Hash}}</a>
             </td>
             <td>{{.Argv0}}</td>
           {{else}}
@@ -433,10 +465,9 @@ var (
   </head>
   <body>
     <h1>Drains</h1>
-    {{$instanceName := .InstanceName}}
-    {{$platform := proto_to_json .Platform}}
-    <p>Instance name: {{$instanceName.String | printf "%#v"}}<br/>
-    Platform: {{$platform}}</p>
+    <p>Instance name: {{.PlatformQueueName.InstanceName | printf "%#v"}}<br/>
+    Platform: {{proto_to_json .PlatformQueueName.Platform}}</p>
+    {{$platformQueueName := proto_to_json .PlatformQueueName}}
     <table>
       <thead>
         <tr>
@@ -447,14 +478,13 @@ var (
       </thead>
       {{$now := .Now}}
       {{range .Drains}}
-        {{$workerIDPattern := to_json .WorkerIDPattern}}
+        {{$workerIDPattern := to_json .WorkerIdPattern}}
         <tr>
           <td>{{$workerIDPattern}}</td>
-          <td>{{to_duration $now .CreationTimestamp}}</td>
+          <td>{{time_past .CreatedTimestamp $now}}</td>
           <td>
             <form action="remove_drain" method="post">
-              <input name="instance_name" type="hidden" value="{{$instanceName}}"/>
-              <input name="platform" type="hidden" value="{{$platform}}"/>
+              <input name="platform_queue_name" type="hidden" value="{{$platformQueueName}}"/>
               <input name="worker_id_pattern" type="hidden" value="{{$workerIDPattern}}"/>
               <input type="submit" value="Remove"/>
             </form>
@@ -464,8 +494,7 @@ var (
     </table>
     <form action="add_drain" method="post">
       <p>
-        <input name="instance_name" type="hidden" value="{{$instanceName}}"/>
-        <input name="platform" type="hidden" value="{{$platform}}"/>
+        <input name="platform_queue_name" type="hidden" value="{{$platformQueueName}}"/>
         <input name="worker_id_pattern" type="text"/>
         <input type="submit" value="Create drain"/>
       </p>
@@ -487,12 +516,12 @@ func invertColor(s string) string {
 }
 
 type buildQueueStateService struct {
-	buildQueue builder.BuildQueueStateProvider
+	buildQueue buildqueuestate.BuildQueueStateServer
 	clock      clock.Clock
 	browserURL *url.URL
 }
 
-func newBuildQueueStateService(buildQueue builder.BuildQueueStateProvider, clock clock.Clock, browserURL *url.URL, router *mux.Router) *buildQueueStateService {
+func newBuildQueueStateService(buildQueue buildqueuestate.BuildQueueStateServer, clock clock.Clock, browserURL *url.URL, router *mux.Router) *buildQueueStateService {
 	s := &buildQueueStateService{
 		buildQueue: buildQueue,
 		clock:      clock,
@@ -500,59 +529,70 @@ func newBuildQueueStateService(buildQueue builder.BuildQueueStateProvider, clock
 	}
 	router.HandleFunc("/", s.handleGetBuildQueueState)
 	router.HandleFunc("/add_drain", s.handleAddDrain)
-	router.HandleFunc("/drains", s.handleListDrainState)
-	router.HandleFunc("/invocations", s.handleListInvocationState)
+	router.HandleFunc("/drains", s.handleListDrains)
+	router.HandleFunc("/invocations", s.handleListInvocations)
 	router.HandleFunc("/kill_operation", s.handleKillOperation)
-	router.HandleFunc("/operation", s.handleGetDetailedOperationState)
-	router.HandleFunc("/operations", s.handleListDetailedOperationState)
-	router.HandleFunc("/queued_operations", s.handleListQueuedOperationState)
+	router.HandleFunc("/operation", s.handleGetOperation)
+	router.HandleFunc("/operations", s.handleListOperations)
+	router.HandleFunc("/queued_operations", s.handleListQueuedOperations)
 	router.HandleFunc("/remove_drain", s.handleRemoveDrain)
-	router.HandleFunc("/workers", s.handleListWorkerState)
+	router.HandleFunc("/workers", s.handleListWorkers)
 	return s
 }
 
 func (s *buildQueueStateService) handleGetBuildQueueState(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+	operationsCount, err := s.buildQueue.ListOperations(ctx, &buildqueuestate.ListOperationsRequest{})
+	if err != nil {
+		http.Error(w, util.StatusWrap(err, "Failed to list platform queues").Error(), http.StatusBadRequest)
+		return
+	}
+	response, err := s.buildQueue.ListPlatformQueues(ctx, &empty.Empty{})
+	if err != nil {
+		http.Error(w, util.StatusWrap(err, "Failed to list platform queues").Error(), http.StatusBadRequest)
+		return
+	}
+
 	if err := getBuildQueueStateTemplate.Execute(w, struct {
-		Now   time.Time
-		State *builder.BuildQueueState
+		Now             time.Time
+		PlatformQueues  []*buildqueuestate.PlatformQueueState
+		OperationsCount uint32
 	}{
-		Now:   s.clock.Now(),
-		State: s.buildQueue.GetBuildQueueState(),
+		Now:             s.clock.Now(),
+		PlatformQueues:  response.PlatformQueues,
+		OperationsCount: operationsCount.PaginationInfo.TotalEntries,
 	}); err != nil {
 		log.Print(err)
 	}
 }
 
-func (s *buildQueueStateService) handleListInvocationState(w http.ResponseWriter, req *http.Request) {
+func (s *buildQueueStateService) handleListInvocations(w http.ResponseWriter, req *http.Request) {
 	query := req.URL.Query()
-	instanceName, err := digest.NewInstanceName(query.Get("instance_name"))
-	if err != nil {
-		http.Error(w, util.StatusWrapf(err, "Invalid instance name %#v", query.Get("instance_name")).Error(), http.StatusBadRequest)
-		return
-	}
-	var platform remoteexecution.Platform
-	if err := jsonpb.UnmarshalString(query.Get("platform"), &platform); err != nil {
-		http.Error(w, util.StatusWrap(err, "Failed to extract platform").Error(), http.StatusBadRequest)
+	var platformQueueName buildqueuestate.PlatformQueueName
+	if err := jsonpb.UnmarshalString(query.Get("platform_queue_name"), &platformQueueName); err != nil {
+		http.Error(w, util.StatusWrap(err, "Failed to extract platform queue").Error(), http.StatusBadRequest)
 		return
 	}
 	justQueuedInvocations := query.Get("just_queued_invocations") != ""
 
-	invocations, err := s.buildQueue.ListInvocationState(instanceName, &platform, justQueuedInvocations)
+	ctx := req.Context()
+	response, err := s.buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
+		PlatformQueueName:     &platformQueueName,
+		JustQueuedInvocations: justQueuedInvocations,
+	})
 	if err != nil {
 		// TODO: Pick the right error code.
 		http.Error(w, util.StatusWrap(err, "Failed to list invocations state").Error(), http.StatusBadRequest)
 		return
 	}
 	if err := listInvocationStateTemplate.Execute(w, struct {
-		InstanceName          digest.InstanceName
-		Platform              *remoteexecution.Platform
-		Invocations           []builder.InvocationState
+		PlatformQueueName     *buildqueuestate.PlatformQueueName
+		Invocations           []*buildqueuestate.InvocationState
 		JustQueuedInvocations bool
 		Now                   time.Time
 	}{
-		InstanceName:          instanceName,
-		Platform:              &platform,
-		Invocations:           invocations,
+		PlatformQueueName:     &platformQueueName,
+		Invocations:           response.Invocations,
 		JustQueuedInvocations: justQueuedInvocations,
 		Now:                   s.clock.Now(),
 	}); err != nil {
@@ -562,206 +602,251 @@ func (s *buildQueueStateService) handleListInvocationState(w http.ResponseWriter
 
 func (s *buildQueueStateService) handleKillOperation(w http.ResponseWriter, req *http.Request) {
 	req.ParseForm()
-	if !s.buildQueue.KillOperation(req.FormValue("name")) {
-		http.Error(w, "Operation not found", http.StatusNotFound)
+	ctx := req.Context()
+	if _, err := s.buildQueue.KillOperation(ctx, &buildqueuestate.KillOperationRequest{
+		OperationName: req.FormValue("name"),
+	}); err != nil {
+		http.Error(w, util.StatusWrap(err, "Failed to kill operation").Error(), http.StatusBadRequest)
 		return
 	}
 	http.Redirect(w, req, req.Header.Get("Referer"), http.StatusSeeOther)
 }
 
-func (s *buildQueueStateService) handleGetDetailedOperationState(w http.ResponseWriter, req *http.Request) {
-	detailedOperation, ok := s.buildQueue.GetDetailedOperationState(req.URL.Query().Get("name"))
-	if !ok {
-		http.Error(w, "Operation not found", http.StatusNotFound)
-		return
-	}
-	if err := getDetailedOperationStateTemplate.Execute(w, struct {
-		BrowserURL        *url.URL
-		Now               time.Time
-		DetailedOperation *builder.DetailedOperationState
-	}{
-		BrowserURL:        s.browserURL,
-		Now:               s.clock.Now(),
-		DetailedOperation: detailedOperation,
-	}); err != nil {
-		log.Print(err)
-	}
-}
-
-func (s *buildQueueStateService) handleListDetailedOperationState(w http.ResponseWriter, req *http.Request) {
-	var startAfterOperation *string
-	if operationParameter := req.URL.Query().Get("start_after_operation"); operationParameter != "" {
-		startAfterOperation = &operationParameter
-	}
-
-	detailedOperations, paginationInfo := s.buildQueue.ListDetailedOperationState(pageSize, startAfterOperation)
-	if err := listDetailedOperationStateTemplate.Execute(w, struct {
-		BrowserURL         *url.URL
-		Now                time.Time
-		PaginationInfo     builder.PaginationInfo
-		DetailedOperations []builder.DetailedOperationState
-	}{
-		BrowserURL:         s.browserURL,
-		Now:                s.clock.Now(),
-		PaginationInfo:     paginationInfo,
-		DetailedOperations: detailedOperations,
-	}); err != nil {
-		log.Print(err)
-	}
-}
-
-func (s *buildQueueStateService) handleListQueuedOperationState(w http.ResponseWriter, req *http.Request) {
-	query := req.URL.Query()
-	instanceName, err := digest.NewInstanceName(query.Get("instance_name"))
+func (s *buildQueueStateService) handleGetOperation(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+	operationName := req.URL.Query().Get("name")
+	response, err := s.buildQueue.GetOperation(ctx, &buildqueuestate.GetOperationRequest{
+		OperationName: operationName,
+	})
 	if err != nil {
-		http.Error(w, util.StatusWrapf(err, "Invalid instance name %#v", query.Get("instance_name")).Error(), http.StatusBadRequest)
+		http.Error(w, util.StatusWrap(err, "Failed to get operation").Error(), http.StatusBadRequest)
 		return
 	}
-	var platform remoteexecution.Platform
-	if err := jsonpb.UnmarshalString(query.Get("platform"), &platform); err != nil {
-		http.Error(w, util.StatusWrap(err, "Failed to extract platform").Error(), http.StatusBadRequest)
-		return
+	if err := getOperationStateTemplate.Execute(w, struct {
+		BrowserURL    *url.URL
+		Now           time.Time
+		OperationName string
+		Operation     *buildqueuestate.OperationState
+	}{
+		BrowserURL:    s.browserURL,
+		Now:           s.clock.Now(),
+		OperationName: operationName,
+		Operation:     response.Operation,
+	}); err != nil {
+		log.Print(err)
 	}
-	var startAfterPriority *int32
-	if priorityParameter := query.Get("start_after_priority"); priorityParameter != "" {
-		i, err := strconv.ParseInt(priorityParameter, 10, 32)
-		if err != nil {
-			http.Error(w, util.StatusWrap(err, "Failed to extract priority offset").Error(), http.StatusBadRequest)
+}
+
+func (s *buildQueueStateService) handleListOperations(w http.ResponseWriter, req *http.Request) {
+	var startAfter *buildqueuestate.ListOperationsRequest_StartAfter
+	if startAfterParameter := req.URL.Query().Get("start_after"); startAfterParameter != "" {
+		var startAfterMessage buildqueuestate.ListOperationsRequest_StartAfter
+		if err := jsonpb.UnmarshalString(startAfterParameter, &startAfterMessage); err != nil {
+			http.Error(w, util.StatusWrap(err, "Failed to parse start after message").Error(), http.StatusBadRequest)
 			return
 		}
-		priority := int32(i)
-		startAfterPriority = &priority
-	}
-	var startAfterQueuedTimestamp *time.Time
-	if queuedTimestampParameter := query.Get("start_after_queued_timestamp"); queuedTimestampParameter != "" {
-		var queuedTimestamp time.Time
-		if err := queuedTimestamp.UnmarshalJSON([]byte(queuedTimestampParameter)); err != nil {
-			http.Error(w, util.StatusWrap(err, "Failed to extract timestamp offset").Error(), http.StatusBadRequest)
-			return
-		}
-		startAfterQueuedTimestamp = &queuedTimestamp
+		startAfter = &startAfterMessage
 	}
 
+	ctx := req.Context()
+	response, err := s.buildQueue.ListOperations(ctx, &buildqueuestate.ListOperationsRequest{
+		PageSize:   pageSize,
+		StartAfter: startAfter,
+	})
+	if err != nil {
+		http.Error(w, util.StatusWrap(err, "Failed to list operations").Error(), http.StatusBadRequest)
+		return
+	}
+
+	var nextStartAfter *buildqueuestate.ListOperationsRequest_StartAfter
+	if l := response.Operations; len(l) > 0 {
+		o := l[len(l)-1]
+		nextStartAfter = &buildqueuestate.ListOperationsRequest_StartAfter{
+			OperationName: o.Name,
+		}
+	}
+
+	if err := listOperationStateTemplate.Execute(w, struct {
+		BrowserURL     *url.URL
+		Now            time.Time
+		PaginationInfo *buildqueuestate.PaginationInfo
+		EndIndex       int
+		StartAfter     *buildqueuestate.ListOperationsRequest_StartAfter
+		Operations     []*buildqueuestate.OperationState
+	}{
+		BrowserURL:     s.browserURL,
+		Now:            s.clock.Now(),
+		PaginationInfo: response.PaginationInfo,
+		EndIndex:       int(response.PaginationInfo.StartIndex) + len(response.Operations),
+		StartAfter:     nextStartAfter,
+		Operations:     response.Operations,
+	}); err != nil {
+		log.Print(err)
+	}
+}
+
+func (s *buildQueueStateService) handleListQueuedOperations(w http.ResponseWriter, req *http.Request) {
+	query := req.URL.Query()
+	var platformQueueName buildqueuestate.PlatformQueueName
+	if err := jsonpb.UnmarshalString(query.Get("platform_queue_name"), &platformQueueName); err != nil {
+		http.Error(w, util.StatusWrap(err, "Failed to extract platform queue").Error(), http.StatusBadRequest)
+		return
+	}
+
+	var startAfter *buildqueuestate.ListQueuedOperationsRequest_StartAfter
+	if startAfterParameter := req.URL.Query().Get("start_after"); startAfterParameter != "" {
+		var startAfterMessage buildqueuestate.ListQueuedOperationsRequest_StartAfter
+		if err := jsonpb.UnmarshalString(startAfterParameter, &startAfterMessage); err != nil {
+			http.Error(w, util.StatusWrap(err, "Failed to parse start after message").Error(), http.StatusBadRequest)
+			return
+		}
+		startAfter = &startAfterMessage
+	}
+
+	ctx := req.Context()
 	invocationID := query.Get("invocation_id")
-	queuedOperations, paginationInfo, err := s.buildQueue.ListQueuedOperationState(instanceName, &platform, invocationID, pageSize, startAfterPriority, startAfterQueuedTimestamp)
+	response, err := s.buildQueue.ListQueuedOperations(ctx, &buildqueuestate.ListQueuedOperationsRequest{
+		PlatformQueueName: &platformQueueName,
+		InvocationId:      invocationID,
+		PageSize:          pageSize,
+		StartAfter:        startAfter,
+	})
 	if err != nil {
 		// TODO: Pick the right error code.
 		http.Error(w, util.StatusWrap(err, "Failed to list queued operation state").Error(), http.StatusBadRequest)
 		return
 	}
+
+	var nextStartAfter *buildqueuestate.ListQueuedOperationsRequest_StartAfter
+	if l := response.QueuedOperations; len(l) > 0 {
+		o := l[len(l)-1]
+		nextStartAfter = &buildqueuestate.ListQueuedOperationsRequest_StartAfter{
+			Priority:        o.Stage.(*buildqueuestate.OperationState_Queued_).Queued.Priority,
+			QueuedTimestamp: o.QueuedTimestamp,
+		}
+	}
+
 	if err := listQueuedOperationStateTemplate.Execute(w, struct {
-		InstanceName     digest.InstanceName
-		Platform         *remoteexecution.Platform
-		InvocationID     string
-		BrowserURL       *url.URL
-		Now              time.Time
-		PaginationInfo   builder.PaginationInfo
-		QueuedOperations []builder.QueuedOperationState
+		PlatformQueueName *buildqueuestate.PlatformQueueName
+		InvocationID      string
+		BrowserURL        *url.URL
+		Now               time.Time
+		PaginationInfo    *buildqueuestate.PaginationInfo
+		EndIndex          int
+		StartAfter        *buildqueuestate.ListQueuedOperationsRequest_StartAfter
+		QueuedOperations  []*buildqueuestate.OperationState
 	}{
-		InstanceName:     instanceName,
-		Platform:         &platform,
-		InvocationID:     invocationID,
-		BrowserURL:       s.browserURL,
-		Now:              s.clock.Now(),
-		PaginationInfo:   paginationInfo,
-		QueuedOperations: queuedOperations,
+		PlatformQueueName: &platformQueueName,
+		InvocationID:      invocationID,
+		BrowserURL:        s.browserURL,
+		Now:               s.clock.Now(),
+		PaginationInfo:    response.PaginationInfo,
+		EndIndex:          int(response.PaginationInfo.StartIndex) + len(response.QueuedOperations),
+		StartAfter:        nextStartAfter,
+		QueuedOperations:  response.QueuedOperations,
 	}); err != nil {
 		log.Print(err)
 	}
 }
 
-func (s *buildQueueStateService) handleListWorkerState(w http.ResponseWriter, req *http.Request) {
+func (s *buildQueueStateService) handleListWorkers(w http.ResponseWriter, req *http.Request) {
 	query := req.URL.Query()
-	instanceName, err := digest.NewInstanceName(query.Get("instance_name"))
-	if err != nil {
-		http.Error(w, util.StatusWrapf(err, "Invalid instance name %#v", query.Get("instance_name")).Error(), http.StatusBadRequest)
+	var platformQueueName buildqueuestate.PlatformQueueName
+	if err := jsonpb.UnmarshalString(query.Get("platform_queue_name"), &platformQueueName); err != nil {
+		http.Error(w, util.StatusWrap(err, "Failed to extract platform queue").Error(), http.StatusBadRequest)
 		return
 	}
-	var platform remoteexecution.Platform
-	if err := jsonpb.UnmarshalString(query.Get("platform"), &platform); err != nil {
-		http.Error(w, util.StatusWrap(err, "Failed to extract platform").Error(), http.StatusBadRequest)
-		return
-	}
-	var startAfterWorkerID map[string]string
-	if workerIDParameter := query.Get("start_after_worker_id"); workerIDParameter != "" {
-		if err := json.Unmarshal([]byte(workerIDParameter), &startAfterWorkerID); err != nil {
-			http.Error(w, util.StatusWrap(err, "Failed to extract worker ID offset").Error(), http.StatusBadRequest)
+
+	var startAfter *buildqueuestate.ListWorkersRequest_StartAfter
+	if startAfterParameter := req.URL.Query().Get("start_after"); startAfterParameter != "" {
+		var startAfterMessage buildqueuestate.ListWorkersRequest_StartAfter
+		if err := jsonpb.UnmarshalString(startAfterParameter, &startAfterMessage); err != nil {
+			http.Error(w, util.StatusWrap(err, "Failed to parse start after message").Error(), http.StatusBadRequest)
 			return
 		}
+		startAfter = &startAfterMessage
 	}
 	justExecutingWorkers := query.Get("just_executing_workers") != ""
 
-	workers, paginationInfo, err := s.buildQueue.ListWorkerState(instanceName, &platform, justExecutingWorkers, pageSize, startAfterWorkerID)
+	ctx := req.Context()
+	response, err := s.buildQueue.ListWorkers(ctx, &buildqueuestate.ListWorkersRequest{
+		PlatformQueueName:    &platformQueueName,
+		JustExecutingWorkers: justExecutingWorkers,
+		PageSize:             pageSize,
+		StartAfter:           startAfter,
+	})
 	if err != nil {
 		// TODO: Pick the right error code.
 		http.Error(w, util.StatusWrap(err, "Failed to list worker state").Error(), http.StatusBadRequest)
 		return
 	}
+
+	var nextStartAfter *buildqueuestate.ListWorkersRequest_StartAfter
+	if l := response.Workers; len(l) > 0 {
+		w := l[len(l)-1]
+		nextStartAfter = &buildqueuestate.ListWorkersRequest_StartAfter{
+			WorkerId: w.Id,
+		}
+	}
+
 	if err := listWorkerStateTemplate.Execute(w, struct {
-		InstanceName         digest.InstanceName
-		Platform             *remoteexecution.Platform
+		PlatformQueueName    *buildqueuestate.PlatformQueueName
 		BrowserURL           *url.URL
 		Now                  time.Time
-		PaginationInfo       builder.PaginationInfo
-		Workers              []builder.WorkerState
+		PaginationInfo       *buildqueuestate.PaginationInfo
+		EndIndex             int
+		StartAfter           *buildqueuestate.ListWorkersRequest_StartAfter
+		Workers              []*buildqueuestate.WorkerState
 		JustExecutingWorkers bool
 	}{
-		InstanceName:         instanceName,
-		Platform:             &platform,
+		PlatformQueueName:    &platformQueueName,
 		BrowserURL:           s.browserURL,
 		Now:                  s.clock.Now(),
-		PaginationInfo:       paginationInfo,
-		Workers:              workers,
+		PaginationInfo:       response.PaginationInfo,
+		EndIndex:             int(response.PaginationInfo.StartIndex) + len(response.Workers),
+		StartAfter:           nextStartAfter,
+		Workers:              response.Workers,
 		JustExecutingWorkers: justExecutingWorkers,
 	}); err != nil {
 		log.Print(err)
 	}
 }
 
-func (s *buildQueueStateService) handleListDrainState(w http.ResponseWriter, req *http.Request) {
+func (s *buildQueueStateService) handleListDrains(w http.ResponseWriter, req *http.Request) {
 	query := req.URL.Query()
-	instanceName, err := digest.NewInstanceName(query.Get("instance_name"))
-	if err != nil {
-		http.Error(w, util.StatusWrapf(err, "Invalid instance name %#v", query.Get("instance_name")).Error(), http.StatusBadRequest)
-		return
-	}
-	var platform remoteexecution.Platform
-	if err := jsonpb.UnmarshalString(query.Get("platform"), &platform); err != nil {
-		http.Error(w, util.StatusWrap(err, "Failed to extract platform").Error(), http.StatusBadRequest)
+	var platformQueueName buildqueuestate.PlatformQueueName
+	if err := jsonpb.UnmarshalString(query.Get("platform_queue_name"), &platformQueueName); err != nil {
+		http.Error(w, util.StatusWrap(err, "Failed to extract platform queue").Error(), http.StatusBadRequest)
 		return
 	}
 
-	drains, err := s.buildQueue.ListDrainState(instanceName, &platform)
+	ctx := req.Context()
+	response, err := s.buildQueue.ListDrains(ctx, &buildqueuestate.ListDrainsRequest{
+		PlatformQueueName: &platformQueueName,
+	})
 	if err != nil {
 		// TODO: Pick the right error code.
 		http.Error(w, util.StatusWrap(err, "Failed to list drain state").Error(), http.StatusBadRequest)
 		return
 	}
 	if err := listDrainStateTemplate.Execute(w, struct {
-		InstanceName digest.InstanceName
-		Platform     *remoteexecution.Platform
-		Now          time.Time
-		Drains       []builder.DrainState
+		PlatformQueueName *buildqueuestate.PlatformQueueName
+		Now               time.Time
+		Drains            []*buildqueuestate.DrainState
 	}{
-		InstanceName: instanceName,
-		Platform:     &platform,
-		Now:          s.clock.Now(),
-		Drains:       drains,
+		PlatformQueueName: &platformQueueName,
+		Now:               s.clock.Now(),
+		Drains:            response.Drains,
 	}); err != nil {
 		log.Print(err)
 	}
 }
 
-func handleModifyDrain(w http.ResponseWriter, req *http.Request, modifyFunc func(digest.InstanceName, *remoteexecution.Platform, map[string]string) error) {
+func handleModifyDrain(w http.ResponseWriter, req *http.Request, modifyFunc func(context.Context, *buildqueuestate.AddOrRemoveDrainRequest) (*empty.Empty, error)) {
 	req.ParseForm()
-	instanceName, err := digest.NewInstanceName(req.FormValue("instance_name"))
-	if err != nil {
-		http.Error(w, util.StatusWrapf(err, "Invalid instance name %#v", req.FormValue("instance_name")).Error(), http.StatusBadRequest)
-		return
-	}
-	var platform remoteexecution.Platform
-	if err := jsonpb.UnmarshalString(req.FormValue("platform"), &platform); err != nil {
-		http.Error(w, util.StatusWrap(err, "Failed to extract platform").Error(), http.StatusBadRequest)
+	var platformQueueName buildqueuestate.PlatformQueueName
+	if err := jsonpb.UnmarshalString(req.FormValue("platform_queue_name"), &platformQueueName); err != nil {
+		http.Error(w, util.StatusWrap(err, "Failed to extract platform queue").Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -771,7 +856,11 @@ func handleModifyDrain(w http.ResponseWriter, req *http.Request, modifyFunc func
 		return
 	}
 
-	if err := modifyFunc(instanceName, &platform, workerIDPattern); err != nil {
+	ctx := req.Context()
+	if _, err := modifyFunc(ctx, &buildqueuestate.AddOrRemoveDrainRequest{
+		PlatformQueueName: &platformQueueName,
+		WorkerIdPattern:   workerIDPattern,
+	}); err != nil {
 		http.Error(w, util.StatusWrap(err, "Failed to modify drains").Error(), http.StatusBadRequest)
 		return
 	}

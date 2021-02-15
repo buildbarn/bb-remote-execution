@@ -7,7 +7,6 @@ go_library(
         "build_directory.go",
         "build_directory_creator.go",
         "build_executor.go",
-        "build_queue_state_provider.go",
         "caching_build_executor.go",
         "clean_build_directory_creator.go",
         "file_pool_stats_build_executor.go",
@@ -30,6 +29,7 @@ go_library(
     deps = [
         "//pkg/cas",
         "//pkg/filesystem",
+        "//pkg/proto/buildqueuestate",
         "//pkg/proto/remoteworker",
         "//pkg/proto/resourceusage",
         "//pkg/proto/runner",
@@ -109,6 +109,7 @@ go_test(
     deps = [
         "//internal/mock",
         "//pkg/filesystem",
+        "//pkg/proto/buildqueuestate",
         "//pkg/proto/remoteworker",
         "//pkg/proto/resourceusage",
         "//pkg/proto/runner",

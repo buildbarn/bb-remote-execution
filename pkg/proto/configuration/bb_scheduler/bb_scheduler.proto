@@ -11,6 +11,10 @@ option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/configur
 
 message ApplicationConfiguration {
   // Address on which to listen to expose the web UI.
+  //
+  // TODO: This web UI no longer needs to be integrated into
+  // bb_scheduler, as the underlying information can be exposed over
+  // gRPC using the 'build_queue_state_grpc_servers' option.
   string admin_http_listen_address = 2;
 
   // gRPC servers to spawn to listen for requests from clients
@@ -42,10 +46,20 @@ message ApplicationConfiguration {
   //
   // More details:
   // https://docs.aws.amazon.com/autoscaling/ec2/userguide/lifecycle-hooks.html
+  //
+  // TODO: This feature no longer needs to be integrated into
+  // bb_scheduler, as workers can be terminated over gRPC using the
+  // 'build_queue_state_grpc_servers' option.
   repeated AWSASGLifecycleHookConfiguration aws_asg_lifecycle_hooks = 9;
 
   // AWS access options and credentials.
   buildbarn.configuration.cloud.aws.SessionConfiguration aws_session = 10;
+
+  // gRPC servers to spawn to expose the state of the build queue. This
+  // can be used to obtain access to the data shown in the web UI in a
+  // programmatic manner.
+  repeated buildbarn.configuration.grpc.ServerConfiguration
+      build_queue_state_grpc_servers = 11;
 }
 
 message AWSASGLifecycleHookConfiguration {
