@@ -20,6 +20,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
+	"github.com/golang/protobuf/ptypes/any"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/uuid"
@@ -1775,6 +1776,10 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
+		requestMetadata, err := ptypes.MarshalAny(&remoteexecution.RequestMetadata{
+			ToolInvocationId: p.invocationID,
+		})
+		require.NoError(t, err)
 		testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
 			NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1050},
 			DesiredState: &remoteworker.DesiredState{
@@ -1793,7 +1798,8 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 						Command: &remoteexecution.Command{
 							Platform: platform,
 						},
-						QueuedTimestamp: &timestamp.Timestamp{Seconds: 1010 + int64(i)},
+						QueuedTimestamp:   &timestamp.Timestamp{Seconds: 1010 + int64(i)},
+						AuxiliaryMetadata: []*any.Any{requestMetadata},
 					},
 				},
 			},
@@ -2208,6 +2214,10 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+	requestMetadata, err := ptypes.MarshalAny(&remoteexecution.RequestMetadata{
+		ToolInvocationId: "0f0f22ec-908a-4ea7-8a78-b92ab4188e78",
+	})
+	require.NoError(t, err)
 	testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
 		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1075},
 		DesiredState: &remoteworker.DesiredState{
@@ -2226,7 +2236,8 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 					Command: &remoteexecution.Command{
 						Platform: platform,
 					},
-					QueuedTimestamp: &timestamp.Timestamp{Seconds: 1010},
+					QueuedTimestamp:   &timestamp.Timestamp{Seconds: 1010},
+					AuxiliaryMetadata: []*any.Any{requestMetadata},
 				},
 			},
 		},

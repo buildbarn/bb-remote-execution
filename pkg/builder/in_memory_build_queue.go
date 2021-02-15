@@ -22,6 +22,7 @@ import (
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
+	"github.com/golang/protobuf/ptypes/any"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/uuid"
@@ -238,20 +239,20 @@ func (bq *InMemoryBuildQueue) GetCapabilities(ctx context.Context, in *remoteexe
 	}, nil
 }
 
-// getInvocationID extracts the client invocation ID from the
-// RequestMetadata message stored in the gRPC request headers. This
-// invocation ID is used to group incoming requests by client, so that
-// tasks can be scheduled across workers fairly.
-func getInvocationID(ctx context.Context) string {
+// getRequestMetadata extracts the RequestMetadata message stored in the
+// gRPC request headers. This message contains the invocation ID that is
+// used to group incoming requests by client, so that tasks can be
+// scheduled across workers fairly.
+func getRequestMetadata(ctx context.Context) *remoteexecution.RequestMetadata {
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		for _, requestMetadataBin := range md.Get("build.bazel.remote.execution.v2.requestmetadata-bin") {
 			var requestMetadata remoteexecution.RequestMetadata
 			if err := proto.Unmarshal([]byte(requestMetadataBin), &requestMetadata); err == nil {
-				return requestMetadata.ToolInvocationId
+				return &requestMetadata
 			}
 		}
 	}
-	return ""
+	return nil
 }
 
 // Execute an action by scheduling it in the build queue. This call
@@ -319,6 +320,7 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 	inFlightDeduplicationKey := newInFlightDeduplicationKey(in.ActionDigest)
 	t, ok := pq.inFlightDeduplicationMap[inFlightDeduplicationKey]
 	tStage := remoteexecution.ExecutionStage_QUEUED
+	requestMetadata := getRequestMetadata(ctx)
 	if ok {
 		tStage = t.getStage()
 	} else {
@@ -337,6 +339,16 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 		span := trace.FromContext(ctx)
 		if span != nil {
 			desiredState.TraceContext = propagation.Binary(span.SpanContext())
+		}
+
+		// Forward the client-provided request metadata, so that
+		// the worker logs it.
+		if requestMetadata != nil {
+			requestMetadataAny, err := ptypes.MarshalAny(requestMetadata)
+			if err != nil {
+				return util.StatusWrapWithCode(err, codes.InvalidArgument, "Failed to marshal request metadata")
+			}
+			desiredState.AuxiliaryMetadata = []*any.Any{requestMetadataAny}
 		}
 
 		t = &task{
@@ -359,7 +371,7 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 	// See if there are any other queued or executing tasks for this
 	// invocation of the build client. Tasks are scheduled by
 	// grouping them by invocation, so that scheduling is fair.
-	invocationID := getInvocationID(ctx)
+	invocationID := requestMetadata.GetToolInvocationId()
 	i, ok := pq.invocations[invocationID]
 	if !ok {
 		i = &invocation{
