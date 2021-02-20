@@ -59,12 +59,17 @@ func main() {
 
 	// When temporary directories need cleaning prior to executing a build
 	// action, attach a series of TemporaryDirectoryCleaningRunners.
-	for _, d := range configuration.TemporaryDirectories {
+	// Also wrap the Runner for every temporary directory that needs
+	// to be symlinked.
+	for _, d := range configuration.CleanTemporaryDirectories {
 		directory, err := filesystem.NewLocalDirectory(d)
 		if err != nil {
 			log.Fatalf("Failed to open temporary directory %#v: %s", d, err)
 		}
 		r = runner.NewTemporaryDirectoryCleaningRunner(r, directory, d)
+	}
+	for _, symlinkPath := range configuration.SymlinkTemporaryDirectories {
+		r = runner.NewTemporaryDirectorySymlinkingRunner(r, symlinkPath, buildDirectoryPath)
 	}
 
 	// Calling into a helper process to set up access to temporary

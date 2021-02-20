@@ -17,7 +17,7 @@ message ApplicationConfiguration {
 
   // Temporary directories that should be cleaned up after a build action
   // (e.g. /tmp).
-  repeated string temporary_directories = 3;
+  repeated string clean_temporary_directories = 3;
 
   // Common configuration options that apply to all Buildbarn binaries.
   buildbarn.configuration.global.Configuration global = 4;
@@ -62,4 +62,18 @@ message ApplicationConfiguration {
   // requires bb_runner to run as root.
   buildbarn.configuration.credentials.UNIXCredentialsConfiguration
       run_commands_as = 11;
+
+  // System temporary directories (e.g., /tmp) that should be removed
+  // and replaced with symbolic links pointing into the temporary
+  // directory that bb_worker allocates for an action.
+  //
+  // This option is similar to clean_temporary_directories, except that
+  // it ensures that temporary directories point to a location managed
+  // by bb_worker. The advantage of this approach is that it makes it
+  // easier to apply resource limits to disk consumption of build
+  // actions, especially when bb_worker is configured to use FUSE.
+  //
+  // It is only safe to enable this option when this runner executes
+  // only up to a single command concurrently.
+  repeated string symlink_temporary_directories = 12;
 }
