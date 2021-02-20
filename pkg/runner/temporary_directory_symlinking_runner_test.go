@@ -42,11 +42,11 @@ func TestTemporaryDirectorySymlinkingRunner(t *testing.T) {
 		require.Equal(t, status.Error(codes.InvalidArgument, "Failed to resolve temporary directory: Path contains a null byte"), err)
 	})
 
-	t.Run("PermissionDenied", func(t *testing.T) {
+	t.Run("InvalidSymlinkPath", func(t *testing.T) {
 		// Failures to replace the provided path with a symbolic
 		// link should be propagated.
 		baseRunner := mock.NewMockRunner(ctrl)
-		runner := runner.NewTemporaryDirectorySymlinkingRunner(baseRunner, "/hello", buildDirectory)
+		runner := runner.NewTemporaryDirectorySymlinkingRunner(baseRunner, "/", buildDirectory)
 
 		_, err := runner.Run(ctx, &runner_pb.RunRequest{
 			Arguments:          []string{"cc", "-o", "hello.o", "hello.c"},
@@ -56,7 +56,7 @@ func TestTemporaryDirectorySymlinkingRunner(t *testing.T) {
 			InputRootDirectory: "a/root",
 			TemporaryDirectory: "a/tmp",
 		})
-		testutil.RequirePrefixedStatus(t, status.Error(codes.Internal, "Failed to "), err)
+		testutil.RequirePrefixedStatus(t, status.Error(codes.Internal, "Failed to remove symbolic link \"/\": "), err)
 	})
 
 	t.Run("Success", func(t *testing.T) {
