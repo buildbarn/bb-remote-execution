@@ -14,10 +14,6 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func clearUmask() {
-	syscall.Umask(0)
-}
-
 func getInputRootCharacterDevices(names []string) (map[path.Component]int, error) {
 	inputRootCharacterDevices := map[path.Component]int{}
 	for _, device := range names {

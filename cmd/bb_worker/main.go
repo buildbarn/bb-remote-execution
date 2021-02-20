@@ -125,12 +125,6 @@ func main() {
 				log.Fatal("Failed to mount build directory: ", err)
 			}
 		case *bb_worker.BuildDirectoryConfiguration_Native:
-			// To ease privilege separation, clear the umask. This
-			// process either writes files into directories that can
-			// easily be closed off, or creates files with the
-			// appropriate mode to be secure.
-			clearUmask()
-
 			// Directory where actual builds take place.
 			nativeConfiguration := backend.Native
 			naiveBuildDirectory, err = filesystem.NewLocalDirectory(nativeConfiguration.BuildDirectoryPath)
