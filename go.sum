@@ -68,6 +68,8 @@ github.com/buildbarn/bb-storage v0.0.0-20210213063239-e6942ce5d9f6 h1:MQ6armnC68
 github.com/buildbarn/bb-storage v0.0.0-20210213063239-e6942ce5d9f6/go.mod h1:ZENQ/+hUD3gUeJoNkHqVQTaMBsdr4rr9KVfvpBmTKao=
 github.com/buildbarn/bb-storage v0.0.0-20210215081330-49417e72a945 h1:78zt6LYgjdiW1s0rm5am1MaD7mPmoeLhlUJJgYGEwck=
 github.com/buildbarn/bb-storage v0.0.0-20210215081330-49417e72a945/go.mod h1:ZENQ/+hUD3gUeJoNkHqVQTaMBsdr4rr9KVfvpBmTKao=
+github.com/buildbarn/bb-storage v0.0.0-20210220154226-9835bf1344b9 h1:Xtjle5BR7Sqg4cGIO9ZyfVJkTVHBXCogX5cGzVN2N8g=
+github.com/buildbarn/bb-storage v0.0.0-20210220154226-9835bf1344b9/go.mod h1:ZENQ/+hUD3gUeJoNkHqVQTaMBsdr4rr9KVfvpBmTKao=
 github.com/casbin/casbin/v2 v2.1.2/go.mod h1:YcPU1XXisHhLzuxH9coDNf2FbKpjGlbCg3n9yuLkIJQ=
 github.com/cenkalti/backoff v2.2.1+incompatible/go.mod h1:90ReRw6GdpyfrHakVjL/QHaoyV4aDUVVkXQJJJ3NXXM=
 github.com/census-instrumentation/opencensus-proto v0.2.1 h1:glEXhBS5PSLLv4IXzLA5yPRVX4bilULVyxxbrfOtDAk=
