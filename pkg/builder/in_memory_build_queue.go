@@ -258,14 +258,14 @@ func getRequestMetadata(ctx context.Context) *remoteexecution.RequestMetadata {
 // Execute an action by scheduling it in the build queue. This call
 // blocks until the action is completed.
 func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out remoteexecution.Execution_ExecuteServer) error {
-	// Fetch the action and command corresponding to the execute
-	// request. Ideally, a scheduler is oblivious of what these look
-	// like, if it weren't for the fact that Action.DoNotCache and
-	// Command.Platform are used for scheduling decisions.
+	// Fetch the action corresponding to the execute request.
+	// Ideally, a scheduler is oblivious of what this message looks
+	// like, if it weren't for the fact that DoNotCache and Platform
+	// are used for scheduling decisions.
 	//
-	// To prevent loading these messages from the Content
-	// Addressable Storage (CAS) multiple times, the scheduler holds
-	// on to them and passes them on to the workers.
+	// To prevent loading this messages from the Content Addressable
+	// Storage (CAS) multiple times, the scheduler holds on to it
+	// and passes it on to the workers.
 	ctx := out.Context()
 	instanceName, err := digest.NewInstanceName(in.InstanceName)
 	if err != nil {
@@ -280,18 +280,40 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 		return util.StatusWrap(err, "Failed to obtain action")
 	}
 	action := actionMessage.(*remoteexecution.Action)
-	commandDigest, err := instanceName.NewDigestFromProto(action.CommandDigest)
-	if err != nil {
-		return util.StatusWrap(err, "Failed to extract digest for command")
-	}
-	commandMessage, err := bq.contentAddressableStorage.Get(ctx, commandDigest).ToProto(&remoteexecution.Command{}, bq.maximumMessageSizeBytes)
-	if err != nil {
-		return util.StatusWrap(err, "Failed to obtain command")
-	}
-	command := commandMessage.(*remoteexecution.Command)
-	platformKey, err := newPlatformKey(instanceName, command.Platform)
+	platformKey, err := newPlatformKey(instanceName, action.Platform)
 	if err != nil {
 		return err
+	}
+	requestMetadata := getRequestMetadata(ctx)
+	targetID := requestMetadata.GetTargetId()
+
+	// TODO: Remove this code once all clients support REv2.2.
+	if action.Platform == nil || targetID == "" {
+		commandDigest, err := instanceName.NewDigestFromProto(action.CommandDigest)
+		if err != nil {
+			return util.StatusWrap(err, "Failed to extract digest for command")
+		}
+		commandMessage, err := bq.contentAddressableStorage.Get(ctx, commandDigest).ToProto(&remoteexecution.Command{}, bq.maximumMessageSizeBytes)
+		if err != nil {
+			return util.StatusWrap(err, "Failed to obtain command")
+		}
+		command := commandMessage.(*remoteexecution.Command)
+
+		// REv2.1 and older don't provide platform properties as
+		// part of the Action message.
+		if action.Platform == nil {
+			platformKey, err = newPlatformKey(instanceName, command.Platform)
+			if err != nil {
+				return err
+			}
+		}
+
+		// REv2.1 RequestMetadata doesn't include the target_id
+		// field. Provide the argv[0] instead, so that we gain
+		// some insight in what this action does.
+		if targetID == "" && len(command.Arguments) > 0 {
+			targetID = command.Arguments[0]
+		}
 	}
 
 	bq.enter(bq.clock.Now())
@@ -320,15 +342,9 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 	inFlightDeduplicationKey := newInFlightDeduplicationKey(in.ActionDigest)
 	t, ok := pq.inFlightDeduplicationMap[inFlightDeduplicationKey]
 	tStage := remoteexecution.ExecutionStage_QUEUED
-	requestMetadata := getRequestMetadata(ctx)
 	if ok {
 		tStage = t.getStage()
 	} else {
-		argv0 := ""
-		if argv := command.Arguments; len(argv) > 0 {
-			argv0 = argv[0]
-		}
-
 		desiredState := remoteworker.DesiredState_Executing{
 			ActionDigest:    in.ActionDigest,
 			Action:          action,
@@ -355,7 +371,7 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 			platformQueue: pq,
 			desiredState:  desiredState,
 
-			argv0: argv0,
+			targetID: targetID,
 
 			currentStageStartTime: bq.now,
 
@@ -1622,7 +1638,7 @@ func (o *operation) getOperationState(bq *InMemoryBuildQueue) *buildqueuestate.O
 		InvocationId:      i.invocationID,
 		QueuedTimestamp:   t.desiredState.QueuedTimestamp,
 		ActionDigest:      t.desiredState.ActionDigest,
-		Argv0:             t.argv0,
+		TargetId:          t.targetID,
 		Timeout:           bq.cleanupQueue.getTimestamp(o.cleanupKey),
 	}
 	switch t.getStage() {
@@ -1654,10 +1670,11 @@ type task struct {
 	platformQueue *platformQueue
 	desiredState  remoteworker.DesiredState_Executing
 
-	// This field is not strictly necessary to implement the
-	// BuildQueue and OperationQueueServer interfaces. It needs to
-	// be present to implement BuildQueueState.
-	argv0 string
+	// The name of the target that triggered this operation. This
+	// field is not strictly necessary to implement the BuildQueue
+	// and OperationQueueServer interfaces. It needs to be present
+	// to implement BuildQueueState.
+	targetID string
 
 	// currentStageStartTime is used by register*StageFinished() to
 	// obtain Prometheus metrics.

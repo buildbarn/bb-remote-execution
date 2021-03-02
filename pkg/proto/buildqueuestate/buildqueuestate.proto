@@ -121,10 +121,8 @@ message OperationState {
   // worker to execute.
   build.bazel.remote.execution.v2.Digest action_digest = 5;
 
-  // The value of arguments[0] in the Command message that was
-  // referenced by this operation's Action. It corresponds to the name
-  // of the program that is run by this build action.
-  string argv0 = 6;
+  // Was 'argv0'.
+  reserved 6;
 
   // When not set, it indicates that one or more Execute() or
   // WaitExecution() calls are currently taking place for this
@@ -157,6 +155,10 @@ message OperationState {
     // The operation is in the COMPLETED stage.
     build.bazel.remote.execution.v2.ExecuteResponse completed = 10;
   }
+
+  // A client-provided identifier for the target which produced this
+  // operation.
+  string target_id = 11;
 }
 
 message PlatformQueueState {

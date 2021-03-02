@@ -2106,16 +2106,12 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 				Hash:      "f7a3ac7c17e535bc9b54ab13dbbb95a52ca1f1edaf9503ce23ccb3eca331a4f5",
 				SizeBytes: 456,
 			},
-		}, buffer.UserProvided))
-		contentAddressableStorage.EXPECT().Get(
-			gomock.Any(),
-			digest.MustNewDigest("main", "f7a3ac7c17e535bc9b54ab13dbbb95a52ca1f1edaf9503ce23ccb3eca331a4f5", 456),
-		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
 			Platform: platform,
 		}, buffer.UserProvided))
 
 		requestMetadataBin, err := proto.Marshal(&remoteexecution.RequestMetadata{
 			ToolInvocationId: p.invocationID,
+			TargetId:         "//:hello_world",
 		})
 		require.NoError(t, err)
 
@@ -2188,6 +2184,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 	require.NoError(t, err)
 	requestMetadata, err := ptypes.MarshalAny(&remoteexecution.RequestMetadata{
 		ToolInvocationId: "0f0f22ec-908a-4ea7-8a78-b92ab4188e78",
+		TargetId:         "//:hello_world",
 	})
 	require.NoError(t, err)
 	testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
@@ -2204,6 +2201,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 							Hash:      "f7a3ac7c17e535bc9b54ab13dbbb95a52ca1f1edaf9503ce23ccb3eca331a4f5",
 							SizeBytes: 456,
 						},
+						Platform: platform,
 					},
 					QueuedTimestamp:   &timestamp.Timestamp{Seconds: 1010},
 					AuxiliaryMetadata: []*any.Any{requestMetadata},

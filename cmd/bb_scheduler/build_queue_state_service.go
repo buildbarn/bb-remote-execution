@@ -179,7 +179,7 @@ var (
     Action digest: <a href="{{action_url .BrowserURL .Operation.PlatformQueueName.InstanceName .Operation.ActionDigest}}">{{proto_to_json .Operation.ActionDigest}}</a><br/>
     Age: {{time_past .Operation.QueuedTimestamp $now}}<br/>
     Timeout: {{time_future .Operation.Timeout $now}}<br/>
-    Argv[0]: {{.Operation.Argv0}}<br/>
+    Target ID: {{.Operation.TargetId}}<br/>
     Stage:
       {{with operation_stage_queued .Operation}}
         Queued at priority {{.Priority}}
@@ -243,7 +243,7 @@ var (
           <th>Timeout</th>
           <th>Operation name</th>
           <th>Action digest</th>
-          <th>Argv[0]</th>
+          <th>Target ID</th>
           <th>Stage</th>
         </tr>
       </thead>
@@ -258,7 +258,7 @@ var (
           <td style="background-color: {{to_background_color .ActionDigest.Hash}}">
             <a class="text-monospace" href="{{action_url $browserURL .PlatformQueueName.InstanceName .ActionDigest}}" style="color: {{to_foreground_color .ActionDigest.Hash}}">{{abbreviate .ActionDigest.Hash}}</a>
           </td>
-          <td>{{.Argv0}}</td>
+          <td>{{.TargetId}}</td>
           {{with operation_stage_queued .}}
             <td>Queued at priority {{.Priority}}</td>
           {{else}}
@@ -369,7 +369,7 @@ var (
           <th>Timeout</th>
           <th>Operation name</th>
           <th>Action digest</th>
-          <th>Argv[0]</th>
+          <th>Target ID</th>
         </tr>
       </thead>
       {{$browserURL := .BrowserURL}}
@@ -385,7 +385,7 @@ var (
           <td style="background-color: {{to_background_color .ActionDigest.Hash}}">
             <a class="text-monospace" href="{{action_url $browserURL $platformQueueName.InstanceName .ActionDigest}}" style="color: {{to_foreground_color .ActionDigest.Hash}}">{{abbreviate .ActionDigest.Hash}}</a>
           </td>
-          <td>{{.Argv0}}</td>
+          <td>{{.TargetId}}</td>
         </tr>
       {{end}}
     </table>
@@ -423,7 +423,7 @@ var (
           <th>Operation timeout</th>
           <th>Operation name</th>
           <th>Action digest</th>
-          <th>Argv[0]</th>
+          <th>Target ID</th>
         </tr>
       </thead>
       {{$browserURL := .BrowserURL}}
@@ -441,7 +441,7 @@ var (
             <td style="background-color: {{to_background_color .ActionDigest.Hash}}">
               <a class="text-monospace" href="{{action_url $browserURL $platformQueueName.InstanceName .ActionDigest}}" style="color: {{to_foreground_color .ActionDigest.Hash}}">{{abbreviate .ActionDigest.Hash}}</a>
             </td>
-            <td>{{.Argv0}}</td>
+            <td>{{.TargetId}}</td>
           {{else}}
             <td colspan="4">{{if .Drained}}drained{{else}}idle{{end}}</td>
           {{end}}
