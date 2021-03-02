@@ -142,12 +142,8 @@ message DesiredState {
     // against storage.
     build.bazel.remote.execution.v2.Action action = 2;
 
-    // The command message corresponding with the action digest.
-    // Although the worker could also load the command from the Content
-    // Addressable Storage, the scheduler also needs to access this
-    // information. It is passed on to prevent duplicate requests
-    // against storage.
-    build.bazel.remote.execution.v2.Command command = 3;
+    // Was 'command'.
+    reserved 3;
 
     // The point in time at which the operation associated with this
     // execution request was created within the scheduler. The worker

@@ -395,7 +395,6 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 						},
 						DoNotCache: true,
 					},
-					Command:         &remoteexecution.Command{},
 					QueuedTimestamp: &timestamp.Timestamp{Seconds: 1001},
 				},
 			},
@@ -922,14 +921,6 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 								SizeBytes: 456,
 							},
 						},
-						Command: &remoteexecution.Command{
-							Platform: &remoteexecution.Platform{
-								Properties: []*remoteexecution.Platform_Property{
-									{Name: "cpu", Value: "armv6"},
-									{Name: "os", Value: "linux"},
-								},
-							},
-						},
 						QueuedTimestamp: &timestamp.Timestamp{Seconds: 1001},
 					},
 				},
@@ -1133,14 +1124,6 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 						CommandDigest: &remoteexecution.Digest{
 							Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 							SizeBytes: 456,
-						},
-					},
-					Command: &remoteexecution.Command{
-						Platform: &remoteexecution.Platform{
-							Properties: []*remoteexecution.Platform_Property{
-								{Name: "cpu", Value: "armv6"},
-								{Name: "os", Value: "linux"},
-							},
 						},
 					},
 					QueuedTimestamp: &timestamp.Timestamp{Seconds: 1001},
@@ -1544,14 +1527,6 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 							SizeBytes: 456,
 						},
 					},
-					Command: &remoteexecution.Command{
-						Platform: &remoteexecution.Platform{
-							Properties: []*remoteexecution.Platform_Property{
-								{Name: "cpu", Value: "armv6"},
-								{Name: "os", Value: "linux"},
-							},
-						},
-					},
 					QueuedTimestamp: &timestamp.Timestamp{Seconds: 1007},
 				},
 			},
@@ -1794,9 +1769,6 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 								Hash:      p.commandHash,
 								SizeBytes: 456,
 							},
-						},
-						Command: &remoteexecution.Command{
-							Platform: platform,
 						},
 						QueuedTimestamp:   &timestamp.Timestamp{Seconds: 1010 + int64(i)},
 						AuxiliaryMetadata: []*any.Any{requestMetadata},
@@ -2233,9 +2205,6 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 							SizeBytes: 456,
 						},
 					},
-					Command: &remoteexecution.Command{
-						Platform: platform,
-					},
 					QueuedTimestamp:   &timestamp.Timestamp{Seconds: 1010},
 					AuxiliaryMetadata: []*any.Any{requestMetadata},
 				},
@@ -2395,9 +2364,6 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 							Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 							SizeBytes: 456,
 						},
-					},
-					Command: &remoteexecution.Command{
-						Platform: platform,
 					},
 					QueuedTimestamp: &timestamp.Timestamp{Seconds: 1001},
 				},

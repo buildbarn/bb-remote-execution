@@ -332,7 +332,6 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 		desiredState := remoteworker.DesiredState_Executing{
 			ActionDigest:    in.ActionDigest,
 			Action:          action,
-			Command:         command,
 			QueuedTimestamp: bq.getCurrentTime(),
 		}
 
@@ -1731,7 +1730,6 @@ func (t *task) complete(bq *InMemoryBuildQueue, executeResponse *remoteexecution
 		// significantly. Keep the Action digest, so that
 		// there's still a way to figure out what the task was.
 		t.desiredState.Action = nil
-		t.desiredState.Command = nil
 		t.completionWakeup = nil
 
 		result, grpcCode := getResultAndGRPCCodeFromExecuteResponse(executeResponse)
