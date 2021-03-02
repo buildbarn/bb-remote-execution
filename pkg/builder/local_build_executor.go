@@ -18,7 +18,6 @@ import (
 	bb_path "github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/any"
 	"github.com/golang/protobuf/ptypes/empty"
 
 	"google.golang.org/grpc/codes"
@@ -96,15 +95,8 @@ func (be *localBuildExecutor) createCharacterDevices(inputRootDirectory BuildDir
 }
 
 func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, instanceName digest.InstanceName, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
-	response := &remoteexecution.ExecuteResponse{
-		Result: &remoteexecution.ActionResult{
-			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
-				AuxiliaryMetadata: append([]*any.Any(nil), request.AuxiliaryMetadata...),
-			},
-		},
-	}
-
 	// Timeout handling.
+	response := NewDefaultExecuteResponse(request)
 	action := request.Action
 	if action == nil {
 		attachErrorToExecuteResponse(response, status.Error(codes.InvalidArgument, "Request does not contain an action"))

@@ -7,10 +7,23 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-storage/pkg/digest"
+	"github.com/golang/protobuf/ptypes/any"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+// NewDefaultExecuteResponse creates an ExecuteResponse message that
+// contains all fields that BuildExecutor should set by default.
+func NewDefaultExecuteResponse(request *remoteworker.DesiredState_Executing) *remoteexecution.ExecuteResponse {
+	return &remoteexecution.ExecuteResponse{
+		Result: &remoteexecution.ActionResult{
+			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
+				AuxiliaryMetadata: append([]*any.Any(nil), request.AuxiliaryMetadata...),
+			},
+		},
+	}
+}
 
 // attachErrorToExecuteResponse extends an ExecuteResponse to contain an
 // error, indicating that the action has failed. If the ExecuteResponse
