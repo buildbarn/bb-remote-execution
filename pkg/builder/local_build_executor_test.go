@@ -35,7 +35,7 @@ func TestLocalBuildExecutorInvalidActionDigest(t *testing.T) {
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	runner := mock.NewMockRunner(ctrl)
 	clock := mock.NewMockClock(ctrl)
-	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil)
+	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil, 10000)
 
 	filePool := mock.NewMockFilePool(ctrl)
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
@@ -54,13 +54,6 @@ func TestLocalBuildExecutorInvalidActionDigest(t *testing.T) {
 					SizeBytes: 42,
 				},
 			},
-			Command: &remoteexecution.Command{
-				Arguments: []string{"touch", "foo"},
-				EnvironmentVariables: []*remoteexecution.Command_EnvironmentVariable{
-					{Name: "PATH", Value: "/bin:/usr/bin"},
-				},
-				OutputFiles: []string{"foo"},
-			},
 		},
 		metadata)
 	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
@@ -78,7 +71,7 @@ func TestLocalBuildExecutorMissingAction(t *testing.T) {
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	runner := mock.NewMockRunner(ctrl)
 	clock := mock.NewMockClock(ctrl)
-	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil)
+	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil, 10000)
 
 	filePool := mock.NewMockFilePool(ctrl)
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
@@ -90,13 +83,6 @@ func TestLocalBuildExecutorMissingAction(t *testing.T) {
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      "5555555555555555555555555555555555555555555555555555555555555555",
 				SizeBytes: 7,
-			},
-			Command: &remoteexecution.Command{
-				Arguments: []string{"touch", "foo"},
-				EnvironmentVariables: []*remoteexecution.Command_EnvironmentVariable{
-					{Name: "PATH", Value: "/bin:/usr/bin"},
-				},
-				OutputFiles: []string{"foo"},
 			},
 		},
 		metadata)
@@ -105,42 +91,6 @@ func TestLocalBuildExecutorMissingAction(t *testing.T) {
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
 		},
 		Status: status.New(codes.InvalidArgument, "Request does not contain an action").Proto(),
-	}, executeResponse)
-}
-
-func TestLocalBuildExecutorMissingCommand(t *testing.T) {
-	ctrl, ctx := gomock.WithContext(context.Background(), t)
-
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
-	runner := mock.NewMockRunner(ctrl)
-	clock := mock.NewMockClock(ctrl)
-	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil)
-
-	filePool := mock.NewMockFilePool(ctrl)
-	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
-	executeResponse := localBuildExecutor.Execute(
-		ctx,
-		filePool,
-		digest.MustNewInstanceName("netbsd"),
-		&remoteworker.DesiredState_Executing{
-			ActionDigest: &remoteexecution.Digest{
-				Hash:      "5555555555555555555555555555555555555555555555555555555555555555",
-				SizeBytes: 7,
-			},
-			Action: &remoteexecution.Action{
-				InputRootDigest: &remoteexecution.Digest{
-					Hash:      "7777777777777777777777777777777777777777777777777777777777777777",
-					SizeBytes: 42,
-				},
-			},
-		},
-		metadata)
-	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
-		Result: &remoteexecution.ActionResult{
-			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
-		},
-		Status: status.New(codes.InvalidArgument, "Request does not contain a command").Proto(),
 	}, executeResponse)
 }
 
@@ -155,7 +105,7 @@ func TestLocalBuildExecutorBuildDirectoryCreatorFailedFailed(t *testing.T) {
 	).Return(nil, "", status.Error(codes.InvalidArgument, "Platform requirements not provided"))
 	runner := mock.NewMockRunner(ctrl)
 	clock := mock.NewMockClock(ctrl)
-	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil)
+	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil, 10000)
 
 	filePool := mock.NewMockFilePool(ctrl)
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
@@ -173,13 +123,6 @@ func TestLocalBuildExecutorBuildDirectoryCreatorFailedFailed(t *testing.T) {
 					Hash:      "7777777777777777777777777777777777777777777777777777777777777777",
 					SizeBytes: 42,
 				},
-			},
-			Command: &remoteexecution.Command{
-				Arguments: []string{"touch", "foo"},
-				EnvironmentVariables: []*remoteexecution.Command_EnvironmentVariable{
-					{Name: "PATH", Value: "/bin:/usr/bin"},
-				},
-				OutputFiles: []string{"foo"},
 			},
 		},
 		metadata)
@@ -215,7 +158,7 @@ func TestLocalBuildExecutorInputRootPopulationFailed(t *testing.T) {
 	buildDirectory.EXPECT().Close()
 	runner := mock.NewMockRunner(ctrl)
 	clock := mock.NewMockClock(ctrl)
-	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil)
+	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil, 10000)
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
 	executeResponse := localBuildExecutor.Execute(
@@ -233,13 +176,6 @@ func TestLocalBuildExecutorInputRootPopulationFailed(t *testing.T) {
 					SizeBytes: 42,
 				},
 			},
-			Command: &remoteexecution.Command{
-				Arguments: []string{"touch", "foo"},
-				EnvironmentVariables: []*remoteexecution.Command_EnvironmentVariable{
-					{Name: "PATH", Value: "/bin:/usr/bin"},
-				},
-				OutputFiles: []string{"foo"},
-			},
 		},
 		metadata)
 	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
@@ -254,6 +190,16 @@ func TestLocalBuildExecutorOutputDirectoryCreationFailure(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage.EXPECT().Get(
+		gomock.Any(),
+		digest.MustNewDigest("fedora", "6666666666666666666666666666666666666666666666666666666666666666", 234),
+	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
+		Arguments: []string{"touch", "foo"},
+		EnvironmentVariables: []*remoteexecution.Command_EnvironmentVariable{
+			{Name: "PATH", Value: "/bin:/usr/bin"},
+		},
+		OutputFiles: []string{"foo/bar/baz"},
+	}, buffer.UserProvided))
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(
@@ -275,7 +221,7 @@ func TestLocalBuildExecutorOutputDirectoryCreationFailure(t *testing.T) {
 	buildDirectory.EXPECT().Close()
 	runner := mock.NewMockRunner(ctrl)
 	clock := mock.NewMockClock(ctrl)
-	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil)
+	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil, 10000)
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
 	executeResponse := localBuildExecutor.Execute(
@@ -288,17 +234,14 @@ func TestLocalBuildExecutorOutputDirectoryCreationFailure(t *testing.T) {
 				SizeBytes: 7,
 			},
 			Action: &remoteexecution.Action{
+				CommandDigest: &remoteexecution.Digest{
+					Hash:      "6666666666666666666666666666666666666666666666666666666666666666",
+					SizeBytes: 234,
+				},
 				InputRootDigest: &remoteexecution.Digest{
 					Hash:      "7777777777777777777777777777777777777777777777777777777777777777",
 					SizeBytes: 42,
 				},
-			},
-			Command: &remoteexecution.Command{
-				Arguments: []string{"touch", "foo"},
-				EnvironmentVariables: []*remoteexecution.Command_EnvironmentVariable{
-					{Name: "PATH", Value: "/bin:/usr/bin"},
-				},
-				OutputFiles: []string{"foo/bar/baz"},
 			},
 		},
 		metadata)
@@ -310,10 +253,72 @@ func TestLocalBuildExecutorOutputDirectoryCreationFailure(t *testing.T) {
 	}, executeResponse)
 }
 
+func TestLocalBuildExecutorMissingCommand(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
+	buildDirectory := mock.NewMockBuildDirectory(ctrl)
+	buildDirectoryCreator.EXPECT().GetBuildDirectory(
+		digest.MustNewDigest("netbsd", "5555555555555555555555555555555555555555555555555555555555555555", 7),
+		false,
+	).Return(buildDirectory, ".", nil)
+	filePool := mock.NewMockFilePool(ctrl)
+	buildDirectory.EXPECT().InstallHooks(filePool, gomock.Any())
+	buildDirectory.EXPECT().Mkdir(path.MustNewComponent("root"), os.FileMode(0o777))
+	inputRootDirectory := mock.NewMockBuildDirectory(ctrl)
+	buildDirectory.EXPECT().EnterBuildDirectory(path.MustNewComponent("root")).Return(inputRootDirectory, nil)
+	inputRootDirectory.EXPECT().MergeDirectoryContents(
+		ctx,
+		gomock.Any(),
+		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42),
+	).Return(nil)
+	inputRootDirectory.EXPECT().Close()
+	buildDirectory.EXPECT().Close()
+	runner := mock.NewMockRunner(ctrl)
+	clock := mock.NewMockClock(ctrl)
+	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil, 10000)
+
+	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
+	executeResponse := localBuildExecutor.Execute(
+		ctx,
+		filePool,
+		digest.MustNewInstanceName("netbsd"),
+		&remoteworker.DesiredState_Executing{
+			ActionDigest: &remoteexecution.Digest{
+				Hash:      "5555555555555555555555555555555555555555555555555555555555555555",
+				SizeBytes: 7,
+			},
+			Action: &remoteexecution.Action{
+				InputRootDigest: &remoteexecution.Digest{
+					Hash:      "7777777777777777777777777777777777777777777777777777777777777777",
+					SizeBytes: 42,
+				},
+			},
+		},
+		metadata)
+	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
+		Result: &remoteexecution.ActionResult{
+			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
+		},
+		Status: status.New(codes.InvalidArgument, "Failed to extract digest for command: No digest provided").Proto(),
+	}, executeResponse)
+}
+
 func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage.EXPECT().Get(
+		gomock.Any(),
+		digest.MustNewDigest("nintendo64", "6666666666666666666666666666666666666666666666666666666666666666", 234),
+	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
+		Arguments: []string{"touch", "foo"},
+		EnvironmentVariables: []*remoteexecution.Command_EnvironmentVariable{
+			{Name: "PATH", Value: "/bin:/usr/bin"},
+		},
+		OutputDirectories: []string{"foo"},
+	}, buffer.UserProvided))
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
 	buildDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("stdout"), gomock.Any()).Return(
 		digest.MustNewDigest("nintendo64", "0000000000000000000000000000000000000000000000000000000000000005", 567),
@@ -377,7 +382,7 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 	clock.EXPECT().NewContextWithTimeout(gomock.Any(), time.Hour).DoAndReturn(func(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 		return context.WithCancel(parent)
 	})
-	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil)
+	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil, 10000)
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
 	executeResponse := localBuildExecutor.Execute(
@@ -390,17 +395,14 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 				SizeBytes: 7,
 			},
 			Action: &remoteexecution.Action{
+				CommandDigest: &remoteexecution.Digest{
+					Hash:      "6666666666666666666666666666666666666666666666666666666666666666",
+					SizeBytes: 234,
+				},
 				InputRootDigest: &remoteexecution.Digest{
 					Hash:      "7777777777777777777777777777777777777777777777777777777777777777",
 					SizeBytes: 42,
 				},
-			},
-			Command: &remoteexecution.Command{
-				Arguments: []string{"touch", "foo"},
-				EnvironmentVariables: []*remoteexecution.Command_EnvironmentVariable{
-					{Name: "PATH", Value: "/bin:/usr/bin"},
-				},
-				OutputDirectories: []string{"foo"},
 			},
 		},
 		metadata)
@@ -477,6 +479,38 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 
 	// Read operations against the Content Addressable Storage.
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage.EXPECT().Get(
+		gomock.Any(),
+		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000002", 234),
+	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
+		Arguments: []string{
+			"/usr/local/bin/clang",
+			"-MD",
+			"-MF",
+			"bazel-out/k8-fastbuild/bin/_objs/hello/hello.pic.d",
+			"-c",
+			"hello.cc",
+			"-o",
+			"bazel-out/k8-fastbuild/bin/_objs/hello/hello.pic.o",
+		},
+		EnvironmentVariables: []*remoteexecution.Command_EnvironmentVariable{
+			{Name: "BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN", Value: "1"},
+			{Name: "PATH", Value: "/bin:/usr/bin"},
+			{Name: "PWD", Value: "/proc/self/cwd"},
+		},
+		OutputFiles: []string{
+			"bazel-out/k8-fastbuild/bin/_objs/hello/hello.pic.d",
+			"bazel-out/k8-fastbuild/bin/_objs/hello/hello.pic.o",
+		},
+		Platform: &remoteexecution.Platform{
+			Properties: []*remoteexecution.Platform_Property{
+				{
+					Name:  "container-image",
+					Value: "docker://gcr.io/cloud-marketplace/google/rbe-debian8@sha256:4893599fb00089edc8351d9c26b31d3f600774cb5addefb00c70fdb6ca797abf",
+				},
+			},
+		},
+	}, buffer.UserProvided))
 
 	// Write operations against the Content Addressable Storage.
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
@@ -551,7 +585,7 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 	inputRootCharacterDevices := map[path.Component]int{
 		path.MustNewComponent("null"): 259,
 	}
-	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, inputRootCharacterDevices)
+	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, inputRootCharacterDevices, 10000)
 
 	requestMetadata, err := ptypes.MarshalAny(&remoteexecution.RequestMetadata{
 		ToolInvocationId: "666b72d8-c43e-4998-866c-9312a31fe86d",
@@ -568,38 +602,13 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 				SizeBytes: 123,
 			},
 			Action: &remoteexecution.Action{
+				CommandDigest: &remoteexecution.Digest{
+					Hash:      "0000000000000000000000000000000000000000000000000000000000000002",
+					SizeBytes: 234,
+				},
 				InputRootDigest: &remoteexecution.Digest{
 					Hash:      "0000000000000000000000000000000000000000000000000000000000000003",
 					SizeBytes: 345,
-				},
-			},
-			Command: &remoteexecution.Command{
-				Arguments: []string{
-					"/usr/local/bin/clang",
-					"-MD",
-					"-MF",
-					"bazel-out/k8-fastbuild/bin/_objs/hello/hello.pic.d",
-					"-c",
-					"hello.cc",
-					"-o",
-					"bazel-out/k8-fastbuild/bin/_objs/hello/hello.pic.o",
-				},
-				EnvironmentVariables: []*remoteexecution.Command_EnvironmentVariable{
-					{Name: "BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN", Value: "1"},
-					{Name: "PATH", Value: "/bin:/usr/bin"},
-					{Name: "PWD", Value: "/proc/self/cwd"},
-				},
-				OutputFiles: []string{
-					"bazel-out/k8-fastbuild/bin/_objs/hello/hello.pic.d",
-					"bazel-out/k8-fastbuild/bin/_objs/hello/hello.pic.o",
-				},
-				Platform: &remoteexecution.Platform{
-					Properties: []*remoteexecution.Platform_Property{
-						{
-							Name:  "container-image",
-							Value: "docker://gcr.io/cloud-marketplace/google/rbe-debian8@sha256:4893599fb00089edc8351d9c26b31d3f600774cb5addefb00c70fdb6ca797abf",
-						},
-					},
 				},
 			},
 			AuxiliaryMetadata: []*any.Any{requestMetadata},
@@ -646,7 +655,7 @@ func TestLocalBuildExecutorCachingInvalidTimeout(t *testing.T) {
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	runner := mock.NewMockRunner(ctrl)
 	clock := mock.NewMockClock(ctrl)
-	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil)
+	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil, 10000)
 
 	// Execution should fail, as the number of nanoseconds in the
 	// timeout is not within bounds.
@@ -687,7 +696,7 @@ func TestLocalBuildExecutorCachingTimeoutTooHigh(t *testing.T) {
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	runner := mock.NewMockRunner(ctrl)
 	clock := mock.NewMockClock(ctrl)
-	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil)
+	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil, 10000)
 
 	// The protocol states that we must deny requests that have a
 	// timeout that is longer than the server's maximum.
@@ -727,6 +736,12 @@ func TestLocalBuildExecutorInputRootIOFailureDuringExecution(t *testing.T) {
 	// Build directory.
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage.EXPECT().Get(
+		gomock.Any(),
+		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000002", 234),
+	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
+		Arguments: []string{"clang"},
+	}, buffer.UserProvided))
 	buildDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("stdout"), gomock.Any()).Return(
 		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000005", 567),
 		nil)
@@ -783,7 +798,7 @@ func TestLocalBuildExecutorInputRootIOFailureDuringExecution(t *testing.T) {
 	clock.EXPECT().NewContextWithTimeout(gomock.Any(), 15*time.Minute).DoAndReturn(func(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 		return context.WithCancel(parent)
 	})
-	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil)
+	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil, 10000)
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
 	executeResponse := localBuildExecutor.Execute(
@@ -796,6 +811,10 @@ func TestLocalBuildExecutorInputRootIOFailureDuringExecution(t *testing.T) {
 				SizeBytes: 123,
 			},
 			Action: &remoteexecution.Action{
+				CommandDigest: &remoteexecution.Digest{
+					Hash:      "0000000000000000000000000000000000000000000000000000000000000002",
+					SizeBytes: 234,
+				},
 				InputRootDigest: &remoteexecution.Digest{
 					Hash:      "0000000000000000000000000000000000000000000000000000000000000003",
 					SizeBytes: 345,
@@ -803,9 +822,6 @@ func TestLocalBuildExecutorInputRootIOFailureDuringExecution(t *testing.T) {
 				Timeout: &duration.Duration{
 					Seconds: 900,
 				},
-			},
-			Command: &remoteexecution.Command{
-				Arguments: []string{"clang"},
 			},
 		},
 		metadata)
@@ -831,6 +847,12 @@ func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 	// Build directory.
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage.EXPECT().Get(
+		gomock.Any(),
+		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000002", 234),
+	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
+		Arguments: []string{"clang"},
+	}, buffer.UserProvided))
 	buildDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("stdout"), gomock.Any()).Return(
 		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000005", 567),
 		nil)
@@ -879,7 +901,7 @@ func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 	clock.EXPECT().NewContextWithTimeout(gomock.Any(), time.Hour).DoAndReturn(func(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 		return context.WithTimeout(parent, 0)
 	})
-	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil)
+	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil, 10000)
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
 	executeResponse := localBuildExecutor.Execute(
@@ -892,13 +914,14 @@ func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 				SizeBytes: 123,
 			},
 			Action: &remoteexecution.Action{
+				CommandDigest: &remoteexecution.Digest{
+					Hash:      "0000000000000000000000000000000000000000000000000000000000000002",
+					SizeBytes: 234,
+				},
 				InputRootDigest: &remoteexecution.Digest{
 					Hash:      "0000000000000000000000000000000000000000000000000000000000000003",
 					SizeBytes: 345,
 				},
-			},
-			Command: &remoteexecution.Command{
-				Arguments: []string{"clang"},
 			},
 		},
 		metadata)
@@ -955,7 +978,7 @@ func TestLocalBuildExecutorCharacterDeviceNodeCreationFailed(t *testing.T) {
 	inputRootCharacterDevices := map[path.Component]int{
 		path.MustNewComponent("null"): 259,
 	}
-	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, inputRootCharacterDevices)
+	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, inputRootCharacterDevices, 10000)
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
 	executeResponse := localBuildExecutor.Execute(
@@ -972,9 +995,6 @@ func TestLocalBuildExecutorCharacterDeviceNodeCreationFailed(t *testing.T) {
 					Hash:      "0000000000000000000000000000000000000000000000000000000000000003",
 					SizeBytes: 345,
 				},
-			},
-			Command: &remoteexecution.Command{
-				Arguments: []string{"clang"},
 			},
 		},
 		metadata)

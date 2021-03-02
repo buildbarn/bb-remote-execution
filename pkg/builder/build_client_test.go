@@ -70,9 +70,6 @@ func TestBuildClient(t *testing.T) {
 				SizeBytes: 456,
 			},
 		},
-		Command: &remoteexecution.Command{
-			Platform: platform,
-		},
 		QueuedTimestamp: &timestamp.Timestamp{Seconds: 1007},
 	}
 	operationQueueClient.EXPECT().Synchronize(context.Background(), &remoteworker.SynchronizeRequest{
@@ -117,9 +114,6 @@ func TestBuildClient(t *testing.T) {
 				Hash:      "11483c42a98269d01673aa3157836d2882aad5de",
 				SizeBytes: 456,
 			},
-		},
-		Command: &remoteexecution.Command{
-			Platform: platform,
 		},
 		QueuedTimestamp: &timestamp.Timestamp{Seconds: 1008},
 	}

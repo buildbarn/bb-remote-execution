@@ -60,11 +60,12 @@ type localBuildExecutor struct {
 	defaultExecutionTimeout   time.Duration
 	maximumExecutionTimeout   time.Duration
 	inputRootCharacterDevices map[bb_path.Component]int
+	maximumMessageSizeBytes   int
 }
 
 // NewLocalBuildExecutor returns a BuildExecutor that executes build
 // steps on the local system.
-func NewLocalBuildExecutor(contentAddressableStorage blobstore.BlobAccess, buildDirectoryCreator BuildDirectoryCreator, runner runner.Runner, clock clock.Clock, defaultExecutionTimeout, maximumExecutionTimeout time.Duration, inputRootCharacterDevices map[bb_path.Component]int) BuildExecutor {
+func NewLocalBuildExecutor(contentAddressableStorage blobstore.BlobAccess, buildDirectoryCreator BuildDirectoryCreator, runner runner.Runner, clock clock.Clock, defaultExecutionTimeout, maximumExecutionTimeout time.Duration, inputRootCharacterDevices map[bb_path.Component]int, maximumMessageSizeBytes int) BuildExecutor {
 	return &localBuildExecutor{
 		contentAddressableStorage: contentAddressableStorage,
 		buildDirectoryCreator:     buildDirectoryCreator,
@@ -73,6 +74,7 @@ func NewLocalBuildExecutor(contentAddressableStorage blobstore.BlobAccess, build
 		defaultExecutionTimeout:   defaultExecutionTimeout,
 		maximumExecutionTimeout:   maximumExecutionTimeout,
 		inputRootCharacterDevices: inputRootCharacterDevices,
+		maximumMessageSizeBytes:   maximumMessageSizeBytes,
 	}
 }
 
@@ -130,11 +132,6 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	actionDigest, err := instanceName.NewDigestFromProto(request.ActionDigest)
 	if err != nil {
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to extract digest for action"))
-		return response
-	}
-	command := request.Command
-	if command == nil {
-		attachErrorToExecuteResponse(response, status.Error(codes.InvalidArgument, "Request does not contain a command"))
 		return response
 	}
 	buildDirectory, buildDirectoryPath, err := be.buildDirectoryCreator.GetBuildDirectory(actionDigest, action.DoNotCache)
@@ -198,6 +195,17 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 
 	// Create parent directories of output files and directories.
 	// These are not declared in the input root explicitly.
+	commandDigest, err := instanceName.NewDigestFromProto(action.CommandDigest)
+	if err != nil {
+		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to extract digest for command"))
+		return response
+	}
+	commandMessage, err := be.contentAddressableStorage.Get(ctx, commandDigest).ToProto(&remoteexecution.Command{}, be.maximumMessageSizeBytes)
+	if err != nil {
+		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to obtain command"))
+		return response
+	}
+	command := commandMessage.(*remoteexecution.Command)
 	outputHierarchy, err := NewOutputHierarchy(command)
 	if err != nil {
 		attachErrorToExecuteResponse(response, err)
