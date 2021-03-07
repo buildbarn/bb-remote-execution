@@ -242,7 +242,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		require.Equal(t, remoteexecution.ActionResult{}, actionResult)
 	})
 
-	t.Run("Success", func(t *testing.T) {
+	testSuccess := func(t *testing.T, command *remoteexecution.Command) {
 		// Declare output directories, files and paths. For each
 		// of these output types, let them match one of the
 		// valid file types.
@@ -368,39 +368,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 
 		foo.EXPECT().Close()
 
-		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
-			WorkingDirectory: "foo",
-			OutputDirectories: []string{
-				"directory-directory",
-				"../foo/directory-directory",
-				"directory-symlink",
-				"../foo/directory-symlink",
-				"directory-enoent",
-				"../foo/directory-enoent",
-			},
-			OutputFiles: []string{
-				"file-regular",
-				"../foo/file-regular",
-				"file-executable",
-				"../foo/file-executable",
-				"file-symlink",
-				"../foo/file-symlink",
-				"file-enoent",
-				"../foo/file-enoent",
-			},
-			OutputPaths: []string{
-				"path-regular",
-				"../foo/path-regular",
-				"path-executable",
-				"../foo/path-executable",
-				"path-directory",
-				"../foo/path-directory",
-				"path-symlink",
-				"../foo/path-symlink",
-				"path-enoent",
-				"../foo/path-enoent",
-			},
-		})
+		oh, err := builder.NewOutputHierarchy(command)
 		require.NoError(t, err)
 		var actionResult remoteexecution.ActionResult
 		require.NoError(t, oh.UploadOutputs(ctx, root, contentAddressableStorage, digestFunction, &actionResult))
@@ -528,6 +496,75 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 				},
 			},
 		}, actionResult)
+	}
+
+	t.Run("Success", func(t *testing.T) {
+		t.Run("FilesAndDirectories", func(t *testing.T) {
+			testSuccess(t, &remoteexecution.Command{
+				WorkingDirectory: "foo",
+				OutputDirectories: []string{
+					"directory-directory",
+					"../foo/directory-directory",
+					"directory-symlink",
+					"../foo/directory-symlink",
+					"directory-enoent",
+					"../foo/directory-enoent",
+					"path-directory",
+					"../foo/path-directory",
+				},
+				OutputFiles: []string{
+					"file-regular",
+					"../foo/file-regular",
+					"file-executable",
+					"../foo/file-executable",
+					"file-symlink",
+					"../foo/file-symlink",
+					"file-enoent",
+					"../foo/file-enoent",
+					"path-regular",
+					"../foo/path-regular",
+					"path-executable",
+					"../foo/path-executable",
+					"path-symlink",
+					"../foo/path-symlink",
+					"path-enoent",
+					"../foo/path-enoent",
+				},
+			})
+		})
+		t.Run("Paths", func(t *testing.T) {
+			testSuccess(t, &remoteexecution.Command{
+				WorkingDirectory: "foo",
+				OutputPaths: []string{
+					"file-regular",
+					"../foo/file-regular",
+					"file-executable",
+					"../foo/file-executable",
+					"file-symlink",
+					"../foo/file-symlink",
+					"file-enoent",
+					"../foo/file-enoent",
+					"directory-directory",
+					"../foo/directory-directory",
+					"directory-symlink",
+					"../foo/directory-symlink",
+					"directory-enoent",
+					"../foo/directory-enoent",
+					"path-directory",
+					"../foo/path-directory",
+					"path-regular",
+					"../foo/path-regular",
+					"path-executable",
+					"../foo/path-executable",
+					"path-directory",
+					"../foo/path-directory",
+					"path-symlink",
+					"../foo/path-symlink",
+					"path-enoent",
+					"../foo/path-enoent",
+				},
+			})
+		})
 	})
 
 	t.Run("RootDirectory", func(t *testing.T) {
