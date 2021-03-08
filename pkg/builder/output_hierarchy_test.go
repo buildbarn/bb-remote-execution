@@ -114,6 +114,18 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 		// Create /foo/qux.
 		foo.EXPECT().Mkdir(path.MustNewComponent("qux"), os.FileMode(0o777))
 		foo.EXPECT().Close()
+
+		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
+			WorkingDirectory:  "foo",
+			OutputDirectories: []string{"bar/baz"},
+			OutputFiles:       []string{"../foo/qux/xyzzy"},
+		})
+		require.NoError(t, err)
+		require.NoError(t, oh.CreateParentDirectories(root))
+	})
+
+	t.Run("SuccessPaths", func(t *testing.T) {
+		// No /foo/bar/baz since OutputPaths is set.
 		// Create /alice.
 		root.EXPECT().Mkdir(path.MustNewComponent("alice"), os.FileMode(0o777))
 
@@ -242,7 +254,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		require.Equal(t, remoteexecution.ActionResult{}, actionResult)
 	})
 
-	t.Run("Success", func(t *testing.T) {
+	testSuccess := func(t *testing.T, command *remoteexecution.Command, expectedResult remoteexecution.ActionResult) {
 		// Declare output directories, files and paths. For each
 		// of these output types, let them match one of the
 		// valid file types.
@@ -368,166 +380,318 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 
 		foo.EXPECT().Close()
 
-		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
-			WorkingDirectory: "foo",
-			OutputDirectories: []string{
-				"directory-directory",
-				"../foo/directory-directory",
-				"directory-symlink",
-				"../foo/directory-symlink",
-				"directory-enoent",
-				"../foo/directory-enoent",
-			},
-			OutputFiles: []string{
-				"file-regular",
-				"../foo/file-regular",
-				"file-executable",
-				"../foo/file-executable",
-				"file-symlink",
-				"../foo/file-symlink",
-				"file-enoent",
-				"../foo/file-enoent",
-			},
-			OutputPaths: []string{
-				"path-regular",
-				"../foo/path-regular",
-				"path-executable",
-				"../foo/path-executable",
-				"path-directory",
-				"../foo/path-directory",
-				"path-symlink",
-				"../foo/path-symlink",
-				"path-enoent",
-				"../foo/path-enoent",
-			},
-		})
+		oh, err := builder.NewOutputHierarchy(command)
 		require.NoError(t, err)
 		var actionResult remoteexecution.ActionResult
 		require.NoError(t, oh.UploadOutputs(ctx, root, contentAddressableStorage, digestFunction, &actionResult))
-		require.Equal(t, remoteexecution.ActionResult{
-			OutputDirectories: []*remoteexecution.OutputDirectory{
-				{
-					Path: "directory-directory",
-					TreeDigest: &remoteexecution.Digest{
-						Hash:      "55aed4acf40a28132fb2d2de2b5962f0",
-						SizeBytes: 184,
+		require.Equal(t, expectedResult, actionResult)
+	}
+
+	t.Run("Success", func(t *testing.T) {
+		t.Run("FilesAndDirectories", func(t *testing.T) {
+			testSuccess(t, &remoteexecution.Command{
+				WorkingDirectory: "foo",
+				OutputDirectories: []string{
+					"directory-directory",
+					"../foo/directory-directory",
+					"directory-symlink",
+					"../foo/directory-symlink",
+					"directory-enoent",
+					"../foo/directory-enoent",
+					"path-directory",
+					"../foo/path-directory",
+				},
+				OutputFiles: []string{
+					"file-regular",
+					"../foo/file-regular",
+					"file-executable",
+					"../foo/file-executable",
+					"file-symlink",
+					"../foo/file-symlink",
+					"file-enoent",
+					"../foo/file-enoent",
+					"path-regular",
+					"../foo/path-regular",
+					"path-executable",
+					"../foo/path-executable",
+					"path-symlink",
+					"../foo/path-symlink",
+					"path-enoent",
+					"../foo/path-enoent",
+				},
+			}, remoteexecution.ActionResult{
+				OutputDirectories: []*remoteexecution.OutputDirectory{
+					{
+						Path: "directory-directory",
+						TreeDigest: &remoteexecution.Digest{
+							Hash:      "55aed4acf40a28132fb2d2de2b5962f0",
+							SizeBytes: 184,
+						},
+					},
+					{
+						Path: "../foo/directory-directory",
+						TreeDigest: &remoteexecution.Digest{
+							Hash:      "55aed4acf40a28132fb2d2de2b5962f0",
+							SizeBytes: 184,
+						},
+					},
+					{
+						Path: "path-directory",
+						TreeDigest: &remoteexecution.Digest{
+							Hash:      "9dd94c5a4b02914af42e8e6372e0b709",
+							SizeBytes: 2,
+						},
+					},
+					{
+						Path: "../foo/path-directory",
+						TreeDigest: &remoteexecution.Digest{
+							Hash:      "9dd94c5a4b02914af42e8e6372e0b709",
+							SizeBytes: 2,
+						},
 					},
 				},
-				{
-					Path: "../foo/directory-directory",
-					TreeDigest: &remoteexecution.Digest{
-						Hash:      "55aed4acf40a28132fb2d2de2b5962f0",
-						SizeBytes: 184,
+				OutputDirectorySymlinks: []*remoteexecution.OutputSymlink{
+					{
+						Path:   "directory-symlink",
+						Target: "directory-symlink-target",
+					},
+					{
+						Path:   "../foo/directory-symlink",
+						Target: "directory-symlink-target",
 					},
 				},
-				{
-					Path: "path-directory",
-					TreeDigest: &remoteexecution.Digest{
-						Hash:      "9dd94c5a4b02914af42e8e6372e0b709",
-						SizeBytes: 2,
+				OutputFiles: []*remoteexecution.OutputFile{
+					{
+						Path: "file-executable",
+						Digest: &remoteexecution.Digest{
+							Hash:      "7590e1b46240ecb5ea65a80db7ee6fae",
+							SizeBytes: 15,
+						},
+						IsExecutable: true,
+					},
+					{
+						Path: "../foo/file-executable",
+						Digest: &remoteexecution.Digest{
+							Hash:      "7590e1b46240ecb5ea65a80db7ee6fae",
+							SizeBytes: 15,
+						},
+						IsExecutable: true,
+					},
+					{
+						Path: "file-regular",
+						Digest: &remoteexecution.Digest{
+							Hash:      "a58c2f2281011ca2e631b39baa1ab657",
+							SizeBytes: 12,
+						},
+					},
+					{
+						Path: "../foo/file-regular",
+						Digest: &remoteexecution.Digest{
+							Hash:      "a58c2f2281011ca2e631b39baa1ab657",
+							SizeBytes: 12,
+						},
+					},
+					{
+						Path: "path-executable",
+						Digest: &remoteexecution.Digest{
+							Hash:      "87729325cd08d300fb0e238a3a8da443",
+							SizeBytes: 15,
+						},
+						IsExecutable: true,
+					},
+					{
+						Path: "../foo/path-executable",
+						Digest: &remoteexecution.Digest{
+							Hash:      "87729325cd08d300fb0e238a3a8da443",
+							SizeBytes: 15,
+						},
+						IsExecutable: true,
+					},
+					{
+						Path: "path-regular",
+						Digest: &remoteexecution.Digest{
+							Hash:      "44206648b7bb2f3b0d2ed0c52ad2e269",
+							SizeBytes: 12,
+						},
+					},
+					{
+						Path: "../foo/path-regular",
+						Digest: &remoteexecution.Digest{
+							Hash:      "44206648b7bb2f3b0d2ed0c52ad2e269",
+							SizeBytes: 12,
+						},
 					},
 				},
-				{
-					Path: "../foo/path-directory",
-					TreeDigest: &remoteexecution.Digest{
-						Hash:      "9dd94c5a4b02914af42e8e6372e0b709",
-						SizeBytes: 2,
+				OutputFileSymlinks: []*remoteexecution.OutputSymlink{
+					{
+						Path:   "file-symlink",
+						Target: "file-symlink-target",
+					},
+					{
+						Path:   "../foo/file-symlink",
+						Target: "file-symlink-target",
+					},
+					{
+						Path:   "path-symlink",
+						Target: "path-symlink-target",
+					},
+					{
+						Path:   "../foo/path-symlink",
+						Target: "path-symlink-target",
 					},
 				},
-			},
-			OutputDirectorySymlinks: []*remoteexecution.OutputSymlink{
-				{
-					Path:   "directory-symlink",
-					Target: "directory-symlink-target",
+			})
+		})
+		t.Run("Paths", func(t *testing.T) {
+			testSuccess(t, &remoteexecution.Command{
+				WorkingDirectory: "foo",
+				OutputPaths: []string{
+					"file-regular",
+					"../foo/file-regular",
+					"file-executable",
+					"../foo/file-executable",
+					"file-symlink",
+					"../foo/file-symlink",
+					"file-enoent",
+					"../foo/file-enoent",
+					"directory-directory",
+					"../foo/directory-directory",
+					"directory-symlink",
+					"../foo/directory-symlink",
+					"directory-enoent",
+					"../foo/directory-enoent",
+					"path-directory",
+					"../foo/path-directory",
+					"path-regular",
+					"../foo/path-regular",
+					"path-executable",
+					"../foo/path-executable",
+					"path-symlink",
+					"../foo/path-symlink",
+					"path-enoent",
+					"../foo/path-enoent",
 				},
-				{
-					Path:   "../foo/directory-symlink",
-					Target: "directory-symlink-target",
-				},
-			},
-			OutputFiles: []*remoteexecution.OutputFile{
-				{
-					Path: "file-executable",
-					Digest: &remoteexecution.Digest{
-						Hash:      "7590e1b46240ecb5ea65a80db7ee6fae",
-						SizeBytes: 15,
+			}, remoteexecution.ActionResult{
+				OutputDirectories: []*remoteexecution.OutputDirectory{
+					{
+						Path: "directory-directory",
+						TreeDigest: &remoteexecution.Digest{
+							Hash:      "55aed4acf40a28132fb2d2de2b5962f0",
+							SizeBytes: 184,
+						},
 					},
-					IsExecutable: true,
-				},
-				{
-					Path: "../foo/file-executable",
-					Digest: &remoteexecution.Digest{
-						Hash:      "7590e1b46240ecb5ea65a80db7ee6fae",
-						SizeBytes: 15,
+					{
+						Path: "../foo/directory-directory",
+						TreeDigest: &remoteexecution.Digest{
+							Hash:      "55aed4acf40a28132fb2d2de2b5962f0",
+							SizeBytes: 184,
+						},
 					},
-					IsExecutable: true,
-				},
-				{
-					Path: "file-regular",
-					Digest: &remoteexecution.Digest{
-						Hash:      "a58c2f2281011ca2e631b39baa1ab657",
-						SizeBytes: 12,
+					{
+						Path: "path-directory",
+						TreeDigest: &remoteexecution.Digest{
+							Hash:      "9dd94c5a4b02914af42e8e6372e0b709",
+							SizeBytes: 2,
+						},
 					},
-				},
-				{
-					Path: "../foo/file-regular",
-					Digest: &remoteexecution.Digest{
-						Hash:      "a58c2f2281011ca2e631b39baa1ab657",
-						SizeBytes: 12,
-					},
-				},
-				{
-					Path: "path-executable",
-					Digest: &remoteexecution.Digest{
-						Hash:      "87729325cd08d300fb0e238a3a8da443",
-						SizeBytes: 15,
-					},
-					IsExecutable: true,
-				},
-				{
-					Path: "../foo/path-executable",
-					Digest: &remoteexecution.Digest{
-						Hash:      "87729325cd08d300fb0e238a3a8da443",
-						SizeBytes: 15,
-					},
-					IsExecutable: true,
-				},
-				{
-					Path: "path-regular",
-					Digest: &remoteexecution.Digest{
-						Hash:      "44206648b7bb2f3b0d2ed0c52ad2e269",
-						SizeBytes: 12,
+					{
+						Path: "../foo/path-directory",
+						TreeDigest: &remoteexecution.Digest{
+							Hash:      "9dd94c5a4b02914af42e8e6372e0b709",
+							SizeBytes: 2,
+						},
 					},
 				},
-				{
-					Path: "../foo/path-regular",
-					Digest: &remoteexecution.Digest{
-						Hash:      "44206648b7bb2f3b0d2ed0c52ad2e269",
-						SizeBytes: 12,
+				OutputFiles: []*remoteexecution.OutputFile{
+					{
+						Path: "file-executable",
+						Digest: &remoteexecution.Digest{
+							Hash:      "7590e1b46240ecb5ea65a80db7ee6fae",
+							SizeBytes: 15,
+						},
+						IsExecutable: true,
+					},
+					{
+						Path: "../foo/file-executable",
+						Digest: &remoteexecution.Digest{
+							Hash:      "7590e1b46240ecb5ea65a80db7ee6fae",
+							SizeBytes: 15,
+						},
+						IsExecutable: true,
+					},
+					{
+						Path: "file-regular",
+						Digest: &remoteexecution.Digest{
+							Hash:      "a58c2f2281011ca2e631b39baa1ab657",
+							SizeBytes: 12,
+						},
+					},
+					{
+						Path: "../foo/file-regular",
+						Digest: &remoteexecution.Digest{
+							Hash:      "a58c2f2281011ca2e631b39baa1ab657",
+							SizeBytes: 12,
+						},
+					},
+					{
+						Path: "path-executable",
+						Digest: &remoteexecution.Digest{
+							Hash:      "87729325cd08d300fb0e238a3a8da443",
+							SizeBytes: 15,
+						},
+						IsExecutable: true,
+					},
+					{
+						Path: "../foo/path-executable",
+						Digest: &remoteexecution.Digest{
+							Hash:      "87729325cd08d300fb0e238a3a8da443",
+							SizeBytes: 15,
+						},
+						IsExecutable: true,
+					},
+					{
+						Path: "path-regular",
+						Digest: &remoteexecution.Digest{
+							Hash:      "44206648b7bb2f3b0d2ed0c52ad2e269",
+							SizeBytes: 12,
+						},
+					},
+					{
+						Path: "../foo/path-regular",
+						Digest: &remoteexecution.Digest{
+							Hash:      "44206648b7bb2f3b0d2ed0c52ad2e269",
+							SizeBytes: 12,
+						},
 					},
 				},
-			},
-			OutputFileSymlinks: []*remoteexecution.OutputSymlink{
-				{
-					Path:   "file-symlink",
-					Target: "file-symlink-target",
+				OutputSymlinks: []*remoteexecution.OutputSymlink{
+					{
+						Path:   "directory-symlink",
+						Target: "directory-symlink-target",
+					},
+					{
+						Path:   "../foo/directory-symlink",
+						Target: "directory-symlink-target",
+					},
+					{
+						Path:   "file-symlink",
+						Target: "file-symlink-target",
+					},
+					{
+						Path:   "../foo/file-symlink",
+						Target: "file-symlink-target",
+					},
+					{
+						Path:   "path-symlink",
+						Target: "path-symlink-target",
+					},
+					{
+						Path:   "../foo/path-symlink",
+						Target: "path-symlink-target",
+					},
 				},
-				{
-					Path:   "../foo/file-symlink",
-					Target: "file-symlink-target",
-				},
-			},
-			OutputSymlinks: []*remoteexecution.OutputSymlink{
-				{
-					Path:   "path-symlink",
-					Target: "path-symlink-target",
-				},
-				{
-					Path:   "../foo/path-symlink",
-					Target: "path-symlink-target",
-				},
-			},
-		}, actionResult)
+			})
+		})
 	})
 
 	t.Run("RootDirectory", func(t *testing.T) {

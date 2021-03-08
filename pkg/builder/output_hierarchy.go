@@ -459,36 +459,38 @@ func NewOutputHierarchy(command *remoteexecution.Command) (*OutputHierarchy, err
 		root: *newOutputDirectory(),
 	}
 
-	// Register REv2.0 output directories.
-	for _, outputDirectory := range command.OutputDirectories {
-		if on, name, err := oh.lookup(workingDirectory, outputDirectory); err != nil {
-			return nil, util.StatusWrapf(err, "Invalid output directory %#v", outputDirectory)
-		} else if on == nil {
-			oh.rootsToUpload = append(oh.rootsToUpload, outputDirectory)
-		} else {
-			on.directoriesToUpload[*name] = append(on.directoriesToUpload[*name], outputDirectory)
+	if len(command.OutputPaths) == 0 {
+		// Register REv2.0 output directories.
+		for _, outputDirectory := range command.OutputDirectories {
+			if on, name, err := oh.lookup(workingDirectory, outputDirectory); err != nil {
+				return nil, util.StatusWrapf(err, "Invalid output directory %#v", outputDirectory)
+			} else if on == nil {
+				oh.rootsToUpload = append(oh.rootsToUpload, outputDirectory)
+			} else {
+				on.directoriesToUpload[*name] = append(on.directoriesToUpload[*name], outputDirectory)
+			}
 		}
-	}
 
-	// Register REv2.0 output files.
-	for _, outputFile := range command.OutputFiles {
-		if on, name, err := oh.lookup(workingDirectory, outputFile); err != nil {
-			return nil, util.StatusWrapf(err, "Invalid output file %#v", outputFile)
-		} else if on == nil {
-			return nil, status.Errorf(codes.InvalidArgument, "Output file %#v resolves to the input root directory", outputFile)
-		} else {
-			on.filesToUpload[*name] = append(on.filesToUpload[*name], outputFile)
+		// Register REv2.0 output files.
+		for _, outputFile := range command.OutputFiles {
+			if on, name, err := oh.lookup(workingDirectory, outputFile); err != nil {
+				return nil, util.StatusWrapf(err, "Invalid output file %#v", outputFile)
+			} else if on == nil {
+				return nil, status.Errorf(codes.InvalidArgument, "Output file %#v resolves to the input root directory", outputFile)
+			} else {
+				on.filesToUpload[*name] = append(on.filesToUpload[*name], outputFile)
+			}
 		}
-	}
-
-	// Register REv2.1 output paths.
-	for _, outputPath := range command.OutputPaths {
-		if on, name, err := oh.lookup(workingDirectory, outputPath); err != nil {
-			return nil, util.StatusWrapf(err, "Invalid output path %#v", outputPath)
-		} else if on == nil {
-			oh.rootsToUpload = append(oh.rootsToUpload, outputPath)
-		} else {
-			on.pathsToUpload[*name] = append(on.pathsToUpload[*name], outputPath)
+	} else {
+		// Register REv2.1 output paths.
+		for _, outputPath := range command.OutputPaths {
+			if on, name, err := oh.lookup(workingDirectory, outputPath); err != nil {
+				return nil, util.StatusWrapf(err, "Invalid output path %#v", outputPath)
+			} else if on == nil {
+				oh.rootsToUpload = append(oh.rootsToUpload, outputPath)
+			} else {
+				on.pathsToUpload[*name] = append(on.pathsToUpload[*name], outputPath)
+			}
 		}
 	}
 	return oh, nil
