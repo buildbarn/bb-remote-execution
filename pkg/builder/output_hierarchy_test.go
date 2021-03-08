@@ -114,6 +114,18 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 		// Create /foo/qux.
 		foo.EXPECT().Mkdir(path.MustNewComponent("qux"), os.FileMode(0o777))
 		foo.EXPECT().Close()
+
+		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
+			WorkingDirectory:  "foo",
+			OutputDirectories: []string{"bar/baz"},
+			OutputFiles:       []string{"../foo/qux/xyzzy"},
+		})
+		require.NoError(t, err)
+		require.NoError(t, oh.CreateParentDirectories(root))
+	})
+
+	t.Run("SuccessPaths", func(t *testing.T) {
+		// No /foo/bar/baz since OutputPaths is set.
 		// Create /alice.
 		root.EXPECT().Mkdir(path.MustNewComponent("alice"), os.FileMode(0o777))
 
