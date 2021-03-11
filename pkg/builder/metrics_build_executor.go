@@ -10,10 +10,10 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/util"
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/duration"
-	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var (
@@ -234,30 +234,18 @@ func NewMetricsBuildExecutor(buildExecutor BuildExecutor) BuildExecutor {
 	}
 }
 
-func observeDuration(histogram prometheus.Observer, pb *duration.Duration) {
+func observeDuration(histogram prometheus.Observer, pb *durationpb.Duration) {
 	if pb == nil {
 		return
 	}
-	d, err := ptypes.Duration(pb)
-	if err != nil {
-		return
-	}
-	histogram.Observe(d.Seconds())
+	histogram.Observe(pb.AsDuration().Seconds())
 }
 
-func observeTimestampDelta(histogram prometheus.Observer, pbStart, pbCompleted *timestamp.Timestamp) {
+func observeTimestampDelta(histogram prometheus.Observer, pbStart, pbCompleted *timestamppb.Timestamp) {
 	if pbStart == nil || pbCompleted == nil {
 		return
 	}
-	tStart, err := ptypes.Timestamp(pbStart)
-	if err != nil {
-		return
-	}
-	tCompleted, err := ptypes.Timestamp(pbCompleted)
-	if err != nil {
-		return
-	}
-	histogram.Observe(tCompleted.Sub(tStart).Seconds())
+	histogram.Observe(pbCompleted.AsTime().Sub(pbStart.AsTime()).Seconds())
 }
 
 func (be *metricsBuildExecutor) Execute(ctx context.Context, filePool filesystem.FilePool, instanceName digest.InstanceName, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
@@ -279,7 +267,7 @@ func (be *metricsBuildExecutor) Execute(ctx context.Context, filePool filesystem
 	for _, auxiliaryMetadata := range metadata.AuxiliaryMetadata {
 		var filePool resourceusage.FilePoolResourceUsage
 		var posix resourceusage.POSIXResourceUsage
-		if ptypes.UnmarshalAny(auxiliaryMetadata, &filePool) == nil {
+		if auxiliaryMetadata.UnmarshalTo(&filePool) == nil {
 			// Expose metrics stored in FilePoolResourceUsage.
 			buildExecutorFilePoolFilesCreated.WithLabelValues(result, grpcCode).Observe(float64(filePool.FilesCreated))
 			buildExecutorFilePoolFilesCountPeak.WithLabelValues(result, grpcCode).Observe(float64(filePool.FilesCountPeak))
@@ -289,7 +277,7 @@ func (be *metricsBuildExecutor) Execute(ctx context.Context, filePool filesystem
 			buildExecutorFilePoolFilesOperationsCount.WithLabelValues(result, grpcCode, "Write").Observe(float64(filePool.WritesCount))
 			buildExecutorFilePoolFilesOperationsSizeBytes.WithLabelValues(result, grpcCode, "Write").Observe(float64(filePool.WritesSizeBytes))
 			buildExecutorFilePoolFilesOperationsCount.WithLabelValues(result, grpcCode, "Truncate").Observe(float64(filePool.TruncatesCount))
-		} else if ptypes.UnmarshalAny(auxiliaryMetadata, &posix) == nil {
+		} else if auxiliaryMetadata.UnmarshalTo(&posix) == nil {
 			// Expose metrics stored in POSIXResourceUsage.
 			observeDuration(buildExecutorPOSIXUserTime.WithLabelValues(result, grpcCode), posix.UserTime)
 			observeDuration(buildExecutorPOSIXSystemTime.WithLabelValues(result, grpcCode), posix.SystemTime)

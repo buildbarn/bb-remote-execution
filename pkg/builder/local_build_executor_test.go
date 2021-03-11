@@ -18,14 +18,13 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/golang/mock/gomock"
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/any"
-	"github.com/golang/protobuf/ptypes/duration"
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/stretchr/testify/require"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 func TestLocalBuildExecutorInvalidActionDigest(t *testing.T) {
@@ -548,7 +547,7 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 	inputRootDevDirectory.EXPECT().Mknod(path.MustNewComponent("null"), os.FileMode(os.ModeDevice|os.ModeCharDevice|0o666), 259).Return(nil)
 	inputRootDevDirectory.EXPECT().Close()
 	buildDirectory.EXPECT().Mkdir(path.MustNewComponent("tmp"), os.FileMode(0o777))
-	resourceUsage, err := ptypes.MarshalAny(&empty.Empty{})
+	resourceUsage, err := anypb.New(&emptypb.Empty{})
 	require.NoError(t, err)
 	runner := mock.NewMockRunner(ctrl)
 	runner.EXPECT().Run(gomock.Any(), &runner_pb.RunRequest{
@@ -574,7 +573,7 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 		TemporaryDirectory: "0000000000000000/tmp",
 	}).Return(&runner_pb.RunResponse{
 		ExitCode:      0,
-		ResourceUsage: []*any.Any{resourceUsage},
+		ResourceUsage: []*anypb.Any{resourceUsage},
 	}, nil)
 	inputRootDirectory.EXPECT().Close()
 	buildDirectory.EXPECT().Close()
@@ -587,7 +586,7 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 	}
 	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, inputRootCharacterDevices, 10000)
 
-	requestMetadata, err := ptypes.MarshalAny(&remoteexecution.RequestMetadata{
+	requestMetadata, err := anypb.New(&remoteexecution.RequestMetadata{
 		ToolInvocationId: "666b72d8-c43e-4998-866c-9312a31fe86d",
 	})
 	require.NoError(t, err)
@@ -611,7 +610,7 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 					SizeBytes: 345,
 				},
 			},
-			AuxiliaryMetadata: []*any.Any{requestMetadata},
+			AuxiliaryMetadata: []*anypb.Any{requestMetadata},
 		},
 		metadata)
 	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
@@ -642,7 +641,7 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 				SizeBytes: 678,
 			},
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
-				AuxiliaryMetadata: []*any.Any{requestMetadata, resourceUsage},
+				AuxiliaryMetadata: []*anypb.Any{requestMetadata, resourceUsage},
 			},
 		},
 	}, executeResponse)
@@ -675,18 +674,13 @@ func TestLocalBuildExecutorCachingInvalidTimeout(t *testing.T) {
 					Hash:      "0000000000000000000000000000000000000000000000000000000000000003",
 					SizeBytes: 345,
 				},
-				Timeout: &duration.Duration{
+				Timeout: &durationpb.Duration{
 					Nanos: 1000000000,
 				},
 			},
 		},
 		metadata)
-	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
-		Result: &remoteexecution.ActionResult{
-			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
-		},
-		Status: status.New(codes.InvalidArgument, "Invalid execution timeout: duration: nanos:1000000000: nanos out of range").Proto(),
-	}, executeResponse)
+	testutil.RequirePrefixedStatus(t, status.Error(codes.InvalidArgument, "Invalid execution timeout: "), status.ErrorProto(executeResponse.Status))
 }
 
 func TestLocalBuildExecutorCachingTimeoutTooHigh(t *testing.T) {
@@ -716,7 +710,7 @@ func TestLocalBuildExecutorCachingTimeoutTooHigh(t *testing.T) {
 					Hash:      "0000000000000000000000000000000000000000000000000000000000000003",
 					SizeBytes: 345,
 				},
-				Timeout: &duration.Duration{
+				Timeout: &durationpb.Duration{
 					Seconds: 7200,
 				},
 			},
@@ -819,7 +813,7 @@ func TestLocalBuildExecutorInputRootIOFailureDuringExecution(t *testing.T) {
 					Hash:      "0000000000000000000000000000000000000000000000000000000000000003",
 					SizeBytes: 345,
 				},
-				Timeout: &duration.Duration{
+				Timeout: &durationpb.Duration{
 					Seconds: 900,
 				},
 			},

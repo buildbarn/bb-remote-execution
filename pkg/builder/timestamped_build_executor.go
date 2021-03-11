@@ -2,16 +2,15 @@ package builder
 
 import (
 	"context"
-	"fmt"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
-	"github.com/golang/protobuf/proto"
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/timestamp"
+
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type timestampedBuildExecutor struct {
@@ -33,12 +32,8 @@ func NewTimestampedBuildExecutor(buildExecutor BuildExecutor, clock clock.Clock,
 	}
 }
 
-func (be *timestampedBuildExecutor) getCurrentTime() *timestamp.Timestamp {
-	now, err := ptypes.TimestampProto(be.clock.Now())
-	if err != nil {
-		panic(fmt.Sprintf("Failed to obtain current timestamp: %s", err))
-	}
-	return now
+func (be *timestampedBuildExecutor) getCurrentTime() *timestamppb.Timestamp {
+	return timestamppb.New(be.clock.Now())
 }
 
 func (be *timestampedBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, instanceName digest.InstanceName, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
@@ -56,7 +51,7 @@ func (be *timestampedBuildExecutor) Execute(ctx context.Context, filePool re_fil
 		baseCompletion <- be.buildExecutor.Execute(ctx, filePool, instanceName, request, baseUpdates)
 	}()
 
-	var completedTimestamp **timestamp.Timestamp
+	var completedTimestamp **timestamppb.Timestamp
 	for {
 		select {
 		case update := <-baseUpdates:

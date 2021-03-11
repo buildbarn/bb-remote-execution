@@ -13,11 +13,11 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/golang/mock/gomock"
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/any"
-	"github.com/golang/protobuf/ptypes/empty"
-	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/stretchr/testify/require"
+
+	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestTimestampedBuildExecutorExample(t *testing.T) {
@@ -30,24 +30,24 @@ func TestTimestampedBuildExecutorExample(t *testing.T) {
 	}
 	request := &remoteworker.DesiredState_Executing{
 		ActionDigest:    actionDigest,
-		QueuedTimestamp: &timestamp.Timestamp{Seconds: 999},
+		QueuedTimestamp: &timestamppb.Timestamp{Seconds: 999},
 	}
 	updateFetchingInputs := &remoteworker.CurrentState_Executing{
 		ActionDigest: actionDigest,
 		ExecutionState: &remoteworker.CurrentState_Executing_FetchingInputs{
-			FetchingInputs: &empty.Empty{},
+			FetchingInputs: &emptypb.Empty{},
 		},
 	}
 	updateExecuting := &remoteworker.CurrentState_Executing{
 		ActionDigest: actionDigest,
 		ExecutionState: &remoteworker.CurrentState_Executing_Running{
-			Running: &empty.Empty{},
+			Running: &emptypb.Empty{},
 		},
 	}
 	updateUploadingOutputs := &remoteworker.CurrentState_Executing{
 		ActionDigest: actionDigest,
 		ExecutionState: &remoteworker.CurrentState_Executing_UploadingOutputs{
-			UploadingOutputs: &empty.Empty{},
+			UploadingOutputs: &emptypb.Empty{},
 		},
 	}
 
@@ -57,7 +57,7 @@ func TestTimestampedBuildExecutorExample(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(1000, 0))
 	filePool := mock.NewMockFilePool(ctrl)
 	baseBuildExecutor := mock.NewMockBuildExecutor(ctrl)
-	auxiliaryMetadata, err := ptypes.MarshalAny(&empty.Empty{})
+	auxiliaryMetadata, err := anypb.New(&emptypb.Empty{})
 	require.NoError(t, err)
 	baseBuildExecutor.EXPECT().Execute(
 		ctx,
@@ -76,7 +76,7 @@ func TestTimestampedBuildExecutorExample(t *testing.T) {
 			Result: &remoteexecution.ActionResult{
 				ExitCode: 1,
 				ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
-					AuxiliaryMetadata: []*any.Any{auxiliaryMetadata},
+					AuxiliaryMetadata: []*anypb.Any{auxiliaryMetadata},
 				},
 			},
 		}
@@ -105,16 +105,16 @@ func TestTimestampedBuildExecutorExample(t *testing.T) {
 			ExitCode: 1,
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
 				Worker:                         "builder.example.com",
-				QueuedTimestamp:                &timestamp.Timestamp{Seconds: 999},
-				WorkerStartTimestamp:           &timestamp.Timestamp{Seconds: 1000},
-				InputFetchStartTimestamp:       &timestamp.Timestamp{Seconds: 1001},
-				InputFetchCompletedTimestamp:   &timestamp.Timestamp{Seconds: 1002},
-				ExecutionStartTimestamp:        &timestamp.Timestamp{Seconds: 1002},
-				ExecutionCompletedTimestamp:    &timestamp.Timestamp{Seconds: 1003},
-				OutputUploadStartTimestamp:     &timestamp.Timestamp{Seconds: 1003},
-				OutputUploadCompletedTimestamp: &timestamp.Timestamp{Seconds: 1004},
-				WorkerCompletedTimestamp:       &timestamp.Timestamp{Seconds: 1004},
-				AuxiliaryMetadata:              []*any.Any{auxiliaryMetadata},
+				QueuedTimestamp:                &timestamppb.Timestamp{Seconds: 999},
+				WorkerStartTimestamp:           &timestamppb.Timestamp{Seconds: 1000},
+				InputFetchStartTimestamp:       &timestamppb.Timestamp{Seconds: 1001},
+				InputFetchCompletedTimestamp:   &timestamppb.Timestamp{Seconds: 1002},
+				ExecutionStartTimestamp:        &timestamppb.Timestamp{Seconds: 1002},
+				ExecutionCompletedTimestamp:    &timestamppb.Timestamp{Seconds: 1003},
+				OutputUploadStartTimestamp:     &timestamppb.Timestamp{Seconds: 1003},
+				OutputUploadCompletedTimestamp: &timestamppb.Timestamp{Seconds: 1004},
+				WorkerCompletedTimestamp:       &timestamppb.Timestamp{Seconds: 1004},
+				AuxiliaryMetadata:              []*anypb.Any{auxiliaryMetadata},
 			},
 		},
 	}, executeResponse)

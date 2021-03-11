@@ -16,13 +16,13 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/util"
-	"github.com/golang/protobuf/jsonpb"
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/empty"
-	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/gorilla/mux"
 
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const (
@@ -33,9 +33,6 @@ const (
 )
 
 var (
-	jsonpbMarshaler         = jsonpb.Marshaler{}
-	jsonpbIndentedMarshaler = jsonpb.Marshaler{Indent: "  "}
-
 	templateFuncMap = template.FuncMap{
 		"abbreviate": func(s string) string {
 			if len(s) > 11 {
@@ -60,7 +57,7 @@ var (
 			}
 			return nil
 		},
-		"operation_stage_executing": func(o *buildqueuestate.OperationState) *empty.Empty {
+		"operation_stage_executing": func(o *buildqueuestate.OperationState) *emptypb.Empty {
 			if s, ok := o.Stage.(*buildqueuestate.OperationState_Executing); ok {
 				return s.Executing
 			}
@@ -72,25 +69,35 @@ var (
 			}
 			return nil
 		},
-		"proto_to_json":          jsonpbMarshaler.MarshalToString,
-		"proto_to_indented_json": jsonpbIndentedMarshaler.MarshalToString,
-		"error_proto":            status.ErrorProto,
-		"time_future": func(t *timestamp.Timestamp, now time.Time) string {
+		"proto_to_json": func(m proto.Message) string {
+			json, err := protojson.Marshal(m)
+			if err != nil {
+				return ""
+			}
+			return string(json)
+		},
+		"proto_to_indented_json": func(m proto.Message) string {
+			json, err := protojson.MarshalOptions{Multiline: true}.Marshal(m)
+			if err != nil {
+				return ""
+			}
+			return string(json)
+		},
+		"error_proto": status.ErrorProto,
+		"time_future": func(t *timestamppb.Timestamp, now time.Time) string {
 			if t == nil {
 				return "∞"
 			}
-			ts, err := ptypes.Timestamp(t)
-			if err != nil {
+			if t.CheckValid() != nil {
 				return "?"
 			}
-			return ts.Sub(now).Truncate(time.Second).String()
+			return t.AsTime().Sub(now).Truncate(time.Second).String()
 		},
-		"time_past": func(t *timestamp.Timestamp, now time.Time) string {
-			ts, err := ptypes.Timestamp(t)
-			if err != nil {
+		"time_past": func(t *timestamppb.Timestamp, now time.Time) string {
+			if t.CheckValid() != nil {
 				return "?"
 			}
-			return now.Sub(ts).Truncate(time.Second).String()
+			return now.Sub(t.AsTime()).Truncate(time.Second).String()
 		},
 		"to_json": func(v interface{}) (string, error) {
 			b, err := json.Marshal(v)
@@ -547,7 +554,7 @@ func (s *buildQueueStateService) handleGetBuildQueueState(w http.ResponseWriter,
 		http.Error(w, util.StatusWrap(err, "Failed to list platform queues").Error(), http.StatusBadRequest)
 		return
 	}
-	response, err := s.buildQueue.ListPlatformQueues(ctx, &empty.Empty{})
+	response, err := s.buildQueue.ListPlatformQueues(ctx, &emptypb.Empty{})
 	if err != nil {
 		http.Error(w, util.StatusWrap(err, "Failed to list platform queues").Error(), http.StatusBadRequest)
 		return
@@ -569,7 +576,7 @@ func (s *buildQueueStateService) handleGetBuildQueueState(w http.ResponseWriter,
 func (s *buildQueueStateService) handleListInvocations(w http.ResponseWriter, req *http.Request) {
 	query := req.URL.Query()
 	var platformQueueName buildqueuestate.PlatformQueueName
-	if err := jsonpb.UnmarshalString(query.Get("platform_queue_name"), &platformQueueName); err != nil {
+	if err := protojson.Unmarshal([]byte(query.Get("platform_queue_name")), &platformQueueName); err != nil {
 		http.Error(w, util.StatusWrap(err, "Failed to extract platform queue").Error(), http.StatusBadRequest)
 		return
 	}
@@ -641,7 +648,7 @@ func (s *buildQueueStateService) handleListOperations(w http.ResponseWriter, req
 	var startAfter *buildqueuestate.ListOperationsRequest_StartAfter
 	if startAfterParameter := req.URL.Query().Get("start_after"); startAfterParameter != "" {
 		var startAfterMessage buildqueuestate.ListOperationsRequest_StartAfter
-		if err := jsonpb.UnmarshalString(startAfterParameter, &startAfterMessage); err != nil {
+		if err := protojson.Unmarshal([]byte(startAfterParameter), &startAfterMessage); err != nil {
 			http.Error(w, util.StatusWrap(err, "Failed to parse start after message").Error(), http.StatusBadRequest)
 			return
 		}
@@ -688,7 +695,7 @@ func (s *buildQueueStateService) handleListOperations(w http.ResponseWriter, req
 func (s *buildQueueStateService) handleListQueuedOperations(w http.ResponseWriter, req *http.Request) {
 	query := req.URL.Query()
 	var platformQueueName buildqueuestate.PlatformQueueName
-	if err := jsonpb.UnmarshalString(query.Get("platform_queue_name"), &platformQueueName); err != nil {
+	if err := protojson.Unmarshal([]byte(query.Get("platform_queue_name")), &platformQueueName); err != nil {
 		http.Error(w, util.StatusWrap(err, "Failed to extract platform queue").Error(), http.StatusBadRequest)
 		return
 	}
@@ -696,7 +703,7 @@ func (s *buildQueueStateService) handleListQueuedOperations(w http.ResponseWrite
 	var startAfter *buildqueuestate.ListQueuedOperationsRequest_StartAfter
 	if startAfterParameter := req.URL.Query().Get("start_after"); startAfterParameter != "" {
 		var startAfterMessage buildqueuestate.ListQueuedOperationsRequest_StartAfter
-		if err := jsonpb.UnmarshalString(startAfterParameter, &startAfterMessage); err != nil {
+		if err := protojson.Unmarshal([]byte(startAfterParameter), &startAfterMessage); err != nil {
 			http.Error(w, util.StatusWrap(err, "Failed to parse start after message").Error(), http.StatusBadRequest)
 			return
 		}
@@ -752,7 +759,7 @@ func (s *buildQueueStateService) handleListQueuedOperations(w http.ResponseWrite
 func (s *buildQueueStateService) handleListWorkers(w http.ResponseWriter, req *http.Request) {
 	query := req.URL.Query()
 	var platformQueueName buildqueuestate.PlatformQueueName
-	if err := jsonpb.UnmarshalString(query.Get("platform_queue_name"), &platformQueueName); err != nil {
+	if err := protojson.Unmarshal([]byte(query.Get("platform_queue_name")), &platformQueueName); err != nil {
 		http.Error(w, util.StatusWrap(err, "Failed to extract platform queue").Error(), http.StatusBadRequest)
 		return
 	}
@@ -760,7 +767,7 @@ func (s *buildQueueStateService) handleListWorkers(w http.ResponseWriter, req *h
 	var startAfter *buildqueuestate.ListWorkersRequest_StartAfter
 	if startAfterParameter := req.URL.Query().Get("start_after"); startAfterParameter != "" {
 		var startAfterMessage buildqueuestate.ListWorkersRequest_StartAfter
-		if err := jsonpb.UnmarshalString(startAfterParameter, &startAfterMessage); err != nil {
+		if err := protojson.Unmarshal([]byte(startAfterParameter), &startAfterMessage); err != nil {
 			http.Error(w, util.StatusWrap(err, "Failed to parse start after message").Error(), http.StatusBadRequest)
 			return
 		}
@@ -815,7 +822,7 @@ func (s *buildQueueStateService) handleListWorkers(w http.ResponseWriter, req *h
 func (s *buildQueueStateService) handleListDrains(w http.ResponseWriter, req *http.Request) {
 	query := req.URL.Query()
 	var platformQueueName buildqueuestate.PlatformQueueName
-	if err := jsonpb.UnmarshalString(query.Get("platform_queue_name"), &platformQueueName); err != nil {
+	if err := protojson.Unmarshal([]byte(query.Get("platform_queue_name")), &platformQueueName); err != nil {
 		http.Error(w, util.StatusWrap(err, "Failed to extract platform queue").Error(), http.StatusBadRequest)
 		return
 	}
@@ -842,10 +849,10 @@ func (s *buildQueueStateService) handleListDrains(w http.ResponseWriter, req *ht
 	}
 }
 
-func handleModifyDrain(w http.ResponseWriter, req *http.Request, modifyFunc func(context.Context, *buildqueuestate.AddOrRemoveDrainRequest) (*empty.Empty, error)) {
+func handleModifyDrain(w http.ResponseWriter, req *http.Request, modifyFunc func(context.Context, *buildqueuestate.AddOrRemoveDrainRequest) (*emptypb.Empty, error)) {
 	req.ParseForm()
 	var platformQueueName buildqueuestate.PlatformQueueName
-	if err := jsonpb.UnmarshalString(req.FormValue("platform_queue_name"), &platformQueueName); err != nil {
+	if err := protojson.Unmarshal([]byte(req.FormValue("platform_queue_name")), &platformQueueName); err != nil {
 		http.Error(w, util.StatusWrap(err, "Failed to extract platform queue").Error(), http.StatusBadRequest)
 		return
 	}

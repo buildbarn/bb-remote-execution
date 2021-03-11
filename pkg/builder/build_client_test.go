@@ -12,12 +12,12 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/golang/mock/gomock"
-	"github.com/golang/protobuf/ptypes/empty"
-	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/stretchr/testify/require"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestBuildClient(t *testing.T) {
@@ -48,11 +48,11 @@ func TestBuildClient(t *testing.T) {
 		Platform:     platform,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Idle{
-				Idle: &empty.Empty{},
+				Idle: &emptypb.Empty{},
 			},
 		},
 	}).Return(&remoteworker.SynchronizeResponse{
-		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1010},
+		NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1010},
 	}, nil)
 	require.NoError(t, bc.Run())
 	require.False(t, bc.InExecutingState())
@@ -70,7 +70,7 @@ func TestBuildClient(t *testing.T) {
 				SizeBytes: 456,
 			},
 		},
-		QueuedTimestamp: &timestamp.Timestamp{Seconds: 1007},
+		QueuedTimestamp: &timestamppb.Timestamp{Seconds: 1007},
 	}
 	operationQueueClient.EXPECT().Synchronize(context.Background(), &remoteworker.SynchronizeRequest{
 		WorkerId:     workerID,
@@ -78,11 +78,11 @@ func TestBuildClient(t *testing.T) {
 		Platform:     platform,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Idle{
-				Idle: &empty.Empty{},
+				Idle: &emptypb.Empty{},
 			},
 		},
 	}).Return(&remoteworker.SynchronizeResponse{
-		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1020},
+		NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1020},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Executing_{
 				Executing: desiredStateExecuting1,
@@ -115,7 +115,7 @@ func TestBuildClient(t *testing.T) {
 				SizeBytes: 456,
 			},
 		},
-		QueuedTimestamp: &timestamp.Timestamp{Seconds: 1008},
+		QueuedTimestamp: &timestamppb.Timestamp{Seconds: 1008},
 	}
 	clock.EXPECT().Now().Return(time.Unix(1015, 0)).Times(2)
 	timer1 := mock.NewMockTimer(ctrl)
@@ -141,7 +141,7 @@ func TestBuildClient(t *testing.T) {
 			},
 		},
 	}).Return(&remoteworker.SynchronizeResponse{
-		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1025},
+		NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1025},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Executing_{
 				Executing: desiredStateExecuting2,
@@ -191,10 +191,10 @@ func TestBuildClient(t *testing.T) {
 			},
 		},
 	})).Return(&remoteworker.SynchronizeResponse{
-		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1055},
+		NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1055},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Idle{
-				Idle: &empty.Empty{},
+				Idle: &emptypb.Empty{},
 			},
 		},
 	}, nil)

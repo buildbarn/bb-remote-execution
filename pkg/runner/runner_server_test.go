@@ -11,11 +11,11 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/runner"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/golang/mock/gomock"
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/stretchr/testify/require"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 func TestRunnerServer(t *testing.T) {
@@ -37,7 +37,7 @@ func TestRunnerServer(t *testing.T) {
 	t.Run("NotReadyCheckReadiness", func(t *testing.T) {
 		// When the file used for readiness checking is not
 		// present, CheckReadiness() should fail.
-		_, err := runnerServer.CheckReadiness(ctx, &empty.Empty{})
+		_, err := runnerServer.CheckReadiness(ctx, &emptypb.Empty{})
 		testutil.RequirePrefixedStatus(
 			t,
 			status.Errorf(codes.Unavailable, "Path %#v: ", readinessCheckingFilename),
@@ -66,7 +66,7 @@ func TestRunnerServer(t *testing.T) {
 
 	t.Run("ReadyCheckReadiness", func(t *testing.T) {
 		// Readiness checks should now succeed.
-		_, err := runnerServer.CheckReadiness(ctx, &empty.Empty{})
+		_, err := runnerServer.CheckReadiness(ctx, &emptypb.Empty{})
 		require.NoError(t, err)
 	})
 

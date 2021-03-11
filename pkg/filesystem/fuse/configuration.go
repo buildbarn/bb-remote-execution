@@ -10,7 +10,6 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/util"
-	"github.com/golang/protobuf/ptypes"
 	"github.com/hanwen/go-fuse/v2/fuse"
 )
 
@@ -21,19 +20,17 @@ func NewMountFromConfiguration(configuration *pb.MountConfiguration, rootDirecto
 	// Parse configuration options.
 	var directoryEntryValidity time.Duration
 	if d := configuration.DirectoryEntryValidity; d != nil {
-		var err error
-		directoryEntryValidity, err = ptypes.Duration(d)
-		if err != nil {
+		if err := d.CheckValid(); err != nil {
 			util.StatusWrap(err, "Failed to parse directory entry validity")
 		}
+		directoryEntryValidity = d.AsDuration()
 	}
 	var inodeAttributeValidity time.Duration
 	if d := configuration.DirectoryEntryValidity; d != nil {
-		var err error
-		inodeAttributeValidity, err = ptypes.Duration(d)
-		if err != nil {
+		if err := d.CheckValid(); err != nil {
 			util.StatusWrap(err, "Failed to parse inode attribute validity")
 		}
+		inodeAttributeValidity = d.AsDuration()
 	}
 	directorySorter := sort.Sort
 	if configuration.ShuffleDirectoryListings {

@@ -12,12 +12,11 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/any"
-	"github.com/golang/protobuf/ptypes/duration"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 // logFileResolver is an implementation of path.ComponentWalker that is
@@ -101,8 +100,8 @@ func (r *localRunner) openLog(logPath string) (filesystem.FileAppender, error) {
 	return d.OpenAppend(*logFileResolver.name, filesystem.CreateExcl(0o666))
 }
 
-func convertTimeval(t syscall.Timeval) *duration.Duration {
-	return &duration.Duration{
+func convertTimeval(t syscall.Timeval) *durationpb.Duration {
+	return &durationpb.Duration{
 		Seconds: int64(t.Sec),
 		Nanos:   int32(t.Usec) * 1000,
 	}
@@ -191,7 +190,7 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 
 	// Attach rusage information to the response.
 	rusage := cmd.ProcessState.SysUsage().(*syscall.Rusage)
-	posixResourceUsage, err := ptypes.MarshalAny(&resourceusage.POSIXResourceUsage{
+	posixResourceUsage, err := anypb.New(&resourceusage.POSIXResourceUsage{
 		UserTime:                   convertTimeval(rusage.Utime),
 		SystemTime:                 convertTimeval(rusage.Stime),
 		MaximumResidentSetSize:     int64(rusage.Maxrss) * maximumResidentSetSizeUnit,
@@ -211,6 +210,6 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 	}
 	return &runner.RunResponse{
 		ExitCode:      int32(cmd.ProcessState.ExitCode()),
-		ResourceUsage: []*any.Any{posixResourceUsage},
+		ResourceUsage: []*anypb.Any{posixResourceUsage},
 	}, nil
 }

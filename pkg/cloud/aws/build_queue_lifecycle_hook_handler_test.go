@@ -8,11 +8,11 @@ import (
 	re_aws "github.com/buildbarn/bb-remote-execution/pkg/cloud/aws"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/buildqueuestate"
 	"github.com/golang/mock/gomock"
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/stretchr/testify/require"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 func TestBuildQueueLifecycleHookHandler(t *testing.T) {
@@ -28,7 +28,7 @@ func TestBuildQueueLifecycleHookHandler(t *testing.T) {
 				WorkerIdPattern: map[string]string{
 					"instance": "i-59438147357578398",
 				},
-			}).Return(&empty.Empty{}, nil)
+			}).Return(&emptypb.Empty{}, nil)
 
 		require.NoError(t, lhh.HandleEC2InstanceTerminating("i-59438147357578398"))
 	})

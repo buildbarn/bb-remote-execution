@@ -20,11 +20,6 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/golang/protobuf/jsonpb"
-	"github.com/golang/protobuf/proto"
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/any"
-	"github.com/golang/protobuf/ptypes/empty"
-	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -32,6 +27,12 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/encoding/prototext"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"go.opencensus.io/trace"
 	"go.opencensus.io/trace/propagation"
@@ -359,11 +360,11 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 		// Forward the client-provided request metadata, so that
 		// the worker logs it.
 		if requestMetadata != nil {
-			requestMetadataAny, err := ptypes.MarshalAny(requestMetadata)
+			requestMetadataAny, err := anypb.New(requestMetadata)
 			if err != nil {
 				return util.StatusWrapWithCode(err, codes.InvalidArgument, "Failed to marshal request metadata")
 			}
-			desiredState.AuxiliaryMetadata = []*any.Any{requestMetadataAny}
+			desiredState.AuxiliaryMetadata = []*anypb.Any{requestMetadataAny}
 		}
 
 		t = &task{
@@ -531,7 +532,7 @@ func (bq *InMemoryBuildQueue) Synchronize(ctx context.Context, request *remotewo
 
 // ListPlatformQueues returns a list of all platform queues currently
 // managed by the scheduler.
-func (bq *InMemoryBuildQueue) ListPlatformQueues(ctx context.Context, request *empty.Empty) (*buildqueuestate.ListPlatformQueuesResponse, error) {
+func (bq *InMemoryBuildQueue) ListPlatformQueues(ctx context.Context, request *emptypb.Empty) (*buildqueuestate.ListPlatformQueuesResponse, error) {
 	bq.enter(bq.clock.Now())
 	defer bq.leave()
 
@@ -603,7 +604,7 @@ func getPaginationInfo(n int, pageSize uint32, f func(int) bool) (*buildqueuesta
 // EXECUTING is moved the COMPLETED stage immediately. The next time any
 // worker associated with the operation contacts the scheduler, it is
 // requested to stop executing the operation.
-func (bq *InMemoryBuildQueue) KillOperation(ctx context.Context, request *buildqueuestate.KillOperationRequest) (*empty.Empty, error) {
+func (bq *InMemoryBuildQueue) KillOperation(ctx context.Context, request *buildqueuestate.KillOperationRequest) (*emptypb.Empty, error) {
 	bq.enter(bq.clock.Now())
 	defer bq.leave()
 
@@ -614,7 +615,7 @@ func (bq *InMemoryBuildQueue) KillOperation(ctx context.Context, request *buildq
 	o.task.complete(bq, &remoteexecution.ExecuteResponse{
 		Status: status.New(codes.Unavailable, "Operation was killed administratively").Proto(),
 	})
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
 // ListOperations returns detailed information about all of the
@@ -724,10 +725,10 @@ func (bq *InMemoryBuildQueue) ListQueuedOperations(ctx context.Context, request 
 	startAfter := request.StartAfter
 	var startAfterQueuedTimestamp time.Time
 	if startAfter != nil {
-		startAfterQueuedTimestamp, err = ptypes.Timestamp(startAfter.QueuedTimestamp)
-		if err != nil {
+		if err := startAfter.QueuedTimestamp.CheckValid(); err != nil {
 			return nil, util.StatusWrapWithCode(err, codes.InvalidArgument, "Invalid queued timestamp")
 		}
+		startAfterQueuedTimestamp = startAfter.QueuedTimestamp.AsTime()
 	}
 
 	// As every sorted list is also a valid binary heap, simply sort
@@ -741,11 +742,7 @@ func (bq *InMemoryBuildQueue) ListQueuedOperations(ctx context.Context, request 
 		if e.priority < startAfter.Priority {
 			return false
 		}
-		queuedTimestamp, err := ptypes.Timestamp(e.operation.task.desiredState.QueuedTimestamp)
-		if err != nil {
-			panic(fmt.Sprintf("Failed to parse previously generated timestamp: %s", err))
-		}
-		return queuedTimestamp.After(startAfterQueuedTimestamp)
+		return e.operation.task.desiredState.QueuedTimestamp.AsTime().After(startAfterQueuedTimestamp)
 	})
 
 	queuedOperationsRegion := i.queuedOperations[paginationInfo.StartIndex:endIndex]
@@ -869,7 +866,7 @@ func (bq *InMemoryBuildQueue) ListDrains(ctx context.Context, request *buildqueu
 	}, nil
 }
 
-func (bq *InMemoryBuildQueue) modifyDrain(request *buildqueuestate.AddOrRemoveDrainRequest, modifyFunc func(pq *platformQueue, drainKey string)) (*empty.Empty, error) {
+func (bq *InMemoryBuildQueue) modifyDrain(request *buildqueuestate.AddOrRemoveDrainRequest, modifyFunc func(pq *platformQueue, drainKey string)) (*emptypb.Empty, error) {
 	platformKey, err := newPlatformKeyFromName(request.PlatformQueueName)
 	if err != nil {
 		return nil, err
@@ -889,12 +886,12 @@ func (bq *InMemoryBuildQueue) modifyDrain(request *buildqueuestate.AddOrRemoveDr
 	modifyFunc(pq, string(drainKey))
 	close(pq.drainsWakeup)
 	pq.drainsWakeup = make(chan struct{})
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
 // AddDrain inserts a new drain into the list of drains currently
 // tracked by the platform queue.
-func (bq *InMemoryBuildQueue) AddDrain(ctx context.Context, request *buildqueuestate.AddOrRemoveDrainRequest) (*empty.Empty, error) {
+func (bq *InMemoryBuildQueue) AddDrain(ctx context.Context, request *buildqueuestate.AddOrRemoveDrainRequest) (*emptypb.Empty, error) {
 	return bq.modifyDrain(request, func(pq *platformQueue, drainKey string) {
 		pq.drains[drainKey] = &buildqueuestate.DrainState{
 			WorkerIdPattern:  request.WorkerIdPattern,
@@ -905,7 +902,7 @@ func (bq *InMemoryBuildQueue) AddDrain(ctx context.Context, request *buildqueues
 
 // RemoveDrain removes a drain from the list of drains currently tracked
 // by the platform queue.
-func (bq *InMemoryBuildQueue) RemoveDrain(ctx context.Context, request *buildqueuestate.AddOrRemoveDrainRequest) (*empty.Empty, error) {
+func (bq *InMemoryBuildQueue) RemoveDrain(ctx context.Context, request *buildqueuestate.AddOrRemoveDrainRequest) (*emptypb.Empty, error) {
 	return bq.modifyDrain(request, func(pq *platformQueue, drainKey string) {
 		delete(pq.drains, drainKey)
 	})
@@ -915,7 +912,7 @@ func (bq *InMemoryBuildQueue) RemoveDrain(ctx context.Context, request *buildque
 // terminated in the nearby future. This function will block until any
 // operations running on the workers complete, thereby allowing the
 // workers to be terminated without interrupting operations.
-func (bq *InMemoryBuildQueue) TerminateWorkers(ctx context.Context, request *buildqueuestate.TerminateWorkersRequest) (*empty.Empty, error) {
+func (bq *InMemoryBuildQueue) TerminateWorkers(ctx context.Context, request *buildqueuestate.TerminateWorkersRequest) (*emptypb.Empty, error) {
 	var completionWakeups []chan struct{}
 	bq.enter(bq.clock.Now())
 	for _, pq := range bq.platformQueues {
@@ -939,30 +936,22 @@ func (bq *InMemoryBuildQueue) TerminateWorkers(ctx context.Context, request *bui
 			return nil, util.StatusFromContext(ctx)
 		}
 	}
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
 // getNextSynchronizationAtDelay generates a timestamp that is attached
 // to SynchronizeResponses, indicating that the worker is permitted to
 // hold off sending updates for a limited amount of time.
-func (bq *InMemoryBuildQueue) getNextSynchronizationAtDelay() *timestamp.Timestamp {
-	t, err := ptypes.TimestampProto(bq.now.Add(bq.configuration.BusyWorkerSynchronizationInterval))
-	if err != nil {
-		panic(fmt.Sprintf("Failed to compute next synchronization timestamp: %s", err))
-	}
-	return t
+func (bq *InMemoryBuildQueue) getNextSynchronizationAtDelay() *timestamppb.Timestamp {
+	return timestamppb.New(bq.now.Add(bq.configuration.BusyWorkerSynchronizationInterval))
 }
 
 // getCurrentTime generates a timestamp that corresponds to the current
 // time. It is attached to SynchronizeResponses, indicating that the
 // worker should resynchronize again as soon as possible. It is also
 // used to compute QueuedTimestamps.
-func (bq *InMemoryBuildQueue) getCurrentTime() *timestamp.Timestamp {
-	t, err := ptypes.TimestampProto(bq.now)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to compute next synchronization timestamp: %s", err))
-	}
-	return t
+func (bq *InMemoryBuildQueue) getCurrentTime() *timestamppb.Timestamp {
+	return timestamppb.New(bq.now)
 }
 
 // enter acquires the lock on the InMemoryBuildQueue and runs any
@@ -987,7 +976,7 @@ func (bq *InMemoryBuildQueue) getIdleSynchronizeResponse() *remoteworker.Synchro
 		NextSynchronizationAt: bq.getCurrentTime(),
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Idle{
-				Idle: &empty.Empty{},
+				Idle: &emptypb.Empty{},
 			},
 		},
 	}
@@ -1025,7 +1014,7 @@ func (h platformKeyList) Swap(i, j int) {
 // message around to preserve memory usage.
 func (k *platformKey) getPlatformQueueName() *buildqueuestate.PlatformQueueName {
 	var platform remoteexecution.Platform
-	if err := jsonpb.UnmarshalString(k.platform, &platform); err != nil {
+	if err := protojson.Unmarshal([]byte(k.platform), &platform); err != nil {
 		panic(fmt.Sprintf("Failed to unmarshal previously marshalled platform: %s", err))
 	}
 	return &buildqueuestate.PlatformQueueName{
@@ -1047,6 +1036,10 @@ func newPlatformKey(instanceName digest.InstanceName, platform *remoteexecution.
 			return platformKey{}, status.Error(codes.InvalidArgument, "Platform properties are not sorted")
 		}
 	}
+	// TODO: Switch to protojson.Marshal(). We don't want to use it
+	// right now, as that will cause Prometheus metrics labels to
+	// become non-deterministic. protojson.Marshal() injects random
+	// whitespace into its output.
 	marshaler := jsonpb.Marshaler{}
 	platformString, err := marshaler.MarshalToString(platform)
 	if err != nil {
@@ -1075,7 +1068,7 @@ func newPlatformKeyFromName(name *buildqueuestate.PlatformQueueName) (platformKe
 type inFlightDeduplicationKey string
 
 func newInFlightDeduplicationKey(digest *remoteexecution.Digest) inFlightDeduplicationKey {
-	return inFlightDeduplicationKey(proto.MarshalTextString(digest))
+	return inFlightDeduplicationKey(prototext.Format(digest))
 }
 
 // platformQueue is an actual build operations queue that contains a
@@ -1529,7 +1522,7 @@ func (o *operation) waitExecution(bq *InMemoryBuildQueue, out remoteexecution.Ex
 	for {
 		// Construct the longrunning.Operation that needs to be
 		// sent back to the client.
-		metadata, err := ptypes.MarshalAny(&remoteexecution.ExecuteOperationMetadata{
+		metadata, err := anypb.New(&remoteexecution.ExecuteOperationMetadata{
 			Stage:        t.getStage(),
 			ActionDigest: t.desiredState.ActionDigest,
 		})
@@ -1542,7 +1535,7 @@ func (o *operation) waitExecution(bq *InMemoryBuildQueue, out remoteexecution.Ex
 		}
 		if t.executeResponse != nil {
 			operation.Done = true
-			response, err := ptypes.MarshalAny(t.executeResponse)
+			response, err := anypb.New(t.executeResponse)
 			if err != nil {
 				return util.StatusWrap(err, "Failed to marshal execute response")
 			}
@@ -1650,7 +1643,7 @@ func (o *operation) getOperationState(bq *InMemoryBuildQueue) *buildqueuestate.O
 		}
 	case remoteexecution.ExecutionStage_EXECUTING:
 		s.Stage = &buildqueuestate.OperationState_Executing{
-			Executing: &empty.Empty{},
+			Executing: &emptypb.Empty{},
 		}
 	case remoteexecution.ExecutionStage_COMPLETED:
 		s.Stage = &buildqueuestate.OperationState_Completed{
@@ -2001,13 +1994,9 @@ func (q *cleanupQueue) run(now time.Time) {
 	}
 }
 
-func (q *cleanupQueue) getTimestamp(key cleanupKey) *timestamp.Timestamp {
+func (q *cleanupQueue) getTimestamp(key cleanupKey) *timestamppb.Timestamp {
 	if key == 0 {
 		return nil
 	}
-	t, err := ptypes.TimestampProto(q.heap[key-1].timestamp)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to compute cleanup key timestamp: %s", err))
-	}
-	return t
+	return timestamppb.New(q.heap[key-1].timestamp)
 }

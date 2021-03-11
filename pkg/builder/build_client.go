@@ -10,11 +10,10 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/util"
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/empty"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"go.opencensus.io/trace"
 	"go.opencensus.io/trace/propagation"
@@ -58,7 +57,7 @@ func NewBuildClient(scheduler remoteworker.OperationQueueClient, buildExecutor B
 			Platform:     platform,
 			CurrentState: &remoteworker.CurrentState{
 				WorkerState: &remoteworker.CurrentState_Idle{
-					Idle: &empty.Empty{},
+					Idle: &emptypb.Empty{},
 				},
 			},
 		},
@@ -105,7 +104,7 @@ func (bc *BuildClient) startExecution(executionRequest *remoteworker.DesiredStat
 		Executing: &remoteworker.CurrentState_Executing{
 			ActionDigest: executionRequest.ActionDigest,
 			ExecutionState: &remoteworker.CurrentState_Executing_Started{
-				Started: &empty.Empty{},
+				Started: &emptypb.Empty{},
 			},
 		},
 	}
@@ -127,7 +126,7 @@ func (bc *BuildClient) stopExecution() {
 	}
 
 	bc.request.CurrentState.WorkerState = &remoteworker.CurrentState_Idle{
-		Idle: &empty.Empty{},
+		Idle: &emptypb.Empty{},
 	}
 	bc.inExecutingState = false
 }
@@ -188,11 +187,11 @@ func (bc *BuildClient) Run() error {
 
 	// Determine when we should contact the scheduler again in case
 	// of no activity.
-	nextSynchronizationAt, err := ptypes.Timestamp(response.NextSynchronizationAt)
-	if err != nil {
+	nextSynchronizationAt := response.NextSynchronizationAt
+	if err := nextSynchronizationAt.CheckValid(); err != nil {
 		return util.StatusWrap(err, "Scheduler response contained invalid synchronization timestamp")
 	}
-	bc.nextSynchronizationAt = nextSynchronizationAt
+	bc.nextSynchronizationAt = nextSynchronizationAt.AsTime()
 
 	// Apply desired state changes provided by the scheduler.
 	if desiredState := response.DesiredState; desiredState != nil {

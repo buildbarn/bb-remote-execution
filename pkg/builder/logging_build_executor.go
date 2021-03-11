@@ -10,7 +10,8 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	re_util "github.com/buildbarn/bb-remote-execution/pkg/util"
 	"github.com/buildbarn/bb-storage/pkg/digest"
-	"github.com/golang/protobuf/jsonpb"
+
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 type loggingBuildExecutor struct {
@@ -40,9 +41,8 @@ func (be *loggingBuildExecutor) Execute(ctx context.Context, filePool re_filesys
 	response := be.base.Execute(ctx, filePool, instanceName, request, executionStateUpdates)
 
 	// Print execution response to log.
-	var marshaler jsonpb.Marshaler
-	if responseString, err := marshaler.MarshalToString(response); err == nil {
-		log.Print("ExecuteResponse: ", responseString)
+	if responseJSON, err := protojson.Marshal(response); err == nil {
+		log.Print("ExecuteResponse: ", string(responseJSON))
 	} else {
 		log.Print("ExecuteResponse: Failed to marshal: ", err)
 	}

@@ -16,11 +16,10 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/empty"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // Filenames of objects to be created inside the build directory.
@@ -115,14 +114,13 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	if action.Timeout == nil {
 		executionTimeout = be.defaultExecutionTimeout
 	} else {
-		var err error
-		executionTimeout, err = ptypes.Duration(action.Timeout)
-		if err != nil {
+		if err := action.Timeout.CheckValid(); err != nil {
 			attachErrorToExecuteResponse(
 				response,
 				util.StatusWrapWithCode(err, codes.InvalidArgument, "Invalid execution timeout"))
 			return response
 		}
+		executionTimeout = action.Timeout.AsDuration()
 		if executionTimeout > be.maximumExecutionTimeout {
 			attachErrorToExecuteResponse(
 				response,
@@ -160,7 +158,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	executionStateUpdates <- &remoteworker.CurrentState_Executing{
 		ActionDigest: request.ActionDigest,
 		ExecutionState: &remoteworker.CurrentState_Executing_FetchingInputs{
-			FetchingInputs: &empty.Empty{},
+			FetchingInputs: &emptypb.Empty{},
 		},
 	}
 
@@ -237,7 +235,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	executionStateUpdates <- &remoteworker.CurrentState_Executing{
 		ActionDigest: request.ActionDigest,
 		ExecutionState: &remoteworker.CurrentState_Executing_Running{
-			Running: &empty.Empty{},
+			Running: &emptypb.Empty{},
 		},
 	}
 
@@ -276,7 +274,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	executionStateUpdates <- &remoteworker.CurrentState_Executing{
 		ActionDigest: request.ActionDigest,
 		ExecutionState: &remoteworker.CurrentState_Executing_UploadingOutputs{
-			UploadingOutputs: &empty.Empty{},
+			UploadingOutputs: &emptypb.Empty{},
 		},
 	}
 

@@ -18,9 +18,9 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/global"
 	bb_grpc "github.com/buildbarn/bb-storage/pkg/grpc"
 	"github.com/buildbarn/bb-storage/pkg/util"
-	"github.com/golang/protobuf/ptypes/empty"
 
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 func main() {
@@ -81,7 +81,7 @@ func main() {
 		}
 		tmpInstaller := tmp_installer.NewTemporaryDirectoryInstallerClient(tmpInstallerConnection)
 		for {
-			_, err := tmpInstaller.CheckReadiness(context.Background(), &empty.Empty{})
+			_, err := tmpInstaller.CheckReadiness(context.Background(), &emptypb.Empty{})
 			if err == nil {
 				break
 			}

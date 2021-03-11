@@ -7,10 +7,10 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-storage/pkg/digest"
-	"github.com/golang/protobuf/ptypes/any"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 // NewDefaultExecuteResponse creates an ExecuteResponse message that
@@ -19,7 +19,7 @@ func NewDefaultExecuteResponse(request *remoteworker.DesiredState_Executing) *re
 	return &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
-				AuxiliaryMetadata: append([]*any.Any(nil), request.AuxiliaryMetadata...),
+				AuxiliaryMetadata: append([]*anypb.Any(nil), request.AuxiliaryMetadata...),
 			},
 		},
 	}

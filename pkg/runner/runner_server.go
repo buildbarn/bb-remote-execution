@@ -6,9 +6,9 @@ import (
 
 	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
 	"github.com/buildbarn/bb-storage/pkg/util"
-	"github.com/golang/protobuf/ptypes/empty"
 
 	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type runnerServer struct {
@@ -27,13 +27,13 @@ func NewRunnerServer(runner Runner, readinessCheckingPathnames []string) runner_
 	}
 }
 
-func (rs *runnerServer) CheckReadiness(ctx context.Context, request *empty.Empty) (*empty.Empty, error) {
+func (rs *runnerServer) CheckReadiness(ctx context.Context, request *emptypb.Empty) (*emptypb.Empty, error) {
 	for _, path := range rs.readinessCheckingPathnames {
 		if _, err := os.Stat(path); err != nil {
 			return nil, util.StatusWrapfWithCode(err, codes.Unavailable, "Path %#v", path)
 		}
 	}
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
 func (rs *runnerServer) Run(ctx context.Context, request *runner_pb.RunRequest) (*runner_pb.RunResponse, error) {
@@ -45,7 +45,7 @@ func (rs *runnerServer) Run(ctx context.Context, request *runner_pb.RunRequest) 
 		// Execution failues may be caused by failing readiness
 		// checks. Suppress the results in case the readiness
 		// check fails.
-		if _, err := rs.CheckReadiness(ctx, &empty.Empty{}); err != nil {
+		if _, err := rs.CheckReadiness(ctx, &emptypb.Empty{}); err != nil {
 			return nil, util.StatusWrap(err, "Readiness check failed during execution")
 		}
 	}

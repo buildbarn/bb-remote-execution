@@ -18,20 +18,19 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/golang/mock/gomock"
-	"github.com/golang/protobuf/proto"
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/any"
-	"github.com/golang/protobuf/ptypes/empty"
-	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/genproto/googleapis/longrunning"
 
+	"google.golang.org/genproto/googleapis/longrunning"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var buildQueueConfigurationForTesting = re_builder.InMemoryBuildQueueConfiguration{
@@ -235,7 +234,7 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 		})
 		require.NoError(t, err)
 		_, err = stream.Recv()
-		testutil.RequireEqualStatus(t, err, status.Error(codes.Unavailable, "No workers exist for instance \"main\" platform {\"properties\":[{\"name\":\"cpu\",\"value\":\"armv6\"},{\"name\":\"os\",\"value\":\"linux\"}]}"))
+		testutil.RequireEqualStatus(t, status.Error(codes.Unavailable, "No workers exist for instance \"main\" platform {\"properties\":[{\"name\":\"cpu\",\"value\":\"armv6\"},{\"name\":\"os\",\"value\":\"linux\"}]}"), err)
 	})
 
 	// We can be certain that no workers will appear if a sufficient
@@ -273,7 +272,7 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 		})
 		require.NoError(t, err)
 		_, err = stream.Recv()
-		testutil.RequireEqualStatus(t, err, status.Error(codes.FailedPrecondition, "No workers exist for instance \"main\" platform {\"properties\":[{\"name\":\"cpu\",\"value\":\"armv6\"},{\"name\":\"os\",\"value\":\"linux\"}]}"))
+		testutil.RequireEqualStatus(t, status.Error(codes.FailedPrecondition, "No workers exist for instance \"main\" platform {\"properties\":[{\"name\":\"cpu\",\"value\":\"armv6\"},{\"name\":\"os\",\"value\":\"linux\"}]}"), err)
 	})
 }
 
@@ -319,7 +318,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 						SizeBytes: 123,
 					},
 					ExecutionState: &remoteworker.CurrentState_Executing_FetchingInputs{
-						FetchingInputs: &empty.Empty{},
+						FetchingInputs: &emptypb.Empty{},
 					},
 				},
 			},
@@ -327,10 +326,10 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 	})
 	require.NoError(t, err)
 	testutil.RequireEqualProto(t, response, &remoteworker.SynchronizeResponse{
-		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1000},
+		NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1000},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Idle{
-				Idle: &empty.Empty{},
+				Idle: &emptypb.Empty{},
 			},
 		},
 	})
@@ -351,7 +350,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 	require.NoError(t, err)
 	update, err := stream1.Recv()
 	require.NoError(t, err)
-	metadata, err := ptypes.MarshalAny(&remoteexecution.ExecuteOperationMetadata{
+	metadata, err := anypb.New(&remoteexecution.ExecuteOperationMetadata{
 		Stage: remoteexecution.ExecutionStage_QUEUED,
 		ActionDigest: &remoteexecution.Digest{
 			Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
@@ -374,13 +373,13 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 		InstanceName: "main",
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Idle{
-				Idle: &empty.Empty{},
+				Idle: &emptypb.Empty{},
 			},
 		},
 	})
 	require.NoError(t, err)
 	testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
-		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1012},
+		NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1012},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Executing_{
 				Executing: &remoteworker.DesiredState_Executing{
@@ -395,7 +394,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 						},
 						DoNotCache: true,
 					},
-					QueuedTimestamp: &timestamp.Timestamp{Seconds: 1001},
+					QueuedTimestamp: &timestamppb.Timestamp{Seconds: 1001},
 				},
 			},
 		},
@@ -409,7 +408,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 	wakeup1 <- time.Unix(1061, 0)
 	update, err = stream1.Recv()
 	require.NoError(t, err)
-	metadata, err = ptypes.MarshalAny(&remoteexecution.ExecuteOperationMetadata{
+	metadata, err = anypb.New(&remoteexecution.ExecuteOperationMetadata{
 		Stage: remoteexecution.ExecutionStage_EXECUTING,
 		ActionDigest: &remoteexecution.Digest{
 			Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
@@ -431,7 +430,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 	wakeup2 <- time.Unix(1121, 0)
 	update, err = stream1.Recv()
 	require.NoError(t, err)
-	metadata, err = ptypes.MarshalAny(&remoteexecution.ExecuteOperationMetadata{
+	metadata, err = anypb.New(&remoteexecution.ExecuteOperationMetadata{
 		Stage: remoteexecution.ExecutionStage_COMPLETED,
 		ActionDigest: &remoteexecution.Digest{
 			Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
@@ -439,7 +438,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	executeResponse, err := ptypes.MarshalAny(&remoteexecution.ExecuteResponse{
+	executeResponse, err := anypb.New(&remoteexecution.ExecuteResponse{
 		Status: status.New(codes.Unavailable, "Worker {\"hostname\":\"worker123\",\"thread\":\"42\"} disappeared while task was executing").Proto(),
 	})
 	require.NoError(t, err)
@@ -481,7 +480,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 		require.NoError(t, err)
 		update, err = stream.Recv()
 		require.NoError(t, err)
-		metadata, err = ptypes.MarshalAny(&remoteexecution.ExecuteOperationMetadata{
+		metadata, err = anypb.New(&remoteexecution.ExecuteOperationMetadata{
 			Stage: remoteexecution.ExecutionStage_QUEUED,
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
@@ -516,7 +515,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 	for i, fakeUUID := range fakeUUIDs {
 		update, err = streams[i].Recv()
 		require.NoError(t, err)
-		metadata, err = ptypes.MarshalAny(&remoteexecution.ExecuteOperationMetadata{
+		metadata, err = anypb.New(&remoteexecution.ExecuteOperationMetadata{
 			Stage: remoteexecution.ExecutionStage_COMPLETED,
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
@@ -524,7 +523,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		executeResponse, err = ptypes.MarshalAny(&remoteexecution.ExecuteResponse{
+		executeResponse, err = anypb.New(&remoteexecution.ExecuteResponse{
 			Status: status.New(codes.Unavailable, "Workers for this instance name and platform disappeared while task was queued").Proto(),
 		})
 		require.NoError(t, err)
@@ -591,7 +590,7 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 						SizeBytes: 123,
 					},
 					ExecutionState: &remoteworker.CurrentState_Executing_FetchingInputs{
-						FetchingInputs: &empty.Empty{},
+						FetchingInputs: &emptypb.Empty{},
 					},
 				},
 			},
@@ -599,10 +598,10 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 	})
 	require.NoError(t, err)
 	testutil.RequireEqualProto(t, response, &remoteworker.SynchronizeResponse{
-		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1000},
+		NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1000},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Idle{
-				Idle: &empty.Empty{},
+				Idle: &emptypb.Empty{},
 			},
 		},
 	})
@@ -624,7 +623,7 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 	require.NoError(t, err)
 	update, err := stream1.Recv()
 	require.NoError(t, err)
-	metadata, err := ptypes.MarshalAny(&remoteexecution.ExecuteOperationMetadata{
+	metadata, err := anypb.New(&remoteexecution.ExecuteOperationMetadata{
 		Stage: remoteexecution.ExecutionStage_QUEUED,
 		ActionDigest: &remoteexecution.Digest{
 			Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
@@ -655,7 +654,7 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 	require.NoError(t, err)
 	update, err = stream2.Recv()
 	require.NoError(t, err)
-	metadata, err = ptypes.MarshalAny(&remoteexecution.ExecuteOperationMetadata{
+	metadata, err = anypb.New(&remoteexecution.ExecuteOperationMetadata{
 		Stage: remoteexecution.ExecutionStage_QUEUED,
 		ActionDigest: &remoteexecution.Digest{
 			Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
@@ -681,7 +680,7 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 	require.NoError(t, err)
 	update, err = stream3.Recv()
 	require.NoError(t, err)
-	metadata, err = ptypes.MarshalAny(&remoteexecution.ExecuteOperationMetadata{
+	metadata, err = anypb.New(&remoteexecution.ExecuteOperationMetadata{
 		Stage: remoteexecution.ExecutionStage_QUEUED,
 		ActionDigest: &remoteexecution.Digest{
 			Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
@@ -715,7 +714,7 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 			{
 				Name:              "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
 				PlatformQueueName: platformQueueName,
-				QueuedTimestamp:   &timestamp.Timestamp{Seconds: 1070},
+				QueuedTimestamp:   &timestamppb.Timestamp{Seconds: 1070},
 				ActionDigest: &remoteexecution.Digest{
 					Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
 					SizeBytes: 123,
@@ -754,12 +753,12 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 			{
 				Name:              "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
 				PlatformQueueName: platformQueueName,
-				QueuedTimestamp:   &timestamp.Timestamp{Seconds: 1070},
+				QueuedTimestamp:   &timestamppb.Timestamp{Seconds: 1070},
 				ActionDigest: &remoteexecution.Digest{
 					Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
 					SizeBytes: 123,
 				},
-				Timeout: &timestamp.Timestamp{Seconds: 1150},
+				Timeout: &timestamppb.Timestamp{Seconds: 1150},
 				Stage: &buildqueuestate.OperationState_Queued_{
 					Queued: &buildqueuestate.OperationState_Queued{},
 				},
@@ -837,7 +836,7 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 						SizeBytes: 123,
 					},
 					ExecutionState: &remoteworker.CurrentState_Executing_FetchingInputs{
-						FetchingInputs: &empty.Empty{},
+						FetchingInputs: &emptypb.Empty{},
 					},
 				},
 			},
@@ -845,10 +844,10 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 	})
 	require.NoError(t, err)
 	testutil.RequireEqualProto(t, response, &remoteworker.SynchronizeResponse{
-		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1000},
+		NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1000},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Idle{
-				Idle: &empty.Empty{},
+				Idle: &emptypb.Empty{},
 			},
 		},
 	})
@@ -869,7 +868,7 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 	require.NoError(t, err)
 	update, err := stream1.Recv()
 	require.NoError(t, err)
-	metadata, err := ptypes.MarshalAny(&remoteexecution.ExecuteOperationMetadata{
+	metadata, err := anypb.New(&remoteexecution.ExecuteOperationMetadata{
 		Stage: remoteexecution.ExecutionStage_QUEUED,
 		ActionDigest: &remoteexecution.Digest{
 			Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
@@ -901,13 +900,13 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 			},
 			CurrentState: &remoteworker.CurrentState{
 				WorkerState: &remoteworker.CurrentState_Idle{
-					Idle: &empty.Empty{},
+					Idle: &emptypb.Empty{},
 				},
 			},
 		})
 		require.NoError(t, err)
 		testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
-			NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1012 + i},
+			NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1012 + i},
 			DesiredState: &remoteworker.DesiredState{
 				WorkerState: &remoteworker.DesiredState_Executing_{
 					Executing: &remoteworker.DesiredState_Executing{
@@ -921,7 +920,7 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 								SizeBytes: 456,
 							},
 						},
-						QueuedTimestamp: &timestamp.Timestamp{Seconds: 1001},
+						QueuedTimestamp: &timestamppb.Timestamp{Seconds: 1001},
 					},
 				},
 			},
@@ -953,7 +952,7 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 						SizeBytes: 123,
 					},
 					ExecutionState: &remoteworker.CurrentState_Executing_FetchingInputs{
-						FetchingInputs: &empty.Empty{},
+						FetchingInputs: &emptypb.Empty{},
 					},
 				},
 			},
@@ -961,10 +960,10 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 	})
 	require.NoError(t, err)
 	testutil.RequireEqualProto(t, response, &remoteworker.SynchronizeResponse{
-		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1012},
+		NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1012},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Idle{
-				Idle: &empty.Empty{},
+				Idle: &emptypb.Empty{},
 			},
 		},
 	})
@@ -973,7 +972,7 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 	// worker to crash-loop.
 	update, err = stream1.Recv()
 	require.NoError(t, err)
-	metadata, err = ptypes.MarshalAny(&remoteexecution.ExecuteOperationMetadata{
+	metadata, err = anypb.New(&remoteexecution.ExecuteOperationMetadata{
 		Stage: remoteexecution.ExecutionStage_COMPLETED,
 		ActionDigest: &remoteexecution.Digest{
 			Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
@@ -981,7 +980,7 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	executeResponse, err := ptypes.MarshalAny(&remoteexecution.ExecuteResponse{
+	executeResponse, err := anypb.New(&remoteexecution.ExecuteResponse{
 		Status: status.New(codes.Internal, "Attempted to execute task 10 times, but it never completed. This task may cause worker {\"hostname\":\"worker123\",\"thread\":\"42\"} to crash.").Proto(),
 	})
 	require.NoError(t, err)
@@ -1045,7 +1044,7 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 						SizeBytes: 123,
 					},
 					ExecutionState: &remoteworker.CurrentState_Executing_FetchingInputs{
-						FetchingInputs: &empty.Empty{},
+						FetchingInputs: &emptypb.Empty{},
 					},
 				},
 			},
@@ -1053,10 +1052,10 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 	})
 	require.NoError(t, err)
 	testutil.RequireEqualProto(t, response, &remoteworker.SynchronizeResponse{
-		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1000},
+		NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1000},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Idle{
-				Idle: &empty.Empty{},
+				Idle: &emptypb.Empty{},
 			},
 		},
 	})
@@ -1077,7 +1076,7 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 	require.NoError(t, err)
 	update, err := stream1.Recv()
 	require.NoError(t, err)
-	metadata, err := ptypes.MarshalAny(&remoteexecution.ExecuteOperationMetadata{
+	metadata, err := anypb.New(&remoteexecution.ExecuteOperationMetadata{
 		Stage: remoteexecution.ExecutionStage_QUEUED,
 		ActionDigest: &remoteexecution.Digest{
 			Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
@@ -1106,13 +1105,13 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 		},
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Idle{
-				Idle: &empty.Empty{},
+				Idle: &emptypb.Empty{},
 			},
 		},
 	})
 	require.NoError(t, err)
 	testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
-		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1012},
+		NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1012},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Executing_{
 				Executing: &remoteworker.DesiredState_Executing{
@@ -1126,7 +1125,7 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 							SizeBytes: 456,
 						},
 					},
-					QueuedTimestamp: &timestamp.Timestamp{Seconds: 1001},
+					QueuedTimestamp: &timestamppb.Timestamp{Seconds: 1001},
 				},
 			},
 		},
@@ -1142,7 +1141,7 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 	// The client should be informed that the operation was killed.
 	update, err = stream1.Recv()
 	require.NoError(t, err)
-	metadata, err = ptypes.MarshalAny(&remoteexecution.ExecuteOperationMetadata{
+	metadata, err = anypb.New(&remoteexecution.ExecuteOperationMetadata{
 		Stage: remoteexecution.ExecutionStage_COMPLETED,
 		ActionDigest: &remoteexecution.Digest{
 			Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
@@ -1150,7 +1149,7 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	executeResponse, err := ptypes.MarshalAny(&remoteexecution.ExecuteResponse{
+	executeResponse, err := anypb.New(&remoteexecution.ExecuteResponse{
 		Status: status.New(codes.Unavailable, "Operation was killed administratively").Proto(),
 	})
 	require.NoError(t, err)
@@ -1184,7 +1183,7 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 						SizeBytes: 123,
 					},
 					ExecutionState: &remoteworker.CurrentState_Executing_FetchingInputs{
-						FetchingInputs: &empty.Empty{},
+						FetchingInputs: &emptypb.Empty{},
 					},
 				},
 			},
@@ -1192,10 +1191,10 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 	})
 	require.NoError(t, err)
 	testutil.RequireEqualProto(t, response, &remoteworker.SynchronizeResponse{
-		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1012},
+		NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1012},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Idle{
-				Idle: &empty.Empty{},
+				Idle: &emptypb.Empty{},
 			},
 		},
 	})
@@ -1233,16 +1232,16 @@ func TestInMemoryBuildQueueIdleWorkerSynchronizationTimeout(t *testing.T) {
 		},
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Idle{
-				Idle: &empty.Empty{},
+				Idle: &emptypb.Empty{},
 			},
 		},
 	})
 	require.NoError(t, err)
 	testutil.RequireEqualProto(t, response, &remoteworker.SynchronizeResponse{
-		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1060},
+		NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1060},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Idle{
-				Idle: &empty.Empty{},
+				Idle: &emptypb.Empty{},
 			},
 		},
 	})
@@ -1301,7 +1300,7 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 						SizeBytes: 123,
 					},
 					ExecutionState: &remoteworker.CurrentState_Executing_FetchingInputs{
-						FetchingInputs: &empty.Empty{},
+						FetchingInputs: &emptypb.Empty{},
 					},
 				},
 			},
@@ -1309,10 +1308,10 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 	})
 	require.NoError(t, err)
 	testutil.RequireEqualProto(t, response, &remoteworker.SynchronizeResponse{
-		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1000},
+		NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1000},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Idle{
-				Idle: &empty.Empty{},
+				Idle: &emptypb.Empty{},
 			},
 		},
 	})
@@ -1340,7 +1339,7 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 					"hostname": "worker123",
 					"thread":   "42",
 				},
-				Timeout: &timestamp.Timestamp{Seconds: 1060},
+				Timeout: &timestamppb.Timestamp{Seconds: 1060},
 				Drained: false,
 			},
 		},
@@ -1373,7 +1372,7 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 					"hostname": "worker123",
 					"thread":   "42",
 				},
-				Timeout: &timestamp.Timestamp{Seconds: 1060},
+				Timeout: &timestamppb.Timestamp{Seconds: 1060},
 				Drained: false,
 			},
 		},
@@ -1406,7 +1405,7 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 					"hostname": "worker123",
 					"thread":   "42",
 				},
-				Timeout: &timestamp.Timestamp{Seconds: 1060},
+				Timeout: &timestamppb.Timestamp{Seconds: 1060},
 				Drained: true,
 			},
 		},
@@ -1432,7 +1431,7 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 	require.NoError(t, err)
 	update, err := stream1.Recv()
 	require.NoError(t, err)
-	metadata, err := ptypes.MarshalAny(&remoteexecution.ExecuteOperationMetadata{
+	metadata, err := anypb.New(&remoteexecution.ExecuteOperationMetadata{
 		Stage: remoteexecution.ExecutionStage_QUEUED,
 		ActionDigest: &remoteexecution.Digest{
 			Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
@@ -1463,7 +1462,7 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 						SizeBytes: 123,
 					},
 					ExecutionState: &remoteworker.CurrentState_Executing_FetchingInputs{
-						FetchingInputs: &empty.Empty{},
+						FetchingInputs: &emptypb.Empty{},
 					},
 				},
 			},
@@ -1471,10 +1470,10 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 	})
 	require.NoError(t, err)
 	testutil.RequireEqualProto(t, response, &remoteworker.SynchronizeResponse{
-		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1008},
+		NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1008},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Idle{
-				Idle: &empty.Empty{},
+				Idle: &emptypb.Empty{},
 			},
 		},
 	})
@@ -1505,7 +1504,7 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 						SizeBytes: 123,
 					},
 					ExecutionState: &remoteworker.CurrentState_Executing_FetchingInputs{
-						FetchingInputs: &empty.Empty{},
+						FetchingInputs: &emptypb.Empty{},
 					},
 				},
 			},
@@ -1513,7 +1512,7 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 	})
 	require.NoError(t, err)
 	testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
-		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1020},
+		NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1020},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Executing_{
 				Executing: &remoteworker.DesiredState_Executing{
@@ -1527,7 +1526,7 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 							SizeBytes: 456,
 						},
 					},
-					QueuedTimestamp: &timestamp.Timestamp{Seconds: 1007},
+					QueuedTimestamp: &timestamppb.Timestamp{Seconds: 1007},
 				},
 			},
 		},
@@ -1567,7 +1566,7 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 						SizeBytes: 123,
 					},
 					ExecutionState: &remoteworker.CurrentState_Executing_FetchingInputs{
-						FetchingInputs: &empty.Empty{},
+						FetchingInputs: &emptypb.Empty{},
 					},
 				},
 			},
@@ -1575,10 +1574,10 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 	})
 	require.NoError(t, err)
 	testutil.RequireEqualProto(t, response, &remoteworker.SynchronizeResponse{
-		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1000},
+		NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1000},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Idle{
-				Idle: &empty.Empty{},
+				Idle: &emptypb.Empty{},
 			},
 		},
 	})
@@ -1663,7 +1662,7 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 		streams = append(streams, stream)
 		update, err := stream.Recv()
 		require.NoError(t, err)
-		metadata, err := ptypes.MarshalAny(&remoteexecution.ExecuteOperationMetadata{
+		metadata, err := anypb.New(&remoteexecution.ExecuteOperationMetadata{
 			Stage: remoteexecution.ExecutionStage_QUEUED,
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      p.actionHash,
@@ -1746,17 +1745,17 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 			Platform:     platform,
 			CurrentState: &remoteworker.CurrentState{
 				WorkerState: &remoteworker.CurrentState_Idle{
-					Idle: &empty.Empty{},
+					Idle: &emptypb.Empty{},
 				},
 			},
 		})
 		require.NoError(t, err)
-		requestMetadata, err := ptypes.MarshalAny(&remoteexecution.RequestMetadata{
+		requestMetadata, err := anypb.New(&remoteexecution.RequestMetadata{
 			ToolInvocationId: p.invocationID,
 		})
 		require.NoError(t, err)
 		testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
-			NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1050},
+			NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1050},
 			DesiredState: &remoteworker.DesiredState{
 				WorkerState: &remoteworker.DesiredState_Executing_{
 					Executing: &remoteworker.DesiredState_Executing{
@@ -1770,8 +1769,8 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 								SizeBytes: 456,
 							},
 						},
-						QueuedTimestamp:   &timestamp.Timestamp{Seconds: 1010 + int64(i)},
-						AuxiliaryMetadata: []*any.Any{requestMetadata},
+						QueuedTimestamp:   &timestamppb.Timestamp{Seconds: 1010 + int64(i)},
+						AuxiliaryMetadata: []*anypb.Any{requestMetadata},
 					},
 				},
 			},
@@ -1833,7 +1832,7 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 	for i, p := range operationParameters {
 		update, err := streams[i].Recv()
 		require.NoError(t, err)
-		metadata, err := ptypes.MarshalAny(&remoteexecution.ExecuteOperationMetadata{
+		metadata, err := anypb.New(&remoteexecution.ExecuteOperationMetadata{
 			Stage: remoteexecution.ExecutionStage_COMPLETED,
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      p.actionHash,
@@ -1841,7 +1840,7 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		executeResponse, err := ptypes.MarshalAny(&remoteexecution.ExecuteResponse{
+		executeResponse, err := anypb.New(&remoteexecution.ExecuteResponse{
 			Status: status.Newf(codes.Unavailable, "Worker {\"hostname\":\"worker123\",\"thread\":\"%d\"} disappeared while task was executing", i).Proto(),
 		})
 		require.NoError(t, err)
@@ -1894,7 +1893,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonQueued(t *testing.T) {
 						SizeBytes: 123,
 					},
 					ExecutionState: &remoteworker.CurrentState_Executing_FetchingInputs{
-						FetchingInputs: &empty.Empty{},
+						FetchingInputs: &emptypb.Empty{},
 					},
 				},
 			},
@@ -1902,10 +1901,10 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonQueued(t *testing.T) {
 	})
 	require.NoError(t, err)
 	testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
-		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1000},
+		NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1000},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Idle{
-				Idle: &empty.Empty{},
+				Idle: &emptypb.Empty{},
 			},
 		},
 	}, response)
@@ -1972,7 +1971,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonQueued(t *testing.T) {
 		require.NoError(t, err)
 		update, err := stream.Recv()
 		require.NoError(t, err)
-		metadata, err := ptypes.MarshalAny(&remoteexecution.ExecuteOperationMetadata{
+		metadata, err := anypb.New(&remoteexecution.ExecuteOperationMetadata{
 			Stage: remoteexecution.ExecutionStage_QUEUED,
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      "fc96ea0eee854b45950d3a7448332445730886691b992cb7917da0853664f7c2",
@@ -2063,7 +2062,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 						SizeBytes: 123,
 					},
 					ExecutionState: &remoteworker.CurrentState_Executing_FetchingInputs{
-						FetchingInputs: &empty.Empty{},
+						FetchingInputs: &emptypb.Empty{},
 					},
 				},
 			},
@@ -2071,10 +2070,10 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 	})
 	require.NoError(t, err)
 	testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
-		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1000},
+		NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1000},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Idle{
-				Idle: &empty.Empty{},
+				Idle: &emptypb.Empty{},
 			},
 		},
 	}, response)
@@ -2137,7 +2136,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 		require.NoError(t, err)
 		update, err := stream.Recv()
 		require.NoError(t, err)
-		metadata, err := ptypes.MarshalAny(&remoteexecution.ExecuteOperationMetadata{
+		metadata, err := anypb.New(&remoteexecution.ExecuteOperationMetadata{
 			Stage: remoteexecution.ExecutionStage_QUEUED,
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      "fc96ea0eee854b45950d3a7448332445730886691b992cb7917da0853664f7c2",
@@ -2177,18 +2176,18 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 		Platform:     platform,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Idle{
-				Idle: &empty.Empty{},
+				Idle: &emptypb.Empty{},
 			},
 		},
 	})
 	require.NoError(t, err)
-	requestMetadata, err := ptypes.MarshalAny(&remoteexecution.RequestMetadata{
+	requestMetadata, err := anypb.New(&remoteexecution.RequestMetadata{
 		ToolInvocationId: "0f0f22ec-908a-4ea7-8a78-b92ab4188e78",
 		TargetId:         "//:hello_world",
 	})
 	require.NoError(t, err)
 	testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
-		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1075},
+		NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1075},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Executing_{
 				Executing: &remoteworker.DesiredState_Executing{
@@ -2203,8 +2202,8 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 						},
 						Platform: platform,
 					},
-					QueuedTimestamp:   &timestamp.Timestamp{Seconds: 1010},
-					AuxiliaryMetadata: []*any.Any{requestMetadata},
+					QueuedTimestamp:   &timestamppb.Timestamp{Seconds: 1010},
+					AuxiliaryMetadata: []*anypb.Any{requestMetadata},
 				},
 			},
 		},
@@ -2270,7 +2269,7 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 						SizeBytes: 123,
 					},
 					ExecutionState: &remoteworker.CurrentState_Executing_FetchingInputs{
-						FetchingInputs: &empty.Empty{},
+						FetchingInputs: &emptypb.Empty{},
 					},
 				},
 			},
@@ -2278,10 +2277,10 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 	})
 	require.NoError(t, err)
 	testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
-		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1000},
+		NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1000},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Idle{
-				Idle: &empty.Empty{},
+				Idle: &emptypb.Empty{},
 			},
 		},
 	}, response)
@@ -2319,7 +2318,7 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 	require.NoError(t, err)
 	update, err := stream.Recv()
 	require.NoError(t, err)
-	metadata, err := ptypes.MarshalAny(&remoteexecution.ExecuteOperationMetadata{
+	metadata, err := anypb.New(&remoteexecution.ExecuteOperationMetadata{
 		Stage: remoteexecution.ExecutionStage_QUEUED,
 		ActionDigest: &remoteexecution.Digest{
 			Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
@@ -2343,13 +2342,13 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 		Platform:     platform,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Idle{
-				Idle: &empty.Empty{},
+				Idle: &emptypb.Empty{},
 			},
 		},
 	})
 	require.NoError(t, err)
 	testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
-		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1012},
+		NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1012},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Executing_{
 				Executing: &remoteworker.DesiredState_Executing{
@@ -2363,7 +2362,7 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 							SizeBytes: 456,
 						},
 					},
-					QueuedTimestamp: &timestamp.Timestamp{Seconds: 1001},
+					QueuedTimestamp: &timestamppb.Timestamp{Seconds: 1001},
 				},
 			},
 		},
@@ -2402,10 +2401,10 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 	})
 	require.NoError(t, err)
 	testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
-		NextSynchronizationAt: &timestamp.Timestamp{Seconds: 1003},
+		NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1003},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Idle{
-				Idle: &empty.Empty{},
+				Idle: &emptypb.Empty{},
 			},
 		},
 	}, response)
@@ -2414,7 +2413,7 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 	// completed. This should be the last message to be returned.
 	update, err = stream.Recv()
 	require.NoError(t, err)
-	metadata, err = ptypes.MarshalAny(&remoteexecution.ExecuteOperationMetadata{
+	metadata, err = anypb.New(&remoteexecution.ExecuteOperationMetadata{
 		Stage: remoteexecution.ExecutionStage_COMPLETED,
 		ActionDigest: &remoteexecution.Digest{
 			Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
@@ -2422,7 +2421,7 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	executeResponse, err := ptypes.MarshalAny(&remoteexecution.ExecuteResponse{
+	executeResponse, err := anypb.New(&remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{},
 	})
 	require.NoError(t, err)

@@ -31,8 +31,8 @@ import (
 	bb_grpc "github.com/buildbarn/bb-storage/pkg/grpc"
 	"github.com/buildbarn/bb-storage/pkg/random"
 	"github.com/buildbarn/bb-storage/pkg/util"
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/empty"
+
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 func main() {
@@ -177,14 +177,14 @@ func main() {
 			}
 			concurrencyLength := len(strconv.FormatUint(runnerConfiguration.Concurrency-1, 10))
 
-			defaultExecutionTimeout, err := ptypes.Duration(runnerConfiguration.DefaultExecutionTimeout)
-			if err != nil {
+			if err := runnerConfiguration.DefaultExecutionTimeout.CheckValid(); err != nil {
 				log.Fatal("Failed to parse default execution timeout")
 			}
-			maximumExecutionTimeout, err := ptypes.Duration(runnerConfiguration.MaximumExecutionTimeout)
-			if err != nil {
+			defaultExecutionTimeout := runnerConfiguration.DefaultExecutionTimeout.AsDuration()
+			if err := runnerConfiguration.MaximumExecutionTimeout.CheckValid(); err != nil {
 				log.Fatal("Failed to parse maximum execution timeout")
 			}
+			maximumExecutionTimeout := runnerConfiguration.MaximumExecutionTimeout.AsDuration()
 
 			// Obtain raw device numbers of character
 			// devices that need to be available within the
@@ -310,7 +310,7 @@ func main() {
 					for {
 						if !buildClient.InExecutingState() {
 							for {
-								_, err := runnerClient.CheckReadiness(context.Background(), &empty.Empty{})
+								_, err := runnerClient.CheckReadiness(context.Background(), &emptypb.Empty{})
 								if err == nil {
 									break
 								}

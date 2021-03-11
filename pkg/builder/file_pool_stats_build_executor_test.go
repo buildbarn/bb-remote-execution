@@ -14,9 +14,9 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/golang/mock/gomock"
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/any"
 	"github.com/stretchr/testify/require"
+
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 func TestFilePoolStatsBuildExecutorExample(t *testing.T) {
@@ -78,7 +78,7 @@ func TestFilePoolStatsBuildExecutorExample(t *testing.T) {
 
 	// Validate the execute response, which should now contain the
 	// file pool resource usage statistics.
-	resourceUsage, err := ptypes.MarshalAny(&resourceusage.FilePoolResourceUsage{
+	resourceUsage, err := anypb.New(&resourceusage.FilePoolResourceUsage{
 		FilesCreated:       2,
 		FilesCountPeak:     1,
 		FilesSizeBytesPeak: 105,
@@ -93,7 +93,7 @@ func TestFilePoolStatsBuildExecutorExample(t *testing.T) {
 		Result: &remoteexecution.ActionResult{
 			ExitCode: 1,
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
-				AuxiliaryMetadata: []*any.Any{resourceUsage},
+				AuxiliaryMetadata: []*anypb.Any{resourceUsage},
 			},
 		},
 	}, executeResponse)

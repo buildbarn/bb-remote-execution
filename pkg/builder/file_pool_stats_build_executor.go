@@ -11,7 +11,8 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/util"
-	"github.com/golang/protobuf/ptypes"
+
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 type filePoolStatsBuildExecutor struct {
@@ -36,7 +37,7 @@ func (be *filePoolStatsBuildExecutor) Execute(ctx context.Context, filePool re_f
 	stats := fp.stats
 	fp.lock.Unlock()
 
-	if resourceUsage, err := ptypes.MarshalAny(&stats); err == nil {
+	if resourceUsage, err := anypb.New(&stats); err == nil {
 		response.Result.ExecutionMetadata.AuxiliaryMetadata = append(response.Result.ExecutionMetadata.AuxiliaryMetadata, resourceUsage)
 	} else {
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to marshal file pool resource usage"))
