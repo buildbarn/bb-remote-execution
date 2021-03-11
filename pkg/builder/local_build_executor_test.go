@@ -102,7 +102,7 @@ func TestLocalBuildExecutorBuildDirectoryCreatorFailedFailed(t *testing.T) {
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(
 		digest.MustNewDigest("netbsd", "5555555555555555555555555555555555555555555555555555555555555555", 7),
 		false,
-	).Return(nil, "", status.Error(codes.InvalidArgument, "Platform requirements not provided"))
+	).Return(nil, nil, status.Error(codes.InvalidArgument, "Platform requirements not provided"))
 	runner := mock.NewMockRunner(ctrl)
 	clock := mock.NewMockClock(ctrl)
 	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil, 10000)
@@ -143,7 +143,7 @@ func TestLocalBuildExecutorInputRootPopulationFailed(t *testing.T) {
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(
 		digest.MustNewDigest("netbsd", "5555555555555555555555555555555555555555555555555555555555555555", 7),
 		false,
-	).Return(buildDirectory, ".", nil)
+	).Return(buildDirectory, nil, nil)
 	filePool := mock.NewMockFilePool(ctrl)
 	buildDirectory.EXPECT().InstallHooks(filePool, gomock.Any())
 	buildDirectory.EXPECT().Mkdir(path.MustNewComponent("root"), os.FileMode(0o777))
@@ -205,7 +205,7 @@ func TestLocalBuildExecutorOutputDirectoryCreationFailure(t *testing.T) {
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(
 		digest.MustNewDigest("fedora", "5555555555555555555555555555555555555555555555555555555555555555", 7),
 		false,
-	).Return(buildDirectory, ".", nil)
+	).Return(buildDirectory, nil, nil)
 	filePool := mock.NewMockFilePool(ctrl)
 	buildDirectory.EXPECT().InstallHooks(filePool, gomock.Any())
 	buildDirectory.EXPECT().Mkdir(path.MustNewComponent("root"), os.FileMode(0o777))
@@ -262,7 +262,7 @@ func TestLocalBuildExecutorMissingCommand(t *testing.T) {
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(
 		digest.MustNewDigest("netbsd", "5555555555555555555555555555555555555555555555555555555555555555", 7),
 		false,
-	).Return(buildDirectory, ".", nil)
+	).Return(buildDirectory, nil, nil)
 	filePool := mock.NewMockFilePool(ctrl)
 	buildDirectory.EXPECT().InstallHooks(filePool, gomock.Any())
 	buildDirectory.EXPECT().Mkdir(path.MustNewComponent("root"), os.FileMode(0o777))
@@ -343,7 +343,7 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(
 		digest.MustNewDigest("nintendo64", "5555555555555555555555555555555555555555555555555555555555555555", 7),
 		false,
-	).Return(buildDirectory, ".", nil)
+	).Return(buildDirectory, nil, nil)
 	filePool := mock.NewMockFilePool(ctrl)
 	buildDirectory.EXPECT().InstallHooks(filePool, gomock.Any())
 	buildDirectory.EXPECT().Mkdir(path.MustNewComponent("root"), os.FileMode(0o777))
@@ -532,7 +532,7 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(
 		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000001", 123),
 		false,
-	).Return(buildDirectory, "0000000000000000", nil)
+	).Return(buildDirectory, ((*path.Trace)(nil)).Append(path.MustNewComponent("0000000000000000")), nil)
 	filePool := mock.NewMockFilePool(ctrl)
 	buildDirectory.EXPECT().InstallHooks(filePool, gomock.Any())
 	buildDirectory.EXPECT().Mkdir(path.MustNewComponent("root"), os.FileMode(0o777))
@@ -754,7 +754,7 @@ func TestLocalBuildExecutorInputRootIOFailureDuringExecution(t *testing.T) {
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(
 		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000001", 123),
 		false,
-	).Return(buildDirectory, ".", nil)
+	).Return(buildDirectory, nil, nil)
 	filePool := mock.NewMockFilePool(ctrl)
 	buildDirectory.EXPECT().InstallHooks(filePool, gomock.Any())
 
@@ -865,7 +865,7 @@ func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(
 		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000001", 123),
 		false,
-	).Return(buildDirectory, ".", nil)
+	).Return(buildDirectory, nil, nil)
 	filePool := mock.NewMockFilePool(ctrl)
 	buildDirectory.EXPECT().InstallHooks(filePool, gomock.Any())
 
@@ -953,7 +953,7 @@ func TestLocalBuildExecutorCharacterDeviceNodeCreationFailed(t *testing.T) {
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(
 		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000001", 123),
 		false,
-	).Return(buildDirectory, ".", nil)
+	).Return(buildDirectory, nil, nil)
 	filePool := mock.NewMockFilePool(ctrl)
 	buildDirectory.EXPECT().InstallHooks(filePool, gomock.Any())
 

@@ -2,6 +2,7 @@ package builder
 
 import (
 	"github.com/buildbarn/bb-storage/pkg/digest"
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 )
 
 type rootBuildDirectoryCreator struct {
@@ -21,8 +22,8 @@ func NewRootBuildDirectoryCreator(buildDirectory BuildDirectory) BuildDirectoryC
 	return dc
 }
 
-func (dc *rootBuildDirectoryCreator) GetBuildDirectory(actionDigest digest.Digest, mayRunInParallel bool) (BuildDirectory, string, error) {
-	return dc.buildDirectory, ".", nil
+func (dc *rootBuildDirectoryCreator) GetBuildDirectory(actionDigest digest.Digest, mayRunInParallel bool) (BuildDirectory, *path.Trace, error) {
+	return dc.buildDirectory, nil, nil
 }
 
 type rootBuildDirectory struct {

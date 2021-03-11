@@ -24,7 +24,7 @@ func TestCleanBuildDirectoryCreatorAcquireFailure(t *testing.T) {
 	baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		false,
-	).Return(nil, "", status.Error(codes.Internal, "No space left on device"))
+	).Return(nil, nil, status.Error(codes.Internal, "No space left on device"))
 
 	var initializer sync.Initializer
 	buildDirectoryCreator := builder.NewCleanBuildDirectoryCreator(baseBuildDirectoryCreator, &initializer)
@@ -43,7 +43,7 @@ func TestCleanBuildDirectoryCreatorRemoveAllChildrenFailure(t *testing.T) {
 	baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		false,
-	).Return(baseBuildDirectory, "base-directory", nil)
+	).Return(baseBuildDirectory, ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory")), nil)
 	baseBuildDirectory.EXPECT().RemoveAllChildren().Return(
 		status.Error(codes.PermissionDenied, "You don't have permissions to remove files from disk"))
 	baseBuildDirectory.EXPECT().Close()
@@ -65,7 +65,7 @@ func TestCleanBuildDirectoryCreatorSuccess(t *testing.T) {
 	baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		false,
-	).Return(baseBuildDirectory, "base-directory", nil)
+	).Return(baseBuildDirectory, ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory")), nil)
 	baseBuildDirectory.EXPECT().RemoveAllChildren().Return(nil)
 	baseBuildDirectory.EXPECT().Mkdir(path.MustNewComponent("hello"), os.FileMode(0o700))
 	baseBuildDirectory.EXPECT().Close()
@@ -76,7 +76,7 @@ func TestCleanBuildDirectoryCreatorSuccess(t *testing.T) {
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		false)
 	require.NoError(t, err)
-	require.Equal(t, "base-directory", buildDirectoryPath)
+	require.Equal(t, ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory")), buildDirectoryPath)
 	require.NoError(t, buildDirectory.Mkdir(path.MustNewComponent("hello"), os.FileMode(0o700)))
 	buildDirectory.Close()
 }

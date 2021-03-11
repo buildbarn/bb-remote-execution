@@ -2,12 +2,11 @@ package builder
 
 import (
 	"log"
-	"path"
 	"strconv"
 
 	"github.com/buildbarn/bb-storage/pkg/atomic"
 	"github.com/buildbarn/bb-storage/pkg/digest"
-	bb_path "github.com/buildbarn/bb-storage/pkg/filesystem/path"
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
 
 	"google.golang.org/grpc/codes"
@@ -35,10 +34,10 @@ func NewSharedBuildDirectoryCreator(base BuildDirectoryCreator, nextParallelActi
 	}
 }
 
-func (dc *sharedBuildDirectoryCreator) GetBuildDirectory(actionDigest digest.Digest, mayRunInParallel bool) (BuildDirectory, string, error) {
+func (dc *sharedBuildDirectoryCreator) GetBuildDirectory(actionDigest digest.Digest, mayRunInParallel bool) (BuildDirectory, *path.Trace, error) {
 	parentDirectory, parentDirectoryPath, err := dc.base.GetBuildDirectory(actionDigest, mayRunInParallel)
 	if err != nil {
-		return nil, "", err
+		return nil, nil, err
 	}
 
 	// Determine the name of the subdirectory.
@@ -71,33 +70,33 @@ func (dc *sharedBuildDirectoryCreator) GetBuildDirectory(actionDigest digest.Dig
 	}
 
 	// Create the subdirectory.
-	childDirectoryPath := path.Join(parentDirectoryPath, name)
-	childDirectoryName := bb_path.MustNewComponent(name)
+	childDirectoryName := path.MustNewComponent(name)
+	childDirectoryPath := parentDirectoryPath.Append(childDirectoryName)
 	if err := parentDirectory.Mkdir(childDirectoryName, 0o777); err != nil {
 		parentDirectory.Close()
-		return nil, "", util.StatusWrapfWithCode(err, codes.Internal, "Failed to create build directory %#v", childDirectoryPath)
+		return nil, nil, util.StatusWrapfWithCode(err, codes.Internal, "Failed to create build directory %#v", childDirectoryPath.String())
 	}
 	childDirectory, err := parentDirectory.EnterBuildDirectory(childDirectoryName)
 	if err != nil {
 		if err := parentDirectory.Remove(childDirectoryName); err != nil {
-			log.Printf("Failed to remove action digest build directory %#v upon failure to enter: %s", childDirectoryPath, err)
+			log.Printf("Failed to remove action digest build directory %#v upon failure to enter: %s", childDirectoryPath.String(), err)
 		}
 		parentDirectory.Close()
-		return nil, "", util.StatusWrapfWithCode(err, codes.Internal, "Failed to enter build directory %#v", childDirectoryPath)
+		return nil, nil, util.StatusWrapfWithCode(err, codes.Internal, "Failed to enter build directory %#v", childDirectoryPath.String())
 	}
 
 	return &sharedBuildDirectory{
 		BuildDirectory:     childDirectory,
 		parentDirectory:    parentDirectory,
 		childDirectoryName: childDirectoryName,
-		childDirectoryPath: childDirectoryPath,
+		childDirectoryPath: childDirectoryPath.String(),
 	}, childDirectoryPath, nil
 }
 
 type sharedBuildDirectory struct {
 	BuildDirectory
 	parentDirectory    BuildDirectory
-	childDirectoryName bb_path.Component
+	childDirectoryName path.Component
 	childDirectoryPath string
 }
 

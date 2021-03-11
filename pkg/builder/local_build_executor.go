@@ -3,7 +3,6 @@ package builder
 import (
 	"context"
 	"os"
-	"path"
 	"sync"
 	"time"
 
@@ -15,13 +14,22 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
-	bb_path "github.com/buildbarn/bb-storage/pkg/filesystem/path"
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/empty"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+)
+
+// Filenames of objects to be created inside the build directory.
+var (
+	stdoutComponent             = path.MustNewComponent("stdout")
+	stderrComponent             = path.MustNewComponent("stderr")
+	deviceDirectoryComponent    = path.MustNewComponent("dev")
+	inputRootDirectoryComponent = path.MustNewComponent("root")
+	temporaryDirectoryComponent = path.MustNewComponent("tmp")
 )
 
 // capturingErrorLogger is an error logger that stores up to a single
@@ -59,13 +67,13 @@ type localBuildExecutor struct {
 	clock                     clock.Clock
 	defaultExecutionTimeout   time.Duration
 	maximumExecutionTimeout   time.Duration
-	inputRootCharacterDevices map[bb_path.Component]int
+	inputRootCharacterDevices map[path.Component]int
 	maximumMessageSizeBytes   int
 }
 
 // NewLocalBuildExecutor returns a BuildExecutor that executes build
 // steps on the local system.
-func NewLocalBuildExecutor(contentAddressableStorage blobstore.BlobAccess, buildDirectoryCreator BuildDirectoryCreator, runner runner.Runner, clock clock.Clock, defaultExecutionTimeout, maximumExecutionTimeout time.Duration, inputRootCharacterDevices map[bb_path.Component]int, maximumMessageSizeBytes int) BuildExecutor {
+func NewLocalBuildExecutor(contentAddressableStorage blobstore.BlobAccess, buildDirectoryCreator BuildDirectoryCreator, runner runner.Runner, clock clock.Clock, defaultExecutionTimeout, maximumExecutionTimeout time.Duration, inputRootCharacterDevices map[path.Component]int, maximumMessageSizeBytes int) BuildExecutor {
 	return &localBuildExecutor{
 		contentAddressableStorage: contentAddressableStorage,
 		buildDirectoryCreator:     buildDirectoryCreator,
@@ -79,11 +87,10 @@ func NewLocalBuildExecutor(contentAddressableStorage blobstore.BlobAccess, build
 }
 
 func (be *localBuildExecutor) createCharacterDevices(inputRootDirectory BuildDirectory) error {
-	directoryName := bb_path.MustNewComponent("dev")
-	if err := inputRootDirectory.Mkdir(directoryName, 0o777); err != nil && !os.IsExist(err) {
+	if err := inputRootDirectory.Mkdir(deviceDirectoryComponent, 0o777); err != nil && !os.IsExist(err) {
 		return util.StatusWrap(err, "Unable to create /dev directory in input root")
 	}
-	deviceDirectory, err := inputRootDirectory.EnterBuildDirectory(directoryName)
+	deviceDirectory, err := inputRootDirectory.EnterBuildDirectory(deviceDirectoryComponent)
 	if err != nil {
 		return util.StatusWrap(err, "Unable to enter /dev directory in input root")
 	}
@@ -158,14 +165,13 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	}
 
 	// Create input root directory inside of build directory.
-	inputRootDirectoryName := bb_path.MustNewComponent("root")
-	if err := buildDirectory.Mkdir(inputRootDirectoryName, 0o777); err != nil {
+	if err := buildDirectory.Mkdir(inputRootDirectoryComponent, 0o777); err != nil {
 		attachErrorToExecuteResponse(
 			response,
 			util.StatusWrap(err, "Failed to create input root directory"))
 		return response
 	}
-	inputRootDirectory, err := buildDirectory.EnterBuildDirectory(inputRootDirectoryName)
+	inputRootDirectory, err := buildDirectory.EnterBuildDirectory(inputRootDirectoryComponent)
 	if err != nil {
 		attachErrorToExecuteResponse(
 			response,
@@ -221,7 +227,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	// temporary files are automatically removed when the build
 	// action completes. When using FUSE, it also causes quotas to
 	// be applied to them.
-	if err := buildDirectory.Mkdir(bb_path.MustNewComponent("tmp"), 0o777); err != nil {
+	if err := buildDirectory.Mkdir(temporaryDirectoryComponent, 0o777); err != nil {
 		attachErrorToExecuteResponse(
 			response,
 			util.StatusWrap(err, "Failed to create temporary directory inside build directory"))
@@ -246,10 +252,10 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 		Arguments:            command.Arguments,
 		EnvironmentVariables: environmentVariables,
 		WorkingDirectory:     command.WorkingDirectory,
-		StdoutPath:           path.Join(buildDirectoryPath, "stdout"),
-		StderrPath:           path.Join(buildDirectoryPath, "stderr"),
-		InputRootDirectory:   path.Join(buildDirectoryPath, "root"),
-		TemporaryDirectory:   path.Join(buildDirectoryPath, "tmp"),
+		StdoutPath:           buildDirectoryPath.Append(stdoutComponent).String(),
+		StderrPath:           buildDirectoryPath.Append(stderrComponent).String(),
+		InputRootDirectory:   buildDirectoryPath.Append(inputRootDirectoryComponent).String(),
+		TemporaryDirectory:   buildDirectoryPath.Append(temporaryDirectoryComponent).String(),
 	})
 
 	// If an I/O error occurred during execution, attach any errors
@@ -278,12 +284,12 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	// stderr files are empty. If that's the case, don't bother
 	// setting the digest to keep the ActionResult small.
 	digestFunction := actionDigest.GetDigestFunction()
-	if stdoutDigest, err := buildDirectory.UploadFile(ctx, bb_path.MustNewComponent("stdout"), digestFunction); err != nil {
+	if stdoutDigest, err := buildDirectory.UploadFile(ctx, stdoutComponent, digestFunction); err != nil {
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to store stdout"))
 	} else if stdoutDigest.GetSizeBytes() > 0 {
 		response.Result.StdoutDigest = stdoutDigest.GetProto()
 	}
-	if stderrDigest, err := buildDirectory.UploadFile(ctx, bb_path.MustNewComponent("stderr"), digestFunction); err != nil {
+	if stderrDigest, err := buildDirectory.UploadFile(ctx, stderrComponent, digestFunction); err != nil {
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to store stderr"))
 	} else if stderrDigest.GetSizeBytes() > 0 {
 		response.Result.StderrDigest = stderrDigest.GetProto()
