@@ -64,6 +64,7 @@ github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6r
 github.com/bgentry/speakeasy v0.1.0/go.mod h1:+zsyZBPWlz7T6j88CTgSN5bM796AkVf0kBD4zp0CCIs=
 github.com/buildbarn/bb-storage v0.0.0-20210311095322-ee65b012ed13 h1:4qFNCIy/VM3qfYilX+O4nE8Lm5pjSjvtiJvJlZMY2uo=
 github.com/buildbarn/bb-storage v0.0.0-20210311095322-ee65b012ed13/go.mod h1:cKr3o2BPePMTiy7rHT6l2h4D3rE/usn79wmMRATC36k=
+github.com/buildbarn/bb-storage v0.0.0-20210312082612-b15cd2841ed1/go.mod h1:cKr3o2BPePMTiy7rHT6l2h4D3rE/usn79wmMRATC36k=
 github.com/casbin/casbin/v2 v2.1.2/go.mod h1:YcPU1XXisHhLzuxH9coDNf2FbKpjGlbCg3n9yuLkIJQ=
 github.com/cenkalti/backoff v2.2.1+incompatible/go.mod h1:90ReRw6GdpyfrHakVjL/QHaoyV4aDUVVkXQJJJ3NXXM=
 github.com/census-instrumentation/opencensus-proto v0.2.1 h1:glEXhBS5PSLLv4IXzLA5yPRVX4bilULVyxxbrfOtDAk=
