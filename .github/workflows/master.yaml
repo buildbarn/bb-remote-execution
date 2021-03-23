@@ -9,12 +9,20 @@
                "uses": "actions/checkout@v1"
             },
             {
+               "name": "Restore Bazel cache",
+               "uses": "actions/cache@v1",
+               "with": {
+                  "key": "bazel",
+                  "path": "~/.cache/bazel"
+               }
+            },
+            {
                "name": "Gazelle",
                "run": "bazel run //:gazelle -- update-repos -from_file=go.mod -to_macro go_dependencies.bzl%go_dependencies -prune && bazel run //:gazelle"
             },
             {
                "name": "Buildifier",
-               "run": "sed '/^$/d' go_dependencies.bzl > go_dependencies.bzl.new && mv go_dependencies.bzl.new go_dependencies.bzl &&  bazel run @com_github_bazelbuild_buildtools//:buildifier"
+               "run": "sed '/^$/d' go_dependencies.bzl > go_dependencies.bzl.new && mv go_dependencies.bzl.new go_dependencies.bzl && bazel run @com_github_bazelbuild_buildtools//:buildifier"
             },
             {
                "name": "Gofmt",
@@ -237,6 +245,46 @@
                "uses": "actions/upload-artifact@v2-preview",
                "with": {
                   "name": "bb_worker.darwin_amd64",
+                  "path": "bb_worker"
+               }
+            },
+            {
+               "name": "darwin_arm64: build and test",
+               "run": "bazel build --platforms=@io_bazel_rules_go//go/toolchain:darwin_arm64 //..."
+            },
+            {
+               "name": "darwin_arm64: copy bb_runner",
+               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:darwin_arm64 //cmd/bb_runner $(pwd)/bb_runner"
+            },
+            {
+               "name": "darwin_arm64: upload bb_runner",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "bb_runner.darwin_arm64",
+                  "path": "bb_runner"
+               }
+            },
+            {
+               "name": "darwin_arm64: copy bb_scheduler",
+               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:darwin_arm64 //cmd/bb_scheduler $(pwd)/bb_scheduler"
+            },
+            {
+               "name": "darwin_arm64: upload bb_scheduler",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "bb_scheduler.darwin_arm64",
+                  "path": "bb_scheduler"
+               }
+            },
+            {
+               "name": "darwin_arm64: copy bb_worker",
+               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:darwin_arm64 //cmd/bb_worker $(pwd)/bb_worker"
+            },
+            {
+               "name": "darwin_arm64: upload bb_worker",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "bb_worker.darwin_arm64",
                   "path": "bb_worker"
                }
             },
