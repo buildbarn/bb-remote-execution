@@ -9,7 +9,7 @@ replace github.com/gordonklaus/ineffassign => github.com/gordonklaus/ineffassign
 require (
 	github.com/aws/aws-sdk-go v1.38.2
 	github.com/bazelbuild/remote-apis v0.0.0-20210309154856-0943dc4e70e1
-	github.com/buildbarn/bb-storage v0.0.0-20210322220628-125ead38ddc2
+	github.com/buildbarn/bb-storage v0.0.0-20210324135539-5317965db548
 	github.com/golang/protobuf v1.5.1
 	github.com/google/uuid v1.2.0
 	github.com/gorilla/mux v1.8.0
