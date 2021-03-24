@@ -265,24 +265,30 @@ func main() {
 						log.Fatal("Failed to marshal worker ID: ", err)
 					}
 
-					buildExecutor := builder.NewLoggingBuildExecutor(
-						builder.NewCachingBuildExecutor(
-							builder.NewMetricsBuildExecutor(
-								builder.NewFilePoolStatsBuildExecutor(
-									builder.NewTimestampedBuildExecutor(
-										builder.NewStorageFlushingBuildExecutor(
-											builder.NewLocalBuildExecutor(
-												contentAddressableStorageWriter,
-												buildDirectoryCreator,
-												runner.NewRemoteRunner(runnerConnection),
-												clock.SystemClock,
-												defaultExecutionTimeout,
-												maximumExecutionTimeout,
-												inputRootCharacterDevices,
-												int(configuration.MaximumMessageSizeBytes)),
-											contentAddressableStorageFlusher),
+					buildExecutor := builder.NewMetricsBuildExecutor(
+						builder.NewFilePoolStatsBuildExecutor(
+							builder.NewTimestampedBuildExecutor(
+								builder.NewStorageFlushingBuildExecutor(
+									builder.NewLocalBuildExecutor(
+										contentAddressableStorageWriter,
+										buildDirectoryCreator,
+										runner.NewRemoteRunner(runnerConnection),
 										clock.SystemClock,
-										string(workerName)))),
+										defaultExecutionTimeout,
+										maximumExecutionTimeout,
+										inputRootCharacterDevices,
+										int(configuration.MaximumMessageSizeBytes)),
+									contentAddressableStorageFlusher),
+								clock.SystemClock,
+								string(workerName))))
+
+					if len(runnerConfiguration.CostsPerSecond) > 0 {
+						buildExecutor = builder.NewCostComputingBuildExecutor(buildExecutor, runnerConfiguration.CostsPerSecond)
+					}
+
+					buildExecutor = builder.NewLoggingBuildExecutor(
+						builder.NewCachingBuildExecutor(
+							buildExecutor,
 							globalContentAddressableStorage,
 							actionCache,
 							browserURL),

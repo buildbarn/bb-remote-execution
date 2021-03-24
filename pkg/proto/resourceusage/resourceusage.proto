@@ -83,3 +83,19 @@ message POSIXResourceUsage {
   // ru_nivcsw: Involuntary context switches.
   int64 involuntary_context_switches = 16;
 }
+
+// A representation of unique factors that may be aggregated to
+// compute a given build action's total price.
+message MonetaryResourceUsage {
+  message Expense {
+    // The type of currency the cost is measured in. Required to be in
+    // ISO 4217 format: https://en.wikipedia.org/wiki/ISO_4217#Active_codes
+    string currency = 1;
+
+    // The value of a specific expense for a build action.
+    double cost = 2;
+  }
+
+  // A mapping of expense categories to their respective costs.
+  map<string, Expense> expenses = 1;
+}

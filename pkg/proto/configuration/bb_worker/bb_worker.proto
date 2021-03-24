@@ -10,6 +10,7 @@ import "pkg/proto/configuration/filesystem/filesystem.proto";
 import "pkg/proto/configuration/fuse/fuse.proto";
 import "pkg/proto/configuration/global/global.proto";
 import "pkg/proto/configuration/grpc/grpc.proto";
+import "pkg/proto/resourceusage/resourceusage.proto";
 
 option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_worker";
 
@@ -144,4 +145,12 @@ message RunnerConfiguration {
   // Device nodes to install in input root.
   // e.g. ["null", "zero", "random"]
   repeated string input_root_character_device_nodes = 9;
+
+  // Expenses that should be associated with build actions for this worker
+  // type. These could be representative of any recurring expenses such as
+  // cloud provider costs or on-prem hardware maintenance. If specified, a
+  // MonetaryResourceUsage message will be appended to each ActionResult's
+  // auxiliary_metadata.
+  map<string, buildbarn.resourceusage.MonetaryResourceUsage.Expense>
+      costs_per_second = 10;
 }
