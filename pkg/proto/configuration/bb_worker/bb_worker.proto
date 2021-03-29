@@ -154,6 +154,7 @@ message RunnerConfiguration {
   map<string, buildbarn.resourceusage.MonetaryResourceUsage.Expense>
       costs_per_second = 10;
 
-  // Additional environment variables to set inside the runner
+  // Additional environment variables to set inside the runner.  These are
+  // overridden by environment specified in an action.
   map<string, string> environment_variables = 11;
 }
