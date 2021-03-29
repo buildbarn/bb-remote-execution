@@ -153,4 +153,7 @@ message RunnerConfiguration {
   // auxiliary_metadata.
   map<string, buildbarn.resourceusage.MonetaryResourceUsage.Expense>
       costs_per_second = 10;
+
+  // Additional environment variables to set inside the runner
+  map<string, string> environment_variables = 11;
 }
