@@ -153,4 +153,12 @@ message RunnerConfiguration {
   // auxiliary_metadata.
   map<string, buildbarn.resourceusage.MonetaryResourceUsage.Expense>
       costs_per_second = 10;
+
+  // Additional environment variables to set inside the runner.  These are
+  // overridden by environment specified in an action.  For better hermeticity,
+  // is preferable to have the environment controlled by the build client, such
+  // as Bazel's --action_env.  --action_env, however, has limited scope that
+  // makes it not useful in some scenarios:
+  // https://github.com/bazelbuild/bazel/issues/3320
+  map<string, string> environment_variables = 11;
 }
