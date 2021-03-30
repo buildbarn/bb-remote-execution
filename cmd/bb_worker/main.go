@@ -265,11 +265,7 @@ func main() {
 						log.Fatal("Failed to marshal worker ID: ", err)
 					}
 
-					env := map[string]string{}
-					for k, v := range runnerConfiguration.EnvironmentVariables {
-						env[k] = v
-					}
-
+					env := runnerConfiguration.EnvironmentVariables
 					buildExecutor := builder.NewMetricsBuildExecutor(
 						builder.NewFilePoolStatsBuildExecutor(
 							builder.NewTimestampedBuildExecutor(
