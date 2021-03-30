@@ -48,7 +48,7 @@ var (
 			Name:      "in_memory_build_queue_tasks_queued_total",
 			Help:      "Number of tasks created through Execute().",
 		},
-		[]string{"instance_name", "platform"})
+		[]string{"instance_name", "platform", "do_not_cache"})
 	inMemoryBuildQueueTasksQueuedDurationSeconds = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
@@ -378,10 +378,12 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 
 			completionWakeup: make(chan struct{}),
 		}
-		if !action.DoNotCache {
+		if action.DoNotCache {
+			pq.tasksQueuedTotalTrue.Inc()
+		} else {
+			pq.tasksQueuedTotalFalse.Inc()
 			pq.inFlightDeduplicationMap[inFlightDeduplicationKey] = t
 		}
-		pq.tasksQueuedTotal.Inc()
 	}
 
 	// See if there are any other queued or executing tasks for this
@@ -1089,7 +1091,8 @@ type platformQueue struct {
 	drainsWakeup chan struct{}
 
 	// Prometheus metrics.
-	tasksQueuedTotal              prometheus.Counter
+	tasksQueuedTotalTrue          prometheus.Counter
+	tasksQueuedTotalFalse         prometheus.Counter
 	tasksQueuedDurationSeconds    prometheus.Observer
 	tasksExecutingDurationSeconds prometheus.ObserverVec
 	tasksExecutingRetries         prometheus.ObserverVec
@@ -1122,7 +1125,8 @@ func newPlatformQueue(platformKey platformKey) *platformQueue {
 		drains:       map[string]*buildqueuestate.DrainState{},
 		drainsWakeup: make(chan struct{}),
 
-		tasksQueuedTotal:              inMemoryBuildQueueTasksQueuedTotal.WithLabelValues(instanceName, platformKey.platform),
+		tasksQueuedTotalTrue:          inMemoryBuildQueueTasksQueuedTotal.WithLabelValues(instanceName, platformKey.platform, "true"),
+		tasksQueuedTotalFalse:         inMemoryBuildQueueTasksQueuedTotal.WithLabelValues(instanceName, platformKey.platform, "false"),
 		tasksQueuedDurationSeconds:    inMemoryBuildQueueTasksQueuedDurationSeconds.WithLabelValues(instanceName, platformKey.platform),
 		tasksExecutingDurationSeconds: inMemoryBuildQueueTasksExecutingDurationSeconds.MustCurryWith(platformLabels),
 		tasksExecutingRetries:         inMemoryBuildQueueTasksExecutingRetries.MustCurryWith(platformLabels),
