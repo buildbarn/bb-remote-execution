@@ -376,8 +376,7 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 
 			currentStageStartTime: bq.now,
 
-			completionWakeup: make(chan struct{}),
-			executionStartWakeup: make(chan struct{}),
+			stageChangeWakeup: make(chan struct{}),
 		}
 		if !action.DoNotCache {
 			pq.inFlightDeduplicationMap[inFlightDeduplicationKey] = t
@@ -921,7 +920,9 @@ func (bq *InMemoryBuildQueue) TerminateWorkers(ctx context.Context, request *bui
 			if workerMatchesPattern(workerKey.getWorkerID(), request.WorkerIdPattern) {
 				w.terminating = true
 				if t := w.getCurrentTask(); t != nil {
-					completionWakeups = append(completionWakeups, t.completionWakeup)
+					// The task will be at the EXECUTING stage, so it can
+					// only transition to COMPLETED.
+					completionWakeups = append(completionWakeups, t.stageChangeWakeup)
 				}
 			}
 		}
@@ -1542,8 +1543,7 @@ func (o *operation) waitExecution(bq *InMemoryBuildQueue, out remoteexecution.Ex
 			}
 			operation.Result = &longrunning.Operation_Response{Response: response}
 		}
-		completionWakeup := t.completionWakeup
-		executionStartWakeup := t.executionStartWakeup
+		stageChangeWakeup := t.stageChangeWakeup
 		bq.leave()
 
 		// Send the longrunning.Operation back to the client.
@@ -1561,10 +1561,7 @@ func (o *operation) waitExecution(bq *InMemoryBuildQueue, out remoteexecution.Ex
 			timer.Stop()
 			bq.enter(bq.clock.Now())
 			return util.StatusFromContext(ctx)
-		case <-completionWakeup:
-			timer.Stop()
-			bq.enter(bq.clock.Now())
-		case <-executionStartWakeup:
+		case <-stageChangeWakeup:
 			timer.Stop()
 			bq.enter(bq.clock.Now())
 		case t := <-timerChannel:
@@ -1685,8 +1682,7 @@ type task struct {
 	retryCount int
 
 	executeResponse  *remoteexecution.ExecuteResponse
-	completionWakeup chan struct{}
-	executionStartWakeup chan struct{}
+	stageChangeWakeup chan struct{}
 }
 
 // getStage returns whether the task is in the queued, executing or
@@ -1718,8 +1714,8 @@ func (t *task) startExecuting(bq *InMemoryBuildQueue) {
 		o.removeQueuedFromInvocation()
 	}
 	t.registerQueuedStageFinished(bq)
-	close(t.executionStartWakeup)
-	t.executionStartWakeup = nil
+	close(t.stageChangeWakeup)
+	t.stageChangeWakeup = make(chan struct{})
 }
 
 // Complete execution of the task by registering the execution response.
@@ -1737,7 +1733,7 @@ func (t *task) complete(bq *InMemoryBuildQueue, executeResponse *remoteexecution
 		pq := t.platformQueue
 		delete(pq.inFlightDeduplicationMap, newInFlightDeduplicationKey(t.desiredState.ActionDigest))
 		t.executeResponse = executeResponse
-		close(t.completionWakeup)
+		close(t.stageChangeWakeup)
 
 		for i := range t.operations {
 			i.decrementExecutingOperationsCount()
@@ -1748,7 +1744,7 @@ func (t *task) complete(bq *InMemoryBuildQueue, executeResponse *remoteexecution
 		// significantly. Keep the Action digest, so that
 		// there's still a way to figure out what the task was.
 		t.desiredState.Action = nil
-		t.completionWakeup = nil
+		t.stageChangeWakeup = nil
 
 		result, grpcCode := getResultAndGRPCCodeFromExecuteResponse(executeResponse)
 		t.registerExecutingStageFinished(bq, result, grpcCode)
