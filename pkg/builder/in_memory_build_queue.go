@@ -377,6 +377,7 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 			currentStageStartTime: bq.now,
 
 			completionWakeup: make(chan struct{}),
+			executionStartWakeup: make(chan struct{}),
 		}
 		if !action.DoNotCache {
 			pq.inFlightDeduplicationMap[inFlightDeduplicationKey] = t
@@ -1542,6 +1543,7 @@ func (o *operation) waitExecution(bq *InMemoryBuildQueue, out remoteexecution.Ex
 			operation.Result = &longrunning.Operation_Response{Response: response}
 		}
 		completionWakeup := t.completionWakeup
+		executionStartWakeup := t.executionStartWakeup
 		bq.leave()
 
 		// Send the longrunning.Operation back to the client.
@@ -1560,6 +1562,9 @@ func (o *operation) waitExecution(bq *InMemoryBuildQueue, out remoteexecution.Ex
 			bq.enter(bq.clock.Now())
 			return util.StatusFromContext(ctx)
 		case <-completionWakeup:
+			timer.Stop()
+			bq.enter(bq.clock.Now())
+		case <-executionStartWakeup:
 			timer.Stop()
 			bq.enter(bq.clock.Now())
 		case t := <-timerChannel:
@@ -1681,6 +1686,7 @@ type task struct {
 
 	executeResponse  *remoteexecution.ExecuteResponse
 	completionWakeup chan struct{}
+	executionStartWakeup chan struct{}
 }
 
 // getStage returns whether the task is in the queued, executing or
@@ -1712,6 +1718,8 @@ func (t *task) startExecuting(bq *InMemoryBuildQueue) {
 		o.removeQueuedFromInvocation()
 	}
 	t.registerQueuedStageFinished(bq)
+	close(t.executionStartWakeup)
+	t.executionStartWakeup = nil
 }
 
 // Complete execution of the task by registering the execution response.
