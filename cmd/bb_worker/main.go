@@ -150,12 +150,24 @@ func main() {
 			if err != nil {
 				log.Fatal("Failed to create eviction set for cache directory: ", err)
 			}
+			var linkHelper cas.LinkHelper
+			switch nativeConfiguration.LinkType.LinkType.(type) {
+			case *bb_worker.NativeBuildDirectoryLinkType_Hardlink:
+				linkHelper = cas.NewLinkHelperHardlink()
+			case *bb_worker.NativeBuildDirectoryLinkType_Clonefile:
+				linkHelper = cas.NewLinkHelperClonefile()
+			case *bb_worker.NativeBuildDirectoryLinkType_Symlink:
+				linkHelper = cas.NewLinkHelperSymlink()
+			default:
+				log.Fatal("No configuration specified for link type")
+			}
 			fileFetcher = cas.NewHardlinkingFileFetcher(
 				cas.NewBlobAccessFileFetcher(globalContentAddressableStorage),
 				cacheDirectory,
 				int(nativeConfiguration.MaximumCacheFileCount),
 				nativeConfiguration.MaximumCacheSizeBytes,
-				eviction.NewMetricsSet(evictionSet, "HardlinkingFileFetcher"))
+				eviction.NewMetricsSet(evictionSet, "HardlinkingFileFetcher"),
+				linkHelper)
 
 			// Using a native file system requires us to
 			// hold on to file descriptors while uploading

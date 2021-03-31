@@ -26,6 +26,8 @@ type hardlinkingFileFetcher struct {
 
 	evictionLock sync.Mutex
 	evictionSet  eviction.Set
+
+	linkHelper LinkHelper
 }
 
 // NewHardlinkingFileFetcher is an adapter for FileFetcher that stores
@@ -33,7 +35,7 @@ type hardlinkingFileFetcher struct {
 // at the target location, they are hardlinked into the cache. Future
 // calls for the same file will hardlink them from the cache to the
 // target location. This reduces the amount of network traffic needed.
-func NewHardlinkingFileFetcher(base FileFetcher, cacheDirectory filesystem.Directory, maxFiles int, maxSize int64, evictionSet eviction.Set) FileFetcher {
+func NewHardlinkingFileFetcher(base FileFetcher, cacheDirectory filesystem.Directory, maxFiles int, maxSize int64, evictionSet eviction.Set, linkHelper LinkHelper) FileFetcher {
 	return &hardlinkingFileFetcher{
 		base:           base,
 		cacheDirectory: cacheDirectory,
@@ -43,6 +45,8 @@ func NewHardlinkingFileFetcher(base FileFetcher, cacheDirectory filesystem.Direc
 		filesSize: map[string]int64{},
 
 		evictionSet: evictionSet,
+
+		linkHelper: linkHelper,
 	}
 }
 
@@ -78,7 +82,7 @@ func (ff *hardlinkingFileFetcher) GetFile(ctx context.Context, blobDigest digest
 		ff.evictionSet.Touch(key)
 		ff.evictionLock.Unlock()
 
-		if err := ff.cacheDirectory.Link(path.MustNewComponent(key), directory, name); err == nil {
+		if err := ff.linkHelper.Link(ff.cacheDirectory, path.MustNewComponent(key), directory, name); err == nil {
 			// Successfully hardlinked the file to its destination.
 			ff.filesLock.RUnlock()
 			return nil
@@ -112,7 +116,7 @@ func (ff *hardlinkingFileFetcher) GetFile(ctx context.Context, blobDigest digest
 		}
 
 		// Hardlink the file into the cache.
-		if err := directory.Link(name, ff.cacheDirectory, path.MustNewComponent(key)); err != nil && !os.IsExist(err) {
+		if err := ff.linkHelper.Link(directory, name, ff.cacheDirectory, path.MustNewComponent(key)); err != nil && !os.IsExist(err) {
 			return util.StatusWrapfWithCode(err, codes.Internal, "Failed to add cached file %#v", key)
 		}
 		ff.evictionSet.Insert(key)
@@ -121,7 +125,7 @@ func (ff *hardlinkingFileFetcher) GetFile(ctx context.Context, blobDigest digest
 	} else if wasMissing {
 		// Even though the file is part of our bookkeeping, we
 		// observed it didn't exist. Repair this inconsistency.
-		if err := directory.Link(name, ff.cacheDirectory, path.MustNewComponent(key)); err != nil && !os.IsExist(err) {
+		if err := ff.linkHelper.Link(directory, name, ff.cacheDirectory, path.MustNewComponent(key)); err != nil && !os.IsExist(err) {
 			return util.StatusWrapfWithCode(err, codes.Internal, "Failed to repair cached file %#v", key)
 		}
 	}

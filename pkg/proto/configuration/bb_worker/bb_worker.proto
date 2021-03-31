@@ -4,6 +4,7 @@ package buildbarn.configuration.bb_worker;
 
 import "build/bazel/remote/execution/v2/remote_execution.proto";
 import "google/protobuf/duration.proto";
+import "google/protobuf/empty.proto";
 import "pkg/proto/configuration/blobstore/blobstore.proto";
 import "pkg/proto/configuration/eviction/eviction.proto";
 import "pkg/proto/configuration/filesystem/filesystem.proto";
@@ -110,6 +111,16 @@ message NativeBuildDirectoryConfiguration {
   // LEAST_RECENTLY_USED can, assuming the cache size is sufficient.
   buildbarn.configuration.eviction.CacheReplacementPolicy
       cache_replacement_policy = 5;
+
+  NativeBuildDirectoryLinkType link_type = 6;
+}
+
+message NativeBuildDirectoryLinkType {
+  oneof link_type {
+    google.protobuf.Empty hardlink = 1;
+    google.protobuf.Empty clonefile = 2;
+    google.protobuf.Empty symlink = 3;
+  }
 }
 
 message RunnerConfiguration {
