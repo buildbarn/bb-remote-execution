@@ -1681,7 +1681,7 @@ type task struct {
 	// worker crashes.
 	retryCount int
 
-	executeResponse  *remoteexecution.ExecuteResponse
+	executeResponse   *remoteexecution.ExecuteResponse
 	stageChangeWakeup chan struct{}
 }
 

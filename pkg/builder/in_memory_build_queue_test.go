@@ -956,7 +956,7 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 				},
 			})
 			testutil.RequireEqualProto(t, &longrunning.Operation{
-				Name: "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
+				Name:     "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
 				Metadata: metadata,
 			}, update)
 		}
