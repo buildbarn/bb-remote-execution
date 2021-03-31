@@ -119,7 +119,6 @@ message NativeBuildDirectoryLinkType {
   oneof link_type {
     google.protobuf.Empty hardlink = 1;
     google.protobuf.Empty clonefile = 2;
-    google.protobuf.Empty symlink = 3;
   }
 }
 

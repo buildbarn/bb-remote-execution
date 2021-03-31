@@ -156,8 +156,6 @@ func main() {
 				linkHelper = cas.NewLinkHelperHardlink()
 			case *bb_worker.NativeBuildDirectoryLinkType_Clonefile:
 				linkHelper = cas.NewLinkHelperClonefile()
-			case *bb_worker.NativeBuildDirectoryLinkType_Symlink:
-				linkHelper = cas.NewLinkHelperSymlink()
 			default:
 				log.Fatal("No configuration specified for link type")
 			}

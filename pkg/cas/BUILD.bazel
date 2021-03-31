@@ -14,7 +14,6 @@ go_library(
         "link_helper.go",
         "link_helper_clonefile.go",
         "link_helper_hardlink.go",
-        "link_helper_symlink.go"
     ],
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/cas",
     visibility = ["//visibility:public"],
