@@ -337,8 +337,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 	// Let a client enqueue a new operation.
 	clock.EXPECT().Now().Return(time.Unix(1001, 0))
 	timer1 := mock.NewMockTimer(ctrl)
-	wakeup1 := make(chan time.Time, 1)
-	clock.EXPECT().NewTimer(time.Minute).Return(timer1, wakeup1)
+	clock.EXPECT().NewTimer(time.Minute).Return(timer1, nil)
 	uuidGenerator.EXPECT().Call().Return(uuid.Parse("36ebab65-3c4f-4faf-818b-2eabb4cd1b02"))
 	stream1, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
 		InstanceName: "main",
@@ -365,6 +364,14 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 
 	// Assign it to the worker.
 	clock.EXPECT().Now().Return(time.Unix(1002, 0))
+	// The timer should stop and we should get an immediate
+	// update on the state of the operation.
+	timer1.EXPECT().Stop().Return(true)
+	clock.EXPECT().Now().Return(time.Unix(1002, 0))
+	timer2 := mock.NewMockTimer(ctrl)
+	wakeup2 := make(chan time.Time, 1)
+	clock.EXPECT().NewTimer(time.Minute).Return(timer2, wakeup2)
+
 	response, err = buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
 		WorkerId: map[string]string{
 			"hostname": "worker123",
@@ -399,13 +406,6 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 			},
 		},
 	}, response)
-
-	// The next time the client receives an update on the operation,
-	// it should be in the EXECUTING state.
-	timer2 := mock.NewMockTimer(ctrl)
-	wakeup2 := make(chan time.Time, 1)
-	clock.EXPECT().NewTimer(time.Minute).Return(timer2, wakeup2)
-	wakeup1 <- time.Unix(1061, 0)
 	update, err = stream1.Recv()
 	require.NoError(t, err)
 	metadata, err = anypb.New(&remoteexecution.ExecuteOperationMetadata{
@@ -416,10 +416,21 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	testutil.RequireEqualProto(t, update, &longrunning.Operation{
+	executingMessage := &longrunning.Operation{
 		Name:     "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
 		Metadata: metadata,
-	})
+	}
+	testutil.RequireEqualProto(t, executingMessage, update)
+
+	// The next time the client receives an update on the operation,
+	// it should (still) be in the EXECUTING state.
+	timer3 := mock.NewMockTimer(ctrl)
+	wakeup3 := make(chan time.Time, 1)
+	clock.EXPECT().NewTimer(time.Minute).Return(timer3, wakeup3)
+	wakeup2 <- time.Unix(1061, 0)
+	update, err = stream1.Recv()
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, executingMessage, update)
 
 	// Because the worker is not providing any updates, the
 	// operation should be terminated.
@@ -427,7 +438,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 	// require waitExecution() to do a short sleep, which may
 	// increase complexity/overhead.
 	clock.EXPECT().Now().Return(time.Unix(1121, 0))
-	wakeup2 <- time.Unix(1121, 0)
+	wakeup3 <- time.Unix(1121, 0)
 	update, err = stream1.Recv()
 	require.NoError(t, err)
 	metadata, err = anypb.New(&remoteexecution.ExecuteOperationMetadata{
@@ -488,10 +499,10 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		testutil.RequireEqualProto(t, update, &longrunning.Operation{
+		testutil.RequireEqualProto(t, &longrunning.Operation{
 			Name:     fakeUUID,
 			Metadata: metadata,
-		})
+		}, update)
 		streams = append(streams, stream)
 	}
 
@@ -884,6 +895,13 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 	// Let the same worker repeatedly ask for work. It should
 	// constantly get the same operation assigned. This may happen
 	// when the network is flaky or the worker is crash-looping.
+
+	// At the first iteration, the worker will report execution start.
+	clock.EXPECT().Now().Return(time.Unix(1002, 0))
+	timer = mock.NewMockTimer(ctrl)
+	clock.EXPECT().NewTimer(time.Minute).Return(timer, nil)
+	timer.EXPECT().Stop().Return(true)
+
 	for i := int64(0); i < 10; i++ {
 		clock.EXPECT().Now().Return(time.Unix(1002+i, 0))
 		response, err := buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
@@ -925,6 +943,23 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 				},
 			},
 		}, response)
+
+		// At the first iteration, we expect an execution-start message.
+		if i == 0 {
+			update, err = stream1.Recv()
+			require.NoError(t, err)
+			metadata, err = anypb.New(&remoteexecution.ExecuteOperationMetadata{
+				Stage: remoteexecution.ExecutionStage_EXECUTING,
+				ActionDigest: &remoteexecution.Digest{
+					Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+					SizeBytes: 123,
+				},
+			})
+			testutil.RequireEqualProto(t, &longrunning.Operation{
+				Name:     "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
+				Metadata: metadata,
+			}, update)
+		}
 	}
 
 	// Requesting the same operation too many times should cause the
@@ -959,14 +994,14 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	testutil.RequireEqualProto(t, response, &remoteworker.SynchronizeResponse{
+	testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
 		NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1012},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Idle{
 				Idle: &emptypb.Empty{},
 			},
 		},
-	})
+	}, response)
 
 	// The client should be informed that the operation causes the
 	// worker to crash-loop.
@@ -1090,7 +1125,10 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 	})
 
 	// Let the worker extract the operation from the queue.
-	clock.EXPECT().Now().Return(time.Unix(1002, 0))
+	clock.EXPECT().Now().Return(time.Unix(1002, 0)).Times(2)
+	timer = mock.NewMockTimer(ctrl)
+	clock.EXPECT().NewTimer(time.Minute).Return(timer, nil)
+	timer.EXPECT().Stop().Return(true)
 	response, err = buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
 		WorkerId: map[string]string{
 			"hostname": "worker123",
@@ -1130,6 +1168,21 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 			},
 		},
 	}, response)
+	// The client should be notified the the operation has started executing.
+	update, err = stream1.Recv()
+	require.NoError(t, err)
+	metadata, err = anypb.New(&remoteexecution.ExecuteOperationMetadata{
+		Stage: remoteexecution.ExecutionStage_EXECUTING,
+		ActionDigest: &remoteexecution.Digest{
+			Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+			SizeBytes: 123,
+		},
+	})
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, &longrunning.Operation{
+		Name:     "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
+		Metadata: metadata,
+	}, update)
 
 	// Kill the operation.
 	clock.EXPECT().Now().Return(time.Unix(1007, 0)).Times(3)
@@ -1418,8 +1471,7 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 	// Enqueue an operation.
 	clock.EXPECT().Now().Return(time.Unix(1007, 0))
 	timer1 := mock.NewMockTimer(ctrl)
-	wakeup1 := make(chan time.Time, 1)
-	clock.EXPECT().NewTimer(time.Minute).Return(timer1, wakeup1)
+	clock.EXPECT().NewTimer(time.Minute).Return(timer1, nil)
 	uuidGenerator.EXPECT().Call().Return(uuid.Parse("36ebab65-3c4f-4faf-818b-2eabb4cd1b02"))
 	stream1, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
 		InstanceName: "main",
@@ -1488,7 +1540,9 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	clock.EXPECT().Now().Return(time.Unix(1010, 0))
+	clock.EXPECT().Now().Return(time.Unix(1010, 0)).Times(2)
+	timer1.EXPECT().Stop().Return(true)
+	clock.EXPECT().NewTimer(time.Minute).Return(nil, nil)
 	response, err = buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
 		WorkerId: map[string]string{
 			"hostname": "worker123",
@@ -1531,6 +1585,20 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 			},
 		},
 	}, response)
+	update, err = stream1.Recv()
+	require.NoError(t, err)
+	metadata, err = anypb.New(&remoteexecution.ExecuteOperationMetadata{
+		Stage: remoteexecution.ExecutionStage_EXECUTING,
+		ActionDigest: &remoteexecution.Digest{
+			Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+			SizeBytes: 123,
+		},
+	})
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, &longrunning.Operation{
+		Name:     "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
+		Metadata: metadata,
+	}, update)
 }
 
 func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
@@ -1735,7 +1803,10 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 		4, 9, 14, 19, 24,
 	} {
 		p := operationParameters[i]
-		clock.EXPECT().Now().Return(time.Unix(1040, 0))
+		clock.EXPECT().Now().Return(time.Unix(1040, 0)).Times(2)
+		timer := mock.NewMockTimer(ctrl)
+		clock.EXPECT().NewTimer(time.Minute).Return(timer, nil)
+		timer.EXPECT().Stop().Return(true)
 		response, err := buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
 			WorkerId: map[string]string{
 				"hostname": "worker123",
@@ -1775,6 +1846,21 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 				},
 			},
 		}, response)
+
+		update, err := streams[i].Recv()
+		require.NoError(t, err)
+		metadata, err := anypb.New(&remoteexecution.ExecuteOperationMetadata{
+			Stage: remoteexecution.ExecutionStage_EXECUTING,
+			ActionDigest: &remoteexecution.Digest{
+				Hash:      p.actionHash,
+				SizeBytes: 123,
+			},
+		})
+		require.NoError(t, err)
+		testutil.RequireEqualProto(t, &longrunning.Operation{
+			Name:     p.operationName,
+			Metadata: metadata,
+		}, update)
 	}
 
 	// Call ListInvocations() again. All operations should now be
@@ -2332,7 +2418,10 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 	}, update)
 
 	// Let a worker pick up the operation.
-	clock.EXPECT().Now().Return(time.Unix(1002, 0))
+	clock.EXPECT().Now().Return(time.Unix(1002, 0)).Times(2)
+	timer = mock.NewMockTimer(ctrl)
+	clock.EXPECT().NewTimer(time.Minute).Return(timer, nil)
+	timer.EXPECT().Stop().Return(true)
 	response, err = buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
 		WorkerId: map[string]string{
 			"hostname": "worker123",
@@ -2346,6 +2435,22 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 			},
 		},
 	})
+	// The client should be informed the operation has started executing.
+	update, err = stream.Recv()
+	require.NoError(t, err)
+	metadata, err = anypb.New(&remoteexecution.ExecuteOperationMetadata{
+		Stage: remoteexecution.ExecutionStage_EXECUTING,
+		ActionDigest: &remoteexecution.Digest{
+			Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+			SizeBytes: 123,
+		},
+	})
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, &longrunning.Operation{
+		Name:     "b9bb6e2c-04ff-4fbd-802b-105be93a8fb7",
+		Metadata: metadata,
+	}, update)
+
 	require.NoError(t, err)
 	testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
 		NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1012},
@@ -2409,8 +2514,8 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 		},
 	}, response)
 
-	// The client should be informed the operation has been
-	// completed. This should be the last message to be returned.
+	// The client should be informed the operation has completed. This
+	// should be the last message to be returned.
 	update, err = stream.Recv()
 	require.NoError(t, err)
 	metadata, err = anypb.New(&remoteexecution.ExecuteOperationMetadata{
