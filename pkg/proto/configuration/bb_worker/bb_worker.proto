@@ -112,14 +112,7 @@ message NativeBuildDirectoryConfiguration {
   buildbarn.configuration.eviction.CacheReplacementPolicy
       cache_replacement_policy = 5;
 
-  NativeBuildDirectoryLinkType link_type = 6;
-}
-
-message NativeBuildDirectoryLinkType {
-  oneof link_type {
-    google.protobuf.Empty hardlink = 1;
-    google.protobuf.Empty clonefile = 2;
-  }
+  bool use_clonefile = 6;
 }
 
 message RunnerConfiguration {

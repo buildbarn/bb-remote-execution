@@ -151,13 +151,10 @@ func main() {
 				log.Fatal("Failed to create eviction set for cache directory: ", err)
 			}
 			var linkHelper cas.LinkHelper
-			switch nativeConfiguration.LinkType.LinkType.(type) {
-			case *bb_worker.NativeBuildDirectoryLinkType_Hardlink:
-				linkHelper = cas.NewLinkHelperHardlink()
-			case *bb_worker.NativeBuildDirectoryLinkType_Clonefile:
+			if nativeConfiguration.UseClonefile {
 				linkHelper = cas.NewLinkHelperClonefile()
-			default:
-				log.Fatal("No configuration specified for link type")
+			} else {
+				linkHelper = cas.NewLinkHelperHardlink()
 			}
 			fileFetcher = cas.NewHardlinkingFileFetcher(
 				cas.NewBlobAccessFileFetcher(globalContentAddressableStorage),
