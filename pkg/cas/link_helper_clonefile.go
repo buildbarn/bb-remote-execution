@@ -8,9 +8,7 @@ import (
 type linkHelperClonefile struct {
 }
 
-func NewLinkHelperClonefile() LinkHelper {
-	return &linkHelperClonefile{}
-}
+var LinkHelperClonefile LinkHelper = &linkHelperClonefile{}
 
 func (h *linkHelperClonefile) Link(directory filesystem.Directory, oldName path.Component, newDirectory filesystem.Directory, newName path.Component) error {
 	return directory.Clonefile(oldName, newDirectory, newName)

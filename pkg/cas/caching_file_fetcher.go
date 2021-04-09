@@ -14,7 +14,7 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-type hardlinkingFileFetcher struct {
+type cachingFileFetcher struct {
 	base           FileFetcher
 	cacheDirectory filesystem.Directory
 	maxFiles       int
@@ -30,13 +30,13 @@ type hardlinkingFileFetcher struct {
 	linkHelper LinkHelper
 }
 
-// NewHardlinkingFileFetcher is an adapter for FileFetcher that stores
+// NewCachingFileFetcher is an adapter for FileFetcher that stores
 // files in an internal directory. After successfully downloading files
 // at the target location, they are hardlinked into the cache. Future
 // calls for the same file will hardlink them from the cache to the
 // target location. This reduces the amount of network traffic needed.
-func NewHardlinkingFileFetcher(base FileFetcher, cacheDirectory filesystem.Directory, maxFiles int, maxSize int64, evictionSet eviction.Set, linkHelper LinkHelper) FileFetcher {
-	return &hardlinkingFileFetcher{
+func NewCachingFileFetcher(base FileFetcher, cacheDirectory filesystem.Directory, maxFiles int, maxSize int64, evictionSet eviction.Set, linkHelper LinkHelper) FileFetcher {
+	return &cachingFileFetcher{
 		base:           base,
 		cacheDirectory: cacheDirectory,
 		maxFiles:       maxFiles,
@@ -50,7 +50,7 @@ func NewHardlinkingFileFetcher(base FileFetcher, cacheDirectory filesystem.Direc
 	}
 }
 
-func (ff *hardlinkingFileFetcher) makeSpace(size int64) error {
+func (ff *cachingFileFetcher) makeSpace(size int64) error {
 	for len(ff.filesSize) > 0 && (len(ff.filesSize) >= ff.maxFiles || ff.filesTotalSize+size > ff.maxSize) {
 		// Remove a file from disk.
 		key := ff.evictionSet.Peek()
@@ -66,7 +66,7 @@ func (ff *hardlinkingFileFetcher) makeSpace(size int64) error {
 	return nil
 }
 
-func (ff *hardlinkingFileFetcher) GetFile(ctx context.Context, blobDigest digest.Digest, directory filesystem.Directory, name path.Component, isExecutable bool) error {
+func (ff *cachingFileFetcher) GetFile(ctx context.Context, blobDigest digest.Digest, directory filesystem.Directory, name path.Component, isExecutable bool) error {
 	key := blobDigest.GetKey(digest.KeyWithoutInstance)
 	if isExecutable {
 		key += "+x"

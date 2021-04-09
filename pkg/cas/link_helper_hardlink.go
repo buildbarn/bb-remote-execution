@@ -8,9 +8,7 @@ import (
 type linkHelperHardlink struct {
 }
 
-func NewLinkHelperHardlink() LinkHelper {
-	return &linkHelperHardlink{}
-}
+var LinkHelperHardlink LinkHelper = &linkHelperHardlink{}
 
 func (h *linkHelperHardlink) Link(directory filesystem.Directory, oldName path.Component, newDirectory filesystem.Directory, newName path.Component) error {
 	return directory.Link(oldName, newDirectory, newName)

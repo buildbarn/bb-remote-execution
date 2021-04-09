@@ -10,7 +10,7 @@ go_library(
         "directory_fetcher.go",
         "directory_walker.go",
         "file_fetcher.go",
-        "hardlinking_file_fetcher.go",
+        "caching_file_fetcher.go",
         "link_helper.go",
         "link_helper_clonefile.go",
         "link_helper_hardlink.go",
@@ -33,7 +33,7 @@ go_test(
     name = "cas_test",
     srcs = [
         "decomposed_directory_walker_test.go",
-        "hardlinking_file_fetcher_test.go",
+        "caching_file_fetcher_test.go",
     ],
     embed = [":cas"],
     deps = [

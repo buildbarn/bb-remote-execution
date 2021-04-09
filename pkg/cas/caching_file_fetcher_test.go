@@ -17,13 +17,13 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func TestHardlinkingFileFetcher(t *testing.T) {
+func TestCachingFileFetcher(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	baseFileFetcher := mock.NewMockFileFetcher(ctrl)
 	cacheDirectory := mock.NewMockDirectory(ctrl)
-	linkHelper := cas.NewLinkHelperHardlink()
-	fileFetcher := cas.NewHardlinkingFileFetcher(baseFileFetcher, cacheDirectory, 1, 1024, eviction.NewLRUSet(), linkHelper)
+	linkHelper := cas.LinkHelperHardlink
+	fileFetcher := cas.NewCachingFileFetcher(baseFileFetcher, cacheDirectory, 1, 1024, eviction.NewLRUSet(), linkHelper)
 
 	blobDigest1 := digest.MustNewDigest("example", "8b1a9953c4611296a827abf8c47804d7", 5)
 	buildDirectory := mock.NewMockDirectory(ctrl)

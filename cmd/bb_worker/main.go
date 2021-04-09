@@ -152,16 +152,16 @@ func main() {
 			}
 			var linkHelper cas.LinkHelper
 			if nativeConfiguration.UseClonefile {
-				linkHelper = cas.NewLinkHelperClonefile()
+				linkHelper = &cas.LinkHelperClonefile
 			} else {
-				linkHelper = cas.NewLinkHelperHardlink()
+				linkHelper = cas.LinkHelperHardlink
 			}
-			fileFetcher = cas.NewHardlinkingFileFetcher(
+			fileFetcher = cas.NewCachingFileFetcher(
 				cas.NewBlobAccessFileFetcher(globalContentAddressableStorage),
 				cacheDirectory,
 				int(nativeConfiguration.MaximumCacheFileCount),
 				nativeConfiguration.MaximumCacheSizeBytes,
-				eviction.NewMetricsSet(evictionSet, "HardlinkingFileFetcher"),
+				eviction.NewMetricsSet(evictionSet, "CachingFileFetcher"),
 				linkHelper)
 
 			// Using a native file system requires us to
