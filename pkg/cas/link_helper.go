@@ -5,6 +5,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 )
 
+// A provider that implements a filesystem-specific method for copying files.
 type LinkHelper interface {
 	Link(directory filesystem.Directory, oldName path.Component, newDirectory filesystem.Directory, newName path.Component) error
 }

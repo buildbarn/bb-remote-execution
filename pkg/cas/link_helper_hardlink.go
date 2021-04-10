@@ -7,6 +7,7 @@ import (
 
 type linkHelperHardlink struct{}
 
+// Provides file copies through the use of link(2)
 var LinkHelperHardlink LinkHelper = linkHelperHardlink{}
 
 func (h linkHelperHardlink) Link(directory filesystem.Directory, oldName path.Component, newDirectory filesystem.Directory, newName path.Component) error {
