@@ -152,7 +152,7 @@ func main() {
 			}
 			var linkHelper cas.LinkHelper
 			if nativeConfiguration.UseClonefile {
-				linkHelper = &cas.LinkHelperClonefile
+				linkHelper = cas.LinkHelperClonefile
 			} else {
 				linkHelper = cas.LinkHelperHardlink
 			}

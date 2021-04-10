@@ -68,6 +68,13 @@ func (ff *cachingFileFetcher) makeSpace(size int64) error {
 
 func (ff *cachingFileFetcher) GetFile(ctx context.Context, blobDigest digest.Digest, directory filesystem.Directory, name path.Component, isExecutable bool) error {
 	key := blobDigest.GetKey(digest.KeyWithoutInstance)
+
+	// Technically when the Clonefile linking handler is used, we can use the
+	// same local file with different permissions.  That would require not
+	// having -/+x in the cache key, and passing desired permissions to the
+	// link helper.  It seems quite unlikely to provide meaningful advantage,
+	// especially when bazel saves every file with the same permissions, so we
+	// omit this functionality for now.
 	if isExecutable {
 		key += "+x"
 	} else {
@@ -88,7 +95,7 @@ func (ff *cachingFileFetcher) GetFile(ctx context.Context, blobDigest digest.Dig
 			return nil
 		} else if !os.IsNotExist(err) {
 			ff.filesLock.RUnlock()
-			return util.StatusWrapfWithCode(err, codes.Internal, "Failed to create hardlink to cached file %#v", key)
+			return util.StatusWrapfWithCode(err, codes.Internal, "Failed to install cached file %#v", key)
 		}
 
 		// The was part of the cache, even though it did not
