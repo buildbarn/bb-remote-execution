@@ -26,6 +26,20 @@ type ChildRemover func() error
 // should continue. When false, traversal will stop immediately.
 type ChildFilter func(node InitialNode, remove ChildRemover) bool
 
+// DirectoryPrepopulatedDirEntry contains information about a directory
+// node that is stored in a PrepopulatedDirectory.
+type DirectoryPrepopulatedDirEntry struct {
+	Child PrepopulatedDirectory
+	Name  path.Component
+}
+
+// LeafPrepopulatedDirEntry contains information about a leaf node that
+// is stored in a PrepopulatedDirectory.
+type LeafPrepopulatedDirEntry struct {
+	Child NativeLeaf
+	Name  path.Component
+}
+
 // PrepopulatedDirectory is a Directory that is writable and can contain
 // files of type NativeLeaf.
 //
@@ -43,6 +57,12 @@ type PrepopulatedDirectory interface {
 	// FUSELookup(), except that it returns the native types managed
 	// by PrepopulatedDirectory.
 	LookupChild(name path.Component) (PrepopulatedDirectory, NativeLeaf, error)
+	// LookupAllChildren() looks up all files and directories
+	// contained in a PrepopulatedDirectory. This method is similar
+	// to FUSEReadDirPlus(), except that it returns the native types
+	// managed by PrepopulatedDirectory. Entries are returned in
+	// alphabetical order.
+	LookupAllChildren() ([]DirectoryPrepopulatedDirEntry, []LeafPrepopulatedDirEntry, error)
 	// CreateChildren() creates one or more files or directories in
 	// the current directory.
 	//

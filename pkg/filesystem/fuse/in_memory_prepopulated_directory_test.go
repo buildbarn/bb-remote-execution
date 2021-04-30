@@ -11,6 +11,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/fuse"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
+	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/golang/mock/gomock"
 	go_fuse "github.com/hanwen/go-fuse/v2/fuse"
 	"github.com/stretchr/testify/require"
@@ -74,6 +75,78 @@ func TestInMemoryPrepopulatedDirectoryLookupChildDirectory(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, childDirectory)
 	require.Nil(t, childLeaf)
+}
+
+func TestInMemoryPrepopulatedDirectoryLookupAllChildrenFailure(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	fileAllocator := mock.NewMockFileAllocator(ctrl)
+	errorLogger := mock.NewMockErrorLogger(ctrl)
+	inodeNumberGenerator := mock.NewMockThreadSafeGenerator(ctrl)
+	entryNotifier := mock.NewMockEntryNotifier(ctrl)
+	d := fuse.NewInMemoryPrepopulatedDirectory(fileAllocator, errorLogger, 100, inodeNumberGenerator, entryNotifier.Call)
+
+	inodeNumberGenerator.EXPECT().Uint64().Return(uint64(101))
+	initialContentsFetcher := mock.NewMockInitialContentsFetcher(ctrl)
+	require.NoError(t, d.CreateChildren(map[path.Component]fuse.InitialNode{
+		path.MustNewComponent("subdir"): {
+			Directory: initialContentsFetcher,
+		},
+	}, false))
+
+	childDirectory, childLeaf, err := d.LookupChild(path.MustNewComponent("subdir"))
+	require.NoError(t, err)
+	require.NotNil(t, childDirectory)
+	require.Nil(t, childLeaf)
+
+	// When LookupAllChildren() is called in an uninitialized
+	// directory and initialization fails, the error should be
+	// propagated to the caller.
+	initialContentsFetcher.EXPECT().FetchContents().
+		Return(nil, status.Error(codes.Internal, "Network error"))
+	_, _, err = childDirectory.LookupAllChildren()
+	testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Network error"), err)
+}
+
+func TestInMemoryPrepopulatedDirectoryLookupAllChildrenSuccess(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	fileAllocator := mock.NewMockFileAllocator(ctrl)
+	errorLogger := mock.NewMockErrorLogger(ctrl)
+	inodeNumberGenerator := mock.NewMockThreadSafeGenerator(ctrl)
+	entryNotifier := mock.NewMockEntryNotifier(ctrl)
+	d := fuse.NewInMemoryPrepopulatedDirectory(fileAllocator, errorLogger, 100, inodeNumberGenerator, entryNotifier.Call)
+
+	// Populate the directory with files and directories.
+	leaf1 := mock.NewMockNativeLeaf(ctrl)
+	leaf2 := mock.NewMockNativeLeaf(ctrl)
+	require.NoError(t, d.CreateChildren(map[path.Component]fuse.InitialNode{
+		path.MustNewComponent("leaf1"): {
+			Leaf: leaf1,
+		},
+		path.MustNewComponent("leaf2"): {
+			Leaf: leaf2,
+		},
+	}, false))
+
+	inodeNumberGenerator.EXPECT().Uint64().Return(uint64(101))
+	subdir1, err := d.CreateAndEnterPrepopulatedDirectory(path.MustNewComponent("subdir1"))
+	require.NoError(t, err)
+	inodeNumberGenerator.EXPECT().Uint64().Return(uint64(102))
+	subdir2, err := d.CreateAndEnterPrepopulatedDirectory(path.MustNewComponent("subdir2"))
+	require.NoError(t, err)
+
+	// All children should be returned in sorted order.
+	directories, leaves, err := d.LookupAllChildren()
+	require.NoError(t, err)
+	require.Equal(t, []fuse.DirectoryPrepopulatedDirEntry{
+		{Name: path.MustNewComponent("subdir1"), Child: subdir1},
+		{Name: path.MustNewComponent("subdir2"), Child: subdir2},
+	}, directories)
+	require.Equal(t, []fuse.LeafPrepopulatedDirEntry{
+		{Name: path.MustNewComponent("leaf1"), Child: leaf1},
+		{Name: path.MustNewComponent("leaf2"), Child: leaf2},
+	}, leaves)
 }
 
 func TestInMemoryPrepopulatedDirectoryReadDir(t *testing.T) {

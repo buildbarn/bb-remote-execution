@@ -238,6 +238,36 @@ func (i *inMemoryPrepopulatedDirectory) LookupChild(name path.Component) (Prepop
 	return nil, nil, syscall.ENOENT
 }
 
+func (i *inMemoryPrepopulatedDirectory) LookupAllChildren() ([]DirectoryPrepopulatedDirEntry, []LeafPrepopulatedDirEntry, error) {
+	i.lock.Lock()
+	defer i.lock.Unlock()
+
+	contents, err := i.getContents()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	directories := make(directoryPrepopulatedDirEntryList, 0, len(contents.directories))
+	for name, child := range contents.directories {
+		directories = append(directories, DirectoryPrepopulatedDirEntry{
+			Child: child,
+			Name:  name,
+		})
+	}
+
+	leaves := make(leafPrepopulatedDirEntryList, 0, len(contents.leaves))
+	for name, child := range contents.leaves {
+		leaves = append(leaves, LeafPrepopulatedDirEntry{
+			Child: child,
+			Name:  name,
+		})
+	}
+
+	sort.Sort(directories)
+	sort.Sort(leaves)
+	return directories, leaves, nil
+}
+
 func (i *inMemoryPrepopulatedDirectory) ReadDir() ([]filesystem.FileInfo, error) {
 	i.lock.Lock()
 	defer i.lock.Unlock()
@@ -899,4 +929,38 @@ func (i *inMemoryPrepopulatedDirectory) FUSEUnlink(name path.Component) fuse.Sta
 		return fuse.EPERM
 	}
 	return fuse.ENOENT
+}
+
+// directoryPrepopulatedDirEntryList is a list of DirectoryDirEntry
+// objects returned by LookupAllChildren(). This type may be used to
+// sort elements in the list by name.
+type directoryPrepopulatedDirEntryList []DirectoryPrepopulatedDirEntry
+
+func (l directoryPrepopulatedDirEntryList) Len() int {
+	return len(l)
+}
+
+func (l directoryPrepopulatedDirEntryList) Less(i, j int) bool {
+	return l[i].Name.String() < l[j].Name.String()
+}
+
+func (l directoryPrepopulatedDirEntryList) Swap(i, j int) {
+	l[i], l[j] = l[j], l[i]
+}
+
+// leafPrepopulatedDirEntryList is a list of LeafPrepopulatedDirEntry
+// objects returned by FUSEReadDirPlus(). This type may be used to sort
+// elements in the list by name.
+type leafPrepopulatedDirEntryList []LeafPrepopulatedDirEntry
+
+func (l leafPrepopulatedDirEntryList) Len() int {
+	return len(l)
+}
+
+func (l leafPrepopulatedDirEntryList) Less(i, j int) bool {
+	return l[i].Name.String() < l[j].Name.String()
+}
+
+func (l leafPrepopulatedDirEntryList) Swap(i, j int) {
+	l[i], l[j] = l[j], l[i]
 }
