@@ -1,0 +1,98 @@
+syntax = "proto3";
+
+package buildbarn.outputpathpersistency;
+
+import "build/bazel/remote/execution/v2/remote_execution.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/outputpathpersistency";
+
+// bb_clientd has the option to persist the contents of output paths to
+// disk after a build completes. This makes it possible to reload the
+// contents of these directories after restarting bb_clientd.
+//
+// The state of output paths is stored by concatenating a Protobuf for
+// every single directory into a file. Directories reference other
+// directories by specifying the offset of the Protobuf message in the
+// state file. To ensure the directory hierarchy is acyclic, directories
+// can only reference other directories at offsets lower than their own.
+// In other words, leaf directories are stored at the beginning of the
+// file, while the root directory is stored at the very end.
+//
+// Every state file is prefixed with a 16-byte header. This header
+// contains the following three fields:
+//
+// - A 4-byte magic: 0xfa 0x12 0xa4 0xa5.
+// - An 8-byte offset of the RootDirectory message.
+// - A 4-byte size of the RootDirectory message.
+//
+// There is no strong requirement that all Protobuf messages are
+// referenced. It is valid for state files to contain "junk" data. This
+// makes it possible to make incremental changes to directory contents
+// by appending new Protobuf messages to the end of the file and
+// updating the header to reference a new root directory.
+//
+// TODO: The state file has no facilities right now to reference entire
+// directory hierarchies (Tree objects) remotely. Doing so would reduce
+// the size of the state file significantly in case may actions are used
+// that call Bazel's ctx.actions.declare_directory(). We can't add
+// support for this right now, as we currently allow directories backed
+// by Tree objects to be mutated.
+
+// The root directory of an output path.
+message RootDirectory {
+  // The initial time at which this output path was created. This value
+  // is retained when performing incremental builds.
+  //
+  // This information may be used to prevent carrying over the results
+  // of ancient builds. Output paths that are used over a prolonged
+  // period of time may put excessive pressure on a remote execution
+  // service by continuing to reference files that are outdated. These
+  // files would continuously end up getting refreshed in the Content
+  // Addressable Storage (CAS).
+  google.protobuf.Timestamp initial_creation_time = 1;
+
+  // The contents of the root directory.
+  Directory contents = 2;
+}
+
+// The contents of an individual directory. This message is identical to
+// build.bazel.remote.execution.v2.Directory, except that DirectoryNode
+// is replaced with a version that references other parts of the state
+// file, as opposed to being content addressed.
+message Directory {
+  // Files present in the current directory that are present in the
+  // Content Addressable Storage (CAS) of the remote execution service.
+  //
+  // Files that were written into bb_clientd locally are not preserved.
+  // These would increase the size of the state file significantly.
+  // Bazel also has the expectation that writable files in the output
+  // path remain writable across builds, which means restoring them is
+  // inefficient.
+  repeated build.bazel.remote.execution.v2.FileNode files = 1;
+
+  // Directories present in the current directory.
+  repeated DirectoryNode directories = 2;
+
+  // Symbolic links present in the current directory.
+  repeated build.bazel.remote.execution.v2.SymlinkNode symlinks = 3;
+}
+
+message DirectoryNode {
+  // The name of child directory.
+  string name = 1;
+
+  // The location at which the directory is stored in the state file.
+  FileRegion file_region = 2;
+}
+
+message FileRegion {
+  // The offset in bytes at which the object is stored in the state
+  // file.
+  int64 offset_bytes = 1;
+
+  // The size in bytes of the object stored in the state file. The size
+  // must be greater than zero. Zero-sized objects may be referenced by
+  // leaving FileRegion unset.
+  int32 size_bytes = 2;
+}
