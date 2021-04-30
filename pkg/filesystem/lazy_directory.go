@@ -102,6 +102,15 @@ func (d *lazyDirectory) Link(oldName path.Component, newDirectory filesystem.Dir
 	return underlying.Link(oldName, newDirectory, newName)
 }
 
+func (d *lazyDirectory) Clonefile(oldName path.Component, newDirectory filesystem.Directory, newName path.Component) error {
+	underlying, err := d.openUnderlying()
+	if err != nil {
+		return err
+	}
+	defer underlying.Close()
+	return underlying.Clonefile(oldName, newDirectory, newName)
+}
+
 func (d *lazyDirectory) Lstat(name path.Component) (filesystem.FileInfo, error) {
 	underlying, err := d.openUnderlying()
 	if err != nil {
