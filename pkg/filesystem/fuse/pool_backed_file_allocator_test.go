@@ -62,8 +62,8 @@ func TestPoolBackedFileAllocatorGetOutputServiceFileStatus(t *testing.T) {
 		func(p []byte, off int64) (int, error) {
 			return copy(p, "Hello"), io.EOF
 		})
-	digestFunction := digest.MustNewFunction("Hello", remoteexecution.DigestFunction_MD5)
-	fileStatus, err = f.GetOutputServiceFileStatus(&digestFunction)
+	digestFunction1 := digest.MustNewFunction("Hello", remoteexecution.DigestFunction_MD5)
+	fileStatus, err = f.GetOutputServiceFileStatus(&digestFunction1)
 	require.NoError(t, err)
 	testutil.RequireEqualProto(t, &remoteoutputservice.FileStatus{
 		FileType: &remoteoutputservice.FileStatus_File_{
@@ -71,6 +71,67 @@ func TestPoolBackedFileAllocatorGetOutputServiceFileStatus(t *testing.T) {
 				Digest: &remoteexecution.Digest{
 					Hash:      "8b1a9953c4611296a827abf8c47804d7",
 					SizeBytes: 5,
+				},
+			},
+		},
+	}, fileStatus)
+
+	// Calling the function a second time should not generate any
+	// reads against the file, as the contents of the file have not
+	// changed. A cached value should be returned.
+	fileStatus, err = f.GetOutputServiceFileStatus(&digestFunction1)
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, &remoteoutputservice.FileStatus{
+		FileType: &remoteoutputservice.FileStatus_File_{
+			File: &remoteoutputservice.FileStatus_File{
+				Digest: &remoteexecution.Digest{
+					Hash:      "8b1a9953c4611296a827abf8c47804d7",
+					SizeBytes: 5,
+				},
+			},
+		},
+	}, fileStatus)
+
+	// Change the file's contents to invalidate the cached digest. A
+	// successive call to GetOutputServiceFileStatus() should
+	// recompute the digest.
+	underlyingFile.EXPECT().WriteAt([]byte(" world"), int64(5)).Return(6, nil)
+	n, s = f.FUSEWrite([]byte(" world"), 5)
+	require.Equal(t, go_fuse.OK, s)
+	require.Equal(t, uint32(6), n)
+
+	underlyingFile.EXPECT().ReadAt(gomock.Any(), int64(0)).DoAndReturn(
+		func(p []byte, off int64) (int, error) {
+			return copy(p, "Hello world"), io.EOF
+		})
+	fileStatus, err = f.GetOutputServiceFileStatus(&digestFunction1)
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, &remoteoutputservice.FileStatus{
+		FileType: &remoteoutputservice.FileStatus_File_{
+			File: &remoteoutputservice.FileStatus_File{
+				Digest: &remoteexecution.Digest{
+					Hash:      "3e25960a79dbc69b674cd4ec67a72c62",
+					SizeBytes: 11,
+				},
+			},
+		},
+	}, fileStatus)
+
+	// The cached digest should be ignored in case the instance name
+	// or hashing function is changed.
+	underlyingFile.EXPECT().ReadAt(gomock.Any(), int64(0)).DoAndReturn(
+		func(p []byte, off int64) (int, error) {
+			return copy(p, "Hello world"), io.EOF
+		})
+	digestFunction2 := digest.MustNewFunction("Hello", remoteexecution.DigestFunction_SHA256)
+	fileStatus, err = f.GetOutputServiceFileStatus(&digestFunction2)
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, &remoteoutputservice.FileStatus{
+		FileType: &remoteoutputservice.FileStatus_File_{
+			File: &remoteoutputservice.FileStatus_File{
+				Digest: &remoteexecution.Digest{
+					Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
+					SizeBytes: 11,
 				},
 			},
 		},
@@ -299,7 +360,7 @@ func TestPoolBackedFileAllocatorFUSEUploadFile(t *testing.T) {
 		underlyingFile.EXPECT().ReadAt(gomock.Any(), int64(0)).DoAndReturn(func(p []byte, off int64) (int, error) {
 			copy(p, "Hello")
 			return 5, io.EOF
-		}).Times(2)
+		})
 		contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 		contentAddressableStorage.EXPECT().Put(ctx, fileDigest, gomock.Any()).
 			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {

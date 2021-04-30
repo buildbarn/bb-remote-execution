@@ -61,6 +61,7 @@ func (fa *poolBackedFileAllocator) NewFile(flags, mode uint32) (NativeLeaf, fuse
 		nlink:           1,
 		openDescriptors: 1,
 		unfreezeWakeup:  make(chan struct{}),
+		cachedDigest:    digest.BadDigest,
 	}, fuse.OK
 }
 
@@ -76,6 +77,7 @@ type fileBackedFile struct {
 	openDescriptors       uint
 	openFrozenDescriptors uint
 	unfreezeWakeup        chan struct{}
+	cachedDigest          digest.Digest
 }
 
 // lockMutatingData picks up the exclusive lock of the file and waits
@@ -169,12 +171,34 @@ func (f *fileBackedFile) Unlink() {
 	f.closeIfNeeded()
 }
 
-func (f *fileBackedFile) getDigest(digestFunction digest.Function) (digest.Digest, error) {
+func (f *fileBackedFile) getCachedDigest() digest.Digest {
+	f.lock.RLock()
+	defer f.lock.RUnlock()
+	return f.cachedDigest
+}
+
+// updateCachedDigest returns the digest of the file. It either returns
+// a cached value, or computes the digest and caches it. It is only safe
+// to call this function while the file is frozen (i.e., calling
+// f.acquire(true)).
+func (f *fileBackedFile) updateCachedDigest(digestFunction digest.Function) (digest.Digest, error) {
+	// Check whether the cached digest we have is still valid.
+	if cachedDigest := f.getCachedDigest(); cachedDigest != digest.BadDigest && cachedDigest.UsesDigestFunction(digestFunction) {
+		return cachedDigest, nil
+	}
+
+	// If not, compute a new digest.
 	digestGenerator := digestFunction.NewGenerator()
 	if _, err := io.Copy(digestGenerator, io.NewSectionReader(f, 0, math.MaxInt64)); err != nil {
 		return digest.BadDigest, util.StatusWrapWithCode(err, codes.Internal, "Failed to compute file digest")
 	}
-	return digestGenerator.Sum(), nil
+	newDigest := digestGenerator.Sum()
+
+	// Store the resulting cached digest.
+	f.lock.Lock()
+	f.cachedDigest = newDigest
+	f.lock.Unlock()
+	return newDigest, nil
 }
 
 func (f *fileBackedFile) UploadFile(ctx context.Context, contentAddressableStorage blobstore.BlobAccess, digestFunction digest.Function) (digest.Digest, error) {
@@ -186,7 +210,7 @@ func (f *fileBackedFile) UploadFile(ctx context.Context, contentAddressableStora
 		return digest.BadDigest, status.Error(codes.NotFound, "File was unlinked before uploading could start")
 	}
 
-	blobDigest, err := f.getDigest(digestFunction)
+	blobDigest, err := f.updateCachedDigest(digestFunction)
 	if err != nil {
 		f.Close()
 		return digest.BadDigest, err
@@ -208,12 +232,11 @@ func (f *fileBackedFile) GetContainingDigests() digest.Set {
 func (f *fileBackedFile) GetOutputServiceFileStatus(digestFunction *digest.Function) (*remoteoutputservice.FileStatus, error) {
 	fileStatus := &remoteoutputservice.FileStatus_File{}
 	if digestFunction != nil {
-		if !f.acquire(false) {
+		if !f.acquire(true) {
 			return nil, status.Error(codes.NotFound, "File was unlinked before digest computation could start")
 		}
-		defer f.release(false)
-
-		blobDigest, err := f.getDigest(*digestFunction)
+		blobDigest, err := f.updateCachedDigest(*digestFunction)
+		f.release(true)
 		if err != nil {
 			return nil, err
 		}
@@ -260,6 +283,7 @@ func (f *fileBackedFile) FUSEFallocate(off, size uint64) fuse.Status {
 			f.errorLogger.Log(util.StatusWrapf(err, "Failed to truncate file to length %d", end))
 			return fuse.EIO
 		}
+		f.cachedDigest = digest.BadDigest
 		f.size = end
 	}
 	return fuse.OK
@@ -336,6 +360,7 @@ func (f *fileBackedFile) FUSESetAttr(in *fuse.SetAttrIn, out *fuse.Attr) fuse.St
 			f.errorLogger.Log(util.StatusWrapf(err, "Failed to truncate file to length %d", in.Size))
 			return fuse.EIO
 		}
+		f.cachedDigest = digest.BadDigest
 		f.size = in.Size
 	}
 	if in.Valid&fuse.FATTR_MODE != 0 {
@@ -350,8 +375,11 @@ func (f *fileBackedFile) FUSEWrite(buf []byte, offset uint64) (uint32, fuse.Stat
 	defer f.lock.Unlock()
 
 	nWritten, err := f.file.WriteAt(buf, int64(offset))
-	if end := offset + uint64(nWritten); f.size < end {
-		f.size = end
+	if nWritten > 0 {
+		f.cachedDigest = digest.BadDigest
+		if end := offset + uint64(nWritten); f.size < end {
+			f.size = end
+		}
 	}
 	if err != nil {
 		f.errorLogger.Log(util.StatusWrapf(err, "Failed to write to file at offset %d", offset))
