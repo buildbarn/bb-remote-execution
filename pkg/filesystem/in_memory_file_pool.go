@@ -31,6 +31,12 @@ func (f *inMemoryFile) ReadAt(p []byte, off int64) (int, error) {
 	return len(p), nil
 }
 
+func (f *inMemoryFile) Sync() error {
+	// Because FilePool does not provide any persistency, there is
+	// no need to synchronize any data.
+	return nil
+}
+
 func (f *inMemoryFile) Truncate(size int64) error {
 	if len(f.data) >= int(size) {
 		// Truncate the file.

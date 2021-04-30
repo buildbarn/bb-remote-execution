@@ -206,6 +206,12 @@ func (f *blockDeviceBackedFile) truncateSectors(sectorCount int) {
 	}
 }
 
+func (f *blockDeviceBackedFile) Sync() error {
+	// Because FilePool does not provide any persistency, there is
+	// no need to synchronize any data.
+	return nil
+}
+
 func (f *blockDeviceBackedFile) Truncate(size int64) error {
 	if size < 0 {
 		return status.Errorf(codes.InvalidArgument, "Negative truncation size: %d", size)

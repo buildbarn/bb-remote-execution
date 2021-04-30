@@ -67,6 +67,12 @@ func (f *lazyOpeningSelfDeletingFile) ReadAt(p []byte, off int64) (int, error) {
 	return fh.ReadAt(p, off)
 }
 
+func (f *lazyOpeningSelfDeletingFile) Sync() error {
+	// Because FilePool does not provide any persistency, there is
+	// no need to synchronize any data.
+	return nil
+}
+
 func (f *lazyOpeningSelfDeletingFile) Truncate(size int64) error {
 	fh, err := f.directory.OpenWrite(f.name, filesystem.CreateReuse(0o600))
 	if err != nil {
