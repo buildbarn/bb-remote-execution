@@ -101,8 +101,8 @@ def go_dependencies():
     go_repository(
         name = "com_github_buildbarn_bb_storage",
         importpath = "github.com/buildbarn/bb-storage",
-        sum = "h1:QDVEIHSRA3hOPUNbg3+fAWPyg9BwB1VPvI1m7EMZA+Y=",
-        version = "v0.0.0-20210324135539-5317965db548",
+        sum = "h1:d4JEA2JZLLIyCls1bSHoVSDdpi8ZAhYswhIGXsyD37E=",
+        version = "v0.0.0-20210430141345-6b1bb480c012",
     )
     go_repository(
         name = "com_github_burntsushi_toml",
