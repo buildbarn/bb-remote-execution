@@ -7,10 +7,13 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 
+	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/outputpathpersistency"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteoutputservice"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/hanwen/go-fuse/v2/fuse"
 
 	"google.golang.org/grpc/codes"
@@ -66,6 +69,13 @@ func (f *symlink) GetOutputServiceFileStatus(digestFunction *digest.Function) (*
 			},
 		},
 	}, nil
+}
+
+func (f *symlink) AppendOutputPathPersistencyDirectoryNode(directory *outputpathpersistency.Directory, name path.Component) {
+	directory.Symlinks = append(directory.Symlinks, &remoteexecution.SymlinkNode{
+		Name:   name.String(),
+		Target: f.target,
+	})
 }
 
 func (f *symlink) FUSEAccess(mask uint32) fuse.Status {

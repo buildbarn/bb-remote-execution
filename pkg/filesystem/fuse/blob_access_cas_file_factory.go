@@ -7,10 +7,13 @@ import (
 	"io"
 	"syscall"
 
+	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/outputpathpersistency"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteoutputservice"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/hanwen/go-fuse/v2/fuse"
 )
@@ -191,6 +194,14 @@ func (f *regularBlobAccessCASFile) GetFileType() filesystem.FileType {
 	return filesystem.FileTypeRegularFile
 }
 
+func (f *regularBlobAccessCASFile) AppendOutputPathPersistencyDirectoryNode(directory *outputpathpersistency.Directory, name path.Component) {
+	directory.Files = append(directory.Files, &remoteexecution.FileNode{
+		Name:         name.String(),
+		Digest:       f.digest.GetProto(),
+		IsExecutable: false,
+	})
+}
+
 func (f *regularBlobAccessCASFile) FUSEAccess(mask uint32) fuse.Status {
 	if mask&^fuse.R_OK != 0 {
 		return fuse.EACCES
@@ -219,6 +230,14 @@ type executableBlobAccessCASFile struct {
 
 func (f *executableBlobAccessCASFile) GetFileType() filesystem.FileType {
 	return filesystem.FileTypeExecutableFile
+}
+
+func (f *executableBlobAccessCASFile) AppendOutputPathPersistencyDirectoryNode(directory *outputpathpersistency.Directory, name path.Component) {
+	directory.Files = append(directory.Files, &remoteexecution.FileNode{
+		Name:         name.String(),
+		Digest:       f.digest.GetProto(),
+		IsExecutable: true,
+	})
 }
 
 func (f *executableBlobAccessCASFile) FUSEAccess(mask uint32) fuse.Status {

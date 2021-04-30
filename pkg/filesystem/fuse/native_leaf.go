@@ -5,10 +5,12 @@ package fuse
 import (
 	"context"
 
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/outputpathpersistency"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteoutputservice"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/hanwen/go-fuse/v2/fuse"
 )
 
@@ -49,4 +51,9 @@ type NativeLeaf interface {
 	// When digestFunction is not nil, a FileStatus responses for
 	// regular files should include the digest.
 	GetOutputServiceFileStatus(digestFunction *digest.Function) (*remoteoutputservice.FileStatus, error)
+	// GetOutputServiceFileStatus() appends a FileNode or
+	// SymlinkNode entry to a Directory message that is used to
+	// persist the state of a Remote Output Service output path to
+	// disk.
+	AppendOutputPathPersistencyDirectoryNode(directory *outputpathpersistency.Directory, name path.Component)
 }

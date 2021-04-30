@@ -256,6 +256,7 @@ go_library(
         "//pkg/filesystem",
         "//pkg/filesystem/fuse",
         "//pkg/proto/buildqueuestate",
+        "//pkg/proto/outputpathpersistency",
         "//pkg/proto/remoteoutputservice",
         "//pkg/proto/remoteworker",
         "//pkg/proto/runner",

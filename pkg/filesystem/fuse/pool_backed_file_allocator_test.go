@@ -12,9 +12,11 @@ import (
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/fuse"
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/outputpathpersistency"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteoutputservice"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/golang/mock/gomock"
 	go_fuse "github.com/hanwen/go-fuse/v2/fuse"
@@ -136,6 +138,22 @@ func TestPoolBackedFileAllocatorGetOutputServiceFileStatus(t *testing.T) {
 			},
 		},
 	}, fileStatus)
+
+	// Once a cached digest is present, it should also become part
+	// of output path persistent state file.
+	var directory outputpathpersistency.Directory
+	f.AppendOutputPathPersistencyDirectoryNode(&directory, path.MustNewComponent("hello.txt"))
+	testutil.RequireEqualProto(t, &outputpathpersistency.Directory{
+		Files: []*remoteexecution.FileNode{
+			{
+				Name: "hello.txt",
+				Digest: &remoteexecution.Digest{
+					Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
+					SizeBytes: 11,
+				},
+			},
+		},
+	}, &directory)
 
 	underlyingFile.EXPECT().Close()
 	f.Unlink()

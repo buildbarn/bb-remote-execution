@@ -9,12 +9,15 @@ import (
 	"sync"
 	"syscall"
 
+	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/outputpathpersistency"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteoutputservice"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/random"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/hanwen/go-fuse/v2/fuse"
@@ -247,6 +250,32 @@ func (f *fileBackedFile) GetOutputServiceFileStatus(digestFunction *digest.Funct
 			File: fileStatus,
 		},
 	}, nil
+}
+
+func (f *fileBackedFile) AppendOutputPathPersistencyDirectoryNode(directory *outputpathpersistency.Directory, name path.Component) {
+	// Because bb_clientd is mostly intended to be used in
+	// combination with remote execution, we don't want to spend too
+	// much effort persisting locally created output files. Those
+	// may easily exceed the size of the state file, making
+	// finalization of builds expensive.
+	//
+	// Most of the time people still enable remote caching for
+	// locally running actions, or have Build Event Streams enabled.
+	// In that case there is a fair chance that the file is present
+	// in the CAS anyway.
+	//
+	// In case we have a cached digest for the file available, let's
+	// generate an entry for it in the persistent state file. This
+	// means that after a restart, the file is silently converted to
+	// a CAS-backed file. If it turns out this assumption is
+	// incorrect, StartBuild() will clean up the file for us.
+	if cachedDigest := f.getCachedDigest(); cachedDigest != digest.BadDigest {
+		directory.Files = append(directory.Files, &remoteexecution.FileNode{
+			Name:         name.String(),
+			Digest:       f.cachedDigest.GetProto(),
+			IsExecutable: f.isExecutable,
+		})
+	}
 }
 
 func (f *fileBackedFile) Close() error {

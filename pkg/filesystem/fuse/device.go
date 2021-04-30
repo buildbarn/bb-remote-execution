@@ -6,10 +6,12 @@ import (
 	"context"
 	"syscall"
 
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/outputpathpersistency"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteoutputservice"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/hanwen/go-fuse/v2/fuse"
 
 	"google.golang.org/grpc/codes"
@@ -58,6 +60,12 @@ func (f *device) GetContainingDigests() digest.Set {
 
 func (f *device) GetOutputServiceFileStatus(digestFunction *digest.Function) (*remoteoutputservice.FileStatus, error) {
 	return &remoteoutputservice.FileStatus{}, nil
+}
+
+func (f *device) AppendOutputPathPersistencyDirectoryNode(directory *outputpathpersistency.Directory, name path.Component) {
+	// UNIX sockets or FIFOs do not need to be preserved across
+	// restarts of bb_clientd, so there is no need to emit any
+	// persistency state.
 }
 
 func (f *device) FUSEAccess(mask uint32) fuse.Status {
