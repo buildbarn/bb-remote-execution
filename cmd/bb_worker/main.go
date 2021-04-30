@@ -265,7 +265,6 @@ func main() {
 						log.Fatal("Failed to marshal worker ID: ", err)
 					}
 
-					env := runnerConfiguration.EnvironmentVariables
 					buildExecutor := builder.NewMetricsBuildExecutor(
 						builder.NewFilePoolStatsBuildExecutor(
 							builder.NewTimestampedBuildExecutor(
@@ -279,7 +278,7 @@ func main() {
 										maximumExecutionTimeout,
 										inputRootCharacterDevices,
 										int(configuration.MaximumMessageSizeBytes),
-										env),
+										runnerConfiguration.EnvironmentVariables),
 									contentAddressableStorageFlusher),
 								clock.SystemClock,
 								string(workerName))))
