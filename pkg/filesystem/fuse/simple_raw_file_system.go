@@ -652,9 +652,7 @@ func (l dirEntryList) Less(i, j int) bool {
 }
 
 func (l dirEntryList) Swap(i, j int) {
-	t := l[i]
-	l[i] = l[j]
-	l[j] = t
+	l[i], l[j] = l[j], l[i]
 }
 
 // directoryDirEntryList is a list of DirectoryDirEntry objects returned
@@ -671,9 +669,7 @@ func (l directoryDirEntryList) Less(i, j int) bool {
 }
 
 func (l directoryDirEntryList) Swap(i, j int) {
-	t := l[i]
-	l[i] = l[j]
-	l[j] = t
+	l[i], l[j] = l[j], l[i]
 }
 
 // leafDirEntryList is a list of LeafDirEntry objects returned by
@@ -690,7 +686,5 @@ func (l leafDirEntryList) Less(i, j int) bool {
 }
 
 func (l leafDirEntryList) Swap(i, j int) {
-	t := l[i]
-	l[i] = l[j]
-	l[j] = t
+	l[i], l[j] = l[j], l[i]
 }
