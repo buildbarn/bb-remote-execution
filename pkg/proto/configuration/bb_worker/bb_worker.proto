@@ -4,6 +4,7 @@ package buildbarn.configuration.bb_worker;
 
 import "build/bazel/remote/execution/v2/remote_execution.proto";
 import "google/protobuf/duration.proto";
+import "google/protobuf/empty.proto";
 import "pkg/proto/configuration/blobstore/blobstore.proto";
 import "pkg/proto/configuration/eviction/eviction.proto";
 import "pkg/proto/configuration/filesystem/filesystem.proto";
@@ -110,6 +111,12 @@ message NativeBuildDirectoryConfiguration {
   // LEAST_RECENTLY_USED can, assuming the cache size is sufficient.
   buildbarn.configuration.eviction.CacheReplacementPolicy
       cache_replacement_policy = 5;
+
+  // Use clonefile(2) to populate build action trees using APFS copy-on-
+  // write clones.  Only useful on Darwin when the build_directory_path
+  // is on an APFS volume.  When not set (default) uses standard hardlinks
+  // as supported by most all posix filesystems.
+  bool use_clonefile = 6;
 }
 
 message RunnerConfiguration {

@@ -14,7 +14,7 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-type hardlinkingFileFetcher struct {
+type cachingFileFetcher struct {
 	base           FileFetcher
 	cacheDirectory filesystem.Directory
 	maxFiles       int
@@ -26,15 +26,17 @@ type hardlinkingFileFetcher struct {
 
 	evictionLock sync.Mutex
 	evictionSet  eviction.Set
+
+	fileInstaller FileInstaller
 }
 
-// NewHardlinkingFileFetcher is an adapter for FileFetcher that stores
+// NewCachingFileFetcher is an adapter for FileFetcher that stores
 // files in an internal directory. After successfully downloading files
 // at the target location, they are hardlinked into the cache. Future
 // calls for the same file will hardlink them from the cache to the
 // target location. This reduces the amount of network traffic needed.
-func NewHardlinkingFileFetcher(base FileFetcher, cacheDirectory filesystem.Directory, maxFiles int, maxSize int64, evictionSet eviction.Set) FileFetcher {
-	return &hardlinkingFileFetcher{
+func NewCachingFileFetcher(base FileFetcher, cacheDirectory filesystem.Directory, maxFiles int, maxSize int64, evictionSet eviction.Set, fileInstaller FileInstaller) FileFetcher {
+	return &cachingFileFetcher{
 		base:           base,
 		cacheDirectory: cacheDirectory,
 		maxFiles:       maxFiles,
@@ -43,10 +45,12 @@ func NewHardlinkingFileFetcher(base FileFetcher, cacheDirectory filesystem.Direc
 		filesSize: map[string]int64{},
 
 		evictionSet: evictionSet,
+
+		fileInstaller: fileInstaller,
 	}
 }
 
-func (ff *hardlinkingFileFetcher) makeSpace(size int64) error {
+func (ff *cachingFileFetcher) makeSpace(size int64) error {
 	for len(ff.filesSize) > 0 && (len(ff.filesSize) >= ff.maxFiles || ff.filesTotalSize+size > ff.maxSize) {
 		// Remove a file from disk.
 		key := ff.evictionSet.Peek()
@@ -62,8 +66,15 @@ func (ff *hardlinkingFileFetcher) makeSpace(size int64) error {
 	return nil
 }
 
-func (ff *hardlinkingFileFetcher) GetFile(ctx context.Context, blobDigest digest.Digest, directory filesystem.Directory, name path.Component, isExecutable bool) error {
+func (ff *cachingFileFetcher) GetFile(ctx context.Context, blobDigest digest.Digest, directory filesystem.Directory, name path.Component, isExecutable bool) error {
 	key := blobDigest.GetKey(digest.KeyWithoutInstance)
+
+	// Technically when the Clonefile linking handler is used, we can use the
+	// same local file with different permissions.  That would require not
+	// having -/+x in the cache key, and passing desired permissions to the
+	// link helper.  It seems quite unlikely to provide meaningful advantage,
+	// especially when bazel saves every file with the same permissions, so we
+	// omit this functionality for now.
 	if isExecutable {
 		key += "+x"
 	} else {
@@ -78,13 +89,13 @@ func (ff *hardlinkingFileFetcher) GetFile(ctx context.Context, blobDigest digest
 		ff.evictionSet.Touch(key)
 		ff.evictionLock.Unlock()
 
-		if err := ff.cacheDirectory.Link(path.MustNewComponent(key), directory, name); err == nil {
+		if err := ff.fileInstaller.Link(ff.cacheDirectory, path.MustNewComponent(key), directory, name); err == nil {
 			// Successfully hardlinked the file to its destination.
 			ff.filesLock.RUnlock()
 			return nil
 		} else if !os.IsNotExist(err) {
 			ff.filesLock.RUnlock()
-			return util.StatusWrapfWithCode(err, codes.Internal, "Failed to create hardlink to cached file %#v", key)
+			return util.StatusWrapfWithCode(err, codes.Internal, "Failed to install cached file %#v", key)
 		}
 
 		// The was part of the cache, even though it did not
@@ -112,7 +123,7 @@ func (ff *hardlinkingFileFetcher) GetFile(ctx context.Context, blobDigest digest
 		}
 
 		// Hardlink the file into the cache.
-		if err := directory.Link(name, ff.cacheDirectory, path.MustNewComponent(key)); err != nil && !os.IsExist(err) {
+		if err := ff.fileInstaller.Link(directory, name, ff.cacheDirectory, path.MustNewComponent(key)); err != nil && !os.IsExist(err) {
 			return util.StatusWrapfWithCode(err, codes.Internal, "Failed to add cached file %#v", key)
 		}
 		ff.evictionSet.Insert(key)
@@ -121,7 +132,7 @@ func (ff *hardlinkingFileFetcher) GetFile(ctx context.Context, blobDigest digest
 	} else if wasMissing {
 		// Even though the file is part of our bookkeeping, we
 		// observed it didn't exist. Repair this inconsistency.
-		if err := directory.Link(name, ff.cacheDirectory, path.MustNewComponent(key)); err != nil && !os.IsExist(err) {
+		if err := ff.fileInstaller.Link(directory, name, ff.cacheDirectory, path.MustNewComponent(key)); err != nil && !os.IsExist(err) {
 			return util.StatusWrapfWithCode(err, codes.Internal, "Failed to repair cached file %#v", key)
 		}
 	}

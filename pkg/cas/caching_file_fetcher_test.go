@@ -17,12 +17,13 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func TestHardlinkingFileFetcher(t *testing.T) {
+func TestCachingFileFetcher(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	baseFileFetcher := mock.NewMockFileFetcher(ctrl)
 	cacheDirectory := mock.NewMockDirectory(ctrl)
-	fileFetcher := cas.NewHardlinkingFileFetcher(baseFileFetcher, cacheDirectory, 1, 1024, eviction.NewLRUSet())
+	fileInstaller := cas.HardlinkingFileInstaller
+	fileFetcher := cas.NewCachingFileFetcher(baseFileFetcher, cacheDirectory, 1, 1024, eviction.NewLRUSet(), fileInstaller)
 
 	blobDigest1 := digest.MustNewDigest("example", "8b1a9953c4611296a827abf8c47804d7", 5)
 	buildDirectory := mock.NewMockDirectory(ctrl)
@@ -64,7 +65,7 @@ func TestHardlinkingFileFetcher(t *testing.T) {
 		Return(syscall.EIO)
 	require.Equal(
 		t,
-		status.Error(codes.Internal, "Failed to create hardlink to cached file \"8b1a9953c4611296a827abf8c47804d7-5-x\": input/output error"),
+		status.Error(codes.Internal, "Failed to install cached file \"8b1a9953c4611296a827abf8c47804d7-5-x\": input/output error"),
 		fileFetcher.GetFile(ctx, blobDigest1, buildDirectory, path.MustNewComponent("hello.txt"), false))
 
 	// Recover from the case where the cache directory gets cleaned

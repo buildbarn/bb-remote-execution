@@ -150,12 +150,17 @@ func main() {
 			if err != nil {
 				log.Fatal("Failed to create eviction set for cache directory: ", err)
 			}
-			fileFetcher = cas.NewHardlinkingFileFetcher(
+			fileInstaller := cas.HardlinkingFileInstaller
+			if nativeConfiguration.UseClonefile {
+				fileInstaller = cas.CloningFileInstaller
+			}
+			fileFetcher = cas.NewCachingFileFetcher(
 				cas.NewBlobAccessFileFetcher(globalContentAddressableStorage),
 				cacheDirectory,
 				int(nativeConfiguration.MaximumCacheFileCount),
 				nativeConfiguration.MaximumCacheSizeBytes,
-				eviction.NewMetricsSet(evictionSet, "HardlinkingFileFetcher"))
+				eviction.NewMetricsSet(evictionSet, "CachingFileFetcher"),
+				fileInstaller)
 
 			// Using a native file system requires us to
 			// hold on to file descriptors while uploading
