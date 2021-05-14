@@ -22,8 +22,8 @@ func TestCachingFileFetcher(t *testing.T) {
 
 	baseFileFetcher := mock.NewMockFileFetcher(ctrl)
 	cacheDirectory := mock.NewMockDirectory(ctrl)
-	linkHelper := cas.LinkHelperHardlink
-	fileFetcher := cas.NewCachingFileFetcher(baseFileFetcher, cacheDirectory, 1, 1024, eviction.NewLRUSet(), linkHelper)
+	fileInstaller := cas.HardlinkingFileInstaller
+	fileFetcher := cas.NewCachingFileFetcher(baseFileFetcher, cacheDirectory, 1, 1024, eviction.NewLRUSet(), fileInstaller)
 
 	blobDigest1 := digest.MustNewDigest("example", "8b1a9953c4611296a827abf8c47804d7", 5)
 	buildDirectory := mock.NewMockDirectory(ctrl)
