@@ -16,10 +16,10 @@ func GetBrowserURL(browserURL *url.URL, objectType string, digest digest.Digest)
 	u, err := browserURL.Parse(
 		path.Join(
 			browserURL.EscapedPath(),
-			objectType,
 			digest.GetInstanceName().String(),
-			digest.GetHashString(),
-			strconv.FormatInt(digest.GetSizeBytes(), 10)) + "/")
+			"blobs",
+			objectType,
+			fmt.Sprintf("%s-%s", digest.GetHashString(), strconv.FormatInt(digest.GetSizeBytes(), 10))) + "/")
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create browser URL: %s", err))
 	}
