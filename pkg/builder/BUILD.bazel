@@ -28,6 +28,7 @@ go_library(
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/builder",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/builder/initialsizeclass",
         "//pkg/cas",
         "//pkg/filesystem",
         "//pkg/proto/buildqueuestate",

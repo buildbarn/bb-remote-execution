@@ -12,6 +12,7 @@ import (
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	re_blobstore "github.com/buildbarn/bb-remote-execution/pkg/blobstore"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
+	"github.com/buildbarn/bb-remote-execution/pkg/builder/initialsizeclass"
 	re_aws "github.com/buildbarn/bb-remote-execution/pkg/cloud/aws"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/buildqueuestate"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_scheduler"
@@ -19,6 +20,7 @@ import (
 	blobstore_configuration "github.com/buildbarn/bb-storage/pkg/blobstore/configuration"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/cloud/aws"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/global"
 	bb_grpc "github.com/buildbarn/bb-storage/pkg/grpc"
 	"github.com/buildbarn/bb-storage/pkg/random"
@@ -60,6 +62,23 @@ func main() {
 	}
 	contentAddressableStorage := re_blobstore.NewExistencePreconditionBlobAccess(info.BlobAccess)
 
+	// Platform queues that are not predeclared may not use multiple
+	// size classes. For those platform queues it is sufficient to
+	// just use a naive initial size class analyzer.
+	defaultExecutionTimeout := configuration.DefaultExecutionTimeout
+	if err := defaultExecutionTimeout.CheckValid(); err != nil {
+		log.Fatal("Invalid default execution timeout: ", err)
+	}
+	maximumExecutionTimeout := configuration.MaximumExecutionTimeout
+	if err := maximumExecutionTimeout.CheckValid(); err != nil {
+		log.Fatal("Invalid maximum execution timeout: ", err)
+	}
+	actionTimeoutExtractor := initialsizeclass.NewActionTimeoutExtractor(
+		defaultExecutionTimeout.AsDuration(),
+		maximumExecutionTimeout.AsDuration())
+	defaultInitialSizeClassAnalyzer := initialsizeclass.NewFallbackAnalyzer(actionTimeoutExtractor)
+
+	// Create in-memory build queue.
 	// TODO: Make timeouts configurable.
 	generator := random.NewFastSingleThreadedGenerator()
 	buildQueue := builder.NewInMemoryBuildQueue(
@@ -80,7 +99,71 @@ func main() {
 			WorkerTaskRetryCount:                9,
 			WorkerWithNoSynchronizationsTimeout: time.Minute,
 		},
-		int(configuration.MaximumMessageSizeBytes))
+		int(configuration.MaximumMessageSizeBytes),
+		defaultInitialSizeClassAnalyzer)
+
+	// Create predeclared platform queues.
+	for _, platformQueue := range configuration.PredeclaredPlatformQueues {
+		instanceName, err := digest.NewInstanceName(platformQueue.InstanceName)
+		if err != nil {
+			log.Fatalf("Invalid instance name %#v: %s", platformQueue.InstanceName, err)
+		}
+
+		// Create an analyzer for picking an initial size class.
+		// This lets bb_scheduler cache execution times and
+		// outcomes of actions, so that it can more accurately
+		// pick size classes in the future.
+		initialSizeClassAnalyzer := defaultInitialSizeClassAnalyzer
+		var maximumQueuedBackgroundLearningOperations int
+		var backgroundLearningOperationPriority int32
+		if fdaConfiguration := platformQueue.InitialSizeClassFeedbackDrivenAnalyzer; fdaConfiguration != nil {
+			info, err := blobstore_configuration.NewBlobAccessFromConfiguration(
+				fdaConfiguration.InitialSizeClassCache,
+				blobstore_configuration.NewISCCBlobAccessCreator(
+					bb_grpc.DefaultClientFactory,
+					int(configuration.MaximumMessageSizeBytes)))
+			if err != nil {
+				log.Fatal("Failed to create Initial Size Class Cache: ", err)
+			}
+
+			failureCacheDuration := fdaConfiguration.FailureCacheDuration
+			if err := failureCacheDuration.CheckValid(); err != nil {
+				log.Fatal("Invalid failure cache duration: ", err)
+			}
+
+			minimumExecutionTimeout := fdaConfiguration.MinimumExecutionTimeout
+			if err := minimumExecutionTimeout.CheckValid(); err != nil {
+				log.Fatal("Invalid minimum acceptable execution time: ", err)
+			}
+
+			initialSizeClassAnalyzer = initialsizeclass.NewFeedbackDrivenAnalyzer(
+				initialsizeclass.NewBlobAccessPreviousExecutionStatsStore(
+					info.BlobAccess,
+					int(configuration.MaximumMessageSizeBytes)),
+				random.NewFastSingleThreadedGenerator(),
+				clock.SystemClock,
+				actionTimeoutExtractor,
+				failureCacheDuration.AsDuration(),
+				initialsizeclass.NewPageRankStrategyCalculator(
+					minimumExecutionTimeout.AsDuration(),
+					fdaConfiguration.AcceptableExecutionTimeIncreaseExponent,
+					fdaConfiguration.SmallerSizeClassExecutionTimeoutMultiplier,
+					fdaConfiguration.MaximumConvergenceError),
+				int(fdaConfiguration.HistorySize))
+			maximumQueuedBackgroundLearningOperations = int(fdaConfiguration.MaximumQueuedBackgroundLearningOperations)
+			backgroundLearningOperationPriority = fdaConfiguration.BackgroundLearningOperationPriority
+		}
+
+		if err := buildQueue.RegisterPredeclaredPlatformQueue(
+			instanceName,
+			platformQueue.Platform,
+			maximumQueuedBackgroundLearningOperations,
+			backgroundLearningOperationPriority,
+			platformQueue.MaximumSizeClass,
+			initialSizeClassAnalyzer); err != nil {
+			log.Fatal("Failed to register predeclared platform queue: ", err)
+		}
+	}
 
 	// Spawn gRPC servers for client and worker traffic.
 	go func() {

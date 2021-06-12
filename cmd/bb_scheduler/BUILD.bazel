@@ -13,6 +13,7 @@ go_library(
     deps = [
         "//pkg/blobstore",
         "//pkg/builder",
+        "//pkg/builder/initialsizeclass",
         "//pkg/cloud/aws",
         "//pkg/proto/buildqueuestate",
         "//pkg/proto/configuration/bb_scheduler",

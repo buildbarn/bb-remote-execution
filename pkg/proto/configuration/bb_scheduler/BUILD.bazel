@@ -7,10 +7,12 @@ proto_library(
     srcs = ["bb_scheduler.proto"],
     visibility = ["//visibility:public"],
     deps = [
+        "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:remote_execution_proto",
         "@com_github_buildbarn_bb_storage//pkg/proto/configuration/blobstore:blobstore_proto",
         "@com_github_buildbarn_bb_storage//pkg/proto/configuration/cloud/aws:aws_proto",
         "@com_github_buildbarn_bb_storage//pkg/proto/configuration/global:global_proto",
         "@com_github_buildbarn_bb_storage//pkg/proto/configuration/grpc:grpc_proto",
+        "@com_google_protobuf//:duration_proto",
     ],
 )
 
@@ -20,6 +22,7 @@ go_proto_library(
     proto = ":bb_scheduler_proto",
     visibility = ["//visibility:public"],
     deps = [
+        "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:execution",
         "@com_github_buildbarn_bb_storage//pkg/proto/configuration/blobstore",
         "@com_github_buildbarn_bb_storage//pkg/proto/configuration/cloud/aws",
         "@com_github_buildbarn_bb_storage//pkg/proto/configuration/global",

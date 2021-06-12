@@ -51,8 +51,14 @@ var (
 			}
 			return re_util.GetBrowserURL(browserURL, "action", d)
 		},
-		"operation_stage_queued": func(o *buildqueuestate.OperationState) *buildqueuestate.OperationState_Queued {
-			if s, ok := o.Stage.(*buildqueuestate.OperationState_Queued_); ok {
+		"get_size_class_queue_name": func(platformQueueName *buildqueuestate.PlatformQueueName, sizeClass uint32) *buildqueuestate.SizeClassQueueName {
+			return &buildqueuestate.SizeClassQueueName{
+				PlatformQueueName: platformQueueName,
+				SizeClass:         sizeClass,
+			}
+		},
+		"operation_stage_queued": func(o *buildqueuestate.OperationState) *emptypb.Empty {
+			if s, ok := o.Stage.(*buildqueuestate.OperationState_Queued); ok {
 				return s.Queued
 			}
 			return nil
@@ -135,6 +141,7 @@ var (
         <tr>
           <th>Instance name</th>
           <th>Platform</th>
+          <th>Size class</th>
           <th>Timeout</th>
           <th>Queued invocations</th>
           <th>Executing workers</th>
@@ -143,25 +150,32 @@ var (
       </thead>
       {{$now := .Now}}
       {{range .PlatformQueues}}
-        {{$platform := proto_to_json .Name.Platform}}
         <tr>
-          <td>{{.Name.GetInstanceName | printf "%#v"}}</td>
-          <td>{{$platform}}</td>
-          <td>{{time_future .Timeout $now}}</td>
-          {{$platformQueueName := proto_to_json .Name}}
-          <td>
-            <a href="invocations?platform_queue_name={{$platformQueueName}}&amp;just_queued_invocations=true">{{.QueuedInvocationsCount}}</a>
-            /
-            <a href="invocations?platform_queue_name={{$platformQueueName}}">{{.InvocationsCount}}</a>
-          </td>
-          <td>
-            <a href="workers?platform_queue_name={{$platformQueueName}}&amp;just_executing_workers=true">{{.ExecutingWorkersCount}}</a>
-            /
-            <a href="workers?platform_queue_name={{$platformQueueName}}">{{.WorkersCount}}</a>
-          </td>
-          <td>
-            <a href="drains?platform_queue_name={{$platformQueueName}}">{{.DrainsCount}}</a>
-          </td>
+          {{$platformQueueName := .Name}}
+          <td rowspan="{{len .SizeClassQueues}}">{{$platformQueueName.InstanceName | printf "%#v"}}</td>
+          <td rowspan="{{len .SizeClassQueues}}">{{proto_to_json $platformQueueName.Platform}}</td>
+          {{$addDivider := false}}
+          {{range .SizeClassQueues}}
+            {{if $addDivider}}</tr><tr>{{end}}
+            {{$addDivider = true}}
+            <td>{{.SizeClass}}</td>
+            <td>{{time_future .Timeout $now}}</td>
+            {{$sizeClassQueueName := get_size_class_queue_name $platformQueueName .SizeClass}}
+            {{$sizeClassQueueNameJSON := proto_to_json $sizeClassQueueName}}
+            <td>
+              <a href="invocations?size_class_queue_name={{$sizeClassQueueNameJSON}}&amp;just_queued_invocations=true">{{.QueuedInvocationsCount}}</a>
+              /
+              <a href="invocations?size_class_queue_name={{$sizeClassQueueNameJSON}}">{{.InvocationsCount}}</a>
+            </td>
+            <td>
+              <a href="workers?size_class_queue_name={{$sizeClassQueueNameJSON}}&amp;just_executing_workers=true">{{.ExecutingWorkersCount}}</a>
+              /
+              <a href="workers?size_class_queue_name={{$sizeClassQueueNameJSON}}">{{.WorkersCount}}</a>
+            </td>
+            <td>
+              <a href="drains?size_class_queue_name={{$sizeClassQueueNameJSON}}">{{.DrainsCount}}</a>
+            </td>
+          {{end}}
         </tr>
       {{end}}
     </table>
@@ -180,16 +194,20 @@ var (
   <body>
     <h1>Operation {{.OperationName}}</h1>
     {{$now := .Now}}
-    <p>Instance name: {{.Operation.PlatformQueueName.InstanceName | printf "%#v"}}<br/>
-    Platform: {{proto_to_json .Operation.PlatformQueueName.Platform}}<br/>
-    Invocation ID: {{.Operation.InvocationId | printf "%#v"}}<br/>
-    Action digest: <a href="{{action_url .BrowserURL .Operation.PlatformQueueName.InstanceName .Operation.ActionDigest}}">{{proto_to_json .Operation.ActionDigest}}</a><br/>
+    {{$sizeClassQueueName := .Operation.SizeClassQueueName}}
+    {{$platformQueueName := $sizeClassQueueName.PlatformQueueName}}
+    <p>Instance name: {{$platformQueueName.InstanceName | printf "%#v"}}<br/>
+    Platform: {{proto_to_json $platformQueueName.Platform}}<br/>
+    Size class: {{$sizeClassQueueName.SizeClass}}<br/>
+    Invocation ID: {{proto_to_json .Operation.InvocationId}}<br/>
+    Action digest: <a href="{{action_url .BrowserURL $platformQueueName.InstanceName .Operation.ActionDigest}}">{{proto_to_json .Operation.ActionDigest}}</a><br/>
     Age: {{time_past .Operation.QueuedTimestamp $now}}<br/>
     Timeout: {{time_future .Operation.Timeout $now}}<br/>
     Target ID: {{.Operation.TargetId}}<br/>
+    Priority: {{.Operation.Priority}}<br/>
     Stage:
       {{with operation_stage_queued .Operation}}
-        Queued at priority {{.Priority}}
+        Queued
       {{else}}
         {{with operation_stage_executing .Operation}}
           Executing
@@ -263,10 +281,10 @@ var (
             <a class="text-monospace" href="operation?name={{.Name}}" style="color: {{to_foreground_color .Name}}">{{abbreviate .Name}}</a>
           </td>
           <td style="background-color: {{to_background_color .ActionDigest.Hash}}">
-            <a class="text-monospace" href="{{action_url $browserURL .PlatformQueueName.InstanceName .ActionDigest}}" style="color: {{to_foreground_color .ActionDigest.Hash}}">{{abbreviate .ActionDigest.Hash}}</a>
+            <a class="text-monospace" href="{{action_url $browserURL .SizeClassQueueName.PlatformQueueName.InstanceName .ActionDigest}}" style="color: {{to_foreground_color .ActionDigest.Hash}}">{{abbreviate .ActionDigest.Hash}}</a>
           </td>
           <td>{{.TargetId}}</td>
-          {{with operation_stage_queued .}}
+          {{if operation_stage_queued .}}
             <td>Queued at priority {{.Priority}}</td>
           {{else}}
             {{with operation_stage_executing .}}
@@ -312,8 +330,11 @@ var (
   </head>
   <body>
     <h1>{{if .JustQueuedInvocations}}Queued{{else}}All{{end}} invocations</h1>
-    <p>Instance name: {{.PlatformQueueName.InstanceName | printf "%#v"}}<br/>
-    Platform: {{proto_to_json .PlatformQueueName.Platform}}</p>
+    {{$sizeClassQueueName := .SizeClassQueueName}}
+    {{$platformQueueName := $sizeClassQueueName.PlatformQueueName}}
+    <p>Instance name: {{$platformQueueName.InstanceName | printf "%#v"}}<br/>
+    Platform: {{proto_to_json $platformQueueName.Platform}}<br/>
+    Size class: {{$sizeClassQueueName.SizeClass}}</p>
     <table>
       <thead>
         <tr>
@@ -325,13 +346,13 @@ var (
         </tr>
       </thead>
       {{$now := .Now}}
-      {{$platformQueueName := .PlatformQueueName}}
       {{range .Invocations}}
         <tr>
-          <td>{{.Id | printf "%#v"}}</td>
-          <td><a href="queued_operations?platform_queue_name={{proto_to_json $platformQueueName}}&amp;invocation_id={{.Id}}">{{.QueuedOperationsCount}}</a></td>
+          {{$invocationID := proto_to_json .Id}}
+          <td>{{$invocationID}}</td>
+          <td><a href="queued_operations?size_class_queue_name={{proto_to_json $sizeClassQueueName}}&amp;invocation_id={{$invocationID}}">{{.QueuedOperationsCount}}</a></td>
           {{with .FirstQueuedOperation}}
-            <td>{{with operation_stage_queued .}}{{.Priority}}{{else}}Unknown{{end}}</td>
+            <td>{{.Priority}}</td>
             <td>{{time_past .QueuedTimestamp $now}}</td>
           {{else}}
             <td colspan="2">No operations queued</td>
@@ -358,14 +379,16 @@ var (
   </head>
   <body>
     <h1>Queued operations</h1>
-    {{$platformQueueName := .PlatformQueueName}}
+    {{$sizeClassQueueName := .SizeClassQueueName}}
+    {{$platformQueueName := $sizeClassQueueName.PlatformQueueName}}
     <p>Instance name: {{$platformQueueName.InstanceName | printf "%#v"}}<br/>
     Platform: {{proto_to_json $platformQueueName.Platform}}<br/>
-    {{$invocationID := .InvocationID}}
-    Invocation ID: {{$invocationID | printf "%#v"}}</p>
+    Size class: {{$sizeClassQueueName.SizeClass}}<br/>
+    {{$invocationID := proto_to_json .InvocationID}}
+    Invocation ID: {{$invocationID}}</p>
     <p>Showing queued operations [{{.PaginationInfo.StartIndex}}, {{.EndIndex}}) of {{.PaginationInfo.TotalEntries}} in total.
       {{with .StartAfter}}
-        <a href="?platform_queue_name={{proto_to_json $platformQueueName}}&amp;invocation_id={{$invocationID}}&amp;start_after={{proto_to_json .}}">&gt;&gt;&gt;</a>
+        <a href="?size_class_queue_name={{proto_to_json $sizeClassQueueName}}&amp;invocation_id={{$invocationID}}&amp;start_after={{proto_to_json .}}">&gt;&gt;&gt;</a>
       {{end}}
     </p>
     <table>
@@ -383,7 +406,7 @@ var (
       {{$now := .Now}}
       {{range .QueuedOperations}}
         <tr>
-          <td>{{with operation_stage_queued .}}{{.Priority}}{{else}}Unknown{{end}}</td>
+          <td>{{.Priority}}</td>
           <td>{{time_past .QueuedTimestamp $now}}</td>
           <td>{{time_future .Timeout $now}}</td>
           <td style="background-color: {{to_background_color .Name}}">
@@ -414,12 +437,14 @@ var (
   </head>
   <body>
     <h1>{{if .JustExecutingWorkers}}Executing{{else}}All{{end}} workers</h1>
-    {{$platformQueueName := .PlatformQueueName}}
+    {{$sizeClassQueueName := .SizeClassQueueName}}
+    {{$platformQueueName := $sizeClassQueueName.PlatformQueueName}}
     <p>Instance name: {{$platformQueueName.InstanceName | printf "%#v"}}<br/>
-    Platform: {{proto_to_json $platformQueueName.Platform}}</p>
+    Platform: {{proto_to_json $platformQueueName.Platform}}<br/>
+    Size class: {{$sizeClassQueueName.SizeClass}}</p>
     <p>Showing workers [{{.PaginationInfo.StartIndex}}, {{.EndIndex}}) of {{.PaginationInfo.TotalEntries}} in total.
       {{with .StartAfter}}
-        <a href="?platform_queue_name={{proto_to_json $platformQueueName}}&amp;start_after={{proto_to_json .}}">&gt;&gt;&gt;</a>
+        <a href="?size_class_queue_name={{proto_to_json $sizeClassQueueName}}&amp;start_after={{proto_to_json .}}">&gt;&gt;&gt;</a>
       {{end}}
     </p>
     <table>
@@ -472,9 +497,11 @@ var (
   </head>
   <body>
     <h1>Drains</h1>
-    <p>Instance name: {{.PlatformQueueName.InstanceName | printf "%#v"}}<br/>
-    Platform: {{proto_to_json .PlatformQueueName.Platform}}</p>
-    {{$platformQueueName := proto_to_json .PlatformQueueName}}
+    {{$platformQueueName := .SizeClassQueueName.PlatformQueueName}}
+    <p>Instance name: {{$platformQueueName.InstanceName | printf "%#v"}}<br/>
+    Platform: {{proto_to_json $platformQueueName.Platform}}<br/>
+    Size class: {{.SizeClassQueueName.SizeClass}}</p>
+    {{$sizeClassQueueName := proto_to_json .SizeClassQueueName}}
     <table>
       <thead>
         <tr>
@@ -491,7 +518,7 @@ var (
           <td>{{time_past .CreatedTimestamp $now}}</td>
           <td>
             <form action="remove_drain" method="post">
-              <input name="platform_queue_name" type="hidden" value="{{$platformQueueName}}"/>
+              <input name="size_class_queue_name" type="hidden" value="{{$sizeClassQueueName}}"/>
               <input name="worker_id_pattern" type="hidden" value="{{$workerIDPattern}}"/>
               <input type="submit" value="Remove"/>
             </form>
@@ -501,7 +528,7 @@ var (
     </table>
     <form action="add_drain" method="post">
       <p>
-        <input name="platform_queue_name" type="hidden" value="{{$platformQueueName}}"/>
+        <input name="size_class_queue_name" type="hidden" value="{{$sizeClassQueueName}}"/>
         <input name="worker_id_pattern" type="text"/>
         <input type="submit" value="Create drain"/>
       </p>
@@ -575,16 +602,16 @@ func (s *buildQueueStateService) handleGetBuildQueueState(w http.ResponseWriter,
 
 func (s *buildQueueStateService) handleListInvocations(w http.ResponseWriter, req *http.Request) {
 	query := req.URL.Query()
-	var platformQueueName buildqueuestate.PlatformQueueName
-	if err := protojson.Unmarshal([]byte(query.Get("platform_queue_name")), &platformQueueName); err != nil {
-		http.Error(w, util.StatusWrap(err, "Failed to extract platform queue").Error(), http.StatusBadRequest)
+	var sizeClassQueueName buildqueuestate.SizeClassQueueName
+	if err := protojson.Unmarshal([]byte(query.Get("size_class_queue_name")), &sizeClassQueueName); err != nil {
+		http.Error(w, util.StatusWrap(err, "Failed to extract size class queue name").Error(), http.StatusBadRequest)
 		return
 	}
 	justQueuedInvocations := query.Get("just_queued_invocations") != ""
 
 	ctx := req.Context()
 	response, err := s.buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
-		PlatformQueueName:     &platformQueueName,
+		SizeClassQueueName:    &sizeClassQueueName,
 		JustQueuedInvocations: justQueuedInvocations,
 	})
 	if err != nil {
@@ -593,12 +620,12 @@ func (s *buildQueueStateService) handleListInvocations(w http.ResponseWriter, re
 		return
 	}
 	if err := listInvocationStateTemplate.Execute(w, struct {
-		PlatformQueueName     *buildqueuestate.PlatformQueueName
+		SizeClassQueueName    *buildqueuestate.SizeClassQueueName
 		Invocations           []*buildqueuestate.InvocationState
 		JustQueuedInvocations bool
 		Now                   time.Time
 	}{
-		PlatformQueueName:     &platformQueueName,
+		SizeClassQueueName:    &sizeClassQueueName,
 		Invocations:           response.Invocations,
 		JustQueuedInvocations: justQueuedInvocations,
 		Now:                   s.clock.Now(),
@@ -694,9 +721,9 @@ func (s *buildQueueStateService) handleListOperations(w http.ResponseWriter, req
 
 func (s *buildQueueStateService) handleListQueuedOperations(w http.ResponseWriter, req *http.Request) {
 	query := req.URL.Query()
-	var platformQueueName buildqueuestate.PlatformQueueName
-	if err := protojson.Unmarshal([]byte(query.Get("platform_queue_name")), &platformQueueName); err != nil {
-		http.Error(w, util.StatusWrap(err, "Failed to extract platform queue").Error(), http.StatusBadRequest)
+	var sizeClassQueueName buildqueuestate.SizeClassQueueName
+	if err := protojson.Unmarshal([]byte(query.Get("size_class_queue_name")), &sizeClassQueueName); err != nil {
+		http.Error(w, util.StatusWrap(err, "Failed to extract size class queue name").Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -710,13 +737,18 @@ func (s *buildQueueStateService) handleListQueuedOperations(w http.ResponseWrite
 		startAfter = &startAfterMessage
 	}
 
+	var invocationID buildqueuestate.InvocationID
+	if err := protojson.Unmarshal([]byte(query.Get("invocation_id")), &invocationID); err != nil {
+		http.Error(w, util.StatusWrap(err, "Failed to extract invocation ID").Error(), http.StatusBadRequest)
+		return
+	}
+
 	ctx := req.Context()
-	invocationID := query.Get("invocation_id")
 	response, err := s.buildQueue.ListQueuedOperations(ctx, &buildqueuestate.ListQueuedOperationsRequest{
-		PlatformQueueName: &platformQueueName,
-		InvocationId:      invocationID,
-		PageSize:          pageSize,
-		StartAfter:        startAfter,
+		SizeClassQueueName: &sizeClassQueueName,
+		InvocationId:       &invocationID,
+		PageSize:           pageSize,
+		StartAfter:         startAfter,
 	})
 	if err != nil {
 		// TODO: Pick the right error code.
@@ -728,29 +760,29 @@ func (s *buildQueueStateService) handleListQueuedOperations(w http.ResponseWrite
 	if l := response.QueuedOperations; len(l) > 0 {
 		o := l[len(l)-1]
 		nextStartAfter = &buildqueuestate.ListQueuedOperationsRequest_StartAfter{
-			Priority:        o.Stage.(*buildqueuestate.OperationState_Queued_).Queued.Priority,
+			Priority:        o.Priority,
 			QueuedTimestamp: o.QueuedTimestamp,
 		}
 	}
 
 	if err := listQueuedOperationStateTemplate.Execute(w, struct {
-		PlatformQueueName *buildqueuestate.PlatformQueueName
-		InvocationID      string
-		BrowserURL        *url.URL
-		Now               time.Time
-		PaginationInfo    *buildqueuestate.PaginationInfo
-		EndIndex          int
-		StartAfter        *buildqueuestate.ListQueuedOperationsRequest_StartAfter
-		QueuedOperations  []*buildqueuestate.OperationState
+		SizeClassQueueName *buildqueuestate.SizeClassQueueName
+		InvocationID       *buildqueuestate.InvocationID
+		BrowserURL         *url.URL
+		Now                time.Time
+		PaginationInfo     *buildqueuestate.PaginationInfo
+		EndIndex           int
+		StartAfter         *buildqueuestate.ListQueuedOperationsRequest_StartAfter
+		QueuedOperations   []*buildqueuestate.OperationState
 	}{
-		PlatformQueueName: &platformQueueName,
-		InvocationID:      invocationID,
-		BrowserURL:        s.browserURL,
-		Now:               s.clock.Now(),
-		PaginationInfo:    response.PaginationInfo,
-		EndIndex:          int(response.PaginationInfo.StartIndex) + len(response.QueuedOperations),
-		StartAfter:        nextStartAfter,
-		QueuedOperations:  response.QueuedOperations,
+		SizeClassQueueName: &sizeClassQueueName,
+		InvocationID:       &invocationID,
+		BrowserURL:         s.browserURL,
+		Now:                s.clock.Now(),
+		PaginationInfo:     response.PaginationInfo,
+		EndIndex:           int(response.PaginationInfo.StartIndex) + len(response.QueuedOperations),
+		StartAfter:         nextStartAfter,
+		QueuedOperations:   response.QueuedOperations,
 	}); err != nil {
 		log.Print(err)
 	}
@@ -758,9 +790,9 @@ func (s *buildQueueStateService) handleListQueuedOperations(w http.ResponseWrite
 
 func (s *buildQueueStateService) handleListWorkers(w http.ResponseWriter, req *http.Request) {
 	query := req.URL.Query()
-	var platformQueueName buildqueuestate.PlatformQueueName
-	if err := protojson.Unmarshal([]byte(query.Get("platform_queue_name")), &platformQueueName); err != nil {
-		http.Error(w, util.StatusWrap(err, "Failed to extract platform queue").Error(), http.StatusBadRequest)
+	var sizeClassQueueName buildqueuestate.SizeClassQueueName
+	if err := protojson.Unmarshal([]byte(query.Get("size_class_queue_name")), &sizeClassQueueName); err != nil {
+		http.Error(w, util.StatusWrap(err, "Failed to extract size class queue name").Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -777,7 +809,7 @@ func (s *buildQueueStateService) handleListWorkers(w http.ResponseWriter, req *h
 
 	ctx := req.Context()
 	response, err := s.buildQueue.ListWorkers(ctx, &buildqueuestate.ListWorkersRequest{
-		PlatformQueueName:    &platformQueueName,
+		SizeClassQueueName:   &sizeClassQueueName,
 		JustExecutingWorkers: justExecutingWorkers,
 		PageSize:             pageSize,
 		StartAfter:           startAfter,
@@ -797,7 +829,7 @@ func (s *buildQueueStateService) handleListWorkers(w http.ResponseWriter, req *h
 	}
 
 	if err := listWorkerStateTemplate.Execute(w, struct {
-		PlatformQueueName    *buildqueuestate.PlatformQueueName
+		SizeClassQueueName   *buildqueuestate.SizeClassQueueName
 		BrowserURL           *url.URL
 		Now                  time.Time
 		PaginationInfo       *buildqueuestate.PaginationInfo
@@ -806,7 +838,7 @@ func (s *buildQueueStateService) handleListWorkers(w http.ResponseWriter, req *h
 		Workers              []*buildqueuestate.WorkerState
 		JustExecutingWorkers bool
 	}{
-		PlatformQueueName:    &platformQueueName,
+		SizeClassQueueName:   &sizeClassQueueName,
 		BrowserURL:           s.browserURL,
 		Now:                  s.clock.Now(),
 		PaginationInfo:       response.PaginationInfo,
@@ -821,15 +853,15 @@ func (s *buildQueueStateService) handleListWorkers(w http.ResponseWriter, req *h
 
 func (s *buildQueueStateService) handleListDrains(w http.ResponseWriter, req *http.Request) {
 	query := req.URL.Query()
-	var platformQueueName buildqueuestate.PlatformQueueName
-	if err := protojson.Unmarshal([]byte(query.Get("platform_queue_name")), &platformQueueName); err != nil {
-		http.Error(w, util.StatusWrap(err, "Failed to extract platform queue").Error(), http.StatusBadRequest)
+	var sizeClassQueueName buildqueuestate.SizeClassQueueName
+	if err := protojson.Unmarshal([]byte(query.Get("size_class_queue_name")), &sizeClassQueueName); err != nil {
+		http.Error(w, util.StatusWrap(err, "Failed to extract size class queue name").Error(), http.StatusBadRequest)
 		return
 	}
 
 	ctx := req.Context()
 	response, err := s.buildQueue.ListDrains(ctx, &buildqueuestate.ListDrainsRequest{
-		PlatformQueueName: &platformQueueName,
+		SizeClassQueueName: &sizeClassQueueName,
 	})
 	if err != nil {
 		// TODO: Pick the right error code.
@@ -837,13 +869,13 @@ func (s *buildQueueStateService) handleListDrains(w http.ResponseWriter, req *ht
 		return
 	}
 	if err := listDrainStateTemplate.Execute(w, struct {
-		PlatformQueueName *buildqueuestate.PlatformQueueName
-		Now               time.Time
-		Drains            []*buildqueuestate.DrainState
+		SizeClassQueueName *buildqueuestate.SizeClassQueueName
+		Now                time.Time
+		Drains             []*buildqueuestate.DrainState
 	}{
-		PlatformQueueName: &platformQueueName,
-		Now:               s.clock.Now(),
-		Drains:            response.Drains,
+		SizeClassQueueName: &sizeClassQueueName,
+		Now:                s.clock.Now(),
+		Drains:             response.Drains,
 	}); err != nil {
 		log.Print(err)
 	}
@@ -851,9 +883,9 @@ func (s *buildQueueStateService) handleListDrains(w http.ResponseWriter, req *ht
 
 func handleModifyDrain(w http.ResponseWriter, req *http.Request, modifyFunc func(context.Context, *buildqueuestate.AddOrRemoveDrainRequest) (*emptypb.Empty, error)) {
 	req.ParseForm()
-	var platformQueueName buildqueuestate.PlatformQueueName
-	if err := protojson.Unmarshal([]byte(req.FormValue("platform_queue_name")), &platformQueueName); err != nil {
-		http.Error(w, util.StatusWrap(err, "Failed to extract platform queue").Error(), http.StatusBadRequest)
+	var sizeClassQueueName buildqueuestate.SizeClassQueueName
+	if err := protojson.Unmarshal([]byte(req.FormValue("size_class_queue_name")), &sizeClassQueueName); err != nil {
+		http.Error(w, util.StatusWrap(err, "Failed to extract size class queue name").Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -865,8 +897,8 @@ func handleModifyDrain(w http.ResponseWriter, req *http.Request, modifyFunc func
 
 	ctx := req.Context()
 	if _, err := modifyFunc(ctx, &buildqueuestate.AddOrRemoveDrainRequest{
-		PlatformQueueName: &platformQueueName,
-		WorkerIdPattern:   workerIDPattern,
+		SizeClassQueueName: &sizeClassQueueName,
+		WorkerIdPattern:    workerIDPattern,
 	}); err != nil {
 		http.Error(w, util.StatusWrap(err, "Failed to modify drains").Error(), http.StatusBadRequest)
 		return
