@@ -57,6 +57,9 @@ message SynchronizeRequest {
   // eligible to be executed on this worker.
   build.bazel.remote.execution.v2.Platform platform = 3;
 
+  // The size of this worker in terms of CPU count and memory size.
+  uint32 size_class = 5;
+
   // The kind of activity the worker is currently performing.
   CurrentState current_state = 4;
 }

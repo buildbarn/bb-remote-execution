@@ -122,6 +122,11 @@ message RunnerConfiguration {
   // Platform properties that need to be reported to the scheduler.
   build.bazel.remote.execution.v2.Platform platform = 3;
 
+  // The size of this worker in terms of CPU count and memory size. When
+  // all workers of this platform have the same size, it is sufficient
+  // to leave this field set to zero.
+  uint32 size_class = 12;
+
   // Was 'default_execution_timeout'. This value now needs to be set in
   // bb_scheduler's configuration.
   reserved 4;

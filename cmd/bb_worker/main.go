@@ -294,7 +294,8 @@ func main() {
 						clock.SystemClock,
 						workerID,
 						instanceName,
-						runnerConfiguration.Platform)
+						runnerConfiguration.Platform,
+						runnerConfiguration.SizeClass)
 
 					// Contact the scheduler to ask for
 					// work. Hold off in case we're idle and

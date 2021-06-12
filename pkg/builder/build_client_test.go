@@ -35,7 +35,7 @@ func TestBuildClient(t *testing.T) {
 			{Name: "os", Value: "linux"},
 		},
 	}
-	bc := builder.NewBuildClient(operationQueueClient, buildExecutor, filePool, clock, workerID, instanceName, platform)
+	bc := builder.NewBuildClient(operationQueueClient, buildExecutor, filePool, clock, workerID, instanceName, platform, 4)
 
 	// By default, the client should not be in the executing state.
 	require.False(t, bc.InExecutingState())
@@ -46,6 +46,7 @@ func TestBuildClient(t *testing.T) {
 		WorkerId:     workerID,
 		InstanceName: "main",
 		Platform:     platform,
+		SizeClass:    4,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Idle{
 				Idle: &emptypb.Empty{},
@@ -76,6 +77,7 @@ func TestBuildClient(t *testing.T) {
 		WorkerId:     workerID,
 		InstanceName: "main",
 		Platform:     platform,
+		SizeClass:    4,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Idle{
 				Idle: &emptypb.Empty{},
@@ -125,6 +127,7 @@ func TestBuildClient(t *testing.T) {
 		WorkerId:     workerID,
 		InstanceName: "main",
 		Platform:     platform,
+		SizeClass:    4,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
 				Executing: &remoteworker.CurrentState_Executing{
@@ -174,6 +177,7 @@ func TestBuildClient(t *testing.T) {
 		WorkerId:     workerID,
 		InstanceName: "main",
 		Platform:     platform,
+		SizeClass:    4,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
 				Executing: &remoteworker.CurrentState_Executing{

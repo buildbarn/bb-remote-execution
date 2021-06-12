@@ -43,7 +43,7 @@ type BuildClient struct {
 
 // NewBuildClient creates a new BuildClient instance that is set to the
 // initial state (i.e., being idle).
-func NewBuildClient(scheduler remoteworker.OperationQueueClient, buildExecutor BuildExecutor, filePool filesystem.FilePool, clock clock.Clock, workerID map[string]string, instanceName digest.InstanceName, platform *remoteexecution.Platform) *BuildClient {
+func NewBuildClient(scheduler remoteworker.OperationQueueClient, buildExecutor BuildExecutor, filePool filesystem.FilePool, clock clock.Clock, workerID map[string]string, instanceName digest.InstanceName, platform *remoteexecution.Platform, sizeClass uint32) *BuildClient {
 	return &BuildClient{
 		scheduler:     scheduler,
 		buildExecutor: buildExecutor,
@@ -55,6 +55,7 @@ func NewBuildClient(scheduler remoteworker.OperationQueueClient, buildExecutor B
 			WorkerId:     workerID,
 			InstanceName: instanceName.String(),
 			Platform:     platform,
+			SizeClass:    sizeClass,
 			CurrentState: &remoteworker.CurrentState{
 				WorkerState: &remoteworker.CurrentState_Idle{
 					Idle: &emptypb.Empty{},
