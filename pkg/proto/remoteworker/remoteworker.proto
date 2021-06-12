@@ -140,6 +140,12 @@ message DesiredState {
     // Addressable Storage, the scheduler also needs to access this
     // information. It is passed on to prevent duplicate requests
     // against storage.
+    //
+    // Even though the Remote Execution protocol allows the execution
+    // timeout value to be null, this protocol requires it to be set.
+    // The scheduler is responsible for filling in the default value and
+    // enforcing a maximum value. The scheduler is permitted to override
+    // the timeout value specified by the client.
     build.bazel.remote.execution.v2.Action action = 2;
 
     // Was 'command'.

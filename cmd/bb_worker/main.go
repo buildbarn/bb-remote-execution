@@ -177,15 +177,6 @@ func main() {
 			}
 			concurrencyLength := len(strconv.FormatUint(runnerConfiguration.Concurrency-1, 10))
 
-			if err := runnerConfiguration.DefaultExecutionTimeout.CheckValid(); err != nil {
-				log.Fatal("Failed to parse default execution timeout")
-			}
-			defaultExecutionTimeout := runnerConfiguration.DefaultExecutionTimeout.AsDuration()
-			if err := runnerConfiguration.MaximumExecutionTimeout.CheckValid(); err != nil {
-				log.Fatal("Failed to parse maximum execution timeout")
-			}
-			maximumExecutionTimeout := runnerConfiguration.MaximumExecutionTimeout.AsDuration()
-
 			// Obtain raw device numbers of character
 			// devices that need to be available within the
 			// input root.
@@ -274,8 +265,6 @@ func main() {
 										buildDirectoryCreator,
 										runner.NewRemoteRunner(runnerConnection),
 										clock.SystemClock,
-										defaultExecutionTimeout,
-										maximumExecutionTimeout,
 										inputRootCharacterDevices,
 										int(configuration.MaximumMessageSizeBytes),
 										runnerConfiguration.EnvironmentVariables),

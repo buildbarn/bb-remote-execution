@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"sync"
-	"time"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
@@ -64,8 +63,6 @@ type localBuildExecutor struct {
 	buildDirectoryCreator     BuildDirectoryCreator
 	runner                    runner.Runner
 	clock                     clock.Clock
-	defaultExecutionTimeout   time.Duration
-	maximumExecutionTimeout   time.Duration
 	inputRootCharacterDevices map[path.Component]int
 	maximumMessageSizeBytes   int
 	environmentVariables      map[string]string
@@ -73,14 +70,12 @@ type localBuildExecutor struct {
 
 // NewLocalBuildExecutor returns a BuildExecutor that executes build
 // steps on the local system.
-func NewLocalBuildExecutor(contentAddressableStorage blobstore.BlobAccess, buildDirectoryCreator BuildDirectoryCreator, runner runner.Runner, clock clock.Clock, defaultExecutionTimeout, maximumExecutionTimeout time.Duration, inputRootCharacterDevices map[path.Component]int, maximumMessageSizeBytes int, environmentVariables map[string]string) BuildExecutor {
+func NewLocalBuildExecutor(contentAddressableStorage blobstore.BlobAccess, buildDirectoryCreator BuildDirectoryCreator, runner runner.Runner, clock clock.Clock, inputRootCharacterDevices map[path.Component]int, maximumMessageSizeBytes int, environmentVariables map[string]string) BuildExecutor {
 	return &localBuildExecutor{
 		contentAddressableStorage: contentAddressableStorage,
 		buildDirectoryCreator:     buildDirectoryCreator,
 		runner:                    runner,
 		clock:                     clock,
-		defaultExecutionTimeout:   defaultExecutionTimeout,
-		maximumExecutionTimeout:   maximumExecutionTimeout,
 		inputRootCharacterDevices: inputRootCharacterDevices,
 		maximumMessageSizeBytes:   maximumMessageSizeBytes,
 		environmentVariables:      environmentVariables,
@@ -112,28 +107,13 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 		attachErrorToExecuteResponse(response, status.Error(codes.InvalidArgument, "Request does not contain an action"))
 		return response
 	}
-	var executionTimeout time.Duration
-	if action.Timeout == nil {
-		executionTimeout = be.defaultExecutionTimeout
-	} else {
-		if err := action.Timeout.CheckValid(); err != nil {
-			attachErrorToExecuteResponse(
-				response,
-				util.StatusWrapWithCode(err, codes.InvalidArgument, "Invalid execution timeout"))
-			return response
-		}
-		executionTimeout = action.Timeout.AsDuration()
-		if executionTimeout > be.maximumExecutionTimeout {
-			attachErrorToExecuteResponse(
-				response,
-				status.Errorf(
-					codes.InvalidArgument,
-					"Execution timeout of %s exceeds maximum permitted value of %s",
-					executionTimeout,
-					be.maximumExecutionTimeout))
-			return response
-		}
+	if err := action.Timeout.CheckValid(); err != nil {
+		attachErrorToExecuteResponse(
+			response,
+			util.StatusWrapWithCode(err, codes.InvalidArgument, "Invalid execution timeout"))
+		return response
 	}
+	executionTimeout := action.Timeout.AsDuration()
 
 	// Obtain build directory.
 	actionDigest, err := instanceName.NewDigestFromProto(request.ActionDigest)

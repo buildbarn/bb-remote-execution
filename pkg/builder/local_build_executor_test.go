@@ -34,7 +34,7 @@ func TestLocalBuildExecutorInvalidActionDigest(t *testing.T) {
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	runner := mock.NewMockRunner(ctrl)
 	clock := mock.NewMockClock(ctrl)
-	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil, 10000, map[string]string{})
+	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, nil, 10000, map[string]string{})
 
 	filePool := mock.NewMockFilePool(ctrl)
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
@@ -52,6 +52,7 @@ func TestLocalBuildExecutorInvalidActionDigest(t *testing.T) {
 					Hash:      "7777777777777777777777777777777777777777777777777777777777777777",
 					SizeBytes: 42,
 				},
+				Timeout: &durationpb.Duration{Seconds: 3600},
 			},
 		},
 		metadata)
@@ -70,7 +71,7 @@ func TestLocalBuildExecutorMissingAction(t *testing.T) {
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	runner := mock.NewMockRunner(ctrl)
 	clock := mock.NewMockClock(ctrl)
-	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil, 10000, map[string]string{})
+	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, nil, 10000, map[string]string{})
 
 	filePool := mock.NewMockFilePool(ctrl)
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
@@ -104,7 +105,7 @@ func TestLocalBuildExecutorBuildDirectoryCreatorFailedFailed(t *testing.T) {
 	).Return(nil, nil, status.Error(codes.InvalidArgument, "Platform requirements not provided"))
 	runner := mock.NewMockRunner(ctrl)
 	clock := mock.NewMockClock(ctrl)
-	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil, 10000, map[string]string{})
+	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, nil, 10000, map[string]string{})
 
 	filePool := mock.NewMockFilePool(ctrl)
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
@@ -122,6 +123,7 @@ func TestLocalBuildExecutorBuildDirectoryCreatorFailedFailed(t *testing.T) {
 					Hash:      "7777777777777777777777777777777777777777777777777777777777777777",
 					SizeBytes: 42,
 				},
+				Timeout: &durationpb.Duration{Seconds: 3600},
 			},
 		},
 		metadata)
@@ -157,7 +159,7 @@ func TestLocalBuildExecutorInputRootPopulationFailed(t *testing.T) {
 	buildDirectory.EXPECT().Close()
 	runner := mock.NewMockRunner(ctrl)
 	clock := mock.NewMockClock(ctrl)
-	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil, 10000, map[string]string{})
+	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, nil, 10000, map[string]string{})
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
 	executeResponse := localBuildExecutor.Execute(
@@ -174,6 +176,7 @@ func TestLocalBuildExecutorInputRootPopulationFailed(t *testing.T) {
 					Hash:      "7777777777777777777777777777777777777777777777777777777777777777",
 					SizeBytes: 42,
 				},
+				Timeout: &durationpb.Duration{Seconds: 3600},
 			},
 		},
 		metadata)
@@ -220,7 +223,7 @@ func TestLocalBuildExecutorOutputDirectoryCreationFailure(t *testing.T) {
 	buildDirectory.EXPECT().Close()
 	runner := mock.NewMockRunner(ctrl)
 	clock := mock.NewMockClock(ctrl)
-	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil, 10000, map[string]string{})
+	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, nil, 10000, map[string]string{})
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
 	executeResponse := localBuildExecutor.Execute(
@@ -241,6 +244,7 @@ func TestLocalBuildExecutorOutputDirectoryCreationFailure(t *testing.T) {
 					Hash:      "7777777777777777777777777777777777777777777777777777777777777777",
 					SizeBytes: 42,
 				},
+				Timeout: &durationpb.Duration{Seconds: 3600},
 			},
 		},
 		metadata)
@@ -276,7 +280,7 @@ func TestLocalBuildExecutorMissingCommand(t *testing.T) {
 	buildDirectory.EXPECT().Close()
 	runner := mock.NewMockRunner(ctrl)
 	clock := mock.NewMockClock(ctrl)
-	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil, 10000, map[string]string{})
+	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, nil, 10000, map[string]string{})
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
 	executeResponse := localBuildExecutor.Execute(
@@ -293,6 +297,7 @@ func TestLocalBuildExecutorMissingCommand(t *testing.T) {
 					Hash:      "7777777777777777777777777777777777777777777777777777777777777777",
 					SizeBytes: 42,
 				},
+				Timeout: &durationpb.Duration{Seconds: 3600},
 			},
 		},
 		metadata)
@@ -381,7 +386,7 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 	clock.EXPECT().NewContextWithTimeout(gomock.Any(), time.Hour).DoAndReturn(func(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 		return context.WithCancel(parent)
 	})
-	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil, 10000, map[string]string{})
+	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, nil, 10000, map[string]string{})
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
 	executeResponse := localBuildExecutor.Execute(
@@ -402,6 +407,7 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 					Hash:      "7777777777777777777777777777777777777777777777777777777777777777",
 					SizeBytes: 42,
 				},
+				Timeout: &durationpb.Duration{Seconds: 3600},
 			},
 		},
 		metadata)
@@ -589,7 +595,7 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 		"TEST_VAR": "123",
 		"PWD":      "dont-overwrite",
 	}
-	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, inputRootCharacterDevices, 10000, environmentVars)
+	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, inputRootCharacterDevices, 10000, environmentVars)
 
 	requestMetadata, err := anypb.New(&remoteexecution.RequestMetadata{
 		ToolInvocationId: "666b72d8-c43e-4998-866c-9312a31fe86d",
@@ -614,6 +620,7 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 					Hash:      "0000000000000000000000000000000000000000000000000000000000000003",
 					SizeBytes: 345,
 				},
+				Timeout: &durationpb.Duration{Seconds: 3600},
 			},
 			AuxiliaryMetadata: []*anypb.Any{requestMetadata},
 		},
@@ -659,7 +666,7 @@ func TestLocalBuildExecutorCachingInvalidTimeout(t *testing.T) {
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	runner := mock.NewMockRunner(ctrl)
 	clock := mock.NewMockClock(ctrl)
-	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil, 10000, map[string]string{})
+	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, nil, 10000, map[string]string{})
 
 	// Execution should fail, as the number of nanoseconds in the
 	// timeout is not within bounds.
@@ -686,47 +693,6 @@ func TestLocalBuildExecutorCachingInvalidTimeout(t *testing.T) {
 		},
 		metadata)
 	testutil.RequirePrefixedStatus(t, status.Error(codes.InvalidArgument, "Invalid execution timeout: "), status.ErrorProto(executeResponse.Status))
-}
-
-func TestLocalBuildExecutorCachingTimeoutTooHigh(t *testing.T) {
-	ctrl, ctx := gomock.WithContext(context.Background(), t)
-
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
-	runner := mock.NewMockRunner(ctrl)
-	clock := mock.NewMockClock(ctrl)
-	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil, 10000, map[string]string{})
-
-	// The protocol states that we must deny requests that have a
-	// timeout that is longer than the server's maximum.
-	filePool := mock.NewMockFilePool(ctrl)
-	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
-	executeResponse := localBuildExecutor.Execute(
-		ctx,
-		filePool,
-		digest.MustNewInstanceName("ubuntu1804"),
-		&remoteworker.DesiredState_Executing{
-			ActionDigest: &remoteexecution.Digest{
-				Hash:      "0000000000000000000000000000000000000000000000000000000000000001",
-				SizeBytes: 123,
-			},
-			Action: &remoteexecution.Action{
-				InputRootDigest: &remoteexecution.Digest{
-					Hash:      "0000000000000000000000000000000000000000000000000000000000000003",
-					SizeBytes: 345,
-				},
-				Timeout: &durationpb.Duration{
-					Seconds: 7200,
-				},
-			},
-		},
-		metadata)
-	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
-		Result: &remoteexecution.ActionResult{
-			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
-		},
-		Status: status.New(codes.InvalidArgument, "Execution timeout of 2h0m0s exceeds maximum permitted value of 1h0m0s").Proto(),
-	}, executeResponse)
 }
 
 func TestLocalBuildExecutorInputRootIOFailureDuringExecution(t *testing.T) {
@@ -797,7 +763,7 @@ func TestLocalBuildExecutorInputRootIOFailureDuringExecution(t *testing.T) {
 	clock.EXPECT().NewContextWithTimeout(gomock.Any(), 15*time.Minute).DoAndReturn(func(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 		return context.WithCancel(parent)
 	})
-	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil, 10000, map[string]string{})
+	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, nil, 10000, map[string]string{})
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
 	executeResponse := localBuildExecutor.Execute(
@@ -900,7 +866,7 @@ func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 	clock.EXPECT().NewContextWithTimeout(gomock.Any(), time.Hour).DoAndReturn(func(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 		return context.WithTimeout(parent, 0)
 	})
-	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, nil, 10000, map[string]string{})
+	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, nil, 10000, map[string]string{})
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
 	executeResponse := localBuildExecutor.Execute(
@@ -921,6 +887,7 @@ func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 					Hash:      "0000000000000000000000000000000000000000000000000000000000000003",
 					SizeBytes: 345,
 				},
+				Timeout: &durationpb.Duration{Seconds: 3600},
 			},
 		},
 		metadata)
@@ -977,7 +944,7 @@ func TestLocalBuildExecutorCharacterDeviceNodeCreationFailed(t *testing.T) {
 	inputRootCharacterDevices := map[path.Component]int{
 		path.MustNewComponent("null"): 259,
 	}
-	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, time.Hour, time.Hour, inputRootCharacterDevices, 10000, map[string]string{})
+	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, inputRootCharacterDevices, 10000, map[string]string{})
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
 	executeResponse := localBuildExecutor.Execute(
@@ -994,6 +961,7 @@ func TestLocalBuildExecutorCharacterDeviceNodeCreationFailed(t *testing.T) {
 					Hash:      "0000000000000000000000000000000000000000000000000000000000000003",
 					SizeBytes: 345,
 				},
+				Timeout: &durationpb.Duration{Seconds: 3600},
 			},
 		},
 		metadata)
