@@ -78,6 +78,8 @@ github.com/aws/aws-sdk-go-v2 v0.18.0 h1:qZ+woO4SamnH/eEbjM2IDLhRNwIwND/RQyVlBLp3
 github.com/aws/aws-sdk-go-v2 v0.18.0/go.mod h1:JWVYvqSMppoMJC0x5wdwiImzgXTI9FuZwxzkQq9wy+g=
 github.com/bazelbuild/remote-apis v0.0.0-20210309154856-0943dc4e70e1 h1:uo4qhIV+4gbJ3NY6/4nRCE4AS70xy/wgknQ2bPZS4+k=
 github.com/bazelbuild/remote-apis v0.0.0-20210309154856-0943dc4e70e1/go.mod h1:9Y+1FnaNUGVV6wKE0Jdh+mguqDUsyd9uUqokalrC7DQ=
+github.com/bazelbuild/remote-apis v0.0.0-20210505181611-ce7036ef5417 h1:5BTb1xvdd0Lbe4Y2/Ib5J5kYV9Btp02hkmB4QZrKnjo=
+github.com/bazelbuild/remote-apis v0.0.0-20210505181611-ce7036ef5417/go.mod h1:9Y+1FnaNUGVV6wKE0Jdh+mguqDUsyd9uUqokalrC7DQ=
 github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24TaqPxmxbtue+5NUziq4I4S80YR8gNf3Q=
 github.com/beorn7/perks v1.0.0/go.mod h1:KWe93zE9D1o94FZ5RNwFwVgaQK1VOXiVxmqh+CedLV8=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
@@ -90,6 +92,8 @@ github.com/buildbarn/bb-storage v0.0.0-20210324135539-5317965db548 h1:QDVEIHSRA3
 github.com/buildbarn/bb-storage v0.0.0-20210324135539-5317965db548/go.mod h1:gXy43HysZulMwoh8ZtZY9UNKFWebb3ZWT+XDQJlO/wk=
 github.com/buildbarn/bb-storage v0.0.0-20210430141345-6b1bb480c012 h1:d4JEA2JZLLIyCls1bSHoVSDdpi8ZAhYswhIGXsyD37E=
 github.com/buildbarn/bb-storage v0.0.0-20210430141345-6b1bb480c012/go.mod h1:gXy43HysZulMwoh8ZtZY9UNKFWebb3ZWT+XDQJlO/wk=
+github.com/buildbarn/bb-storage v0.0.0-20210612140245-0c202af9f01f h1:jwUj0UXbAgxy1Nl3sKu9plzfB1+ifeV1Oj2jRBwwIfE=
+github.com/buildbarn/bb-storage v0.0.0-20210612140245-0c202af9f01f/go.mod h1:LIJQSG4Q7SGpcAxVY95rtiBDDr4NMTlfS19Qfq/9MUE=
 github.com/casbin/casbin/v2 v2.1.2 h1:bTwon/ECRx9dwBy2ewRVr5OiqjeXSGiTUY74sDPQi/g=
 github.com/casbin/casbin/v2 v2.1.2/go.mod h1:YcPU1XXisHhLzuxH9coDNf2FbKpjGlbCg3n9yuLkIJQ=
 github.com/cenkalti/backoff v2.2.1+incompatible h1:tNowT99t7UNflLxfYYSlKYsBpXdEet03Pg2g16Swow4=
