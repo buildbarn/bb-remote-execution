@@ -42,8 +42,8 @@ func (o Outcomes) GetMedianExecutionTime() *time.Duration {
 
 // IsFaster returns a probability in range (0.0, 1.0) of the current set
 // of outcomes being faster than another one. The algorithm for this is
-// to compute the average quantile in B for every element in A. This is
-// done for two reasons:
+// to compute the average rank in B for every element in A, similar to
+// the Mann-Whitney U test. This is done for two reasons:
 //
 // - Analysis on mean or median values is not always possible, as a set
 //   of outcomes may contain (or consist only of) failures of which the
