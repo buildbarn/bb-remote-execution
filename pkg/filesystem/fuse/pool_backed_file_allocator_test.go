@@ -16,12 +16,14 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteoutputservice"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
+	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/golang/mock/gomock"
 	go_fuse "github.com/hanwen/go-fuse/v2/fuse"
 	"github.com/stretchr/testify/require"
 
+	"golang.org/x/sys/unix"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -158,6 +160,64 @@ func TestPoolBackedFileAllocatorGetOutputServiceFileStatus(t *testing.T) {
 	underlyingFile.EXPECT().Close()
 	f.Unlink()
 	f.FUSERelease()
+}
+
+// For plain lseek() operations such as SEEK_SET, SEEK_CUR and SEEK_END,
+// the kernel never calls into userspace, as the kernel is capable of
+// handling those requests directly. However, For SEEK_HOLE and
+// SEEK_DATA, the kernel does create calls, as the kernel is unaware of
+// which parts of the file contain holes.
+func TestPoolBackedFileAllocatorFUSELseek(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	pool := mock.NewMockFilePool(ctrl)
+	underlyingFile := mock.NewMockFileReadWriter(ctrl)
+	pool.EXPECT().NewFile().Return(underlyingFile, nil)
+	errorLogger := mock.NewMockErrorLogger(ctrl)
+	inodeNumberGenerator := mock.NewMockThreadSafeGenerator(ctrl)
+	inodeNumberGenerator.EXPECT().Uint64().Return(uint64(42))
+
+	f, s := fuse.NewPoolBackedFileAllocator(pool, errorLogger, inodeNumberGenerator).
+		NewFile(uint32(os.O_RDWR), 0o666)
+	require.Equal(t, go_fuse.OK, s)
+
+	t.Run("Failure", func(t *testing.T) {
+		// I/O errors on the file should be captured.
+		underlyingFile.EXPECT().GetNextRegionOffset(int64(123), filesystem.Data).
+			Return(int64(0), status.Error(codes.Internal, "Disk on fire"))
+		errorLogger.EXPECT().Log(status.Error(codes.Internal, "Failed to get next region offset at offset 123: Disk on fire"))
+
+		var out go_fuse.LseekOut
+		require.Equal(t, go_fuse.EIO, f.FUSELseek(&go_fuse.LseekIn{
+			Offset: 123,
+			Whence: unix.SEEK_DATA,
+		}, &out))
+	})
+
+	t.Run("EndOfFile", func(t *testing.T) {
+		// End-of-file errors should be converted to ENXIO, as
+		// described in the lseek() manual page.
+		underlyingFile.EXPECT().GetNextRegionOffset(int64(456), filesystem.Hole).
+			Return(int64(0), io.EOF)
+
+		var out go_fuse.LseekOut
+		require.Equal(t, go_fuse.Status(syscall.ENXIO), f.FUSELseek(&go_fuse.LseekIn{
+			Offset: 456,
+			Whence: unix.SEEK_HOLE,
+		}, &out))
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		underlyingFile.EXPECT().GetNextRegionOffset(int64(789), filesystem.Data).
+			Return(int64(790), nil)
+
+		var out go_fuse.LseekOut
+		require.Equal(t, go_fuse.OK, f.FUSELseek(&go_fuse.LseekIn{
+			Offset: 789,
+			Whence: unix.SEEK_DATA,
+		}, &out))
+		require.Equal(t, go_fuse.LseekOut{Offset: 790}, out)
+	})
 }
 
 // Removal of files through the filesystem.Directory interface will not

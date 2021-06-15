@@ -16,6 +16,8 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/hanwen/go-fuse/v2/fuse"
+
+	"golang.org/x/sys/unix"
 )
 
 type blobAccessCASFileFactory struct {
@@ -146,6 +148,25 @@ func (f *blobAccessCASFile) FUSEGetDirEntry() fuse.DirEntry {
 		Mode: fuse.S_IFREG,
 		Ino:  f.inodeNumber,
 	}
+}
+
+func (f *blobAccessCASFile) FUSELseek(in *fuse.LseekIn, out *fuse.LseekOut) fuse.Status {
+	sizeBytes := uint64(f.digest.GetSizeBytes())
+	switch in.Whence {
+	case unix.SEEK_DATA:
+		if in.Offset >= sizeBytes {
+			return fuse.Status(syscall.ENXIO)
+		}
+		out.Offset = in.Offset
+	case unix.SEEK_HOLE:
+		if in.Offset >= sizeBytes {
+			return fuse.Status(syscall.ENXIO)
+		}
+		out.Offset = sizeBytes
+	default:
+		panic("Requests for other seek modes should have been intercepted")
+	}
+	return fuse.OK
 }
 
 func (f *blobAccessCASFile) FUSEOpen(flags uint32) fuse.Status {

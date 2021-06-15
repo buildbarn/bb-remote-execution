@@ -22,6 +22,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/hanwen/go-fuse/v2/fuse"
 
+	"golang.org/x/sys/unix"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -339,6 +340,30 @@ func (f *fileBackedFile) FUSEGetDirEntry() fuse.DirEntry {
 		Mode: fuse.S_IFREG,
 		Ino:  f.inodeNumber,
 	}
+}
+
+func (f *fileBackedFile) FUSELseek(in *fuse.LseekIn, out *fuse.LseekOut) fuse.Status {
+	var regionType filesystem.RegionType
+	switch in.Whence {
+	case unix.SEEK_DATA:
+		regionType = filesystem.Data
+	case unix.SEEK_HOLE:
+		regionType = filesystem.Hole
+	default:
+		panic("Requests for other seek modes should have been intercepted")
+	}
+
+	f.lock.Lock()
+	off, err := f.file.GetNextRegionOffset(int64(in.Offset), regionType)
+	f.lock.Unlock()
+	if err == io.EOF {
+		return fuse.Status(syscall.ENXIO)
+	} else if err != nil {
+		f.errorLogger.Log(util.StatusWrapf(err, "Failed to get next region offset at offset %d", in.Offset))
+		return fuse.EIO
+	}
+	out.Offset = uint64(off)
+	return fuse.OK
 }
 
 func (f *fileBackedFile) FUSEOpen(flags uint32) fuse.Status {

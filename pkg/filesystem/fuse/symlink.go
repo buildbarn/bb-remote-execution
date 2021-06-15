@@ -100,6 +100,10 @@ func (f *symlink) FUSEGetDirEntry() fuse.DirEntry {
 	}
 }
 
+func (f *symlink) FUSELseek(in *fuse.LseekIn, out *fuse.LseekOut) fuse.Status {
+	panic("Request to seek on symbolic link should have been intercepted")
+}
+
 func (f *symlink) FUSEOpen(flags uint32) fuse.Status {
 	panic("Request to open symbolic link should have been intercepted")
 }

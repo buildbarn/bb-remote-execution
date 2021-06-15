@@ -4,6 +4,7 @@ package fuse_test
 
 import (
 	"context"
+	"syscall"
 	"testing"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
@@ -17,7 +18,74 @@ import (
 	"github.com/golang/mock/gomock"
 	go_fuse "github.com/hanwen/go-fuse/v2/fuse"
 	"github.com/stretchr/testify/require"
+
+	"golang.org/x/sys/unix"
 )
+
+func TestBlobAccessCASFileFactoryFUSELseek(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	errorLogger := mock.NewMockErrorLogger(ctrl)
+	casFileFactory := fuse.NewBlobAccessCASFileFactory(
+		ctx,
+		contentAddressableStorage,
+		errorLogger)
+
+	digest := digest.MustNewDigest("example", "8b1a9953c4611296a827abf8c47804d7", 123)
+	var out go_fuse.Attr
+	f := casFileFactory.LookupFile(digest, false, &out)
+	require.Equal(t, go_fuse.Attr{
+		Mode:  go_fuse.S_IFREG | 0o444,
+		Ino:   casFileFactory.GetFileInodeNumber(digest, false),
+		Size:  123,
+		Nlink: fuse.StatelessLeafLinkCount,
+	}, out)
+
+	t.Run("SEEK_DATA", func(t *testing.T) {
+		var out1 go_fuse.LseekOut
+		require.Equal(t, go_fuse.OK, f.FUSELseek(&go_fuse.LseekIn{
+			Offset: 0,
+			Whence: unix.SEEK_DATA,
+		}, &out1))
+		require.Equal(t, uint64(0), out1.Offset)
+
+		var out2 go_fuse.LseekOut
+		require.Equal(t, go_fuse.OK, f.FUSELseek(&go_fuse.LseekIn{
+			Offset: 122,
+			Whence: unix.SEEK_DATA,
+		}, &out2))
+		require.Equal(t, uint64(122), out2.Offset)
+
+		var out3 go_fuse.LseekOut
+		require.Equal(t, go_fuse.Status(syscall.ENXIO), f.FUSELseek(&go_fuse.LseekIn{
+			Offset: 123,
+			Whence: unix.SEEK_DATA,
+		}, &out3))
+	})
+
+	t.Run("SEEK_HOLE", func(t *testing.T) {
+		var out1 go_fuse.LseekOut
+		require.Equal(t, go_fuse.OK, f.FUSELseek(&go_fuse.LseekIn{
+			Offset: 0,
+			Whence: unix.SEEK_HOLE,
+		}, &out1))
+		require.Equal(t, go_fuse.LseekOut{Offset: 123}, out1)
+
+		var out2 go_fuse.LseekOut
+		require.Equal(t, go_fuse.OK, f.FUSELseek(&go_fuse.LseekIn{
+			Offset: 122,
+			Whence: unix.SEEK_HOLE,
+		}, &out2))
+		require.Equal(t, go_fuse.LseekOut{Offset: 123}, out2)
+
+		var out3 go_fuse.LseekOut
+		require.Equal(t, go_fuse.Status(syscall.ENXIO), f.FUSELseek(&go_fuse.LseekIn{
+			Offset: 123,
+			Whence: unix.SEEK_HOLE,
+		}, &out3))
+	})
+}
 
 func TestBlobAccessCASFileFactoryGetContainingDigests(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)

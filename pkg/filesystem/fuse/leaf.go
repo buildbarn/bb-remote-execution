@@ -13,6 +13,7 @@ type Leaf interface {
 	node
 
 	FUSEFallocate(off, size uint64) fuse.Status
+	FUSELseek(in *fuse.LseekIn, out *fuse.LseekOut) fuse.Status
 	FUSEOpen(flags uint32) fuse.Status
 	FUSERead(buf []byte, offset uint64) (fuse.ReadResult, fuse.Status)
 	FUSEReadlink() ([]byte, fuse.Status)

@@ -422,8 +422,11 @@ func (rfs *simpleRawFileSystem) Read(cancel <-chan struct{}, input *fuse.ReadIn,
 }
 
 func (rfs *simpleRawFileSystem) Lseek(cancel <-chan struct{}, in *fuse.LseekIn, out *fuse.LseekOut) fuse.Status {
-	// TODO: Provide support for sparse files.
-	return fuse.ENOSYS
+	rfs.nodeLock.RLock()
+	i := rfs.getLeafLocked(in.NodeId)
+	rfs.nodeLock.RUnlock()
+
+	return i.FUSELseek(in, out)
 }
 
 func (rfs *simpleRawFileSystem) GetLk(cancel <-chan struct{}, input *fuse.LkIn, out *fuse.LkOut) fuse.Status {

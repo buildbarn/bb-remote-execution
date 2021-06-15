@@ -93,6 +93,10 @@ func (f *device) FUSEGetDirEntry() fuse.DirEntry {
 	}
 }
 
+func (f *device) FUSELseek(in *fuse.LseekIn, out *fuse.LseekOut) fuse.Status {
+	panic("Request to seek on device should have been intercepted")
+}
+
 func (f *device) FUSEOpen(flags uint32) fuse.Status {
 	panic("Request to open device should have been intercepted")
 }

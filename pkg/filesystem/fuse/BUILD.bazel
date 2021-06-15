@@ -231,6 +231,7 @@ go_test(
             "@com_github_hanwen_go_fuse_v2//fuse",
             "@org_golang_google_grpc//codes",
             "@org_golang_google_grpc//status",
+            "@org_golang_x_sys//unix",
         ],
         "@io_bazel_rules_go//go/platform:darwin": [
             "//internal/mock",
@@ -246,6 +247,7 @@ go_test(
             "@com_github_hanwen_go_fuse_v2//fuse",
             "@org_golang_google_grpc//codes",
             "@org_golang_google_grpc//status",
+            "@org_golang_x_sys//unix",
         ],
         "@io_bazel_rules_go//go/platform:ios": [
             "//internal/mock",
@@ -261,6 +263,7 @@ go_test(
             "@com_github_hanwen_go_fuse_v2//fuse",
             "@org_golang_google_grpc//codes",
             "@org_golang_google_grpc//status",
+            "@org_golang_x_sys//unix",
         ],
         "@io_bazel_rules_go//go/platform:linux": [
             "//internal/mock",
@@ -276,6 +279,7 @@ go_test(
             "@com_github_hanwen_go_fuse_v2//fuse",
             "@org_golang_google_grpc//codes",
             "@org_golang_google_grpc//status",
+            "@org_golang_x_sys//unix",
         ],
         "//conditions:default": [],
     }),
