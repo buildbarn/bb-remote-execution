@@ -31,6 +31,15 @@ func TestDirectoryBackedFilePool(t *testing.T) {
 		require.Equal(t, 0, n)
 		require.Equal(t, io.EOF, err)
 
+		// GetNextRegionOffset() should behave similarly.
+		directory.EXPECT().OpenRead(path.MustNewComponent("1")).Return(nil, syscall.ENOENT)
+		_, err = f.GetNextRegionOffset(0, filesystem.Data)
+		require.Equal(t, io.EOF, err)
+
+		directory.EXPECT().OpenRead(path.MustNewComponent("1")).Return(nil, syscall.ENOENT)
+		_, err = f.GetNextRegionOffset(0, filesystem.Hole)
+		require.Equal(t, io.EOF, err)
+
 		directory.EXPECT().Remove(path.MustNewComponent("1")).Return(syscall.ENOENT)
 		require.NoError(t, f.Close())
 	})
@@ -70,6 +79,15 @@ func TestDirectoryBackedFilePool(t *testing.T) {
 		require.Equal(t, 8, n)
 		require.Equal(t, io.EOF, err)
 		require.Equal(t, []byte("\x00\x00\x00Hello"), p[:8])
+
+		// Calls for GetNextRegionOffset() should be forwarded.
+		fileReader = mock.NewMockFileReader(ctrl)
+		directory.EXPECT().OpenRead(path.MustNewComponent("2")).Return(fileReader, nil)
+		fileReader.EXPECT().GetNextRegionOffset(int64(0), filesystem.Hole).Return(int64(123), nil)
+		fileReader.EXPECT().Close()
+		off, err := f.GetNextRegionOffset(0, filesystem.Hole)
+		require.NoError(t, err)
+		require.Equal(t, int64(123), off)
 
 		directory.EXPECT().Remove(path.MustNewComponent("2")).Return(nil)
 		require.NoError(t, f.Close())

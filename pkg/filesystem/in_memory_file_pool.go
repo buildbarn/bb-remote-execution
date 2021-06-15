@@ -21,6 +21,22 @@ func (f *inMemoryFile) Close() error {
 	return nil
 }
 
+func (f *inMemoryFile) GetNextRegionOffset(off int64, regionType filesystem.RegionType) (int64, error) {
+	// Files are stored in a byte slice contiguously, so there is no
+	// sparseness.
+	if off >= int64(len(f.data)) {
+		return 0, io.EOF
+	}
+	switch regionType {
+	case filesystem.Data:
+		return off, nil
+	case filesystem.Hole:
+		return int64(len(f.data)), nil
+	default:
+		panic("Unknown region type")
+	}
+}
+
 func (f *inMemoryFile) ReadAt(p []byte, off int64) (int, error) {
 	if int(off) >= len(f.data) {
 		return 0, io.EOF

@@ -114,6 +114,56 @@ func (f *blockDeviceBackedFile) limitBufferToSectorBoundary(p []byte, sectorCoun
 	return p
 }
 
+func (f *blockDeviceBackedFile) GetNextRegionOffset(off int64, regionType filesystem.RegionType) (int64, error) {
+	// Short circuit calls that are out of bounds.
+	if off < 0 {
+		return 0, status.Errorf(codes.InvalidArgument, "Negative seek offset: %d", off)
+	}
+	if uint64(off) >= f.sizeBytes {
+		return 0, io.EOF
+	}
+
+	sectorSizeBytes := int64(f.fp.sectorSizeBytes)
+	sectorIndex := int(off / sectorSizeBytes)
+	switch regionType {
+	case filesystem.Data:
+		if sectorIndex >= len(f.sectors) {
+			// Inside the hole at the end of the file.
+			return 0, io.EOF
+		}
+		if f.sectors[sectorIndex] != 0 {
+			// Already inside a sector containing data.
+			return off, nil
+		}
+		// Find the next sector containing data.
+		for {
+			sectorIndex++
+			if f.sectors[sectorIndex] != 0 {
+				return int64(sectorIndex) * sectorSizeBytes, nil
+			}
+		}
+	case filesystem.Hole:
+		if sectorIndex >= len(f.sectors) || f.sectors[sectorIndex] == 0 {
+			// Already inside a hole.
+			return off, nil
+		}
+		// Find the next sector containing a hole.
+		for sectorIndex++; sectorIndex < len(f.sectors); sectorIndex++ {
+			if f.sectors[sectorIndex] == 0 {
+				return int64(sectorIndex) * sectorSizeBytes, nil
+			}
+		}
+		if allSectors := int64(len(f.sectors)) * sectorSizeBytes; allSectors < int64(f.sizeBytes) {
+			// File ends with a hole.
+			return allSectors, nil
+		}
+		// File ends in the middle of a sector containing data.
+		return int64(f.sizeBytes), nil
+	default:
+		panic("Unknown region type")
+	}
+}
+
 // readFromSectors performs a single read against the block device. It
 // attempts to read as much data into the output buffer as is possible
 // in a single read operation. If the file is fragmented, multiple reads

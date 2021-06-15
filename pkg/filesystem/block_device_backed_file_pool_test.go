@@ -7,6 +7,7 @@ import (
 
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
+	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
@@ -207,6 +208,105 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 		require.Equal(t, status.Error(codes.Internal, "Disk failure"), err)
 
 		sectorAllocator.EXPECT().FreeList([]uint32{0, 0, 75})
+		require.NoError(t, f.Close())
+	})
+
+	t.Run("GetNextRegionOffset", func(t *testing.T) {
+		// Test the behavior on empty files.
+		f, err := pool.NewFile()
+		require.NoError(t, err)
+
+		_, err = f.GetNextRegionOffset(-1, filesystem.Data)
+		require.Equal(t, status.Error(codes.InvalidArgument, "Negative seek offset: -1"), err)
+		_, err = f.GetNextRegionOffset(-1, filesystem.Hole)
+		require.Equal(t, status.Error(codes.InvalidArgument, "Negative seek offset: -1"), err)
+
+		_, err = f.GetNextRegionOffset(0, filesystem.Data)
+		require.Equal(t, io.EOF, err)
+		_, err = f.GetNextRegionOffset(0, filesystem.Hole)
+		require.Equal(t, io.EOF, err)
+
+		_, err = f.GetNextRegionOffset(1, filesystem.Data)
+		require.Equal(t, io.EOF, err)
+		_, err = f.GetNextRegionOffset(1, filesystem.Hole)
+		require.Equal(t, io.EOF, err)
+
+		// Test the behavior on a sparse file that starts with a
+		// hole and ends with data.
+		sectorAllocator.EXPECT().AllocateContiguous(1).Return(uint32(5), 1, nil)
+		blockDevice.EXPECT().WriteAt([]byte("Hello\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"), int64(64)).Return(16, nil)
+		n, err := f.WriteAt([]byte("Hello"), 128)
+		require.Equal(t, 5, n)
+		require.NoError(t, err)
+
+		nextOffset, err := f.GetNextRegionOffset(0, filesystem.Data)
+		require.NoError(t, err)
+		require.Equal(t, int64(128), nextOffset)
+		nextOffset, err = f.GetNextRegionOffset(0, filesystem.Hole)
+		require.NoError(t, err)
+		require.Equal(t, int64(0), nextOffset)
+
+		nextOffset, err = f.GetNextRegionOffset(1, filesystem.Data)
+		require.NoError(t, err)
+		require.Equal(t, int64(128), nextOffset)
+		nextOffset, err = f.GetNextRegionOffset(1, filesystem.Hole)
+		require.NoError(t, err)
+		require.Equal(t, int64(1), nextOffset)
+
+		nextOffset, err = f.GetNextRegionOffset(128-1, filesystem.Data)
+		require.NoError(t, err)
+		require.Equal(t, int64(128), nextOffset)
+		nextOffset, err = f.GetNextRegionOffset(128-1, filesystem.Hole)
+		require.NoError(t, err)
+		require.Equal(t, int64(128-1), nextOffset)
+
+		nextOffset, err = f.GetNextRegionOffset(128, filesystem.Data)
+		require.NoError(t, err)
+		require.Equal(t, int64(128), nextOffset)
+		nextOffset, err = f.GetNextRegionOffset(128, filesystem.Hole)
+		require.NoError(t, err)
+		require.Equal(t, int64(128+5), nextOffset)
+
+		nextOffset, err = f.GetNextRegionOffset(128+4, filesystem.Data)
+		require.NoError(t, err)
+		require.Equal(t, int64(128+4), nextOffset)
+		nextOffset, err = f.GetNextRegionOffset(128+4, filesystem.Hole)
+		require.NoError(t, err)
+		require.Equal(t, int64(128+5), nextOffset)
+
+		_, err = f.GetNextRegionOffset(128+5, filesystem.Data)
+		require.Equal(t, io.EOF, err)
+		_, err = f.GetNextRegionOffset(128+5, filesystem.Hole)
+		require.Equal(t, io.EOF, err)
+
+		// Test the behavior on a sparse file that ends with a hole.
+		require.NoError(t, f.Truncate(384))
+
+		nextOffset, err = f.GetNextRegionOffset(128, filesystem.Data)
+		require.NoError(t, err)
+		require.Equal(t, int64(128), nextOffset)
+		nextOffset, err = f.GetNextRegionOffset(128, filesystem.Hole)
+		require.NoError(t, err)
+		require.Equal(t, int64(128+16), nextOffset)
+
+		_, err = f.GetNextRegionOffset(256, filesystem.Data)
+		require.Equal(t, io.EOF, err)
+		nextOffset, err = f.GetNextRegionOffset(256, filesystem.Hole)
+		require.NoError(t, err)
+		require.Equal(t, int64(256), nextOffset)
+
+		_, err = f.GetNextRegionOffset(384-1, filesystem.Data)
+		require.Equal(t, io.EOF, err)
+		nextOffset, err = f.GetNextRegionOffset(384-1, filesystem.Hole)
+		require.NoError(t, err)
+		require.Equal(t, int64(384-1), nextOffset)
+
+		_, err = f.GetNextRegionOffset(384, filesystem.Data)
+		require.Equal(t, io.EOF, err)
+		_, err = f.GetNextRegionOffset(384, filesystem.Hole)
+		require.Equal(t, io.EOF, err)
+
+		sectorAllocator.EXPECT().FreeList([]uint32{0, 0, 0, 0, 0, 0, 0, 0, 5})
 		require.NoError(t, f.Close())
 	})
 }

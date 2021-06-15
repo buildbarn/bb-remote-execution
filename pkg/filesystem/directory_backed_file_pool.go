@@ -53,6 +53,20 @@ func (f *lazyOpeningSelfDeletingFile) Close() error {
 	return nil
 }
 
+func (f *lazyOpeningSelfDeletingFile) GetNextRegionOffset(off int64, regionType filesystem.RegionType) (int64, error) {
+	fh, err := f.directory.OpenRead(f.name)
+	if os.IsNotExist(err) {
+		// Empty file that doesn't explicitly exist in the
+		// backing store yet. Treat it as if it's a zero-length
+		// file.
+		return 0, io.EOF
+	} else if err != nil {
+		return 0, err
+	}
+	defer fh.Close()
+	return fh.GetNextRegionOffset(off, regionType)
+}
+
 func (f *lazyOpeningSelfDeletingFile) ReadAt(p []byte, off int64) (int, error) {
 	fh, err := f.directory.OpenRead(f.name)
 	if os.IsNotExist(err) {

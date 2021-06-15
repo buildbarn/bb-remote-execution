@@ -9,14 +9,14 @@ replace github.com/gordonklaus/ineffassign => github.com/gordonklaus/ineffassign
 require (
 	github.com/aws/aws-sdk-go v1.38.2
 	github.com/bazelbuild/remote-apis v0.0.0-20210505181611-ce7036ef5417
-	github.com/buildbarn/bb-storage v0.0.0-20210612140245-0c202af9f01f
+	github.com/buildbarn/bb-storage v0.0.0-20210615161110-2f371e25c9ae
 	github.com/golang/protobuf v1.5.1
 	github.com/google/uuid v1.2.0
 	github.com/gorilla/mux v1.8.0
 	github.com/hanwen/go-fuse/v2 v2.1.0
 	github.com/prometheus/client_golang v1.10.0
 	go.opencensus.io v0.23.0
-	golang.org/x/sys v0.0.0-20210320140829-1e4c9ba3b0c4
+	golang.org/x/sys v0.0.0-20210611083646-a4fc73990273
 	google.golang.org/genproto v0.0.0-20210310155132-4ce2db91004e
 	google.golang.org/grpc v1.36.0
 	google.golang.org/protobuf v1.26.0

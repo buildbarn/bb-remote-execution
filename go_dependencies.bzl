@@ -101,8 +101,8 @@ def go_dependencies():
     go_repository(
         name = "com_github_buildbarn_bb_storage",
         importpath = "github.com/buildbarn/bb-storage",
-        sum = "h1:jwUj0UXbAgxy1Nl3sKu9plzfB1+ifeV1Oj2jRBwwIfE=",
-        version = "v0.0.0-20210612140245-0c202af9f01f",
+        sum = "h1:ipPOt1b8Rt7VAaP9dlUClG1lHXksHEZKc2oiMLO27EE=",
+        version = "v0.0.0-20210615161110-2f371e25c9ae",
     )
     go_repository(
         name = "com_github_burntsushi_toml",
@@ -1508,8 +1508,9 @@ def go_dependencies():
     go_repository(
         name = "org_golang_x_sys",
         importpath = "golang.org/x/sys",
-        sum = "h1:EZ2mChiOa8udjfp6rRmswTbtZN/QzUQp4ptM4rnjHvc=",
-        version = "v0.0.0-20210320140829-1e4c9ba3b0c4",
+        patches = ["@com_github_buildbarn_bb_storage//:patches/org_golang_x_sys/pr-112-seek.diff"],
+        sum = "h1:faDu4veV+8pcThn4fewv6TVlNCezafGoC1gM/mxQLbQ=",
+        version = "v0.0.0-20210611083646-a4fc73990273",
     )
     go_repository(
         name = "org_golang_x_term",
