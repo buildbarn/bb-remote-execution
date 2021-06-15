@@ -8,6 +8,7 @@ go_library(
         "process_table_cleaning_runner.go",
         "process_table_cleaning_runner_disabled.go",
         "process_table_cleaning_runner_unix.go",
+        "system_process_table_darwin.go",
         "system_process_table_disabled.go",
         "system_process_table_linux.go",
     ],
@@ -25,7 +26,6 @@ go_library(
         ],
         "@io_bazel_rules_go//go/platform:darwin": [
             "@org_golang_google_grpc//codes",
-            "@org_golang_google_grpc//status",
             "@org_golang_x_sys//unix",
         ],
         "@io_bazel_rules_go//go/platform:freebsd": [
@@ -35,7 +35,6 @@ go_library(
         ],
         "@io_bazel_rules_go//go/platform:ios": [
             "@org_golang_google_grpc//codes",
-            "@org_golang_google_grpc//status",
             "@org_golang_x_sys//unix",
         ],
         "@io_bazel_rules_go//go/platform:linux": [

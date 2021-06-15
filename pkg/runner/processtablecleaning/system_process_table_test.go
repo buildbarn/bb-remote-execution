@@ -12,7 +12,7 @@ import (
 
 func TestSystemProcessTable(t *testing.T) {
 	// TODO: Implement this functionality on non-Linux platforms.
-	if runtime.GOOS == "darwin" || runtime.GOOS == "freebsd" {
+	if runtime.GOOS == "freebsd" {
 		return
 	}
 

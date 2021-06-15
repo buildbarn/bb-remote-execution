@@ -1508,7 +1508,10 @@ def go_dependencies():
     go_repository(
         name = "org_golang_x_sys",
         importpath = "golang.org/x/sys",
-        patches = ["@com_github_buildbarn_bb_storage//:patches/org_golang_x_sys/pr-112-seek.diff"],
+        patches = [
+            "@com_github_buildbarn_bb_remote_execution//:patches/org_golang_x_sys/pr-113-kinfo-proc.diff",
+            "@com_github_buildbarn_bb_storage//:patches/org_golang_x_sys/pr-112-seek.diff",
+        ],
         sum = "h1:faDu4veV+8pcThn4fewv6TVlNCezafGoC1gM/mxQLbQ=",
         version = "v0.0.0-20210611083646-a4fc73990273",
     )

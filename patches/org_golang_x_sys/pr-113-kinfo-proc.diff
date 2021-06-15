@@ -1,0 +1,332 @@
+diff --git unix/mkpost.go unix/mkpost.go
+index f1a92dd..4200069 100644
+--- unix/mkpost.go
++++ unix/mkpost.go
+@@ -50,6 +50,21 @@ func main() {
+ 		b = sttimespec.ReplaceAll(b, []byte("Timespec"))
+ 	}
+ 
++	if goos == "darwin" {
++		// KinfoProc contains various pointers to objects stored
++		// in kernel space. Replace these by uintptr to prevent
++		// accidental dereferencing.
++		kinfoProcPointerRegex := regexp.MustCompile(`\*_Ctype_struct_(pgrp|proc|session|sigacts|ucred|user|vnode)`)
++		b = kinfoProcPointerRegex.ReplaceAll(b, []byte("uintptr"))
++
++		// ExternProc contains a p_un member that in kernel
++		// space stores a pair of pointers and in user space
++		// stores the process creation time. We only care about
++		// the process creation time.
++		externProcStarttimeRegex := regexp.MustCompile(`P_un\s*\[\d+\]byte`)
++		b = externProcStarttimeRegex.ReplaceAll(b, []byte("P_starttime Timeval"))
++	}
++
+ 	// Intentionally export __val fields in Fsid and Sigset_t
+ 	valRegex := regexp.MustCompile(`type (Fsid|Sigset_t) struct {(\s+)X__(bits|val)(\s+\S+\s+)}`)
+ 	b = valRegex.ReplaceAll(b, []byte("type $1 struct {${2}Val$4}"))
+diff --git unix/syscall_darwin.go unix/syscall_darwin.go
+index 9945e5f..3c1761c 100644
+--- unix/syscall_darwin.go
++++ unix/syscall_darwin.go
+@@ -13,6 +13,7 @@
+ package unix
+ 
+ import (
++	"fmt"
+ 	"runtime"
+ 	"syscall"
+ 	"unsafe"
+@@ -686,3 +687,35 @@ func GetsockoptXucred(fd, level, opt int) (*Xucred, error) {
+ // __mac_mount
+ // __mac_get_mount
+ // __mac_getfsstat
++
++func SysctlKinfoProcSlice(name string) ([]KinfoProc, error) {
++	mib, err := sysctlmib(name)
++	if err != nil {
++		return nil, err
++	}
++
++	// Find size.
++	n := uintptr(0)
++	if err := sysctl(mib, nil, &n, nil, 0); err != nil {
++		return nil, err
++	}
++	if n == 0 {
++		return nil, nil
++	}
++	if n%SizeofKinfoProc != 0 {
++		return nil, fmt.Errorf("sysctl() returned a size of %d, which is not a multiple of %d", n, SizeofKinfoProc)
++	}
++
++	// Read into buffer of that size.
++	buf := make([]KinfoProc, n/SizeofKinfoProc)
++	if err := sysctl(mib, (*byte)(unsafe.Pointer(&buf[0])), &n, nil, 0); err != nil {
++		return nil, err
++	}
++	if n%SizeofKinfoProc != 0 {
++		return nil, fmt.Errorf("sysctl() returned a size of %d, which is not a multiple of %d", n, SizeofKinfoProc)
++	}
++
++	// The actual call may return less than the original reported required
++	// size so ensure we deal with that.
++	return buf[:n/SizeofKinfoProc], nil
++}
+diff --git unix/types_darwin.go unix/types_darwin.go
+index e65c0de..0b13f93 100644
+--- unix/types_darwin.go
++++ unix/types_darwin.go
+@@ -37,6 +37,7 @@ package unix
+ #include <sys/signal.h>
+ #include <sys/socket.h>
+ #include <sys/stat.h>
++#include <sys/sysctl.h>
+ #include <sys/time.h>
+ #include <sys/types.h>
+ #include <sys/ucred.h>
+@@ -304,3 +305,21 @@ type Clockinfo C.struct_clockinfo
+ // ctl_info
+ 
+ type CtlInfo C.struct_ctl_info
++
++// KinfoProc
++
++const SizeofKinfoProc = C.sizeof_struct_kinfo_proc
++
++type Eproc C.struct_eproc
++
++type ExternProc C.struct_extern_proc
++
++type Itimerval C.struct_itimerval
++
++type KinfoProc C.struct_kinfo_proc
++
++type Vmspace C.struct_vmspace
++
++type Pcred C.struct__pcred
++
++type Ucred C.struct__ucred
+diff --git unix/ztypes_darwin_amd64.go unix/ztypes_darwin_amd64.go
+index 2673e6c..4c8dc0b 100644
+--- unix/ztypes_darwin_amd64.go
++++ unix/ztypes_darwin_amd64.go
+@@ -535,3 +535,107 @@ type CtlInfo struct {
+ 	Id   uint32
+ 	Name [96]byte
+ }
++
++const SizeofKinfoProc = 0x288
++
++type Eproc struct {
++	Paddr   uintptr
++	Sess    uintptr
++	Pcred   Pcred
++	Ucred   Ucred
++	Vm      Vmspace
++	Ppid    int32
++	Pgid    int32
++	Jobc    int16
++	Tdev    int32
++	Tpgid   int32
++	Tsess   uintptr
++	Wmesg   [8]int8
++	Xsize   int32
++	Xrssize int16
++	Xccount int16
++	Xswrss  int16
++	Flag    int32
++	Login   [12]int8
++	Spare   [4]int32
++	_       [4]byte
++}
++
++type ExternProc struct {
++	P_starttime Timeval
++	P_vmspace   *Vmspace
++	P_sigacts   uintptr
++	P_flag      int32
++	P_stat      int8
++	P_pid       int32
++	P_oppid     int32
++	P_dupfd     int32
++	User_stack  *int8
++	Exit_thread *byte
++	P_debugger  int32
++	Sigwait     int32
++	P_estcpu    uint32
++	P_cpticks   int32
++	P_pctcpu    uint32
++	P_wchan     *byte
++	P_wmesg     *int8
++	P_swtime    uint32
++	P_slptime   uint32
++	P_realtimer Itimerval
++	P_rtime     Timeval
++	P_uticks    uint64
++	P_sticks    uint64
++	P_iticks    uint64
++	P_traceflag int32
++	P_tracep    uintptr
++	P_siglist   int32
++	P_textvp    uintptr
++	P_holdcnt   int32
++	P_sigmask   uint32
++	P_sigignore uint32
++	P_sigcatch  uint32
++	P_priority  uint8
++	P_usrpri    uint8
++	P_nice      int8
++	P_comm      [17]int8
++	P_pgrp      uintptr
++	P_addr      uintptr
++	P_xstat     uint16
++	P_acflag    uint16
++	P_ru        *Rusage
++}
++
++type Itimerval struct {
++	Interval Timeval
++	Value    Timeval
++}
++
++type KinfoProc struct {
++	Proc  ExternProc
++	Eproc Eproc
++}
++
++type Vmspace struct {
++	Dummy  int32
++	Dummy2 *int8
++	Dummy3 [5]int32
++	Dummy4 [3]*int8
++}
++
++type Pcred struct {
++	Pc_lock  [72]int8
++	Pc_ucred uintptr
++	P_ruid   uint32
++	P_svuid  uint32
++	P_rgid   uint32
++	P_svgid  uint32
++	P_refcnt int32
++	_        [4]byte
++}
++
++type Ucred struct {
++	Ref     int32
++	Uid     uint32
++	Ngroups int16
++	Groups  [16]uint32
++}
+diff --git unix/ztypes_darwin_arm64.go unix/ztypes_darwin_arm64.go
+index 1465cbc..96f0e6a 100644
+--- unix/ztypes_darwin_arm64.go
++++ unix/ztypes_darwin_arm64.go
+@@ -535,3 +535,107 @@ type CtlInfo struct {
+ 	Id   uint32
+ 	Name [96]byte
+ }
++
++const SizeofKinfoProc = 0x288
++
++type Eproc struct {
++	Paddr   uintptr
++	Sess    uintptr
++	Pcred   Pcred
++	Ucred   Ucred
++	Vm      Vmspace
++	Ppid    int32
++	Pgid    int32
++	Jobc    int16
++	Tdev    int32
++	Tpgid   int32
++	Tsess   uintptr
++	Wmesg   [8]int8
++	Xsize   int32
++	Xrssize int16
++	Xccount int16
++	Xswrss  int16
++	Flag    int32
++	Login   [12]int8
++	Spare   [4]int32
++	_       [4]byte
++}
++
++type ExternProc struct {
++	P_starttime Timeval
++	P_vmspace   *Vmspace
++	P_sigacts   uintptr
++	P_flag      int32
++	P_stat      int8
++	P_pid       int32
++	P_oppid     int32
++	P_dupfd     int32
++	User_stack  *int8
++	Exit_thread *byte
++	P_debugger  int32
++	Sigwait     int32
++	P_estcpu    uint32
++	P_cpticks   int32
++	P_pctcpu    uint32
++	P_wchan     *byte
++	P_wmesg     *int8
++	P_swtime    uint32
++	P_slptime   uint32
++	P_realtimer Itimerval
++	P_rtime     Timeval
++	P_uticks    uint64
++	P_sticks    uint64
++	P_iticks    uint64
++	P_traceflag int32
++	P_tracep    uintptr
++	P_siglist   int32
++	P_textvp    uintptr
++	P_holdcnt   int32
++	P_sigmask   uint32
++	P_sigignore uint32
++	P_sigcatch  uint32
++	P_priority  uint8
++	P_usrpri    uint8
++	P_nice      int8
++	P_comm      [17]int8
++	P_pgrp      uintptr
++	P_addr      uintptr
++	P_xstat     uint16
++	P_acflag    uint16
++	P_ru        *Rusage
++}
++
++type Itimerval struct {
++	Interval Timeval
++	Value    Timeval
++}
++
++type KinfoProc struct {
++	Proc  ExternProc
++	Eproc Eproc
++}
++
++type Vmspace struct {
++	Dummy  int32
++	Dummy2 *int8
++	Dummy3 [5]int32
++	Dummy4 [3]*int8
++}
++
++type Pcred struct {
++	Pc_lock  [72]int8
++	Pc_ucred uintptr
++	P_ruid   uint32
++	P_svuid  uint32
++	P_rgid   uint32
++	P_svgid  uint32
++	P_refcnt int32
++	_        [4]byte
++}
++
++type Ucred struct {
++	Ref     int32
++	Uid     uint32
++	Ngroups int16
++	Groups  [16]uint32
++}

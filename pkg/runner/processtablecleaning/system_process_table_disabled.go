@@ -1,4 +1,4 @@
-// +build darwin freebsd windows
+// +build freebsd windows
 
 package processtablecleaning
 
