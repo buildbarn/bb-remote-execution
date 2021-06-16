@@ -16,7 +16,7 @@ require (
 	github.com/hanwen/go-fuse/v2 v2.1.0
 	github.com/prometheus/client_golang v1.10.0
 	go.opencensus.io v0.23.0
-	golang.org/x/sys v0.0.0-20210611083646-a4fc73990273
+	golang.org/x/sys v0.0.0-20210616094352-59db8d763f22
 	google.golang.org/genproto v0.0.0-20210310155132-4ce2db91004e
 	google.golang.org/grpc v1.36.0
 	google.golang.org/protobuf v1.26.0
