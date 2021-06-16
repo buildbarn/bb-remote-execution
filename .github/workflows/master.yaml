@@ -89,6 +89,18 @@
                }
             },
             {
+               "name": "linux_amd64: copy fake_python",
+               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //cmd/fake_python $(pwd)/fake_python"
+            },
+            {
+               "name": "linux_amd64: upload fake_python",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "fake_python.linux_amd64",
+                  "path": "fake_python"
+               }
+            },
+            {
                "name": "linux_386: build and test",
                "run": "bazel test --test_output=errors --platforms=@io_bazel_rules_go//go/toolchain:linux_386 //..."
             },
@@ -126,6 +138,18 @@
                "with": {
                   "name": "bb_worker.linux_386",
                   "path": "bb_worker"
+               }
+            },
+            {
+               "name": "linux_386: copy fake_python",
+               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_386 //cmd/fake_python $(pwd)/fake_python"
+            },
+            {
+               "name": "linux_386: upload fake_python",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "fake_python.linux_386",
+                  "path": "fake_python"
                }
             },
             {
@@ -169,6 +193,18 @@
                }
             },
             {
+               "name": "linux_arm: copy fake_python",
+               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_arm //cmd/fake_python $(pwd)/fake_python"
+            },
+            {
+               "name": "linux_arm: upload fake_python",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "fake_python.linux_arm",
+                  "path": "fake_python"
+               }
+            },
+            {
                "name": "linux_arm64: build and test",
                "run": "bazel build --platforms=@io_bazel_rules_go//go/toolchain:linux_arm64 //..."
             },
@@ -206,6 +242,18 @@
                "with": {
                   "name": "bb_worker.linux_arm64",
                   "path": "bb_worker"
+               }
+            },
+            {
+               "name": "linux_arm64: copy fake_python",
+               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_arm64 //cmd/fake_python $(pwd)/fake_python"
+            },
+            {
+               "name": "linux_arm64: upload fake_python",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "fake_python.linux_arm64",
+                  "path": "fake_python"
                }
             },
             {
@@ -249,6 +297,18 @@
                }
             },
             {
+               "name": "darwin_amd64: copy fake_python",
+               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:darwin_amd64 //cmd/fake_python $(pwd)/fake_python"
+            },
+            {
+               "name": "darwin_amd64: upload fake_python",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "fake_python.darwin_amd64",
+                  "path": "fake_python"
+               }
+            },
+            {
                "name": "darwin_arm64: build and test",
                "run": "bazel build --platforms=@io_bazel_rules_go//go/toolchain:darwin_arm64 //..."
             },
@@ -289,8 +349,20 @@
                }
             },
             {
+               "name": "darwin_arm64: copy fake_python",
+               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:darwin_arm64 //cmd/fake_python $(pwd)/fake_python"
+            },
+            {
+               "name": "darwin_arm64: upload fake_python",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "fake_python.darwin_arm64",
+                  "path": "fake_python"
+               }
+            },
+            {
                "name": "freebsd_amd64: build and test",
-               "run": "bazel build --platforms=@io_bazel_rules_go//go/toolchain:freebsd_amd64 //cmd/bb_runner //cmd/bb_scheduler //cmd/bb_worker"
+               "run": "bazel build --platforms=@io_bazel_rules_go//go/toolchain:freebsd_amd64 //cmd/bb_runner //cmd/bb_scheduler //cmd/bb_worker //cmd/fake_python"
             },
             {
                "name": "freebsd_amd64: copy bb_runner",
@@ -326,6 +398,18 @@
                "with": {
                   "name": "bb_worker.freebsd_amd64",
                   "path": "bb_worker"
+               }
+            },
+            {
+               "name": "freebsd_amd64: copy fake_python",
+               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:freebsd_amd64 //cmd/fake_python $(pwd)/fake_python"
+            },
+            {
+               "name": "freebsd_amd64: upload fake_python",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "fake_python.freebsd_amd64",
+                  "path": "fake_python"
                }
             },
             {
@@ -366,6 +450,18 @@
                "with": {
                   "name": "bb_worker.windows_amd64",
                   "path": "bb_worker.exe"
+               }
+            },
+            {
+               "name": "windows_amd64: copy fake_python",
+               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:windows_amd64 //cmd/fake_python $(pwd)/fake_python.exe"
+            },
+            {
+               "name": "windows_amd64: upload fake_python",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "fake_python.windows_amd64",
+                  "path": "fake_python.exe"
                }
             },
             {

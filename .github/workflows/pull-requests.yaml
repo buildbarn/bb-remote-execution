@@ -74,7 +74,7 @@
             },
             {
                "name": "freebsd_amd64: build and test",
-               "run": "bazel build --platforms=@io_bazel_rules_go//go/toolchain:freebsd_amd64 //cmd/bb_runner //cmd/bb_scheduler //cmd/bb_worker"
+               "run": "bazel build --platforms=@io_bazel_rules_go//go/toolchain:freebsd_amd64 //cmd/bb_runner //cmd/bb_scheduler //cmd/bb_worker //cmd/fake_python"
             },
             {
                "name": "windows_amd64: build and test",

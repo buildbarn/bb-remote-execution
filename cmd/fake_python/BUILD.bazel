@@ -1,0 +1,14 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "fake_python_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/buildbarn/bb-remote-execution/cmd/fake_python",
+    visibility = ["//visibility:private"],
+)
+
+go_binary(
+    name = "fake_python",
+    embed = [":fake_python_lib"],
+    visibility = ["//visibility:public"],
+)
