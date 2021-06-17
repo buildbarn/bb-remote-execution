@@ -1,6 +1,6 @@
 // +build freebsd windows
 
-package processtablecleaning
+package cleaner
 
 import (
 	"google.golang.org/grpc/codes"

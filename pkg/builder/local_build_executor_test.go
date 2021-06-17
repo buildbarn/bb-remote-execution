@@ -32,7 +32,7 @@ func TestLocalBuildExecutorInvalidActionDigest(t *testing.T) {
 
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
-	runner := mock.NewMockRunner(ctrl)
+	runner := mock.NewMockRunnerClient(ctrl)
 	clock := mock.NewMockClock(ctrl)
 	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, nil, 10000, map[string]string{})
 
@@ -69,7 +69,7 @@ func TestLocalBuildExecutorMissingAction(t *testing.T) {
 
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
-	runner := mock.NewMockRunner(ctrl)
+	runner := mock.NewMockRunnerClient(ctrl)
 	clock := mock.NewMockClock(ctrl)
 	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, nil, 10000, map[string]string{})
 
@@ -100,10 +100,11 @@ func TestLocalBuildExecutorBuildDirectoryCreatorFailedFailed(t *testing.T) {
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(
+		ctx,
 		digest.MustNewDigest("netbsd", "5555555555555555555555555555555555555555555555555555555555555555", 7),
 		false,
 	).Return(nil, nil, status.Error(codes.InvalidArgument, "Platform requirements not provided"))
-	runner := mock.NewMockRunner(ctrl)
+	runner := mock.NewMockRunnerClient(ctrl)
 	clock := mock.NewMockClock(ctrl)
 	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, nil, 10000, map[string]string{})
 
@@ -142,6 +143,7 @@ func TestLocalBuildExecutorInputRootPopulationFailed(t *testing.T) {
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(
+		ctx,
 		digest.MustNewDigest("netbsd", "5555555555555555555555555555555555555555555555555555555555555555", 7),
 		false,
 	).Return(buildDirectory, nil, nil)
@@ -157,7 +159,7 @@ func TestLocalBuildExecutorInputRootPopulationFailed(t *testing.T) {
 	).Return(status.Error(codes.FailedPrecondition, "Some input files could not be found"))
 	inputRootDirectory.EXPECT().Close()
 	buildDirectory.EXPECT().Close()
-	runner := mock.NewMockRunner(ctrl)
+	runner := mock.NewMockRunnerClient(ctrl)
 	clock := mock.NewMockClock(ctrl)
 	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, nil, 10000, map[string]string{})
 
@@ -205,6 +207,7 @@ func TestLocalBuildExecutorOutputDirectoryCreationFailure(t *testing.T) {
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(
+		ctx,
 		digest.MustNewDigest("fedora", "5555555555555555555555555555555555555555555555555555555555555555", 7),
 		false,
 	).Return(buildDirectory, nil, nil)
@@ -221,7 +224,7 @@ func TestLocalBuildExecutorOutputDirectoryCreationFailure(t *testing.T) {
 	inputRootDirectory.EXPECT().Mkdir(path.MustNewComponent("foo"), os.FileMode(0o777)).Return(status.Error(codes.Internal, "Out of disk space"))
 	inputRootDirectory.EXPECT().Close()
 	buildDirectory.EXPECT().Close()
-	runner := mock.NewMockRunner(ctrl)
+	runner := mock.NewMockRunnerClient(ctrl)
 	clock := mock.NewMockClock(ctrl)
 	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, nil, 10000, map[string]string{})
 
@@ -263,6 +266,7 @@ func TestLocalBuildExecutorMissingCommand(t *testing.T) {
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(
+		ctx,
 		digest.MustNewDigest("netbsd", "5555555555555555555555555555555555555555555555555555555555555555", 7),
 		false,
 	).Return(buildDirectory, nil, nil)
@@ -278,7 +282,7 @@ func TestLocalBuildExecutorMissingCommand(t *testing.T) {
 	).Return(nil)
 	inputRootDirectory.EXPECT().Close()
 	buildDirectory.EXPECT().Close()
-	runner := mock.NewMockRunner(ctrl)
+	runner := mock.NewMockRunnerClient(ctrl)
 	clock := mock.NewMockClock(ctrl)
 	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, nil, 10000, map[string]string{})
 
@@ -345,6 +349,7 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(
+		ctx,
 		digest.MustNewDigest("nintendo64", "5555555555555555555555555555555555555555555555555555555555555555", 7),
 		false,
 	).Return(buildDirectory, nil, nil)
@@ -360,7 +365,7 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 	).Return(nil)
 	inputRootDirectory.EXPECT().Mkdir(path.MustNewComponent("foo"), os.FileMode(0o777)).Return(nil)
 	buildDirectory.EXPECT().Mkdir(path.MustNewComponent("tmp"), os.FileMode(0o777))
-	runner := mock.NewMockRunner(ctrl)
+	runner := mock.NewMockRunnerClient(ctrl)
 	runner.EXPECT().Run(gomock.Any(), &runner_pb.RunRequest{
 		Arguments:            []string{"touch", "foo"},
 		EnvironmentVariables: map[string]string{"PATH": "/bin:/usr/bin"},
@@ -535,6 +540,7 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 	// Command execution.
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(
+		ctx,
 		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000001", 123),
 		false,
 	).Return(buildDirectory, ((*path.Trace)(nil)).Append(path.MustNewComponent("0000000000000000")), nil)
@@ -555,7 +561,7 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 	buildDirectory.EXPECT().Mkdir(path.MustNewComponent("tmp"), os.FileMode(0o777))
 	resourceUsage, err := anypb.New(&emptypb.Empty{})
 	require.NoError(t, err)
-	runner := mock.NewMockRunner(ctrl)
+	runner := mock.NewMockRunnerClient(ctrl)
 	runner.EXPECT().Run(gomock.Any(), &runner_pb.RunRequest{
 		Arguments: []string{
 			"/usr/local/bin/clang",
@@ -664,7 +670,7 @@ func TestLocalBuildExecutorCachingInvalidTimeout(t *testing.T) {
 
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
-	runner := mock.NewMockRunner(ctrl)
+	runner := mock.NewMockRunnerClient(ctrl)
 	clock := mock.NewMockClock(ctrl)
 	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, nil, 10000, map[string]string{})
 
@@ -717,6 +723,7 @@ func TestLocalBuildExecutorInputRootIOFailureDuringExecution(t *testing.T) {
 	// Build environment.
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(
+		ctx,
 		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000001", 123),
 		false,
 	).Return(buildDirectory, nil, nil)
@@ -743,7 +750,7 @@ func TestLocalBuildExecutorInputRootIOFailureDuringExecution(t *testing.T) {
 	// Let an I/O error in the input root trigger during the build.
 	// The build should be canceled immediately. The error should be
 	// propagated to the response.
-	runner := mock.NewMockRunner(ctrl)
+	runner := mock.NewMockRunnerClient(ctrl)
 	runner.EXPECT().Run(gomock.Any(), &runner_pb.RunRequest{
 		Arguments:            []string{"clang"},
 		EnvironmentVariables: map[string]string{},
@@ -828,6 +835,7 @@ func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 	// Build environment.
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(
+		ctx,
 		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000001", 123),
 		false,
 	).Return(buildDirectory, nil, nil)
@@ -847,7 +855,7 @@ func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 
 	// Simulate a timeout by running the command with a timeout of
 	// zero seconds. This should cause an immediate build failure.
-	runner := mock.NewMockRunner(ctrl)
+	runner := mock.NewMockRunnerClient(ctrl)
 	runner.EXPECT().Run(gomock.Any(), &runner_pb.RunRequest{
 		Arguments:            []string{"clang"},
 		EnvironmentVariables: map[string]string{},
@@ -917,6 +925,7 @@ func TestLocalBuildExecutorCharacterDeviceNodeCreationFailed(t *testing.T) {
 	// Build environment.
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(
+		ctx,
 		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000001", 123),
 		false,
 	).Return(buildDirectory, nil, nil)
@@ -939,7 +948,7 @@ func TestLocalBuildExecutorCharacterDeviceNodeCreationFailed(t *testing.T) {
 	inputRootDevDirectory.EXPECT().Close()
 	inputRootDirectory.EXPECT().Close()
 	buildDirectory.EXPECT().Close()
-	runner := mock.NewMockRunner(ctrl)
+	runner := mock.NewMockRunnerClient(ctrl)
 	clock := mock.NewMockClock(ctrl)
 	inputRootCharacterDevices := map[path.Component]int{
 		path.MustNewComponent("null"): 259,

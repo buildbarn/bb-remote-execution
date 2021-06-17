@@ -1,4 +1,4 @@
-package processtablecleaning
+package cleaner
 
 // ProcessFilterFunc is a callback that is provided to
 // NewFilteringProcessTable to act as a filter function for processes

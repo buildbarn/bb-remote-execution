@@ -1,6 +1,6 @@
 // +build linux
 
-package processtablecleaning
+package cleaner
 
 import (
 	"os"

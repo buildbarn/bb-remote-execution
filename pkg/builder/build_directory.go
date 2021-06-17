@@ -23,7 +23,6 @@ type BuildDirectory interface {
 	Mknod(name path.Component, perm os.FileMode, dev int) error
 	Remove(name path.Component) error
 	RemoveAll(name path.Component) error
-	RemoveAllChildren() error
 
 	// Identical to EnterDirectory(), except that it returns a
 	// BuildDirectory object.

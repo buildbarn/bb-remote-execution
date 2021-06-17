@@ -1,51 +1,61 @@
 package builder
 
 import (
-	"github.com/buildbarn/bb-remote-execution/pkg/sync"
+	"context"
+
+	"github.com/buildbarn/bb-remote-execution/pkg/cleaner"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
-
-	"google.golang.org/grpc/codes"
 )
 
 type cleanBuildDirectoryCreator struct {
 	base        BuildDirectoryCreator
-	initializer *sync.Initializer
+	idleInvoker *cleaner.IdleInvoker
 }
 
 // NewCleanBuildDirectoryCreator is an adapter for BuildDirectoryCreator
-// that upon acquistion empties out the build directory. This ensures
-// that the build action is executed in a clean environment.
-func NewCleanBuildDirectoryCreator(base BuildDirectoryCreator, initializer *sync.Initializer) BuildDirectoryCreator {
+// that upon acquistion and release calls into a Cleaner. This Cleaner
+// may, for example, be set up to empty out the build directory. This
+// guarantees that build actions aren't able to see data left behind by
+// ones that ran previously.
+func NewCleanBuildDirectoryCreator(base BuildDirectoryCreator, idleInvoker *cleaner.IdleInvoker) BuildDirectoryCreator {
 	return &cleanBuildDirectoryCreator{
 		base:        base,
-		initializer: initializer,
+		idleInvoker: idleInvoker,
 	}
 }
 
-func (dc *cleanBuildDirectoryCreator) GetBuildDirectory(actionDigest digest.Digest, mayRunInParallel bool) (BuildDirectory, *path.Trace, error) {
-	buildDirectory, buildDirectoryPath, err := dc.base.GetBuildDirectory(actionDigest, mayRunInParallel)
-	if err != nil {
-		return nil, nil, err
+func (dc *cleanBuildDirectoryCreator) GetBuildDirectory(ctx context.Context, actionDigest digest.Digest, mayRunInParallel bool) (BuildDirectory, *path.Trace, error) {
+	if err := dc.idleInvoker.Acquire(ctx); err != nil {
+		return nil, nil, util.StatusWrap(err, "Failed to clean before acquiring build directory")
 	}
-	if err := dc.initializer.Acquire(buildDirectory.RemoveAllChildren); err != nil {
-		buildDirectory.Close()
-		return nil, nil, util.StatusWrapfWithCode(err, codes.Internal, "Failed to clean build directory %#v prior to build", buildDirectoryPath.String())
+	buildDirectory, buildDirectoryPath, err := dc.base.GetBuildDirectory(ctx, actionDigest, mayRunInParallel)
+	if err != nil {
+		dc.idleInvoker.Release(ctx)
+		return nil, nil, err
 	}
 	return &cleanBuildDirectory{
 		BuildDirectory: buildDirectory,
-		initializer:    dc.initializer,
+		idleInvoker:    dc.idleInvoker,
+		context:        ctx,
 	}, buildDirectoryPath, nil
 }
 
 type cleanBuildDirectory struct {
 	BuildDirectory
-	initializer *sync.Initializer
+	idleInvoker *cleaner.IdleInvoker
+	context     context.Context
 }
 
 func (d cleanBuildDirectory) Close() error {
-	err := d.BuildDirectory.Close()
-	d.initializer.Release()
-	return err
+	err1 := d.BuildDirectory.Close()
+	err2 := d.idleInvoker.Release(d.context)
+	if err1 != nil {
+		return err1
+	}
+	if err2 != nil {
+		return util.StatusWrap(err2, "Failed to clean after releasing build directory")
+	}
+	return nil
 }

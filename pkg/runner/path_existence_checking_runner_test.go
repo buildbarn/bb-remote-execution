@@ -18,12 +18,12 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-func TestRunnerServer(t *testing.T) {
+func TestPathExistenceCheckingRunner(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	mockRunner := mock.NewMockRunner(ctrl)
+	mockRunner := mock.NewMockRunnerServer(ctrl)
 	readinessCheckingFilename := filepath.Join(t.TempDir(), "ready")
-	runnerServer := runner.NewRunnerServer(mockRunner, []string{
+	runnerServer := runner.NewPathExistenceCheckingRunner(mockRunner, []string{
 		readinessCheckingFilename,
 	})
 
@@ -54,7 +54,7 @@ func TestRunnerServer(t *testing.T) {
 		_, err := runnerServer.Run(ctx, runRequest)
 		testutil.RequirePrefixedStatus(
 			t,
-			status.Errorf(codes.Unavailable, "Readiness check failed during execution: Path %#v: ", readinessCheckingFilename),
+			status.Errorf(codes.Unavailable, "One or more required files disappeared during execution: Path %#v: ", readinessCheckingFilename),
 			err)
 	})
 
@@ -66,6 +66,8 @@ func TestRunnerServer(t *testing.T) {
 
 	t.Run("ReadyCheckReadiness", func(t *testing.T) {
 		// Readiness checks should now succeed.
+		mockRunner.EXPECT().CheckReadiness(ctx, gomock.Any()).Return(&emptypb.Empty{}, nil)
+
 		_, err := runnerServer.CheckReadiness(ctx, &emptypb.Empty{})
 		require.NoError(t, err)
 	})

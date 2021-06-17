@@ -144,7 +144,3 @@ func (d *fuseBuildDirectory) Readlink(name path.Component) (string, error) {
 	}
 	return leaf.Readlink()
 }
-
-func (d *fuseBuildDirectory) RemoveAllChildren() error {
-	return d.PrepopulatedDirectory.RemoveAllChildren(false)
-}

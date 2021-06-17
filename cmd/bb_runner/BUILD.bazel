@@ -9,20 +9,19 @@ go_library(
     importpath = "github.com/buildbarn/bb-remote-execution/cmd/bb_runner",
     visibility = ["//visibility:private"],
     deps = [
+        "//pkg/cleaner",
         "//pkg/credentials",
         "//pkg/filesystem",
         "//pkg/proto/configuration/bb_runner",
         "//pkg/proto/runner",
         "//pkg/proto/tmp_installer",
         "//pkg/runner",
-        "//pkg/runner/processtablecleaning",
         "@com_github_buildbarn_bb_storage//pkg/filesystem",
         "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
         "@com_github_buildbarn_bb_storage//pkg/global",
         "@com_github_buildbarn_bb_storage//pkg/grpc",
         "@com_github_buildbarn_bb_storage//pkg/util",
         "@org_golang_google_grpc//:go_default_library",
-        "@org_golang_google_protobuf//types/known/emptypb",
     ],
 )
 

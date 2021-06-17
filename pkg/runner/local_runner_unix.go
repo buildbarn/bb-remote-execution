@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // logFileResolver is an implementation of path.ComponentWalker that is
@@ -75,7 +76,7 @@ type localRunner struct {
 
 // NewLocalRunner returns a Runner capable of running commands on the
 // local system directly.
-func NewLocalRunner(buildDirectory filesystem.Directory, buildDirectoryPath *path.Builder, sysProcAttr *syscall.SysProcAttr, setTmpdirEnvironmentVariable, chrootIntoInputRoot bool) Runner {
+func NewLocalRunner(buildDirectory filesystem.Directory, buildDirectoryPath *path.Builder, sysProcAttr *syscall.SysProcAttr, setTmpdirEnvironmentVariable, chrootIntoInputRoot bool) runner.RunnerServer {
 	return &localRunner{
 		buildDirectory:               buildDirectory,
 		buildDirectoryPath:           buildDirectoryPath,
@@ -212,4 +213,8 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 		ExitCode:      int32(cmd.ProcessState.ExitCode()),
 		ResourceUsage: []*anypb.Any{posixResourceUsage},
 	}, nil
+}
+
+func (r *localRunner) CheckReadiness(ctx context.Context, request *emptypb.Empty) (*emptypb.Empty, error) {
+	return &emptypb.Empty{}, nil
 }

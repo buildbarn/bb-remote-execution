@@ -13,13 +13,12 @@ import (
 	re_blobstore "github.com/buildbarn/bb-remote-execution/pkg/blobstore"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
 	"github.com/buildbarn/bb-remote-execution/pkg/cas"
+	"github.com/buildbarn/bb-remote-execution/pkg/cleaner"
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	re_fuse "github.com/buildbarn/bb-remote-execution/pkg/filesystem/fuse"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_worker"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
-	"github.com/buildbarn/bb-remote-execution/pkg/runner"
-	"github.com/buildbarn/bb-remote-execution/pkg/sync"
 	"github.com/buildbarn/bb-storage/pkg/atomic"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	blobstore_configuration "github.com/buildbarn/bb-storage/pkg/blobstore/configuration"
@@ -32,6 +31,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/random"
 	"github.com/buildbarn/bb-storage/pkg/util"
 
+	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -102,6 +102,7 @@ func main() {
 		var fuseBuildDirectory re_fuse.PrepopulatedDirectory
 		var naiveBuildDirectory filesystem.DirectoryCloser
 		var fileFetcher cas.FileFetcher
+		var buildDirectoryCleaner cleaner.Cleaner
 		uploadBatchSize := blobstore.RecommendedFindMissingDigestsCount
 		switch backend := buildDirectoryConfiguration.Backend.(type) {
 		case *bb_worker.BuildDirectoryConfiguration_Fuse:
@@ -116,6 +117,12 @@ func main() {
 				rootInodeNumber,
 				random.FastThreadSafeGenerator,
 				serverCallbacks.EntryNotify)
+			buildDirectoryCleaner = func(ctx context.Context) error {
+				if err := fuseBuildDirectory.RemoveAllChildren(false); err != nil {
+					return util.StatusWrapWithCode(err, codes.Internal, "Failed to clean FUSE build directory")
+				}
+				return nil
+			}
 			if err := re_fuse.NewMountFromConfiguration(
 				backend.Fuse,
 				fuseBuildDirectory,
@@ -131,6 +138,7 @@ func main() {
 			if err != nil {
 				log.Fatalf("Failed to open build directory %v: %s", nativeConfiguration.BuildDirectoryPath, err)
 			}
+			buildDirectoryCleaner = cleaner.NewDirectoryCleaner(naiveBuildDirectory, nativeConfiguration.BuildDirectoryPath)
 
 			// Create a cache directory that holds input
 			// files that can be hardlinked into build
@@ -166,7 +174,7 @@ func main() {
 			log.Fatal("No build directory specified")
 		}
 
-		var buildDirectoryInitializer sync.Initializer
+		buildDirectoryIdleInvoker := cleaner.NewIdleInvoker(buildDirectoryCleaner)
 		var sharedBuildDirectoryNextParallelActionID atomic.Uint64
 		if len(buildDirectoryConfiguration.Runners) == 0 {
 			log.Fatal("Cannot start worker without any runners")
@@ -241,7 +249,7 @@ func main() {
 					buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(
 						builder.NewCleanBuildDirectoryCreator(
 							builder.NewRootBuildDirectoryCreator(buildDirectory),
-							&buildDirectoryInitializer),
+							buildDirectoryIdleInvoker),
 						&sharedBuildDirectoryNextParallelActionID)
 
 					workerID := map[string]string{}
@@ -263,7 +271,7 @@ func main() {
 									builder.NewLocalBuildExecutor(
 										contentAddressableStorageWriter,
 										buildDirectoryCreator,
-										runner.NewRemoteRunner(runnerConnection),
+										runnerClient,
 										clock.SystemClock,
 										inputRootCharacterDevices,
 										int(configuration.MaximumMessageSizeBytes),

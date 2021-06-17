@@ -1,18 +1,17 @@
 package main
 
 import (
-	"context"
 	"log"
 	"os"
 	"time"
 
+	"github.com/buildbarn/bb-remote-execution/pkg/cleaner"
 	"github.com/buildbarn/bb-remote-execution/pkg/credentials"
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_runner"
 	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/tmp_installer"
 	"github.com/buildbarn/bb-remote-execution/pkg/runner"
-	ptc "github.com/buildbarn/bb-remote-execution/pkg/runner/processtablecleaning"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/global"
@@ -20,7 +19,6 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/util"
 
 	"google.golang.org/grpc"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 func main() {
@@ -57,17 +55,9 @@ func main() {
 		configuration.SetTmpdirEnvironmentVariable,
 		configuration.ChrootIntoInputRoot)
 
-	// When temporary directories need cleaning prior to executing a build
-	// action, attach a series of TemporaryDirectoryCleaningRunners.
-	// Also wrap the Runner for every temporary directory that needs
-	// to be symlinked.
-	for _, d := range configuration.CleanTemporaryDirectories {
-		directory, err := filesystem.NewLocalDirectory(d)
-		if err != nil {
-			log.Fatalf("Failed to open temporary directory %#v: %s", d, err)
-		}
-		r = runner.NewTemporaryDirectoryCleaningRunner(r, directory, d)
-	}
+	// Let bb_runner replace temporary directories with symbolic
+	// links pointing to the temporary directory set up by
+	// bb_worker.
 	for _, symlinkPath := range configuration.SymlinkTemporaryDirectories {
 		r = runner.NewTemporaryDirectorySymlinkingRunner(r, symlinkPath, buildDirectoryPath)
 	}
@@ -80,14 +70,6 @@ func main() {
 			log.Fatal("Failed to create temporary directory installer RPC client: ", err)
 		}
 		tmpInstaller := tmp_installer.NewTemporaryDirectoryInstallerClient(tmpInstallerConnection)
-		for {
-			_, err := tmpInstaller.CheckReadiness(context.Background(), &emptypb.Empty{})
-			if err == nil {
-				break
-			}
-			log.Print("Temporary directory installer is not ready yet: ", err)
-			time.Sleep(3 * time.Second)
-		}
 		r = runner.NewTemporaryDirectoryInstallingRunner(r, tmpInstaller)
 	}
 
@@ -95,16 +77,39 @@ func main() {
 	// Ensure that we only match processes belonging to the current
 	// user that were created after bb_runner is spawned, as we
 	// don't want to kill unrelated processes.
+	var cleaners []cleaner.Cleaner
 	if configuration.CleanProcessTable {
 		startupTime := time.Now()
-		r = ptc.NewProcessTableCleaningRunner(
+		cleaners = append(
+			cleaners,
+			cleaner.NewProcessTableCleaner(
+				cleaner.NewFilteringProcessTable(
+					cleaner.SystemProcessTable,
+					func(process *cleaner.Process) bool {
+						return process.UserID == processTableCleaningUserID &&
+							process.CreationTime.After(startupTime)
+					})))
+	}
+
+	// Clean temporary directories, so that files left behind by
+	// build actions aren't visible to successive actions. This also
+	// prevents systems from running out of disk space.
+	for _, d := range configuration.CleanTemporaryDirectories {
+		directory, err := filesystem.NewLocalDirectory(d)
+		if err != nil {
+			log.Fatalf("Failed to open temporary directory %#v: %s", d, err)
+		}
+		cleaners = append(cleaners, cleaner.NewDirectoryCleaner(directory, d))
+	}
+	if len(cleaners) > 0 {
+		r = runner.NewCleanRunner(
 			r,
-			ptc.NewFilteringProcessTable(
-				ptc.SystemProcessTable,
-				func(process *ptc.Process) bool {
-					return process.UserID == processTableCleaningUserID &&
-						process.CreationTime.After(startupTime)
-				}))
+			cleaner.NewIdleInvoker(cleaner.NewChainedCleaner(cleaners)))
+	}
+
+	// Paths that need to be present for the worker to be healthy.
+	if len(configuration.ReadinessCheckingPathnames) > 0 {
+		r = runner.NewPathExistenceCheckingRunner(r, configuration.ReadinessCheckingPathnames)
 	}
 
 	go func() {
@@ -113,11 +118,7 @@ func main() {
 			bb_grpc.NewServersFromConfigurationAndServe(
 				configuration.GrpcServers,
 				func(s *grpc.Server) {
-					runner_pb.RegisterRunnerServer(
-						s,
-						runner.NewRunnerServer(
-							r,
-							configuration.ReadinessCheckingPathnames))
+					runner_pb.RegisterRunnerServer(s, r)
 				}))
 	}()
 

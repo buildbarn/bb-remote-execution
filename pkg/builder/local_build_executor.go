@@ -9,7 +9,6 @@ import (
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
-	"github.com/buildbarn/bb-remote-execution/pkg/runner"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
@@ -61,7 +60,7 @@ func (el *capturingErrorLogger) GetError() error {
 type localBuildExecutor struct {
 	contentAddressableStorage blobstore.BlobAccess
 	buildDirectoryCreator     BuildDirectoryCreator
-	runner                    runner.Runner
+	runner                    runner_pb.RunnerClient
 	clock                     clock.Clock
 	inputRootCharacterDevices map[path.Component]int
 	maximumMessageSizeBytes   int
@@ -70,7 +69,7 @@ type localBuildExecutor struct {
 
 // NewLocalBuildExecutor returns a BuildExecutor that executes build
 // steps on the local system.
-func NewLocalBuildExecutor(contentAddressableStorage blobstore.BlobAccess, buildDirectoryCreator BuildDirectoryCreator, runner runner.Runner, clock clock.Clock, inputRootCharacterDevices map[path.Component]int, maximumMessageSizeBytes int, environmentVariables map[string]string) BuildExecutor {
+func NewLocalBuildExecutor(contentAddressableStorage blobstore.BlobAccess, buildDirectoryCreator BuildDirectoryCreator, runner runner_pb.RunnerClient, clock clock.Clock, inputRootCharacterDevices map[path.Component]int, maximumMessageSizeBytes int, environmentVariables map[string]string) BuildExecutor {
 	return &localBuildExecutor{
 		contentAddressableStorage: contentAddressableStorage,
 		buildDirectoryCreator:     buildDirectoryCreator,
@@ -121,7 +120,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to extract digest for action"))
 		return response
 	}
-	buildDirectory, buildDirectoryPath, err := be.buildDirectoryCreator.GetBuildDirectory(actionDigest, action.DoNotCache)
+	buildDirectory, buildDirectoryPath, err := be.buildDirectoryCreator.GetBuildDirectory(ctx, actionDigest, action.DoNotCache)
 	if err != nil {
 		attachErrorToExecuteResponse(
 			response,

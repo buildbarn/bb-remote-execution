@@ -1,6 +1,7 @@
 package builder_test
 
 import (
+	"context"
 	"os"
 	"testing"
 
@@ -17,11 +18,12 @@ import (
 )
 
 func TestSharedBuildDirectoryCreatorGetBuildDirectoryFailure(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	// Failure to create environment should simply be forwarded.
 	baseBuildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(
+		ctx,
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		false,
 	).Return(nil, nil, status.Error(codes.Internal, "No space left on device"))
@@ -29,18 +31,20 @@ func TestSharedBuildDirectoryCreatorGetBuildDirectoryFailure(t *testing.T) {
 	var nextParallelActionID atomic.Uint64
 	buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(baseBuildDirectoryCreator, &nextParallelActionID)
 	_, _, err := buildDirectoryCreator.GetBuildDirectory(
+		ctx,
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		false)
 	require.Equal(t, status.Error(codes.Internal, "No space left on device"), err)
 }
 
 func TestSharedBuildDirectoryCreatorMkdirFailure(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	// Failure to create a build subdirectory is always an internal error.
 	baseBuildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	baseBuildDirectory := mock.NewMockBuildDirectory(ctrl)
 	baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(
+		ctx,
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		false,
 	).Return(baseBuildDirectory, ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory")), nil)
@@ -51,18 +55,20 @@ func TestSharedBuildDirectoryCreatorMkdirFailure(t *testing.T) {
 	var nextParallelActionID atomic.Uint64
 	buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(baseBuildDirectoryCreator, &nextParallelActionID)
 	_, _, err := buildDirectoryCreator.GetBuildDirectory(
+		ctx,
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		false)
 	require.Equal(t, status.Error(codes.Internal, "Failed to create build directory \"base-directory/e3b0c44298fc1c14\": Directory already exists"), err)
 }
 
 func TestSharedBuildDirectoryCreatorEnterBuildDirectoryFailure(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	// Failure to enter a build subdirectory is always an internal error.
 	baseBuildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	baseBuildDirectory := mock.NewMockBuildDirectory(ctrl)
 	baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(
+		ctx,
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		false,
 	).Return(baseBuildDirectory, ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory")), nil)
@@ -74,19 +80,21 @@ func TestSharedBuildDirectoryCreatorEnterBuildDirectoryFailure(t *testing.T) {
 	var nextParallelActionID atomic.Uint64
 	buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(baseBuildDirectoryCreator, &nextParallelActionID)
 	_, _, err := buildDirectoryCreator.GetBuildDirectory(
+		ctx,
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		false)
 	require.Equal(t, status.Error(codes.Internal, "Failed to enter build directory \"base-directory/e3b0c44298fc1c14\": Out of file descriptors"), err)
 }
 
 func TestSharedBuildDirectoryCreatorCloseChildFailure(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	// Directory closure errors should be propagated.
 	baseBuildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	baseBuildDirectory := mock.NewMockBuildDirectory(ctrl)
 	baseBuildDirectoryPath := ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory"))
 	baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(
+		ctx,
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		false,
 	).Return(baseBuildDirectory, baseBuildDirectoryPath, nil)
@@ -100,6 +108,7 @@ func TestSharedBuildDirectoryCreatorCloseChildFailure(t *testing.T) {
 	var nextParallelActionID atomic.Uint64
 	buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(baseBuildDirectoryCreator, &nextParallelActionID)
 	buildDirectory, buildDirectoryPath, err := buildDirectoryCreator.GetBuildDirectory(
+		ctx,
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		false)
 	require.NoError(t, err)
@@ -108,7 +117,7 @@ func TestSharedBuildDirectoryCreatorCloseChildFailure(t *testing.T) {
 }
 
 func TestSharedBuildDirectoryCreatorRemoveAllFailure(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	// Directory removal errors should be propagated. Permission
 	// errors should be converted to internal errors, as they
@@ -117,6 +126,7 @@ func TestSharedBuildDirectoryCreatorRemoveAllFailure(t *testing.T) {
 	baseBuildDirectory := mock.NewMockBuildDirectory(ctrl)
 	baseBuildDirectoryPath := ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory"))
 	baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(
+		ctx,
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		false,
 	).Return(baseBuildDirectory, baseBuildDirectoryPath, nil)
@@ -130,6 +140,7 @@ func TestSharedBuildDirectoryCreatorRemoveAllFailure(t *testing.T) {
 	var nextParallelActionID atomic.Uint64
 	buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(baseBuildDirectoryCreator, &nextParallelActionID)
 	buildDirectory, buildDirectoryPath, err := buildDirectoryCreator.GetBuildDirectory(
+		ctx,
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		false)
 	require.NoError(t, err)
@@ -138,7 +149,7 @@ func TestSharedBuildDirectoryCreatorRemoveAllFailure(t *testing.T) {
 }
 
 func TestSharedBuildDirectoryCreatorCloseParentFailure(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	// Directory closure errors on the parent should also be
 	// propagated, but there is no need to prefix any additional
@@ -148,6 +159,7 @@ func TestSharedBuildDirectoryCreatorCloseParentFailure(t *testing.T) {
 	baseBuildDirectory := mock.NewMockBuildDirectory(ctrl)
 	baseBuildDirectoryPath := ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory"))
 	baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(
+		ctx,
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		false,
 	).Return(baseBuildDirectory, baseBuildDirectoryPath, nil)
@@ -161,6 +173,7 @@ func TestSharedBuildDirectoryCreatorCloseParentFailure(t *testing.T) {
 	var nextParallelActionID atomic.Uint64
 	buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(baseBuildDirectoryCreator, &nextParallelActionID)
 	buildDirectory, buildDirectoryPath, err := buildDirectoryCreator.GetBuildDirectory(
+		ctx,
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		false)
 	require.NoError(t, err)
@@ -169,7 +182,7 @@ func TestSharedBuildDirectoryCreatorCloseParentFailure(t *testing.T) {
 }
 
 func TestSharedBuildDirectoryCreatorSuccessNotParallel(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	// Successful build in a subdirectory for an action that does
 	// not run in parallel. The subdirectory name is based on the
@@ -178,6 +191,7 @@ func TestSharedBuildDirectoryCreatorSuccessNotParallel(t *testing.T) {
 	baseBuildDirectory := mock.NewMockBuildDirectory(ctrl)
 	baseBuildDirectoryPath := ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory"))
 	baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(
+		ctx,
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		false,
 	).Return(baseBuildDirectory, baseBuildDirectoryPath, nil)
@@ -191,6 +205,7 @@ func TestSharedBuildDirectoryCreatorSuccessNotParallel(t *testing.T) {
 	var nextParallelActionID atomic.Uint64
 	buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(baseBuildDirectoryCreator, &nextParallelActionID)
 	buildDirectory, buildDirectoryPath, err := buildDirectoryCreator.GetBuildDirectory(
+		ctx,
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		false)
 	require.NoError(t, err)
@@ -199,7 +214,7 @@ func TestSharedBuildDirectoryCreatorSuccessNotParallel(t *testing.T) {
 }
 
 func TestSharedBuildDirectoryCreatorMkdirSuccessParallel(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	baseBuildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	baseBuildDirectory := mock.NewMockBuildDirectory(ctrl)
@@ -210,6 +225,7 @@ func TestSharedBuildDirectoryCreatorMkdirSuccessParallel(t *testing.T) {
 	// Build directories for actions that run in parallel are simply
 	// named incrementally to prevent collisions.
 	baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(
+		ctx,
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		true,
 	).Return(baseBuildDirectory, baseBuildDirectoryPath, nil)
@@ -217,11 +233,13 @@ func TestSharedBuildDirectoryCreatorMkdirSuccessParallel(t *testing.T) {
 		status.Error(codes.Internal, "Foo"))
 	baseBuildDirectory.EXPECT().Close()
 	_, _, err := buildDirectoryCreator.GetBuildDirectory(
+		ctx,
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		true)
 	require.Equal(t, status.Error(codes.Internal, "Failed to create build directory \"base-directory/1\": Foo"), err)
 
 	baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(
+		ctx,
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		true,
 	).Return(baseBuildDirectory, baseBuildDirectoryPath, nil)
@@ -229,6 +247,7 @@ func TestSharedBuildDirectoryCreatorMkdirSuccessParallel(t *testing.T) {
 		status.Error(codes.Internal, "Foo"))
 	baseBuildDirectory.EXPECT().Close()
 	_, _, err = buildDirectoryCreator.GetBuildDirectory(
+		ctx,
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		true)
 	require.Equal(t, status.Error(codes.Internal, "Failed to create build directory \"base-directory/2\": Foo"), err)

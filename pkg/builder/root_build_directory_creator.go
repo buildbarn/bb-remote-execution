@@ -1,6 +1,8 @@
 package builder
 
 import (
+	"context"
+
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 )
@@ -22,7 +24,7 @@ func NewRootBuildDirectoryCreator(buildDirectory BuildDirectory) BuildDirectoryC
 	return dc
 }
 
-func (dc *rootBuildDirectoryCreator) GetBuildDirectory(actionDigest digest.Digest, mayRunInParallel bool) (BuildDirectory, *path.Trace, error) {
+func (dc *rootBuildDirectoryCreator) GetBuildDirectory(ctx context.Context, actionDigest digest.Digest, mayRunInParallel bool) (BuildDirectory, *path.Trace, error) {
 	return dc.buildDirectory, nil, nil
 }
 

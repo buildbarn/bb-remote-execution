@@ -1,6 +1,6 @@
 // +build darwin
 
-package processtablecleaning
+package cleaner
 
 import (
 	"time"

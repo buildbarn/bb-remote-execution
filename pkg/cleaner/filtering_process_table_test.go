@@ -1,11 +1,11 @@
-package processtablecleaning_test
+package cleaner_test
 
 import (
 	"testing"
 	"time"
 
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
-	ptc "github.com/buildbarn/bb-remote-execution/pkg/runner/processtablecleaning"
+	"github.com/buildbarn/bb-remote-execution/pkg/cleaner"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
@@ -17,9 +17,9 @@ func TestFilteringProcessTable(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	baseProcessTable := mock.NewMockProcessTable(ctrl)
-	processTable := ptc.NewFilteringProcessTable(
+	processTable := cleaner.NewFilteringProcessTable(
 		baseProcessTable,
-		func(process *ptc.Process) bool {
+		func(process *cleaner.Process) bool {
 			return process.UserID == 123 &&
 				process.CreationTime.After(time.Unix(1500000000, 0))
 		})
@@ -33,7 +33,7 @@ func TestFilteringProcessTable(t *testing.T) {
 	})
 
 	t.Run("Success", func(t *testing.T) {
-		baseProcessTable.EXPECT().GetProcesses().Return([]ptc.Process{
+		baseProcessTable.EXPECT().GetProcesses().Return([]cleaner.Process{
 			// Process is running as a different user. It
 			// should be left alone.
 			{
@@ -59,7 +59,7 @@ func TestFilteringProcessTable(t *testing.T) {
 
 		processes, err := processTable.GetProcesses()
 		require.NoError(t, err)
-		require.Equal(t, []ptc.Process{
+		require.Equal(t, []cleaner.Process{
 			{
 				ProcessID:    3,
 				UserID:       123,

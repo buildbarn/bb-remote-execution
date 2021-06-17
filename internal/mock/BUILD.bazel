@@ -66,6 +66,17 @@ gomock(
 )
 
 gomock(
+    name = "cleaner",
+    out = "cleaner.go",
+    interfaces = [
+        "Cleaner",
+        "ProcessTable",
+    ],
+    library = "//pkg/cleaner",
+    package = "mock",
+)
+
+gomock(
     name = "clock",
     out = "clock.go",
     interfaces = [
@@ -161,14 +172,6 @@ gomock(
 )
 
 gomock(
-    name = "processtablecleaning",
-    out = "processtablecleaning.go",
-    interfaces = ["ProcessTable"],
-    library = "//pkg/runner/processtablecleaning",
-    package = "mock",
-)
-
-gomock(
     name = "random",
     out = "random.go",
     interfaces = [
@@ -201,8 +204,11 @@ gomock(
 gomock(
     name = "runner",
     out = "runner.go",
-    interfaces = ["Runner"],
-    library = "//pkg/runner",
+    interfaces = [
+        "RunnerClient",
+        "RunnerServer",
+    ],
+    library = "//pkg/proto/runner",
     package = "mock",
 )
 
@@ -225,14 +231,6 @@ gomock(
     package = "mock",
 )
 
-gomock(
-    name = "sync",
-    out = "sync.go",
-    interfaces = ["InitializationFunc"],
-    library = "//pkg/sync",
-    package = "mock",
-)
-
 go_library(
     name = "mock",
     srcs = [
@@ -241,19 +239,18 @@ go_library(
         ":builder.go",
         ":buildqueuestate.go",
         ":cas.go",
+        ":cleaner.go",
         ":clock.go",
         ":cloud_aws.go",
         ":filesystem.go",
         ":filesystem_re.go",
         ":initialsizeclass.go",
-        ":processtablecleaning.go",
         ":random.go",
         ":remoteexecution.go",
         ":remoteworker.go",
         ":runner.go",
         ":storage_builder.go",
         ":storage_util.go",
-        ":sync.go",
     ] + select({
         "@io_bazel_rules_go//go/platform:darwin": [
             ":aliases.go",
@@ -273,6 +270,7 @@ go_library(
         "//pkg/builder",
         "//pkg/builder/initialsizeclass",
         "//pkg/cas",
+        "//pkg/cleaner",
         "//pkg/filesystem",
         "//pkg/filesystem/fuse",
         "//pkg/proto/buildqueuestate",
@@ -280,7 +278,6 @@ go_library(
         "//pkg/proto/remoteoutputservice",
         "//pkg/proto/remoteworker",
         "//pkg/proto/runner",
-        "//pkg/runner/processtablecleaning",
         "@com_github_aws_aws_sdk_go//service/autoscaling",
         "@com_github_aws_aws_sdk_go//service/ec2",
         "@com_github_aws_aws_sdk_go//service/sqs",

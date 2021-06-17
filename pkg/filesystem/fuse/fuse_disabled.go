@@ -27,7 +27,9 @@ type InitialContentsFetcher interface{}
 
 type Leaf interface{}
 
-type PrepopulatedDirectory interface{}
+type PrepopulatedDirectory interface {
+	RemoveAllChildren(forbidNewChildren bool) error
+}
 
 type SimpleRawFileSystemServerCallbacks struct{}
 

@@ -1,48 +1,44 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
-    name = "processtablecleaning",
+    name = "cleaner",
     srcs = [
+        "chained_cleaner.go",
+        "directory_cleaner.go",
         "filtering_process_table.go",
+        "idle_invoker.go",
         "process_table.go",
-        "process_table_cleaning_runner.go",
-        "process_table_cleaning_runner_disabled.go",
-        "process_table_cleaning_runner_unix.go",
+        "process_table_cleaner.go",
+        "process_table_cleaner_disabled.go",
+        "process_table_cleaner_unix.go",
         "system_process_table_darwin.go",
         "system_process_table_disabled.go",
         "system_process_table_linux.go",
     ],
-    importpath = "github.com/buildbarn/bb-remote-execution/pkg/runner/processtablecleaning",
+    importpath = "github.com/buildbarn/bb-remote-execution/pkg/cleaner",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/proto/runner",
-        "//pkg/runner",
-        "//pkg/sync",
+        "@com_github_buildbarn_bb_storage//pkg/filesystem",
         "@com_github_buildbarn_bb_storage//pkg/util",
+        "@org_golang_google_grpc//codes",
     ] + select({
         "@io_bazel_rules_go//go/platform:android": [
-            "@org_golang_google_grpc//codes",
             "@org_golang_x_sys//unix",
         ],
         "@io_bazel_rules_go//go/platform:darwin": [
-            "@org_golang_google_grpc//codes",
             "@org_golang_x_sys//unix",
         ],
         "@io_bazel_rules_go//go/platform:freebsd": [
-            "@org_golang_google_grpc//codes",
             "@org_golang_google_grpc//status",
             "@org_golang_x_sys//unix",
         ],
         "@io_bazel_rules_go//go/platform:ios": [
-            "@org_golang_google_grpc//codes",
             "@org_golang_x_sys//unix",
         ],
         "@io_bazel_rules_go//go/platform:linux": [
-            "@org_golang_google_grpc//codes",
             "@org_golang_x_sys//unix",
         ],
         "@io_bazel_rules_go//go/platform:windows": [
-            "@org_golang_google_grpc//codes",
             "@org_golang_google_grpc//status",
         ],
         "//conditions:default": [],
@@ -50,14 +46,18 @@ go_library(
 )
 
 go_test(
-    name = "processtablecleaning_test",
+    name = "cleaner_test",
     srcs = [
+        "chained_cleaner_test.go",
+        "directory_cleaner_test.go",
         "filtering_process_table_test.go",
+        "idle_invoker_test.go",
         "system_process_table_test.go",
     ],
-    embed = [":processtablecleaning"],
+    embed = [":cleaner"],
     deps = [
         "//internal/mock",
+        "@com_github_buildbarn_bb_storage//pkg/testutil",
         "@com_github_golang_mock//gomock",
         "@com_github_stretchr_testify//require",
         "@org_golang_google_grpc//codes",

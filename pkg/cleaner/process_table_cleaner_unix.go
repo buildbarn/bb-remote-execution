@@ -1,6 +1,6 @@
 // +build darwin freebsd linux
 
-package processtablecleaning
+package cleaner
 
 import (
 	"syscall"

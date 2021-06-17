@@ -1,4 +1,4 @@
-package processtablecleaning_test
+package cleaner_test
 
 import (
 	"os"
@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	ptc "github.com/buildbarn/bb-remote-execution/pkg/runner/processtablecleaning"
+	"github.com/buildbarn/bb-remote-execution/pkg/cleaner"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,7 +16,7 @@ func TestSystemProcessTable(t *testing.T) {
 		return
 	}
 
-	processes, err := ptc.SystemProcessTable.GetProcesses()
+	processes, err := cleaner.SystemProcessTable.GetProcesses()
 	require.NoError(t, err)
 
 	// The returned process table should contain the currently

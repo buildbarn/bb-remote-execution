@@ -1,6 +1,7 @@
 package builder
 
 import (
+	"context"
 	"log"
 	"strconv"
 
@@ -34,8 +35,8 @@ func NewSharedBuildDirectoryCreator(base BuildDirectoryCreator, nextParallelActi
 	}
 }
 
-func (dc *sharedBuildDirectoryCreator) GetBuildDirectory(actionDigest digest.Digest, mayRunInParallel bool) (BuildDirectory, *path.Trace, error) {
-	parentDirectory, parentDirectoryPath, err := dc.base.GetBuildDirectory(actionDigest, mayRunInParallel)
+func (dc *sharedBuildDirectoryCreator) GetBuildDirectory(ctx context.Context, actionDigest digest.Digest, mayRunInParallel bool) (BuildDirectory, *path.Trace, error) {
+	parentDirectory, parentDirectoryPath, err := dc.base.GetBuildDirectory(ctx, actionDigest, mayRunInParallel)
 	if err != nil {
 		return nil, nil, err
 	}

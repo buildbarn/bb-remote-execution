@@ -1,4 +1,4 @@
-package processtablecleaning
+package cleaner
 
 import (
 	"time"
