@@ -186,7 +186,7 @@ func (l *cleanLearner) Abandoned() {
 
 // smallerForegroundLearner is the initial Learner that is returned by
 // FeedbackDrivenAnalyzer when executing an action on a smaller size
-// class under the assumption execution is going to succeeed.
+// class under the assumption execution is going to succeed.
 type smallerForegroundLearner struct {
 	cleanLearner
 	smallerSizeClass uint32
@@ -235,7 +235,7 @@ func (l *smallerForegroundLearner) Failed(timedOut bool) (time.Duration, Learner
 // largestForegroundLearner is the final Learner that is returned by
 // FeedbackDrivenAnalyzer when initially executing an action on a
 // smaller size class under the assumption execution is going to
-// succeeed (which didn't end up being the case).
+// succeed (which didn't end up being the case).
 type largestForegroundLearner struct {
 	cleanLearner
 	smallerSizeClass uint32
