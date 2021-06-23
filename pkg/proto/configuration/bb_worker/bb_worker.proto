@@ -34,8 +34,9 @@ message ApplicationConfiguration {
   // Maximum number of directory listings to keep in memory.
   uint64 maximum_memory_cached_directories = 12;
 
-  // Instance name that needs to be reported to the scheduler.
-  string instance_name = 16;
+  // Was 'instance_name'. This option has been renamed to
+  // 'RunnerConfiguration.instance_name_prefix'.
+  reserved 16;
 
   // Was 'file_pool_directory_path'. This option has been renamed to
   // 'file_pool.directory_path'.
@@ -118,6 +119,10 @@ message RunnerConfiguration {
 
   // Number of actions to run concurrently on this runner.
   uint64 concurrency = 2;
+
+  // The prefix of the instance name for which requests from clients
+  // should be routed to this worker.
+  string instance_name_prefix = 13;
 
   // Platform properties that need to be reported to the scheduler.
   build.bazel.remote.execution.v2.Platform platform = 3;

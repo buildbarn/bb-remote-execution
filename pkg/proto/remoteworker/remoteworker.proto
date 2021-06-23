@@ -47,10 +47,11 @@ message SynchronizeRequest {
   // logs, dashboards, etc.
   map<string, string> worker_id = 1;
 
-  // The instance of the execution system to operate against. A
-  // scheduler may support multiple instances of the execution system
-  // (with their own workers, storage, caches, etc.).
-  string instance_name = 2;
+  // The prefix of the instance name for which requests from clients
+  // should be routed to this worker. Any trailing components will be
+  // returned by the scheduler through
+  // DesiredState.Executing.instance_name_suffix.
+  string instance_name_prefix = 2;
 
   // The platform features available for the execution environment. The
   // scheduler uses these features to determine which actions are
@@ -169,6 +170,13 @@ message DesiredState {
     // generated. The worker can attach this data to
     // ExecutedActionMetadata's auxiliary_metadata.
     repeated google.protobuf.Any auxiliary_metadata = 6;
+
+    // Additional components of the instance name that the client
+    // provided as part of the ExecuteRequest, but were not announced by
+    // the worker as part of SynchronizeRequest.instance_name_prefix.
+    // The worker needs to append these components to its instance name
+    // prefix when making requests against storage.
+    string instance_name_suffix = 7;
   }
 
   oneof worker_state {

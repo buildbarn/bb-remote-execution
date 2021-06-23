@@ -40,12 +40,17 @@ var (
 			}
 			return s
 		},
-		"action_url": func(browserURL *url.URL, instanceName string, actionDigest *remoteexecution.Digest) string {
-			i, err := digest.NewInstanceName(instanceName)
+		"action_url": func(browserURL *url.URL, instanceNamePrefix, instanceNameSuffix string, actionDigest *remoteexecution.Digest) string {
+			iPrefix, err := digest.NewInstanceName(instanceNamePrefix)
 			if err != nil {
 				return ""
 			}
-			d, err := i.NewDigestFromProto(actionDigest)
+			iSuffix, err := digest.NewInstanceName(instanceNameSuffix)
+			if err != nil {
+				return ""
+			}
+			instanceName := digest.NewInstanceNamePatcher(digest.EmptyInstanceName, iPrefix).PatchInstanceName(iSuffix)
+			d, err := instanceName.NewDigestFromProto(actionDigest)
 			if err != nil {
 				return ""
 			}
@@ -139,7 +144,7 @@ var (
     <table>
       <thead>
         <tr>
-          <th>Instance name</th>
+          <th>Instance name prefix</th>
           <th>Platform</th>
           <th>Size class</th>
           <th>Timeout</th>
@@ -152,7 +157,7 @@ var (
       {{range .PlatformQueues}}
         <tr>
           {{$platformQueueName := .Name}}
-          <td rowspan="{{len .SizeClassQueues}}">{{$platformQueueName.InstanceName | printf "%#v"}}</td>
+          <td rowspan="{{len .SizeClassQueues}}">{{$platformQueueName.InstanceNamePrefix | printf "%#v"}}</td>
           <td rowspan="{{len .SizeClassQueues}}">{{proto_to_json $platformQueueName.Platform}}</td>
           {{$addDivider := false}}
           {{range .SizeClassQueues}}
@@ -196,11 +201,12 @@ var (
     {{$now := .Now}}
     {{$sizeClassQueueName := .Operation.SizeClassQueueName}}
     {{$platformQueueName := $sizeClassQueueName.PlatformQueueName}}
-    <p>Instance name: {{$platformQueueName.InstanceName | printf "%#v"}}<br/>
+    <p>Instance name prefix: {{$platformQueueName.InstanceNamePrefix | printf "%#v"}}<br/>
+    Instance name suffix: {{.Operation.InstanceNameSuffix | printf "%#v"}}<br/>
     Platform: {{proto_to_json $platformQueueName.Platform}}<br/>
     Size class: {{$sizeClassQueueName.SizeClass}}<br/>
     Invocation ID: {{proto_to_json .Operation.InvocationId}}<br/>
-    Action digest: <a href="{{action_url .BrowserURL $platformQueueName.InstanceName .Operation.ActionDigest}}">{{proto_to_json .Operation.ActionDigest}}</a><br/>
+    Action digest: <a href="{{action_url .BrowserURL $platformQueueName.InstanceNamePrefix .Operation.InstanceNameSuffix .Operation.ActionDigest}}">{{proto_to_json .Operation.ActionDigest}}</a><br/>
     Age: {{time_past .Operation.QueuedTimestamp $now}}<br/>
     Timeout: {{time_future .Operation.Timeout $now}}<br/>
     Target ID: {{.Operation.TargetId}}<br/>
@@ -281,7 +287,7 @@ var (
             <a class="text-monospace" href="operation?name={{.Name}}" style="color: {{to_foreground_color .Name}}">{{abbreviate .Name}}</a>
           </td>
           <td style="background-color: {{to_background_color .ActionDigest.Hash}}">
-            <a class="text-monospace" href="{{action_url $browserURL .SizeClassQueueName.PlatformQueueName.InstanceName .ActionDigest}}" style="color: {{to_foreground_color .ActionDigest.Hash}}">{{abbreviate .ActionDigest.Hash}}</a>
+            <a class="text-monospace" href="{{action_url $browserURL .SizeClassQueueName.PlatformQueueName.InstanceNamePrefix .InstanceNameSuffix .ActionDigest}}" style="color: {{to_foreground_color .ActionDigest.Hash}}">{{abbreviate .ActionDigest.Hash}}</a>
           </td>
           <td>{{.TargetId}}</td>
           {{if operation_stage_queued .}}
@@ -332,7 +338,7 @@ var (
     <h1>{{if .JustQueuedInvocations}}Queued{{else}}All{{end}} invocations</h1>
     {{$sizeClassQueueName := .SizeClassQueueName}}
     {{$platformQueueName := $sizeClassQueueName.PlatformQueueName}}
-    <p>Instance name: {{$platformQueueName.InstanceName | printf "%#v"}}<br/>
+    <p>Instance name prefix: {{$platformQueueName.InstanceNamePrefix | printf "%#v"}}<br/>
     Platform: {{proto_to_json $platformQueueName.Platform}}<br/>
     Size class: {{$sizeClassQueueName.SizeClass}}</p>
     <table>
@@ -381,7 +387,7 @@ var (
     <h1>Queued operations</h1>
     {{$sizeClassQueueName := .SizeClassQueueName}}
     {{$platformQueueName := $sizeClassQueueName.PlatformQueueName}}
-    <p>Instance name: {{$platformQueueName.InstanceName | printf "%#v"}}<br/>
+    <p>Instance name prefix: {{$platformQueueName.InstanceNamePrefix | printf "%#v"}}<br/>
     Platform: {{proto_to_json $platformQueueName.Platform}}<br/>
     Size class: {{$sizeClassQueueName.SizeClass}}<br/>
     {{$invocationID := proto_to_json .InvocationID}}
@@ -413,7 +419,7 @@ var (
             <a class="text-monospace" href="operation?name={{.Name}}" style="color: {{to_foreground_color .Name}}">{{abbreviate .Name}}</a>
           </td>
           <td style="background-color: {{to_background_color .ActionDigest.Hash}}">
-            <a class="text-monospace" href="{{action_url $browserURL $platformQueueName.InstanceName .ActionDigest}}" style="color: {{to_foreground_color .ActionDigest.Hash}}">{{abbreviate .ActionDigest.Hash}}</a>
+            <a class="text-monospace" href="{{action_url $browserURL $platformQueueName.InstanceNamePrefix .InstanceNameSuffix .ActionDigest}}" style="color: {{to_foreground_color .ActionDigest.Hash}}">{{abbreviate .ActionDigest.Hash}}</a>
           </td>
           <td>{{.TargetId}}</td>
         </tr>
@@ -439,7 +445,7 @@ var (
     <h1>{{if .JustExecutingWorkers}}Executing{{else}}All{{end}} workers</h1>
     {{$sizeClassQueueName := .SizeClassQueueName}}
     {{$platformQueueName := $sizeClassQueueName.PlatformQueueName}}
-    <p>Instance name: {{$platformQueueName.InstanceName | printf "%#v"}}<br/>
+    <p>Instance name prefix: {{$platformQueueName.InstanceNamePrefix | printf "%#v"}}<br/>
     Platform: {{proto_to_json $platformQueueName.Platform}}<br/>
     Size class: {{$sizeClassQueueName.SizeClass}}</p>
     <p>Showing workers [{{.PaginationInfo.StartIndex}}, {{.EndIndex}}) of {{.PaginationInfo.TotalEntries}} in total.
@@ -471,7 +477,7 @@ var (
               <a class="text-monospace" href="operation?name={{.Name}}" style="color: {{to_foreground_color .Name}}">{{abbreviate .Name}}</a>
             </td>
             <td style="background-color: {{to_background_color .ActionDigest.Hash}}">
-              <a class="text-monospace" href="{{action_url $browserURL $platformQueueName.InstanceName .ActionDigest}}" style="color: {{to_foreground_color .ActionDigest.Hash}}">{{abbreviate .ActionDigest.Hash}}</a>
+              <a class="text-monospace" href="{{action_url $browserURL $platformQueueName.InstanceNamePrefix .InstanceNameSuffix .ActionDigest}}" style="color: {{to_foreground_color .ActionDigest.Hash}}">{{abbreviate .ActionDigest.Hash}}</a>
             </td>
             <td>{{.TargetId}}</td>
           {{else}}
@@ -498,7 +504,7 @@ var (
   <body>
     <h1>Drains</h1>
     {{$platformQueueName := .SizeClassQueueName.PlatformQueueName}}
-    <p>Instance name: {{$platformQueueName.InstanceName | printf "%#v"}}<br/>
+    <p>Instance name prefix: {{$platformQueueName.InstanceNamePrefix | printf "%#v"}}<br/>
     Platform: {{proto_to_json $platformQueueName.Platform}}<br/>
     Size class: {{.SizeClassQueueName.SizeClass}}</p>
     {{$sizeClassQueueName := proto_to_json .SizeClassQueueName}}

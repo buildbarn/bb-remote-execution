@@ -25,11 +25,12 @@ import (
 // build actions.
 type BuildClient struct {
 	// Constant fields.
-	scheduler     remoteworker.OperationQueueClient
-	buildExecutor BuildExecutor
-	filePool      filesystem.FilePool
-	clock         clock.Clock
-	instanceName  digest.InstanceName
+	scheduler           remoteworker.OperationQueueClient
+	buildExecutor       BuildExecutor
+	filePool            filesystem.FilePool
+	clock               clock.Clock
+	instanceNamePrefix  digest.InstanceName
+	instanceNamePatcher digest.InstanceNamePatcher
 
 	// Mutable fields that are always set.
 	request               remoteworker.SynchronizeRequest
@@ -43,19 +44,20 @@ type BuildClient struct {
 
 // NewBuildClient creates a new BuildClient instance that is set to the
 // initial state (i.e., being idle).
-func NewBuildClient(scheduler remoteworker.OperationQueueClient, buildExecutor BuildExecutor, filePool filesystem.FilePool, clock clock.Clock, workerID map[string]string, instanceName digest.InstanceName, platform *remoteexecution.Platform, sizeClass uint32) *BuildClient {
+func NewBuildClient(scheduler remoteworker.OperationQueueClient, buildExecutor BuildExecutor, filePool filesystem.FilePool, clock clock.Clock, workerID map[string]string, instanceNamePrefix digest.InstanceName, platform *remoteexecution.Platform, sizeClass uint32) *BuildClient {
 	return &BuildClient{
-		scheduler:     scheduler,
-		buildExecutor: buildExecutor,
-		filePool:      filePool,
-		clock:         clock,
-		instanceName:  instanceName,
+		scheduler:           scheduler,
+		buildExecutor:       buildExecutor,
+		filePool:            filePool,
+		clock:               clock,
+		instanceNamePrefix:  instanceNamePrefix,
+		instanceNamePatcher: digest.NewInstanceNamePatcher(digest.EmptyInstanceName, instanceNamePrefix),
 
 		request: remoteworker.SynchronizeRequest{
-			WorkerId:     workerID,
-			InstanceName: instanceName.String(),
-			Platform:     platform,
-			SizeClass:    sizeClass,
+			WorkerId:           workerID,
+			InstanceNamePrefix: instanceNamePrefix.String(),
+			Platform:           platform,
+			SizeClass:          sizeClass,
 			CurrentState: &remoteworker.CurrentState{
 				WorkerState: &remoteworker.CurrentState_Idle{
 					Idle: &emptypb.Empty{},
@@ -66,7 +68,12 @@ func NewBuildClient(scheduler remoteworker.OperationQueueClient, buildExecutor B
 	}
 }
 
-func (bc *BuildClient) startExecution(executionRequest *remoteworker.DesiredState_Executing) {
+func (bc *BuildClient) startExecution(executionRequest *remoteworker.DesiredState_Executing) error {
+	instanceNameSuffix, err := digest.NewInstanceName(executionRequest.InstanceNameSuffix)
+	if err != nil {
+		return util.StatusWrapf(err, "Invalid instance name suffix %#v", executionRequest.InstanceNameSuffix)
+	}
+
 	bc.stopExecution()
 
 	// Spawn the execution of the build action.
@@ -83,7 +90,7 @@ func (bc *BuildClient) startExecution(executionRequest *remoteworker.DesiredStat
 		executeResponse := bc.buildExecutor.Execute(
 			ctx,
 			bc.filePool,
-			bc.instanceName,
+			bc.instanceNamePatcher.PatchInstanceName(instanceNameSuffix),
 			executionRequest,
 			updates)
 		updates <- &remoteworker.CurrentState_Executing{
@@ -110,6 +117,7 @@ func (bc *BuildClient) startExecution(executionRequest *remoteworker.DesiredStat
 		},
 	}
 	bc.inExecutingState = true
+	return nil
 }
 
 func (bc *BuildClient) stopExecution() {
@@ -201,7 +209,9 @@ func (bc *BuildClient) Run() error {
 			// Scheduler is requesting us to execute the
 			// next action, maybe forcing us to to stop
 			// execution of the current build action.
-			bc.startExecution(workerState.Executing)
+			if err := bc.startExecution(workerState.Executing); err != nil {
+				return err
+			}
 		case *remoteworker.DesiredState_Idle:
 			// Scheduler is forcing us to go back to idle.
 			bc.stopExecution()

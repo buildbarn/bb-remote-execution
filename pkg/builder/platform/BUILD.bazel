@@ -1,0 +1,36 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "platform",
+    srcs = [
+        "key.go",
+        "trie.go",
+    ],
+    importpath = "github.com/buildbarn/bb-remote-execution/pkg/builder/platform",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/proto/buildqueuestate",
+        "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:execution",
+        "@com_github_buildbarn_bb_storage//pkg/digest",
+        "@com_github_buildbarn_bb_storage//pkg/util",
+        "@com_github_golang_protobuf//jsonpb:go_default_library_gen",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+        "@org_golang_google_protobuf//encoding/protojson",
+    ],
+)
+
+go_test(
+    name = "platform_test",
+    srcs = ["key_test.go"],
+    embed = [":platform"],
+    deps = [
+        "//pkg/proto/buildqueuestate",
+        "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:execution",
+        "@com_github_buildbarn_bb_storage//pkg/digest",
+        "@com_github_buildbarn_bb_storage//pkg/testutil",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+    ],
+)

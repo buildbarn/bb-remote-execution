@@ -29,13 +29,13 @@ func TestBuildClient(t *testing.T) {
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(1000, 0))
 	workerID := map[string]string{"hostname": "example.com"}
-	instanceName := digest.MustNewInstanceName("main")
+	instanceName := digest.MustNewInstanceName("prefix/suffix")
 	platform := &remoteexecution.Platform{
 		Properties: []*remoteexecution.Platform_Property{
 			{Name: "os", Value: "linux"},
 		},
 	}
-	bc := builder.NewBuildClient(operationQueueClient, buildExecutor, filePool, clock, workerID, instanceName, platform, 4)
+	bc := builder.NewBuildClient(operationQueueClient, buildExecutor, filePool, clock, workerID, digest.MustNewInstanceName("prefix"), platform, 4)
 
 	// By default, the client should not be in the executing state.
 	require.False(t, bc.InExecutingState())
@@ -43,10 +43,10 @@ func TestBuildClient(t *testing.T) {
 	// If synchronizing against the scheduler doesn't yield any
 	// action to run, the client should remain in the idle state.
 	operationQueueClient.EXPECT().Synchronize(context.Background(), &remoteworker.SynchronizeRequest{
-		WorkerId:     workerID,
-		InstanceName: "main",
-		Platform:     platform,
-		SizeClass:    4,
+		WorkerId:           workerID,
+		InstanceNamePrefix: "prefix",
+		Platform:           platform,
+		SizeClass:          4,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Idle{
 				Idle: &emptypb.Empty{},
@@ -71,13 +71,14 @@ func TestBuildClient(t *testing.T) {
 				SizeBytes: 456,
 			},
 		},
-		QueuedTimestamp: &timestamppb.Timestamp{Seconds: 1007},
+		QueuedTimestamp:    &timestamppb.Timestamp{Seconds: 1007},
+		InstanceNameSuffix: "suffix",
 	}
 	operationQueueClient.EXPECT().Synchronize(context.Background(), &remoteworker.SynchronizeRequest{
-		WorkerId:     workerID,
-		InstanceName: "main",
-		Platform:     platform,
-		SizeClass:    4,
+		WorkerId:           workerID,
+		InstanceNamePrefix: "prefix",
+		Platform:           platform,
+		SizeClass:          4,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Idle{
 				Idle: &emptypb.Empty{},
@@ -117,17 +118,18 @@ func TestBuildClient(t *testing.T) {
 				SizeBytes: 456,
 			},
 		},
-		QueuedTimestamp: &timestamppb.Timestamp{Seconds: 1008},
+		QueuedTimestamp:    &timestamppb.Timestamp{Seconds: 1008},
+		InstanceNameSuffix: "suffix",
 	}
 	clock.EXPECT().Now().Return(time.Unix(1015, 0)).Times(2)
 	timer1 := mock.NewMockTimer(ctrl)
 	clock.EXPECT().NewTimer(5*time.Second).Return(timer1, nil)
 	timer1.EXPECT().Stop().Return(true)
 	operationQueueClient.EXPECT().Synchronize(context.Background(), &remoteworker.SynchronizeRequest{
-		WorkerId:     workerID,
-		InstanceName: "main",
-		Platform:     platform,
-		SizeClass:    4,
+		WorkerId:           workerID,
+		InstanceNamePrefix: "prefix",
+		Platform:           platform,
+		SizeClass:          4,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
 				Executing: &remoteworker.CurrentState_Executing{
@@ -174,10 +176,10 @@ func TestBuildClient(t *testing.T) {
 	clock.EXPECT().NewTimer(5*time.Second).Return(timer2, nil)
 	timer2.EXPECT().Stop().Return(true)
 	operationQueueClient.EXPECT().Synchronize(context.Background(), testutil.EqProto(t, &remoteworker.SynchronizeRequest{
-		WorkerId:     workerID,
-		InstanceName: "main",
-		Platform:     platform,
-		SizeClass:    4,
+		WorkerId:           workerID,
+		InstanceNamePrefix: "prefix",
+		Platform:           platform,
+		SizeClass:          4,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
 				Executing: &remoteworker.CurrentState_Executing{

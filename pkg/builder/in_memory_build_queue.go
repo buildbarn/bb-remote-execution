@@ -14,6 +14,7 @@ import (
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/bazelbuild/remote-apis/build/bazel/semver"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder/initialsizeclass"
+	"github.com/buildbarn/bb-remote-execution/pkg/builder/platform"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/buildqueuestate"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
@@ -21,7 +22,6 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/util"
-	"github.com/golang/protobuf/jsonpb"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -30,7 +30,6 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -51,7 +50,7 @@ var (
 			Name:      "in_memory_build_queue_tasks_queued_total",
 			Help:      "Number of tasks created through Execute().",
 		},
-		[]string{"instance_name", "platform", "size_class", "do_not_cache"})
+		[]string{"instance_name_prefix", "platform", "size_class", "do_not_cache"})
 	inMemoryBuildQueueTasksQueuedDurationSeconds = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
@@ -60,7 +59,7 @@ var (
 			Help:      "Time in seconds that tasks were queued before executing.",
 			Buckets:   util.DecimalExponentialBuckets(-3, 6, 2),
 		},
-		[]string{"instance_name", "platform", "size_class"})
+		[]string{"instance_name_prefix", "platform", "size_class"})
 	inMemoryBuildQueueTasksExecutingDurationSeconds = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
@@ -69,7 +68,7 @@ var (
 			Help:      "Time in seconds that tasks were executing before completing.",
 			Buckets:   util.DecimalExponentialBuckets(-3, 6, 2),
 		},
-		[]string{"instance_name", "platform", "size_class", "result", "grpc_code"})
+		[]string{"instance_name_prefix", "platform", "size_class", "result", "grpc_code"})
 	inMemoryBuildQueueTasksExecutingRetries = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
@@ -78,7 +77,7 @@ var (
 			Help:      "Number of times that tasks were retried before completing.",
 			Buckets:   prometheus.LinearBuckets(0, 1, 11),
 		},
-		[]string{"instance_name", "platform", "size_class", "result", "grpc_code"})
+		[]string{"instance_name_prefix", "platform", "size_class", "result", "grpc_code"})
 	inMemoryBuildQueueTasksCompletedDurationSeconds = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
@@ -87,7 +86,7 @@ var (
 			Help:      "Time in seconds that tasks were completed before being removed.",
 			Buckets:   util.DecimalExponentialBuckets(-3, 6, 2),
 		},
-		[]string{"instance_name", "platform", "size_class"})
+		[]string{"instance_name_prefix", "platform", "size_class"})
 
 	inMemoryBuildQueueWorkersCreatedTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -96,7 +95,7 @@ var (
 			Name:      "in_memory_build_queue_workers_created_total",
 			Help:      "Number of workers created by Synchronize().",
 		},
-		[]string{"instance_name", "platform", "size_class"})
+		[]string{"instance_name_prefix", "platform", "size_class"})
 	inMemoryBuildQueueWorkersRemovedTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "buildbarn",
@@ -104,7 +103,7 @@ var (
 			Name:      "in_memory_build_queue_workers_removed_total",
 			Help:      "Number of workers removed due to expiration.",
 		},
-		[]string{"instance_name", "platform", "size_class", "state"})
+		[]string{"instance_name_prefix", "platform", "size_class", "state"})
 )
 
 // InMemoryBuildQueueConfiguration contains all the tunable settings of
@@ -163,17 +162,23 @@ type InMemoryBuildQueue struct {
 	configuration                       *InMemoryBuildQueueConfiguration
 	platformQueueAbsenceHardFailureTime time.Time
 	maximumMessageSizeBytes             int
-	initialSizeClassAnalyzers           map[platformKey]initialsizeclass.Analyzer
-	defaultInitialSizeClassAnalyzer     initialsizeclass.Analyzer
+	initialSizeClassAnalyzersTrie       *platform.Trie
+	initialSizeClassAnalyzers           []initialsizeclass.Analyzer
 
-	lock            sync.Mutex
-	platformQueues  map[platformKey]*platformQueue
-	sizeClassQueues map[sizeClassKey]*sizeClassQueue
+	lock               sync.Mutex
+	platformQueuesTrie *platform.Trie
+	platformQueues     []*platformQueue
+	sizeClassQueues    map[sizeClassKey]*sizeClassQueue
 
 	// Bookkeeping for WaitExecution(). This call permits us to
 	// re-attach to operations by name. It also allows us to obtain
 	// results for historical actions, up to a certain degree.
 	operationsNameMap map[string]*operation
+
+	// Map of each task that does not have DoNotCache set by digest.
+	// This map is used to deduplicate concurrent requests for the
+	// same action.
+	inFlightDeduplicationMap map[digest.Digest]*task
 
 	// Time value that is updated during every mutation of build
 	// queue state. This reduces the number of clock accesses, while
@@ -207,11 +212,12 @@ func NewInMemoryBuildQueue(contentAddressableStorage blobstore.BlobAccess, clock
 		configuration:                       configuration,
 		platformQueueAbsenceHardFailureTime: clock.Now().Add(configuration.PlatformQueueWithNoWorkersTimeout),
 		maximumMessageSizeBytes:             maximumMessageSizeBytes,
-		initialSizeClassAnalyzers:           map[platformKey]initialsizeclass.Analyzer{},
-		defaultInitialSizeClassAnalyzer:     defaultInitialSizeClassAnalyzer,
-		platformQueues:                      map[platformKey]*platformQueue{},
+		initialSizeClassAnalyzersTrie:       platform.NewTrie(),
+		initialSizeClassAnalyzers:           []initialsizeclass.Analyzer{defaultInitialSizeClassAnalyzer},
+		platformQueuesTrie:                  platform.NewTrie(),
 		sizeClassQueues:                     map[sizeClassKey]*sizeClassQueue{},
 		operationsNameMap:                   map[string]*operation{},
+		inFlightDeduplicationMap:            map[digest.Digest]*task{},
 	}
 }
 
@@ -229,8 +235,8 @@ var (
 // capable of using multiple size classes, as a maximum size class and
 // initialsizeclass.Analyzer can be provided for specifying how
 // operations are assigned to size classes.
-func (bq *InMemoryBuildQueue) RegisterPredeclaredPlatformQueue(instanceName digest.InstanceName, platform *remoteexecution.Platform, maximumQueuedBackgroundLearningOperations int, backgroundLearningOperationPriority int32, maximumSizeClass uint32, initialSizeClassAnalyzer initialsizeclass.Analyzer) error {
-	platformKey, err := newPlatformKey(instanceName, platform)
+func (bq *InMemoryBuildQueue) RegisterPredeclaredPlatformQueue(instanceNamePrefix digest.InstanceName, platformMessage *remoteexecution.Platform, maximumQueuedBackgroundLearningOperations int, backgroundLearningOperationPriority int32, maximumSizeClass uint32, initialSizeClassAnalyzer initialsizeclass.Analyzer) error {
+	platformKey, err := platform.NewKey(instanceNamePrefix, platformMessage)
 	if err != nil {
 		return err
 	}
@@ -238,13 +244,14 @@ func (bq *InMemoryBuildQueue) RegisterPredeclaredPlatformQueue(instanceName dige
 	bq.enter(bq.clock.Now())
 	defer bq.leave()
 
-	if _, ok := bq.platformQueues[platformKey]; ok {
-		return status.Error(codes.AlreadyExists, "A queue with the same name and platform already exists")
+	if bq.platformQueuesTrie.ContainsExact(platformKey) {
+		return status.Error(codes.AlreadyExists, "A queue with the same instance name prefix or platform already exists")
 	}
 
 	pq := bq.addPlatformQueue(platformKey, maximumQueuedBackgroundLearningOperations, backgroundLearningOperationPriority)
 	pq.addSizeClassQueue(bq, maximumSizeClass, false)
-	bq.initialSizeClassAnalyzers[platformKey] = initialSizeClassAnalyzer
+	bq.initialSizeClassAnalyzersTrie.Set(platformKey, len(bq.initialSizeClassAnalyzers)-1)
+	bq.initialSizeClassAnalyzers = append(bq.initialSizeClassAnalyzers, initialSizeClassAnalyzer)
 	return nil
 }
 
@@ -317,7 +324,7 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 		return util.StatusWrap(err, "Failed to obtain action")
 	}
 	action := actionMessage.(*remoteexecution.Action)
-	platformKey, err := newPlatformKey(instanceName, action.Platform)
+	platformKey, err := platform.NewKey(instanceName, action.Platform)
 	if err != nil {
 		return err
 	}
@@ -363,7 +370,7 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 		// REv2.1 and older don't provide platform properties as
 		// part of the Action message.
 		if action.Platform == nil {
-			platformKey, err = newPlatformKey(instanceName, command.Platform)
+			platformKey, err = platform.NewKey(instanceName, command.Platform)
 			if err != nil {
 				return err
 			}
@@ -377,10 +384,7 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 		}
 	}
 
-	initialSizeClassAnalyzer, ok := bq.initialSizeClassAnalyzers[platformKey]
-	if !ok {
-		initialSizeClassAnalyzer = bq.defaultInitialSizeClassAnalyzer
-	}
+	initialSizeClassAnalyzer := bq.initialSizeClassAnalyzers[bq.initialSizeClassAnalyzersTrie.GetLongestPrefix(platformKey)+1]
 	initialSizeClassSelector, err := initialSizeClassAnalyzer.Analyze(ctx, actionDigest.GetDigestFunction(), action)
 	if err != nil {
 		return util.StatusWrap(err, "Failed to analyze initial size class of action")
@@ -389,8 +393,8 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 	bq.enter(bq.clock.Now())
 	defer bq.leave()
 
-	pq, ok := bq.platformQueues[platformKey]
-	if !ok {
+	platformQueueIndex := bq.platformQueuesTrie.GetLongestPrefix(platformKey)
+	if platformQueueIndex < 0 {
 		code := codes.FailedPrecondition
 		if bq.now.Before(bq.platformQueueAbsenceHardFailureTime) {
 			// The scheduler process started not too long
@@ -405,13 +409,13 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 			code = codes.Unavailable
 		}
 		initialSizeClassSelector.Abandoned()
-		return status.Errorf(code, "No workers exist for instance %#v platform %s", platformKey.instanceName.String(), platformKey.platform)
+		return status.Errorf(code, "No workers exist for instance name prefix %#v platform %s", platformKey.GetInstanceNamePrefix().String(), platformKey.GetPlatformString())
 	}
+	pq := bq.platformQueues[platformQueueIndex]
 
 	// Create a new task in case none exist against which this
 	// request may be deduplicated.
-	inFlightDeduplicationKey := newInFlightDeduplicationKey(in.ActionDigest)
-	t, ok := pq.inFlightDeduplicationMap[inFlightDeduplicationKey]
+	t, ok := bq.inFlightDeduplicationMap[actionDigest]
 	tStage := remoteexecution.ExecutionStage_QUEUED
 	var scq *sizeClassQueue
 	if ok {
@@ -426,12 +430,14 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 		actionWithCustomTimeout.Timeout = durationpb.New(timeout)
 
 		t = &task{
-			operations: map[*invocation]*operation{},
+			operations:   map[*invocation]*operation{},
+			actionDigest: actionDigest,
 			desiredState: remoteworker.DesiredState_Executing{
-				ActionDigest:      in.ActionDigest,
-				Action:            &actionWithCustomTimeout,
-				QueuedTimestamp:   bq.getCurrentTime(),
-				AuxiliaryMetadata: auxiliaryMetadata,
+				ActionDigest:       in.ActionDigest,
+				Action:             &actionWithCustomTimeout,
+				QueuedTimestamp:    bq.getCurrentTime(),
+				AuxiliaryMetadata:  auxiliaryMetadata,
+				InstanceNameSuffix: pq.instanceNamePatcher.PatchInstanceName(instanceName).String(),
 			},
 			targetID:                targetID,
 			initialSizeClassLearner: initialSizeClassLearner,
@@ -442,7 +448,7 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 			t.desiredState.TraceContext = propagation.Binary(span.SpanContext())
 		}
 		if !action.DoNotCache {
-			pq.inFlightDeduplicationMap[inFlightDeduplicationKey] = t
+			bq.inFlightDeduplicationMap[actionDigest] = t
 		}
 	}
 
@@ -491,11 +497,11 @@ func (bq *InMemoryBuildQueue) WaitExecution(in *remoteexecution.WaitExecutionReq
 // used by a worker to report the completion of an operation and to
 // request more work.
 func (bq *InMemoryBuildQueue) Synchronize(ctx context.Context, request *remoteworker.SynchronizeRequest) (*remoteworker.SynchronizeResponse, error) {
-	instanceName, err := digest.NewInstanceName(request.InstanceName)
+	instanceNamePrefix, err := digest.NewInstanceName(request.InstanceNamePrefix)
 	if err != nil {
-		return nil, util.StatusWrapf(err, "Invalid instance name %#v", request.InstanceName)
+		return nil, util.StatusWrapf(err, "Invalid instance name %#v", request.InstanceNamePrefix)
 	}
-	platformKey, err := newPlatformKey(instanceName, request.Platform)
+	platformKey, err := platform.NewKey(instanceNamePrefix, request.Platform)
 	if err != nil {
 		return nil, err
 	}
@@ -519,7 +525,7 @@ func (bq *InMemoryBuildQueue) Synchronize(ctx context.Context, request *remotewo
 			bq.cleanupQueue.remove(scq.cleanupKey)
 		}
 	} else {
-		if pq, ok = bq.platformQueues[platformKey]; ok {
+		if platformQueueIndex := bq.platformQueuesTrie.GetExact(platformKey); platformQueueIndex >= 0 {
 			// Worker for this type of instance/platform pair has
 			// been observed before, but not for this size class.
 			// Create a new size class queue.
@@ -527,6 +533,7 @@ func (bq *InMemoryBuildQueue) Synchronize(ctx context.Context, request *remotewo
 			// Only allow this to take place if the platform
 			// queue is predeclared, as the build results
 			// are non-deterministic otherwise.
+			pq = bq.platformQueues[platformQueueIndex]
 			if maximumSizeClassQueue := pq.sizeClassQueues[len(pq.sizeClassQueues)-1]; maximumSizeClassQueue.mayBeRemoved {
 				return nil, status.Error(codes.InvalidArgument, "Cannot add multiple size classes to a platform queue that is not predeclared")
 			} else if maximumSizeClass := pq.sizeClasses[len(pq.sizeClasses)-1]; request.SizeClass > maximumSizeClass {
@@ -600,16 +607,12 @@ func (bq *InMemoryBuildQueue) ListPlatformQueues(ctx context.Context, request *e
 	defer bq.leave()
 
 	// Obtain platform queue IDs in sorted order.
-	var platformKeyList platformKeyList
-	for platformKey := range bq.platformQueues {
-		platformKeyList = append(platformKeyList, platformKey)
-	}
-	sort.Sort(platformKeyList)
+	platformQueueList := append(platformQueueList(nil), bq.platformQueues...)
+	sort.Sort(platformQueueList)
 
 	// Extract status.
 	platformQueues := make([]*buildqueuestate.PlatformQueueState, 0, len(bq.platformQueues))
-	for _, platformKey := range platformKeyList {
-		pq := bq.platformQueues[platformKey]
+	for _, pq := range platformQueueList {
 		sizeClassQueues := make([]*buildqueuestate.SizeClassQueueState, 0, len(pq.sizeClassQueues))
 		for i, scq := range pq.sizeClassQueues {
 			executingWorkersCount := uint32(0)
@@ -629,7 +632,7 @@ func (bq *InMemoryBuildQueue) ListPlatformQueues(ctx context.Context, request *e
 			})
 		}
 		platformQueues = append(platformQueues, &buildqueuestate.PlatformQueueState{
-			Name:            platformKey.getPlatformQueueName(),
+			Name:            pq.platformKey.GetPlatformQueueName(),
 			SizeClassQueues: sizeClassQueues,
 		})
 	}
@@ -1061,102 +1064,53 @@ func (bq *InMemoryBuildQueue) getIdleSynchronizeResponse() *remoteworker.Synchro
 }
 
 // addPlatformQueue creates a new platform queue for a given platform.
-func (bq *InMemoryBuildQueue) addPlatformQueue(platformKey platformKey, maximumQueuedBackgroundLearningOperations int, backgroundLearningOperationPriority int32) *platformQueue {
+func (bq *InMemoryBuildQueue) addPlatformQueue(platformKey platform.Key, maximumQueuedBackgroundLearningOperations int, backgroundLearningOperationPriority int32) *platformQueue {
 	pq := &platformQueue{
-		platformKey: platformKey,
+		platformKey:         platformKey,
+		instanceNamePatcher: digest.NewInstanceNamePatcher(platformKey.GetInstanceNamePrefix(), digest.EmptyInstanceName),
 		maximumQueuedBackgroundLearningOperations: maximumQueuedBackgroundLearningOperations,
 		backgroundLearningOperationPriority:       backgroundLearningOperationPriority,
-		inFlightDeduplicationMap:                  map[inFlightDeduplicationKey]*task{},
 	}
-	bq.platformQueues[platformKey] = pq
+	bq.platformQueuesTrie.Set(platformKey, len(bq.platformQueues))
+	bq.platformQueues = append(bq.platformQueues, pq)
 	return pq
 }
 
-// platformKey can be used as a key for maps to uniquely identify a
-// certain platform that should have its own operation queue.
-type platformKey struct {
-	instanceName digest.InstanceName
-	platform     string
-}
+// platformQueueList is a list of *platformQueue objects that is
+// sortable. It is used by InMemoryBuildQueue.GetBuildQueueState() to
+// emit all platform queues in sorted order.
+type platformQueueList []*platformQueue
 
-// platformKeyList is a list of platformKey objects that is sortable. It
-// is used by InMemoryBuildQueue.GetBuildQueueState() to emit all
-// platform queues in sorted order.
-type platformKeyList []platformKey
-
-func (h platformKeyList) Len() int {
+func (h platformQueueList) Len() int {
 	return len(h)
 }
 
-func (h platformKeyList) Less(i, j int) bool {
-	ii := h[i].instanceName.String()
-	ij := h[j].instanceName.String()
-	return ii < ij || (ii == ij && h[i].platform < h[j].platform)
+func (h platformQueueList) Less(i, j int) bool {
+	pi, pj := h[i].platformKey, h[j].platformKey
+	ii, ij := pi.GetInstanceNamePrefix().String(), pj.GetInstanceNamePrefix().String()
+	return ii < ij || (ii == ij && pi.GetPlatformString() < pj.GetPlatformString())
 }
 
-func (h platformKeyList) Swap(i, j int) {
+func (h platformQueueList) Swap(i, j int) {
 	h[i], h[j] = h[j], h[i]
 }
 
-// getPlatformQueueName reobtains the instance name Platform message
-// that was used to construct the platformKey. As this is only used
-// infrequently, we don't bother keeping the unmarshalled Platform
-// message around to preserve memory usage.
-func (k *platformKey) getPlatformQueueName() *buildqueuestate.PlatformQueueName {
-	var platform remoteexecution.Platform
-	if err := protojson.Unmarshal([]byte(k.platform), &platform); err != nil {
-		panic(fmt.Sprintf("Failed to unmarshal previously marshalled platform: %s", err))
-	}
-	return &buildqueuestate.PlatformQueueName{
-		InstanceName: k.instanceName.String(),
-		Platform:     &platform,
-	}
-}
-
-func newPlatformKey(instanceName digest.InstanceName, platform *remoteexecution.Platform) (platformKey, error) {
-	// Ensure that the platform properties are in normal form.
-	if platform == nil {
-		platform = &remoteexecution.Platform{}
-	}
-
-	properties := platform.Properties
-	for i := 1; i < len(properties); i++ {
-		if properties[i-1].Name > properties[i].Name ||
-			(properties[i-1].Name == properties[i].Name &&
-				properties[i-1].Value >= properties[i].Value) {
-			return platformKey{}, status.Error(codes.InvalidArgument, "Platform properties are not sorted")
-		}
-	}
-	// TODO: Switch to protojson.Marshal(). We don't want to use it
-	// right now, as that will cause Prometheus metrics labels to
-	// become non-deterministic. protojson.Marshal() injects random
-	// whitespace into its output.
-	marshaler := jsonpb.Marshaler{}
-	platformString, err := marshaler.MarshalToString(platform)
-	if err != nil {
-		return platformKey{}, util.StatusWrapWithCode(err, codes.InvalidArgument, "Failed to marshal platform message")
-	}
-	return platformKey{
-		instanceName: instanceName,
-		platform:     platformString,
-	}, nil
-}
-
-func newPlatformKeyFromName(name *buildqueuestate.PlatformQueueName) (platformKey, error) {
+func newPlatformKeyFromName(name *buildqueuestate.PlatformQueueName) (platform.Key, error) {
+	var badPlatformKey platform.Key
 	if name == nil {
-		return platformKey{}, status.Error(codes.InvalidArgument, "No platform queue name provided")
+		return badPlatformKey, status.Error(codes.InvalidArgument, "No platform queue name provided")
 	}
-	instanceName, err := digest.NewInstanceName(name.InstanceName)
+	instanceName, err := digest.NewInstanceName(name.InstanceNamePrefix)
 	if err != nil {
-		return platformKey{}, util.StatusWrapf(err, "Invalid instance name %#v", name.InstanceName)
+		return badPlatformKey, util.StatusWrapf(err, "Invalid instance name prefix %#v", name.InstanceNamePrefix)
 	}
-	return newPlatformKey(instanceName, name.Platform)
+	return platform.NewKey(instanceName, name.Platform)
 }
 
 // sizeClassKey can be used as a key for maps to uniquely identify a set
 // of workers that are all for the same platform and have the same size.
 type sizeClassKey struct {
-	platformKey platformKey
+	platformKey platform.Key
 	sizeClass   uint32
 }
 
@@ -1176,18 +1130,9 @@ func newSizeClassKeyFromName(name *buildqueuestate.SizeClassQueueName) (sizeClas
 
 func (k *sizeClassKey) getSizeClassQueueName() *buildqueuestate.SizeClassQueueName {
 	return &buildqueuestate.SizeClassQueueName{
-		PlatformQueueName: k.platformKey.getPlatformQueueName(),
+		PlatformQueueName: k.platformKey.GetPlatformQueueName(),
 		SizeClass:         k.sizeClass,
 	}
-}
-
-// inFlightDeduplicationKey can be used as a key for maps to uniquely
-// identify an action. This key is used for deduplicating requests for
-// executing the same action.
-type inFlightDeduplicationKey string
-
-func newInFlightDeduplicationKey(digest *remoteexecution.Digest) inFlightDeduplicationKey {
-	return inFlightDeduplicationKey(prototext.Format(digest))
 }
 
 // platformQueue is an actual build operations queue that contains a
@@ -1195,23 +1140,23 @@ func newInFlightDeduplicationKey(digest *remoteexecution.Digest) inFlightDedupli
 // executed. An InMemoryBuildQueue contains a platformQueue for every
 // instance/platform for which one or more workers exist.
 type platformQueue struct {
-	platformKey                               platformKey
+	platformKey                               platform.Key
+	instanceNamePatcher                       digest.InstanceNamePatcher
 	maximumQueuedBackgroundLearningOperations int
 	backgroundLearningOperationPriority       int32
 
-	sizeClasses              []uint32
-	sizeClassQueues          []*sizeClassQueue
-	inFlightDeduplicationMap map[inFlightDeduplicationKey]*task
+	sizeClasses     []uint32
+	sizeClassQueues []*sizeClassQueue
 }
 
 func (pq *platformQueue) addSizeClassQueue(bq *InMemoryBuildQueue, sizeClass uint32, mayBeRemoved bool) *sizeClassQueue {
-	instanceNameStr := pq.platformKey.instanceName.String()
-	platformStr := pq.platformKey.platform
+	instanceNamePrefix := pq.platformKey.GetInstanceNamePrefix().String()
+	platformStr := pq.platformKey.GetPlatformString()
 	sizeClassStr := strconv.FormatUint(uint64(sizeClass), 10)
 	platformLabels := map[string]string{
-		"instance_name": instanceNameStr,
-		"platform":      platformStr,
-		"size_class":    sizeClassStr,
+		"instance_name_prefix": instanceNamePrefix,
+		"platform":             platformStr,
+		"size_class":           sizeClassStr,
 	}
 	scq := &sizeClassQueue{
 		platformQueue: pq,
@@ -1225,16 +1170,16 @@ func (pq *platformQueue) addSizeClassQueue(bq *InMemoryBuildQueue, sizeClass uin
 		drains:       map[string]*buildqueuestate.DrainState{},
 		drainsWakeup: make(chan struct{}),
 
-		tasksQueuedTotalTrue:          inMemoryBuildQueueTasksQueuedTotal.WithLabelValues(instanceNameStr, platformStr, sizeClassStr, "true"),
-		tasksQueuedTotalFalse:         inMemoryBuildQueueTasksQueuedTotal.WithLabelValues(instanceNameStr, platformStr, sizeClassStr, "false"),
-		tasksQueuedDurationSeconds:    inMemoryBuildQueueTasksQueuedDurationSeconds.WithLabelValues(instanceNameStr, platformStr, sizeClassStr),
+		tasksQueuedTotalTrue:          inMemoryBuildQueueTasksQueuedTotal.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr, "true"),
+		tasksQueuedTotalFalse:         inMemoryBuildQueueTasksQueuedTotal.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr, "false"),
+		tasksQueuedDurationSeconds:    inMemoryBuildQueueTasksQueuedDurationSeconds.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr),
 		tasksExecutingDurationSeconds: inMemoryBuildQueueTasksExecutingDurationSeconds.MustCurryWith(platformLabels),
 		tasksExecutingRetries:         inMemoryBuildQueueTasksExecutingRetries.MustCurryWith(platformLabels),
-		tasksCompletedDurationSeconds: inMemoryBuildQueueTasksCompletedDurationSeconds.WithLabelValues(instanceNameStr, platformStr, sizeClassStr),
+		tasksCompletedDurationSeconds: inMemoryBuildQueueTasksCompletedDurationSeconds.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr),
 
-		workersCreatedTotal:          inMemoryBuildQueueWorkersCreatedTotal.WithLabelValues(instanceNameStr, platformStr, sizeClassStr),
-		workersRemovedIdleTotal:      inMemoryBuildQueueWorkersRemovedTotal.WithLabelValues(instanceNameStr, platformStr, sizeClassStr, "Idle"),
-		workersRemovedExecutingTotal: inMemoryBuildQueueWorkersRemovedTotal.WithLabelValues(instanceNameStr, platformStr, sizeClassStr, "Executing"),
+		workersCreatedTotal:          inMemoryBuildQueueWorkersCreatedTotal.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr),
+		workersRemovedIdleTotal:      inMemoryBuildQueueWorkersRemovedTotal.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr, "Idle"),
+		workersRemovedExecutingTotal: inMemoryBuildQueueWorkersRemovedTotal.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr, "Executing"),
 	}
 
 	// Force creation of all metrics associated with this platform
@@ -1320,7 +1265,16 @@ func (scq *sizeClassQueue) remove(bq *InMemoryBuildQueue) {
 	pq.sizeClassQueues = append(pq.sizeClassQueues[:i], pq.sizeClassQueues[i+1:]...)
 
 	if len(pq.sizeClasses) == 0 {
-		delete(bq.platformQueues, pq.platformKey)
+		// No size classes remain for this platform queue,
+		// meaning that we can remove it. We must make sure the
+		// list of platform queues remains contiguous.
+		index := bq.platformQueuesTrie.GetExact(pq.platformKey)
+		newLength := len(bq.platformQueues) - 1
+		lastPQ := bq.platformQueues[newLength]
+		bq.platformQueues[index] = lastPQ
+		bq.platformQueues = bq.platformQueues[:newLength]
+		bq.platformQueuesTrie.Set(lastPQ.platformKey, index)
+		bq.platformQueuesTrie.Remove(pq.platformKey)
 	}
 }
 
@@ -1778,6 +1732,7 @@ func (o *operation) getOperationState(bq *InMemoryBuildQueue) *buildqueuestate.O
 		TargetId:           t.targetID,
 		Timeout:            bq.cleanupQueue.getTimestamp(o.cleanupKey),
 		Priority:           o.priority,
+		InstanceNameSuffix: t.desiredState.InstanceNameSuffix,
 	}
 	switch t.getStage() {
 	case remoteexecution.ExecutionStage_QUEUED:
@@ -1811,6 +1766,7 @@ func (o *operation) maybeStartCleanup(bq *InMemoryBuildQueue) {
 // is built and deduplication is performed.
 type task struct {
 	operations   map[*invocation]*operation
+	actionDigest digest.Digest
 	desiredState remoteworker.DesiredState_Executing
 
 	// The name of the target that triggered this operation. This
@@ -1937,6 +1893,7 @@ func (t *task) complete(bq *InMemoryBuildQueue, executeResponse *remoteexecution
 						backgroundAction.Timeout = durationpb.New(backgroundTimeout)
 						backgroundTask := &task{
 							operations:              map[*invocation]*operation{},
+							actionDigest:            t.actionDigest,
 							desiredState:            t.desiredState,
 							targetID:                t.targetID,
 							initialSizeClassLearner: backgroundInitialSizeClassLearner,
@@ -1984,7 +1941,7 @@ func (t *task) complete(bq *InMemoryBuildQueue, executeResponse *remoteexecution
 			// after completion. This reduces memory usage
 			// significantly. Keep the Action digest, so that
 			// there's still a way to figure out what the task was.
-			delete(pq.inFlightDeduplicationMap, newInFlightDeduplicationKey(t.desiredState.ActionDigest))
+			delete(bq.inFlightDeduplicationMap, t.actionDigest)
 			t.executeResponse = executeResponse
 			t.desiredState.Action = nil
 			t.stageChangeWakeup = nil

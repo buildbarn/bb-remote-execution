@@ -244,7 +244,7 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 		})
 		require.NoError(t, err)
 		_, err = stream.Recv()
-		testutil.RequireEqualStatus(t, status.Error(codes.Unavailable, "No workers exist for instance \"main\" platform {\"properties\":[{\"name\":\"cpu\",\"value\":\"armv6\"},{\"name\":\"os\",\"value\":\"linux\"}]}"), err)
+		testutil.RequireEqualStatus(t, status.Error(codes.Unavailable, "No workers exist for instance name prefix \"main\" platform {\"properties\":[{\"name\":\"cpu\",\"value\":\"armv6\"},{\"name\":\"os\",\"value\":\"linux\"}]}"), err)
 	})
 
 	// We can be certain that no workers will appear if a sufficient
@@ -290,7 +290,7 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 		})
 		require.NoError(t, err)
 		_, err = stream.Recv()
-		testutil.RequireEqualStatus(t, status.Error(codes.FailedPrecondition, "No workers exist for instance \"main\" platform {\"properties\":[{\"name\":\"cpu\",\"value\":\"armv6\"},{\"name\":\"os\",\"value\":\"linux\"}]}"), err)
+		testutil.RequireEqualStatus(t, status.Error(codes.FailedPrecondition, "No workers exist for instance name prefix \"main\" platform {\"properties\":[{\"name\":\"cpu\",\"value\":\"armv6\"},{\"name\":\"os\",\"value\":\"linux\"}]}"), err)
 	})
 }
 
@@ -328,7 +328,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 			"hostname": "worker123",
 			"thread":   "42",
 		},
-		InstanceName: "main",
+		InstanceNamePrefix: "main",
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
 				Executing: &remoteworker.CurrentState_Executing{
@@ -408,7 +408,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 			"hostname": "worker123",
 			"thread":   "42",
 		},
-		InstanceName: "main",
+		InstanceNamePrefix: "main",
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Idle{
 				Idle: &emptypb.Empty{},
@@ -571,7 +571,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 	})
 	require.NoError(t, err)
 	_, err = stream3.Recv()
-	testutil.RequireEqualStatus(t, err, status.Error(codes.FailedPrecondition, "No workers exist for instance \"main\" platform {}"))
+	testutil.RequireEqualStatus(t, err, status.Error(codes.FailedPrecondition, "No workers exist for instance name prefix \"main\" platform {}"))
 
 	// Operations that were queued should have been cancelled when
 	// the platform queue was garbage collected. All eight should
@@ -640,7 +640,7 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 			"hostname": "worker123",
 			"thread":   "42",
 		},
-		InstanceName: "main",
+		InstanceNamePrefix: "main",
 		Platform: &remoteexecution.Platform{
 			Properties: []*remoteexecution.Platform_Property{
 				{Name: "cpu", Value: "armv6"},
@@ -780,7 +780,7 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 	// associated with it, as there are multiple waiters.
 	sizeClassQueueName := &buildqueuestate.SizeClassQueueName{
 		PlatformQueueName: &buildqueuestate.PlatformQueueName{
-			InstanceName: "main",
+			InstanceNamePrefix: "main",
 			Platform: &remoteexecution.Platform{
 				Properties: []*remoteexecution.Platform_Property{
 					{Name: "cpu", Value: "armv6"},
@@ -886,7 +886,7 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	contentAddressableStorage.EXPECT().Get(
 		gomock.Any(),
-		digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+		digest.MustNewDigest("main/suffix", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
 	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
 		CommandDigest: &remoteexecution.Digest{
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
@@ -895,7 +895,7 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 	}, buffer.UserProvided))
 	contentAddressableStorage.EXPECT().Get(
 		gomock.Any(),
-		digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
+		digest.MustNewDigest("main/suffix", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
 	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
 		Platform: &remoteexecution.Platform{
 			Properties: []*remoteexecution.Platform_Property{
@@ -918,7 +918,7 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 			"hostname": "worker123",
 			"thread":   "42",
 		},
-		InstanceName: "main",
+		InstanceNamePrefix: "main",
 		Platform: &remoteexecution.Platform{
 			Properties: []*remoteexecution.Platform_Property{
 				{Name: "cpu", Value: "armv6"},
@@ -966,7 +966,7 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 	timer.EXPECT().Stop().Return(true)
 	uuidGenerator.EXPECT().Call().Return(uuid.Parse("36ebab65-3c4f-4faf-818b-2eabb4cd1b02"))
 	stream1, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
-		InstanceName: "main",
+		InstanceName: "main/suffix",
 		ActionDigest: &remoteexecution.Digest{
 			Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
 			SizeBytes: 123,
@@ -1005,7 +1005,7 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 				"hostname": "worker123",
 				"thread":   "42",
 			},
-			InstanceName: "main",
+			InstanceNamePrefix: "main",
 			Platform: &remoteexecution.Platform{
 				Properties: []*remoteexecution.Platform_Property{
 					{Name: "cpu", Value: "armv6"},
@@ -1035,7 +1035,8 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 							},
 							Timeout: &durationpb.Duration{Seconds: 1800},
 						},
-						QueuedTimestamp: &timestamppb.Timestamp{Seconds: 1001},
+						QueuedTimestamp:    &timestamppb.Timestamp{Seconds: 1001},
+						InstanceNameSuffix: "suffix",
 					},
 				},
 			},
@@ -1070,7 +1071,7 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 			"hostname": "worker123",
 			"thread":   "42",
 		},
-		InstanceName: "main",
+		InstanceNamePrefix: "main",
 		Platform: &remoteexecution.Platform{
 			Properties: []*remoteexecution.Platform_Property{
 				{Name: "cpu", Value: "armv6"},
@@ -1163,7 +1164,7 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 			"hostname": "worker123",
 			"thread":   "42",
 		},
-		InstanceName: "main",
+		InstanceNamePrefix: "main",
 		Platform: &remoteexecution.Platform{
 			Properties: []*remoteexecution.Platform_Property{
 				{Name: "cpu", Value: "armv6"},
@@ -1243,7 +1244,7 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 			"hostname": "worker123",
 			"thread":   "42",
 		},
-		InstanceName: "main",
+		InstanceNamePrefix: "main",
 		Platform: &remoteexecution.Platform{
 			Properties: []*remoteexecution.Platform_Property{
 				{Name: "cpu", Value: "armv6"},
@@ -1332,7 +1333,7 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 			"hostname": "worker123",
 			"thread":   "42",
 		},
-		InstanceName: "main",
+		InstanceNamePrefix: "main",
 		Platform: &remoteexecution.Platform{
 			Properties: []*remoteexecution.Platform_Property{
 				{Name: "cpu", Value: "armv6"},
@@ -1388,7 +1389,7 @@ func TestInMemoryBuildQueueIdleWorkerSynchronizationTimeout(t *testing.T) {
 			"hostname": "worker123",
 			"thread":   "42",
 		},
-		InstanceName: "main",
+		InstanceNamePrefix: "main",
 		Platform: &remoteexecution.Platform{
 			Properties: []*remoteexecution.Platform_Property{
 				{Name: "cpu", Value: "armv6"},
@@ -1456,8 +1457,8 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 			"hostname": "worker123",
 			"thread":   "42",
 		},
-		InstanceName: "main",
-		Platform:     platform,
+		InstanceNamePrefix: "main",
+		Platform:           platform,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
 				Executing: &remoteworker.CurrentState_Executing{
@@ -1485,7 +1486,7 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 	// The worker should not be drained by default.
 	sizeClassQueueName := &buildqueuestate.SizeClassQueueName{
 		PlatformQueueName: &buildqueuestate.PlatformQueueName{
-			InstanceName: "main",
+			InstanceNamePrefix: "main",
 			Platform: &remoteexecution.Platform{
 				Properties: []*remoteexecution.Platform_Property{
 					{Name: "cpu", Value: "armv6"},
@@ -1629,8 +1630,8 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 			"hostname": "worker123",
 			"thread":   "42",
 		},
-		InstanceName: "main",
-		Platform:     platform,
+		InstanceNamePrefix: "main",
+		Platform:           platform,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
 				Executing: &remoteworker.CurrentState_Executing{
@@ -1673,8 +1674,8 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 			"hostname": "worker123",
 			"thread":   "42",
 		},
-		InstanceName: "main",
-		Platform:     platform,
+		InstanceNamePrefix: "main",
+		Platform:           platform,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
 				Executing: &remoteworker.CurrentState_Executing{
@@ -1751,8 +1752,8 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 			"hostname": "worker123",
 			"thread":   "42",
 		},
-		InstanceName: "main",
-		Platform:     platform,
+		InstanceNamePrefix: "main",
+		Platform:           platform,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
 				Executing: &remoteworker.CurrentState_Executing{
@@ -1889,8 +1890,8 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 	// Otherwise, they should be returned alphabetically.
 	sizeClassQueueName := &buildqueuestate.SizeClassQueueName{
 		PlatformQueueName: &buildqueuestate.PlatformQueueName{
-			InstanceName: "main",
-			Platform:     platform,
+			InstanceNamePrefix: "main",
+			Platform:           platform,
 		},
 	}
 	clock.EXPECT().Now().Return(time.Unix(1036, 0))
@@ -1965,8 +1966,8 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 				"hostname": "worker123",
 				"thread":   strconv.FormatInt(int64(i), 10),
 			},
-			InstanceName: "main",
-			Platform:     platform,
+			InstanceNamePrefix: "main",
+			Platform:           platform,
 			CurrentState: &remoteworker.CurrentState{
 				WorkerState: &remoteworker.CurrentState_Idle{
 					Idle: &emptypb.Empty{},
@@ -2130,8 +2131,8 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonQueued(t *testing.T) {
 			"hostname": "worker123",
 			"thread":   "42",
 		},
-		InstanceName: "main",
-		Platform:     platform,
+		InstanceNamePrefix: "main",
+		Platform:           platform,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
 				Executing: &remoteworker.CurrentState_Executing{
@@ -2276,8 +2277,8 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonQueued(t *testing.T) {
 	initialSizeClassLearner.EXPECT().Abandoned()
 	sizeClassQueueName := &buildqueuestate.SizeClassQueueName{
 		PlatformQueueName: &buildqueuestate.PlatformQueueName{
-			InstanceName: "main",
-			Platform:     platform,
+			InstanceNamePrefix: "main",
+			Platform:           platform,
 		},
 	}
 	for i := 0; i <= len(operationParameters); i++ {
@@ -2327,8 +2328,8 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 			"hostname": "worker123",
 			"thread":   "42",
 		},
-		InstanceName: "main",
-		Platform:     platform,
+		InstanceNamePrefix: "main",
+		Platform:           platform,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
 				Executing: &remoteworker.CurrentState_Executing{
@@ -2473,8 +2474,8 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 			"hostname": "worker123",
 			"thread":   "42",
 		},
-		InstanceName: "main",
-		Platform:     platform,
+		InstanceNamePrefix: "main",
+		Platform:           platform,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Idle{
 				Idle: &emptypb.Empty{},
@@ -2518,8 +2519,8 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 	initialSizeClassLearner.EXPECT().Abandoned()
 	sizeClassQueueName := &buildqueuestate.SizeClassQueueName{
 		PlatformQueueName: &buildqueuestate.PlatformQueueName{
-			InstanceName: "main",
-			Platform:     platform,
+			InstanceNamePrefix: "main",
+			Platform:           platform,
 		},
 	}
 	for i := 0; i <= len(operationParameters); i++ {
@@ -2565,8 +2566,8 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 			"hostname": "worker123",
 			"thread":   "42",
 		},
-		InstanceName: "main",
-		Platform:     platform,
+		InstanceNamePrefix: "main",
+		Platform:           platform,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
 				Executing: &remoteworker.CurrentState_Executing{
@@ -2657,8 +2658,8 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 			"hostname": "worker123",
 			"thread":   "42",
 		},
-		InstanceName: "main",
-		Platform:     platform,
+		InstanceNamePrefix: "main",
+		Platform:           platform,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Idle{
 				Idle: &emptypb.Empty{},
@@ -2717,8 +2718,8 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 			"hostname": "worker123",
 			"thread":   "42",
 		},
-		InstanceName: "main",
-		Platform:     platform,
+		InstanceNamePrefix: "main",
+		Platform:           platform,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
 				Executing: &remoteworker.CurrentState_Executing{
@@ -2823,9 +2824,9 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 			"hostname": "worker123",
 			"thread":   "42",
 		},
-		InstanceName: "main",
-		Platform:     platform,
-		SizeClass:    9,
+		InstanceNamePrefix: "main",
+		Platform:           platform,
+		SizeClass:          9,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Idle{
 				Idle: &emptypb.Empty{},
@@ -2842,9 +2843,9 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 			"hostname": "worker123",
 			"thread":   "42",
 		},
-		InstanceName: "main",
-		Platform:     platform,
-		SizeClass:    3,
+		InstanceNamePrefix: "main",
+		Platform:           platform,
+		SizeClass:          3,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
 				Executing: &remoteworker.CurrentState_Executing{
@@ -2934,9 +2935,9 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 			"hostname": "worker123",
 			"thread":   "42",
 		},
-		InstanceName: "main",
-		Platform:     platform,
-		SizeClass:    3,
+		InstanceNamePrefix: "main",
+		Platform:           platform,
+		SizeClass:          3,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Idle{
 				Idle: &emptypb.Empty{},
@@ -2995,9 +2996,9 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 			"hostname": "worker123",
 			"thread":   "42",
 		},
-		InstanceName: "main",
-		Platform:     platform,
-		SizeClass:    3,
+		InstanceNamePrefix: "main",
+		Platform:           platform,
+		SizeClass:          3,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
 				Executing: &remoteworker.CurrentState_Executing{
@@ -3053,9 +3054,9 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 			"hostname": "worker456",
 			"thread":   "42",
 		},
-		InstanceName: "main",
-		Platform:     platform,
-		SizeClass:    8,
+		InstanceNamePrefix: "main",
+		Platform:           platform,
+		SizeClass:          8,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Idle{
 				Idle: &emptypb.Empty{},
@@ -3111,9 +3112,9 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 			"hostname": "worker456",
 			"thread":   "42",
 		},
-		InstanceName: "main",
-		Platform:     platform,
-		SizeClass:    8,
+		InstanceNamePrefix: "main",
+		Platform:           platform,
+		SizeClass:          8,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
 				Executing: &remoteworker.CurrentState_Executing{
@@ -3210,9 +3211,9 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 			"hostname": "worker123",
 			"thread":   "42",
 		},
-		InstanceName: "main",
-		Platform:     platform,
-		SizeClass:    3,
+		InstanceNamePrefix: "main",
+		Platform:           platform,
+		SizeClass:          3,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
 				Executing: &remoteworker.CurrentState_Executing{
@@ -3302,9 +3303,9 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 			"hostname": "worker456",
 			"thread":   "42",
 		},
-		InstanceName: "main",
-		Platform:     platform,
-		SizeClass:    8,
+		InstanceNamePrefix: "main",
+		Platform:           platform,
+		SizeClass:          8,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Idle{
 				Idle: &emptypb.Empty{},
@@ -3363,9 +3364,9 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 			"hostname": "worker456",
 			"thread":   "42",
 		},
-		InstanceName: "main",
-		Platform:     platform,
-		SizeClass:    8,
+		InstanceNamePrefix: "main",
+		Platform:           platform,
+		SizeClass:          8,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
 				Executing: &remoteworker.CurrentState_Executing{
@@ -3441,9 +3442,9 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 			"hostname": "worker123",
 			"thread":   "42",
 		},
-		InstanceName: "main",
-		Platform:     platform,
-		SizeClass:    3,
+		InstanceNamePrefix: "main",
+		Platform:           platform,
+		SizeClass:          3,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Idle{
 				Idle: &emptypb.Empty{},
@@ -3483,9 +3484,9 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 			"hostname": "worker123",
 			"thread":   "42",
 		},
-		InstanceName: "main",
-		Platform:     platform,
-		SizeClass:    3,
+		InstanceNamePrefix: "main",
+		Platform:           platform,
+		SizeClass:          3,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
 				Executing: &remoteworker.CurrentState_Executing{

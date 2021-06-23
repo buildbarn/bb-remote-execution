@@ -104,9 +104,9 @@ func main() {
 
 	// Create predeclared platform queues.
 	for _, platformQueue := range configuration.PredeclaredPlatformQueues {
-		instanceName, err := digest.NewInstanceName(platformQueue.InstanceName)
+		instanceName, err := digest.NewInstanceName(platformQueue.InstanceNamePrefix)
 		if err != nil {
-			log.Fatalf("Invalid instance name %#v: %s", platformQueue.InstanceName, err)
+			log.Fatalf("Invalid instance name prefix %#v: %s", platformQueue.InstanceNamePrefix, err)
 		}
 
 		// Create an analyzer for picking an initial size class.

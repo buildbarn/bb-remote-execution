@@ -92,9 +92,9 @@ message PaginationInfo {
 }
 
 message PlatformQueueName {
-  // The REv2 instance name that workers associated with this platform
-  // queue announced to the scheduler.
-  string instance_name = 1;
+  // The REv2 instance name prefix that workers associated with this
+  // platform queue announced to the scheduler.
+  string instance_name_prefix = 1;
 
   // The REv2 platform properties that workers associated with this
   // platform queue announced to the scheduler.
@@ -168,6 +168,11 @@ message OperationState {
   // The priority of the operation, as provided by the client through
   // REv2's ExecutionPolicy.
   int32 priority = 12;
+
+  // Additional components that the client provided as part of
+  // ExecuteRequest.instance_name that are not part of the
+  // PlatformQueueName's instance_name_prefix.
+  string instance_name_suffix = 13;
 }
 
 message SizeClassQueueState {

@@ -29,6 +29,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/builder/initialsizeclass",
+        "//pkg/builder/platform",
         "//pkg/cas",
         "//pkg/cleaner",
         "//pkg/filesystem",
@@ -49,7 +50,6 @@ go_library(
         "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
         "@com_github_buildbarn_bb_storage//pkg/proto/cas",
         "@com_github_buildbarn_bb_storage//pkg/util",
-        "@com_github_golang_protobuf//jsonpb:go_default_library_gen",
         "@com_github_google_uuid//:uuid",
         "@com_github_prometheus_client_golang//prometheus",
         "@go_googleapis//google/longrunning:longrunning_go_proto",
@@ -59,7 +59,6 @@ go_library(
         "@org_golang_google_grpc//metadata",
         "@org_golang_google_grpc//status",
         "@org_golang_google_protobuf//encoding/protojson",
-        "@org_golang_google_protobuf//encoding/prototext",
         "@org_golang_google_protobuf//proto",
         "@org_golang_google_protobuf//types/known/anypb",
         "@org_golang_google_protobuf//types/known/durationpb",
