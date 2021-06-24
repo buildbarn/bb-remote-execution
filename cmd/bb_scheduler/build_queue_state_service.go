@@ -191,13 +191,13 @@ var (
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Operation {{.OperationName}}</title>
+    <title>Buildbarn Scheduler: Operation {{.OperationName}}</title>
     <style>
       html { font-family: sans-serif; }
     </style>
   </head>
   <body>
-    <h1>Operation {{.OperationName}}</h1>
+    <h1><a href=".">Buildbarn Scheduler</a>: Operation {{.OperationName}}</h1>
     {{$now := .Now}}
     {{$sizeClassQueueName := .Operation.SizeClassQueueName}}
     {{$platformQueueName := $sizeClassQueueName.PlatformQueueName}}
@@ -252,7 +252,7 @@ var (
 <!DOCTYPE html>
 <html>
   <head>
-    <title>All operations</title>
+    <title>Buildbarn Scheduler: All operations</title>
     <style>
       html { font-family: sans-serif; }
       table { border-collapse: collapse; }
@@ -262,7 +262,7 @@ var (
     </style>
   </head>
   <body>
-    <h1>All operations</h1>
+    <h1><a href=".">Buildbarn Scheduler</a>: All operations</h1>
     <p>Showing operations [{{.PaginationInfo.StartIndex}}, {{.EndIndex}}) of {{.PaginationInfo.TotalEntries}} in total.
       {{with .StartAfter}}
         <a href="?start_after={{proto_to_json .}}">&gt;&gt;&gt;</a>
@@ -325,7 +325,7 @@ var (
 <!DOCTYPE html>
 <html>
   <head>
-    <title>{{if .JustQueuedInvocations}}Queued{{else}}All{{end}} invocations</title>
+    <title>Buildbarn Scheduler: {{if .JustQueuedInvocations}}Queued{{else}}All{{end}} invocations</title>
     <style>
       html { font-family: sans-serif; }
       table { border-collapse: collapse; }
@@ -335,7 +335,7 @@ var (
     </style>
   </head>
   <body>
-    <h1>{{if .JustQueuedInvocations}}Queued{{else}}All{{end}} invocations</h1>
+    <h1><a href=".">Buildbarn Scheduler</a>: {{if .JustQueuedInvocations}}Queued{{else}}All{{end}} invocations</h1>
     {{$sizeClassQueueName := .SizeClassQueueName}}
     {{$platformQueueName := $sizeClassQueueName.PlatformQueueName}}
     <p>Instance name prefix: {{$platformQueueName.InstanceNamePrefix | printf "%#v"}}<br/>
@@ -384,7 +384,7 @@ var (
     </style>
   </head>
   <body>
-    <h1>Queued operations</h1>
+    <h1><a href=".">Buildbarn Scheduler</a>: Queued operations</h1>
     {{$sizeClassQueueName := .SizeClassQueueName}}
     {{$platformQueueName := $sizeClassQueueName.PlatformQueueName}}
     <p>Instance name prefix: {{$platformQueueName.InstanceNamePrefix | printf "%#v"}}<br/>
@@ -432,7 +432,7 @@ var (
 <!DOCTYPE html>
 <html>
   <head>
-    <title>{{if .JustExecutingWorkers}}Executing{{else}}All{{end}} workers</title>
+    <title>Buildbarn Scheduler: {{if .JustExecutingWorkers}}Executing{{else}}All{{end}} workers</title>
     <style>
       html { font-family: sans-serif; }
       table { border-collapse: collapse; }
@@ -442,7 +442,7 @@ var (
     </style>
   </head>
   <body>
-    <h1>{{if .JustExecutingWorkers}}Executing{{else}}All{{end}} workers</h1>
+    <h1><a href=".">Buildbarn Scheduler</a>: {{if .JustExecutingWorkers}}Executing{{else}}All{{end}} workers</h1>
     {{$sizeClassQueueName := .SizeClassQueueName}}
     {{$platformQueueName := $sizeClassQueueName.PlatformQueueName}}
     <p>Instance name prefix: {{$platformQueueName.InstanceNamePrefix | printf "%#v"}}<br/>
@@ -493,7 +493,7 @@ var (
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Drains</title>
+    <title>Buildbarn Scheduler: Drains</title>
     <style>
       html { font-family: sans-serif; }
       table { border-collapse: collapse; }
@@ -502,7 +502,7 @@ var (
     </style>
   </head>
   <body>
-    <h1>Drains</h1>
+    <h1><a href=".">Buildbarn Scheduler</a>: Drains</h1>
     {{$platformQueueName := .SizeClassQueueName.PlatformQueueName}}
     <p>Instance name prefix: {{$platformQueueName.InstanceNamePrefix | printf "%#v"}}<br/>
     Platform: {{proto_to_json $platformQueueName.Platform}}<br/>
