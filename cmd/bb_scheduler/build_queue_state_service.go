@@ -21,6 +21,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -81,13 +82,6 @@ var (
 			return nil
 		},
 		"proto_to_json": func(m proto.Message) string {
-			json, err := protojson.Marshal(m)
-			if err != nil {
-				return ""
-			}
-			return string(json)
-		},
-		"proto_to_indented_json": func(m proto.Message) string {
 			json, err := protojson.MarshalOptions{Multiline: true}.Marshal(m)
 			if err != nil {
 				return ""
@@ -111,7 +105,7 @@ var (
 			return now.Sub(t.AsTime()).Truncate(time.Second).String()
 		},
 		"to_json": func(v interface{}) (string, error) {
-			b, err := json.Marshal(v)
+			b, err := json.MarshalIndent(v, " ", "")
 			if err != nil {
 				return "", err
 			}
@@ -236,7 +230,7 @@ var (
     </p>
     {{with operation_stage_completed .Operation}}
       <h2>Execute response</h2>
-      <pre>{{proto_to_indented_json .}}</pre>
+      <pre>{{proto_to_json .}}</pre>
     {{else}}
       <form action="kill_operation" method="post">
         <p>
@@ -743,7 +737,7 @@ func (s *buildQueueStateService) handleListQueuedOperations(w http.ResponseWrite
 		startAfter = &startAfterMessage
 	}
 
-	var invocationID buildqueuestate.InvocationID
+	var invocationID anypb.Any
 	if err := protojson.Unmarshal([]byte(query.Get("invocation_id")), &invocationID); err != nil {
 		http.Error(w, util.StatusWrap(err, "Failed to extract invocation ID").Error(), http.StatusBadRequest)
 		return
@@ -773,7 +767,7 @@ func (s *buildQueueStateService) handleListQueuedOperations(w http.ResponseWrite
 
 	if err := listQueuedOperationStateTemplate.Execute(w, struct {
 		SizeClassQueueName *buildqueuestate.SizeClassQueueName
-		InvocationID       *buildqueuestate.InvocationID
+		InvocationID       *anypb.Any
 		BrowserURL         *url.URL
 		Now                time.Time
 		PaginationInfo     *buildqueuestate.PaginationInfo

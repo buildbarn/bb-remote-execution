@@ -14,6 +14,7 @@ go_library(
         "fuse_build_directory.go",
         "fuse_build_directory_disabled.go",
         "in_memory_build_queue.go",
+        "invocation_id_extractor.go",
         "local_build_executor.go",
         "logging_build_executor.go",
         "metrics_build_executor.go",

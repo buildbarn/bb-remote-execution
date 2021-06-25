@@ -38,6 +38,7 @@ gomock(
         "BuildDirectory",
         "BuildDirectoryCreator",
         "BuildExecutor",
+        "PlatformHooks",
         "StorageFlusher",
         "UploadableDirectory",
     ],
@@ -160,7 +161,6 @@ gomock(
     name = "initialsizeclass",
     out = "initialsizeclass.go",
     interfaces = [
-        "Analyzer",
         "Learner",
         "PreviousExecutionStatsHandle",
         "PreviousExecutionStatsStore",
@@ -297,6 +297,7 @@ go_library(
         "@go_googleapis//google/longrunning:longrunning_go_proto",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//metadata",
+        "@org_golang_google_protobuf//types/known/anypb:go_default_library",
         "@org_golang_google_protobuf//types/known/emptypb:go_default_library",
     ] + select({
         "@io_bazel_rules_go//go/platform:darwin": [

@@ -151,6 +151,16 @@ type InMemoryBuildQueueConfiguration struct {
 	WorkerWithNoSynchronizationsTimeout time.Duration
 }
 
+// PlatformHooks contains a set of methods that can be provided for any
+// platform managed by InMemoryBuildQueue to analyze incoming execution
+// requests. For each of these requests, it can compute what the
+// invocation ID is and on which size class the action needs to be
+// executed.
+type PlatformHooks interface {
+	InvocationIDExtractor
+	initialsizeclass.Analyzer
+}
+
 // InMemoryBuildQueue implements a BuildQueue that can distribute
 // requests through the Remote Worker protocol to worker processes. All
 // of the state of the build queue (i.e., list of queued execution
@@ -162,8 +172,8 @@ type InMemoryBuildQueue struct {
 	configuration                       *InMemoryBuildQueueConfiguration
 	platformQueueAbsenceHardFailureTime time.Time
 	maximumMessageSizeBytes             int
-	initialSizeClassAnalyzersTrie       *platform.Trie
-	initialSizeClassAnalyzers           []initialsizeclass.Analyzer
+	platformHooksTrie                   *platform.Trie
+	platformHooks                       []PlatformHooks
 
 	lock               sync.Mutex
 	platformQueuesTrie *platform.Trie
@@ -193,7 +203,7 @@ type InMemoryBuildQueue struct {
 // NewInMemoryBuildQueue creates a new InMemoryBuildQueue that is in the
 // initial state. It does not have any queues, workers or queued
 // execution requests. All of these are created by sending it RPCs.
-func NewInMemoryBuildQueue(contentAddressableStorage blobstore.BlobAccess, clock clock.Clock, uuidGenerator util.UUIDGenerator, configuration *InMemoryBuildQueueConfiguration, maximumMessageSizeBytes int, defaultInitialSizeClassAnalyzer initialsizeclass.Analyzer) *InMemoryBuildQueue {
+func NewInMemoryBuildQueue(contentAddressableStorage blobstore.BlobAccess, clock clock.Clock, uuidGenerator util.UUIDGenerator, configuration *InMemoryBuildQueueConfiguration, maximumMessageSizeBytes int, defaultPlatformHooks PlatformHooks) *InMemoryBuildQueue {
 	inMemoryBuildQueuePrometheusMetrics.Do(func() {
 		prometheus.MustRegister(inMemoryBuildQueueTasksQueuedTotal)
 		prometheus.MustRegister(inMemoryBuildQueueTasksQueuedDurationSeconds)
@@ -212,8 +222,8 @@ func NewInMemoryBuildQueue(contentAddressableStorage blobstore.BlobAccess, clock
 		configuration:                       configuration,
 		platformQueueAbsenceHardFailureTime: clock.Now().Add(configuration.PlatformQueueWithNoWorkersTimeout),
 		maximumMessageSizeBytes:             maximumMessageSizeBytes,
-		initialSizeClassAnalyzersTrie:       platform.NewTrie(),
-		initialSizeClassAnalyzers:           []initialsizeclass.Analyzer{defaultInitialSizeClassAnalyzer},
+		platformHooksTrie:                   platform.NewTrie(),
+		platformHooks:                       []PlatformHooks{defaultPlatformHooks},
 		platformQueuesTrie:                  platform.NewTrie(),
 		sizeClassQueues:                     map[sizeClassKey]*sizeClassQueue{},
 		operationsNameMap:                   map[string]*operation{},
@@ -235,7 +245,7 @@ var (
 // capable of using multiple size classes, as a maximum size class and
 // initialsizeclass.Analyzer can be provided for specifying how
 // operations are assigned to size classes.
-func (bq *InMemoryBuildQueue) RegisterPredeclaredPlatformQueue(instanceNamePrefix digest.InstanceName, platformMessage *remoteexecution.Platform, maximumQueuedBackgroundLearningOperations int, backgroundLearningOperationPriority int32, maximumSizeClass uint32, initialSizeClassAnalyzer initialsizeclass.Analyzer) error {
+func (bq *InMemoryBuildQueue) RegisterPredeclaredPlatformQueue(instanceNamePrefix digest.InstanceName, platformMessage *remoteexecution.Platform, maximumQueuedBackgroundLearningOperations int, backgroundLearningOperationPriority int32, maximumSizeClass uint32, platformHooks PlatformHooks) error {
 	platformKey, err := platform.NewKey(instanceNamePrefix, platformMessage)
 	if err != nil {
 		return err
@@ -250,8 +260,8 @@ func (bq *InMemoryBuildQueue) RegisterPredeclaredPlatformQueue(instanceNamePrefi
 
 	pq := bq.addPlatformQueue(platformKey, maximumQueuedBackgroundLearningOperations, backgroundLearningOperationPriority)
 	pq.addSizeClassQueue(bq, maximumSizeClass, false)
-	bq.initialSizeClassAnalyzersTrie.Set(platformKey, len(bq.initialSizeClassAnalyzers)-1)
-	bq.initialSizeClassAnalyzers = append(bq.initialSizeClassAnalyzers, initialSizeClassAnalyzer)
+	bq.platformHooksTrie.Set(platformKey, len(bq.platformHooks)-1)
+	bq.platformHooks = append(bq.platformHooks, platformHooks)
 	return nil
 }
 
@@ -342,19 +352,6 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 		auxiliaryMetadata = []*anypb.Any{requestMetadataAny}
 	}
 
-	// Create an invocation key. Tasks are scheduled by grouping
-	// them by invocation, so that scheduling is fair.
-	invocationKey, err := newInvocationKey(&buildqueuestate.InvocationID{
-		Kind: &buildqueuestate.InvocationID_Client{
-			Client: &remoteexecution.RequestMetadata{
-				ToolInvocationId: requestMetadata.GetToolInvocationId(),
-			},
-		},
-	})
-	if err != nil {
-		return err
-	}
-
 	// TODO: Remove this code once all clients support REv2.2.
 	if action.Platform == nil || targetID == "" {
 		commandDigest, err := instanceName.NewDigestFromProto(action.CommandDigest)
@@ -384,8 +381,20 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 		}
 	}
 
-	initialSizeClassAnalyzer := bq.initialSizeClassAnalyzers[bq.initialSizeClassAnalyzersTrie.GetLongestPrefix(platformKey)+1]
-	initialSizeClassSelector, err := initialSizeClassAnalyzer.Analyze(ctx, actionDigest.GetDigestFunction(), action)
+	// Create an invocation key. Operations are scheduled by
+	// grouping them by invocation, so that scheduling is fair.
+	platformHooks := bq.platformHooks[bq.platformHooksTrie.GetLongestPrefix(platformKey)+1]
+	invocationID, err := platformHooks.ExtractInvocationID(ctx, instanceName, action, requestMetadata)
+	if err != nil {
+		return util.StatusWrap(err, "Failed to extract invocation ID from request")
+	}
+	invocationKey, err := newInvocationKey(invocationID)
+	if err != nil {
+		return err
+	}
+
+	// Determine on which size class this action needs to run.
+	initialSizeClassSelector, err := platformHooks.Analyze(ctx, actionDigest.GetDigestFunction(), action)
 	if err != nil {
 		return util.StatusWrap(err, "Failed to analyze initial size class of action")
 	}
@@ -1425,6 +1434,14 @@ func (h *queuedInvocationsHeap) Pop() interface{} {
 	return e
 }
 
+func mustNewAny(src proto.Message) *anypb.Any {
+	any, err := anypb.New(src)
+	if err != nil {
+		panic(err)
+	}
+	return any
+}
+
 // invocationKey is a key type for maps for identifying client
 // invocations.
 type invocationKey string
@@ -1432,13 +1449,9 @@ type invocationKey string
 // backgroundLearningInvocationKey is a predefined invocationKey that is
 // used for all operations that are created to perform background
 // learning (see initialsizeclass.FeedbackAnalyzer).
-var backgroundLearningInvocationKey = mustNewInvocationKey(&buildqueuestate.InvocationID{
-	Kind: &buildqueuestate.InvocationID_BackgroundLearning{
-		BackgroundLearning: &emptypb.Empty{},
-	},
-})
+var backgroundLearningInvocationKey = mustNewInvocationKey(mustNewAny(&buildqueuestate.BackgroundLearning{}))
 
-func newInvocationKey(invocationID *buildqueuestate.InvocationID) (invocationKey, error) {
+func newInvocationKey(invocationID *anypb.Any) (invocationKey, error) {
 	data, err := protojson.Marshal(invocationID)
 	if err != nil {
 		return "", util.StatusWrap(err, "Failed to marshal invocation ID")
@@ -1446,7 +1459,7 @@ func newInvocationKey(invocationID *buildqueuestate.InvocationID) (invocationKey
 	return invocationKey(data), nil
 }
 
-func mustNewInvocationKey(invocationID *buildqueuestate.InvocationID) invocationKey {
+func mustNewInvocationKey(invocationID *anypb.Any) invocationKey {
 	invocationKey, err := newInvocationKey(invocationID)
 	if err != nil {
 		panic(err)
@@ -1454,8 +1467,8 @@ func mustNewInvocationKey(invocationID *buildqueuestate.InvocationID) invocation
 	return invocationKey
 }
 
-func (k invocationKey) getInvocationID() *buildqueuestate.InvocationID {
-	var invocationID buildqueuestate.InvocationID
+func (k invocationKey) getInvocationID() *anypb.Any {
+	var invocationID anypb.Any
 	if err := protojson.Unmarshal([]byte(k), &invocationID); err != nil {
 		panic(fmt.Sprintf("Failed to unmarshal previously marshalled invocation ID: %s", err))
 	}

@@ -100,7 +100,13 @@ func main() {
 			WorkerWithNoSynchronizationsTimeout: time.Minute,
 		},
 		int(configuration.MaximumMessageSizeBytes),
-		defaultInitialSizeClassAnalyzer)
+		struct {
+			builder.InvocationIDExtractor
+			initialsizeclass.Analyzer
+		}{
+			InvocationIDExtractor: builder.RequestMetadataInvocationIDExtractor,
+			Analyzer:              defaultInitialSizeClassAnalyzer,
+		})
 
 	// Create predeclared platform queues.
 	for _, platformQueue := range configuration.PredeclaredPlatformQueues {
@@ -108,6 +114,8 @@ func main() {
 		if err != nil {
 			log.Fatalf("Invalid instance name prefix %#v: %s", platformQueue.InstanceNamePrefix, err)
 		}
+
+		invocationIDExtractor := builder.RequestMetadataInvocationIDExtractor
 
 		// Create an analyzer for picking an initial size class.
 		// This lets bb_scheduler cache execution times and
@@ -160,7 +168,13 @@ func main() {
 			maximumQueuedBackgroundLearningOperations,
 			backgroundLearningOperationPriority,
 			platformQueue.MaximumSizeClass,
-			initialSizeClassAnalyzer); err != nil {
+			struct {
+				builder.InvocationIDExtractor
+				initialsizeclass.Analyzer
+			}{
+				InvocationIDExtractor: invocationIDExtractor,
+				Analyzer:              initialSizeClassAnalyzer,
+			}); err != nil {
 			log.Fatal("Failed to register predeclared platform queue: ", err)
 		}
 	}
