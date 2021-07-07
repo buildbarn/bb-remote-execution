@@ -5,5 +5,4 @@ go_library(
     srcs = ["aliases.go"],
     importpath = "github.com/buildbarn/bb-remote-execution/internal/mock/aliases",
     visibility = ["//:__subpackages__"],
-    deps = ["//pkg/filesystem/fuse"],
 )

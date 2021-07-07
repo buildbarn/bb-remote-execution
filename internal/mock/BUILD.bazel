@@ -9,13 +9,10 @@ gomock(
     interfaces = [
         "CancelFunc",
         "Context",
-        "FUSEDirectory",
-        "FUSELeaf",
         "ReadCloser",
     ],
     library = "//internal/mock/aliases",
     package = "mock",
-    tags = ["manual"],
 )
 
 gomock(
@@ -144,12 +141,18 @@ gomock(
     interfaces = [
         "CASFileFactory",
         "ChildFilter",
+        "Directory",
+        "Leaf",
         "EntryNotifier",
         "FileAllocator",
         "InitialContentsFetcher",
         "NativeLeaf",
     ],
     library = "//pkg/filesystem/fuse",
+    mock_names = {
+        "Directory": "MockFUSEDirectory",
+        "Leaf": "MockFUSELeaf",
+    },
     package = "mock",
     tags = ["manual"],
 )
@@ -245,6 +248,7 @@ gomock(
 go_library(
     name = "mock",
     srcs = [
+        ":aliases.go",
         ":blobstore.go",
         ":blobstore_re.go",
         ":blockdevice.go",
@@ -265,12 +269,10 @@ go_library(
         ":storage_util.go",
     ] + select({
         "@io_bazel_rules_go//go/platform:darwin": [
-            ":aliases.go",
             ":fuse.go",
             ":go_fuse.go",
         ],
         "@io_bazel_rules_go//go/platform:linux": [
-            ":aliases.go",
             ":fuse.go",
             ":go_fuse.go",
         ],
