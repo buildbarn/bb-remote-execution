@@ -79,7 +79,7 @@ message BuildDirectoryConfiguration {
     // with LocalBlobAccess to achieve this. When LocalBlobAcces is
     // backed by a block device, 'disable_integrity_checking' must be
     // enabled.
-    buildbarn.configuration.fuse.MountConfiguration fuse = 2;
+    FUSEBuildDirectoryConfiguration fuse = 2;
   }
 
   // Runners to which to send requests to invoke build action commands.
@@ -111,6 +111,27 @@ message NativeBuildDirectoryConfiguration {
   // LEAST_RECENTLY_USED can, assuming the cache size is sufficient.
   buildbarn.configuration.eviction.CacheReplacementPolicy
       cache_replacement_policy = 5;
+}
+
+message FUSEBuildDirectoryConfiguration {
+  // Options for mounting the FUSE file system at a given path.
+  buildbarn.configuration.fuse.MountConfiguration mount = 1;
+
+  // Because the FUSE file system only loads input root contents from
+  // the Content Addressable Storage (CAS) lazily, build actions may
+  // block during execution. To prevent these delays from causing
+  // spurious test timeouts, this implementation is capable of
+  // compensating the execution timeout of actions based on storage
+  // latency observed.
+  //
+  // To prevent build actions from abusing this system (i.e., extending
+  // the execution timeout indefinitely by accessing files that are
+  // known to be slow), this option can be used to specify the maximum
+  // amount of time the build action is permitted to run in excess of
+  // the originally specified execution timeout.
+  //
+  // Recommended value: 3600s
+  google.protobuf.Duration maximum_execution_timeout_compensation = 2;
 }
 
 message RunnerConfiguration {

@@ -6,6 +6,17 @@ import "google/protobuf/duration.proto";
 
 option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage";
 
+// Resource usage statistics gathered by LocalBuildExecutor.
+message BuildExecutorResourceUsage {
+  // The amount of time the execution timeout got extended to compensate
+  // for the action being blocked.
+  //
+  // For workers that use a FUSE-based build directory, this field holds
+  // the amount of the worker had to block execution to read data from
+  // the Content Addressable Storage (CAS).
+  google.protobuf.Duration execution_timeout_compensation = 1;
+}
+
 // File pool resource usage statistics. File pools are used by bb_worker
 // to allocate temporary files that are created by build actions.
 // Temporary files include output files created through the FUSE file

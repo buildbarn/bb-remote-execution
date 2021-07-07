@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "batched_store_blob_access.go",
         "existence_precondition_blob_access.go",
+        "suspending_blob_access.go",
     ],
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/blobstore",
     visibility = ["//visibility:public"],
@@ -24,6 +25,7 @@ go_test(
     srcs = [
         "batched_store_blob_access_test.go",
         "existence_precondition_blob_access_test.go",
+        "suspending_blob_access_test.go",
     ],
     embed = [":blobstore"],
     deps = [

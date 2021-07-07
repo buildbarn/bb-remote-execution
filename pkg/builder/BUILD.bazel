@@ -33,6 +33,7 @@ go_library(
         "//pkg/builder/platform",
         "//pkg/cas",
         "//pkg/cleaner",
+        "//pkg/clock",
         "//pkg/filesystem",
         "//pkg/proto/buildqueuestate",
         "//pkg/proto/remoteworker",
@@ -113,6 +114,7 @@ go_test(
     deps = [
         "//internal/mock",
         "//pkg/cleaner",
+        "//pkg/clock",
         "//pkg/filesystem",
         "//pkg/proto/buildqueuestate",
         "//pkg/proto/remoteworker",

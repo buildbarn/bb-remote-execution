@@ -16,6 +16,7 @@ go_library(
         "//pkg/builder",
         "//pkg/cas",
         "//pkg/cleaner",
+        "//pkg/clock",
         "//pkg/filesystem",
         "//pkg/filesystem/fuse",
         "//pkg/proto/configuration/bb_worker",

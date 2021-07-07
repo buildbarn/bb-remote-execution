@@ -4,10 +4,13 @@ import (
 	"context"
 	"os"
 	"sync"
+	"time"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	re_clock "github.com/buildbarn/bb-remote-execution/pkg/clock"
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage"
 	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/clock"
@@ -17,6 +20,8 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -220,9 +225,6 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 		},
 	}
 
-	// Invoke the command.
-	ctxWithTimeout, cancelTimeout := be.clock.NewContextWithTimeout(ctxWithIOError, executionTimeout)
-	defer cancelTimeout()
 	environmentVariables := map[string]string{}
 	for name, value := range be.environmentVariables {
 		environmentVariables[name] = value
@@ -230,6 +232,9 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	for _, environmentVariable := range command.EnvironmentVariables {
 		environmentVariables[environmentVariable.Name] = environmentVariable.Value
 	}
+
+	// Invoke the command.
+	ctxWithTimeout, cancelTimeout := be.clock.NewContextWithTimeout(ctxWithIOError, executionTimeout)
 	runResponse, runErr := be.runner.Run(ctxWithTimeout, &runner_pb.RunRequest{
 		Arguments:            command.Arguments,
 		EnvironmentVariables: environmentVariables,
@@ -239,6 +244,8 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 		InputRootDirectory:   buildDirectoryPath.Append(inputRootDirectoryComponent).String(),
 		TemporaryDirectory:   buildDirectoryPath.Append(temporaryDirectoryComponent).String(),
 	})
+	cancelTimeout()
+	<-ctxWithTimeout.Done()
 
 	// If an I/O error occurred during execution, attach any errors
 	// related to it to the response first. These errors should be
@@ -253,6 +260,18 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 		response.Result.ExecutionMetadata.AuxiliaryMetadata = append(response.Result.ExecutionMetadata.AuxiliaryMetadata, runResponse.ResourceUsage...)
 	} else {
 		attachErrorToExecuteResponse(response, util.StatusWrap(runErr, "Failed to run command"))
+	}
+
+	// For FUSE-based workers: Attach the amount of time the action
+	// got delayed by reading data from storage.
+	if suspensionDuration, ok := ctxWithTimeout.Value(re_clock.SuspensionDurationKey{}).(time.Duration); ok {
+		if buildExecutorResourceUsage, err := anypb.New(&resourceusage.BuildExecutorResourceUsage{
+			ExecutionTimeoutCompensation: durationpb.New(suspensionDuration),
+		}); err == nil {
+			response.Result.ExecutionMetadata.AuxiliaryMetadata = append(response.Result.ExecutionMetadata.AuxiliaryMetadata, buildExecutorResourceUsage)
+		} else {
+			attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to marshal build executor resource usage"))
+		}
 	}
 
 	executionStateUpdates <- &remoteworker.CurrentState_Executing{

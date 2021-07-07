@@ -14,6 +14,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
 	"github.com/buildbarn/bb-remote-execution/pkg/cas"
 	"github.com/buildbarn/bb-remote-execution/pkg/cleaner"
+	re_clock "github.com/buildbarn/bb-remote-execution/pkg/clock"
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	re_fuse "github.com/buildbarn/bb-remote-execution/pkg/filesystem/fuse"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_worker"
@@ -99,6 +100,7 @@ func main() {
 		var fileFetcher cas.FileFetcher
 		var buildDirectoryCleaner cleaner.Cleaner
 		uploadBatchSize := blobstore.RecommendedFindMissingDigestsCount
+		var maximumExecutionTimeoutCompensation time.Duration
 		switch backend := buildDirectoryConfiguration.Backend.(type) {
 		case *bb_worker.BuildDirectoryConfiguration_Fuse:
 			rootInodeNumber := random.FastThreadSafeGenerator.Uint64()
@@ -119,13 +121,18 @@ func main() {
 				return nil
 			}
 			if err := re_fuse.NewMountFromConfiguration(
-				backend.Fuse,
+				backend.Fuse.Mount,
 				fuseBuildDirectory,
 				rootInodeNumber,
 				&serverCallbacks,
 				"bb_worker"); err != nil {
 				log.Fatal("Failed to mount build directory: ", err)
 			}
+
+			if err := backend.Fuse.MaximumExecutionTimeoutCompensation.CheckValid(); err != nil {
+				log.Fatal("Invalid maximum execution timeout compensation: ", err)
+			}
+			maximumExecutionTimeoutCompensation = backend.Fuse.MaximumExecutionTimeoutCompensation.AsDuration()
 		case *bb_worker.BuildDirectoryConfiguration_Native:
 			// Directory where actual builds take place.
 			nativeConfiguration := backend.Native
@@ -218,14 +225,23 @@ func main() {
 					// When FUSE is enabled, we can lazily load the
 					// input root, as opposed to explicitly
 					// instantiating it before every build.
+					var executionTimeoutClock clock.Clock
 					var buildDirectory builder.BuildDirectory
 					if fuseBuildDirectory != nil {
+						suspendableClock := re_clock.NewSuspendableClock(
+							clock.SystemClock,
+							maximumExecutionTimeoutCompensation,
+							time.Second/10)
+						executionTimeoutClock = suspendableClock
 						buildDirectory = builder.NewFUSEBuildDirectory(
 							fuseBuildDirectory,
 							directoryFetcher,
-							contentAddressableStorageWriter,
+							re_blobstore.NewSuspendingBlobAccess(
+								contentAddressableStorageWriter,
+								suspendableClock),
 							re_fuse.NewRandomInodeNumberTree())
 					} else {
+						executionTimeoutClock = clock.SystemClock
 						buildDirectory = builder.NewNaiveBuildDirectory(
 							naiveBuildDirectory,
 							directoryFetcher,
@@ -267,7 +283,7 @@ func main() {
 										contentAddressableStorageWriter,
 										buildDirectoryCreator,
 										runnerClient,
-										clock.SystemClock,
+										executionTimeoutClock,
 										inputRootCharacterDevices,
 										int(configuration.MaximumMessageSizeBytes),
 										runnerConfiguration.EnvironmentVariables),

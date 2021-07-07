@@ -1,0 +1,20 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "clock",
+    srcs = ["suspendable_clock.go"],
+    importpath = "github.com/buildbarn/bb-remote-execution/pkg/clock",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_buildbarn_bb_storage//pkg/clock"],
+)
+
+go_test(
+    name = "clock_test",
+    srcs = ["suspendable_clock_test.go"],
+    embed = [":clock"],
+    deps = [
+        "//internal/mock",
+        "@com_github_golang_mock//gomock",
+        "@com_github_stretchr_testify//require",
+    ],
+)

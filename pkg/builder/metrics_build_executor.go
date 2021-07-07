@@ -30,6 +30,17 @@ var (
 		},
 		[]string{"result", "grpc_code", "stage"})
 
+	// Metrics for BuildExecutorResourceUsage.
+	buildExecutorExecutionTimeoutCompensation = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: "buildbarn",
+			Subsystem: "builder",
+			Name:      "build_executor_execution_timeout_compensation",
+			Help:      "Amount of time the execution timeout was compensated, in seconds.",
+			Buckets:   util.DecimalExponentialBuckets(-3, 6, 2),
+		},
+		[]string{"result", "grpc_code"})
+
 	// Metrics for FilePoolResourceUsage.
 	buildExecutorFilePoolFilesCreated = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
@@ -208,6 +219,8 @@ func NewMetricsBuildExecutor(buildExecutor BuildExecutor) BuildExecutor {
 	buildExecutorPrometheusMetrics.Do(func() {
 		prometheus.MustRegister(buildExecutorDurationSeconds)
 
+		prometheus.MustRegister(buildExecutorExecutionTimeoutCompensation)
+
 		prometheus.MustRegister(buildExecutorFilePoolFilesCreated)
 		prometheus.MustRegister(buildExecutorFilePoolFilesCountPeak)
 		prometheus.MustRegister(buildExecutorFilePoolFilesSizeBytesPeak)
@@ -265,9 +278,13 @@ func (be *metricsBuildExecutor) Execute(ctx context.Context, filePool filesystem
 		metadata.OutputUploadStartTimestamp, metadata.OutputUploadCompletedTimestamp)
 
 	for _, auxiliaryMetadata := range metadata.AuxiliaryMetadata {
+		var buildExecutor resourceusage.BuildExecutorResourceUsage
 		var filePool resourceusage.FilePoolResourceUsage
 		var posix resourceusage.POSIXResourceUsage
-		if auxiliaryMetadata.UnmarshalTo(&filePool) == nil {
+		if auxiliaryMetadata.UnmarshalTo(&buildExecutor) == nil {
+			// Expose metrics stored in BuildExecutorResourceUsage.
+			observeDuration(buildExecutorExecutionTimeoutCompensation.WithLabelValues(result, grpcCode), buildExecutor.ExecutionTimeoutCompensation)
+		} else if auxiliaryMetadata.UnmarshalTo(&filePool) == nil {
 			// Expose metrics stored in FilePoolResourceUsage.
 			buildExecutorFilePoolFilesCreated.WithLabelValues(result, grpcCode).Observe(float64(filePool.FilesCreated))
 			buildExecutorFilePoolFilesCountPeak.WithLabelValues(result, grpcCode).Observe(float64(filePool.FilesCountPeak))

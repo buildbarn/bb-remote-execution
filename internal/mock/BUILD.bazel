@@ -7,8 +7,11 @@ gomock(
     name = "aliases",
     out = "aliases.go",
     interfaces = [
+        "CancelFunc",
+        "Context",
         "FUSEDirectory",
         "FUSELeaf",
+        "ReadCloser",
     ],
     library = "//internal/mock/aliases",
     package = "mock",
@@ -20,6 +23,14 @@ gomock(
     out = "blobstore.go",
     interfaces = ["BlobAccess"],
     library = "@com_github_buildbarn_bb_storage//pkg/blobstore",
+    package = "mock",
+)
+
+gomock(
+    name = "blobstore_re",
+    out = "blobstore_re.go",
+    interfaces = ["Suspendable"],
+    library = "//pkg/blobstore",
     package = "mock",
 )
 
@@ -235,6 +246,7 @@ go_library(
     name = "mock",
     srcs = [
         ":blobstore.go",
+        ":blobstore_re.go",
         ":blockdevice.go",
         ":builder.go",
         ":buildqueuestate.go",
