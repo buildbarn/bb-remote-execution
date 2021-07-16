@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
@@ -18,6 +19,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/gorilla/mux"
 
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -138,13 +140,20 @@ var (
     <table>
       <thead>
         <tr>
-          <th>Instance name prefix</th>
-          <th>Platform</th>
-          <th>Size class</th>
-          <th>Timeout</th>
-          <th>Queued invocations</th>
-          <th>Executing workers</th>
-          <th>Drains</th>
+          <th rowspan="2">Instance name prefix</th>
+          <th rowspan="2">Platform</th>
+          <th rowspan="2">Size class</th>
+          <th rowspan="2">Timeout</th>
+          <th colspan="3">Invocations</th>
+          <th colspan="2">Workers</th>
+          <th rowspan="2">Drains</th>
+        </tr>
+        <tr>
+          <th>Queued</th>
+          <th>Active</th>
+          <th>All</th>
+          <th>Executing</th>
+          <th>All</th>
         </tr>
       </thead>
       {{$now := .Now}}
@@ -161,19 +170,12 @@ var (
             <td>{{time_future .Timeout $now}}</td>
             {{$sizeClassQueueName := get_size_class_queue_name $platformQueueName .SizeClass}}
             {{$sizeClassQueueNameJSON := proto_to_json $sizeClassQueueName}}
-            <td>
-              <a href="invocations?size_class_queue_name={{$sizeClassQueueNameJSON}}&amp;just_queued_invocations=true">{{.QueuedInvocationsCount}}</a>
-              /
-              <a href="invocations?size_class_queue_name={{$sizeClassQueueNameJSON}}">{{.InvocationsCount}}</a>
-            </td>
-            <td>
-              <a href="workers?size_class_queue_name={{$sizeClassQueueNameJSON}}&amp;just_executing_workers=true">{{.ExecutingWorkersCount}}</a>
-              /
-              <a href="workers?size_class_queue_name={{$sizeClassQueueNameJSON}}">{{.WorkersCount}}</a>
-            </td>
-            <td>
-              <a href="drains?size_class_queue_name={{$sizeClassQueueNameJSON}}">{{.DrainsCount}}</a>
-            </td>
+            <td><a href="invocations?size_class_queue_name={{$sizeClassQueueNameJSON}}&amp;filter=QUEUED">{{.QueuedInvocationsCount}}</a></td>
+            <td><a href="invocations?size_class_queue_name={{$sizeClassQueueNameJSON}}&amp;filter=ACTIVE">{{.ActiveInvocationsCount}}</a></td>
+            <td><a href="invocations?size_class_queue_name={{$sizeClassQueueNameJSON}}&amp;filter=ALL">{{.InvocationsCount}}</a></td>
+            <td><a href="workers?size_class_queue_name={{$sizeClassQueueNameJSON}}&amp;just_executing_workers=true">{{.ExecutingWorkersCount}}</a></td>
+            <td><a href="workers?size_class_queue_name={{$sizeClassQueueNameJSON}}">{{.WorkersCount}}</a></td>
+            <td><a href="drains?size_class_queue_name={{$sizeClassQueueNameJSON}}">{{.DrainsCount}}</a></td>
           {{end}}
         </tr>
       {{end}}
@@ -319,7 +321,7 @@ var (
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Buildbarn Scheduler: {{if .JustQueuedInvocations}}Queued{{else}}All{{end}} invocations</title>
+    <title>Buildbarn Scheduler: {{.Filter}} invocations</title>
     <style>
       html { font-family: sans-serif; }
       table { border-collapse: collapse; }
@@ -329,7 +331,7 @@ var (
     </style>
   </head>
   <body>
-    <h1><a href=".">Buildbarn Scheduler</a>: {{if .JustQueuedInvocations}}Queued{{else}}All{{end}} invocations</h1>
+    <h1><a href=".">Buildbarn Scheduler</a>: {{.Filter}} invocations</h1>
     {{$sizeClassQueueName := .SizeClassQueueName}}
     {{$platformQueueName := $sizeClassQueueName.PlatformQueueName}}
     <p>Instance name prefix: {{$platformQueueName.InstanceNamePrefix | printf "%#v"}}<br/>
@@ -338,11 +340,17 @@ var (
     <table>
       <thead>
         <tr>
-          <th>Invocation ID</th>
-          <th>Queued operations</th>
+          <th rowspan="2">Invocation ID</th>
+          <th colspan="3">Operations</th>
+          <th colspan="3">Workers</th>
+        </tr>
+        <tr>
+          <th>Queued</th>
           <th>First priority</th>
           <th>First age</th>
-          <th>Executing operations</th>
+          <th>Executing</th>
+          <th>Idle</th>
+          <th>Idle synchronizing</th>
         </tr>
       </thead>
       {{$now := .Now}}
@@ -357,7 +365,9 @@ var (
           {{else}}
             <td colspan="2">No operations queued</td>
           {{end}}
-          <td>{{.ExecutingOperationsCount}}</td>
+          <td>{{.ExecutingWorkersCount}}</td>
+          <td>{{.IdleWorkersCount}}</td>
+          <td>{{.IdleSynchronizingWorkersCount}}</td>
         </tr>
       {{end}}
     </table>
@@ -607,12 +617,17 @@ func (s *buildQueueStateService) handleListInvocations(w http.ResponseWriter, re
 		http.Error(w, util.StatusWrap(err, "Failed to extract size class queue name").Error(), http.StatusBadRequest)
 		return
 	}
-	justQueuedInvocations := query.Get("just_queued_invocations") != ""
+	filterString := query.Get("filter")
+	filterValue, ok := buildqueuestate.ListInvocationsRequest_Filter_value[filterString]
+	if !ok {
+		http.Error(w, status.Error(codes.InvalidArgument, "Invalid filter").Error(), http.StatusBadRequest)
+		return
+	}
 
 	ctx := req.Context()
 	response, err := s.buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
-		SizeClassQueueName:    &sizeClassQueueName,
-		JustQueuedInvocations: justQueuedInvocations,
+		SizeClassQueueName: &sizeClassQueueName,
+		Filter:             buildqueuestate.ListInvocationsRequest_Filter(filterValue),
 	})
 	if err != nil {
 		// TODO: Pick the right error code.
@@ -620,15 +635,15 @@ func (s *buildQueueStateService) handleListInvocations(w http.ResponseWriter, re
 		return
 	}
 	if err := listInvocationStateTemplate.Execute(w, struct {
-		SizeClassQueueName    *buildqueuestate.SizeClassQueueName
-		Invocations           []*buildqueuestate.InvocationState
-		JustQueuedInvocations bool
-		Now                   time.Time
+		SizeClassQueueName *buildqueuestate.SizeClassQueueName
+		Invocations        []*buildqueuestate.InvocationState
+		Filter             string
+		Now                time.Time
 	}{
-		SizeClassQueueName:    &sizeClassQueueName,
-		Invocations:           response.Invocations,
-		JustQueuedInvocations: justQueuedInvocations,
-		Now:                   s.clock.Now(),
+		SizeClassQueueName: &sizeClassQueueName,
+		Invocations:        response.Invocations,
+		Filter:             strings.Title(strings.ToLower(filterString)),
+		Now:                s.clock.Now(),
 	}); err != nil {
 		log.Print(err)
 	}

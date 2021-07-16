@@ -114,6 +114,10 @@ func main() {
 		if err != nil {
 			log.Fatalf("Invalid instance name prefix %#v: %s", platformQueue.InstanceNamePrefix, err)
 		}
+		workerInvocationStickinessLimit := platformQueue.WorkerInvocationStickinessLimit
+		if err := workerInvocationStickinessLimit.CheckValid(); err != nil {
+			log.Fatal("Invalid worker invocation stickiness limit: ", err)
+		}
 
 		invocationIDExtractor := builder.RequestMetadataInvocationIDExtractor
 
@@ -165,6 +169,7 @@ func main() {
 		if err := buildQueue.RegisterPredeclaredPlatformQueue(
 			instanceName,
 			platformQueue.Platform,
+			workerInvocationStickinessLimit.AsDuration(),
 			maximumQueuedBackgroundLearningOperations,
 			backgroundLearningOperationPriority,
 			platformQueue.MaximumSizeClass,

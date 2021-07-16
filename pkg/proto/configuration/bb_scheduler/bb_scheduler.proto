@@ -129,6 +129,27 @@ message PredeclaredPlatformQueueConfiguration {
   // visiting the page of an action.
   InitialSizeClassFeedbackDrivenAnalyzerConfiguration
       initial_size_class_feedback_driven_analyzer = 4;
+
+  // Allow workers to continue to execute actions from the same
+  // invocation, if doing so keeps the number of workers assigned to an
+  // invocation balanced, and the difference in age between the first
+  // queued operation remains below the configured limit. It is worth
+  // setting this option if there is an inherent overhead when switching
+  // between actions belonging to different invocations.
+  //
+  // For example, consider the case where workers are configured to run
+  // tests inside virtual machines, and that the virtual machine's boot
+  // image is provided as part of the input root. When actions that use
+  // the same boot image run right after each other, the existing
+  // virtual machine may be repurposed. If the boot image is different,
+  // a costly restart needs to be performed. By adding stickiness, the
+  // probability of needing to do virtual machine restarts decreases.
+  //
+  // This option may require a custom implementation of
+  // InvocationIDExtractor to be effective.
+  //
+  // Recommended value: 0s
+  google.protobuf.Duration worker_invocation_stickiness_limit = 5;
 }
 
 message InitialSizeClassFeedbackDrivenAnalyzerConfiguration {

@@ -15,6 +15,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/builder"
+	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/golang/mock/gomock"
@@ -1380,6 +1381,7 @@ func TestInMemoryBuildQueueIdleWorkerSynchronizationTimeout(t *testing.T) {
 	timer := mock.NewMockTimer(ctrl)
 	timerChannel := make(chan time.Time, 1)
 	timerChannel <- time.Unix(1060, 0)
+	timer.EXPECT().Stop()
 	clock.EXPECT().NewTimer(time.Minute).Return(timer, timerChannel)
 	response, err := buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
 		WorkerId: map[string]string{
@@ -1898,8 +1900,8 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 	}
 	clock.EXPECT().Now().Return(time.Unix(1036, 0))
 	invocationStates, err := buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
-		SizeClassQueueName:    sizeClassQueueName,
-		JustQueuedInvocations: true,
+		SizeClassQueueName: sizeClassQueueName,
+		Filter:             buildqueuestate.ListInvocationsRequest_QUEUED,
 	})
 	require.NoError(t, err)
 	require.Len(t, invocationStates.Invocations, 5)
@@ -1916,13 +1918,15 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 		require.NoError(t, err)
 		testutil.RequireEqualProto(t, invocationID, invocationStates.Invocations[i].Id)
 		require.Equal(t, uint32(5), invocationStates.Invocations[i].QueuedOperationsCount)
-		require.Equal(t, uint32(0), invocationStates.Invocations[i].ExecutingOperationsCount)
+		require.Equal(t, uint32(0), invocationStates.Invocations[i].ExecutingWorkersCount)
+		require.Equal(t, uint32(0), invocationStates.Invocations[i].IdleWorkersCount)
+		require.Equal(t, uint32(0), invocationStates.Invocations[i].IdleSynchronizingWorkersCount)
 	}
 
 	clock.EXPECT().Now().Return(time.Unix(1036, 0))
 	invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
-		SizeClassQueueName:    sizeClassQueueName,
-		JustQueuedInvocations: false,
+		SizeClassQueueName: sizeClassQueueName,
+		Filter:             buildqueuestate.ListInvocationsRequest_ACTIVE,
 	})
 	require.NoError(t, err)
 	require.Len(t, invocationStates.Invocations, 5)
@@ -1939,7 +1943,9 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 		require.NoError(t, err)
 		testutil.RequireEqualProto(t, invocationID, invocationStates.Invocations[i].Id)
 		require.Equal(t, uint32(5), invocationStates.Invocations[i].QueuedOperationsCount)
-		require.Equal(t, uint32(0), invocationStates.Invocations[i].ExecutingOperationsCount)
+		require.Equal(t, uint32(0), invocationStates.Invocations[i].ExecutingWorkersCount)
+		require.Equal(t, uint32(0), invocationStates.Invocations[i].IdleWorkersCount)
+		require.Equal(t, uint32(0), invocationStates.Invocations[i].IdleSynchronizingWorkersCount)
 	}
 
 	// Let 25 workers execute the operations that were created
@@ -2020,16 +2026,16 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 	// reported as executing, instead of being queued.
 	clock.EXPECT().Now().Return(time.Unix(1041, 0))
 	invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
-		SizeClassQueueName:    sizeClassQueueName,
-		JustQueuedInvocations: true,
+		SizeClassQueueName: sizeClassQueueName,
+		Filter:             buildqueuestate.ListInvocationsRequest_QUEUED,
 	})
 	require.NoError(t, err)
 	require.Empty(t, invocationStates.Invocations)
 
 	clock.EXPECT().Now().Return(time.Unix(1042, 0))
 	invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
-		SizeClassQueueName:    sizeClassQueueName,
-		JustQueuedInvocations: false,
+		SizeClassQueueName: sizeClassQueueName,
+		Filter:             buildqueuestate.ListInvocationsRequest_ACTIVE,
 	})
 	require.NoError(t, err)
 	require.Len(t, invocationStates.Invocations, 5)
@@ -2046,8 +2052,18 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 		require.NoError(t, err)
 		testutil.RequireEqualProto(t, invocationID, invocationStates.Invocations[i].Id)
 		require.Equal(t, uint32(0), invocationStates.Invocations[i].QueuedOperationsCount)
-		require.Equal(t, uint32(5), invocationStates.Invocations[i].ExecutingOperationsCount)
+		require.Equal(t, uint32(5), invocationStates.Invocations[i].ExecutingWorkersCount)
+		require.Equal(t, uint32(0), invocationStates.Invocations[i].IdleWorkersCount)
+		require.Equal(t, uint32(0), invocationStates.Invocations[i].IdleSynchronizingWorkersCount)
 	}
+
+	clock.EXPECT().Now().Return(time.Unix(1043, 0))
+	invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
+		SizeClassQueueName: sizeClassQueueName,
+		Filter:             buildqueuestate.ListInvocationsRequest_ALL,
+	})
+	require.NoError(t, err)
+	require.Len(t, invocationStates.Invocations, 5)
 
 	// Call ListInvocations() a final time after letting a
 	// sufficient amount of time pass. This should cause all workers
@@ -2056,16 +2072,24 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 	// meaning that no invocations will be reported.
 	clock.EXPECT().Now().Return(time.Unix(1200, 0)).Times(51)
 	invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
-		SizeClassQueueName:    sizeClassQueueName,
-		JustQueuedInvocations: true,
+		SizeClassQueueName: sizeClassQueueName,
+		Filter:             buildqueuestate.ListInvocationsRequest_QUEUED,
 	})
 	require.NoError(t, err)
 	require.Empty(t, invocationStates.Invocations)
 
 	clock.EXPECT().Now().Return(time.Unix(1200, 0))
 	invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
-		SizeClassQueueName:    sizeClassQueueName,
-		JustQueuedInvocations: false,
+		SizeClassQueueName: sizeClassQueueName,
+		Filter:             buildqueuestate.ListInvocationsRequest_ACTIVE,
+	})
+	require.NoError(t, err)
+	require.Empty(t, invocationStates.Invocations)
+
+	clock.EXPECT().Now().Return(time.Unix(1200, 0))
+	invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
+		SizeClassQueueName: sizeClassQueueName,
+		Filter:             buildqueuestate.ListInvocationsRequest_ALL,
 	})
 	require.NoError(t, err)
 	require.Empty(t, invocationStates.Invocations)
@@ -2284,18 +2308,25 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonQueued(t *testing.T) {
 		},
 	}
 	for i := 0; i <= len(operationParameters); i++ {
-		clock.EXPECT().Now().Return(time.Unix(1069+int64(i), 0)).Times(2)
+		clock.EXPECT().Now().Return(time.Unix(1069+int64(i), 0)).Times(3)
 
 		invocationStates, err := buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
-			SizeClassQueueName:    sizeClassQueueName,
-			JustQueuedInvocations: false,
+			SizeClassQueueName: sizeClassQueueName,
+			Filter:             buildqueuestate.ListInvocationsRequest_ALL,
 		})
 		require.NoError(t, err)
 		require.Len(t, invocationStates.Invocations, len(operationParameters)-i)
 
 		invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
-			SizeClassQueueName:    sizeClassQueueName,
-			JustQueuedInvocations: true,
+			SizeClassQueueName: sizeClassQueueName,
+			Filter:             buildqueuestate.ListInvocationsRequest_ACTIVE,
+		})
+		require.NoError(t, err)
+		require.Len(t, invocationStates.Invocations, len(operationParameters)-i)
+
+		invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
+			SizeClassQueueName: sizeClassQueueName,
+			Filter:             buildqueuestate.ListInvocationsRequest_QUEUED,
 		})
 		require.NoError(t, err)
 		require.Len(t, invocationStates.Invocations, len(operationParameters)-i)
@@ -2530,18 +2561,25 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 		},
 	}
 	for i := 0; i <= len(operationParameters); i++ {
-		clock.EXPECT().Now().Return(time.Unix(1069+int64(i), 0)).Times(2)
+		clock.EXPECT().Now().Return(time.Unix(1069+int64(i), 0)).Times(3)
 
 		invocationStates, err := buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
-			SizeClassQueueName:    sizeClassQueueName,
-			JustQueuedInvocations: false,
+			SizeClassQueueName: sizeClassQueueName,
+			Filter:             buildqueuestate.ListInvocationsRequest_ALL,
 		})
 		require.NoError(t, err)
 		require.Len(t, invocationStates.Invocations, len(operationParameters)-i)
 
 		invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
-			SizeClassQueueName:    sizeClassQueueName,
-			JustQueuedInvocations: true,
+			SizeClassQueueName: sizeClassQueueName,
+			Filter:             buildqueuestate.ListInvocationsRequest_ACTIVE,
+		})
+		require.NoError(t, err)
+		require.Len(t, invocationStates.Invocations, len(operationParameters)-i)
+
+		invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
+			SizeClassQueueName: sizeClassQueueName,
+			Filter:             buildqueuestate.ListInvocationsRequest_QUEUED,
 		})
 		require.NoError(t, err)
 		require.Empty(t, invocationStates.Invocations)
@@ -2824,6 +2862,7 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 	require.NoError(t, buildQueue.RegisterPredeclaredPlatformQueue(
 		digest.MustNewInstanceName("main"),
 		platform,
+		/* workerInvocationStickinessLimit = */ 0,
 		/* maximumQueuedBackgroundLearningOperations = */ 0,
 		/* backgroundLearningOperationPriority = */ 0,
 		/* maximumSizeClass = */ 8,
@@ -3220,6 +3259,7 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 	require.NoError(t, buildQueue.RegisterPredeclaredPlatformQueue(
 		digest.MustNewInstanceName("main"),
 		platform,
+		/* workerInvocationStickinessLimit = */ 0,
 		/* maximumQueuedBackgroundLearningOperations = */ 10,
 		/* backgroundLearningOperationPriority = */ 100,
 		/* maximumSizeClass = */ 8,
@@ -3543,6 +3583,641 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 			},
 		},
 	}, response)
+}
+
+func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	mockClock := mock.NewMockClock(ctrl)
+	mockClock.EXPECT().Now().Return(time.Unix(0, 0))
+	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
+	defaultPlatformHooks := mock.NewMockPlatformHooks(ctrl)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, mockClock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks)
+	executionClient := getExecutionClient(t, buildQueue)
+
+	// Common values used by steps below.
+	platform := &remoteexecution.Platform{
+		Properties: []*remoteexecution.Platform_Property{
+			{Name: "cpu", Value: "aarch64"},
+			{Name: "os", Value: "linux"},
+		},
+	}
+	action := &remoteexecution.Action{
+		CommandDigest: &remoteexecution.Digest{
+			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
+			SizeBytes: 456,
+		},
+		DoNotCache: true,
+		Timeout:    &durationpb.Duration{Seconds: 420},
+	}
+	actionDigest := &remoteexecution.Digest{
+		Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+		SizeBytes: 123,
+	}
+	invocationID1, err := anypb.New(&remoteexecution.RequestMetadata{
+		ToolInvocationId: "33b38903-d456-4417-951b-bd8a2681c136",
+	})
+	require.NoError(t, err)
+	invocationID2, err := anypb.New(&remoteexecution.RequestMetadata{
+		ToolInvocationId: "75b27319-2704-4fa0-84c9-6881ea5b93ad",
+	})
+	require.NoError(t, err)
+	invocationID3, err := anypb.New(&remoteexecution.RequestMetadata{
+		ToolInvocationId: "d6be714f-cef6-408f-b3c7-dfeeae48f63f",
+	})
+	require.NoError(t, err)
+	workerID1 := map[string]string{
+		"hostname": "worker123",
+		"thread":   "42",
+	}
+	workerID2 := map[string]string{
+		"hostname": "worker123",
+		"thread":   "43",
+	}
+	sizeClassQueueName := &buildqueuestate.SizeClassQueueName{
+		PlatformQueueName: &buildqueuestate.PlatformQueueName{
+			Platform: platform,
+		},
+	}
+	metadataExecuting, err := anypb.New(&remoteexecution.ExecuteOperationMetadata{
+		Stage:        remoteexecution.ExecutionStage_EXECUTING,
+		ActionDigest: actionDigest,
+	})
+	require.NoError(t, err)
+	metadataCompleted, err := anypb.New(&remoteexecution.ExecuteOperationMetadata{
+		Stage:        remoteexecution.ExecutionStage_COMPLETED,
+		ActionDigest: actionDigest,
+	})
+	require.NoError(t, err)
+	executeResponse, err := anypb.New(&remoteexecution.ExecuteResponse{
+		Result: &remoteexecution.ActionResult{},
+	})
+	require.NoError(t, err)
+
+	contentAddressableStorage.EXPECT().Get(
+		gomock.Any(),
+		digest.MustNewDigest("", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+	).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided)).AnyTimes()
+	contentAddressableStorage.EXPECT().Get(
+		gomock.Any(),
+		digest.MustNewDigest("", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
+	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
+		Platform: platform,
+	}, buffer.UserProvided)).AnyTimes()
+
+	// Create a worker that does a blocking Synchronize() call
+	// against the scheduler.
+	mockClock.EXPECT().Now().Return(time.Unix(1000, 0))
+	timer1 := mock.NewMockTimer(ctrl)
+	wait1 := make(chan struct{}, 1)
+	mockClock.EXPECT().NewTimer(time.Minute).DoAndReturn(func(d time.Duration) (clock.Timer, chan<- time.Time) {
+		wait1 <- struct{}{}
+		return timer1, nil
+	})
+	var response1 *remoteworker.SynchronizeResponse
+	var err1 error
+	wait2 := make(chan struct{}, 1)
+	go func() {
+		response1, err1 = buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
+			WorkerId: workerID1,
+			Platform: platform,
+			CurrentState: &remoteworker.CurrentState{
+				WorkerState: &remoteworker.CurrentState_Idle{
+					Idle: &emptypb.Empty{},
+				},
+			},
+		})
+		wait2 <- struct{}{}
+	}()
+	<-wait1
+
+	// Assign a task to it. The worker should be woken up directly.
+	// The client should immediately receive an EXECUTING update.
+	// There is no need to return QUEUED.
+	defaultPlatformHooks.EXPECT().ExtractInvocationID(gomock.Any(), digest.EmptyInstanceName, gomock.Any(), nil).Return(invocationID1, nil)
+	initialSizeClassSelector1 := mock.NewMockSelector(ctrl)
+	defaultPlatformHooks.EXPECT().Analyze(gomock.Any(), gomock.Any(), testutil.EqProto(t, action)).Return(initialSizeClassSelector1, nil)
+	initialSizeClassLearner1 := mock.NewMockLearner(ctrl)
+	initialSizeClassSelector1.EXPECT().Select([]uint32{0}).Return(0, 7*time.Minute, initialSizeClassLearner1)
+	mockClock.EXPECT().Now().Return(time.Unix(1001, 0)).Times(2)
+	timer2 := mock.NewMockTimer(ctrl)
+	mockClock.EXPECT().NewTimer(time.Minute).Return(timer2, nil)
+	uuidGenerator.EXPECT().Call().Return(uuid.Parse("36ebab65-3c4f-4faf-818b-2eabb4cd1b02"))
+	timer1.EXPECT().Stop()
+
+	stream1, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
+		ActionDigest: actionDigest,
+	})
+	require.NoError(t, err)
+	update, err := stream1.Recv()
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, update, &longrunning.Operation{
+		Name:     "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
+		Metadata: metadataExecuting,
+	})
+
+	// The worker should get unblocked.
+	<-wait2
+	require.NoError(t, err1)
+	testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
+		NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1011},
+		DesiredState: &remoteworker.DesiredState{
+			WorkerState: &remoteworker.DesiredState_Executing_{
+				Executing: &remoteworker.DesiredState_Executing{
+					ActionDigest:    actionDigest,
+					Action:          action,
+					QueuedTimestamp: &timestamppb.Timestamp{Seconds: 1001},
+				},
+			},
+		},
+	}, response1)
+
+	// Let the worker complete the operation. This should wake up
+	// the client.
+	mockClock.EXPECT().Now().Return(time.Unix(1002, 0)).Times(3)
+	initialSizeClassLearner1.EXPECT().Succeeded(time.Duration(0), []uint32{0})
+	timer2.EXPECT().Stop()
+	timer3 := mock.NewMockTimer(ctrl)
+	wait3 := make(chan struct{}, 1)
+	mockClock.EXPECT().NewTimer(time.Minute).DoAndReturn(func(d time.Duration) (clock.Timer, chan<- time.Time) {
+		wait3 <- struct{}{}
+		return timer3, nil
+	})
+	var response2 *remoteworker.SynchronizeResponse
+	var err2 error
+	wait4 := make(chan struct{}, 1)
+	go func() {
+		response2, err2 = buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
+			WorkerId: workerID1,
+			Platform: platform,
+			CurrentState: &remoteworker.CurrentState{
+				WorkerState: &remoteworker.CurrentState_Executing_{
+					Executing: &remoteworker.CurrentState_Executing{
+						ActionDigest: actionDigest,
+						ExecutionState: &remoteworker.CurrentState_Executing_Completed{
+							Completed: &remoteexecution.ExecuteResponse{
+								Result: &remoteexecution.ActionResult{},
+							},
+						},
+					},
+				},
+			},
+		})
+		wait4 <- struct{}{}
+	}()
+	<-wait3
+
+	update, err = stream1.Recv()
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, update, &longrunning.Operation{
+		Name:     "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
+		Metadata: metadataCompleted,
+		Done:     true,
+		Result:   &longrunning.Operation_Response{Response: executeResponse},
+	})
+	_, err = stream1.Recv()
+	require.Equal(t, io.EOF, err)
+
+	// Even though there are no longer any active or queued
+	// invocations, the scheduler should keep track of the
+	// invocation belonging to the previously completed action,
+	// keeping track of how which workers are associated with it.
+	mockClock.EXPECT().Now().Return(time.Unix(1003, 0)).Times(3)
+	invocationStates, err := buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
+		SizeClassQueueName: sizeClassQueueName,
+		Filter:             buildqueuestate.ListInvocationsRequest_ALL,
+	})
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, &buildqueuestate.ListInvocationsResponse{
+		Invocations: []*buildqueuestate.InvocationState{
+			{
+				Id:                            invocationID1,
+				IdleWorkersCount:              1,
+				IdleSynchronizingWorkersCount: 1,
+			},
+		},
+	}, invocationStates)
+
+	invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
+		SizeClassQueueName: sizeClassQueueName,
+		Filter:             buildqueuestate.ListInvocationsRequest_ACTIVE,
+	})
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, &buildqueuestate.ListInvocationsResponse{}, invocationStates)
+
+	invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
+		SizeClassQueueName: sizeClassQueueName,
+		Filter:             buildqueuestate.ListInvocationsRequest_QUEUED,
+	})
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, &buildqueuestate.ListInvocationsResponse{}, invocationStates)
+
+	// Create a second worker that issues a blocking Synchronize()
+	// call against the scheduler.
+	mockClock.EXPECT().Now().Return(time.Unix(1004, 0))
+	timer4 := mock.NewMockTimer(ctrl)
+	wait5 := make(chan struct{}, 1)
+	mockClock.EXPECT().NewTimer(time.Minute).DoAndReturn(func(d time.Duration) (clock.Timer, chan<- time.Time) {
+		wait5 <- struct{}{}
+		return timer4, nil
+	})
+	var response3 *remoteworker.SynchronizeResponse
+	var err3 error
+	wait6 := make(chan struct{}, 1)
+	go func() {
+		response3, err3 = buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
+			WorkerId: workerID2,
+			Platform: platform,
+			CurrentState: &remoteworker.CurrentState{
+				WorkerState: &remoteworker.CurrentState_Idle{
+					Idle: &emptypb.Empty{},
+				},
+			},
+		})
+		wait6 <- struct{}{}
+	}()
+	<-wait5
+
+	// Schedule another operation. Because this operation uses a
+	// different invocation ID, it must be scheduled on the second
+	// worker. We want to keep the first worker available for
+	// actions for the same invocation ID.
+	defaultPlatformHooks.EXPECT().ExtractInvocationID(gomock.Any(), digest.EmptyInstanceName, gomock.Any(), nil).Return(invocationID2, nil)
+	initialSizeClassSelector2 := mock.NewMockSelector(ctrl)
+	defaultPlatformHooks.EXPECT().Analyze(gomock.Any(), gomock.Any(), testutil.EqProto(t, action)).Return(initialSizeClassSelector2, nil)
+	initialSizeClassLearner2 := mock.NewMockLearner(ctrl)
+	initialSizeClassSelector2.EXPECT().Select([]uint32{0}).Return(0, 7*time.Minute, initialSizeClassLearner2)
+	mockClock.EXPECT().Now().Return(time.Unix(1005, 0)).Times(2)
+	timer5 := mock.NewMockTimer(ctrl)
+	mockClock.EXPECT().NewTimer(time.Minute).Return(timer5, nil)
+	uuidGenerator.EXPECT().Call().Return(uuid.Parse("e98bb734-0ec7-4cc5-bb98-bb3d5c0788c2"))
+	timer4.EXPECT().Stop()
+
+	stream2, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
+		ActionDigest: actionDigest,
+	})
+	require.NoError(t, err)
+	update, err = stream2.Recv()
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, update, &longrunning.Operation{
+		Name:     "e98bb734-0ec7-4cc5-bb98-bb3d5c0788c2",
+		Metadata: metadataExecuting,
+	})
+
+	<-wait6
+	require.NoError(t, err3)
+	testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
+		NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1015},
+		DesiredState: &remoteworker.DesiredState{
+			WorkerState: &remoteworker.DesiredState_Executing_{
+				Executing: &remoteworker.DesiredState_Executing{
+					ActionDigest:    actionDigest,
+					Action:          action,
+					QueuedTimestamp: &timestamppb.Timestamp{Seconds: 1005},
+				},
+			},
+		},
+	}, response3)
+
+	// Let the second worker complete the operation.
+	mockClock.EXPECT().Now().Return(time.Unix(1006, 0)).Times(3)
+	initialSizeClassLearner2.EXPECT().Succeeded(time.Duration(0), []uint32{0})
+	timer5.EXPECT().Stop()
+	timer6 := mock.NewMockTimer(ctrl)
+	wait7 := make(chan struct{}, 1)
+	mockClock.EXPECT().NewTimer(time.Minute).DoAndReturn(func(d time.Duration) (clock.Timer, chan<- time.Time) {
+		wait7 <- struct{}{}
+		return timer6, nil
+	})
+	var response4 *remoteworker.SynchronizeResponse
+	var err4 error
+	wait8 := make(chan struct{}, 1)
+	go func() {
+		response4, err4 = buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
+			WorkerId: workerID2,
+			Platform: platform,
+			CurrentState: &remoteworker.CurrentState{
+				WorkerState: &remoteworker.CurrentState_Executing_{
+					Executing: &remoteworker.CurrentState_Executing{
+						ActionDigest: actionDigest,
+						ExecutionState: &remoteworker.CurrentState_Executing_Completed{
+							Completed: &remoteexecution.ExecuteResponse{
+								Result: &remoteexecution.ActionResult{},
+							},
+						},
+					},
+				},
+			},
+		})
+		wait8 <- struct{}{}
+	}()
+	<-wait7
+
+	update, err = stream2.Recv()
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, update, &longrunning.Operation{
+		Name:     "e98bb734-0ec7-4cc5-bb98-bb3d5c0788c2",
+		Metadata: metadataCompleted,
+		Done:     true,
+		Result:   &longrunning.Operation_Response{Response: executeResponse},
+	})
+	_, err = stream1.Recv()
+	require.Equal(t, io.EOF, err)
+
+	// Both invocations should now have one worker.
+	mockClock.EXPECT().Now().Return(time.Unix(1007, 0))
+	invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
+		SizeClassQueueName: sizeClassQueueName,
+		Filter:             buildqueuestate.ListInvocationsRequest_ALL,
+	})
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, &buildqueuestate.ListInvocationsResponse{
+		Invocations: []*buildqueuestate.InvocationState{
+			{
+				Id:                            invocationID1,
+				IdleWorkersCount:              1,
+				IdleSynchronizingWorkersCount: 1,
+			},
+			{
+				Id:                            invocationID2,
+				IdleWorkersCount:              1,
+				IdleSynchronizingWorkersCount: 1,
+			},
+		},
+	}, invocationStates)
+
+	// When submitting a third operation that uses an unknown
+	// invocation, we should execute it on the first worker, as that
+	// worker is associated with an invocation that is least
+	// recently seen.
+	defaultPlatformHooks.EXPECT().ExtractInvocationID(gomock.Any(), digest.EmptyInstanceName, gomock.Any(), nil).Return(invocationID3, nil)
+	initialSizeClassSelector3 := mock.NewMockSelector(ctrl)
+	defaultPlatformHooks.EXPECT().Analyze(gomock.Any(), gomock.Any(), testutil.EqProto(t, action)).Return(initialSizeClassSelector3, nil)
+	initialSizeClassLearner3 := mock.NewMockLearner(ctrl)
+	initialSizeClassSelector3.EXPECT().Select([]uint32{0}).Return(0, 7*time.Minute, initialSizeClassLearner3)
+	mockClock.EXPECT().Now().Return(time.Unix(1008, 0)).Times(2)
+	timer7 := mock.NewMockTimer(ctrl)
+	mockClock.EXPECT().NewTimer(time.Minute).Return(timer7, nil)
+	uuidGenerator.EXPECT().Call().Return(uuid.Parse("a0942b25-9c84-42da-93cb-cbd16cf61917"))
+	timer3.EXPECT().Stop()
+
+	stream3, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
+		ActionDigest: actionDigest,
+	})
+	require.NoError(t, err)
+	update, err = stream3.Recv()
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, update, &longrunning.Operation{
+		Name:     "a0942b25-9c84-42da-93cb-cbd16cf61917",
+		Metadata: metadataExecuting,
+	})
+
+	<-wait4
+	require.NoError(t, err2)
+	testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
+		NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1018},
+		DesiredState: &remoteworker.DesiredState{
+			WorkerState: &remoteworker.DesiredState_Executing_{
+				Executing: &remoteworker.DesiredState_Executing{
+					ActionDigest:    actionDigest,
+					Action:          action,
+					QueuedTimestamp: &timestamppb.Timestamp{Seconds: 1008},
+				},
+			},
+		},
+	}, response2)
+}
+
+func TestInMemoryBuildQueueWorkerInvocationStickinessLimit(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	clock := mock.NewMockClock(ctrl)
+	clock.EXPECT().Now().Return(time.Unix(0, 0))
+	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
+	defaultPlatformHooks := mock.NewMockPlatformHooks(ctrl)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks)
+	executionClient := getExecutionClient(t, buildQueue)
+
+	// Register a platform queue that has a small amount of worker
+	// invocation stickiness. This should workers to prefer picking
+	// up operations belonging to the same invocation as the last
+	// executed task, if the difference in queueing time is small.
+	platform := &remoteexecution.Platform{
+		Properties: []*remoteexecution.Platform_Property{
+			{Name: "cpu", Value: "aarch64"},
+			{Name: "os", Value: "linux"},
+		},
+	}
+	platformHooks := mock.NewMockPlatformHooks(ctrl)
+	clock.EXPECT().Now().Return(time.Unix(1000, 0))
+	require.NoError(t, buildQueue.RegisterPredeclaredPlatformQueue(
+		digest.EmptyInstanceName,
+		platform,
+		/* workerInvocationStickinessLimit = */ 3*time.Second,
+		/* maximumQueuedBackgroundLearningOperations = */ 10,
+		/* backgroundLearningOperationPriority = */ 100,
+		/* maximumSizeClass = */ 0,
+		platformHooks))
+
+	operationParameters := []struct {
+		operationName    string
+		toolInvocationID string
+	}{
+		{"716f2e32-d273-49e7-a842-82282e89d1a3", "76d8f589-8d22-4541-a612-39e4c670e531"},
+		{"d354a1ea-0945-4c84-be17-ac01b8058d06", "0175ce91-1363-4cc9-8eb9-e67e82f9fdbb"},
+		{"0a656823-9f91-4220-9dcd-58503e62e6e8", "76d8f589-8d22-4541-a612-39e4c670e531"},
+		{"175ead9a-a095-43a5-9f2c-e3a293938ff3", "76d8f589-8d22-4541-a612-39e4c670e531"},
+	}
+	type streamHandle struct {
+		timer                   *mock.MockTimer
+		stream                  remoteexecution.Execution_ExecuteClient
+		initialSizeClassLearner *mock.MockLearner
+	}
+	var streamHandles []streamHandle
+
+	// Schedule some actions, all two seconds apart. They belong to
+	// two different invocation IDs.
+	for i, p := range operationParameters {
+		action := &remoteexecution.Action{
+			DoNotCache: true,
+			CommandDigest: &remoteexecution.Digest{
+				Hash:      "9b818e201c59f31954cb1e126cc67562ec545ab4",
+				SizeBytes: 456,
+			},
+		}
+		contentAddressableStorage.EXPECT().Get(
+			gomock.Any(),
+			digest.MustNewDigest("", "0474d2f48968a56da4de20718d8ac23aafd80709", 123),
+		).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
+		contentAddressableStorage.EXPECT().Get(
+			gomock.Any(),
+			digest.MustNewDigest("", "9b818e201c59f31954cb1e126cc67562ec545ab4", 456),
+		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
+			Platform: platform,
+		}, buffer.UserProvided))
+		requestMetadata := &remoteexecution.RequestMetadata{
+			ToolInvocationId: p.toolInvocationID,
+		}
+		requestMetadataAny, err := anypb.New(requestMetadata)
+		require.NoError(t, err)
+		platformHooks.EXPECT().ExtractInvocationID(gomock.Any(), digest.EmptyInstanceName, gomock.Any(), nil).Return(requestMetadataAny, nil)
+		initialSizeClassSelector := mock.NewMockSelector(ctrl)
+		platformHooks.EXPECT().Analyze(gomock.Any(), gomock.Any(), testutil.EqProto(t, action)).Return(initialSizeClassSelector, nil)
+		initialSizeClassLearner := mock.NewMockLearner(ctrl)
+		initialSizeClassSelector.EXPECT().Select([]uint32{0}).
+			Return(0, time.Minute, initialSizeClassLearner)
+		clock.EXPECT().Now().Return(time.Unix(1010+int64(i)*2, 0))
+		timer := mock.NewMockTimer(ctrl)
+		clock.EXPECT().NewTimer(time.Minute).Return(timer, nil)
+		uuidGenerator.EXPECT().Call().Return(uuid.Parse(p.operationName))
+
+		stream, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
+			ActionDigest: &remoteexecution.Digest{
+				Hash:      "0474d2f48968a56da4de20718d8ac23aafd80709",
+				SizeBytes: 123,
+			},
+		})
+		require.NoError(t, err)
+		update, err := stream.Recv()
+		require.NoError(t, err)
+		metadata, err := anypb.New(&remoteexecution.ExecuteOperationMetadata{
+			Stage: remoteexecution.ExecutionStage_QUEUED,
+			ActionDigest: &remoteexecution.Digest{
+				Hash:      "0474d2f48968a56da4de20718d8ac23aafd80709",
+				SizeBytes: 123,
+			},
+		})
+		require.NoError(t, err)
+		testutil.RequireEqualProto(t, update, &longrunning.Operation{
+			Name:     p.operationName,
+			Metadata: metadata,
+		})
+
+		streamHandles = append(streamHandles, streamHandle{
+			timer:                   timer,
+			stream:                  stream,
+			initialSizeClassLearner: initialSizeClassLearner,
+		})
+	}
+
+	// Let a worker run the actions sequentially. The order in which
+	// execution takes place differs from the queueing order,
+	// because the third action is permitted to run before the
+	// second. The fourth action is not, because its queueing
+	// timestamp exceeds what's permitted by the worker invocation
+	// stickiness.
+	for i, operationIndex := range []int{0, 2, 1, 3} {
+		// Starting execution should cause the client to receive
+		// an EXECUTING message.
+		clock.EXPECT().Now().Return(time.Unix(1020+int64(i)*2, 0)).Times(2)
+		streamHandles[operationIndex].timer.EXPECT().Stop()
+		timer := mock.NewMockTimer(ctrl)
+		clock.EXPECT().NewTimer(time.Minute).Return(timer, nil)
+		response, err := buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
+			WorkerId: map[string]string{
+				"hostname": "worker123",
+				"thread":   "42",
+			},
+			Platform: platform,
+			CurrentState: &remoteworker.CurrentState{
+				WorkerState: &remoteworker.CurrentState_Idle{
+					Idle: &emptypb.Empty{},
+				},
+			},
+		})
+		require.NoError(t, err)
+		testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
+			NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1030 + int64(i)*2},
+			DesiredState: &remoteworker.DesiredState{
+				WorkerState: &remoteworker.DesiredState_Executing_{
+					Executing: &remoteworker.DesiredState_Executing{
+						ActionDigest: &remoteexecution.Digest{
+							Hash:      "0474d2f48968a56da4de20718d8ac23aafd80709",
+							SizeBytes: 123,
+						},
+						Action: &remoteexecution.Action{
+							CommandDigest: &remoteexecution.Digest{
+								Hash:      "9b818e201c59f31954cb1e126cc67562ec545ab4",
+								SizeBytes: 456,
+							},
+							DoNotCache: true,
+							Timeout:    &durationpb.Duration{Seconds: 60},
+						},
+						QueuedTimestamp: &timestamppb.Timestamp{Seconds: 1010 + int64(operationIndex)*2},
+					},
+				},
+			},
+		}, response)
+
+		stream := streamHandles[operationIndex].stream
+		update, err := stream.Recv()
+		require.NoError(t, err)
+		metadata, err := anypb.New(&remoteexecution.ExecuteOperationMetadata{
+			Stage: remoteexecution.ExecutionStage_EXECUTING,
+			ActionDigest: &remoteexecution.Digest{
+				Hash:      "0474d2f48968a56da4de20718d8ac23aafd80709",
+				SizeBytes: 123,
+			},
+		})
+		require.NoError(t, err)
+		operationName := operationParameters[operationIndex].operationName
+		testutil.RequireEqualProto(t, update, &longrunning.Operation{
+			Name:     operationName,
+			Metadata: metadata,
+		})
+
+		// Finishing execution should cause the client to
+		// receive a COMPLETED message.
+		streamHandles[operationIndex].initialSizeClassLearner.EXPECT().Succeeded(time.Duration(0), []uint32{0})
+		clock.EXPECT().Now().Return(time.Unix(1021+int64(i)*2, 0)).Times(3)
+		timer.EXPECT().Stop()
+		response, err = buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
+			WorkerId: map[string]string{
+				"hostname": "worker123",
+				"thread":   "42",
+			},
+			Platform: platform,
+			CurrentState: &remoteworker.CurrentState{
+				WorkerState: &remoteworker.CurrentState_Executing_{
+					Executing: &remoteworker.CurrentState_Executing{
+						ActionDigest: &remoteexecution.Digest{
+							Hash:      "0474d2f48968a56da4de20718d8ac23aafd80709",
+							SizeBytes: 123,
+						},
+						ExecutionState: &remoteworker.CurrentState_Executing_Completed{
+							Completed: &remoteexecution.ExecuteResponse{
+								Result: &remoteexecution.ActionResult{},
+							},
+						},
+						PreferBeingIdle: true,
+					},
+				},
+			},
+		})
+
+		update, err = stream.Recv()
+		require.NoError(t, err)
+		metadata, err = anypb.New(&remoteexecution.ExecuteOperationMetadata{
+			Stage: remoteexecution.ExecutionStage_COMPLETED,
+			ActionDigest: &remoteexecution.Digest{
+				Hash:      "0474d2f48968a56da4de20718d8ac23aafd80709",
+				SizeBytes: 123,
+			},
+		})
+		require.NoError(t, err)
+		executeResponse, err := anypb.New(&remoteexecution.ExecuteResponse{
+			Result: &remoteexecution.ActionResult{},
+		})
+		require.NoError(t, err)
+		testutil.RequireEqualProto(t, update, &longrunning.Operation{
+			Name:     operationName,
+			Metadata: metadata,
+			Done:     true,
+			Result:   &longrunning.Operation_Response{Response: executeResponse},
+		})
+	}
 }
 
 // TODO: Make testing coverage of InMemoryBuildQueue complete.

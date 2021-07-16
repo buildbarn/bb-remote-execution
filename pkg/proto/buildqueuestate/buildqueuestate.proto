@@ -193,8 +193,14 @@ message SizeClassQueueState {
   google.protobuf.Timestamp timeout = 2;
 
   // The total number of client invocations for which one or more
-  // operations in either the QUEUED or EXECUTING execution stage exist.
+  // operations in either the QUEUED or EXECUTING execution stage exist,
+  // or for which one or more workers exist that most recently executed
+  // a task belonging to this invocation.
   uint32 invocations_count = 3;
+
+  // The total number of client invocations for which one or more
+  // operations in either the QUEUED or EXECUTING execution stage exist.
+  uint32 active_invocations_count = 8;
 
   // The total number of client invocations for which one or more
   // operations in the QUEUED execution stage exist.
@@ -250,9 +256,24 @@ message InvocationState {
   // as their values are implied.
   OperationState first_queued_operation = 3;
 
-  // The total number of operations associated with this platform queue
+  // The total number of workers for this size class queue that are
+  // currently executing an operation belonging to this invocation. This
+  // equals the number of operations associated with this platform queue
   // and invocation that are in the EXECUTING execution stage.
-  uint32 executing_operations_count = 4;
+  uint32 executing_workers_count = 4;
+
+  // The total number of workers for this size class queue that are
+  // currently idle and most recently completed an operation belonging
+  // to this invocation.
+  uint32 idle_workers_count = 5;
+
+  // The total number of workers for this size class queue that are
+  // currently idle and most recently executed an action belonging to
+  // this invocation and synchronizing against the scheduler.
+  //
+  // These are the workers that will most preferably be used to execute
+  // successive operations scheduled as part of this invocation.
+  uint32 idle_synchronizing_workers_count = 6;
 }
 
 message WorkerState {
@@ -351,15 +372,32 @@ message ListInvocationsRequest {
   // The platformm queue whose list of invocations needs to be returned.
   SizeClassQueueName size_class_queue_name = 1;
 
-  // When not set, return the state of invocations for which one or more
-  // operations are in the QUEUED or EXECUTING stage. Invocations are
-  // sorted alphabetically by invocation ID.
-  //
-  // When set, only return the state of invocations for which one or
-  // more operations are in the QUEUED stage. Invocations are sorted by
-  // the order in which the scheduler will prefer scheduling operations
-  // from these invocations, in descending order.
-  bool just_queued_invocations = 2;
+  enum Filter {
+    // Return invocations for which one or more operations that are in
+    // the QUEUED or EXECUTING stages exist, or for which one or more
+    // workers exist that most recently executed a task belonging to
+    // this invocation.
+    //
+    // Invocations are sorted alphabetically by invocation ID.
+    ALL = 0;
+
+    // Return invocations for which one or more operations that are in
+    // the QUEUED or EXECUTING stages exist.
+    //
+    // Invocations are sorted alphabetically by invocation ID.
+    ACTIVE = 1;
+
+    // Return invocations for which one or more operations that are in
+    // the QUEUED stage exist.
+    //
+    // Invocations are sorted by the order in which the scheduler will
+    // prefer scheduling operations from these invocations, in
+    // descending order.
+    QUEUED = 2;
+  }
+
+  // Limit the results according to a filter.
+  Filter filter = 2;
 }
 
 message ListInvocationsResponse {

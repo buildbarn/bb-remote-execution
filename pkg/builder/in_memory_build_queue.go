@@ -43,14 +43,14 @@ import (
 var (
 	inMemoryBuildQueuePrometheusMetrics sync.Once
 
-	inMemoryBuildQueueTasksQueuedTotal = prometheus.NewCounterVec(
+	inMemoryBuildQueueTasksScheduledTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "buildbarn",
 			Subsystem: "builder",
-			Name:      "in_memory_build_queue_tasks_queued_total",
-			Help:      "Number of tasks created through Execute().",
+			Name:      "in_memory_build_queue_tasks_scheduled_total",
+			Help:      "Number of times tasks were scheduled, either by calling Execute() or through initial size class selection retries.",
 		},
-		[]string{"instance_name_prefix", "platform", "size_class", "do_not_cache"})
+		[]string{"instance_name_prefix", "platform", "size_class", "assignment", "do_not_cache"})
 	inMemoryBuildQueueTasksQueuedDurationSeconds = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
@@ -104,6 +104,15 @@ var (
 			Help:      "Number of workers removed due to expiration.",
 		},
 		[]string{"instance_name_prefix", "platform", "size_class", "state"})
+
+	inMemoryBuildQueueWorkerInvocationStickinessOutcomesTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "buildbarn",
+			Subsystem: "builder",
+			Name:      "worker_invocation_stickiness_outcomes_total",
+			Help:      "Outcomes of worker invocation stickiness, as configured through worker_invocation_stickiness_limit.",
+		},
+		[]string{"instance_name_prefix", "platform", "size_class", "outcome"})
 )
 
 // InMemoryBuildQueueConfiguration contains all the tunable settings of
@@ -205,7 +214,7 @@ type InMemoryBuildQueue struct {
 // execution requests. All of these are created by sending it RPCs.
 func NewInMemoryBuildQueue(contentAddressableStorage blobstore.BlobAccess, clock clock.Clock, uuidGenerator util.UUIDGenerator, configuration *InMemoryBuildQueueConfiguration, maximumMessageSizeBytes int, defaultPlatformHooks PlatformHooks) *InMemoryBuildQueue {
 	inMemoryBuildQueuePrometheusMetrics.Do(func() {
-		prometheus.MustRegister(inMemoryBuildQueueTasksQueuedTotal)
+		prometheus.MustRegister(inMemoryBuildQueueTasksScheduledTotal)
 		prometheus.MustRegister(inMemoryBuildQueueTasksQueuedDurationSeconds)
 		prometheus.MustRegister(inMemoryBuildQueueTasksExecutingDurationSeconds)
 		prometheus.MustRegister(inMemoryBuildQueueTasksExecutingRetries)
@@ -213,6 +222,8 @@ func NewInMemoryBuildQueue(contentAddressableStorage blobstore.BlobAccess, clock
 
 		prometheus.MustRegister(inMemoryBuildQueueWorkersCreatedTotal)
 		prometheus.MustRegister(inMemoryBuildQueueWorkersRemovedTotal)
+
+		prometheus.MustRegister(inMemoryBuildQueueWorkerInvocationStickinessOutcomesTotal)
 	})
 
 	return &InMemoryBuildQueue{
@@ -245,7 +256,7 @@ var (
 // capable of using multiple size classes, as a maximum size class and
 // initialsizeclass.Analyzer can be provided for specifying how
 // operations are assigned to size classes.
-func (bq *InMemoryBuildQueue) RegisterPredeclaredPlatformQueue(instanceNamePrefix digest.InstanceName, platformMessage *remoteexecution.Platform, maximumQueuedBackgroundLearningOperations int, backgroundLearningOperationPriority int32, maximumSizeClass uint32, platformHooks PlatformHooks) error {
+func (bq *InMemoryBuildQueue) RegisterPredeclaredPlatformQueue(instanceNamePrefix digest.InstanceName, platformMessage *remoteexecution.Platform, workerInvocationStickinessLimit time.Duration, maximumQueuedBackgroundLearningOperations int, backgroundLearningOperationPriority int32, maximumSizeClass uint32, platformHooks PlatformHooks) error {
 	platformKey, err := platform.NewKey(instanceNamePrefix, platformMessage)
 	if err != nil {
 		return err
@@ -258,7 +269,7 @@ func (bq *InMemoryBuildQueue) RegisterPredeclaredPlatformQueue(instanceNamePrefi
 		return status.Error(codes.AlreadyExists, "A queue with the same instance name prefix or platform already exists")
 	}
 
-	pq := bq.addPlatformQueue(platformKey, maximumQueuedBackgroundLearningOperations, backgroundLearningOperationPriority)
+	pq := bq.addPlatformQueue(platformKey, workerInvocationStickinessLimit, maximumQueuedBackgroundLearningOperations, backgroundLearningOperationPriority)
 	pq.addSizeClassQueue(bq, maximumSizeClass, false)
 	bq.platformHooksTrie.Set(platformKey, len(bq.platformHooks)-1)
 	bq.platformHooks = append(bq.platformHooks, platformHooks)
@@ -393,7 +404,8 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 		return err
 	}
 
-	// Determine on which size class this action needs to run.
+	// Analyze the action, so that we can later determine on which
+	// size class this action needs to run.
 	initialSizeClassSelector, err := platformHooks.Analyze(ctx, actionDigest.GetDigestFunction(), action)
 	if err != nil {
 		return util.StatusWrap(err, "Failed to analyze initial size class of action")
@@ -402,6 +414,39 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 	bq.enter(bq.clock.Now())
 	defer bq.leave()
 
+	if t, ok := bq.inFlightDeduplicationMap[actionDigest]; ok {
+		// A task for the same action digest already exists
+		// against which we may deduplicate. No need to create a
+		// task.
+		initialSizeClassSelector.Abandoned()
+		scq := t.getSizeClassQueue()
+		i := scq.getOrCreateInvocation(invocationKey)
+		if o, ok := t.operations[i]; ok {
+			// Task is already associated with the current
+			// invocation. Simply wait on the operation that
+			// already exists.
+			return o.waitExecution(bq, out)
+		}
+
+		// Create an additional operation for this task.
+		o := t.newOperation(bq, in.ExecutionPolicy.GetPriority(), i, false)
+		switch t.getStage() {
+		case remoteexecution.ExecutionStage_QUEUED:
+			// The request has been deduplicated against a
+			// task that is still queued.
+			o.enqueue()
+		case remoteexecution.ExecutionStage_EXECUTING:
+			// The request has been deduplicated against a
+			// task that is already in the executing stage.
+			i.incrementExecutingWorkersCount()
+		default:
+			panic("Task in unexpected stage")
+		}
+		return o.waitExecution(bq, out)
+	}
+
+	// We need to create a new task. For that we first need to
+	// obtain the size class queue in which we're going to place it.
 	platformQueueIndex := bq.platformQueuesTrie.GetLongestPrefix(platformKey)
 	if platformQueueIndex < 0 {
 		code := codes.FailedPrecondition
@@ -421,70 +466,36 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 		return status.Errorf(code, "No workers exist for instance name prefix %#v platform %s", platformKey.GetInstanceNamePrefix().String(), platformKey.GetPlatformString())
 	}
 	pq := bq.platformQueues[platformQueueIndex]
+	sizeClassIndex, timeout, initialSizeClassLearner := initialSizeClassSelector.Select(pq.sizeClasses)
+	scq := pq.sizeClassQueues[sizeClassIndex]
 
-	// Create a new task in case none exist against which this
-	// request may be deduplicated.
-	t, ok := bq.inFlightDeduplicationMap[actionDigest]
-	tStage := remoteexecution.ExecutionStage_QUEUED
-	var scq *sizeClassQueue
-	if ok {
-		initialSizeClassSelector.Abandoned()
-		tStage = t.getStage()
-		scq = t.getSizeClassQueue()
-	} else {
-		sizeClassIndex, timeout, initialSizeClassLearner := initialSizeClassSelector.Select(pq.sizeClasses)
-		scq = pq.sizeClassQueues[sizeClassIndex]
-
-		actionWithCustomTimeout := *action
-		actionWithCustomTimeout.Timeout = durationpb.New(timeout)
-
-		t = &task{
-			operations:   map[*invocation]*operation{},
-			actionDigest: actionDigest,
-			desiredState: remoteworker.DesiredState_Executing{
-				ActionDigest:       in.ActionDigest,
-				Action:             &actionWithCustomTimeout,
-				QueuedTimestamp:    bq.getCurrentTime(),
-				AuxiliaryMetadata:  auxiliaryMetadata,
-				InstanceNameSuffix: pq.instanceNamePatcher.PatchInstanceName(instanceName).String(),
-			},
-			targetID:                targetID,
-			initialSizeClassLearner: initialSizeClassLearner,
-			stageChangeWakeup:       make(chan struct{}),
-		}
-		span := trace.FromContext(ctx)
-		if span != nil {
-			t.desiredState.TraceContext = propagation.Binary(span.SpanContext())
-		}
-		if !action.DoNotCache {
-			bq.inFlightDeduplicationMap[actionDigest] = t
-		}
+	// Create the task.
+	actionWithCustomTimeout := *action
+	actionWithCustomTimeout.Timeout = durationpb.New(timeout)
+	t := &task{
+		operations:   map[*invocation]*operation{},
+		actionDigest: actionDigest,
+		desiredState: remoteworker.DesiredState_Executing{
+			ActionDigest:       in.ActionDigest,
+			Action:             &actionWithCustomTimeout,
+			QueuedTimestamp:    bq.getCurrentTime(),
+			AuxiliaryMetadata:  auxiliaryMetadata,
+			InstanceNameSuffix: pq.instanceNamePatcher.PatchInstanceName(instanceName).String(),
+		},
+		targetID:                targetID,
+		initialSizeClassLearner: initialSizeClassLearner,
+		stageChangeWakeup:       make(chan struct{}),
 	}
-
-	// Create an operation for this task if it's not yet part of
-	// this invocation.
+	span := trace.FromContext(ctx)
+	if span != nil {
+		t.desiredState.TraceContext = propagation.Binary(span.SpanContext())
+	}
+	if !action.DoNotCache {
+		bq.inFlightDeduplicationMap[actionDigest] = t
+	}
 	i := scq.getOrCreateInvocation(invocationKey)
-	o, ok := t.operations[i]
-	if !ok {
-		o = t.newOperation(bq, in.ExecutionPolicy.GetPriority(), i, false)
-		if len(t.operations) == 1 {
-			t.registerQueuedStageStarted(bq)
-		}
-
-		switch tStage {
-		case remoteexecution.ExecutionStage_QUEUED:
-			// The task is either new, or the request has
-			// been deduplicated against a task that is
-			// still queued.
-			i.enqueueOperation(o)
-		case remoteexecution.ExecutionStage_EXECUTING:
-			// The request has been deduplicated against a
-			// task that is already in the executing stage.
-			o.queueIndex = -1
-			i.executingOperationsCount++
-			heap.Fix(&scq.queuedInvocations, i.queueIndex)
-		}
-	}
+	o := t.newOperation(bq, in.ExecutionPolicy.GetPriority(), i, false)
+	t.schedule(bq)
 	return o.waitExecution(bq, out)
 }
 
@@ -555,7 +566,7 @@ func (bq *InMemoryBuildQueue) Synchronize(ctx context.Context, request *remotewo
 			// pair has not been observed before. Create a
 			// new platform queue containing a single size
 			// class queue.
-			pq = bq.addPlatformQueue(platformKey, 0, 0)
+			pq = bq.addPlatformQueue(platformKey, 0, 0, 0)
 		}
 		scq = pq.addSizeClassQueue(bq, request.SizeClass, true)
 	}
@@ -630,11 +641,18 @@ func (bq *InMemoryBuildQueue) ListPlatformQueues(ctx context.Context, request *e
 					executingWorkersCount++
 				}
 			}
+			activeInvocationsCount := uint32(0)
+			for _, i := range scq.invocations {
+				if i.isActive() {
+					activeInvocationsCount++
+				}
+			}
 			sizeClassQueues = append(sizeClassQueues, &buildqueuestate.SizeClassQueueState{
 				SizeClass:              pq.sizeClasses[i],
 				Timeout:                bq.cleanupQueue.getTimestamp(scq.cleanupKey),
 				InvocationsCount:       uint32(len(scq.invocations)),
 				QueuedInvocationsCount: uint32(scq.queuedInvocations.Len()),
+				ActiveInvocationsCount: uint32(activeInvocationsCount),
 				WorkersCount:           uint32(len(scq.workers)),
 				ExecutingWorkersCount:  executingWorkersCount,
 				DrainsCount:            uint32(len(scq.drains)),
@@ -754,7 +772,27 @@ func (bq *InMemoryBuildQueue) ListInvocations(ctx context.Context, request *buil
 		return nil, status.Error(codes.NotFound, "No workers for this instance name, platform and size class exist")
 	}
 
-	if request.JustQueuedInvocations {
+	switch request.Filter {
+	case buildqueuestate.ListInvocationsRequest_ALL, buildqueuestate.ListInvocationsRequest_ACTIVE:
+		// Return all or active invocations in alphabetic order.
+		keyList := make([]string, 0, len(scq.invocations))
+		for invocationKey, i := range scq.invocations {
+			if request.Filter == buildqueuestate.ListInvocationsRequest_ALL || i.isActive() {
+				keyList = append(keyList, string(invocationKey))
+			}
+		}
+		sort.Strings(keyList)
+
+		invocations := make([]*buildqueuestate.InvocationState, 0, len(scq.invocations))
+		for _, key := range keyList {
+			invocationKey := invocationKey(key)
+			i := scq.invocations[invocationKey]
+			invocations = append(invocations, i.getInvocationState(bq))
+		}
+		return &buildqueuestate.ListInvocationsResponse{
+			Invocations: invocations,
+		}, nil
+	case buildqueuestate.ListInvocationsRequest_QUEUED:
 		// Return invocations with one or more queued
 		// operations, sorted by scheduling order.
 		invocations := make([]*buildqueuestate.InvocationState, 0, scq.queuedInvocations.Len())
@@ -765,24 +803,9 @@ func (bq *InMemoryBuildQueue) ListInvocations(ctx context.Context, request *buil
 		return &buildqueuestate.ListInvocationsResponse{
 			Invocations: invocations,
 		}, nil
+	default:
+		return nil, status.Error(codes.InvalidArgument, "Unknown filter provided")
 	}
-
-	// Return all invocations in alphabetic order.
-	keyList := make([]string, 0, len(scq.invocations))
-	for invocationKey := range scq.invocations {
-		keyList = append(keyList, string(invocationKey))
-	}
-	sort.Strings(keyList)
-
-	invocations := make([]*buildqueuestate.InvocationState, 0, len(scq.invocations))
-	for _, key := range keyList {
-		invocationKey := invocationKey(key)
-		i := scq.invocations[invocationKey]
-		invocations = append(invocations, i.getInvocationState(bq))
-	}
-	return &buildqueuestate.ListInvocationsResponse{
-		Invocations: invocations,
-	}, nil
 }
 
 // ListQueuedOperations returns properties of all queued operations
@@ -972,8 +995,6 @@ func (bq *InMemoryBuildQueue) modifyDrain(request *buildqueuestate.AddOrRemoveDr
 		return nil, status.Error(codes.NotFound, "No workers for this instance name, platform and size class exist")
 	}
 	modifyFunc(scq, string(drainKey))
-	close(scq.drainsWakeup)
-	scq.drainsWakeup = make(chan struct{})
 	return &emptypb.Empty{}, nil
 }
 
@@ -985,6 +1006,15 @@ func (bq *InMemoryBuildQueue) AddDrain(ctx context.Context, request *buildqueues
 			WorkerIdPattern:  request.WorkerIdPattern,
 			CreatedTimestamp: bq.getCurrentTime(),
 		}
+
+		// Wake up all synchronizing workers that are queued,
+		// but are supposed to be drained. This ensures that
+		// they will stop picking up work immediately.
+		for workerKey, w := range scq.workers {
+			if w.wakeup != nil && workerMatchesPattern(workerKey.getWorkerID(), request.WorkerIdPattern) {
+				w.wakeUp(scq)
+			}
+		}
 	})
 }
 
@@ -993,6 +1023,11 @@ func (bq *InMemoryBuildQueue) AddDrain(ctx context.Context, request *buildqueues
 func (bq *InMemoryBuildQueue) RemoveDrain(ctx context.Context, request *buildqueuestate.AddOrRemoveDrainRequest) (*emptypb.Empty, error) {
 	return bq.modifyDrain(request, func(scq *sizeClassQueue, drainKey string) {
 		delete(scq.drains, drainKey)
+
+		// Wake up all synchronizing workers that are drained.
+		// This ensures that they pick up work immediately.
+		close(scq.undrainWakeup)
+		scq.undrainWakeup = make(chan struct{})
 	})
 }
 
@@ -1008,9 +1043,16 @@ func (bq *InMemoryBuildQueue) TerminateWorkers(ctx context.Context, request *bui
 			if workerMatchesPattern(workerKey.getWorkerID(), request.WorkerIdPattern) {
 				w.terminating = true
 				if t := w.currentTask; t != nil {
-					// The task will be at the EXECUTING stage, so it can
+					// The task will be at the
+					// EXECUTING stage, so it can
 					// only transition to COMPLETED.
 					completionWakeups = append(completionWakeups, t.stageChangeWakeup)
+				} else if w.wakeup != nil {
+					// Wake up the worker, so that
+					// it's dequeued. This prevents
+					// additional tasks to be
+					// assigned to it.
+					w.wakeUp(scq)
 				}
 			}
 		}
@@ -1073,10 +1115,11 @@ func (bq *InMemoryBuildQueue) getIdleSynchronizeResponse() *remoteworker.Synchro
 }
 
 // addPlatformQueue creates a new platform queue for a given platform.
-func (bq *InMemoryBuildQueue) addPlatformQueue(platformKey platform.Key, maximumQueuedBackgroundLearningOperations int, backgroundLearningOperationPriority int32) *platformQueue {
+func (bq *InMemoryBuildQueue) addPlatformQueue(platformKey platform.Key, workerInvocationStickinessLimit time.Duration, maximumQueuedBackgroundLearningOperations int, backgroundLearningOperationPriority int32) *platformQueue {
 	pq := &platformQueue{
-		platformKey:         platformKey,
-		instanceNamePatcher: digest.NewInstanceNamePatcher(platformKey.GetInstanceNamePrefix(), digest.EmptyInstanceName),
+		platformKey:                               platformKey,
+		instanceNamePatcher:                       digest.NewInstanceNamePatcher(platformKey.GetInstanceNamePrefix(), digest.EmptyInstanceName),
+		workerInvocationStickinessLimit:           workerInvocationStickinessLimit,
 		maximumQueuedBackgroundLearningOperations: maximumQueuedBackgroundLearningOperations,
 		backgroundLearningOperationPriority:       backgroundLearningOperationPriority,
 	}
@@ -1151,6 +1194,7 @@ func (k *sizeClassKey) getSizeClassQueueName() *buildqueuestate.SizeClassQueueNa
 type platformQueue struct {
 	platformKey                               platform.Key
 	instanceNamePatcher                       digest.InstanceNamePatcher
+	workerInvocationStickinessLimit           time.Duration
 	maximumQueuedBackgroundLearningOperations int
 	backgroundLearningOperationPriority       int32
 
@@ -1167,28 +1211,38 @@ func (pq *platformQueue) addSizeClassQueue(bq *InMemoryBuildQueue, sizeClass uin
 		"platform":             platformStr,
 		"size_class":           sizeClassStr,
 	}
+	tasksScheduledTotal := inMemoryBuildQueueTasksScheduledTotal.MustCurryWith(platformLabels)
 	scq := &sizeClassQueue{
 		platformQueue: pq,
 		sizeClass:     sizeClass,
 		mayBeRemoved:  mayBeRemoved,
 
-		invocations:             map[invocationKey]*invocation{},
-		queuedInvocationsWakeup: make(chan struct{}, 1),
-		workers:                 map[workerKey]*worker{},
+		invocations: map[invocationKey]*invocation{},
+		workers:     map[workerKey]*worker{},
 
-		drains:       map[string]*buildqueuestate.DrainState{},
-		drainsWakeup: make(chan struct{}),
+		drains:        map[string]*buildqueuestate.DrainState{},
+		undrainWakeup: make(chan struct{}),
 
-		tasksQueuedTotalTrue:          inMemoryBuildQueueTasksQueuedTotal.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr, "true"),
-		tasksQueuedTotalFalse:         inMemoryBuildQueueTasksQueuedTotal.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr, "false"),
-		tasksQueuedDurationSeconds:    inMemoryBuildQueueTasksQueuedDurationSeconds.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr),
-		tasksExecutingDurationSeconds: inMemoryBuildQueueTasksExecutingDurationSeconds.MustCurryWith(platformLabels),
-		tasksExecutingRetries:         inMemoryBuildQueueTasksExecutingRetries.MustCurryWith(platformLabels),
-		tasksCompletedDurationSeconds: inMemoryBuildQueueTasksCompletedDurationSeconds.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr),
+		tasksScheduledWorkerFromSameInvocation:  newTasksScheduledCounterVec(tasksScheduledTotal, "WorkerFromSameInvocation"),
+		tasksScheduledWorkerWithoutInvocation:   newTasksScheduledCounterVec(tasksScheduledTotal, "WorkerWithoutInvocation"),
+		tasksScheduledWorkerFromOtherInvocation: newTasksScheduledCounterVec(tasksScheduledTotal, "WorkerFromOtherInvocation"),
+		tasksScheduledQueue:                     newTasksScheduledCounterVec(tasksScheduledTotal, "Queue"),
+		tasksQueuedDurationSeconds:              inMemoryBuildQueueTasksQueuedDurationSeconds.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr),
+		tasksExecutingDurationSeconds:           inMemoryBuildQueueTasksExecutingDurationSeconds.MustCurryWith(platformLabels),
+		tasksExecutingRetries:                   inMemoryBuildQueueTasksExecutingRetries.MustCurryWith(platformLabels),
+		tasksCompletedDurationSeconds:           inMemoryBuildQueueTasksCompletedDurationSeconds.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr),
 
 		workersCreatedTotal:          inMemoryBuildQueueWorkersCreatedTotal.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr),
 		workersRemovedIdleTotal:      inMemoryBuildQueueWorkersRemovedTotal.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr, "Idle"),
 		workersRemovedExecutingTotal: inMemoryBuildQueueWorkersRemovedTotal.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr, "Executing"),
+	}
+	if pq.workerInvocationStickinessLimit > 0 {
+		outcomes := inMemoryBuildQueueWorkerInvocationStickinessOutcomesTotal.MustCurryWith(platformLabels)
+		scq.workerInvocationStickinessOutcomesNoLastInvocations = outcomes.WithLabelValues("NoLastInvocations")
+		scq.workerInvocationStickinessOutcomesNoQueuedLastInvocations = outcomes.WithLabelValues("NoQueuedLastInvocations")
+		scq.workerInvocationStickinessOutcomesNoStickyLastInvocations = outcomes.WithLabelValues("NoStickyLastInvocations")
+		scq.workerInvocationStickinessOutcomesSelectedBestTask = outcomes.WithLabelValues("SelectedBestTask")
+		scq.workerInvocationStickinessOutcomesSelectedStickyTask = outcomes.WithLabelValues("SelectedStickyTask")
 	}
 
 	// Force creation of all metrics associated with this platform
@@ -1217,31 +1271,62 @@ func (pq *platformQueue) addSizeClassQueue(bq *InMemoryBuildQueue, sizeClass uin
 	return scq
 }
 
+// tasksScheduledCounterVec is a pair of counters for both boolean
+// values of "do_not_cache". It is used by the "tasks_scheduled_total"
+// Prometheus metric.
+type tasksScheduledCounterVec struct {
+	doNotCacheTrue  prometheus.Counter
+	doNotCacheFalse prometheus.Counter
+}
+
+func newTasksScheduledCounterVec(counterVec *prometheus.CounterVec, assignment string) tasksScheduledCounterVec {
+	return tasksScheduledCounterVec{
+		doNotCacheTrue:  counterVec.WithLabelValues(assignment, "true"),
+		doNotCacheFalse: counterVec.WithLabelValues(assignment, "false"),
+	}
+}
+
 type sizeClassQueue struct {
 	platformQueue *platformQueue
 	sizeClass     uint32
 	mayBeRemoved  bool
 
-	invocations             map[invocationKey]*invocation
-	queuedInvocations       queuedInvocationsHeap
-	queuedInvocationsWakeup chan struct{}
-	workers                 map[workerKey]*worker
-	cleanupKey              cleanupKey
+	// Map of all invocations for which we track state.
+	invocations map[invocationKey]*invocation
+	// Binary heap of all invocations that have one or more queued
+	// operations. Used by workers to pick an operation.
+	queuedInvocations queuedInvocationsHeap
+	// Binary heap of all invocations for which one or more idle
+	// workers exist that previously ran a task belonging to an
+	// invocation. This heap is sorted by time at which the last
+	// operation completed.
+	idleSynchronizingWorkersInvocations idleSynchronizingWorkersInvocationsHeap
+	idleSynchronizingWorkers            idleSynchronizingWorkersList
+	workers                             map[workerKey]*worker
+	cleanupKey                          cleanupKey
 
-	drains       map[string]*buildqueuestate.DrainState
-	drainsWakeup chan struct{}
+	drains        map[string]*buildqueuestate.DrainState
+	undrainWakeup chan struct{}
 
 	// Prometheus metrics.
-	tasksQueuedTotalTrue          prometheus.Counter
-	tasksQueuedTotalFalse         prometheus.Counter
-	tasksQueuedDurationSeconds    prometheus.Observer
-	tasksExecutingDurationSeconds prometheus.ObserverVec
-	tasksExecutingRetries         prometheus.ObserverVec
-	tasksCompletedDurationSeconds prometheus.Observer
+	tasksScheduledWorkerFromSameInvocation  tasksScheduledCounterVec
+	tasksScheduledWorkerWithoutInvocation   tasksScheduledCounterVec
+	tasksScheduledWorkerFromOtherInvocation tasksScheduledCounterVec
+	tasksScheduledQueue                     tasksScheduledCounterVec
+	tasksQueuedDurationSeconds              prometheus.Observer
+	tasksExecutingDurationSeconds           prometheus.ObserverVec
+	tasksExecutingRetries                   prometheus.ObserverVec
+	tasksCompletedDurationSeconds           prometheus.Observer
 
 	workersCreatedTotal          prometheus.Counter
 	workersRemovedIdleTotal      prometheus.Counter
 	workersRemovedExecutingTotal prometheus.Counter
+
+	workerInvocationStickinessOutcomesNoLastInvocations       prometheus.Counter
+	workerInvocationStickinessOutcomesNoQueuedLastInvocations prometheus.Counter
+	workerInvocationStickinessOutcomesNoStickyLastInvocations prometheus.Counter
+	workerInvocationStickinessOutcomesSelectedBestTask        prometheus.Counter
+	workerInvocationStickinessOutcomesSelectedStickyTask      prometheus.Counter
 }
 
 func (scq *sizeClassQueue) getKey() sizeClassKey {
@@ -1287,16 +1372,6 @@ func (scq *sizeClassQueue) remove(bq *InMemoryBuildQueue) {
 	}
 }
 
-// wakeupNextWorker is called after mutating the queued operations
-// queue in such a way that at least one operation is present. This
-// function ensures that a worker is woken up to take the operation.
-func (scq *sizeClassQueue) wakeupNextWorker() {
-	select {
-	case scq.queuedInvocationsWakeup <- struct{}{}:
-	default:
-	}
-}
-
 // removeStaleWorker is invoked when Synchronize() isn't being invoked
 // by a worker quickly enough. It causes the worker to be removed from
 // the InMemoryBuildQueue.
@@ -1310,6 +1385,7 @@ func (scq *sizeClassQueue) removeStaleWorker(bq *InMemoryBuildQueue, workerKey w
 			Status: status.Newf(codes.Unavailable, "Worker %s disappeared while task was executing", workerKey).Proto(),
 		}, false)
 	}
+	w.clearLastInvocations()
 	delete(scq.workers, workerKey)
 
 	// Trigger platform queue removal if necessary.
@@ -1320,13 +1396,22 @@ func (scq *sizeClassQueue) removeStaleWorker(bq *InMemoryBuildQueue, workerKey w
 	}
 }
 
+// GetOrCreateInvocation looks up the invocation key in the size class
+// queue, returning the corresponding invocation. If no invocation under
+// this key exists, a new invocation is created.
+//
+// As the invocation may be just created, the caller must either queue
+// an operation, increase the executing operations count, place a worker
+// in the invocation or call invocation.removeIfEmpty().
 func (scq *sizeClassQueue) getOrCreateInvocation(invocationKey invocationKey) *invocation {
 	if i, ok := scq.invocations[invocationKey]; ok {
 		return i
 	}
 	i := &invocation{
-		invocationKey:  invocationKey,
-		sizeClassQueue: scq,
+		invocationKey:                            invocationKey,
+		sizeClassQueue:                           scq,
+		queuedInvocationsIndex:                   -1,
+		idleSynchronizingWorkersInvocationsIndex: -1,
 	}
 	scq.invocations[invocationKey] = i
 	return i
@@ -1366,59 +1451,25 @@ func (h queuedInvocationsHeap) Len() int {
 	return len(h)
 }
 
-var priorityExponentiationBase = math.Pow(2.0, 0.01)
-
 func (h queuedInvocationsHeap) Less(i, j int) bool {
-	// To introduce fairness, we want to prefer scheduling
-	// operations belonging to invocations that have the fewest
-	// running operations. In addition to that, we still want to
-	// respect priorities at the global level.
-	//
-	// Combine these two properties into a single score value
-	// according to the following expression, where the invocation
-	// with the lowest score is most favourable.
-	//
-	// S = (executingOperationsCount + 1) * b^priority
-	//
-	// Note that REv2 priorities are inverted; the lower the integer
-	// value, the higher the priority. The '+ 1' part has been added
-	// to this expression to ensure that the priority is still taken
-	// into account when the number of executing operations is zero.
-	//
-	// The base value for the expontentiation is chosen to be
-	// 2^0.01 =~ 1.007. This means that if the difference in
-	// priority between two builds is 100, one build will be allowed
-	// to run twice as many operations as the other.
-	oi, oj := h[i].queuedOperations[0], h[j].queuedOperations[0]
-	ei, ej := float64(h[i].executingOperationsCount+1), float64(h[j].executingOperationsCount+1)
-	var si, sj float64
-	if pi, pj := float64(oi.priority), float64(oj.priority); pi < pj {
-		// Invocation i has a higher priority. Give invocation j
-		// a penalty based on the difference in priority.
-		si, sj = ei, ej*math.Pow(priorityExponentiationBase, pj-pi)
-	} else if pi > pj {
-		// Invocation j has a higher priority. Give invocation i
-		// a penalty based on the difference in priority.
-		si, sj = ei*math.Pow(priorityExponentiationBase, pi-pj), ej
-	} else {
-		// Both invocations have the same priority.
-		si, sj = ei, ej
-	}
-	return si < sj || (si == sj && oi.task.queuedBefore(oj.task))
+	return h[i].isPreferred(h[j], 0)
 }
 
 func (h queuedInvocationsHeap) Swap(i, j int) {
-	if h[i].queueIndex != i || h[j].queueIndex != j {
+	if h[i].queuedInvocationsIndex != i || h[j].queuedInvocationsIndex != j {
 		panic("Invalid queue indices")
 	}
 	h[i], h[j] = h[j], h[i]
-	h[i].queueIndex = i
-	h[j].queueIndex = j
+	h[i].queuedInvocationsIndex = i
+	h[j].queuedInvocationsIndex = j
 }
 
 func (h *queuedInvocationsHeap) Push(x interface{}) {
 	e := x.(*invocation)
-	e.queueIndex = len(*h)
+	if e.queuedInvocationsIndex != -1 {
+		panic("Invalid queue index")
+	}
+	e.queuedInvocationsIndex = len(*h)
 	*h = append(*h, e)
 }
 
@@ -1426,11 +1477,80 @@ func (h *queuedInvocationsHeap) Pop() interface{} {
 	old := *h
 	n := len(old)
 	e := old[n-1]
-	*h = old[0 : n-1]
-	if e.queueIndex != n-1 {
+	old[n-1] = nil
+	*h = old[:n-1]
+	if e.queuedInvocationsIndex != n-1 {
 		panic("Invalid queue index")
 	}
-	e.queueIndex = -1
+	e.queuedInvocationsIndex = -1
+	return e
+}
+
+// IdleSynchronizingWorkersInvocationsHeap is a binary heap that
+// contains all invocations for which one or more workers exist that
+// most recently ran a task associated with that invocation, and are
+// currently synchronizing against the scheduler.
+//
+// This heap is used to determine which invocations should have their
+// workers rebalanced to other invocations.
+type idleSynchronizingWorkersInvocationsHeap []*invocation
+
+func (h idleSynchronizingWorkersInvocationsHeap) Len() int {
+	return len(h)
+}
+
+func (h idleSynchronizingWorkersInvocationsHeap) Less(i, j int) bool {
+	// Sort invocations by worker utilization rate, so that
+	// invocations with an excessive number of workers have their
+	// workers taken first. Invocations can only be part of this
+	// heap if they have no queued operations, so we only need to
+	// consider executing and idle workers:
+	//
+	//     utilization = executing / (executing + idle)
+	//
+	// Simplify the comparison by cross-multiplying and removing the
+	// common part.
+	ui := uint64(h[i].executingWorkersCount) * uint64(len(h[j].idleSynchronizingWorkers))
+	uj := uint64(h[j].executingWorkersCount) * uint64(len(h[i].idleSynchronizingWorkers))
+	if ui < uj {
+		return true
+	} else if ui > uj {
+		return false
+	}
+	// Tie breaker, most likely because both invocations are no
+	// longer executing anything. Remove workers from the oldest
+	// invocation first, as those are the least likely to be needed.
+	return h[i].lastOperationCompletion.Before(h[j].lastOperationCompletion)
+}
+
+func (h idleSynchronizingWorkersInvocationsHeap) Swap(i, j int) {
+	if h[i].idleSynchronizingWorkersInvocationsIndex != i || h[j].idleSynchronizingWorkersInvocationsIndex != j {
+		panic("Invalid queue indices")
+	}
+	h[i], h[j] = h[j], h[i]
+	h[i].idleSynchronizingWorkersInvocationsIndex = i
+	h[j].idleSynchronizingWorkersInvocationsIndex = j
+}
+
+func (h *idleSynchronizingWorkersInvocationsHeap) Push(x interface{}) {
+	e := x.(*invocation)
+	if e.idleSynchronizingWorkersInvocationsIndex != -1 {
+		panic("Invalid queue index")
+	}
+	e.idleSynchronizingWorkersInvocationsIndex = len(*h)
+	*h = append(*h, e)
+}
+
+func (h *idleSynchronizingWorkersInvocationsHeap) Pop() interface{} {
+	old := *h
+	n := len(old)
+	e := old[n-1]
+	old[n-1] = nil
+	*h = old[:n-1]
+	if e.idleSynchronizingWorkersInvocationsIndex != n-1 {
+		panic("Invalid queue index")
+	}
+	e.idleSynchronizingWorkersInvocationsIndex = -1
 	return e
 }
 
@@ -1475,20 +1595,70 @@ func (k invocationKey) getInvocationID() *anypb.Any {
 	return &invocationID
 }
 
+// Invocation keeps track of operations that all need to be scheduled on
+// a single size class queue, all having the same invocation ID. These
+// operations will be scheduled fairly with respect to other
+// invocations.
 type invocation struct {
 	invocationKey  invocationKey
 	sizeClassQueue *sizeClassQueue
-	queueIndex     int
 
-	queuedOperations         queuedOperationsHeap
-	executingOperationsCount uint32
+	// The index of this invocation inside the
+	// sizeClassQueue.queuedInvocations heap.
+	queuedInvocationsIndex int
+	// The index of this invocation inside the
+	// sizeClassQueue.idleSynchronizingWorkersInvocations heap.
+	idleSynchronizingWorkersInvocationsIndex int
+
+	// Heap of operations that are part of this invocation that are
+	// currently in the QUEUED stage.
+	queuedOperations queuedOperationsHeap
+
+	// Number of workers that are executing operations that belong
+	// to this invocation. This equals the number of operations that
+	// are part of this invocation that are currently in the
+	// EXECUTING stage.
+	executingWorkersCount uint32
+	// The time at which the last executing operation was completed.
+	// This value is used to determine which invocations are the
+	// best candidates for rebalancing idle synchronizing workers.
+	lastOperationCompletion time.Time
+	// Number of workers that are idle and most recently completed
+	// an operation belonging to this invocation.
+	idleWorkersCount uint32
+	// List of workers that are idle and most recently executed an
+	// operation belonging to this invocation and are currently
+	// synchronizing against the scheduler.
+	idleSynchronizingWorkers idleSynchronizingWorkersList
+}
+
+// IsActive returns whether an invocation has one or more queued or
+// executing operations. These are generally the ones that users of the
+// BuildQueueState service want to view.
+func (i *invocation) isActive() bool {
+	return i.queuedOperations.Len() > 0 || i.executingWorkersCount > 0
+}
+
+// RemoveIfEmpty checks whether the invocation is empty (i.e., not
+// containing any operations or workers). If so, it removes the
+// invocation from the size class queue in which it is contained.
+func (i *invocation) removeIfEmpty() {
+	if i.queuedOperations.Len() == 0 && i.executingWorkersCount == 0 && i.idleWorkersCount == 0 {
+		scq := i.sizeClassQueue
+		if scq.invocations[i.invocationKey] != i {
+			panic("Attempted to remove an invocation that was already removed")
+		}
+		delete(scq.invocations, i.invocationKey)
+	}
 }
 
 func (i *invocation) getInvocationState(bq *InMemoryBuildQueue) *buildqueuestate.InvocationState {
 	is := &buildqueuestate.InvocationState{
-		Id:                       i.invocationKey.getInvocationID(),
-		QueuedOperationsCount:    uint32(i.queuedOperations.Len()),
-		ExecutingOperationsCount: i.executingOperationsCount,
+		Id:                            i.invocationKey.getInvocationID(),
+		QueuedOperationsCount:         uint32(i.queuedOperations.Len()),
+		ExecutingWorkersCount:         i.executingWorkersCount,
+		IdleWorkersCount:              i.idleWorkersCount,
+		IdleSynchronizingWorkersCount: uint32(len(i.idleSynchronizingWorkers)),
 	}
 	if is.QueuedOperationsCount > 0 {
 		is.FirstQueuedOperation = i.queuedOperations[0].getOperationState(bq)
@@ -1498,33 +1668,76 @@ func (i *invocation) getInvocationState(bq *InMemoryBuildQueue) *buildqueuestate
 	return is
 }
 
-func (i *invocation) enqueueOperation(o *operation) {
-	heap.Push(&i.queuedOperations, o)
-	scq := i.sizeClassQueue
-	if i.queuedOperations.Len() == 1 {
-		heap.Push(&scq.queuedInvocations, i)
-		scq.wakeupNextWorker()
-	} else {
-		heap.Fix(&scq.queuedInvocations, i.queueIndex)
-	}
-}
-
-// decrementExecutingOperationsCount decrements the number of operations
-// in the EXECUTING stage that are part of this invocation.
+// DecrementExecutingWorkersCount decrements the number of operations in
+// the EXECUTING stage that are part of this invocation.
 //
 // Because the number of operations in the EXECUTING stage is used to
 // prioritize tasks, this function may need to adjust the position of
 // this invocation in the queued invocations heap. It may also need to
 // remove the invocation entirely in case it no longer contains any
 // operations.
-func (i *invocation) decrementExecutingOperationsCount() {
-	i.executingOperationsCount--
-	scq := i.sizeClassQueue
-	if i.queuedOperations.Len() > 0 {
-		heap.Fix(&scq.queuedInvocations, i.queueIndex)
-	} else if i.executingOperationsCount == 0 {
-		delete(scq.invocations, i.invocationKey)
+func (i *invocation) decrementExecutingWorkersCount(bq *InMemoryBuildQueue) {
+	if i.executingWorkersCount == 0 {
+		panic("Executing operations count invalid")
 	}
+	i.executingWorkersCount--
+	i.lastOperationCompletion = bq.now
+	scq := i.sizeClassQueue
+	heapMaybeFix(&scq.queuedInvocations, i.queuedInvocationsIndex)
+	heapMaybeFix(&scq.idleSynchronizingWorkersInvocations, i.idleSynchronizingWorkersInvocationsIndex)
+	i.removeIfEmpty()
+}
+
+// IncrementExecutingWorkersCount increments the number of operations in
+// the EXECUTING stage that are part of this invocation.
+func (i *invocation) incrementExecutingWorkersCount() {
+	i.executingWorkersCount++
+	scq := i.sizeClassQueue
+	heapMaybeFix(&scq.queuedInvocations, i.queuedInvocationsIndex)
+	heapMaybeFix(&scq.idleSynchronizingWorkersInvocations, i.idleSynchronizingWorkersInvocationsIndex)
+}
+
+var priorityExponentiationBase = math.Pow(2.0, 0.01)
+
+// IsPreferred returns whether the first queued operation of invocation
+// i should be preferred over the first queued operation of invocation j.
+func (i *invocation) isPreferred(j *invocation, stickinessLimit time.Duration) bool {
+	// To introduce fairness, we want to prefer scheduling
+	// operations belonging to invocations that have the fewest
+	// running operations. In addition to that, we still want to
+	// respect priorities at the global level.
+	//
+	// Combine these two properties into a single score value
+	// according to the following expression, where the invocation
+	// with the lowest score is most favourable.
+	//
+	// S = (executingWorkersCount + 1) * b^priority
+	//
+	// Note that REv2 priorities are inverted; the lower the integer
+	// value, the higher the priority. The '+ 1' part has been added
+	// to this expression to ensure that the priority is still taken
+	// into account when the number of executing operations is zero.
+	//
+	// The base value for the expontentiation is chosen to be
+	// 2^0.01 =~ 1.007. This means that if the difference in
+	// priority between two builds is 100, one build will be allowed
+	// to run twice as many operations as the other.
+	oi, oj := i.queuedOperations[0], j.queuedOperations[0]
+	ei, ej := float64(i.executingWorkersCount+1), float64(j.executingWorkersCount+1)
+	var si, sj float64
+	if pi, pj := float64(oi.priority), float64(oj.priority); pi < pj {
+		// Invocation i has a higher priority. Give invocation j
+		// a penalty based on the difference in priority.
+		si, sj = ei, ej*math.Pow(priorityExponentiationBase, pj-pi)
+	} else if pi > pj {
+		// Invocation j has a higher priority. Give invocation i
+		// a penalty based on the difference in priority.
+		si, sj = ei*math.Pow(priorityExponentiationBase, pi-pj), ej
+	} else {
+		// Both invocations have the same priority.
+		si, sj = ei, ej
+	}
+	return si < sj || (si == sj && oi.task.queuedBefore(oj.task, stickinessLimit))
 }
 
 // queuedOperationsHeap is a binary heap that stores queued operations,
@@ -1538,7 +1751,7 @@ func (h queuedOperationsHeap) Len() int {
 func (h queuedOperationsHeap) Less(i, j int) bool {
 	// Lexicographic order on priority and queued timestamp.
 	return h[i].priority < h[j].priority || (h[i].priority == h[j].priority &&
-		h[i].task.queuedBefore(h[j].task))
+		h[i].task.queuedBefore(h[j].task, 0))
 }
 
 func (h queuedOperationsHeap) Swap(i, j int) {
@@ -1552,6 +1765,9 @@ func (h queuedOperationsHeap) Swap(i, j int) {
 
 func (h *queuedOperationsHeap) Push(x interface{}) {
 	o := x.(*operation)
+	if o.queueIndex != -1 {
+		panic("Invalid queue index")
+	}
 	o.queueIndex = len(*h)
 	*h = append(*h, o)
 }
@@ -1560,7 +1776,8 @@ func (h *queuedOperationsHeap) Pop() interface{} {
 	old := *h
 	n := len(old)
 	o := old[n-1]
-	*h = old[0 : n-1]
+	old[n-1] = nil
+	*h = old[:n-1]
 	if o.queueIndex != n-1 {
 		panic("Invalid queue index")
 	}
@@ -1682,26 +1899,22 @@ func (o *operation) waitExecution(bq *InMemoryBuildQueue, out remoteexecution.Ex
 // state from the invocation. If the invocation no longer has any queued
 // operations, it will be removed from the queued invocations heap in
 // the containing platform queue.
-//
-// This function returns true if this was the last queued operation to
-// be removed from the invocation.
-func (o *operation) removeQueuedFromInvocation() bool {
+func (o *operation) removeQueuedFromInvocation() {
 	i := o.invocation
 	heap.Remove(&i.queuedOperations, o.queueIndex)
-
 	scq := i.sizeClassQueue
-	if i.queuedOperations.Len() == 0 {
-		// Associated invocation no longer has any queued
-		// operations. Remove the invocation from the queue.
-		heap.Remove(&scq.queuedInvocations, i.queueIndex)
-		return true
-	}
+	heapRemoveOrFix(&scq.queuedInvocations, i.queuedInvocationsIndex, i.queuedOperations.Len())
+}
 
-	// Associated invocation still has one or more queued
-	// operations, though we may need to schedule operations from
-	// other invocations first. Move the invocation down the heap.
-	heap.Fix(&scq.queuedInvocations, i.queueIndex)
-	return false
+// Enqueue a newly created operation in the heap of queued operations of
+// an invocation. This method is called whenever an operation can't be
+// assigned to a worker immediately, due to no idle synchronizing
+// workers for this size class queue being available.
+func (o *operation) enqueue() {
+	i := o.invocation
+	heap.Push(&i.queuedOperations, o)
+	scq := i.sizeClassQueue
+	heapPushOrFix(&scq.queuedInvocations, i.queuedInvocationsIndex, i)
 }
 
 func (o *operation) remove(bq *InMemoryBuildQueue) {
@@ -1721,12 +1934,10 @@ func (o *operation) remove(bq *InMemoryBuildQueue) {
 		i := o.invocation
 		switch t.getStage() {
 		case remoteexecution.ExecutionStage_QUEUED:
-			if o.removeQueuedFromInvocation() && i.executingOperationsCount == 0 {
-				scq := i.sizeClassQueue
-				delete(scq.invocations, i.invocationKey)
-			}
+			o.removeQueuedFromInvocation()
+			i.removeIfEmpty()
 		case remoteexecution.ExecutionStage_EXECUTING:
-			i.decrementExecutingOperationsCount()
+			i.decrementExecutingWorkersCount(bq)
 		}
 	}
 	delete(t.operations, o.invocation)
@@ -1806,6 +2017,11 @@ type task struct {
 	stageChangeWakeup chan struct{}
 }
 
+// NewOperation attaches a new operation to a task. This function must
+// be called at least once after creating a task. It is most frequently
+// called right after creating a task, but may also be used to attach
+// additional operations to an existing task in case of in-flight
+// deduplication.
 func (t *task) newOperation(bq *InMemoryBuildQueue, priority int32, i *invocation, mayExistWithoutWaiters bool) *operation {
 	o := &operation{
 		name:                   uuid.Must(bq.uuidGenerator()).String(),
@@ -1813,10 +2029,65 @@ func (t *task) newOperation(bq *InMemoryBuildQueue, priority int32, i *invocatio
 		priority:               priority,
 		invocation:             i,
 		mayExistWithoutWaiters: mayExistWithoutWaiters,
+		queueIndex:             -1,
+	}
+	if _, ok := t.operations[i]; ok {
+		panic("Task is already associated with this invocation")
 	}
 	t.operations[i] = o
 	bq.operationsNameMap[o.name] = o
 	return o
+}
+
+// ReportNonFinalStageChange can be used to wake up clients that are
+// calling Execute() or WaitExecution(), causing them to receive another
+// non-final stage change update.
+func (t *task) reportNonFinalStageChange() {
+	close(t.stageChangeWakeup)
+	t.stageChangeWakeup = make(chan struct{})
+}
+
+// Schedule a task. This function will first attempt to directly assign
+// a task to an idle worker that is synchronizing against the scheduler.
+// When no such worker exists, it will queue the operation, so that a
+// worker may pick it up later.
+func (t *task) schedule(bq *InMemoryBuildQueue) {
+	// Check whether there are idle workers that are synchronizing
+	// against the scheduler on which we can schedule the operation
+	// directly.
+	scq := t.getSizeClassQueue()
+	for i := range t.operations {
+		if l := i.idleSynchronizingWorkers; len(l) > 0 {
+			// Pick a worker that last ran another task that
+			// belonged to the same invocation. These
+			// workers will most likely to give a high input
+			// file cache hit rate.
+			t.registerQueuedStageStarted(bq, &scq.tasksScheduledWorkerFromSameInvocation)
+			l[0].worker.assignUnqueuedTaskAndWakeUp(bq, t)
+			return
+		}
+	}
+	if l := scq.idleSynchronizingWorkers; len(l) > 0 {
+		// Pick a recently created worker that hasn't run any
+		// tasks yet. This ensures that other workers remain
+		// available for their last invocations.
+		t.registerQueuedStageStarted(bq, &scq.tasksScheduledWorkerWithoutInvocation)
+		l[0].worker.assignUnqueuedTaskAndWakeUp(bq, t)
+	} else if h := scq.idleSynchronizingWorkersInvocations; len(h) > 0 {
+		// Pick a worker that most recently ran a task that is
+		// associated with the invocation with the lowest worker
+		// utilization rate.
+		t.registerQueuedStageStarted(bq, &scq.tasksScheduledWorkerFromOtherInvocation)
+		h[0].idleSynchronizingWorkers[0].worker.assignUnqueuedTaskAndWakeUp(bq, t)
+	} else {
+		// No idle workers are available that are synchronizing
+		// against the scheduler. Queue the operation, so that
+		// workers can pick it up when they become available.
+		t.registerQueuedStageStarted(bq, &scq.tasksScheduledQueue)
+		for _, o := range t.operations {
+			o.enqueue()
+		}
+	}
 }
 
 // getStage returns whether the task is in the queued, executing or
@@ -1831,22 +2102,8 @@ func (t *task) getStage() remoteexecution.ExecutionStage_Value {
 	return remoteexecution.ExecutionStage_QUEUED
 }
 
-func (t *task) queuedBefore(other *task) bool {
-	ti := t.desiredState.QueuedTimestamp
-	tj := other.desiredState.QueuedTimestamp
-	return ti.Seconds < tj.Seconds || (ti.Seconds == tj.Seconds && ti.Nanos < tj.Nanos)
-}
-
-// startExecuting transitions a task and all of its associated
-// operations from the queued to the executing stage.
-func (t *task) startExecuting(bq *InMemoryBuildQueue) {
-	for i, o := range t.operations {
-		i.executingOperationsCount++
-		o.removeQueuedFromInvocation()
-	}
-	t.registerQueuedStageFinished(bq)
-	close(t.stageChangeWakeup)
-	t.stageChangeWakeup = make(chan struct{})
+func (t *task) queuedBefore(other *task, stickinessLimit time.Duration) bool {
+	return t.desiredState.QueuedTimestamp.AsTime().Before(other.desiredState.QueuedTimestamp.AsTime().Add(stickinessLimit))
 }
 
 // Complete execution of the task by registering the execution response.
@@ -1854,120 +2111,135 @@ func (t *task) startExecuting(bq *InMemoryBuildQueue) {
 func (t *task) complete(bq *InMemoryBuildQueue, executeResponse *remoteexecution.ExecuteResponse, completedByWorker bool) {
 	switch t.getStage() {
 	case remoteexecution.ExecutionStage_QUEUED:
-		// The task isn't even executing. First transition it to
-		// the executing stage, so that it can be completed
-		// safely.
-		t.startExecuting(bq)
-		fallthrough
+		// The task isn't executing. Create a temporary worker
+		// on which we start the task, so that we can go through
+		// the regular completion code below.
+		var w worker
+		w.assignQueuedTask(bq, t)
 	case remoteexecution.ExecutionStage_EXECUTING:
-		// Mark the task as completed.
-		currentSCQ := t.getSizeClassQueue()
-		for i := range t.operations {
-			i.decrementExecutingOperationsCount()
+		// Task is executing on a worker. Make sure to preserve
+		// worker.lastInvocations.
+		if completedByWorker {
+			w := t.currentWorker
+			if len(w.lastInvocations) != 0 {
+				panic("Executing worker cannot have invocations associated with it")
+			}
+			if len(t.operations) == 0 {
+				panic("Task no longer has an invocation associated with it")
+			}
+			for i := range t.operations {
+				w.lastInvocations = append(w.lastInvocations, i)
+				i.idleWorkersCount++
+			}
 		}
-		if w := t.currentWorker; w != nil {
-			w.currentTask = nil
-			t.currentWorker = nil
-		}
-		result, grpcCode := getResultAndGRPCCodeFromExecuteResponse(executeResponse)
-		t.registerExecutingStageFinished(bq, result, grpcCode)
-		close(t.stageChangeWakeup)
+	case remoteexecution.ExecutionStage_COMPLETED:
+		// Task is already completed. Nothing to do.
+		return
+	}
 
-		// Communicate the results to the initial size class
-		// learner, which may request that the task is
-		// re-executed.
-		pq := currentSCQ.platformQueue
-		var timeout time.Duration
-		if code, actionResult := status.FromProto(executeResponse.Status).Code(), executeResponse.Result; code == codes.OK && actionResult.GetExitCode() == 0 {
-			// The task succeeded, but we're still getting
-			// instructed to run the task again for training
-			// purposes. If that happens, create a new task
-			// that runs in the background. The user does
-			// not need to be blocked on this.
-			executionMetadata := actionResult.GetExecutionMetadata()
-			backgroundSizeClassIndex, backgroundTimeout, backgroundInitialSizeClassLearner := t.initialSizeClassLearner.Succeeded(
-				executionMetadata.GetExecutionCompletedTimestamp().AsTime().Sub(
-					executionMetadata.GetExecutionStartTimestamp().AsTime()),
-				pq.sizeClasses)
-			t.initialSizeClassLearner = nil
-			if backgroundInitialSizeClassLearner != nil {
-				if pq.maximumQueuedBackgroundLearningOperations == 0 {
-					// No background learning permitted.
+	currentSCQ := t.getSizeClassQueue()
+	for i := range t.operations {
+		i.decrementExecutingWorkersCount(bq)
+	}
+	t.currentWorker.currentTask = nil
+	t.currentWorker = nil
+	result, grpcCode := getResultAndGRPCCodeFromExecuteResponse(executeResponse)
+	t.registerExecutingStageFinished(bq, result, grpcCode)
+
+	// Communicate the results to the initial size class learner,
+	// which may request that the task is re-executed.
+	pq := currentSCQ.platformQueue
+	var timeout time.Duration
+	if code, actionResult := status.FromProto(executeResponse.Status).Code(), executeResponse.Result; code == codes.OK && actionResult.GetExitCode() == 0 {
+		// The task succeeded, but we're still getting
+		// instructed to run the task again for training
+		// purposes. If that happens, create a new task that
+		// runs in the background. The user does not need to be
+		// blocked on this.
+		executionMetadata := actionResult.GetExecutionMetadata()
+		backgroundSizeClassIndex, backgroundTimeout, backgroundInitialSizeClassLearner := t.initialSizeClassLearner.Succeeded(
+			executionMetadata.GetExecutionCompletedTimestamp().AsTime().Sub(
+				executionMetadata.GetExecutionStartTimestamp().AsTime()),
+			pq.sizeClasses)
+		t.initialSizeClassLearner = nil
+		if backgroundInitialSizeClassLearner != nil {
+			if pq.maximumQueuedBackgroundLearningOperations == 0 {
+				// No background learning permitted.
+				backgroundInitialSizeClassLearner.Abandoned()
+			} else {
+				backgroundSCQ := pq.sizeClassQueues[backgroundSizeClassIndex]
+				backgroundInvocation := backgroundSCQ.getOrCreateInvocation(backgroundLearningInvocationKey)
+				if backgroundInvocation.queuedOperations.Len() >= pq.maximumQueuedBackgroundLearningOperations {
+					// Already running too many background tasks.
 					backgroundInitialSizeClassLearner.Abandoned()
 				} else {
-					backgroundSCQ := pq.sizeClassQueues[backgroundSizeClassIndex]
-					backgroundInvocation := backgroundSCQ.getOrCreateInvocation(backgroundLearningInvocationKey)
-					if backgroundInvocation.queuedOperations.Len() >= pq.maximumQueuedBackgroundLearningOperations {
-						// Already running too many background tasks.
-						backgroundInitialSizeClassLearner.Abandoned()
-					} else {
-						backgroundAction := *t.desiredState.Action
-						backgroundAction.DoNotCache = true
-						backgroundAction.Timeout = durationpb.New(backgroundTimeout)
-						backgroundTask := &task{
-							operations:              map[*invocation]*operation{},
-							actionDigest:            t.actionDigest,
-							desiredState:            t.desiredState,
-							targetID:                t.targetID,
-							initialSizeClassLearner: backgroundInitialSizeClassLearner,
-							stageChangeWakeup:       make(chan struct{}),
-						}
-						backgroundTask.desiredState.Action = &backgroundAction
-						backgroundOperation := backgroundTask.newOperation(bq, pq.backgroundLearningOperationPriority, backgroundInvocation, true)
-						backgroundTask.registerQueuedStageStarted(bq)
-						backgroundInvocation.enqueueOperation(backgroundOperation)
+					backgroundAction := *t.desiredState.Action
+					backgroundAction.DoNotCache = true
+					backgroundAction.Timeout = durationpb.New(backgroundTimeout)
+					backgroundTask := &task{
+						operations:              map[*invocation]*operation{},
+						actionDigest:            t.actionDigest,
+						desiredState:            t.desiredState,
+						targetID:                t.targetID,
+						initialSizeClassLearner: backgroundInitialSizeClassLearner,
+						stageChangeWakeup:       make(chan struct{}),
 					}
+					backgroundTask.desiredState.Action = &backgroundAction
+					backgroundTask.newOperation(bq, pq.backgroundLearningOperationPriority, backgroundInvocation, true)
+					backgroundTask.schedule(bq)
 				}
 			}
-		} else if completedByWorker {
-			// The worker communicated that the task failed.
-			// Attempt to run it on another size class.
-			timeout, t.initialSizeClassLearner = t.initialSizeClassLearner.Failed(code == codes.DeadlineExceeded)
-		} else {
-			// The task was completed, but this was not done
-			// by the worker. Treat is as a regular failure.
-			t.initialSizeClassLearner.Abandoned()
-			t.initialSizeClassLearner = nil
 		}
+	} else if completedByWorker {
+		// The worker communicated that the task failed. Attempt
+		// to run it on another size class.
+		timeout, t.initialSizeClassLearner = t.initialSizeClassLearner.Failed(code == codes.DeadlineExceeded)
+	} else {
+		// The task was completed, but this was not done by the
+		// worker. Treat is as a regular failure.
+		t.initialSizeClassLearner.Abandoned()
+		t.initialSizeClassLearner = nil
+	}
 
-		if t.initialSizeClassLearner != nil {
-			// Re-execution against the largest size class
-			// is requested. Use the original timeout value.
-			t.desiredState.Action.Timeout = durationpb.New(timeout)
-			t.registerCompletedStageFinished(bq)
-			largestSCQ := pq.sizeClassQueues[len(pq.sizeClassQueues)-1]
-			operations := t.operations
-			t.operations = make(map[*invocation]*operation, len(operations))
-			for oldI, o := range operations {
-				i := largestSCQ.getOrCreateInvocation(oldI.invocationKey)
-				t.operations[i] = o
-				o.invocation = i
-				i.enqueueOperation(o)
-			}
-			t.registerQueuedStageStarted(bq)
-			t.stageChangeWakeup = make(chan struct{})
-		} else {
-			// The task succeeded or it failed on the
-			// largest size class. Let's just complete it.
-			//
-			// Scrub data from the task that are no longer needed
-			// after completion. This reduces memory usage
-			// significantly. Keep the Action digest, so that
-			// there's still a way to figure out what the task was.
-			delete(bq.inFlightDeduplicationMap, t.actionDigest)
-			t.executeResponse = executeResponse
-			t.desiredState.Action = nil
-			t.stageChangeWakeup = nil
+	if t.initialSizeClassLearner != nil {
+		// Re-execution against the largest size class is
+		// requested, using the original timeout value.
+		// Transplant all operations to the other size class
+		// queue and reschedule.
+		t.desiredState.Action.Timeout = durationpb.New(timeout)
+		t.registerCompletedStageFinished(bq)
+		largestSCQ := pq.sizeClassQueues[len(pq.sizeClassQueues)-1]
+		operations := t.operations
+		t.operations = make(map[*invocation]*operation, len(operations))
+		for oldI, o := range operations {
+			i := largestSCQ.getOrCreateInvocation(oldI.invocationKey)
+			t.operations[i] = o
+			o.invocation = i
+		}
+		t.schedule(bq)
+		t.reportNonFinalStageChange()
+	} else {
+		// The task succeeded or it failed on the largest size
+		// class. Let's just complete it.
+		//
+		// Scrub data from the task that are no longer needed
+		// after completion. This reduces memory usage
+		// significantly. Keep the Action digest, so that
+		// there's still a way to figure out what the task was.
+		delete(bq.inFlightDeduplicationMap, t.actionDigest)
+		t.executeResponse = executeResponse
+		t.desiredState.Action = nil
+		close(t.stageChangeWakeup)
+		t.stageChangeWakeup = nil
 
-			// Background learning tasks may continue to
-			// exist, even if no clients wait for the
-			// results. Now that this task is completed, it
-			// must go through the regular cleanup process.
-			for _, o := range t.operations {
-				if o.mayExistWithoutWaiters {
-					o.mayExistWithoutWaiters = false
-					o.maybeStartCleanup(bq)
-				}
+		// Background learning tasks may continue to exist, even
+		// if no clients wait for the results. Now that this
+		// task is completed, it must go through the regular
+		// cleanup process.
+		for _, o := range t.operations {
+			if o.mayExistWithoutWaiters {
+				o.mayExistWithoutWaiters = false
+				o.maybeStartCleanup(bq)
 			}
 		}
 	}
@@ -1984,17 +2256,18 @@ func (t *task) getSizeClassQueue() *sizeClassQueue {
 	panic("Task does not have any operation associated with it")
 }
 
-func (t *task) registerQueuedStageStarted(bq *InMemoryBuildQueue) {
-	scq := t.getSizeClassQueue()
+// RegisterQueuedStageStarted updates Prometheus metrics related to the
+// task entering the QUEUED stage.
+func (t *task) registerQueuedStageStarted(bq *InMemoryBuildQueue, tasksScheduledCounterVec *tasksScheduledCounterVec) {
 	if t.desiredState.Action.DoNotCache {
-		scq.tasksQueuedTotalTrue.Inc()
+		tasksScheduledCounterVec.doNotCacheTrue.Inc()
 	} else {
-		scq.tasksQueuedTotalFalse.Inc()
+		tasksScheduledCounterVec.doNotCacheFalse.Inc()
 	}
 	t.currentStageStartTime = bq.now
 }
 
-// registerQueuedStageFinished updates Prometheus metrics related to
+// RegisterQueuedStageFinished updates Prometheus metrics related to the
 // task finishing the QUEUED stage.
 func (t *task) registerQueuedStageFinished(bq *InMemoryBuildQueue) {
 	scq := t.getSizeClassQueue()
@@ -2002,8 +2275,8 @@ func (t *task) registerQueuedStageFinished(bq *InMemoryBuildQueue) {
 	t.currentStageStartTime = bq.now
 }
 
-// registerQueuedStageFinished updates Prometheus metrics related to
-// task finishing the EXECUTING stage.
+// RegisterExecutingStageFinished updates Prometheus metrics related to
+// the task finishing the EXECUTING stage.
 func (t *task) registerExecutingStageFinished(bq *InMemoryBuildQueue, result, grpcCode string) {
 	scq := t.getSizeClassQueue()
 	scq.tasksExecutingDurationSeconds.WithLabelValues(result, grpcCode).Observe(bq.now.Sub(t.currentStageStartTime).Seconds())
@@ -2011,8 +2284,8 @@ func (t *task) registerExecutingStageFinished(bq *InMemoryBuildQueue, result, gr
 	t.currentStageStartTime = bq.now
 }
 
-// registerQueuedStageFinished updates Prometheus metrics related to
-// task finishing the COMPLETED stage, meaning the task got removed.
+// RegisterCompletedStageFinished updates Prometheus metrics related to
+// the task finishing the COMPLETED stage, meaning the task got removed.
 func (t *task) registerCompletedStageFinished(bq *InMemoryBuildQueue) {
 	scq := t.getSizeClassQueue()
 	scq.tasksCompletedDurationSeconds.Observe(bq.now.Sub(t.currentStageStartTime).Seconds())
@@ -2021,9 +2294,40 @@ func (t *task) registerCompletedStageFinished(bq *InMemoryBuildQueue) {
 
 // worker state for every node capable of executing operations.
 type worker struct {
+	// The task that this worker is currently executing. This field
+	// must be kept in sync with task.currentWorker.
 	currentTask *task
-	cleanupKey  cleanupKey
+	// Used to garbage collect workers that have disappeared.
+	cleanupKey cleanupKey
+	// When true, this worker is going to terminate in the nearby
+	// future. This is effectively a drain that cannot be cleared
+	// through the BuildQueueState interface.
 	terminating bool
+	// The set of invocations that were associated with the task
+	// that this worker completed most recently. This set is used to
+	// make sure successive tasks belonging to one of these
+	// invocations is more likely to end up on this worker. This
+	// improves locality.
+	lastInvocations []*invocation
+	// When set, the worker is idle and currently issuing a blocking
+	// Synchronize() call against the scheduler. This channel can be
+	// closed to wake up the worker, either after assigning a task
+	// to it or to force it becoming drained.
+	wakeup chan<- struct{}
+	// When 'wakeup' is set, this list contains the indices at which
+	// this worker is placed in idleSynchronizingWorkersLists. These
+	// indices are needed to efficiently dequeue workers in case of
+	// wakeups or Synchronize() interruptions.
+	//
+	// When 'lastInvocations' is empty, this list contains a single
+	// element, storing at which index this worker is queued in
+	// sizeClassQueue.idleSynchronizingWorkers.
+	//
+	// When 'lastInvocations' is non-empty, this list contains
+	// indices at which this worker is queued in
+	// invocation.idleSynchronizingWorkers, where the order of
+	// invocations corresponds to that of 'lastInvocations'.
+	listIndices []int
 }
 
 func workerMatchesPattern(workerID, workerIDPattern map[string]string) bool {
@@ -2049,82 +2353,161 @@ func (w *worker) isDrained(scq *sizeClassQueue, workerID map[string]string) bool
 	return false
 }
 
-// getNextTaskNonBlocking extracts the next task that should be assigned
-// to a worker. Even when the worker is drained or no tasks are
-// available, this function returns immediately.
-func (w *worker) getNextTaskNonBlocking(bq *InMemoryBuildQueue, scq *sizeClassQueue, workerID map[string]string) (*task, bool) {
-	if !w.isDrained(scq, workerID) && scq.queuedInvocations.Len() > 0 {
-		// Obtain the task that was associated with the highest
-		// priority operation of the invocation that is most
-		// favourable to run.
-		t := scq.queuedInvocations[0].queuedOperations[0].task
-		t.startExecuting(bq)
-		t.retryCount = 0
-		return t, true
+// Dequeue a worker. This method is either called by the worker itself
+// at the end of Synchronize(), or when a worker needs to be woken up.
+func (w *worker) dequeue(scq *sizeClassQueue) {
+	if len(w.lastInvocations) == 0 {
+		// Worker has never run an operation before. The worker
+		// was only queued as part of the size class queue
+		// itself.
+		scq.idleSynchronizingWorkers.dequeue(w.listIndices[0])
+	} else {
+		// Worker has run an operation before. The worker was
+		// queued as part of one or more invocations.
+		for idx, i := range w.lastInvocations {
+			i.idleSynchronizingWorkers.dequeue(w.listIndices[idx])
+			heapRemoveOrFix(
+				&scq.idleSynchronizingWorkersInvocations,
+				i.idleSynchronizingWorkersInvocationsIndex,
+				len(i.idleSynchronizingWorkers))
+		}
 	}
-	return nil, false
+	w.wakeup = nil
+	w.listIndices = w.listIndices[:0]
 }
 
-// getNextTaskBlocking extracts the next task that should be assigned to
-// a worker. This function blocks until either the worker is undrained
-// and a task is available, or a configurable timeout has been reached.
-// The timeout ensures that workers resynchronize periodically, ensuring
-// that no stale workers are left behind indefinitely.
-func (w *worker) getNextTaskBlocking(ctx context.Context, bq *InMemoryBuildQueue, scq *sizeClassQueue, workerID map[string]string) (*task, error) {
-	timeoutTimer, timeoutChannel := bq.clock.NewTimer(bq.configuration.GetIdleWorkerSynchronizationInterval())
-	for {
-		drained := w.isDrained(scq, workerID)
-		drainsWakeup := scq.drainsWakeup
-		bq.leave()
+// MaybeDequeue is the same as dequeue(), except that it may also be
+// called if the worker is not actually queued. This is used to dequeue
+// a worker as part of interrupted Synchronize() calls.
+func (w *worker) maybeDequeue(scq *sizeClassQueue) {
+	if w.wakeup != nil {
+		w.dequeue(scq)
+	}
+}
 
-		if drained {
-			select {
-			case t := <-timeoutChannel:
-				// Timeout has been reached.
-				bq.enter(t)
-				return nil, nil
-			case <-ctx.Done():
-				// Worker has canceled the request.
-				timeoutTimer.Stop()
-				bq.enter(bq.clock.Now())
-				return nil, util.StatusFromContext(ctx)
-			case <-drainsWakeup:
-				// Worker might have been undrained.
-				bq.enter(bq.clock.Now())
-			}
-		} else {
-			select {
-			case t := <-timeoutChannel:
-				// Timeout has been reached.
-				bq.enter(t)
-				return nil, nil
-			case <-ctx.Done():
-				// Worker has canceled the request.
-				timeoutTimer.Stop()
-				bq.enter(bq.clock.Now())
-				return nil, util.StatusFromContext(ctx)
-			case <-scq.queuedInvocationsWakeup:
-				// Work has appeared, but it may also have been
-				// taken by another worker in the meantime.
-				bq.enter(bq.clock.Now())
-				o, ok := w.getNextTaskNonBlocking(bq, scq, workerID)
-				if scq.queuedInvocations.Len() > 0 {
-					scq.wakeupNextWorker()
-				}
-				if ok {
-					timeoutTimer.Stop()
-					return o, nil
+// WakeUp wakes up an idle worker that is currently synchronizing
+// against the scheduler.
+func (w *worker) wakeUp(scq *sizeClassQueue) {
+	close(w.wakeup)
+	w.dequeue(scq)
+}
+
+// AssignUnqueuedTask assigns a task that is not queued to a worker.
+func (w *worker) assignUnqueuedTask(bq *InMemoryBuildQueue, t *task) {
+	if w.currentTask != nil {
+		panic("Worker is already associated with a task")
+	}
+	if t.currentWorker != nil {
+		panic("Task is already associated with a worker")
+	}
+
+	t.registerQueuedStageFinished(bq)
+	w.currentTask = t
+	t.currentWorker = w
+	t.retryCount = 0
+	for i := range t.operations {
+		i.incrementExecutingWorkersCount()
+	}
+	w.clearLastInvocations()
+}
+
+// AssignQueuedTask assigns a task that is queued to a worker. The task
+// is unqueued in the process.
+func (w *worker) assignQueuedTask(bq *InMemoryBuildQueue, t *task) {
+	w.assignUnqueuedTask(bq, t)
+
+	for _, o := range t.operations {
+		o.removeQueuedFromInvocation()
+	}
+	t.reportNonFinalStageChange()
+}
+
+// AssignNextQueuedTask determines which queued task is the best
+// candidate for execution and assigns it to the current task.
+func (w *worker) assignNextQueuedTask(bq *InMemoryBuildQueue, scq *sizeClassQueue, workerID map[string]string) bool {
+	if scq.queuedInvocations.Len() == 0 {
+		return false
+	}
+
+	// Determine from which invocation we need to extract an
+	// operation. We always want to pick the one that has the fewest
+	// executing operations (corrected for the priority). In case of
+	// ties, we want to schedule the oldest operation.
+	//
+	// The exception to this rule is when worker invocation
+	// stickiness is enabled. In that case tie breaking gives a
+	// slight advantage to any of the invocations associated with
+	// the last executed task. This reduces the startup overhead of
+	// actions that leave state behind on the worker.
+	iBest := scq.queuedInvocations[0]
+	tBest := iBest.queuedOperations[0].task
+	tSelected := tBest
+	if workerInvocationStickinessLimit := scq.platformQueue.workerInvocationStickinessLimit; workerInvocationStickinessLimit > 0 {
+		var iSticky *invocation
+		hasQueuedLastInvocations := false
+		iSelected := iBest
+		for _, iLast := range w.lastInvocations {
+			if iLast.queuedOperations.Len() > 0 {
+				hasQueuedLastInvocations = true
+				if iLast.isPreferred(iBest, workerInvocationStickinessLimit) && (iSticky == nil || iLast.isPreferred(iSticky, 0)) {
+					iSticky = iLast
+					iSelected = iLast
 				}
 			}
 		}
+		tSelected = iSelected.queuedOperations[0].task
+
+		if len(w.lastInvocations) == 0 {
+			scq.workerInvocationStickinessOutcomesNoLastInvocations.Inc()
+		} else if !hasQueuedLastInvocations {
+			scq.workerInvocationStickinessOutcomesNoQueuedLastInvocations.Inc()
+		} else if iSticky == nil {
+			scq.workerInvocationStickinessOutcomesNoStickyLastInvocations.Inc()
+		} else if tSelected == tBest {
+			scq.workerInvocationStickinessOutcomesSelectedBestTask.Inc()
+		} else {
+			scq.workerInvocationStickinessOutcomesSelectedStickyTask.Inc()
+		}
 	}
+
+	w.assignQueuedTask(bq, tSelected)
+	return true
 }
 
-// startTask assigns a task to the worker, returning a synchronization
-// response that instructs the worker to start executing it.
-func (w *worker) startTask(bq *InMemoryBuildQueue, t *task) *remoteworker.SynchronizeResponse {
-	w.currentTask = t
-	t.currentWorker = w
+// ClearLastInvocations clears the list of invocations of the last task
+// to run on this worker. This method needs to be called when workers
+// are removed to make sure that invocations don't leak.
+func (w *worker) clearLastInvocations() {
+	if w.wakeup != nil {
+		panic("Clearing last invocations would make it impossible to dequeue the worker")
+	}
+	for idx, i := range w.lastInvocations {
+		if i.idleWorkersCount == 0 {
+			panic("Invalid workers count")
+		}
+		i.idleWorkersCount--
+		i.removeIfEmpty()
+		w.lastInvocations[idx] = nil
+	}
+	w.lastInvocations = w.lastInvocations[:0]
+}
+
+// AssignUnqueuedTaskAndWakeUp is used to assign a task to an idle
+// worker that is synchronizing against the scheduler and to wake it up.
+// This method is used when clients directly assign a task to a worker,
+// as opposed to letting the worker select a task itself.
+func (w *worker) assignUnqueuedTaskAndWakeUp(bq *InMemoryBuildQueue, t *task) {
+	// Wake up the worker prior to assigning the task. Assigning
+	// clears w.lastInvocations, which cannot be done while the
+	// worker is queued.
+	w.wakeUp(t.getSizeClassQueue())
+	w.assignUnqueuedTask(bq, t)
+}
+
+// GetExecutingSynchronizeResponse returns a synchronization response
+// that instructs a worker to start executing a task.
+func (w *worker) getExecutingSynchronizeResponse(bq *InMemoryBuildQueue) *remoteworker.SynchronizeResponse {
+	t := w.currentTask
 	return &remoteworker.SynchronizeResponse{
 		NextSynchronizationAt: bq.getNextSynchronizationAtDelay(),
 		DesiredState: &remoteworker.DesiredState{
@@ -2148,8 +2531,9 @@ func (w *worker) getNextTask(ctx context.Context, bq *InMemoryBuildQueue, scq *s
 		return bq.getIdleSynchronizeResponse(), nil
 	}
 
-	if t, ok := w.getNextTaskNonBlocking(bq, scq, workerID); ok {
-		return w.startTask(bq, t), nil
+	isDrained := w.isDrained(scq, workerID)
+	if !isDrained && w.assignNextQueuedTask(bq, scq, workerID) {
+		return w.getExecutingSynchronizeResponse(bq), nil
 	}
 
 	if ctx == nil {
@@ -2161,16 +2545,94 @@ func (w *worker) getNextTask(ctx context.Context, bq *InMemoryBuildQueue, scq *s
 		return bq.getIdleSynchronizeResponse(), nil
 	}
 
-	t, err := w.getNextTaskBlocking(ctx, bq, scq, workerID)
-	if t == nil {
-		// There is no work available, even after waiting for
-		// some time. Allow the worker to switch back to the
-		// idle state, so that it knows it doesn't need to hold
-		// on to any previous execute response and may terminate
-		// safely.
-		return bq.getIdleSynchronizeResponse(), err
+	timeoutTimer, timeoutChannel := bq.clock.NewTimer(bq.configuration.GetIdleWorkerSynchronizationInterval())
+	defer timeoutTimer.Stop()
+
+	for {
+		if isDrained {
+			// The worker is drained. Simply wait until
+			// undrain operations occur.
+			undrainWakeup := scq.undrainWakeup
+			bq.leave()
+
+			select {
+			case t := <-timeoutChannel:
+				// Timeout has been reached.
+				bq.enter(t)
+				return bq.getIdleSynchronizeResponse(), nil
+			case <-ctx.Done():
+				// Worker has canceled the request.
+				bq.enter(bq.clock.Now())
+				return nil, util.StatusFromContext(ctx)
+			case <-undrainWakeup:
+				// Worker might have been undrained.
+				bq.enter(bq.clock.Now())
+			}
+		} else if w.assignNextQueuedTask(bq, scq, workerID) {
+			// One or more tasks were queued. We're able to
+			// synchronize without blocking by starting one
+			// of those tasks.
+			return w.getExecutingSynchronizeResponse(bq), nil
+		} else {
+			// No queued tasks available. Queue the worker,
+			// so that clients may assign a task to us.
+			if w.wakeup != nil || len(w.listIndices) != 0 {
+				panic("Worker is already queued")
+			}
+			wakeup := make(chan struct{})
+			w.wakeup = wakeup
+			lastInvocations := w.lastInvocations
+			if len(lastInvocations) == 0 {
+				// Worker has not completed any tasks
+				// before. Place ourselves in the size
+				// class queue.
+				w.listIndices = append(w.listIndices[:0], 0)
+				scq.idleSynchronizingWorkers.enqueue(&idleSynchronizingWorker{
+					worker:    w,
+					listIndex: &w.listIndices[0],
+				})
+			} else {
+				// Worker has completed a task before.
+				// Place ourselves in each of the
+				// invocations of the task, so that
+				// we're more likely to receive tasks
+				// belonging to the same invocations.
+				w.listIndices = append(w.listIndices[:0], make([]int, len(w.lastInvocations))...)
+				for idx, i := range w.lastInvocations {
+					i.idleSynchronizingWorkers.enqueue(&idleSynchronizingWorker{
+						worker:    w,
+						listIndex: &w.listIndices[idx],
+					})
+					heapPushOrFix(&scq.idleSynchronizingWorkersInvocations, i.idleSynchronizingWorkersInvocationsIndex, i)
+				}
+			}
+			bq.leave()
+
+			select {
+			case t := <-timeoutChannel:
+				// Timeout has been reached.
+				bq.enter(t)
+				w.maybeDequeue(scq)
+				if w.currentTask != nil {
+					return w.getExecutingSynchronizeResponse(bq), nil
+				}
+				return bq.getIdleSynchronizeResponse(), nil
+			case <-ctx.Done():
+				// Worker has canceled the request.
+				bq.enter(bq.clock.Now())
+				w.maybeDequeue(scq)
+				return nil, util.StatusFromContext(ctx)
+			case <-wakeup:
+				// Worker got woken up, meaning a task
+				// got assigned to it, or it got drained.
+				bq.enter(bq.clock.Now())
+				if w.currentTask != nil {
+					return w.getExecutingSynchronizeResponse(bq), nil
+				}
+			}
+		}
+		isDrained = w.isDrained(scq, workerID)
 	}
-	return w.startTask(bq, t), nil
 }
 
 // getCurrentOrNextTask either returns a synchronization response that
@@ -2179,15 +2641,7 @@ func (w *worker) getNextTask(ctx context.Context, bq *InMemoryBuildQueue, scq *s
 // the queue.
 func (w *worker) getCurrentOrNextTask(ctx context.Context, bq *InMemoryBuildQueue, scq *sizeClassQueue, workerID map[string]string, preferBeingIdle bool) (*remoteworker.SynchronizeResponse, error) {
 	if t := w.currentTask; t != nil {
-		if t.retryCount >= bq.configuration.WorkerTaskRetryCount {
-			t.complete(bq, &remoteexecution.ExecuteResponse{
-				Status: status.Newf(
-					codes.Internal,
-					"Attempted to execute task %d times, but it never completed. This task may cause worker %s to crash.",
-					t.retryCount+1,
-					newWorkerKey(workerID)).Proto(),
-			}, false)
-		} else {
+		if t.retryCount < bq.configuration.WorkerTaskRetryCount {
 			t.retryCount++
 			return &remoteworker.SynchronizeResponse{
 				NextSynchronizationAt: bq.getNextSynchronizationAtDelay(),
@@ -2198,6 +2652,13 @@ func (w *worker) getCurrentOrNextTask(ctx context.Context, bq *InMemoryBuildQueu
 				},
 			}, nil
 		}
+		t.complete(bq, &remoteexecution.ExecuteResponse{
+			Status: status.Newf(
+				codes.Internal,
+				"Attempted to execute task %d times, but it never completed. This task may cause worker %s to crash.",
+				t.retryCount+1,
+				newWorkerKey(workerID)).Proto(),
+		}, false)
 	}
 	return w.getNextTask(ctx, bq, scq, workerID, preferBeingIdle)
 }
@@ -2236,6 +2697,56 @@ func (w *worker) completeTask(ctx context.Context, bq *InMemoryBuildQueue, scq *
 	}
 	w.currentTask.complete(bq, executeResponse, true)
 	return w.getNextTask(ctx, bq, scq, workerID, preferBeingIdle)
+}
+
+type idleSynchronizingWorker struct {
+	worker    *worker
+	listIndex *int
+}
+
+type idleSynchronizingWorkersList []idleSynchronizingWorker
+
+func (l *idleSynchronizingWorkersList) enqueue(entry *idleSynchronizingWorker) {
+	*entry.listIndex = len(*l)
+	*l = append(*l, *entry)
+}
+
+func (l *idleSynchronizingWorkersList) dequeue(listIndex int) {
+	(*l)[listIndex] = (*l)[len(*l)-1]
+	*(*l)[listIndex].listIndex = listIndex
+	(*l)[len(*l)-1] = idleSynchronizingWorker{}
+	(*l) = (*l)[:len(*l)-1]
+}
+
+// HeapRemoveOrFix either calls heap.Remove() or heap.Fix(), depending
+// on a provided counter value. This function may be used to correct the
+// position of an object that contains a counter or list inside a heap,
+// after the counter or list is mutated.
+func heapRemoveOrFix(h heap.Interface, i, count int) {
+	if count > 0 {
+		heap.Fix(h, i)
+	} else {
+		heap.Remove(h, i)
+	}
+}
+
+// HeapPushOrFix either calls heap.Push() or heap.Fix(), depending on an
+// existing heap index. This function can be used to push an object into
+// a heap, only if it's not part of the heap already.
+func heapPushOrFix(h heap.Interface, i int, v interface{}) {
+	if i < 0 {
+		heap.Push(h, v)
+	} else {
+		heap.Fix(h, i)
+	}
+}
+
+// HeapMaybeFix calls heap.Fix() only when an object is actually stored
+// in the heap.
+func heapMaybeFix(h heap.Interface, i int) {
+	if i >= 0 {
+		heap.Fix(h, i)
+	}
 }
 
 // cleanupKey is a handle that is used by cleanupQueue to refer to
@@ -2284,7 +2795,8 @@ func (h *cleanupHeap) Pop() interface{} {
 	old := *h
 	n := len(old)
 	e := old[n-1]
-	*h = old[0 : n-1]
+	old[n-1] = cleanupEntry{}
+	*h = old[:n-1]
 	if *e.key != cleanupKey(n) {
 		panic("Invalid cleanup key")
 	}
