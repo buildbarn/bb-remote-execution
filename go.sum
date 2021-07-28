@@ -100,6 +100,8 @@ github.com/buildbarn/bb-storage v0.0.0-20210623072056-ae91b373864e h1:S+b3gxxNqq
 github.com/buildbarn/bb-storage v0.0.0-20210623072056-ae91b373864e/go.mod h1:4/Y5XQyF2tYT3BryyywZOHRnpY8zSRzvh4GLkCh5B5g=
 github.com/buildbarn/bb-storage v0.0.0-20210705183121-7ac375cd5e2f h1:UMwD7gQa/OKD75YTP9AwM3ORB1AQwNF5Y/kjBbMD0+8=
 github.com/buildbarn/bb-storage v0.0.0-20210705183121-7ac375cd5e2f/go.mod h1:MbFobKMEL5vQhOFnChTQQhbuOszTsq2zOwl2JJ93Kmc=
+github.com/buildbarn/bb-storage v0.0.0-20210728140852-f461572d4fe0 h1:iY+DK9h+p4LoSlits2GxxNQpaWR3bS+KdERguqFdme4=
+github.com/buildbarn/bb-storage v0.0.0-20210728140852-f461572d4fe0/go.mod h1:MbFobKMEL5vQhOFnChTQQhbuOszTsq2zOwl2JJ93Kmc=
 github.com/casbin/casbin/v2 v2.1.2 h1:bTwon/ECRx9dwBy2ewRVr5OiqjeXSGiTUY74sDPQi/g=
 github.com/casbin/casbin/v2 v2.1.2/go.mod h1:YcPU1XXisHhLzuxH9coDNf2FbKpjGlbCg3n9yuLkIJQ=
 github.com/cenkalti/backoff v2.2.1+incompatible h1:tNowT99t7UNflLxfYYSlKYsBpXdEet03Pg2g16Swow4=

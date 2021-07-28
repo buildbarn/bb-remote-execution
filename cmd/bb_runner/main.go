@@ -117,7 +117,7 @@ func main() {
 			"gRPC server failure: ",
 			bb_grpc.NewServersFromConfigurationAndServe(
 				configuration.GrpcServers,
-				func(s *grpc.Server) {
+				func(s grpc.ServiceRegistrar) {
 					runner_pb.RegisterRunnerServer(s, r)
 				}))
 	}()

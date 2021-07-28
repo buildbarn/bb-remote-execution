@@ -190,7 +190,7 @@ func main() {
 			"Client gRPC server failure: ",
 			bb_grpc.NewServersFromConfigurationAndServe(
 				configuration.ClientGrpcServers,
-				func(s *grpc.Server) {
+				func(s grpc.ServiceRegistrar) {
 					remoteexecution.RegisterCapabilitiesServer(s, buildQueue)
 					remoteexecution.RegisterExecutionServer(s, buildQueue)
 				}))
@@ -200,7 +200,7 @@ func main() {
 			"Worker gRPC server failure: ",
 			bb_grpc.NewServersFromConfigurationAndServe(
 				configuration.WorkerGrpcServers,
-				func(s *grpc.Server) {
+				func(s grpc.ServiceRegistrar) {
 					remoteworker.RegisterOperationQueueServer(s, buildQueue)
 				}))
 	}()
@@ -209,7 +209,7 @@ func main() {
 			"Build queue state gRPC server failure: ",
 			bb_grpc.NewServersFromConfigurationAndServe(
 				configuration.BuildQueueStateGrpcServers,
-				func(s *grpc.Server) {
+				func(s grpc.ServiceRegistrar) {
 					buildqueuestate.RegisterBuildQueueStateServer(s, buildQueue)
 				}))
 	}()
