@@ -106,7 +106,7 @@ func TestSQSReceiver(t *testing.T) {
 	})
 
 	t.Run("Success", func(t *testing.T) {
-		// The full workflow, where a message is received,
+		// The full workflow, where two messages are received,
 		// handled and deleted from the queue.
 		sqsService.EXPECT().ReceiveMessage(&sqs.ReceiveMessageInput{
 			QueueUrl:            aws.String("https://sqs.eu-west-1.amazonaws.com/249843598229/MySQSQueue"),
@@ -120,19 +120,36 @@ func TestSQSReceiver(t *testing.T) {
 					MessageId:     aws.String("8dcc80c7-83ed-4d3c-aa38-59342fd192f8"),
 					ReceiptHandle: aws.String("15066bf8-c753-4788-813a-18e607d209f9"),
 				},
+				{
+					Body:          aws.String("This is another message body"),
+					MessageId:     aws.String("aacc1ff6-b2aa-4c9a-8fc9-f2a01354f7df"),
+					ReceiptHandle: aws.String("6eef738e-ca40-449b-8771-f3604ebba993"),
+				},
 			},
 		}, nil)
+
 		messageHandler.EXPECT().HandleMessage("This is a message body")
-		testCompleted := make(chan struct{})
+		testCompleted1 := make(chan struct{})
 		sqsService.EXPECT().DeleteMessage(&sqs.DeleteMessageInput{
 			QueueUrl:      aws.String("https://sqs.eu-west-1.amazonaws.com/249843598229/MySQSQueue"),
 			ReceiptHandle: aws.String("15066bf8-c753-4788-813a-18e607d209f9"),
 		}).DoAndReturn(func(in *sqs.DeleteMessageInput) (*sqs.DeleteMessageOutput, error) {
-			close(testCompleted)
+			close(testCompleted1)
+			return &sqs.DeleteMessageOutput{}, nil
+		})
+
+		messageHandler.EXPECT().HandleMessage("This is another message body")
+		testCompleted2 := make(chan struct{})
+		sqsService.EXPECT().DeleteMessage(&sqs.DeleteMessageInput{
+			QueueUrl:      aws.String("https://sqs.eu-west-1.amazonaws.com/249843598229/MySQSQueue"),
+			ReceiptHandle: aws.String("6eef738e-ca40-449b-8771-f3604ebba993"),
+		}).DoAndReturn(func(in *sqs.DeleteMessageInput) (*sqs.DeleteMessageOutput, error) {
+			close(testCompleted2)
 			return &sqs.DeleteMessageOutput{}, nil
 		})
 
 		require.NoError(t, sr.PerformSingleRequest())
-		<-testCompleted
+		<-testCompleted1
+		<-testCompleted2
 	})
 }

@@ -111,7 +111,7 @@ func (sr *SQSReceiver) PerformSingleRequest() error {
 	sqsReceiverMessagesReceived.Observe(float64(len(receivedMessageOutput.Messages)))
 
 	for _, msg := range receivedMessageOutput.Messages {
-		go func() {
+		go func(msg *sqs.Message) {
 			if err := sr.messageHandler.HandleMessage(*msg.Body); err != nil {
 				sqsReceiverMessagesProcessedHandlerFailure.Inc()
 				sr.errorLogger.Log(util.StatusWrapf(err, "Failed to process message %#v", *msg.MessageId))
@@ -124,7 +124,7 @@ func (sr *SQSReceiver) PerformSingleRequest() error {
 			} else {
 				sqsReceiverMessagesProcessedSuccess.Inc()
 			}
-		}()
+		}(msg)
 	}
 	return nil
 }
