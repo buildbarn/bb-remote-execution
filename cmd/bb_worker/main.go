@@ -34,6 +34,8 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/types/known/emptypb"
+
+	"go.opentelemetry.io/otel"
 )
 
 func main() {
@@ -48,6 +50,7 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to apply global configuration options: ", err)
 	}
+	tracerProvider := otel.GetTracerProvider()
 
 	browserURL, err := url.Parse(configuration.BrowserUrl)
 	if err != nil {
@@ -295,13 +298,15 @@ func main() {
 						buildExecutor = builder.NewCostComputingBuildExecutor(buildExecutor, runnerConfiguration.CostsPerSecond)
 					}
 
-					buildExecutor = builder.NewLoggingBuildExecutor(
-						builder.NewCachingBuildExecutor(
-							buildExecutor,
-							globalContentAddressableStorage,
-							actionCache,
+					buildExecutor = builder.NewTracingBuildExecutor(
+						builder.NewLoggingBuildExecutor(
+							builder.NewCachingBuildExecutor(
+								buildExecutor,
+								globalContentAddressableStorage,
+								actionCache,
+								browserURL),
 							browserURL),
-						browserURL)
+						tracerProvider)
 
 					instanceNamePrefix, err := digest.NewInstanceName(runnerConfiguration.InstanceNamePrefix)
 					if err != nil {

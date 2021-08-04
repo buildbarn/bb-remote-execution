@@ -24,6 +24,7 @@ go_library(
         "shared_build_directory_creator.go",
         "storage_flushing_build_executor.go",
         "timestamped_build_executor.go",
+        "tracing_build_executor.go",
         "uploadable_directory.go",
     ],
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/builder",
@@ -55,6 +56,7 @@ go_library(
         "@com_github_google_uuid//:uuid",
         "@com_github_prometheus_client_golang//prometheus",
         "@go_googleapis//google/longrunning:longrunning_go_proto",
+        "@io_opentelemetry_go_otel_trace//:trace",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//metadata",
         "@org_golang_google_grpc//status",
@@ -107,6 +109,7 @@ go_test(
         "shared_build_directory_creator_test.go",
         "storage_flushing_build_executor_test.go",
         "timestamped_build_executor_test.go",
+        "tracing_build_executor_test.go",
     ],
     embed = [":builder"],
     deps = [
