@@ -22,6 +22,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -764,7 +765,7 @@ func TestLocalBuildExecutorInputRootIOFailureDuringExecution(t *testing.T) {
 		StderrPath:           "stderr",
 		InputRootDirectory:   "root",
 		TemporaryDirectory:   "tmp",
-	}).DoAndReturn(func(ctx context.Context, request *runner_pb.RunRequest) (*runner_pb.RunResponse, error) {
+	}).DoAndReturn(func(ctx context.Context, request *runner_pb.RunRequest, opts ...grpc.CallOption) (*runner_pb.RunResponse, error) {
 		errorLogger.Log(status.Error(codes.FailedPrecondition, "Blob not found"))
 		<-ctx.Done()
 		return nil, util.StatusFromContext(ctx)
@@ -869,7 +870,7 @@ func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 		StderrPath:           "stderr",
 		InputRootDirectory:   "root",
 		TemporaryDirectory:   "tmp",
-	}).DoAndReturn(func(ctx context.Context, request *runner_pb.RunRequest) (*runner_pb.RunResponse, error) {
+	}).DoAndReturn(func(ctx context.Context, request *runner_pb.RunRequest, opts ...grpc.CallOption) (*runner_pb.RunResponse, error) {
 		<-ctx.Done()
 		return nil, util.StatusFromContext(ctx)
 	})
