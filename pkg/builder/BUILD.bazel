@@ -55,8 +55,6 @@ go_library(
         "@com_github_google_uuid//:uuid",
         "@com_github_prometheus_client_golang//prometheus",
         "@go_googleapis//google/longrunning:longrunning_go_proto",
-        "@io_opencensus_go//trace",
-        "@io_opencensus_go//trace/propagation",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//metadata",
         "@org_golang_google_grpc//status",

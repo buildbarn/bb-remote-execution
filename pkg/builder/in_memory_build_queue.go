@@ -35,9 +35,6 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
-
-	"go.opencensus.io/trace"
-	"go.opencensus.io/trace/propagation"
 )
 
 var (
@@ -362,6 +359,7 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 		}
 		auxiliaryMetadata = []*anypb.Any{requestMetadataAny}
 	}
+	w3cTraceContext := util.W3CTraceContextFromContext(ctx)
 
 	// TODO: Remove this code once all clients support REv2.2.
 	if action.Platform == nil || targetID == "" {
@@ -481,14 +479,11 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 			QueuedTimestamp:    bq.getCurrentTime(),
 			AuxiliaryMetadata:  auxiliaryMetadata,
 			InstanceNameSuffix: pq.instanceNamePatcher.PatchInstanceName(instanceName).String(),
+			W3CTraceContext:    w3cTraceContext,
 		},
 		targetID:                targetID,
 		initialSizeClassLearner: initialSizeClassLearner,
 		stageChangeWakeup:       make(chan struct{}),
-	}
-	span := trace.FromContext(ctx)
-	if span != nil {
-		t.desiredState.TraceContext = propagation.Binary(span.SpanContext())
 	}
 	if !action.DoNotCache {
 		bq.inFlightDeduplicationMap[actionDigest] = t

@@ -161,10 +161,8 @@ message DesiredState {
     // queued_timestamp.
     google.protobuf.Timestamp queued_timestamp = 4;
 
-    // Trace/Span context data for the trace that started this execution.
-    // This is used to associate the worker's storage activity back to the
-    // trace that started the action.
-    bytes trace_context = 5;
+    // Was 'trace_context'. Replaced by 'w3c_trace_context'.
+    reserved 5;
 
     // Auxiliary metadata that the client sent or the scheduler
     // generated. The worker can attach this data to
@@ -177,6 +175,12 @@ message DesiredState {
     // The worker needs to append these components to its instance name
     // prefix when making requests against storage.
     string instance_name_suffix = 7;
+
+    // Trace/Span context data for the trace that started this
+    // execution, formatted as W3C Trace Context headers. This is used
+    // to associate the worker's storage activity back to the trace that
+    // started the action.
+    map<string, string> w3c_trace_context = 8;
   }
 
   oneof worker_state {

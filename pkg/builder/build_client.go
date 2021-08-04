@@ -14,9 +14,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
-
-	"go.opencensus.io/trace"
-	"go.opencensus.io/trace/propagation"
 )
 
 // BuildClient is a client for the Remote Worker protocol. It can send
@@ -78,15 +75,13 @@ func (bc *BuildClient) startExecution(executionRequest *remoteworker.DesiredStat
 
 	// Spawn the execution of the build action.
 	var ctx context.Context
-	ctx, bc.executionCancellation = context.WithCancel(context.Background())
+	ctx, bc.executionCancellation = context.WithCancel(
+		util.NewContextWithW3CTraceContext(
+			context.Background(),
+			executionRequest.W3CTraceContext))
 	updates := make(chan *remoteworker.CurrentState_Executing, 10)
 	bc.executionUpdates = updates
 	go func() {
-		if tc, ok := propagation.FromBinary(executionRequest.TraceContext); ok {
-			var span *trace.Span
-			ctx, span = trace.StartSpanWithRemoteParent(ctx, "BuildClient.Execute", tc)
-			defer span.End()
-		}
 		executeResponse := bc.buildExecutor.Execute(
 			ctx,
 			bc.filePool,
