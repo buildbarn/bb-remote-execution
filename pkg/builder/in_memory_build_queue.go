@@ -278,7 +278,7 @@ func (bq *InMemoryBuildQueue) RegisterPredeclaredPlatformQueue(instanceNamePrefi
 func (bq *InMemoryBuildQueue) GetCapabilities(ctx context.Context, in *remoteexecution.GetCapabilitiesRequest) (*remoteexecution.ServerCapabilities, error) {
 	return &remoteexecution.ServerCapabilities{
 		CacheCapabilities: &remoteexecution.CacheCapabilities{
-			DigestFunction: digest.SupportedDigestFunctions,
+			DigestFunctions: digest.SupportedDigestFunctions,
 			ActionCacheUpdateCapabilities: &remoteexecution.ActionCacheUpdateCapabilities{
 				UpdateEnabled: false,
 			},
