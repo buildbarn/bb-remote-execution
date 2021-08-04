@@ -22,6 +22,7 @@ go_library(
         "@com_github_aws_aws_sdk_go//service/autoscaling",
         "@com_github_aws_aws_sdk_go//service/sqs",
         "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:execution",
+        "@com_github_buildbarn_bb_storage//pkg/auth",
         "@com_github_buildbarn_bb_storage//pkg/blobstore/configuration",
         "@com_github_buildbarn_bb_storage//pkg/clock",
         "@com_github_buildbarn_bb_storage//pkg/cloud/aws",

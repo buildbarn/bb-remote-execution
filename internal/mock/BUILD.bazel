@@ -16,6 +16,16 @@ gomock(
 )
 
 gomock(
+    name = "auth",
+    out = "auth.go",
+    interfaces = [
+        "Authorizer",
+    ],
+    library = "@com_github_buildbarn_bb_storage//pkg/auth",
+    package = "mock",
+)
+
+gomock(
     name = "blobstore",
     out = "blobstore.go",
     interfaces = ["BlobAccess"],
@@ -261,6 +271,7 @@ go_library(
     name = "mock",
     srcs = [
         ":aliases.go",
+        ":auth.go",
         ":blobstore.go",
         ":blobstore_re.go",
         ":blockdevice.go",

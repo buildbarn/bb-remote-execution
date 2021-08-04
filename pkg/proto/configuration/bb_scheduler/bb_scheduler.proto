@@ -4,6 +4,7 @@ package buildbarn.configuration.bb_scheduler;
 
 import "build/bazel/remote/execution/v2/remote_execution.proto";
 import "google/protobuf/duration.proto";
+import "pkg/proto/configuration/auth/auth.proto";
 import "pkg/proto/configuration/blobstore/blobstore.proto";
 import "pkg/proto/configuration/cloud/aws/aws.proto";
 import "pkg/proto/configuration/global/global.proto";
@@ -77,6 +78,10 @@ message ApplicationConfiguration {
 
   // Maximum permitted execution timeout.
   google.protobuf.Duration maximum_execution_timeout = 14;
+
+  // Authorization requirements to be enforced for Execute and WaitExecution
+  // requests.
+  buildbarn.configuration.auth.AuthorizerConfiguration execute_authorizer = 15;
 }
 
 message AWSASGLifecycleHookConfiguration {

@@ -17,6 +17,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/builder/platform"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/buildqueuestate"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
+	"github.com/buildbarn/bb-storage/pkg/auth"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/builder"
 	"github.com/buildbarn/bb-storage/pkg/clock"
@@ -204,12 +205,16 @@ type InMemoryBuildQueue struct {
 	// Binary heap containing closures that purge stale workers,
 	// platform queues and operations.
 	cleanupQueue cleanupQueue
+
+	// Authorizer used to allow/deny access for certain users
+	// to perform Execute and WaitExecution calls.
+	executeAuthorizer auth.Authorizer
 }
 
 // NewInMemoryBuildQueue creates a new InMemoryBuildQueue that is in the
 // initial state. It does not have any queues, workers or queued
 // execution requests. All of these are created by sending it RPCs.
-func NewInMemoryBuildQueue(contentAddressableStorage blobstore.BlobAccess, clock clock.Clock, uuidGenerator util.UUIDGenerator, configuration *InMemoryBuildQueueConfiguration, maximumMessageSizeBytes int, defaultPlatformHooks PlatformHooks) *InMemoryBuildQueue {
+func NewInMemoryBuildQueue(contentAddressableStorage blobstore.BlobAccess, clock clock.Clock, uuidGenerator util.UUIDGenerator, configuration *InMemoryBuildQueueConfiguration, maximumMessageSizeBytes int, defaultPlatformHooks PlatformHooks, executeAuthorizer auth.Authorizer) *InMemoryBuildQueue {
 	inMemoryBuildQueuePrometheusMetrics.Do(func() {
 		prometheus.MustRegister(inMemoryBuildQueueTasksScheduledTotal)
 		prometheus.MustRegister(inMemoryBuildQueueTasksQueuedDurationSeconds)
@@ -236,6 +241,7 @@ func NewInMemoryBuildQueue(contentAddressableStorage blobstore.BlobAccess, clock
 		sizeClassQueues:                     map[sizeClassKey]*sizeClassQueue{},
 		operationsNameMap:                   map[string]*operation{},
 		inFlightDeduplicationMap:            map[digest.Digest]*task{},
+		executeAuthorizer:                   executeAuthorizer,
 	}
 }
 
@@ -276,6 +282,21 @@ func (bq *InMemoryBuildQueue) RegisterPredeclaredPlatformQueue(instanceNamePrefi
 // GetCapabilities returns the Remote Execution protocol capabilities
 // that this service supports.
 func (bq *InMemoryBuildQueue) GetCapabilities(ctx context.Context, in *remoteexecution.GetCapabilitiesRequest) (*remoteexecution.ServerCapabilities, error) {
+	instanceName, err := digest.NewInstanceName(in.InstanceName)
+	if err != nil {
+		return nil, err
+	}
+	execEnabled := true
+	authErr := auth.AuthorizeSingleInstanceName(ctx, bq.executeAuthorizer, instanceName)
+	switch status.Code(authErr) {
+	case codes.OK:
+		// Nothing to do.
+	case codes.PermissionDenied:
+		execEnabled = false
+	default:
+		return nil, util.StatusWrap(authErr, "Authorization")
+	}
+
 	return &remoteexecution.ServerCapabilities{
 		CacheCapabilities: &remoteexecution.CacheCapabilities{
 			DigestFunctions: digest.SupportedDigestFunctions,
@@ -288,7 +309,7 @@ func (bq *InMemoryBuildQueue) GetCapabilities(ctx context.Context, in *remoteexe
 		},
 		ExecutionCapabilities: &remoteexecution.ExecutionCapabilities{
 			DigestFunction: remoteexecution.DigestFunction_SHA256,
-			ExecEnabled:    true,
+			ExecEnabled:    execEnabled,
 			ExecutionPriorityCapabilities: &remoteexecution.PriorityCapabilities{
 				Priorities: []*remoteexecution.PriorityCapabilities_PriorityRange{
 					{MinPriority: math.MinInt32, MaxPriority: math.MaxInt32},
@@ -333,6 +354,11 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 	if err != nil {
 		return util.StatusWrapf(err, "Invalid instance name %#v", in.InstanceName)
 	}
+
+	if err := auth.AuthorizeSingleInstanceName(ctx, bq.executeAuthorizer, instanceName); err != nil {
+		return util.StatusWrap(err, "Authorization")
+	}
+
 	actionDigest, err := instanceName.NewDigestFromProto(in.ActionDigest)
 	if err != nil {
 		return util.StatusWrap(err, "Failed to extract digest for action")
@@ -499,13 +525,28 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 // operation in case of network failure.
 func (bq *InMemoryBuildQueue) WaitExecution(in *remoteexecution.WaitExecutionRequest, out remoteexecution.Execution_WaitExecutionServer) error {
 	bq.enter(bq.clock.Now())
-	defer bq.leave()
+	for {
+		o, ok := bq.operationsNameMap[in.Name]
+		if !ok {
+			bq.leave()
+			return status.Errorf(codes.NotFound, "Operation with name %#v not found", in.Name)
+		}
+		instanceName := o.task.actionDigest.GetInstanceName()
 
-	o, ok := bq.operationsNameMap[in.Name]
-	if !ok {
-		return status.Errorf(codes.NotFound, "Operation with name %#v not found", in.Name)
+		// Ensure that the caller is permitted to access this operation.
+		// This must be done without holding any locks, as the authorizer
+		// may block.
+		bq.leave()
+		if err := auth.AuthorizeSingleInstanceName(out.Context(), bq.executeAuthorizer, instanceName); err != nil {
+			return util.StatusWrap(err, "Authorization")
+		}
+
+		bq.enter(bq.clock.Now())
+		if bq.operationsNameMap[in.Name] == o {
+			defer bq.leave()
+			return o.waitExecution(bq, out)
+		}
 	}
-	return o.waitExecution(bq, out)
 }
 
 // Synchronize the state of a worker with the scheduler. This call is

@@ -17,6 +17,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/buildqueuestate"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_scheduler"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
+	"github.com/buildbarn/bb-storage/pkg/auth"
 	blobstore_configuration "github.com/buildbarn/bb-storage/pkg/blobstore/configuration"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/cloud/aws"
@@ -78,6 +79,12 @@ func main() {
 		maximumExecutionTimeout.AsDuration())
 	defaultInitialSizeClassAnalyzer := initialsizeclass.NewFallbackAnalyzer(actionTimeoutExtractor)
 
+	authorizerFactory := auth.DefaultAuthorizerFactory
+	executeAuthorizer, err := authorizerFactory.NewAuthorizerFromConfiguration(configuration.GetExecuteAuthorizer())
+	if err != nil {
+		log.Fatal("Failed to create execute authorizer: ", err)
+	}
+
 	// Create in-memory build queue.
 	// TODO: Make timeouts configurable.
 	generator := random.NewFastSingleThreadedGenerator()
@@ -106,7 +113,8 @@ func main() {
 		}{
 			InvocationIDExtractor: builder.RequestMetadataInvocationIDExtractor,
 			Analyzer:              defaultInitialSizeClassAnalyzer,
-		})
+		},
+		executeAuthorizer)
 
 	// Create predeclared platform queues.
 	for _, platformQueue := range configuration.PredeclaredPlatformQueues {

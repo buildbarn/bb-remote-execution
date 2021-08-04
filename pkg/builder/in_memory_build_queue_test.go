@@ -13,6 +13,7 @@ import (
 	re_builder "github.com/buildbarn/bb-remote-execution/pkg/builder"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/buildqueuestate"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
+	"github.com/buildbarn/bb-storage/pkg/auth"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/builder"
 	"github.com/buildbarn/bb-storage/pkg/clock"
@@ -77,7 +78,7 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	defaultPlatformHooks := mock.NewMockPlatformHooks(ctrl)
-	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks, allowAllAuthorizer())
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// ExecuteRequest contains an invalid action digest.
@@ -321,7 +322,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
-	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks, allowAllAuthorizer())
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -637,7 +638,7 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	defaultPlatformHooks := mock.NewMockPlatformHooks(ctrl)
-	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks, allowAllAuthorizer())
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -756,7 +757,7 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 
 	// Let a third client use WaitExecution() to block on the same
 	// operation.
-	clock.EXPECT().Now().Return(time.Unix(1080, 0))
+	clock.EXPECT().Now().Return(time.Unix(1080, 0)).Times(2)
 	timer3 := mock.NewMockTimer(ctrl)
 	clock.EXPECT().NewTimer(time.Minute).Return(timer3, nil)
 	timer3.EXPECT().Stop().Return(true)
@@ -904,7 +905,7 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	defaultPlatformHooks := mock.NewMockPlatformHooks(ctrl)
-	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks, allowAllAuthorizer())
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -1151,7 +1152,7 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	defaultPlatformHooks := mock.NewMockPlatformHooks(ctrl)
-	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks, allowAllAuthorizer())
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -1371,7 +1372,7 @@ func TestInMemoryBuildQueueIdleWorkerSynchronizationTimeout(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	defaultPlatformHooks := mock.NewMockPlatformHooks(ctrl)
-	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks, allowAllAuthorizer())
 
 	// When no work appears, workers should still be woken up
 	// periodically to resynchronize. This ensures that workers that
@@ -1440,7 +1441,7 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	defaultPlatformHooks := mock.NewMockPlatformHooks(ctrl)
-	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks, allowAllAuthorizer())
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -1736,7 +1737,7 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	defaultPlatformHooks := mock.NewMockPlatformHooks(ctrl)
-	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks, allowAllAuthorizer())
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -2135,7 +2136,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonQueued(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	defaultPlatformHooks := mock.NewMockPlatformHooks(ctrl)
-	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks, allowAllAuthorizer())
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -2345,7 +2346,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	defaultPlatformHooks := mock.NewMockPlatformHooks(ctrl)
-	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks, allowAllAuthorizer())
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -2594,7 +2595,7 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	defaultPlatformHooks := mock.NewMockPlatformHooks(ctrl)
-	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks, allowAllAuthorizer())
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -2845,7 +2846,7 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	defaultPlatformHooks := mock.NewMockPlatformHooks(ctrl)
-	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks, allowAllAuthorizer())
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Register a platform queue that allows workers up to size
@@ -3242,7 +3243,7 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	defaultPlatformHooks := mock.NewMockPlatformHooks(ctrl)
-	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks, allowAllAuthorizer())
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Register a platform queue that allows workers up to size
@@ -3593,7 +3594,7 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 	mockClock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	defaultPlatformHooks := mock.NewMockPlatformHooks(ctrl)
-	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, mockClock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, mockClock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks, allowAllAuthorizer())
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Common values used by steps below.
@@ -3997,7 +3998,7 @@ func TestInMemoryBuildQueueWorkerInvocationStickinessLimit(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	defaultPlatformHooks := mock.NewMockPlatformHooks(ctrl)
-	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks, allowAllAuthorizer())
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Register a platform queue that has a small amount of worker
@@ -4218,6 +4219,128 @@ func TestInMemoryBuildQueueWorkerInvocationStickinessLimit(t *testing.T) {
 			Result:   &longrunning.Operation_Response{Response: executeResponse},
 		})
 	}
+}
+
+func TestInMemoryBuildQueueAuthorization(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	clock := mock.NewMockClock(ctrl)
+	clock.EXPECT().Now().Return(time.Unix(0, 0)).AnyTimes()
+	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
+	defaultPlatformHooks := mock.NewMockPlatformHooks(ctrl)
+	authorizer := mock.NewMockAuthorizer(ctrl)
+	buildQueue := re_builder.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks, authorizer)
+	beepboop := digest.MustNewInstanceName("beepboop")
+
+	t.Run("GetCapabilities-NotAuthorized", func(t *testing.T) {
+		authorizer.EXPECT().Authorize(gomock.Any(), []digest.InstanceName{beepboop}).Return([]error{status.Error(codes.PermissionDenied, "You shall not pass")})
+		capabilities, err := buildQueue.GetCapabilities(ctx, &remoteexecution.GetCapabilitiesRequest{
+			InstanceName: "beepboop",
+		})
+		require.NoError(t, err)
+		require.False(t, capabilities.ExecutionCapabilities.ExecEnabled)
+	})
+
+	t.Run("GetCapabilities-Error", func(t *testing.T) {
+		authorizer.EXPECT().Authorize(gomock.Any(), []digest.InstanceName{beepboop}).Return([]error{status.Error(codes.Internal, "I fell over")})
+		_, err := buildQueue.GetCapabilities(ctx, &remoteexecution.GetCapabilitiesRequest{
+			InstanceName: "beepboop",
+		})
+		testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Authorization: I fell over"), err)
+	})
+
+	t.Run("Execute-NotAuthorized", func(t *testing.T) {
+		executionClient := getExecutionClient(t, buildQueue)
+		authorizer.EXPECT().Authorize(gomock.Any(), []digest.InstanceName{beepboop}).Return([]error{status.Error(codes.PermissionDenied, "You shall not pass")})
+		stream, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
+			ActionDigest: &remoteexecution.Digest{
+				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
+				SizeBytes: 456,
+			},
+			InstanceName: "beepboop",
+		})
+		require.NoError(t, err)
+		_, err = stream.Recv()
+		testutil.RequireEqualStatus(t, status.Error(codes.PermissionDenied, "Authorization: You shall not pass"), err)
+	})
+
+	t.Run("WaitExecution", func(t *testing.T) {
+		buildQueue.RegisterPredeclaredPlatformQueue(digest.MustNewInstanceName(""), &remoteexecution.Platform{}, 0*time.Second, 0, 0, 0, defaultPlatformHooks)
+
+		// Allow the Execute
+		authorizer.EXPECT().Authorize(gomock.Any(), []digest.InstanceName{beepboop}).Return([]error{nil})
+
+		action := &remoteexecution.Action{
+			CommandDigest: &remoteexecution.Digest{
+				Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+				SizeBytes: 123,
+			},
+			Platform: &remoteexecution.Platform{},
+		}
+
+		contentAddressableStorage.EXPECT().Get(
+			gomock.Any(),
+			digest.MustNewDigest("beepboop", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
+		).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
+
+		contentAddressableStorage.EXPECT().Get(
+			gomock.Any(),
+			digest.MustNewDigest("beepboop", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
+			Platform: &remoteexecution.Platform{},
+		}, buffer.UserProvided))
+
+		defaultPlatformHooks.EXPECT().ExtractInvocationID(gomock.Any(), digest.MustNewInstanceName("beepboop"), gomock.Any(), nil).Return(&anypb.Any{}, nil)
+
+		initialSizeClassSelector := mock.NewMockSelector(ctrl)
+		defaultPlatformHooks.EXPECT().Analyze(gomock.Any(), gomock.Any(), testutil.EqProto(t, action)).Return(initialSizeClassSelector, nil)
+
+		initialSizeClassLearner := mock.NewMockLearner(ctrl)
+		initialSizeClassSelector.EXPECT().Select([]uint32{0}).Return(0, 30*time.Minute, initialSizeClassLearner)
+
+		timer1 := mock.NewMockTimer(ctrl)
+		clock.EXPECT().NewTimer(time.Minute).Return(timer1, nil)
+
+		uuidGenerator.EXPECT().Call().Return(uuid.Parse("36ebab65-3c4f-4faf-818b-2eabb4cd1b02"))
+
+		executionClient := getExecutionClient(t, buildQueue)
+
+		// Error on the WaitExecution
+		authorizer.EXPECT().Authorize(gomock.Any(), []digest.InstanceName{beepboop}).Return([]error{status.Error(codes.PermissionDenied, "You shall not pass")})
+		stream, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
+			ActionDigest: &remoteexecution.Digest{
+				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
+				SizeBytes: 456,
+			},
+			InstanceName: "beepboop",
+		})
+		require.NoError(t, err)
+		update, err := stream.Recv()
+		require.NoError(t, err)
+		metadata, err := anypb.New(&remoteexecution.ExecuteOperationMetadata{
+			Stage: remoteexecution.ExecutionStage_QUEUED,
+			ActionDigest: &remoteexecution.Digest{
+				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
+				SizeBytes: 456,
+			},
+		})
+		testutil.RequireEqualProto(t, update, &longrunning.Operation{
+			Name:     "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
+			Metadata: metadata,
+		})
+
+		stream2, err := executionClient.WaitExecution(ctx, &remoteexecution.WaitExecutionRequest{
+			Name: "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
+		})
+		require.NoError(t, err)
+		_, err = stream2.Recv()
+		testutil.RequireEqualStatus(t, status.Error(codes.PermissionDenied, "Authorization: You shall not pass"), err)
+	})
+}
+
+func allowAllAuthorizer() auth.Authorizer {
+	return auth.NewStaticAuthorizer(func(digest.InstanceName) bool { return true })
 }
 
 // TODO: Make testing coverage of InMemoryBuildQueue complete.
