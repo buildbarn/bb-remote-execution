@@ -10,6 +10,8 @@ go_library(
 go_test(
     name = "sync_test",
     srcs = ["lock_pile_test.go"],
-    embed = [":sync"],
-    deps = ["@com_github_stretchr_testify//require"],
+    deps = [
+        ":sync",
+        "@com_github_stretchr_testify//require",
+    ],
 )

@@ -27,8 +27,8 @@ go_test(
         "existence_precondition_blob_access_test.go",
         "suspending_blob_access_test.go",
     ],
-    embed = [":blobstore"],
     deps = [
+        ":blobstore",
         "//internal/mock",
         "@com_github_buildbarn_bb_storage//pkg/blobstore/buffer",
         "@com_github_buildbarn_bb_storage//pkg/digest",

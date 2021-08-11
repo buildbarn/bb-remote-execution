@@ -32,8 +32,8 @@ go_test(
         "decomposed_directory_walker_test.go",
         "hardlinking_file_fetcher_test.go",
     ],
-    embed = [":cas"],
     deps = [
+        ":cas",
         "//internal/mock",
         "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:execution",
         "@com_github_buildbarn_bb_storage//pkg/digest",

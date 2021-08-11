@@ -39,8 +39,8 @@ go_test(
         "lazy_directory_test.go",
         "quota_enforcing_file_pool_test.go",
     ],
-    embed = [":filesystem"],
     deps = [
+        ":filesystem",
         "//internal/mock",
         "@com_github_buildbarn_bb_storage//pkg/filesystem",
         "@com_github_buildbarn_bb_storage//pkg/filesystem/path",

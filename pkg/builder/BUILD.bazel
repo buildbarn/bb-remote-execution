@@ -52,6 +52,7 @@ go_library(
         "@com_github_buildbarn_bb_storage//pkg/digest",
         "@com_github_buildbarn_bb_storage//pkg/filesystem",
         "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
+        "@com_github_buildbarn_bb_storage//pkg/otel",
         "@com_github_buildbarn_bb_storage//pkg/proto/cas",
         "@com_github_buildbarn_bb_storage//pkg/util",
         "@com_github_google_uuid//:uuid",
@@ -112,8 +113,8 @@ go_test(
         "timestamped_build_executor_test.go",
         "tracing_build_executor_test.go",
     ],
-    embed = [":builder"],
     deps = [
+        ":builder",
         "//internal/mock",
         "//pkg/cleaner",
         "//pkg/clock",

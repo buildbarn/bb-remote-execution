@@ -1,9 +1,12 @@
 {
    "jobs": {
       "build_and_test": {
-         "container": "docker://l.gcr.io/google/bazel:3.5.0",
          "runs-on": "ubuntu-latest",
          "steps": [
+            {
+               "name": "Installing Bazel",
+               "run": "curl -L https://github.com/bazelbuild/bazel/releases/download/4.1.0/bazel-4.1.0-linux-x86_64 > ~/bazel && chmod +x ~/bazel && echo ~ >> ${GITHUB_PATH}"
+            },
             {
                "name": "Check out source code",
                "uses": "actions/checkout@v1"
@@ -58,7 +61,7 @@
             },
             {
                "name": "linux_amd64: copy bb_runner",
-               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //cmd/bb_runner $(pwd)/bb_runner"
+               "run": "rm -f bb_runner && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //cmd/bb_runner $(pwd)/bb_runner"
             },
             {
                "name": "linux_amd64: upload bb_runner",
@@ -70,7 +73,7 @@
             },
             {
                "name": "linux_amd64: copy bb_scheduler",
-               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //cmd/bb_scheduler $(pwd)/bb_scheduler"
+               "run": "rm -f bb_scheduler && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //cmd/bb_scheduler $(pwd)/bb_scheduler"
             },
             {
                "name": "linux_amd64: upload bb_scheduler",
@@ -82,7 +85,7 @@
             },
             {
                "name": "linux_amd64: copy bb_worker",
-               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //cmd/bb_worker $(pwd)/bb_worker"
+               "run": "rm -f bb_worker && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //cmd/bb_worker $(pwd)/bb_worker"
             },
             {
                "name": "linux_amd64: upload bb_worker",
@@ -94,7 +97,7 @@
             },
             {
                "name": "linux_amd64: copy fake_python",
-               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //cmd/fake_python $(pwd)/fake_python"
+               "run": "rm -f fake_python && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //cmd/fake_python $(pwd)/fake_python"
             },
             {
                "name": "linux_amd64: upload fake_python",
@@ -110,7 +113,7 @@
             },
             {
                "name": "linux_386: copy bb_runner",
-               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_386 //cmd/bb_runner $(pwd)/bb_runner"
+               "run": "rm -f bb_runner && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_386 //cmd/bb_runner $(pwd)/bb_runner"
             },
             {
                "name": "linux_386: upload bb_runner",
@@ -122,7 +125,7 @@
             },
             {
                "name": "linux_386: copy bb_scheduler",
-               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_386 //cmd/bb_scheduler $(pwd)/bb_scheduler"
+               "run": "rm -f bb_scheduler && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_386 //cmd/bb_scheduler $(pwd)/bb_scheduler"
             },
             {
                "name": "linux_386: upload bb_scheduler",
@@ -134,7 +137,7 @@
             },
             {
                "name": "linux_386: copy bb_worker",
-               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_386 //cmd/bb_worker $(pwd)/bb_worker"
+               "run": "rm -f bb_worker && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_386 //cmd/bb_worker $(pwd)/bb_worker"
             },
             {
                "name": "linux_386: upload bb_worker",
@@ -146,7 +149,7 @@
             },
             {
                "name": "linux_386: copy fake_python",
-               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_386 //cmd/fake_python $(pwd)/fake_python"
+               "run": "rm -f fake_python && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_386 //cmd/fake_python $(pwd)/fake_python"
             },
             {
                "name": "linux_386: upload fake_python",
@@ -162,7 +165,7 @@
             },
             {
                "name": "linux_arm: copy bb_runner",
-               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_arm //cmd/bb_runner $(pwd)/bb_runner"
+               "run": "rm -f bb_runner && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_arm //cmd/bb_runner $(pwd)/bb_runner"
             },
             {
                "name": "linux_arm: upload bb_runner",
@@ -174,7 +177,7 @@
             },
             {
                "name": "linux_arm: copy bb_scheduler",
-               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_arm //cmd/bb_scheduler $(pwd)/bb_scheduler"
+               "run": "rm -f bb_scheduler && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_arm //cmd/bb_scheduler $(pwd)/bb_scheduler"
             },
             {
                "name": "linux_arm: upload bb_scheduler",
@@ -186,7 +189,7 @@
             },
             {
                "name": "linux_arm: copy bb_worker",
-               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_arm //cmd/bb_worker $(pwd)/bb_worker"
+               "run": "rm -f bb_worker && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_arm //cmd/bb_worker $(pwd)/bb_worker"
             },
             {
                "name": "linux_arm: upload bb_worker",
@@ -198,7 +201,7 @@
             },
             {
                "name": "linux_arm: copy fake_python",
-               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_arm //cmd/fake_python $(pwd)/fake_python"
+               "run": "rm -f fake_python && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_arm //cmd/fake_python $(pwd)/fake_python"
             },
             {
                "name": "linux_arm: upload fake_python",
@@ -214,7 +217,7 @@
             },
             {
                "name": "linux_arm64: copy bb_runner",
-               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_arm64 //cmd/bb_runner $(pwd)/bb_runner"
+               "run": "rm -f bb_runner && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_arm64 //cmd/bb_runner $(pwd)/bb_runner"
             },
             {
                "name": "linux_arm64: upload bb_runner",
@@ -226,7 +229,7 @@
             },
             {
                "name": "linux_arm64: copy bb_scheduler",
-               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_arm64 //cmd/bb_scheduler $(pwd)/bb_scheduler"
+               "run": "rm -f bb_scheduler && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_arm64 //cmd/bb_scheduler $(pwd)/bb_scheduler"
             },
             {
                "name": "linux_arm64: upload bb_scheduler",
@@ -238,7 +241,7 @@
             },
             {
                "name": "linux_arm64: copy bb_worker",
-               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_arm64 //cmd/bb_worker $(pwd)/bb_worker"
+               "run": "rm -f bb_worker && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_arm64 //cmd/bb_worker $(pwd)/bb_worker"
             },
             {
                "name": "linux_arm64: upload bb_worker",
@@ -250,7 +253,7 @@
             },
             {
                "name": "linux_arm64: copy fake_python",
-               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_arm64 //cmd/fake_python $(pwd)/fake_python"
+               "run": "rm -f fake_python && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_arm64 //cmd/fake_python $(pwd)/fake_python"
             },
             {
                "name": "linux_arm64: upload fake_python",
@@ -266,7 +269,7 @@
             },
             {
                "name": "darwin_amd64: copy bb_runner",
-               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:darwin_amd64 //cmd/bb_runner $(pwd)/bb_runner"
+               "run": "rm -f bb_runner && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:darwin_amd64 //cmd/bb_runner $(pwd)/bb_runner"
             },
             {
                "name": "darwin_amd64: upload bb_runner",
@@ -278,7 +281,7 @@
             },
             {
                "name": "darwin_amd64: copy bb_scheduler",
-               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:darwin_amd64 //cmd/bb_scheduler $(pwd)/bb_scheduler"
+               "run": "rm -f bb_scheduler && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:darwin_amd64 //cmd/bb_scheduler $(pwd)/bb_scheduler"
             },
             {
                "name": "darwin_amd64: upload bb_scheduler",
@@ -290,7 +293,7 @@
             },
             {
                "name": "darwin_amd64: copy bb_worker",
-               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:darwin_amd64 //cmd/bb_worker $(pwd)/bb_worker"
+               "run": "rm -f bb_worker && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:darwin_amd64 //cmd/bb_worker $(pwd)/bb_worker"
             },
             {
                "name": "darwin_amd64: upload bb_worker",
@@ -302,7 +305,7 @@
             },
             {
                "name": "darwin_amd64: copy fake_python",
-               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:darwin_amd64 //cmd/fake_python $(pwd)/fake_python"
+               "run": "rm -f fake_python && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:darwin_amd64 //cmd/fake_python $(pwd)/fake_python"
             },
             {
                "name": "darwin_amd64: upload fake_python",
@@ -318,7 +321,7 @@
             },
             {
                "name": "darwin_arm64: copy bb_runner",
-               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:darwin_arm64 //cmd/bb_runner $(pwd)/bb_runner"
+               "run": "rm -f bb_runner && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:darwin_arm64 //cmd/bb_runner $(pwd)/bb_runner"
             },
             {
                "name": "darwin_arm64: upload bb_runner",
@@ -330,7 +333,7 @@
             },
             {
                "name": "darwin_arm64: copy bb_scheduler",
-               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:darwin_arm64 //cmd/bb_scheduler $(pwd)/bb_scheduler"
+               "run": "rm -f bb_scheduler && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:darwin_arm64 //cmd/bb_scheduler $(pwd)/bb_scheduler"
             },
             {
                "name": "darwin_arm64: upload bb_scheduler",
@@ -342,7 +345,7 @@
             },
             {
                "name": "darwin_arm64: copy bb_worker",
-               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:darwin_arm64 //cmd/bb_worker $(pwd)/bb_worker"
+               "run": "rm -f bb_worker && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:darwin_arm64 //cmd/bb_worker $(pwd)/bb_worker"
             },
             {
                "name": "darwin_arm64: upload bb_worker",
@@ -354,7 +357,7 @@
             },
             {
                "name": "darwin_arm64: copy fake_python",
-               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:darwin_arm64 //cmd/fake_python $(pwd)/fake_python"
+               "run": "rm -f fake_python && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:darwin_arm64 //cmd/fake_python $(pwd)/fake_python"
             },
             {
                "name": "darwin_arm64: upload fake_python",
@@ -370,7 +373,7 @@
             },
             {
                "name": "freebsd_amd64: copy bb_runner",
-               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:freebsd_amd64 //cmd/bb_runner $(pwd)/bb_runner"
+               "run": "rm -f bb_runner && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:freebsd_amd64 //cmd/bb_runner $(pwd)/bb_runner"
             },
             {
                "name": "freebsd_amd64: upload bb_runner",
@@ -382,7 +385,7 @@
             },
             {
                "name": "freebsd_amd64: copy bb_scheduler",
-               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:freebsd_amd64 //cmd/bb_scheduler $(pwd)/bb_scheduler"
+               "run": "rm -f bb_scheduler && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:freebsd_amd64 //cmd/bb_scheduler $(pwd)/bb_scheduler"
             },
             {
                "name": "freebsd_amd64: upload bb_scheduler",
@@ -394,7 +397,7 @@
             },
             {
                "name": "freebsd_amd64: copy bb_worker",
-               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:freebsd_amd64 //cmd/bb_worker $(pwd)/bb_worker"
+               "run": "rm -f bb_worker && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:freebsd_amd64 //cmd/bb_worker $(pwd)/bb_worker"
             },
             {
                "name": "freebsd_amd64: upload bb_worker",
@@ -406,7 +409,7 @@
             },
             {
                "name": "freebsd_amd64: copy fake_python",
-               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:freebsd_amd64 //cmd/fake_python $(pwd)/fake_python"
+               "run": "rm -f fake_python && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:freebsd_amd64 //cmd/fake_python $(pwd)/fake_python"
             },
             {
                "name": "freebsd_amd64: upload fake_python",
@@ -422,7 +425,7 @@
             },
             {
                "name": "windows_amd64: copy bb_runner",
-               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:windows_amd64 //cmd/bb_runner $(pwd)/bb_runner.exe"
+               "run": "rm -f bb_runner.exe && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:windows_amd64 //cmd/bb_runner $(pwd)/bb_runner.exe"
             },
             {
                "name": "windows_amd64: upload bb_runner",
@@ -434,7 +437,7 @@
             },
             {
                "name": "windows_amd64: copy bb_scheduler",
-               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:windows_amd64 //cmd/bb_scheduler $(pwd)/bb_scheduler.exe"
+               "run": "rm -f bb_scheduler.exe && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:windows_amd64 //cmd/bb_scheduler $(pwd)/bb_scheduler.exe"
             },
             {
                "name": "windows_amd64: upload bb_scheduler",
@@ -446,7 +449,7 @@
             },
             {
                "name": "windows_amd64: copy bb_worker",
-               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:windows_amd64 //cmd/bb_worker $(pwd)/bb_worker.exe"
+               "run": "rm -f bb_worker.exe && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:windows_amd64 //cmd/bb_worker $(pwd)/bb_worker.exe"
             },
             {
                "name": "windows_amd64: upload bb_worker",
@@ -458,7 +461,7 @@
             },
             {
                "name": "windows_amd64: copy fake_python",
-               "run": "bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:windows_amd64 //cmd/fake_python $(pwd)/fake_python.exe"
+               "run": "rm -f fake_python.exe && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:windows_amd64 //cmd/fake_python $(pwd)/fake_python.exe"
             },
             {
                "name": "windows_amd64: upload fake_python",
@@ -473,7 +476,7 @@
                   "DOCKER_CONFIG_JSON": "${{ secrets.DOCKER_CONFIG_JSON }}"
                },
                "name": "Install Docker credentials",
-               "run": "mkdir ~/.docker && echo \"${DOCKER_CONFIG_JSON}\" > ~/.docker/config.json"
+               "run": "mkdir -p ~/.docker && echo \"${DOCKER_CONFIG_JSON}\" > ~/.docker/config.json"
             },
             {
                "name": "Push container bb_runner:bb_runner_bare",

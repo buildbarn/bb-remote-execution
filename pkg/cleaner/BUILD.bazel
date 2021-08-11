@@ -54,8 +54,8 @@ go_test(
         "idle_invoker_test.go",
         "system_process_table_test.go",
     ],
-    embed = [":cleaner"],
     deps = [
+        ":cleaner",
         "//internal/mock",
         "@com_github_buildbarn_bb_storage//pkg/testutil",
         "@com_github_golang_mock//gomock",

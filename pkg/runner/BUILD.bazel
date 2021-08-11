@@ -74,8 +74,8 @@ go_test(
         "path_existence_checking_runner_test.go",
         "temporary_directory_symlinking_runner_test.go",
     ],
-    embed = [":runner"],
     deps = [
+        ":runner",
         "//internal/mock",
         "//pkg/cleaner",
         "//pkg/proto/runner",

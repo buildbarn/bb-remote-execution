@@ -30,7 +30,6 @@ go_library(
         "@com_github_buildbarn_bb_storage//pkg/eviction",
         "@com_github_buildbarn_bb_storage//pkg/filesystem",
         "@com_github_buildbarn_bb_storage//pkg/global",
-        "@com_github_buildbarn_bb_storage//pkg/grpc",
         "@com_github_buildbarn_bb_storage//pkg/random",
         "@com_github_buildbarn_bb_storage//pkg/util",
         "@io_opentelemetry_go_otel//:otel",

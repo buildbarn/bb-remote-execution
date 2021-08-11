@@ -11,8 +11,8 @@ go_library(
 go_test(
     name = "clock_test",
     srcs = ["suspendable_clock_test.go"],
-    embed = [":clock"],
     deps = [
+        ":clock",
         "//internal/mock",
         "@com_github_golang_mock//gomock",
         "@com_github_stretchr_testify//require",

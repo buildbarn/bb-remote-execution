@@ -45,8 +45,8 @@ go_test(
         "outcomes_test.go",
         "page_rank_strategy_calculator_test.go",
     ],
-    embed = [":initialsizeclass"],
     deps = [
+        ":initialsizeclass",
         "//internal/mock",
         "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:execution",
         "@com_github_buildbarn_bb_storage//pkg/blobstore/buffer",

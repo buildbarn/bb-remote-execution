@@ -9,6 +9,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
+	"github.com/buildbarn/bb-storage/pkg/otel"
 	"github.com/buildbarn/bb-storage/pkg/util"
 
 	"google.golang.org/grpc/codes"
@@ -76,7 +77,7 @@ func (bc *BuildClient) startExecution(executionRequest *remoteworker.DesiredStat
 	// Spawn the execution of the build action.
 	var ctx context.Context
 	ctx, bc.executionCancellation = context.WithCancel(
-		util.NewContextWithW3CTraceContext(
+		otel.NewContextWithW3CTraceContext(
 			context.Background(),
 			executionRequest.W3CTraceContext))
 	updates := make(chan *remoteworker.CurrentState_Executing, 10)

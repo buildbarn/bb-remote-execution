@@ -28,8 +28,8 @@ go_test(
         "lifecycle_hook_sqs_message_handler_test.go",
         "sqs_receiver_test.go",
     ],
-    embed = [":aws"],
     deps = [
+        ":aws",
         "//internal/mock",
         "//pkg/proto/buildqueuestate",
         "@com_github_aws_aws_sdk_go//aws",

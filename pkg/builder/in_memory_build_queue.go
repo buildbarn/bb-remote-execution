@@ -22,6 +22,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/builder"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
+	"github.com/buildbarn/bb-storage/pkg/otel"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -385,7 +386,7 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 		}
 		auxiliaryMetadata = []*anypb.Any{requestMetadataAny}
 	}
-	w3cTraceContext := util.W3CTraceContextFromContext(ctx)
+	w3cTraceContext := otel.W3CTraceContextFromContext(ctx)
 
 	// TODO: Remove this code once all clients support REv2.2.
 	if action.Platform == nil || targetID == "" {

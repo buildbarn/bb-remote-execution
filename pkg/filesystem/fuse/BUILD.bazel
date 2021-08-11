@@ -143,10 +143,6 @@ go_library(
             "@org_golang_google_grpc//status",
             "@org_golang_x_sys//unix",
         ],
-        "@io_bazel_rules_go//go/platform:nacl": [
-            "@org_golang_google_grpc//codes",
-            "@org_golang_google_grpc//status",
-        ],
         "@io_bazel_rules_go//go/platform:netbsd": [
             "@org_golang_google_grpc//codes",
             "@org_golang_google_grpc//status",
@@ -213,8 +209,8 @@ go_test(
         ],
         "//conditions:default": [],
     }),
-    embed = [":fuse"],
     deps = [
+        ":fuse",
         "@com_github_stretchr_testify//require",
     ] + select({
         "@io_bazel_rules_go//go/platform:android": [

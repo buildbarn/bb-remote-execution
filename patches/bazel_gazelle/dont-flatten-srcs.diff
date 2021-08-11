@@ -1,8 +1,8 @@
 diff --git language/go/generate.go language/go/generate.go
-index 2892948..cb55fdb 100644
+index 2c9ace0..2376673 100644
 --- language/go/generate.go
 +++ language/go/generate.go
-@@ -477,7 +477,7 @@ func (g *generator) generateLib(pkg *goPackage, embed string) *rule.Rule {
+@@ -484,7 +484,7 @@ func (g *generator) generateLib(pkg *goPackage, embed string) *rule.Rule {
  	} else {
  		visibility = g.commonVisibility(pkg.importPath)
  	}
@@ -11,7 +11,7 @@ index 2892948..cb55fdb 100644
  	g.setImportAttrs(goLibrary, pkg.importPath)
  	return goLibrary
  }
-@@ -506,7 +506,7 @@ func (g *generator) generateBin(pkg *goPackage, library string) *rule.Rule {
+@@ -513,7 +513,7 @@ func (g *generator) generateBin(pkg *goPackage, library string) *rule.Rule {
  		return goBinary // empty
  	}
  	visibility := g.commonVisibility(pkg.importPath)
@@ -20,16 +20,16 @@ index 2892948..cb55fdb 100644
  	return goBinary
  }
  
-@@ -517,7 +517,7 @@ func (g *generator) generateTest(pkg *goPackage, library string) *rule.Rule {
- 	if !pkg.test.sources.hasGo() {
- 		return goTest // empty
+@@ -528,7 +528,7 @@ func (g *generator) generateTest(pkg *goPackage, library string) *rule.Rule {
+ 	if pkg.test.hasInternalTest {
+ 		embed = library
  	}
--	g.setCommonAttrs(goTest, pkg.rel, nil, pkg.test, library)
-+	g.setCommonAttrs(goTest, pkg.rel, nil, pkg.test, library, false)
+-	g.setCommonAttrs(goTest, pkg.rel, nil, pkg.test, embed)
++	g.setCommonAttrs(goTest, pkg.rel, nil, pkg.test, embed, false)
  	if pkg.hasTestdata {
  		goTest.SetAttr("data", rule.GlobValue{Patterns: []string{"testdata/**"}})
  	}
-@@ -550,7 +550,7 @@ func (g *generator) maybeGenerateToolLib(lib *rule.Rule, pkg *goPackage) *rule.R
+@@ -561,7 +561,7 @@ func (g *generator) maybeGenerateToolLib(lib *rule.Rule, pkg *goPackage) *rule.R
  	} else {
  		visibility = g.commonVisibility(pkg.importPath)
  	}
@@ -38,7 +38,7 @@ index 2892948..cb55fdb 100644
  	g.setImportAttrs(toolLib, pkg.importPath)
  	return toolLib
  }
-@@ -645,9 +645,13 @@ func (g *generator) maybeGenerateExtraLib(lib *rule.Rule, pkg *goPackage) *rule.
+@@ -656,9 +656,13 @@ func (g *generator) maybeGenerateExtraLib(lib *rule.Rule, pkg *goPackage) *rule.
  	return r
  }
  
@@ -52,5 +52,5 @@ index 2892948..cb55fdb 100644
 +			r.SetAttr("srcs", target.sources.build())
 +		}
  	}
- 	if target.cgo {
- 		r.SetAttr("cgo", true)
+ 	if !target.embedSrcs.isEmpty() {
+ 		r.SetAttr("embedsrcs", target.embedSrcs.build())

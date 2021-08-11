@@ -29,7 +29,7 @@ func main() {
 	if err := util.UnmarshalConfigurationFromFile(os.Args[1], &configuration); err != nil {
 		log.Fatalf("Failed to read configuration from %s: %s", os.Args[1], err)
 	}
-	lifecycleState, err := global.ApplyConfiguration(configuration.Global)
+	lifecycleState, grpcClientFactory, err := global.ApplyConfiguration(configuration.Global)
 	if err != nil {
 		log.Fatal("Failed to apply global configuration options: ", err)
 	}
@@ -65,7 +65,7 @@ func main() {
 	// Calling into a helper process to set up access to temporary
 	// directories prior to the execution of build actions.
 	if configuration.TemporaryDirectoryInstaller != nil {
-		tmpInstallerConnection, err := bb_grpc.DefaultClientFactory.NewClientFromConfiguration(configuration.TemporaryDirectoryInstaller)
+		tmpInstallerConnection, err := grpcClientFactory.NewClientFromConfiguration(configuration.TemporaryDirectoryInstaller)
 		if err != nil {
 			log.Fatal("Failed to create temporary directory installer RPC client: ", err)
 		}
