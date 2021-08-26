@@ -17,6 +17,7 @@ import (
 	re_clock "github.com/buildbarn/bb-remote-execution/pkg/clock"
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	re_fuse "github.com/buildbarn/bb-remote-execution/pkg/filesystem/fuse"
+	cal_proto "github.com/buildbarn/bb-remote-execution/pkg/proto/completedactionlogger"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_worker"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
@@ -30,6 +31,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/global"
 	"github.com/buildbarn/bb-storage/pkg/random"
 	"github.com/buildbarn/bb-storage/pkg/util"
+	"github.com/google/uuid"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -96,6 +98,28 @@ func main() {
 	if len(configuration.BuildDirectories) == 0 {
 		log.Fatal("Cannot start worker without any build directories")
 	}
+
+	// Setup the RemoteCompletedActionLogger for the
+	// ActionLoggingBuildExecutor to ensure we only create
+	// one client per worker rather than one per runner.
+	remoteCompletedActionLoggers := make([]builder.CompletedActionLogger, 0, len(configuration.CompletedActionLoggers))
+	for _, c := range configuration.CompletedActionLoggers {
+		loggerQueueConnection, err := grpcClientFactory.NewClientFromConfiguration(c.Client)
+		if err != nil {
+			log.Fatal("Error occurred when creating a new gRPC client for logging completed actions: ", err)
+			continue
+		}
+		client := cal_proto.NewCompletedActionLoggerClient(loggerQueueConnection)
+		logger := builder.NewRemoteCompletedActionLogger(int(c.MaximumSendQueueSize), client)
+		remoteCompletedActionLoggers = append(remoteCompletedActionLoggers, logger)
+		go func() {
+			for {
+				log.Print("Failure encountered while transmitting completed actions: ", logger.SendAllCompletedActions())
+				time.Sleep(3 * time.Second)
+			}
+		}()
+	}
+
 	for _, buildDirectoryConfiguration := range configuration.BuildDirectories {
 		var fuseBuildDirectory re_fuse.PrepopulatedDirectory
 		var naiveBuildDirectory filesystem.DirectoryCloser
@@ -297,13 +321,19 @@ func main() {
 						buildExecutor = builder.NewCostComputingBuildExecutor(buildExecutor, runnerConfiguration.CostsPerSecond)
 					}
 
+					buildExecutor = builder.NewCachingBuildExecutor(
+						buildExecutor,
+						globalContentAddressableStorage,
+						actionCache,
+						browserURL)
+
+					for _, lq := range remoteCompletedActionLoggers {
+						buildExecutor = builder.NewCompletedActionLoggingBuildExecutor(buildExecutor, uuid.NewRandom, lq)
+					}
+
 					buildExecutor = builder.NewTracingBuildExecutor(
 						builder.NewLoggingBuildExecutor(
-							builder.NewCachingBuildExecutor(
-								buildExecutor,
-								globalContentAddressableStorage,
-								actionCache,
-								browserURL),
+							buildExecutor,
 							browserURL),
 						tracerProvider)
 

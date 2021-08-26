@@ -56,6 +56,7 @@ gomock(
         "BuildDirectory",
         "BuildDirectoryCreator",
         "BuildExecutor",
+        "CompletedActionLogger",
         "PlatformHooks",
         "StorageFlusher",
         "UploadableDirectory",
@@ -120,6 +121,14 @@ gomock(
 )
 
 gomock(
+    name = "completedactionlogger",
+    out = "completedactionlogger.go",
+    interfaces = ["CompletedActionLogger_LogCompletedActionsClient"],
+    library = "//pkg/proto/completedactionlogger",
+    package = "mock",
+)
+
+gomock(
     name = "filesystem",
     out = "filesystem.go",
     interfaces = [
@@ -179,6 +188,17 @@ gomock(
     library = "@com_github_hanwen_go_fuse_v2//fuse",
     package = "mock",
     tags = ["manual"],
+)
+
+gomock(
+    name = "grpc_go",
+    out = "grpc_go.go",
+    interfaces = [
+        "ClientConnInterface",
+        "ClientStream",
+    ],
+    library = "@org_golang_google_grpc//:grpc",
+    package = "mock",
 )
 
 gomock(
@@ -281,8 +301,10 @@ go_library(
         ":cleaner.go",
         ":clock.go",
         ":cloud_aws.go",
+        ":completedactionlogger.go",
         ":filesystem.go",
         ":filesystem_re.go",
+        ":grpc_go.go",
         ":initialsizeclass.go",
         ":random.go",
         ":remoteexecution.go",
@@ -312,6 +334,7 @@ go_library(
         "//pkg/filesystem",
         "//pkg/filesystem/fuse",
         "//pkg/proto/buildqueuestate",
+        "//pkg/proto/completedactionlogger",
         "//pkg/proto/outputpathpersistency",
         "//pkg/proto/remoteoutputservice",
         "//pkg/proto/remoteworker",

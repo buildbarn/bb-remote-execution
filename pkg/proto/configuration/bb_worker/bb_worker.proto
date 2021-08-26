@@ -56,6 +56,17 @@ message ApplicationConfiguration {
   // stored. Not all configurations of bb_worker require this to be set.
   // When left unset, any attempt to allocate temporary files will fail.
   buildbarn.configuration.filesystem.FilePoolConfiguration file_pool = 22;
+
+  // Configurations for any CompletedActionLoggingServers that bb_worker will
+  // forward all CompletedActions to along with their REv2 build metadata.
+  // This provides a means for aggregating and analyzing the data from builds
+  // to potentially identify computationally expensive targets, estimate the
+  // approximate cost of builds, or uncover underlying patterns in build
+  // behavior. No CompletedActions will be streamed if this option is left
+  // empty. See
+  // https://github.com/buildbarn/bb-adrs/blob/master/0006-operation-logging-and-monetary-resource-usage.md
+  // for more details around the Completed Action Logger service.
+  repeated CompletedActionLoggingConfiguration completed_action_loggers = 23;
 }
 
 message BuildDirectoryConfiguration {
@@ -194,4 +205,15 @@ message RunnerConfiguration {
   // --action_env, however, has limited scope that makes it not useful
   // in some scenarios: https://github.com/bazelbuild/bazel/issues/3320
   map<string, string> environment_variables = 11;
+}
+
+message CompletedActionLoggingConfiguration {
+  // The gRPC endpoint to send all CompletedActions to.
+  buildbarn.configuration.grpc.ClientConfiguration client = 1;
+
+  // The maximum amount of queued CompletedActions that will be stored in the
+  // CompletedActionLogger's internal buffer. Once maximum_send_queue_size
+  // CompletedActions been have accumulated, new messages will be discarded
+  // to prevent the worker process from exhausting memory.
+  uint32 maximum_send_queue_size = 2;
 }
