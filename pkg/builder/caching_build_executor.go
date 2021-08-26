@@ -58,17 +58,17 @@ func (be *cachingBuildExecutor) Execute(ctx context.Context, filePool filesystem
 		// Extension: store the result in the Content
 		// Addressable Storage, so the user can at least inspect
 		// it through bb_browser.
-		if uncachedActionResultDigest, err := blobstore.CASPutProto(
+		if historicalExecuteResponseDigest, err := blobstore.CASPutProto(
 			ctx,
 			be.contentAddressableStorage,
-			&cas_proto.UncachedActionResult{
+			&cas_proto.HistoricalExecuteResponse{
 				ActionDigest:    actionDigest.GetProto(),
 				ExecuteResponse: response,
 			},
 			actionDigest.GetDigestFunction()); err == nil {
-			response.Message = "Action details (uncached result): " + re_util.GetBrowserURL(be.browserURL, "uncached_action_result", uncachedActionResultDigest)
+			response.Message = "Action details (uncached result): " + re_util.GetBrowserURL(be.browserURL, "historical_execute_response", historicalExecuteResponseDigest)
 		} else {
-			attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to store uncached action result"))
+			attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to store historical execute response"))
 		}
 	}
 	return response
