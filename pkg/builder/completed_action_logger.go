@@ -9,13 +9,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"golang.org/x/sync/errgroup"
-
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 var (
-	completedActionLoggingPrometheusMetrics sync.Once
+	completedActionLoggerPrometheusMetrics sync.Once
 
 	completedActionLoggerCompletedActionsAcknowledged = prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: "buildbarn",
@@ -59,7 +58,7 @@ type RemoteCompletedActionLogger struct {
 	maximumSendQueueSize int
 
 	lock       sync.Mutex
-	SendQueue  []*cal_proto.CompletedAction
+	sendQueue  []*cal_proto.CompletedAction
 	sendWakeup chan struct{}
 }
 
@@ -68,7 +67,7 @@ type RemoteCompletedActionLogger struct {
 // we don't overwhelm the server in case it is under heavy load
 // and cannot respond.
 func NewRemoteCompletedActionLogger(queueSize int, client cal_proto.CompletedActionLoggerClient) *RemoteCompletedActionLogger {
-	completedActionLoggingPrometheusMetrics.Do(func() {
+	completedActionLoggerPrometheusMetrics.Do(func() {
 		prometheus.MustRegister(completedActionLoggerCompletedActionsAcknowledged)
 		prometheus.MustRegister(completedActionLoggerCompletedActionsLogged)
 		prometheus.MustRegister(completedActionLoggerCompletedActionsSent)
@@ -79,7 +78,7 @@ func NewRemoteCompletedActionLogger(queueSize int, client cal_proto.CompletedAct
 		maximumSendQueueSize: queueSize,
 
 		lock:       sync.Mutex{},
-		SendQueue:  []*cal_proto.CompletedAction{},
+		sendQueue:  []*cal_proto.CompletedAction{},
 		sendWakeup: make(chan struct{}, queueSize),
 	}
 }
@@ -90,8 +89,8 @@ func NewRemoteCompletedActionLogger(queueSize int, client cal_proto.CompletedAct
 func (logger *RemoteCompletedActionLogger) LogCompletedAction(completedAction *cal_proto.CompletedAction) {
 	logger.lock.Lock()
 	defer logger.lock.Unlock()
-	if len(logger.SendQueue) < logger.maximumSendQueueSize {
-		logger.SendQueue = append(logger.SendQueue, completedAction)
+	if len(logger.sendQueue) < logger.maximumSendQueueSize {
+		logger.sendQueue = append(logger.sendQueue, completedAction)
 		close(logger.sendWakeup)
 		logger.sendWakeup = make(chan struct{})
 		completedActionLoggerCompletedActionsLoggedQueued.Inc()
@@ -116,8 +115,8 @@ func (logger *RemoteCompletedActionLogger) SendAllCompletedActions() error {
 			logger.lock.Lock()
 			c := logger.sendWakeup
 
-			actionsToSend := logger.SendQueue[actionsSent:]
-			actionsSent = len(logger.SendQueue)
+			actionsToSend := logger.sendQueue[actionsSent:]
+			actionsSent = len(logger.sendQueue)
 			logger.lock.Unlock()
 
 			for _, action := range actionsToSend {
@@ -145,7 +144,7 @@ func (logger *RemoteCompletedActionLogger) SendAllCompletedActions() error {
 				return status.Error(codes.FailedPrecondition, "Improper response: No messages left in the queue")
 			}
 
-			logger.SendQueue = logger.SendQueue[1:]
+			logger.sendQueue = logger.sendQueue[1:]
 			actionsSent--
 			logger.lock.Unlock()
 			completedActionLoggerCompletedActionsAcknowledged.Inc()
