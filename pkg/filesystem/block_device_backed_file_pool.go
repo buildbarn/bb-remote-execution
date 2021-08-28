@@ -403,7 +403,7 @@ func (f *blockDeviceBackedFile) writeToSectors(p []byte, sectorIndex, lastSector
 func (f *blockDeviceBackedFile) WriteAt(p []byte, off int64) (int, error) {
 	// Short circuit calls that are out of bounds.
 	if off < 0 {
-		status.Errorf(codes.InvalidArgument, "Negative write offset: %d", off)
+		return 0, status.Errorf(codes.InvalidArgument, "Negative write offset: %d", off)
 	}
 	if len(p) == 0 {
 		return 0, nil

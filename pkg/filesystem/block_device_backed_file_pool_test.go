@@ -8,6 +8,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
+	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
@@ -308,5 +309,13 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 
 		sectorAllocator.EXPECT().FreeList([]uint32{0, 0, 0, 0, 0, 0, 0, 0, 5})
 		require.NoError(t, f.Close())
+	})
+
+	t.Run("WriteAt", func(t *testing.T) {
+		f, err := pool.NewFile()
+		require.NoError(t, err)
+
+		_, err = f.WriteAt([]byte{0}, -1)
+		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Negative write offset: -1"), err)
 	})
 }
