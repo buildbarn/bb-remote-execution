@@ -162,14 +162,14 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 	// Open output files for logging.
 	stdout, err := r.openLog(request.StdoutPath)
 	if err != nil {
-		return nil, util.StatusWrap(err, "Failed to open stdout")
+		return nil, util.StatusWrapf(err, "Failed to open stdout path %q", request.StdoutPath)
 	}
 	cmd.Stdout = stdout
 
 	stderr, err := r.openLog(request.StderrPath)
 	if err != nil {
 		stdout.Close()
-		return nil, util.StatusWrap(err, "Failed to open stderr")
+		return nil, util.StatusWrapf(err, "Failed to open stderr path %q", request.StderrPath)
 	}
 	cmd.Stderr = stderr
 
