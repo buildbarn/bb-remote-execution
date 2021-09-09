@@ -1,0 +1,16 @@
+<tr>
+	<th style="width: 25%">Instance name prefix:</th>
+	<td style="width: 75%">{{.PlatformQueueName.InstanceNamePrefix | printf "%#v"}}</td>
+</tr>
+<tr>
+	<th style="width: 25%">Platform properties:</th>
+	<td style="width: 75%">
+		{{range .PlatformQueueName.Platform.Properties}}
+			<span class="badge bg-primary text-nowrap">{{.Name}}={{.Value | printf "%#v"}}</span>
+		{{end}}
+	</td>
+</tr>
+<tr>
+	<th style="width: 25%">Size class:</th>
+	<td style="width: 75%">{{.SizeClass}}</td>
+</tr>

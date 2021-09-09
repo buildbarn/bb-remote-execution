@@ -1,0 +1,50 @@
+{{template "header.html" "success"}}
+
+<h1 class="my-4">Drains</h1>
+
+<table class="table" style="table-layout: fixed">
+	{{template "size_class_queue_info.html" .SizeClassQueueName}}
+</table>
+
+<div class="table-responsive">
+	<table class="align-middle border-dark table table-bordered table-sm">
+		<thead class="text-center">
+			<tr>
+				<th>Worker ID pattern</th>
+				<th>Age</th>
+				<th>Actions</th>
+			</tr>
+		</thead>
+		<tbody>
+			{{$sizeClassQueueName := proto_to_json .SizeClassQueueName}}
+			{{$now := .Now}}
+			{{range .Drains}}
+				<tr>
+					<td>
+						{{range $key, $value := .WorkerIdPattern}}
+							<span class="badge bg-primary text-nowrap">{{$key}}={{$value | printf "%#v"}}</span>
+						{{end}}
+					</td>
+					<td class="text-end">{{time_past .CreatedTimestamp $now}}</td>
+					<td>
+						<form action="remove_drain" method="post">
+							<input name="size_class_queue_name" type="hidden" value="{{$sizeClassQueueName}}"/>
+							<input name="worker_id_pattern" type="hidden" value="{{to_json .WorkerIdPattern}}"/>
+							<button class="btn btn-danger" type="submit">Remove</button>
+						</form>
+					</td>
+				</tr>
+			{{end}}
+			<form action="add_drain" method="post">
+				<input name="size_class_queue_name" type="hidden" value="{{$sizeClassQueueName}}"/>
+				<tr>
+					<td><input class="form-control" name="worker_id_pattern" placeholder="{&quot;hostname&quot;: &quot;server123.example.com&quot;}" type="text"/></td>
+					<td></td>
+					<td><button class="btn btn-primary" type="submit">Create</button></td>
+				</tr>
+			</form>
+		</tbody>
+	</table>
+</div>
+
+{{template "footer.html"}}

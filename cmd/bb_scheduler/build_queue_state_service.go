@@ -2,13 +2,13 @@ package main
 
 import (
 	"context"
+	"embed"
 	"encoding/json"
 	"html/template"
 	"log"
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 	"time"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
@@ -16,6 +16,7 @@ import (
 	re_util "github.com/buildbarn/bb-remote-execution/pkg/util"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
+	bb_http "github.com/buildbarn/bb-storage/pkg/http"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/gorilla/mux"
 
@@ -36,7 +37,12 @@ const (
 )
 
 var (
-	templateFuncMap = template.FuncMap{
+	//go:embed templates
+	templatesFS embed.FS
+	//go:embed stylesheet.css
+	stylesheet template.CSS
+
+	templates = template.Must(template.New("templates").Funcs(template.FuncMap{
 		"abbreviate": func(s string) string {
 			if len(s) > 11 {
 				return s[:8] + "..."
@@ -91,6 +97,7 @@ var (
 			return string(json)
 		},
 		"error_proto": status.ErrorProto,
+		"stylesheet":  func() template.CSS { return stylesheet },
 		"time_future": func(t *timestamppb.Timestamp, now time.Time) string {
 			if t == nil {
 				return "∞"
@@ -119,433 +126,7 @@ var (
 		"to_foreground_color": func(s string) string {
 			return "#" + invertColor(s[:2]) + invertColor(s[2:4]) + invertColor(s[4:6])
 		},
-	}
-
-	getBuildQueueStateTemplate = template.Must(template.New("GetBuildQueueState").Funcs(templateFuncMap).Parse(`
-<!DOCTYPE html>
-<html>
-  <head>
-    <title>Buildbarn Scheduler</title>
-    <style>
-      html { font-family: sans-serif; }
-      table { border-collapse: collapse; }
-      table, td, th { border: 1px solid black; }
-      td, th { padding-left: 5px; padding-right: 5px; }
-    </style>
-  </head>
-  <body>
-    <h1>Buildbarn Scheduler</h1>
-    <p>Total number of operations: <a href="operations">{{.OperationsCount}}</a></p>
-    <h2>Platform queues</h2>
-    <table>
-      <thead>
-        <tr>
-          <th rowspan="2">Instance name prefix</th>
-          <th rowspan="2">Platform</th>
-          <th rowspan="2">Size class</th>
-          <th rowspan="2">Timeout</th>
-          <th colspan="3">Invocations</th>
-          <th colspan="2">Workers</th>
-          <th rowspan="2">Drains</th>
-        </tr>
-        <tr>
-          <th>Queued</th>
-          <th>Active</th>
-          <th>All</th>
-          <th>Executing</th>
-          <th>All</th>
-        </tr>
-      </thead>
-      {{$now := .Now}}
-      {{range .PlatformQueues}}
-        <tr>
-          {{$platformQueueName := .Name}}
-          <td rowspan="{{len .SizeClassQueues}}">{{$platformQueueName.InstanceNamePrefix | printf "%#v"}}</td>
-          <td rowspan="{{len .SizeClassQueues}}">{{proto_to_json $platformQueueName.Platform}}</td>
-          {{$addDivider := false}}
-          {{range .SizeClassQueues}}
-            {{if $addDivider}}</tr><tr>{{end}}
-            {{$addDivider = true}}
-            <td>{{.SizeClass}}</td>
-            <td>{{time_future .Timeout $now}}</td>
-            {{$sizeClassQueueName := get_size_class_queue_name $platformQueueName .SizeClass}}
-            {{$sizeClassQueueNameJSON := proto_to_json $sizeClassQueueName}}
-            <td><a href="invocations?size_class_queue_name={{$sizeClassQueueNameJSON}}&amp;filter=QUEUED">{{.QueuedInvocationsCount}}</a></td>
-            <td><a href="invocations?size_class_queue_name={{$sizeClassQueueNameJSON}}&amp;filter=ACTIVE">{{.ActiveInvocationsCount}}</a></td>
-            <td><a href="invocations?size_class_queue_name={{$sizeClassQueueNameJSON}}&amp;filter=ALL">{{.InvocationsCount}}</a></td>
-            <td><a href="workers?size_class_queue_name={{$sizeClassQueueNameJSON}}&amp;just_executing_workers=true">{{.ExecutingWorkersCount}}</a></td>
-            <td><a href="workers?size_class_queue_name={{$sizeClassQueueNameJSON}}">{{.WorkersCount}}</a></td>
-            <td><a href="drains?size_class_queue_name={{$sizeClassQueueNameJSON}}">{{.DrainsCount}}</a></td>
-          {{end}}
-        </tr>
-      {{end}}
-    </table>
-  </body>
-</html>
-`))
-	getOperationStateTemplate = template.Must(template.New("GetOperationState").Funcs(templateFuncMap).Parse(`
-<!DOCTYPE html>
-<html>
-  <head>
-    <title>Buildbarn Scheduler: Operation {{.OperationName}}</title>
-    <style>
-      html { font-family: sans-serif; }
-    </style>
-  </head>
-  <body>
-    <h1><a href=".">Buildbarn Scheduler</a>: Operation {{.OperationName}}</h1>
-    {{$now := .Now}}
-    {{$sizeClassQueueName := .Operation.SizeClassQueueName}}
-    {{$platformQueueName := $sizeClassQueueName.PlatformQueueName}}
-    <p>Instance name prefix: {{$platformQueueName.InstanceNamePrefix | printf "%#v"}}<br/>
-    Instance name suffix: {{.Operation.InstanceNameSuffix | printf "%#v"}}<br/>
-    Platform: {{proto_to_json $platformQueueName.Platform}}<br/>
-    Size class: {{$sizeClassQueueName.SizeClass}}<br/>
-    Invocation ID: {{proto_to_json .Operation.InvocationId}}<br/>
-    Action digest: <a href="{{action_url .BrowserURL $platformQueueName.InstanceNamePrefix .Operation.InstanceNameSuffix .Operation.ActionDigest}}">{{proto_to_json .Operation.ActionDigest}}</a><br/>
-    Age: {{time_past .Operation.QueuedTimestamp $now}}<br/>
-    Timeout: {{time_future .Operation.Timeout $now}}<br/>
-    Target ID: {{.Operation.TargetId}}<br/>
-    Priority: {{.Operation.Priority}}<br/>
-    Stage:
-      {{with operation_stage_queued .Operation}}
-        Queued
-      {{else}}
-        {{with operation_stage_executing .Operation}}
-          Executing
-        {{else}}
-          {{with operation_stage_completed .Operation}}
-            {{with error_proto .Status}}
-              Failed with {{.}}
-            {{else}}
-              {{with .Result}}
-                Completed with exit code {{.ExitCode}}
-              {{else}}
-                Action result missing
-              {{end}}
-            {{end}}
-          {{else}}
-            Unknown
-          {{end}}
-        {{end}}
-      {{end}}
-    </p>
-    {{with operation_stage_completed .Operation}}
-      <h2>Execute response</h2>
-      <pre>{{proto_to_json .}}</pre>
-    {{else}}
-      <form action="kill_operation" method="post">
-        <p>
-          <input name="name" type="hidden" value="{{.OperationName}}"/>
-          <input type="submit" value="Kill operation"/>
-        </p>
-      </form>
-    {{end}}
-  </body>
-</html>
-`))
-	listOperationStateTemplate = template.Must(template.New("ListOperationState").Funcs(templateFuncMap).Parse(`
-<!DOCTYPE html>
-<html>
-  <head>
-    <title>Buildbarn Scheduler: All operations</title>
-    <style>
-      html { font-family: sans-serif; }
-      table { border-collapse: collapse; }
-      table, td, th { border: 1px solid black; }
-      td, th { padding-left: 5px; padding-right: 5px; }
-      .text-monospace { font-family: monospace; }
-    </style>
-  </head>
-  <body>
-    <h1><a href=".">Buildbarn Scheduler</a>: All operations</h1>
-    <p>Showing operations [{{.PaginationInfo.StartIndex}}, {{.EndIndex}}) of {{.PaginationInfo.TotalEntries}} in total.
-      {{with .StartAfter}}
-        <a href="?start_after={{proto_to_json .}}">&gt;&gt;&gt;</a>
-      {{end}}
-    </p>
-    <table>
-      <thead>
-        <tr>
-          <th>Timeout</th>
-          <th>Operation name</th>
-          <th>Action digest</th>
-          <th>Target ID</th>
-          <th>Stage</th>
-        </tr>
-      </thead>
-      {{$browserURL := .BrowserURL}}
-      {{$now := .Now}}
-      {{range .Operations}}
-        <tr>
-          <td>{{time_future .Timeout $now}}</td>
-          <td style="background-color: {{to_background_color .Name}}">
-            <a class="text-monospace" href="operation?name={{.Name}}" style="color: {{to_foreground_color .Name}}">{{abbreviate .Name}}</a>
-          </td>
-          <td style="background-color: {{to_background_color .ActionDigest.Hash}}">
-            <a class="text-monospace" href="{{action_url $browserURL .SizeClassQueueName.PlatformQueueName.InstanceNamePrefix .InstanceNameSuffix .ActionDigest}}" style="color: {{to_foreground_color .ActionDigest.Hash}}">{{abbreviate .ActionDigest.Hash}}</a>
-          </td>
-          <td>{{.TargetId}}</td>
-          {{if operation_stage_queued .}}
-            <td>Queued at priority {{.Priority}}</td>
-          {{else}}
-            {{with operation_stage_executing .}}
-              <td style="background-color: lightblue">Executing</td>
-            {{else}}
-              {{with operation_stage_completed .}}
-                {{with error_proto .Status}}
-                  <td style="background-color: red">Failed with {{.}}</td>
-                {{else}}
-                  {{with .Result}}
-                    {{if eq .ExitCode 0}}
-                      <td style="background-color: lightgreen">Completed with exit code {{.ExitCode}}</td>
-                    {{else}}
-                      <td style="background-color: orange">Completed with exit code {{.ExitCode}}</td>
-                    {{end}}
-                  {{else}}
-                    <td style="background-color: red">Action result missing</td>
-                  {{end}}
-                {{end}}
-              {{else}}
-                <td style="background-color: red">Unknown</td>
-              {{end}}
-            {{end}}
-          {{end}}
-        </tr>
-      {{end}}
-    </table>
-  </body>
-</html>
-`))
-	listInvocationStateTemplate = template.Must(template.New("ListInvocationState").Funcs(templateFuncMap).Parse(`
-<!DOCTYPE html>
-<html>
-  <head>
-    <title>Buildbarn Scheduler: {{.Filter}} invocations</title>
-    <style>
-      html { font-family: sans-serif; }
-      table { border-collapse: collapse; }
-      table, td, th { border: 1px solid black; }
-      td, th { padding-left: 5px; padding-right: 5px; }
-      .text-monospace { font-family: monospace; }
-    </style>
-  </head>
-  <body>
-    <h1><a href=".">Buildbarn Scheduler</a>: {{.Filter}} invocations</h1>
-    {{$sizeClassQueueName := .SizeClassQueueName}}
-    {{$platformQueueName := $sizeClassQueueName.PlatformQueueName}}
-    <p>Instance name prefix: {{$platformQueueName.InstanceNamePrefix | printf "%#v"}}<br/>
-    Platform: {{proto_to_json $platformQueueName.Platform}}<br/>
-    Size class: {{$sizeClassQueueName.SizeClass}}</p>
-    <table>
-      <thead>
-        <tr>
-          <th rowspan="2">Invocation ID</th>
-          <th colspan="3">Operations</th>
-          <th colspan="3">Workers</th>
-        </tr>
-        <tr>
-          <th>Queued</th>
-          <th>First priority</th>
-          <th>First age</th>
-          <th>Executing</th>
-          <th>Idle</th>
-          <th>Idle synchronizing</th>
-        </tr>
-      </thead>
-      {{$now := .Now}}
-      {{range .Invocations}}
-        <tr>
-          {{$invocationID := proto_to_json .Id}}
-          <td>{{$invocationID}}</td>
-          <td><a href="queued_operations?size_class_queue_name={{proto_to_json $sizeClassQueueName}}&amp;invocation_id={{$invocationID}}">{{.QueuedOperationsCount}}</a></td>
-          {{with .FirstQueuedOperation}}
-            <td>{{.Priority}}</td>
-            <td>{{time_past .QueuedTimestamp $now}}</td>
-          {{else}}
-            <td colspan="2">No operations queued</td>
-          {{end}}
-          <td>{{.ExecutingWorkersCount}}</td>
-          <td>{{.IdleWorkersCount}}</td>
-          <td>{{.IdleSynchronizingWorkersCount}}</td>
-        </tr>
-      {{end}}
-    </table>
-  </body>
-</html>
-`))
-	listQueuedOperationStateTemplate = template.Must(template.New("ListQueuedOperationState").Funcs(templateFuncMap).Parse(`
-<!DOCTYPE html>
-<html>
-  <head>
-    <title>Queued operations</title>
-    <style>
-      html { font-family: sans-serif; }
-      table { border-collapse: collapse; }
-      table, td, th { border: 1px solid black; }
-      td, th { padding-left: 5px; padding-right: 5px; }
-      .text-monospace { font-family: monospace; }
-    </style>
-  </head>
-  <body>
-    <h1><a href=".">Buildbarn Scheduler</a>: Queued operations</h1>
-    {{$sizeClassQueueName := .SizeClassQueueName}}
-    {{$platformQueueName := $sizeClassQueueName.PlatformQueueName}}
-    <p>Instance name prefix: {{$platformQueueName.InstanceNamePrefix | printf "%#v"}}<br/>
-    Platform: {{proto_to_json $platformQueueName.Platform}}<br/>
-    Size class: {{$sizeClassQueueName.SizeClass}}<br/>
-    {{$invocationID := proto_to_json .InvocationID}}
-    Invocation ID: {{$invocationID}}</p>
-    <p>Showing queued operations [{{.PaginationInfo.StartIndex}}, {{.EndIndex}}) of {{.PaginationInfo.TotalEntries}} in total.
-      {{with .StartAfter}}
-        <a href="?size_class_queue_name={{proto_to_json $sizeClassQueueName}}&amp;invocation_id={{$invocationID}}&amp;start_after={{proto_to_json .}}">&gt;&gt;&gt;</a>
-      {{end}}
-    </p>
-    <table>
-      <thead>
-        <tr>
-          <th>Priority</th>
-          <th>Age</th>
-          <th>Timeout</th>
-          <th>Operation name</th>
-          <th>Action digest</th>
-          <th>Target ID</th>
-        </tr>
-      </thead>
-      {{$browserURL := .BrowserURL}}
-      {{$now := .Now}}
-      {{range .QueuedOperations}}
-        <tr>
-          <td>{{.Priority}}</td>
-          <td>{{time_past .QueuedTimestamp $now}}</td>
-          <td>{{time_future .Timeout $now}}</td>
-          <td style="background-color: {{to_background_color .Name}}">
-            <a class="text-monospace" href="operation?name={{.Name}}" style="color: {{to_foreground_color .Name}}">{{abbreviate .Name}}</a>
-          </td>
-          <td style="background-color: {{to_background_color .ActionDigest.Hash}}">
-            <a class="text-monospace" href="{{action_url $browserURL $platformQueueName.InstanceNamePrefix .InstanceNameSuffix .ActionDigest}}" style="color: {{to_foreground_color .ActionDigest.Hash}}">{{abbreviate .ActionDigest.Hash}}</a>
-          </td>
-          <td>{{.TargetId}}</td>
-        </tr>
-      {{end}}
-    </table>
-  </body>
-</html>
-`))
-	listWorkerStateTemplate = template.Must(template.New("ListWorkerState").Funcs(templateFuncMap).Parse(`
-<!DOCTYPE html>
-<html>
-  <head>
-    <title>Buildbarn Scheduler: {{if .JustExecutingWorkers}}Executing{{else}}All{{end}} workers</title>
-    <style>
-      html { font-family: sans-serif; }
-      table { border-collapse: collapse; }
-      table, td, th { border: 1px solid black; }
-      td, th { padding-left: 5px; padding-right: 5px; }
-      .text-monospace { font-family: monospace; }
-    </style>
-  </head>
-  <body>
-    <h1><a href=".">Buildbarn Scheduler</a>: {{if .JustExecutingWorkers}}Executing{{else}}All{{end}} workers</h1>
-    {{$sizeClassQueueName := .SizeClassQueueName}}
-    {{$platformQueueName := $sizeClassQueueName.PlatformQueueName}}
-    <p>Instance name prefix: {{$platformQueueName.InstanceNamePrefix | printf "%#v"}}<br/>
-    Platform: {{proto_to_json $platformQueueName.Platform}}<br/>
-    Size class: {{$sizeClassQueueName.SizeClass}}</p>
-    <p>Showing workers [{{.PaginationInfo.StartIndex}}, {{.EndIndex}}) of {{.PaginationInfo.TotalEntries}} in total.
-      {{with .StartAfter}}
-        <a href="?size_class_queue_name={{proto_to_json $sizeClassQueueName}}&amp;start_after={{proto_to_json .}}">&gt;&gt;&gt;</a>
-      {{end}}
-    </p>
-    <table>
-      <thead>
-        <tr>
-          <th>Worker ID</th>
-          <th>Worker timeout</th>
-          <th>Operation timeout</th>
-          <th>Operation name</th>
-          <th>Action digest</th>
-          <th>Target ID</th>
-        </tr>
-      </thead>
-      {{$browserURL := .BrowserURL}}
-      {{$now := .Now}}
-      {{range .Workers}}
-        {{$workerID := to_json .Id}}
-        <tr>
-          <td>{{$workerID}}</td>
-          <td>{{with .Timeout}}{{time_future . $now}}{{else}}∞{{end}}</td>
-          {{with .CurrentOperation}}
-            <td>{{with .Timeout}}{{time_future . $now}}{{else}}∞{{end}}</td>
-            <td style="background-color: {{to_background_color .Name}}">
-              <a class="text-monospace" href="operation?name={{.Name}}" style="color: {{to_foreground_color .Name}}">{{abbreviate .Name}}</a>
-            </td>
-            <td style="background-color: {{to_background_color .ActionDigest.Hash}}">
-              <a class="text-monospace" href="{{action_url $browserURL $platformQueueName.InstanceNamePrefix .InstanceNameSuffix .ActionDigest}}" style="color: {{to_foreground_color .ActionDigest.Hash}}">{{abbreviate .ActionDigest.Hash}}</a>
-            </td>
-            <td>{{.TargetId}}</td>
-          {{else}}
-            <td colspan="4">{{if .Drained}}drained{{else}}idle{{end}}</td>
-          {{end}}
-        </tr>
-      {{end}}
-    </table>
-  </body>
-</html>
-`))
-	listDrainStateTemplate = template.Must(template.New("ListDrainState").Funcs(templateFuncMap).Parse(`
-<!DOCTYPE html>
-<html>
-  <head>
-    <title>Buildbarn Scheduler: Drains</title>
-    <style>
-      html { font-family: sans-serif; }
-      table { border-collapse: collapse; }
-      table, td, th { border: 1px solid black; }
-      td, th { padding-left: 5px; padding-right: 5px; }
-    </style>
-  </head>
-  <body>
-    <h1><a href=".">Buildbarn Scheduler</a>: Drains</h1>
-    {{$platformQueueName := .SizeClassQueueName.PlatformQueueName}}
-    <p>Instance name prefix: {{$platformQueueName.InstanceNamePrefix | printf "%#v"}}<br/>
-    Platform: {{proto_to_json $platformQueueName.Platform}}<br/>
-    Size class: {{.SizeClassQueueName.SizeClass}}</p>
-    {{$sizeClassQueueName := proto_to_json .SizeClassQueueName}}
-    <table>
-      <thead>
-        <tr>
-          <th>Worker ID pattern</th>
-          <th>Age</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      {{$now := .Now}}
-      {{range .Drains}}
-        {{$workerIDPattern := to_json .WorkerIdPattern}}
-        <tr>
-          <td>{{$workerIDPattern}}</td>
-          <td>{{time_past .CreatedTimestamp $now}}</td>
-          <td>
-            <form action="remove_drain" method="post">
-              <input name="size_class_queue_name" type="hidden" value="{{$sizeClassQueueName}}"/>
-              <input name="worker_id_pattern" type="hidden" value="{{$workerIDPattern}}"/>
-              <input type="submit" value="Remove"/>
-            </form>
-          </td>
-        </tr>
-      {{end}}
-    </table>
-    <form action="add_drain" method="post">
-      <p>
-        <input name="size_class_queue_name" type="hidden" value="{{$sizeClassQueueName}}"/>
-        <input name="worker_id_pattern" type="text"/>
-        <input type="submit" value="Create drain"/>
-      </p>
-    </form>
-  </body>
-</html>
-`))
+	}).ParseFS(templatesFS, "templates/*.html"))
 )
 
 // invertColor takes a single red, green or blue color value and
@@ -557,6 +138,15 @@ func invertColor(s string) string {
 		return "ff"
 	}
 	return "00"
+}
+
+func renderError(w http.ResponseWriter, err error) {
+	s := status.Convert(err)
+	w.WriteHeader(bb_http.StatusCodeFromGRPCCode(s.Code()))
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if err := templates.ExecuteTemplate(w, "error.html", s); err != nil {
+		log.Print(err)
+	}
 }
 
 type buildQueueStateService struct {
@@ -588,16 +178,16 @@ func (s *buildQueueStateService) handleGetBuildQueueState(w http.ResponseWriter,
 	ctx := req.Context()
 	operationsCount, err := s.buildQueue.ListOperations(ctx, &buildqueuestate.ListOperationsRequest{})
 	if err != nil {
-		http.Error(w, util.StatusWrap(err, "Failed to list platform queues").Error(), http.StatusBadRequest)
+		renderError(w, util.StatusWrap(err, "Failed to list platform queues"))
 		return
 	}
 	response, err := s.buildQueue.ListPlatformQueues(ctx, &emptypb.Empty{})
 	if err != nil {
-		http.Error(w, util.StatusWrap(err, "Failed to list platform queues").Error(), http.StatusBadRequest)
+		renderError(w, util.StatusWrap(err, "Failed to list platform queues"))
 		return
 	}
 
-	if err := getBuildQueueStateTemplate.Execute(w, struct {
+	if err := templates.ExecuteTemplate(w, "get_build_queue_state.html", struct {
 		Now             time.Time
 		PlatformQueues  []*buildqueuestate.PlatformQueueState
 		OperationsCount uint32
@@ -614,13 +204,13 @@ func (s *buildQueueStateService) handleListInvocations(w http.ResponseWriter, re
 	query := req.URL.Query()
 	var sizeClassQueueName buildqueuestate.SizeClassQueueName
 	if err := protojson.Unmarshal([]byte(query.Get("size_class_queue_name")), &sizeClassQueueName); err != nil {
-		http.Error(w, util.StatusWrap(err, "Failed to extract size class queue name").Error(), http.StatusBadRequest)
+		renderError(w, util.StatusWrapWithCode(err, codes.InvalidArgument, "Failed to extract size class queue name"))
 		return
 	}
 	filterString := query.Get("filter")
 	filterValue, ok := buildqueuestate.ListInvocationsRequest_Filter_value[filterString]
 	if !ok {
-		http.Error(w, status.Error(codes.InvalidArgument, "Invalid filter").Error(), http.StatusBadRequest)
+		renderError(w, status.Error(codes.InvalidArgument, "Invalid filter"))
 		return
 	}
 
@@ -630,11 +220,10 @@ func (s *buildQueueStateService) handleListInvocations(w http.ResponseWriter, re
 		Filter:             buildqueuestate.ListInvocationsRequest_Filter(filterValue),
 	})
 	if err != nil {
-		// TODO: Pick the right error code.
-		http.Error(w, util.StatusWrap(err, "Failed to list invocations state").Error(), http.StatusBadRequest)
+		renderError(w, util.StatusWrap(err, "Failed to list invocations state"))
 		return
 	}
-	if err := listInvocationStateTemplate.Execute(w, struct {
+	if err := templates.ExecuteTemplate(w, "list_invocation_state.html", struct {
 		SizeClassQueueName *buildqueuestate.SizeClassQueueName
 		Invocations        []*buildqueuestate.InvocationState
 		Filter             string
@@ -642,7 +231,7 @@ func (s *buildQueueStateService) handleListInvocations(w http.ResponseWriter, re
 	}{
 		SizeClassQueueName: &sizeClassQueueName,
 		Invocations:        response.Invocations,
-		Filter:             strings.Title(strings.ToLower(filterString)),
+		Filter:             filterString,
 		Now:                s.clock.Now(),
 	}); err != nil {
 		log.Print(err)
@@ -655,7 +244,7 @@ func (s *buildQueueStateService) handleKillOperation(w http.ResponseWriter, req 
 	if _, err := s.buildQueue.KillOperation(ctx, &buildqueuestate.KillOperationRequest{
 		OperationName: req.FormValue("name"),
 	}); err != nil {
-		http.Error(w, util.StatusWrap(err, "Failed to kill operation").Error(), http.StatusBadRequest)
+		renderError(w, util.StatusWrap(err, "Failed to kill operation"))
 		return
 	}
 	http.Redirect(w, req, req.Header.Get("Referer"), http.StatusSeeOther)
@@ -668,10 +257,10 @@ func (s *buildQueueStateService) handleGetOperation(w http.ResponseWriter, req *
 		OperationName: operationName,
 	})
 	if err != nil {
-		http.Error(w, util.StatusWrap(err, "Failed to get operation").Error(), http.StatusBadRequest)
+		renderError(w, util.StatusWrap(err, "Failed to get operation"))
 		return
 	}
-	if err := getOperationStateTemplate.Execute(w, struct {
+	if err := templates.ExecuteTemplate(w, "get_operation_state.html", struct {
 		BrowserURL    *url.URL
 		Now           time.Time
 		OperationName string
@@ -691,7 +280,7 @@ func (s *buildQueueStateService) handleListOperations(w http.ResponseWriter, req
 	if startAfterParameter := req.URL.Query().Get("start_after"); startAfterParameter != "" {
 		var startAfterMessage buildqueuestate.ListOperationsRequest_StartAfter
 		if err := protojson.Unmarshal([]byte(startAfterParameter), &startAfterMessage); err != nil {
-			http.Error(w, util.StatusWrap(err, "Failed to parse start after message").Error(), http.StatusBadRequest)
+			renderError(w, util.StatusWrapWithCode(err, codes.InvalidArgument, "Failed to parse start after message"))
 			return
 		}
 		startAfter = &startAfterMessage
@@ -703,7 +292,7 @@ func (s *buildQueueStateService) handleListOperations(w http.ResponseWriter, req
 		StartAfter: startAfter,
 	})
 	if err != nil {
-		http.Error(w, util.StatusWrap(err, "Failed to list operations").Error(), http.StatusBadRequest)
+		renderError(w, util.StatusWrap(err, "Failed to list operations"))
 		return
 	}
 
@@ -715,7 +304,7 @@ func (s *buildQueueStateService) handleListOperations(w http.ResponseWriter, req
 		}
 	}
 
-	if err := listOperationStateTemplate.Execute(w, struct {
+	if err := templates.ExecuteTemplate(w, "list_operation_state.html", struct {
 		BrowserURL     *url.URL
 		Now            time.Time
 		PaginationInfo *buildqueuestate.PaginationInfo
@@ -738,7 +327,7 @@ func (s *buildQueueStateService) handleListQueuedOperations(w http.ResponseWrite
 	query := req.URL.Query()
 	var sizeClassQueueName buildqueuestate.SizeClassQueueName
 	if err := protojson.Unmarshal([]byte(query.Get("size_class_queue_name")), &sizeClassQueueName); err != nil {
-		http.Error(w, util.StatusWrap(err, "Failed to extract size class queue name").Error(), http.StatusBadRequest)
+		renderError(w, util.StatusWrapWithCode(err, codes.InvalidArgument, "Failed to extract size class queue name"))
 		return
 	}
 
@@ -746,7 +335,7 @@ func (s *buildQueueStateService) handleListQueuedOperations(w http.ResponseWrite
 	if startAfterParameter := req.URL.Query().Get("start_after"); startAfterParameter != "" {
 		var startAfterMessage buildqueuestate.ListQueuedOperationsRequest_StartAfter
 		if err := protojson.Unmarshal([]byte(startAfterParameter), &startAfterMessage); err != nil {
-			http.Error(w, util.StatusWrap(err, "Failed to parse start after message").Error(), http.StatusBadRequest)
+			renderError(w, util.StatusWrapWithCode(err, codes.InvalidArgument, "Failed to parse start after message"))
 			return
 		}
 		startAfter = &startAfterMessage
@@ -754,7 +343,7 @@ func (s *buildQueueStateService) handleListQueuedOperations(w http.ResponseWrite
 
 	var invocationID anypb.Any
 	if err := protojson.Unmarshal([]byte(query.Get("invocation_id")), &invocationID); err != nil {
-		http.Error(w, util.StatusWrap(err, "Failed to extract invocation ID").Error(), http.StatusBadRequest)
+		renderError(w, util.StatusWrapWithCode(err, codes.InvalidArgument, "Failed to extract invocation ID"))
 		return
 	}
 
@@ -766,8 +355,7 @@ func (s *buildQueueStateService) handleListQueuedOperations(w http.ResponseWrite
 		StartAfter:         startAfter,
 	})
 	if err != nil {
-		// TODO: Pick the right error code.
-		http.Error(w, util.StatusWrap(err, "Failed to list queued operation state").Error(), http.StatusBadRequest)
+		renderError(w, util.StatusWrap(err, "Failed to list queued operation state"))
 		return
 	}
 
@@ -780,7 +368,7 @@ func (s *buildQueueStateService) handleListQueuedOperations(w http.ResponseWrite
 		}
 	}
 
-	if err := listQueuedOperationStateTemplate.Execute(w, struct {
+	if err := templates.ExecuteTemplate(w, "list_queued_operation_state.html", struct {
 		SizeClassQueueName *buildqueuestate.SizeClassQueueName
 		InvocationID       *anypb.Any
 		BrowserURL         *url.URL
@@ -807,7 +395,7 @@ func (s *buildQueueStateService) handleListWorkers(w http.ResponseWriter, req *h
 	query := req.URL.Query()
 	var sizeClassQueueName buildqueuestate.SizeClassQueueName
 	if err := protojson.Unmarshal([]byte(query.Get("size_class_queue_name")), &sizeClassQueueName); err != nil {
-		http.Error(w, util.StatusWrap(err, "Failed to extract size class queue name").Error(), http.StatusBadRequest)
+		renderError(w, util.StatusWrapWithCode(err, codes.InvalidArgument, "Failed to extract size class queue name"))
 		return
 	}
 
@@ -815,7 +403,7 @@ func (s *buildQueueStateService) handleListWorkers(w http.ResponseWriter, req *h
 	if startAfterParameter := req.URL.Query().Get("start_after"); startAfterParameter != "" {
 		var startAfterMessage buildqueuestate.ListWorkersRequest_StartAfter
 		if err := protojson.Unmarshal([]byte(startAfterParameter), &startAfterMessage); err != nil {
-			http.Error(w, util.StatusWrap(err, "Failed to parse start after message").Error(), http.StatusBadRequest)
+			renderError(w, util.StatusWrapWithCode(err, codes.InvalidArgument, "Failed to parse start after message"))
 			return
 		}
 		startAfter = &startAfterMessage
@@ -830,8 +418,7 @@ func (s *buildQueueStateService) handleListWorkers(w http.ResponseWriter, req *h
 		StartAfter:           startAfter,
 	})
 	if err != nil {
-		// TODO: Pick the right error code.
-		http.Error(w, util.StatusWrap(err, "Failed to list worker state").Error(), http.StatusBadRequest)
+		renderError(w, util.StatusWrap(err, "Failed to list worker state"))
 		return
 	}
 
@@ -843,7 +430,7 @@ func (s *buildQueueStateService) handleListWorkers(w http.ResponseWriter, req *h
 		}
 	}
 
-	if err := listWorkerStateTemplate.Execute(w, struct {
+	if err := templates.ExecuteTemplate(w, "list_worker_state.html", struct {
 		SizeClassQueueName   *buildqueuestate.SizeClassQueueName
 		BrowserURL           *url.URL
 		Now                  time.Time
@@ -870,7 +457,7 @@ func (s *buildQueueStateService) handleListDrains(w http.ResponseWriter, req *ht
 	query := req.URL.Query()
 	var sizeClassQueueName buildqueuestate.SizeClassQueueName
 	if err := protojson.Unmarshal([]byte(query.Get("size_class_queue_name")), &sizeClassQueueName); err != nil {
-		http.Error(w, util.StatusWrap(err, "Failed to extract size class queue name").Error(), http.StatusBadRequest)
+		renderError(w, util.StatusWrapWithCode(err, codes.InvalidArgument, "Failed to extract size class queue name"))
 		return
 	}
 
@@ -879,11 +466,10 @@ func (s *buildQueueStateService) handleListDrains(w http.ResponseWriter, req *ht
 		SizeClassQueueName: &sizeClassQueueName,
 	})
 	if err != nil {
-		// TODO: Pick the right error code.
-		http.Error(w, util.StatusWrap(err, "Failed to list drain state").Error(), http.StatusBadRequest)
+		renderError(w, util.StatusWrap(err, "Failed to list drain state"))
 		return
 	}
-	if err := listDrainStateTemplate.Execute(w, struct {
+	if err := templates.ExecuteTemplate(w, "list_drain_state.html", struct {
 		SizeClassQueueName *buildqueuestate.SizeClassQueueName
 		Now                time.Time
 		Drains             []*buildqueuestate.DrainState
@@ -900,13 +486,13 @@ func handleModifyDrain(w http.ResponseWriter, req *http.Request, modifyFunc func
 	req.ParseForm()
 	var sizeClassQueueName buildqueuestate.SizeClassQueueName
 	if err := protojson.Unmarshal([]byte(req.FormValue("size_class_queue_name")), &sizeClassQueueName); err != nil {
-		http.Error(w, util.StatusWrap(err, "Failed to extract size class queue name").Error(), http.StatusBadRequest)
+		renderError(w, util.StatusWrapWithCode(err, codes.InvalidArgument, "Failed to extract size class queue name"))
 		return
 	}
 
 	var workerIDPattern map[string]string
 	if err := json.Unmarshal([]byte(req.FormValue("worker_id_pattern")), &workerIDPattern); err != nil {
-		http.Error(w, util.StatusWrap(err, "Failed to extract worker ID pattern").Error(), http.StatusBadRequest)
+		renderError(w, util.StatusWrapWithCode(err, codes.InvalidArgument, "Failed to extract worker ID pattern"))
 		return
 	}
 
@@ -915,7 +501,7 @@ func handleModifyDrain(w http.ResponseWriter, req *http.Request, modifyFunc func
 		SizeClassQueueName: &sizeClassQueueName,
 		WorkerIdPattern:    workerIDPattern,
 	}); err != nil {
-		http.Error(w, util.StatusWrap(err, "Failed to modify drains").Error(), http.StatusBadRequest)
+		renderError(w, util.StatusWrap(err, "Failed to modify drains"))
 		return
 	}
 	http.Redirect(w, req, req.Header.Get("Referer"), http.StatusSeeOther)

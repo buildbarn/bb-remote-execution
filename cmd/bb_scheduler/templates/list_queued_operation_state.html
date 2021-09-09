@@ -1,0 +1,77 @@
+{{template "header.html" "success"}}
+
+<h1 class="my-4">Queued operations</h1>
+
+{{$sizeClassQueueName := .SizeClassQueueName}}
+{{$invocationID := proto_to_json .InvocationID}}
+<table class="table" style="table-layout: fixed">
+	{{template "size_class_queue_info.html" $sizeClassQueueName}}
+	<tr>
+		<th style="width: 25%">Invocation ID:</th>
+		<td style="width: 75%">{{$invocationID}}</td>
+	</tr>
+</table>
+
+<nav>
+	<ul class="justify-content-end pagination">
+		{{if eq .PaginationInfo.StartIndex 0}}
+			<li class="disabled page-item">
+				<span class="page-link">◀◀</span>
+			</li>
+		{{else}}
+			<li class="page-item">
+				<a class="page-link" href="?size_class_queue_name={{proto_to_json $sizeClassQueueName}}&amp;invocation_id={{$invocationID}}">◀◀</a>
+			</li>
+		{{end}}
+		<li class="active page-item">
+			<span class="page-link text-nowrap">
+				Showing queued operations [{{.PaginationInfo.StartIndex}}, {{.EndIndex}}) of {{.PaginationInfo.TotalEntries}} in total
+			</span>
+		</li>
+		{{with .StartAfter}}
+			<li class="page-item">
+				<a class="page-link" href="?size_class_queue_name={{proto_to_json $sizeClassQueueName}}&amp;invocation_id={{$invocationID}}&amp;start_after={{proto_to_json .}}">▶</a>
+			</li>
+		{{else}}
+			<li class="disabled page-item">
+				<span class="page-link">▶</span>
+			</li>
+		{{end}}
+	</ul>
+</nav>
+
+<div class="table-responsive">
+	<table class="align-middle border-dark table table-bordered table-sm">
+		<thead class="text-center">
+			<tr>
+				<th>Priority</th>
+				<th>Age</th>
+				<th>Timeout</th>
+				<th>Operation name</th>
+				<th>Action digest</th>
+				<th>Target ID</th>
+			</tr>
+		</thead>
+		<tbody>
+			{{$browserURL := .BrowserURL}}
+			{{$now := .Now}}
+			{{$platformQueueName := $sizeClassQueueName.PlatformQueueName}}
+			{{range .QueuedOperations}}
+				<tr>
+					<td class="text-end">{{.Priority}}</td>
+					<td class="text-end">{{time_past .QueuedTimestamp $now}}</td>
+					<td class="text-end">{{time_future .Timeout $now}}</td>
+					<td style="background-color: {{to_background_color .Name}}">
+						<a class="font-monospace" href="operation?name={{.Name}}" style="color: {{to_foreground_color .Name}}">{{abbreviate .Name}}</a>
+					</td>
+					<td style="background-color: {{to_background_color .ActionDigest.Hash}}">
+						<a class="font-monospace" href="{{action_url $browserURL $platformQueueName.InstanceNamePrefix .InstanceNameSuffix .ActionDigest}}" style="color: {{to_foreground_color .ActionDigest.Hash}}">{{abbreviate .ActionDigest.Hash}}</a>
+					</td>
+					<td>{{.TargetId}}</td>
+				</tr>
+			{{end}}
+		</tbody>
+	</table>
+</div>
+
+{{template "footer.html"}}

@@ -1,0 +1,115 @@
+{{if operation_stage_queued .Operation}}
+	{{template "header.html" "secondary"}}
+{{else}}
+	{{if operation_stage_executing .Operation}}
+		{{template "header.html" "secondary"}}
+	{{else}}
+		{{with operation_stage_completed .Operation}}
+			{{with error_proto .Status}}
+				{{template "header.html" "danger"}}
+			{{else}}
+				{{with .Result}}
+					{{if eq .ExitCode 0}}
+						{{template "header.html" "success"}}
+					{{else}}
+						{{template "header.html" "danger"}}
+					{{end}}
+				{{else}}
+					{{template "header.html" "danger"}}
+				{{end}}
+			{{end}}
+		{{else}}
+			{{template "header.html" "danger"}}
+		{{end}}
+	{{end}}
+{{end}}
+
+<h1 class="my-4">Operation {{.OperationName}}</h1>
+
+<table class="table" style="table-layout: fixed">
+	{{$now := .Now}}
+	{{$sizeClassQueueName := .Operation.SizeClassQueueName}}
+	{{$platformQueueName := $sizeClassQueueName.PlatformQueueName}}
+	<tr>
+		<th style="width: 25%">Instance name prefix:</th>
+		<td style="width: 75%">{{$platformQueueName.InstanceNamePrefix | printf "%#v"}}</td>
+	</tr>
+	<tr>
+		<th style="width: 25%">Instance name suffix:</th>
+		<td style="width: 75%">{{.Operation.InstanceNameSuffix | printf "%#v"}}</td>
+	</tr>
+	<tr>
+		<th style="width: 25%">Platform properties:</th>
+		<td style="width: 75%">
+			{{range $platformQueueName.Platform.Properties}}
+				<span class="badge bg-primary text-nowrap">{{.Name}}={{.Value | printf "%#v"}}</span>
+			{{end}}
+		</td>
+	</tr>
+	<tr>
+		<th style="width: 25%">Size class:</th>
+		<td style="width: 75%">{{$sizeClassQueueName.SizeClass}}</td>
+	</tr>
+	<tr>
+		<th style="width: 25%">Invocation ID:</th>
+		<td style="width: 75%">{{proto_to_json .Operation.InvocationId}}</td>
+	</tr>
+	<tr>
+		<th style="width: 25%">Action digest:</th>
+		<td style="width: 75%"><a href="{{action_url .BrowserURL $platformQueueName.InstanceNamePrefix .Operation.InstanceNameSuffix .Operation.ActionDigest}}">{{proto_to_json .Operation.ActionDigest}}</a></td>
+	</tr>
+	<tr>
+		<th style="width: 25%">Age:</th>
+		<td style="width: 75%">{{time_past .Operation.QueuedTimestamp $now}}</td>
+	</tr>
+	<tr>
+		<th style="width: 25%">Timeout:</th>
+		<td style="width: 75%">{{time_future .Operation.Timeout $now}}</td>
+	</tr>
+	<tr>
+		<th style="width: 25%">Target ID:</th>
+		<td style="width: 75%">{{.Operation.TargetId}}</td>
+	</tr>
+	<tr>
+		<th style="width: 25%">Priority:</th>
+		<td style="width: 75%">{{.Operation.Priority}}</td>
+	</tr>
+	<tr>
+		<th style="width: 25%">Stage:</th>
+		<td style="width: 75%">
+			{{with operation_stage_queued .Operation}}
+				Queued
+			{{else}}
+				{{with operation_stage_executing .Operation}}
+					Executing
+				{{else}}
+					{{with operation_stage_completed .Operation}}
+						{{with error_proto .Status}}
+							Failed with {{.}}
+						{{else}}
+							{{with .Result}}
+								Completed with exit code {{.ExitCode}}
+							{{else}}
+								Action result missing
+							{{end}}
+						{{end}}
+					{{else}}
+						Unknown
+					{{end}}
+				{{end}}
+			{{end}}
+		</td>
+	</tr>
+</table>
+
+{{with operation_stage_completed .Operation}}
+	<h2 class="my-4">Execute response</h2>
+	<pre>{{proto_to_json .}}</pre>
+{{else}}
+	<form action="kill_operation" method="post">
+		<input name="name" type="hidden" value="{{.OperationName}}"/>
+		<button class="btn btn-danger" type="submit">Kill operation</button>
+	</form>
+{{end}}
+
+{{template "footer.html"}}

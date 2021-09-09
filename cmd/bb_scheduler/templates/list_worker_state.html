@@ -1,0 +1,100 @@
+{{template "header.html" "success"}}
+
+<h1 class="my-4">Workers</h1>
+
+<table class="table" style="table-layout: fixed">
+	{{template "size_class_queue_info.html" .SizeClassQueueName}}
+</table>
+
+<div class="d-flex justify-content-between">
+	<nav>
+		<ul class="pagination">
+			{{if .JustExecutingWorkers}}
+				<li class="active page-item">
+					<span class="page-link">Executing</span>
+				</li>
+				<li class="page-item">
+					<a class="page-link" href="?size_class_queue_name={{proto_to_json .SizeClassQueueName}}">All</a>
+				</li>
+			{{else}}
+				<li class="page-item">
+					<a class="page-link" href="?size_class_queue_name={{proto_to_json .SizeClassQueueName}}&amp;just_executing_workers=true">Executing</a>
+				</li>
+				<li class="active page-item">
+					<span class="page-link">All</span>
+				</li>
+			{{end}}
+		</ul>
+	</nav>
+	<nav>
+		<ul class="pagination">
+			{{if eq .PaginationInfo.StartIndex 0}}
+				<li class="disabled page-item">
+					<span class="page-link">◀◀</span>
+				</li>
+			{{else}}
+				<li class="page-item">
+					<a class="page-link" href="?size_class_queue_name={{proto_to_json .SizeClassQueueName}}{{if .JustExecutingWorkers}}&amp;just_executing_workers=true{{end}}">◀◀</a>
+				</li>
+			{{end}}
+			<li class="active page-item">
+				<span class="page-link text-nowrap">
+					Showing workers [{{.PaginationInfo.StartIndex}}, {{.EndIndex}}) of {{.PaginationInfo.TotalEntries}} in total
+				</span>
+			</li>
+			{{if .StartAfter}}
+				<li class="page-item">
+					<a class="page-link" href="?size_class_queue_name={{proto_to_json .SizeClassQueueName}}{{if .JustExecutingWorkers}}&amp;just_executing_workers=true{{end}}&amp;start_after={{proto_to_json .StartAfter}}">▶</a>
+				</li>
+			{{else}}
+				<li class="disabled page-item">
+					<span class="page-link">▶</span>
+				</li>
+			{{end}}
+		</ul>
+	</nav>
+</div>
+
+<div class="table-responsive">
+	<table class="align-middle border-dark table table-bordered table-sm">
+		<thead class="text-center">
+			<tr>
+				<th>Worker ID</th>
+				<th>Worker timeout</th>
+				<th>Operation timeout</th>
+				<th>Operation name</th>
+				<th>Action digest</th>
+				<th>Target ID</th>
+			</tr>
+		</thead>
+		<tbody>
+			{{$browserURL := .BrowserURL}}
+			{{$now := .Now}}
+			{{$platformQueueName := .SizeClassQueueName.PlatformQueueName}}
+			{{range .Workers}}
+				<tr>
+					<td>
+						{{range $key, $value := .Id}}
+							<span class="badge bg-primary text-nowrap">{{$key}}={{$value | printf "%#v"}}</span>
+						{{end}}
+					</td>
+					<td class="text-end">{{with .Timeout}}{{time_future . $now}}{{else}}∞{{end}}</td>
+					{{with .CurrentOperation}}
+						<td class="text-end">{{with .Timeout}}{{time_future . $now}}{{else}}∞{{end}}</td>
+						<td style="background-color: {{to_background_color .Name}}">
+							<a class="font-monospace" href="operation?name={{.Name}}" style="color: {{to_foreground_color .Name}}">{{abbreviate .Name}}</a>
+						</td>
+						<td style="background-color: {{to_background_color .ActionDigest.Hash}}">
+							<a class="font-monospace" href="{{action_url $browserURL $platformQueueName.InstanceNamePrefix .InstanceNameSuffix .ActionDigest}}" style="color: {{to_foreground_color .ActionDigest.Hash}}">{{abbreviate .ActionDigest.Hash}}</a>
+						</td>
+						<td>{{.TargetId}}</td>
+					{{else}}
+						<td class="text-center" colspan="4">{{if .Drained}}drained{{else}}idle{{end}}</td>
+					{{end}}
+				</tr>
+			{{end}}
+		</tbody>
+	</table>
+</div>
+
+{{template "footer.html"}}

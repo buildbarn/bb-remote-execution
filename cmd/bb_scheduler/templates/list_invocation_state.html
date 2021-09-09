@@ -1,0 +1,81 @@
+{{template "header.html" "success"}}
+
+<h1 class="my-4">Invocations</h1>
+
+<table class="table" style="table-layout: fixed">
+	{{template "size_class_queue_info.html" .SizeClassQueueName}}
+</table>
+
+<nav>
+	<ul class="pagination">
+		{{if eq .Filter "QUEUED"}}
+			<li class="active page-item">
+				<span class="page-link">Queued</span>
+			</li>
+		{{else}}
+			<li class="page-item">
+				<a class="page-link" href="?size_class_queue_name={{proto_to_json .SizeClassQueueName}}&amp;filter=QUEUED">Queued</a>
+			</li>
+		{{end}}
+		{{if eq .Filter "ACTIVE"}}
+			<li class="active page-item">
+				<span class="page-link">Active</span>
+			</li>
+		{{else}}
+			<li class="page-item">
+				<a class="page-link" href="?size_class_queue_name={{proto_to_json .SizeClassQueueName}}&amp;filter=ACTIVE">Active</a>
+			</li>
+		{{end}}
+		{{if eq .Filter "ALL"}}
+			<li class="active page-item">
+				<span class="page-link">All</span>
+			</li>
+		{{else}}
+			<li class="page-item">
+				<a class="page-link" href="?size_class_queue_name={{proto_to_json .SizeClassQueueName}}&amp;filter=ALL">All</a>
+			</li>
+		{{end}}
+	</ul>
+</nav>
+
+<div class="table-responsive">
+	<table class="align-middle border-dark table table-bordered table-sm">
+		<thead class="text-center">
+			<tr>
+				<th rowspan="2">Invocation ID</th>
+				<th colspan="3">Operations</th>
+				<th colspan="3">Workers</th>
+			</tr>
+			<tr>
+				<th>Queued</th>
+				<th>First priority</th>
+				<th>First age</th>
+				<th>Executing</th>
+				<th>Idle</th>
+				<th>Idle synchronizing</th>
+			</tr>
+		</thead>
+		<tbody>
+			{{$now := .Now}}
+			{{$sizeClassQueueName := .SizeClassQueueName}}
+			{{range .Invocations}}
+				<tr>
+					{{$invocationID := proto_to_json .Id}}
+					<td>{{$invocationID}}</td>
+					<td class="text-end"><a href="queued_operations?size_class_queue_name={{proto_to_json $sizeClassQueueName}}&amp;invocation_id={{$invocationID}}">{{.QueuedOperationsCount}}</a></td>
+					{{with .FirstQueuedOperation}}
+						<td class="text-end">{{.Priority}}</td>
+						<td class="text-end">{{time_past .QueuedTimestamp $now}}</td>
+					{{else}}
+						<td class="text-center" colspan="2">No operations queued</td>
+					{{end}}
+					<td class="text-end">{{.ExecutingWorkersCount}}</td>
+					<td class="text-end">{{.IdleWorkersCount}}</td>
+					<td class="text-end">{{.IdleSynchronizingWorkersCount}}</td>
+				</tr>
+			{{end}}
+		</tbody>
+	</table>
+</div>
+
+{{template "footer.html"}}

@@ -1,0 +1,66 @@
+{{template "header.html" "success"}}
+
+<h1 class="my-4">Build queue</h1>
+
+<table class="table" style="table-layout: fixed">
+	<tr>
+		<th style="width: 25%">Total number of operations:</th>
+		<td style="width: 75%"><a href="operations">{{.OperationsCount}}</a></td>
+	</tr>
+</table>
+
+<h2 class="my-4">Platform queues</h2>
+
+<div class="table-responsive">
+	<table class="align-middle border-dark table table-bordered table-sm">
+		<thead class="text-center">
+			<tr>
+				<th rowspan="2">Instance name prefix</th>
+				<th rowspan="2">Platform properties</th>
+				<th rowspan="2">Size class</th>
+				<th rowspan="2">Timeout</th>
+				<th colspan="3">Invocations</th>
+				<th colspan="2">Workers</th>
+				<th rowspan="2">Drains</th>
+			</tr>
+			<tr>
+				<th>Queued</th>
+				<th>Active</th>
+				<th>All</th>
+				<th>Executing</th>
+				<th>All</th>
+			</tr>
+		</thead>
+		<tbody>
+			{{$now := .Now}}
+			{{range .PlatformQueues}}
+				<tr>
+					{{$platformQueueName := .Name}}
+					<td rowspan="{{len .SizeClassQueues}}">{{$platformQueueName.InstanceNamePrefix | printf "%#v"}}</td>
+					<td rowspan="{{len .SizeClassQueues}}">
+						{{range $platformQueueName.Platform.Properties}}
+							<span class="badge bg-primary text-nowrap">{{.Name}}={{.Value | printf "%#v"}}</span>
+						{{end}}
+					</td>
+					{{$addDivider := false}}
+					{{range .SizeClassQueues}}
+						{{if $addDivider}}</tr><tr>{{end}}
+						{{$addDivider = true}}
+						<td class="text-end">{{.SizeClass}}</td>
+						<td class="text-end">{{time_future .Timeout $now}}</td>
+						{{$sizeClassQueueName := get_size_class_queue_name $platformQueueName .SizeClass}}
+						{{$sizeClassQueueNameJSON := proto_to_json $sizeClassQueueName}}
+						<td class="text-end"><a href="invocations?size_class_queue_name={{$sizeClassQueueNameJSON}}&amp;filter=QUEUED">{{.QueuedInvocationsCount}}</a></td>
+						<td class="text-end"><a href="invocations?size_class_queue_name={{$sizeClassQueueNameJSON}}&amp;filter=ACTIVE">{{.ActiveInvocationsCount}}</a></td>
+						<td class="text-end"><a href="invocations?size_class_queue_name={{$sizeClassQueueNameJSON}}&amp;filter=ALL">{{.InvocationsCount}}</a></td>
+						<td class="text-end"><a href="workers?size_class_queue_name={{$sizeClassQueueNameJSON}}&amp;just_executing_workers=true">{{.ExecutingWorkersCount}}</a></td>
+						<td class="text-end"><a href="workers?size_class_queue_name={{$sizeClassQueueNameJSON}}">{{.WorkersCount}}</a></td>
+						<td class="text-end"><a href="drains?size_class_queue_name={{$sizeClassQueueNameJSON}}">{{.DrainsCount}}</a></td>
+					{{end}}
+				</tr>
+			{{end}}
+		</tbody>
+	</table>
+</div>
+
+{{template "footer.html"}}

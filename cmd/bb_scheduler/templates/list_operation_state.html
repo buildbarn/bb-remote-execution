@@ -1,0 +1,88 @@
+{{template "header.html" "success"}}
+
+<h1 class="my-4">All operations</h1>
+
+<nav>
+	<ul class="justify-content-end pagination">
+		{{if eq .PaginationInfo.StartIndex 0}}
+			<li class="disabled page-item">
+				<span class="page-link">◀◀</span>
+			</li>
+		{{else}}
+			<li class="page-item">
+				<a class="page-link" href="?">◀◀</a>
+			</li>
+		{{end}}
+		<li class="active page-item">
+			<span class="page-link text-nowrap">
+				Showing operations [{{.PaginationInfo.StartIndex}}, {{.EndIndex}}) of {{.PaginationInfo.TotalEntries}} in total
+			</span>
+		</li>
+		{{with .StartAfter}}
+			<li class="page-item">
+				<a class="page-link" href="?start_after={{proto_to_json .}}">▶</a>
+			</li>
+		{{else}}
+			<li class="disabled page-item">
+				<span class="page-link">▶</span>
+			</li>
+		{{end}}
+	</ul>
+</nav>
+
+<div class="table-responsive">
+	<table class="align-middle border-dark table table-bordered table-sm">
+		<thead class="text-center">
+			<tr>
+				<th>Timeout</th>
+				<th>Operation name</th>
+				<th>Action digest</th>
+				<th>Target ID</th>
+				<th>Stage</th>
+			</tr>
+		</thead>
+		<tbody>
+			{{$browserURL := .BrowserURL}}
+			{{$now := .Now}}
+			{{range .Operations}}
+				<tr>
+					<td class="text-end">{{time_future .Timeout $now}}</td>
+					<td style="background-color: {{to_background_color .Name}}">
+						<a class="font-monospace" href="operation?name={{.Name}}" style="color: {{to_foreground_color .Name}}">{{abbreviate .Name}}</a>
+					</td>
+					<td style="background-color: {{to_background_color .ActionDigest.Hash}}">
+						<a class="font-monospace" href="{{action_url $browserURL .SizeClassQueueName.PlatformQueueName.InstanceNamePrefix .InstanceNameSuffix .ActionDigest}}" style="color: {{to_foreground_color .ActionDigest.Hash}}">{{abbreviate .ActionDigest.Hash}}</a>
+					</td>
+					<td>{{.TargetId}}</td>
+					{{if operation_stage_queued .}}
+						<td>Queued at priority {{.Priority}}</td>
+					{{else}}
+						{{with operation_stage_executing .}}
+							<td class="bg-secondary text-white">Executing</td>
+						{{else}}
+							{{with operation_stage_completed .}}
+								{{with error_proto .Status}}
+									<td class="bg-danger text-white">Failed with {{.}}</td>
+								{{else}}
+									{{with .Result}}
+										{{if eq .ExitCode 0}}
+											<td class="bg-success text-white">Completed with exit code 0</td>
+										{{else}}
+											<td class="bg-warning">Completed with exit code {{.ExitCode}}</td>
+										{{end}}
+									{{else}}
+										<td class="bg-danger text-white">Action result missing</td>
+									{{end}}
+								{{end}}
+							{{else}}
+								<td class="bg-danger text-white">Unknown</td>
+							{{end}}
+						{{end}}
+					{{end}}
+				</tr>
+			{{end}}
+		</tbody>
+	</table>
+</div>
+
+{{template "footer.html"}}
