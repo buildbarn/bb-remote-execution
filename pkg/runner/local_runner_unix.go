@@ -4,6 +4,8 @@ package runner
 
 import (
 	"context"
+	"errors"
+	"os"
 	"os/exec"
 	"syscall"
 
@@ -179,7 +181,11 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 	stdout.Close()
 	stderr.Close()
 	if err != nil {
-		return nil, util.StatusWrap(err, "Failed to start process")
+		code := codes.Internal
+		if errors.Is(err, exec.ErrNotFound) || errors.Is(err, os.ErrPermission) || errors.Is(err, syscall.ENOENT) {
+			code = codes.InvalidArgument
+		}
+		return nil, util.StatusWrapWithCode(err, code, "Failed to start process")
 	}
 
 	// Wait for execution to complete. Permit non-zero exit codes.

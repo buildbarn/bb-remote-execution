@@ -14,6 +14,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/runner"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
+	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
@@ -160,6 +161,86 @@ func TestLocalRunner(t *testing.T) {
 		stderr, err := ioutil.ReadFile(filepath.Join(testPath, "stderr"))
 		require.NoError(t, err)
 		require.Empty(t, stderr)
+	})
+
+	t.Run("UnknownCommandInPath", func(t *testing.T) {
+		testPath := filepath.Join(buildDirectoryPath, "UnknownCommandInPath")
+		require.NoError(t, os.Mkdir(testPath, 0o777))
+		require.NoError(t, os.Mkdir(filepath.Join(testPath, "root"), 0o777))
+		require.NoError(t, os.Mkdir(filepath.Join(testPath, "tmp"), 0o777))
+
+		// If argv[0] consists of a single filename, lookups
+		// against $PATH need to be performed. If the executable
+		// can't be found in any of the directories, the action
+		// should fail with a non-retriable error.
+		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, &syscall.SysProcAttr{}, false, false)
+		_, err := runner.Run(context.Background(), &runner_pb.RunRequest{
+			Arguments:          []string{"nonexistent_command"},
+			StdoutPath:         "UnknownCommandInPath/stdout",
+			StderrPath:         "UnknownCommandInPath/stderr",
+			InputRootDirectory: "UnknownCommandInPath/root",
+			TemporaryDirectory: "UnknownCommandInPath/tmp",
+		})
+		testutil.RequirePrefixedStatus(t, status.Error(codes.InvalidArgument, "Failed to start process: "), err)
+	})
+
+	t.Run("UnknownCommandRelative", func(t *testing.T) {
+		testPath := filepath.Join(buildDirectoryPath, "UnknownCommandRelative")
+		require.NoError(t, os.Mkdir(testPath, 0o777))
+		require.NoError(t, os.Mkdir(filepath.Join(testPath, "root"), 0o777))
+		require.NoError(t, os.Mkdir(filepath.Join(testPath, "tmp"), 0o777))
+
+		// If argv[0] is not an absolute path, but does consist
+		// of multiple components, no $PATH lookup is performed.
+		// If the path does not exist, the action should fail
+		// with a non-retriable error.
+		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, &syscall.SysProcAttr{}, false, false)
+		_, err := runner.Run(context.Background(), &runner_pb.RunRequest{
+			Arguments:          []string{"./nonexistent_command"},
+			StdoutPath:         "UnknownCommandRelative/stdout",
+			StderrPath:         "UnknownCommandRelative/stderr",
+			InputRootDirectory: "UnknownCommandRelative/root",
+			TemporaryDirectory: "UnknownCommandRelative/tmp",
+		})
+		testutil.RequirePrefixedStatus(t, status.Error(codes.InvalidArgument, "Failed to start process: "), err)
+	})
+
+	t.Run("UnknownCommandAbsolute", func(t *testing.T) {
+		testPath := filepath.Join(buildDirectoryPath, "UnknownCommandAbsolute")
+		require.NoError(t, os.Mkdir(testPath, 0o777))
+		require.NoError(t, os.Mkdir(filepath.Join(testPath, "root"), 0o777))
+		require.NoError(t, os.Mkdir(filepath.Join(testPath, "tmp"), 0o777))
+
+		// If argv[0] is an absolute path that does not exist,
+		// we should also return a non-retriable error.
+		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, &syscall.SysProcAttr{}, false, false)
+		_, err := runner.Run(context.Background(), &runner_pb.RunRequest{
+			Arguments:          []string{"/nonexistent_command"},
+			StdoutPath:         "UnknownCommandAbsolute/stdout",
+			StderrPath:         "UnknownCommandAbsolute/stderr",
+			InputRootDirectory: "UnknownCommandAbsolute/root",
+			TemporaryDirectory: "UnknownCommandAbsolute/tmp",
+		})
+		testutil.RequirePrefixedStatus(t, status.Error(codes.InvalidArgument, "Failed to start process: "), err)
+	})
+
+	t.Run("UnknownCommandDirectory", func(t *testing.T) {
+		testPath := filepath.Join(buildDirectoryPath, "UnknownCommandDirectory")
+		require.NoError(t, os.Mkdir(testPath, 0o777))
+		require.NoError(t, os.Mkdir(filepath.Join(testPath, "root"), 0o777))
+		require.NoError(t, os.Mkdir(filepath.Join(testPath, "tmp"), 0o777))
+
+		// If argv[0] refers to a directory, we should also
+		// return a non-retriable error.
+		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, &syscall.SysProcAttr{}, false, false)
+		_, err := runner.Run(context.Background(), &runner_pb.RunRequest{
+			Arguments:          []string{"/"},
+			StdoutPath:         "UnknownCommandDirectory/stdout",
+			StderrPath:         "UnknownCommandDirectory/stderr",
+			InputRootDirectory: "UnknownCommandDirectory/root",
+			TemporaryDirectory: "UnknownCommandDirectory/tmp",
+		})
+		testutil.RequirePrefixedStatus(t, status.Error(codes.InvalidArgument, "Failed to start process: "), err)
 	})
 
 	t.Run("BuildDirectoryEscape", func(t *testing.T) {
