@@ -15,6 +15,9 @@ message BuildExecutorResourceUsage {
   // the amount of the worker had to block execution to read data from
   // the Content Addressable Storage (CAS).
   google.protobuf.Duration execution_timeout_compensation = 1;
+
+
+  
 }
 
 // File pool resource usage statistics. File pools are used by bb_worker

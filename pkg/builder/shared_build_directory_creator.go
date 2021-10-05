@@ -4,11 +4,14 @@ import (
 	"context"
 	"log"
 	"strconv"
+	"sync"
+	"time"
 
 	"github.com/buildbarn/bb-storage/pkg/atomic"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"google.golang.org/grpc/codes"
 )
@@ -17,6 +20,19 @@ type sharedBuildDirectoryCreator struct {
 	base                 BuildDirectoryCreator
 	nextParallelActionID *atomic.Uint64
 }
+
+var (
+	buildDirectoryPrometheusMetrics sync.Once
+
+	buildDirectoryClosingDurationSeconds = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Namespace: "buildbarn",
+			Subsystem: "build_directory",
+			Name:      "build_directory_closing_duration_seconds",
+			Help:      "Amount of time spent in seconds.",
+			Buckets:   util.DecimalExponentialBuckets(-3, 6, 2),
+		})
+)
 
 // NewSharedBuildDirectoryCreator is an adapter for
 // BuildDirectoryCreator that causes build actions to be executed inside
@@ -29,6 +45,10 @@ type sharedBuildDirectoryCreator struct {
 // executing build actions in parallel, every build action needs its own
 // build directory.
 func NewSharedBuildDirectoryCreator(base BuildDirectoryCreator, nextParallelActionID *atomic.Uint64) BuildDirectoryCreator {
+	buildDirectoryPrometheusMetrics.Do(func() {
+		prometheus.MustRegister(buildDirectoryClosingDurationSeconds)
+	})
+
 	return &sharedBuildDirectoryCreator{
 		base:                 base,
 		nextParallelActionID: nextParallelActionID,
@@ -102,9 +122,14 @@ type sharedBuildDirectory struct {
 }
 
 func (d *sharedBuildDirectory) Close() error {
+	timeStart := time.Now()
+	
 	err1 := d.BuildDirectory.Close()
 	err2 := d.parentDirectory.RemoveAll(d.childDirectoryName)
 	err3 := d.parentDirectory.Close()
+
+	buildDirectoryClosingDurationSeconds.Observe(time.Now().Sub(timeStart).Seconds())
+
 	if err1 != nil {
 		return util.StatusWrapf(err1, "Failed to close build directory %#v", d.childDirectoryPath)
 	}

@@ -1,1 +1,2 @@
 run --workspace_status_command="bash tools/workspace-status.sh"
+run --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64

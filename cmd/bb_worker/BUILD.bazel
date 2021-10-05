@@ -1,5 +1,6 @@
 load("@com_github_buildbarn_bb_storage//tools:container.bzl", "container_push_official")
 load("@io_bazel_rules_docker//go:image.bzl", "go_image")
+load("@io_bazel_rules_docker//container:container.bzl", "container_push")
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
 
 go_library(
@@ -89,4 +90,13 @@ container_push_official(
     name = "bb_worker_container_push",
     component = "bb-worker",
     image = ":bb_worker_container",
+)
+
+container_push(
+  name = "dhl_push",
+  format = "Docker",
+  image = ":bb_worker_container",
+  registry = "index.docker.io",
+  repository = "dhlparcel/bb_worker",
+  tag = "latest",
 )
