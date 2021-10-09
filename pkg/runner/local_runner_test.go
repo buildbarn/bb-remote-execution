@@ -224,6 +224,26 @@ func TestLocalRunner(t *testing.T) {
 		testutil.RequirePrefixedStatus(t, status.Error(codes.InvalidArgument, "Failed to start process: "), err)
 	})
 
+	t.Run("ExecFormatError", func(t *testing.T) {
+		testPath := filepath.Join(buildDirectoryPath, "ExecFormatError")
+		require.NoError(t, os.Mkdir(testPath, 0o777))
+		require.NoError(t, os.Mkdir(filepath.Join(testPath, "root"), 0o777))
+		require.NoError(t, os.Mkdir(filepath.Join(testPath, "tmp"), 0o777))
+		require.NoError(t, os.WriteFile(filepath.Join(testPath, "root", "not_a.binary"), []byte{0x4d, 0x5a}, 0o777))
+
+		// If argv[0] is a binary that cannot be executed we should also return
+		// a non-retriable error.
+		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, &syscall.SysProcAttr{}, false, false)
+		_, err := runner.Run(context.Background(), &runner_pb.RunRequest{
+			Arguments:          []string{"./not_a.binary"},
+			StdoutPath:         "ExecFormatError/stdout",
+			StderrPath:         "ExecFormatError/stderr",
+			InputRootDirectory: "ExecFormatError/root",
+			TemporaryDirectory: "ExecFormatError/tmp",
+		})
+		testutil.RequirePrefixedStatus(t, status.Error(codes.InvalidArgument, "Failed to start process: "), err)
+	})
+
 	t.Run("UnknownCommandDirectory", func(t *testing.T) {
 		testPath := filepath.Join(buildDirectoryPath, "UnknownCommandDirectory")
 		require.NoError(t, os.Mkdir(testPath, 0o777))

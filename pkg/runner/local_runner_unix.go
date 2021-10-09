@@ -182,7 +182,7 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 	stderr.Close()
 	if err != nil {
 		code := codes.Internal
-		if errors.Is(err, exec.ErrNotFound) || errors.Is(err, os.ErrPermission) || errors.Is(err, syscall.ENOENT) {
+		if errors.Is(err, exec.ErrNotFound) || errors.Is(err, os.ErrPermission) || errors.Is(err, syscall.ENOENT) || errors.Is(err, syscall.ENOEXEC) {
 			code = codes.InvalidArgument
 		}
 		return nil, util.StatusWrapWithCode(err, code, "Failed to start process")
