@@ -7,8 +7,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/aws/aws-sdk-go/service/autoscaling"
-	"github.com/aws/aws-sdk-go/service/sqs"
+	"github.com/aws/aws-sdk-go-v2/service/autoscaling"
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	re_blobstore "github.com/buildbarn/bb-remote-execution/pkg/blobstore"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
@@ -224,19 +224,19 @@ func main() {
 
 	// Automatically drain workers based on AWS ASG lifecycle events.
 	if len(configuration.AwsAsgLifecycleHooks) > 0 {
-		sess, err := aws.NewSessionFromConfiguration(configuration.AwsSession)
+		cfg, err := aws.NewConfigFromConfiguration(configuration.AwsSession)
 		if err != nil {
 			log.Fatal("Failed to create AWS session: ", err)
 		}
-		autoScaling := autoscaling.New(sess)
-		sqs := sqs.New(sess)
+		autoScalingClient := autoscaling.NewFromConfig(cfg)
+		sqsClient := sqs.NewFromConfig(cfg)
 		for _, lifecycleHook := range configuration.AwsAsgLifecycleHooks {
 			r := re_aws.NewSQSReceiver(
-				sqs,
+				sqsClient,
 				lifecycleHook.SqsUrl,
 				10*time.Minute,
 				re_aws.NewLifecycleHookSQSMessageHandler(
-					autoScaling,
+					autoScalingClient,
 					re_aws.NewBuildQueueLifecycleHookHandler(
 						buildQueue,
 						lifecycleHook.InstanceIdLabel)),

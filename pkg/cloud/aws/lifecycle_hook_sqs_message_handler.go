@@ -1,24 +1,26 @@
 package aws
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/autoscaling"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/autoscaling"
+	"github.com/aws/smithy-go"
 	"github.com/buildbarn/bb-storage/pkg/util"
 
 	"google.golang.org/grpc/codes"
 )
 
-// AutoScaling is an interface around the AWS SDK Auto Scaling client.
-// It contains the operations that are used by
+// AutoScalingClient is an interface around the AWS SDK Auto Scaling
+// client. It contains the operations that are used by
 // LifecycleHookSQSMessageHandler. It is present to aid unit testing.
-type AutoScaling interface {
-	CompleteLifecycleAction(input *autoscaling.CompleteLifecycleActionInput) (*autoscaling.CompleteLifecycleActionOutput, error)
+type AutoScalingClient interface {
+	CompleteLifecycleAction(ctx context.Context, params *autoscaling.CompleteLifecycleActionInput, optFns ...func(*autoscaling.Options)) (*autoscaling.CompleteLifecycleActionOutput, error)
 }
 
-var _ AutoScaling = (*autoscaling.AutoScaling)(nil)
+var _ AutoScalingClient = (*autoscaling.Client)(nil)
 
 // LifecycleHookHandler is called into by LifecycleHookSQSMessageHandler
 // for every valid lifecycle event message received through SQS. Right
@@ -44,18 +46,18 @@ type lifecycleHookMessage struct {
 }
 
 type lifecycleHookSQSMessageHandler struct {
-	autoScaling AutoScaling
-	handler     LifecycleHookHandler
+	autoScalingClient AutoScalingClient
+	handler           LifecycleHookHandler
 }
 
 // NewLifecycleHookSQSMessageHandler creates an SQSMessageHandler that
 // assumes that messages received through SQS contain events generated
 // by an ASG lifecycle hook. These events may be generated when EC2
 // instances are added and removed from Auto Scaling Groups (ASGs).
-func NewLifecycleHookSQSMessageHandler(autoScaling AutoScaling, handler LifecycleHookHandler) SQSMessageHandler {
+func NewLifecycleHookSQSMessageHandler(autoScalingClient AutoScalingClient, handler LifecycleHookHandler) SQSMessageHandler {
 	return &lifecycleHookSQSMessageHandler{
-		autoScaling: autoScaling,
-		handler:     handler,
+		autoScalingClient: autoScalingClient,
+		handler:           handler,
 	}
 }
 
@@ -76,13 +78,23 @@ func (smh *lifecycleHookSQSMessageHandler) HandleMessage(body string) error {
 	}
 
 	// Allow AWS to go ahead with termination of the EC2 instance.
-	if _, err := smh.autoScaling.CompleteLifecycleAction(&autoscaling.CompleteLifecycleActionInput{
-		AutoScalingGroupName:  aws.String(message.AutoScalingGroupName),
-		LifecycleActionResult: aws.String("CONTINUE"),
-		LifecycleActionToken:  aws.String(message.LifecycleActionToken),
-		LifecycleHookName:     aws.String(message.LifecycleHookName),
-	}); err != nil {
-		if awsErr, ok := err.(awserr.Error); ok && awsErr.Code() != "ValidationError" {
+	if _, err := smh.autoScalingClient.CompleteLifecycleAction(
+		context.Background(),
+		&autoscaling.CompleteLifecycleActionInput{
+			AutoScalingGroupName:  aws.String(message.AutoScalingGroupName),
+			LifecycleActionResult: aws.String("CONTINUE"),
+			LifecycleActionToken:  aws.String(message.LifecycleActionToken),
+			LifecycleHookName:     aws.String(message.LifecycleHookName),
+		}); err != nil {
+		// Ignore ValidationErrors, as those are returned when
+		// the lifecycle action is stale.
+		//
+		// TODO: Switch this to types.ValidationError if
+		// aws-sdk-go-v2 ever gains proper error type
+		// descriptions for CompleteLifecycleAction().
+		// https://github.com/aws/aws-sdk-go-v2/issues/1061
+		var apiError smithy.APIError
+		if !errors.As(err, &apiError) || apiError.ErrorCode() != "ValidationError" {
 			return util.StatusWrapWithCode(err, codes.Internal, "Failed to complete lifecycle action")
 		}
 	}

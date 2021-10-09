@@ -246,7 +246,8 @@ func main() {
 					contentAddressableStorageWriter = blobstore.NewMetricsBlobAccess(
 						contentAddressableStorageWriter,
 						clock.SystemClock,
-						"cas_batched_store")
+						"cas",
+						"batched_store")
 
 					// When FUSE is enabled, we can lazily load the
 					// input root, as opposed to explicitly

@@ -1,11 +1,12 @@
 package aws
 
 import (
+	"context"
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/sqs"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -25,14 +26,14 @@ var (
 			Namespace: "buildbarn",
 			Subsystem: "cloud_aws",
 			Name:      "sqs_receiver_receive_failures_total",
-			Help:      "Number of times SQS.ReceiveMessages() failed.",
+			Help:      "Number of times SQSClient.ReceiveMessages() failed.",
 		})
 	sqsReceiverMessagesReceived = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
 			Subsystem: "cloud_aws",
 			Name:      "sqs_receiver_messages_received",
-			Help:      "Number of messages returned by SQS.ReceiveMessages().",
+			Help:      "Number of messages returned by SQSClient.ReceiveMessages().",
 			Buckets:   prometheus.LinearBuckets(0, 1, sqsMessagesPerCall+1),
 		})
 	sqsReceiverMessagesProcessed = prometheus.NewCounterVec(
@@ -48,15 +49,15 @@ var (
 	sqsReceiverMessagesProcessedSuccess         = sqsReceiverMessagesProcessed.WithLabelValues("Success")
 )
 
-// SQS is an interface around the AWS SDK SQS client. It contains the
-// operations that are used by SQSReceiver. It is present to aid unit
-// testing.
-type SQS interface {
-	ReceiveMessage(input *sqs.ReceiveMessageInput) (*sqs.ReceiveMessageOutput, error)
-	DeleteMessage(input *sqs.DeleteMessageInput) (*sqs.DeleteMessageOutput, error)
+// SQSClient is an interface around the AWS SDK SQS client. It contains
+// the operations that are used by SQSReceiver. It is present to aid
+// unit testing.
+type SQSClient interface {
+	ReceiveMessage(ctx context.Context, params *sqs.ReceiveMessageInput, optFns ...func(*sqs.Options)) (*sqs.ReceiveMessageOutput, error)
+	DeleteMessage(ctx context.Context, params *sqs.DeleteMessageInput, optFns ...func(*sqs.Options)) (*sqs.DeleteMessageOutput, error)
 }
 
-var _ SQS = (*sqs.SQS)(nil)
+var _ SQSClient = (*sqs.Client)(nil)
 
 // SQSMessageHandler provides a callback that is used by SQSReceiver
 // that is invoked for every message that has been received. When this
@@ -70,15 +71,15 @@ type SQSMessageHandler interface {
 // message in its own goroutine. When the message is handled
 // successfully, it is removed from SQS.
 type SQSReceiver struct {
-	sqs               SQS
+	sqsClient         SQSClient
 	url               *string
-	visibilityTimeout *int64
+	visibilityTimeout int32
 	messageHandler    SQSMessageHandler
 	errorLogger       util.ErrorLogger
 }
 
 // NewSQSReceiver creates a new SQSReceiver.
-func NewSQSReceiver(sqs SQS, url string, visibilityTimeout time.Duration, messageHandler SQSMessageHandler, errorLogger util.ErrorLogger) *SQSReceiver {
+func NewSQSReceiver(sqsClient SQSClient, url string, visibilityTimeout time.Duration, messageHandler SQSMessageHandler, errorLogger util.ErrorLogger) *SQSReceiver {
 	sqsReceiverPrometheusMetrics.Do(func() {
 		prometheus.MustRegister(sqsReceiverReceiveFailures)
 		prometheus.MustRegister(sqsReceiverMessagesReceived)
@@ -86,9 +87,9 @@ func NewSQSReceiver(sqs SQS, url string, visibilityTimeout time.Duration, messag
 	})
 
 	return &SQSReceiver{
-		sqs:               sqs,
+		sqsClient:         sqsClient,
 		url:               aws.String(url),
-		visibilityTimeout: aws.Int64(int64(visibilityTimeout.Seconds())),
+		visibilityTimeout: int32(visibilityTimeout.Seconds()),
 		messageHandler:    messageHandler,
 		errorLogger:       errorLogger,
 	}
@@ -97,12 +98,13 @@ func NewSQSReceiver(sqs SQS, url string, visibilityTimeout time.Duration, messag
 // PerformSingleRequest receives a single batch of messages from SQS.
 // This function generally needs to be called in a loop.
 func (sr *SQSReceiver) PerformSingleRequest() error {
-	receivedMessageOutput, err := sr.sqs.ReceiveMessage(&sqs.ReceiveMessageInput{
+	ctx := context.Background()
+	receivedMessageOutput, err := sr.sqsClient.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
 		QueueUrl:            sr.url,
-		MaxNumberOfMessages: aws.Int64(sqsMessagesPerCall),
+		MaxNumberOfMessages: sqsMessagesPerCall,
 		VisibilityTimeout:   sr.visibilityTimeout,
 		// Documented maximum long polling wait time.
-		WaitTimeSeconds: aws.Int64(20),
+		WaitTimeSeconds: 20,
 	})
 	if err != nil {
 		sqsReceiverReceiveFailures.Inc()
@@ -110,12 +112,13 @@ func (sr *SQSReceiver) PerformSingleRequest() error {
 	}
 	sqsReceiverMessagesReceived.Observe(float64(len(receivedMessageOutput.Messages)))
 
-	for _, msg := range receivedMessageOutput.Messages {
-		go func(msg *sqs.Message) {
+	for i := range receivedMessageOutput.Messages {
+		msg := &receivedMessageOutput.Messages[i]
+		go func() {
 			if err := sr.messageHandler.HandleMessage(*msg.Body); err != nil {
 				sqsReceiverMessagesProcessedHandlerFailure.Inc()
 				sr.errorLogger.Log(util.StatusWrapf(err, "Failed to process message %#v", *msg.MessageId))
-			} else if _, err := sr.sqs.DeleteMessage(&sqs.DeleteMessageInput{
+			} else if _, err := sr.sqsClient.DeleteMessage(ctx, &sqs.DeleteMessageInput{
 				QueueUrl:      sr.url,
 				ReceiptHandle: msg.ReceiptHandle,
 			}); err != nil {
@@ -124,7 +127,7 @@ func (sr *SQSReceiver) PerformSingleRequest() error {
 			} else {
 				sqsReceiverMessagesProcessedSuccess.Inc()
 			}
-		}(msg)
+		}()
 	}
 	return nil
 }

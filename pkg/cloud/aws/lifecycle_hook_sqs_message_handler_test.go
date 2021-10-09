@@ -1,11 +1,12 @@
 package aws_test
 
 import (
+	"errors"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/autoscaling"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/autoscaling"
+	"github.com/aws/smithy-go"
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	re_aws "github.com/buildbarn/bb-remote-execution/pkg/cloud/aws"
 	"github.com/golang/mock/gomock"
@@ -18,9 +19,9 @@ import (
 func TestLifecycleHookSQSMessageHandler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
-	autoScaling := mock.NewMockAutoScaling(ctrl)
+	autoScalingClient := mock.NewMockAutoScalingClient(ctrl)
 	handler := mock.NewMockLifecycleHookHandler(ctrl)
-	smh := re_aws.NewLifecycleHookSQSMessageHandler(autoScaling, handler)
+	smh := re_aws.NewLifecycleHookSQSMessageHandler(autoScalingClient, handler)
 
 	t.Run("BadBody", func(t *testing.T) {
 		// Received a non-JSON message. Discard it to prevent us
@@ -49,7 +50,7 @@ func TestLifecycleHookSQSMessageHandler(t *testing.T) {
 		// Full flow of a EC2_INSTANCE_TERMINATING lifecycle
 		// event that gets processed and acknowledged.
 		handler.EXPECT().HandleEC2InstanceTerminating("i-59042803948349524")
-		autoScaling.EXPECT().CompleteLifecycleAction(&autoscaling.CompleteLifecycleActionInput{
+		autoScalingClient.EXPECT().CompleteLifecycleAction(gomock.Any(), &autoscaling.CompleteLifecycleActionInput{
 			AutoScalingGroupName:  aws.String("MyClusterASGName"),
 			LifecycleActionResult: aws.String("CONTINUE"),
 			LifecycleActionToken:  aws.String("2c0d4442-c2bf-4ee5-9685-d8c11f840723"),
@@ -101,12 +102,14 @@ func TestLifecycleHookSQSMessageHandler(t *testing.T) {
 		// discarded to prevent us from retrying them
 		// indefinitely.
 		handler.EXPECT().HandleEC2InstanceTerminating("i-59042803948349524")
-		autoScaling.EXPECT().CompleteLifecycleAction(&autoscaling.CompleteLifecycleActionInput{
+		validationError := mock.NewMockAPIError(ctrl)
+		autoScalingClient.EXPECT().CompleteLifecycleAction(gomock.Any(), &autoscaling.CompleteLifecycleActionInput{
 			AutoScalingGroupName:  aws.String("MyClusterASGName"),
 			LifecycleActionResult: aws.String("CONTINUE"),
 			LifecycleActionToken:  aws.String("2c0d4442-c2bf-4ee5-9685-d8c11f840723"),
 			LifecycleHookName:     aws.String("MyClusterTerminationHook"),
-		}).Return(nil, awserr.New("ValidationError", "No active Lifecycle Action found with token 2c0d4442-c2bf-4ee5-9685-d8c11f840723", nil))
+		}).Return(nil, validationError)
+		validationError.EXPECT().ErrorCode().Return("ValidationError").AnyTimes()
 
 		require.NoError(
 			t,
@@ -128,16 +131,20 @@ func TestLifecycleHookSQSMessageHandler(t *testing.T) {
 		// complete the lifehook action. This error should be
 		// propagated, so that termination is retried.
 		handler.EXPECT().HandleEC2InstanceTerminating("i-59042803948349524")
-		autoScaling.EXPECT().CompleteLifecycleAction(&autoscaling.CompleteLifecycleActionInput{
+		autoScalingClient.EXPECT().CompleteLifecycleAction(gomock.Any(), &autoscaling.CompleteLifecycleActionInput{
 			AutoScalingGroupName:  aws.String("MyClusterASGName"),
 			LifecycleActionResult: aws.String("CONTINUE"),
 			LifecycleActionToken:  aws.String("2c0d4442-c2bf-4ee5-9685-d8c11f840723"),
 			LifecycleHookName:     aws.String("MyClusterTerminationHook"),
-		}).Return(nil, awserr.New("ServiceUnavailable", "Received a HTTP 503", nil))
+		}).Return(nil, &smithy.OperationError{
+			ServiceID:     "autoscaling",
+			OperationName: "CompleteLifecycleAction",
+			Err:           errors.New("received a HTTP 503"),
+		})
 
 		require.Equal(
 			t,
-			status.Error(codes.Internal, "Failed to complete lifecycle action: ServiceUnavailable: Received a HTTP 503"),
+			status.Error(codes.Internal, "Failed to complete lifecycle action: operation error autoscaling: CompleteLifecycleAction, received a HTTP 503"),
 			smh.HandleMessage(`{
 				"AccountId": "059843095823",
 				"AutoScalingGroupName": "MyClusterASGName",
