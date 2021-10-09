@@ -229,7 +229,9 @@ func TestLocalRunner(t *testing.T) {
 		require.NoError(t, os.Mkdir(testPath, 0o777))
 		require.NoError(t, os.Mkdir(filepath.Join(testPath, "root"), 0o777))
 		require.NoError(t, os.Mkdir(filepath.Join(testPath, "tmp"), 0o777))
-		require.NoError(t, os.WriteFile(filepath.Join(testPath, "root", "not_a.binary"), []byte{0x4d, 0x5a}, 0o777))
+		require.NoError(t, os.WriteFile(filepath.Join(testPath, "root", "not_a.binary"), []byte{
+			0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+		}, 0o777))
 
 		// If argv[0] is a binary that cannot be executed we should also return
 		// a non-retriable error.
