@@ -51,13 +51,11 @@ func NewPageRankStrategyCalculator(minimumExecutionTimeout time.Duration, accept
 
 // getLargestSizeClassOutcomes returns an Outcomes object that stores
 // all execution times observed on the largest size class.
-func getLargestSizeClassOutcomes(previousExecutionsOnLargest []*iscc.PreviousExecution, originalTimeout time.Duration) Outcomes {
+func getLargestSizeClassOutcomes(previousExecutionsOnLargest []*iscc.PreviousExecution) Outcomes {
 	executionTimesOnLargest := make([]time.Duration, 0, len(previousExecutionsOnLargest))
 	for _, previousExecution := range previousExecutionsOnLargest {
 		if outcome, ok := previousExecution.Outcome.(*iscc.PreviousExecution_Succeeded); ok {
-			if duration := outcome.Succeeded.AsDuration(); duration <= originalTimeout {
-				executionTimesOnLargest = append(executionTimesOnLargest, duration)
-			}
+			executionTimesOnLargest = append(executionTimesOnLargest, outcome.Succeeded.AsDuration())
 		}
 	}
 	return NewOutcomes(executionTimesOnLargest, 0)
@@ -118,7 +116,7 @@ func (sc *pageRankStrategyCalculator) GetStrategies(perSizeClassStatsMap map[uin
 	// determining what the execution timeout should be on smaller
 	// size classes.
 	n := len(sizeClasses)
-	outcomesOnLargest := getLargestSizeClassOutcomes(perSizeClassStatsList[n-1].PreviousExecutions, originalTimeout)
+	outcomesOnLargest := getLargestSizeClassOutcomes(perSizeClassStatsList[n-1].PreviousExecutions)
 	medianExecutionTimeOnLargest := outcomesOnLargest.GetMedianExecutionTime()
 	if medianExecutionTimeOnLargest == nil {
 		// This action never succeeded on the largest size
@@ -304,7 +302,6 @@ func (sc *pageRankStrategyCalculator) GetBackgroundExecutionTimeout(perSizeClass
 		largestSizeClass,
 		*getLargestSizeClassOutcomes(
 			perSizeClassStatsMap[largestSizeClass].PreviousExecutions,
-			originalTimeout,
 		).GetMedianExecutionTime(),
 		originalTimeout,
 	).executionTimeout

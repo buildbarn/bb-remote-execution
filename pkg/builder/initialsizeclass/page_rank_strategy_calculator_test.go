@@ -387,3 +387,33 @@ func TestPageRankStrategyCalculatorExtremelyHighProbability(t *testing.T) {
 		},
 		strategies)
 }
+
+// Due to measurement inaccuracies of execution times on workers, it may
+// be the case that stats messages contain durations that are slightly
+// out of bounds. Even in those cases should GetStrategies() and
+// GetBackgroundExecutionTimeout() behave correctly and return proper
+// results.
+func TestPageRankStrategyCalculatorExecutionTimesLargerThanTimeout(t *testing.T) {
+	strategyCalculator := initialsizeclass.NewPageRankStrategyCalculator(5*time.Second, 1.0, 1.5, 0.001)
+	stats := map[uint32]*iscc.PerSizeClassStats{
+		8: {
+			PreviousExecutions: []*iscc.PreviousExecution{
+				{Outcome: &iscc.PreviousExecution_Succeeded{Succeeded: &durationpb.Duration{Seconds: 151}}},
+			},
+		},
+	}
+
+	requireEqualStrategies(
+		t,
+		[]initialsizeclass.Strategy{
+			{
+				Probability:     1.0,
+				RunInBackground: true,
+			},
+		},
+		strategyCalculator.GetStrategies(stats, []uint32{1, 2, 4, 8}, 150*time.Second))
+	require.Equal(
+		t,
+		150*time.Second,
+		strategyCalculator.GetBackgroundExecutionTimeout(stats, []uint32{1, 2, 4, 8}, 0, 150*time.Second))
+}
