@@ -1,4 +1,4 @@
-// +build darwin freebsd linux
+// +build windows
 
 package runner
 
@@ -7,25 +7,19 @@ import (
 	"errors"
 	"os"
 	"os/exec"
-	"syscall"
+	"path/filepath"
 
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
 
+	"golang.org/x/sys/windows"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
-
-func convertTimeval(t syscall.Timeval) *durationpb.Duration {
-	return &durationpb.Duration{
-		Seconds: int64(t.Sec),
-		Nanos:   int32(t.Usec) * 1000,
-	}
-}
 
 func (r *localRunner) run(ctx context.Context, request *runner.RunRequest) (*runner.RunResponse, error) {
 	if len(request.Arguments) < 1 {
@@ -40,32 +34,21 @@ func (r *localRunner) run(ctx context.Context, request *runner.RunRequest) (*run
 	var cmd *exec.Cmd
 	var workingDirectoryBase *path.Builder
 	if r.chrootIntoInputRoot {
-		// The addition of /usr/bin/env is necessary as the PATH resolution
-		// will take place prior to the chroot, so the executable may not be
-		// found by exec.LookPath() inside exec.CommandContext() and may
-		// cause cmd.Start() to fail when it shouldn't.
-		// https://github.com/golang/go/issues/39341
-		envPrependedArguments := []string{"/usr/bin/env", "--"}
-		envPrependedArguments = append(envPrependedArguments, request.Arguments...)
-		cmd = exec.CommandContext(ctx, envPrependedArguments[0], envPrependedArguments[1:]...)
-		sysProcAttr := *r.sysProcAttr
-		sysProcAttr.Chroot = inputRootDirectory.String()
-		cmd.SysProcAttr = &sysProcAttr
-		workingDirectoryBase = &path.RootBuilder
+		return nil, status.Error(codes.InvalidArgument, "Chroot not supported on Windows")
 	} else {
 		cmd = exec.CommandContext(ctx, request.Arguments[0], request.Arguments[1:]...)
-		cmd.SysProcAttr = r.sysProcAttr
 		workingDirectoryBase = inputRootDirectory
 	}
 
 	// Set the environment variable.
-	cmd.Env = make([]string, 0, len(request.EnvironmentVariables)+1)
+	cmd.Env = make([]string, 0, len(request.EnvironmentVariables)+2)
 	if r.setTmpdirEnvironmentVariable && request.TemporaryDirectory != "" {
 		temporaryDirectory, scopeWalker := r.buildDirectoryPath.Join(path.VoidScopeWalker)
 		if err := path.Resolve(request.TemporaryDirectory, scopeWalker); err != nil {
 			return nil, util.StatusWrap(err, "Failed to resolve temporary directory")
 		}
-		cmd.Env = append(cmd.Env, "TMPDIR="+temporaryDirectory.String())
+		cmd.Env = append(cmd.Env, "TMP="+filepath.FromSlash(temporaryDirectory.String()))
+		cmd.Env = append(cmd.Env, "TEMP="+filepath.FromSlash(temporaryDirectory.String()))
 	}
 	for name, value := range request.EnvironmentVariables {
 		cmd.Env = append(cmd.Env, name+"="+value)
@@ -76,7 +59,7 @@ func (r *localRunner) run(ctx context.Context, request *runner.RunRequest) (*run
 	if err := path.Resolve(request.WorkingDirectory, scopeWalker); err != nil {
 		return nil, util.StatusWrap(err, "Failed to resolve working directory")
 	}
-	cmd.Dir = workingDirectory.String()
+	cmd.Dir = filepath.FromSlash(workingDirectory.String())
 
 	// Open output files for logging.
 	stdout, err := r.openLog(request.StdoutPath)
@@ -99,7 +82,7 @@ func (r *localRunner) run(ctx context.Context, request *runner.RunRequest) (*run
 	stderr.Close()
 	if err != nil {
 		code := codes.Internal
-		if errors.Is(err, exec.ErrNotFound) || errors.Is(err, os.ErrPermission) || errors.Is(err, syscall.ENOENT) || errors.Is(err, syscall.ENOEXEC) {
+		if errors.Is(err, exec.ErrNotFound) || errors.Is(err, os.ErrPermission) || errors.Is(err, os.ErrNotExist) || errors.Is(err, windows.ERROR_BAD_EXE_FORMAT) {
 			code = codes.InvalidArgument
 		}
 		return nil, util.StatusWrapWithCode(err, code, "Failed to start process")
@@ -112,22 +95,11 @@ func (r *localRunner) run(ctx context.Context, request *runner.RunRequest) (*run
 		}
 	}
 
-	// Attach rusage information to the response.
-	rusage := cmd.ProcessState.SysUsage().(*syscall.Rusage)
+	// Attach rusage information to the response (to the extent possible on Windows).
+	processState := cmd.ProcessState
 	posixResourceUsage, err := anypb.New(&resourceusage.POSIXResourceUsage{
-		UserTime:                   convertTimeval(rusage.Utime),
-		SystemTime:                 convertTimeval(rusage.Stime),
-		MaximumResidentSetSize:     int64(rusage.Maxrss) * maximumResidentSetSizeUnit,
-		PageReclaims:               int64(rusage.Minflt),
-		PageFaults:                 int64(rusage.Majflt),
-		Swaps:                      int64(rusage.Nswap),
-		BlockInputOperations:       int64(rusage.Inblock),
-		BlockOutputOperations:      int64(rusage.Oublock),
-		MessagesSent:               int64(rusage.Msgsnd),
-		MessagesReceived:           int64(rusage.Msgrcv),
-		SignalsReceived:            int64(rusage.Nsignals),
-		VoluntaryContextSwitches:   int64(rusage.Nvcsw),
-		InvoluntaryContextSwitches: int64(rusage.Nivcsw),
+		UserTime:   durationpb.New(processState.SystemTime()),
+		SystemTime: durationpb.New(processState.UserTime()),
 	})
 	if err != nil {
 		return nil, util.StatusWrap(err, "Failed to marshal POSIX resource usage")

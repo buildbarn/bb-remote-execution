@@ -166,7 +166,7 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 		root.EXPECT().Mkdir(path.MustNewComponent("foo"), os.FileMode(0o777))
 		foo := mock.NewMockBuildDirectory(ctrl)
 		root.EXPECT().EnterBuildDirectory(path.MustNewComponent("foo")).Return(foo, nil)
-		foo.EXPECT().Mkdir(path.MustNewComponent("bar"), os.FileMode(0o777)).Return(syscall.EEXIST)
+		foo.EXPECT().Mkdir(path.MustNewComponent("bar"), os.FileMode(0o777)).Return(os.ErrExist)
 		foo.EXPECT().Close()
 
 		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
@@ -204,7 +204,7 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 		root.EXPECT().Mkdir(path.MustNewComponent("foo"), os.FileMode(0o777))
 		foo := mock.NewMockBuildDirectory(ctrl)
 		root.EXPECT().EnterBuildDirectory(path.MustNewComponent("foo")).Return(foo, nil)
-		foo.EXPECT().Mkdir(path.MustNewComponent("bar"), os.FileMode(0o777)).Return(syscall.EEXIST)
+		foo.EXPECT().Mkdir(path.MustNewComponent("bar"), os.FileMode(0o777)).Return(os.ErrExist)
 		foo.EXPECT().Close()
 
 		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{

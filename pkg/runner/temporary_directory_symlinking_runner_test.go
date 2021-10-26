@@ -88,7 +88,7 @@ func TestTemporaryDirectorySymlinkingRunnerRun(t *testing.T) {
 
 		symlinkTarget, err := os.Readlink(symlinkPath)
 		require.NoError(t, err)
-		require.Equal(t, "/worker/build/a/tmp", symlinkTarget)
+		require.Equal(t, filepath.FromSlash("/worker/build/a/tmp"), symlinkTarget)
 	})
 }
 
@@ -136,7 +136,7 @@ func TestTemporaryDirectorySymlinkingRunnerCheckReadiness(t *testing.T) {
 				// worker.
 				symlinkTarget, err := os.Readlink(symlinkPath)
 				require.NoError(t, err)
-				require.Equal(t, "/worker/build/a/tmp", symlinkTarget)
+				require.Equal(t, filepath.FromSlash("/worker/build/a/tmp"), symlinkTarget)
 
 				// Concurrent readiness check calls
 				// should still be forwarded.
@@ -149,7 +149,7 @@ func TestTemporaryDirectorySymlinkingRunnerCheckReadiness(t *testing.T) {
 				// the meantime.
 				symlinkTarget, err = os.Readlink(symlinkPath)
 				require.NoError(t, err)
-				require.Equal(t, "/worker/build/a/tmp", symlinkTarget)
+				require.Equal(t, filepath.FromSlash("/worker/build/a/tmp"), symlinkTarget)
 				return response, nil
 			})
 
@@ -172,6 +172,6 @@ func TestTemporaryDirectorySymlinkingRunnerCheckReadiness(t *testing.T) {
 
 		symlinkTarget, err := os.Readlink(symlinkPath)
 		require.NoError(t, err)
-		require.Equal(t, "/nonexistent", symlinkTarget)
+		require.Equal(t, filepath.FromSlash("/nonexistent"), symlinkTarget)
 	})
 }

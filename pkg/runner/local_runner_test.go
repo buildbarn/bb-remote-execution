@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -33,6 +34,15 @@ func TestLocalRunner(t *testing.T) {
 	buildDirectoryPathBuilder, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
 	require.NoError(t, path.Resolve(buildDirectoryPath, scopeWalker))
 
+	var cmdPath string
+	var env []string
+	if runtime.GOOS == "windows" {
+		cmdPath = filepath.Join(os.Getenv("SYSTEMROOT"), "system32\\cmd.exe")
+		env = []string{cmdPath, "/c", "set"}
+	} else {
+		env = []string{"/usr/bin/env"}
+	}
+
 	t.Run("EmptyEnvironment", func(t *testing.T) {
 		testPath := filepath.Join(buildDirectoryPath, "EmptyEnvironment")
 		require.NoError(t, os.Mkdir(testPath, 0o777))
@@ -45,7 +55,7 @@ func TestLocalRunner(t *testing.T) {
 		// environment of the runner.
 		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, &syscall.SysProcAttr{}, false, false)
 		response, err := runner.Run(context.Background(), &runner_pb.RunRequest{
-			Arguments:          []string{"/usr/bin/env"},
+			Arguments:          env,
 			StdoutPath:         "EmptyEnvironment/stdout",
 			StderrPath:         "EmptyEnvironment/stderr",
 			InputRootDirectory: "EmptyEnvironment/root",
@@ -56,7 +66,11 @@ func TestLocalRunner(t *testing.T) {
 
 		stdout, err := ioutil.ReadFile(filepath.Join(testPath, "stdout"))
 		require.NoError(t, err)
-		require.Empty(t, stdout)
+		if runtime.GOOS == "windows" {
+			require.ElementsMatch(t, []string{}, pruneCmdEnvs(strings.Fields(string(stdout))))
+		} else {
+			require.Empty(t, stdout)
+		}
 
 		stderr, err := ioutil.ReadFile(filepath.Join(testPath, "stderr"))
 		require.NoError(t, err)
@@ -75,7 +89,7 @@ func TestLocalRunner(t *testing.T) {
 		// is enabled, that variable should also be added.
 		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, &syscall.SysProcAttr{}, true, false)
 		response, err := runner.Run(context.Background(), &runner_pb.RunRequest{
-			Arguments: []string{"/usr/bin/env"},
+			Arguments: env,
 			EnvironmentVariables: map[string]string{
 				"FOO": "bar",
 				"BAZ": "xyzzy",
@@ -90,11 +104,20 @@ func TestLocalRunner(t *testing.T) {
 
 		stdout, err := ioutil.ReadFile(filepath.Join(testPath, "stdout"))
 		require.NoError(t, err)
-		require.ElementsMatch(t, []string{
-			"FOO=bar",
-			"BAZ=xyzzy",
-			"TMPDIR=" + tmpPath,
-		}, strings.Fields(string(stdout)))
+		if runtime.GOOS == "windows" {
+			require.ElementsMatch(t, []string{
+				"FOO=bar",
+				"BAZ=xyzzy",
+				"TMP=" + tmpPath,
+				"TEMP=" + tmpPath,
+			}, pruneCmdEnvs(strings.Fields(string(stdout))))
+		} else {
+			require.ElementsMatch(t, []string{
+				"FOO=bar",
+				"BAZ=xyzzy",
+				"TMPDIR=" + tmpPath,
+			}, strings.Fields(string(stdout)))
+		}
 
 		stderr, err := ioutil.ReadFile(filepath.Join(testPath, "stderr"))
 		require.NoError(t, err)
@@ -108,25 +131,42 @@ func TestLocalRunner(t *testing.T) {
 		tmpPath := filepath.Join(testPath, "tmp")
 		require.NoError(t, os.Mkdir(tmpPath, 0o777))
 
+		var envMap map[string]string
+		if runtime.GOOS == "windows" {
+			envMap = map[string]string{
+				"TMP":  "\\somewhere\\else",
+				"TEMP": "\\somewhere\\else",
+			}
+		} else {
+			envMap = map[string]string{
+				"TMPDIR": "/somewhere/else",
+			}
+		}
+
 		// Automatic injection of TMPDIR should have no effect
 		// if the command to be run provides its own TMPDIR.
 		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, &syscall.SysProcAttr{}, true, false)
 		response, err := runner.Run(context.Background(), &runner_pb.RunRequest{
-			Arguments: []string{"/usr/bin/env"},
-			EnvironmentVariables: map[string]string{
-				"TMPDIR": "/somewhere/else",
-			},
-			StdoutPath:         "OverridingTmpdir/stdout",
-			StderrPath:         "OverridingTmpdir/stderr",
-			InputRootDirectory: "OverridingTmpdir/root",
-			TemporaryDirectory: "OverridingTmpdir/tmp",
+			Arguments:            env,
+			EnvironmentVariables: envMap,
+			StdoutPath:           "OverridingTmpdir/stdout",
+			StderrPath:           "OverridingTmpdir/stderr",
+			InputRootDirectory:   "OverridingTmpdir/root",
+			TemporaryDirectory:   "OverridingTmpdir/tmp",
 		})
 		require.NoError(t, err)
 		require.Equal(t, int32(0), response.ExitCode)
 
 		stdout, err := ioutil.ReadFile(filepath.Join(testPath, "stdout"))
 		require.NoError(t, err)
-		require.Equal(t, "TMPDIR=/somewhere/else\n", string(stdout))
+		if runtime.GOOS == "windows" {
+			require.ElementsMatch(t, []string{
+				"TMP=\\somewhere\\else",
+				"TEMP=\\somewhere\\else",
+			}, pruneCmdEnvs(strings.Fields(string(stdout))))
+		} else {
+			require.Equal(t, "TMPDIR=/somewhere/else\n", string(stdout))
+		}
 
 		stderr, err := ioutil.ReadFile(filepath.Join(testPath, "stderr"))
 		require.NoError(t, err)
@@ -143,9 +183,15 @@ func TestLocalRunner(t *testing.T) {
 		// RunResponse. POSIX 2008 and later added support for
 		// 32-bit signed exit codes. Most implementations still
 		// truncate the exit code to 8 bits.
+		var exit255 []string
+		if runtime.GOOS == "windows" {
+			exit255 = []string{cmdPath, "/c", "exit 255"}
+		} else {
+			exit255 = []string{"/bin/sh", "-c", "exit 255"}
+		}
 		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, &syscall.SysProcAttr{}, false, false)
 		response, err := runner.Run(context.Background(), &runner_pb.RunRequest{
-			Arguments:          []string{"/bin/sh", "-c", "exit 255"},
+			Arguments:          exit255,
 			StdoutPath:         "NonZeroExitCode/stdout",
 			StderrPath:         "NonZeroExitCode/stderr",
 			InputRootDirectory: "NonZeroExitCode/root",
@@ -277,7 +323,7 @@ func TestLocalRunner(t *testing.T) {
 		// directory.
 		runner := runner.NewLocalRunner(buildDirectory, &path.EmptyBuilder, &syscall.SysProcAttr{}, false, false)
 		_, err := runner.Run(context.Background(), &runner_pb.RunRequest{
-			Arguments:          []string{"/usr/bin/env"},
+			Arguments:          env,
 			StdoutPath:         "hello/../../../../../../etc/passwd",
 			StderrPath:         "stderr",
 			InputRootDirectory: ".",
@@ -290,4 +336,23 @@ func TestLocalRunner(t *testing.T) {
 	})
 
 	// TODO: Improve testing coverage of LocalRunner.
+}
+
+func pruneCmdEnvs(envs []string) []string {
+	// These environment variables will always be present in CMD (even if you start clean).
+	expectedCmdEnvKeys := map[string]bool{
+		"COMSPEC":    true,
+		"PATHEXT":    true,
+		"PROMPT":     true,
+		"SYSTEMROOT": true,
+	}
+	var res []string
+	for _, field := range envs {
+		pair := strings.SplitN(field, "=", 2)
+		if expectedCmdEnvKeys[pair[0]] {
+			continue
+		}
+		res = append(res, field)
+	}
+	return res
 }
