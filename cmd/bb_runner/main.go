@@ -48,12 +48,15 @@ func main() {
 		log.Fatal("Failed to extract credentials from configuration: ", err)
 	}
 
-	r := runner.NewLocalRunner(
+	r, err := runner.NewLocalRunner(
 		buildDirectory,
 		buildDirectoryPath,
 		sysProcAttr,
 		configuration.SetTmpdirEnvironmentVariable,
 		configuration.ChrootIntoInputRoot)
+	if err != nil {
+		log.Fatal("Failed to create runner from configuration: ", err)
+	}
 
 	// Let bb_runner replace temporary directories with symbolic
 	// links pointing to the temporary directory set up by

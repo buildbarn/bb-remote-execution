@@ -24,36 +24,31 @@ go_library(
         "@com_github_buildbarn_bb_storage//pkg/util",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//status",
+        "@org_golang_google_protobuf//types/known/anypb",
         "@org_golang_google_protobuf//types/known/emptypb",
     ] + select({
         "@io_bazel_rules_go//go/platform:android": [
             "//pkg/proto/resourceusage",
-            "@org_golang_google_protobuf//types/known/anypb",
             "@org_golang_google_protobuf//types/known/durationpb",
         ],
         "@io_bazel_rules_go//go/platform:darwin": [
             "//pkg/proto/resourceusage",
-            "@org_golang_google_protobuf//types/known/anypb",
             "@org_golang_google_protobuf//types/known/durationpb",
         ],
         "@io_bazel_rules_go//go/platform:freebsd": [
             "//pkg/proto/resourceusage",
-            "@org_golang_google_protobuf//types/known/anypb",
             "@org_golang_google_protobuf//types/known/durationpb",
         ],
         "@io_bazel_rules_go//go/platform:ios": [
             "//pkg/proto/resourceusage",
-            "@org_golang_google_protobuf//types/known/anypb",
             "@org_golang_google_protobuf//types/known/durationpb",
         ],
         "@io_bazel_rules_go//go/platform:linux": [
             "//pkg/proto/resourceusage",
-            "@org_golang_google_protobuf//types/known/anypb",
             "@org_golang_google_protobuf//types/known/durationpb",
         ],
         "@io_bazel_rules_go//go/platform:windows": [
             "//pkg/proto/resourceusage",
-            "@org_golang_google_protobuf//types/known/anypb",
             "@org_golang_google_protobuf//types/known/durationpb",
             "@org_golang_x_sys//windows",
         ],
