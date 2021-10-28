@@ -48,15 +48,21 @@ func main() {
 		log.Fatal("Failed to extract credentials from configuration: ", err)
 	}
 
-	r, err := runner.NewLocalRunner(
+	var commandCreator runner.CommandCreator
+	if configuration.ChrootIntoInputRoot {
+		commandCreator, err = runner.NewChrootedCommandCreator(sysProcAttr)
+		if err != nil {
+			log.Fatal("Failed to create chrooted command creator: ", err)
+		}
+	} else {
+		commandCreator = runner.NewPlainCommandCreator(sysProcAttr)
+	}
+
+	r := runner.NewLocalRunner(
 		buildDirectory,
 		buildDirectoryPath,
-		sysProcAttr,
-		configuration.SetTmpdirEnvironmentVariable,
-		configuration.ChrootIntoInputRoot)
-	if err != nil {
-		log.Fatal("Failed to create runner from configuration: ", err)
-	}
+		commandCreator,
+		configuration.SetTmpdirEnvironmentVariable)
 
 	// Let bb_runner replace temporary directories with symbolic
 	// links pointing to the temporary directory set up by

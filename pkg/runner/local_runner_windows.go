@@ -8,8 +8,6 @@ import (
 	"syscall"
 
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage"
-	"github.com/buildbarn/bb-storage/pkg/filesystem"
-	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 
 	"golang.org/x/sys/windows"
 	"google.golang.org/grpc/codes"
@@ -17,21 +15,13 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 
+func NewChrootedCommandCreator(sysProcAttr *syscall.SysProcAttr) (CommandCreator, error) {
+	return nil, status.Error(codes.InvalidArgument, "Chroot not supported on Windows")
+}
+
 var temporaryDirectoryEnvironmentVariablePrefixes = [...]string{"TMP=", "TEMP="}
 
 var invalidArgumentErrs = [...]error{exec.ErrNotFound, os.ErrPermission, os.ErrNotExist, windows.ERROR_BAD_EXE_FORMAT}
-
-func checkNewLocalRunnerInput(buildDirectory filesystem.Directory, buildDirectoryPath *path.Builder, sysProcAttr *syscall.SysProcAttr, setTmpdirEnvironmentVariable, chrootIntoInputRoot bool) error {
-	if chrootIntoInputRoot {
-		return status.Error(codes.InvalidArgument, "Chroot not supported on Windows")
-	}
-	return nil
-}
-
-func (r *localRunner) copySysProcAttrWithChroot(inputRootDirectory *path.Builder) *syscall.SysProcAttr {
-	// If r.chrootIntoInputRoot, then NewLocalRUnner() should fail. We should not reach here.
-	return nil
-}
 
 func getPOSIXResourceUsage(cmd *exec.Cmd) *resourceusage.POSIXResourceUsage {
 	processState := cmd.ProcessState

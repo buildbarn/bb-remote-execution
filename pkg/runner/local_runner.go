@@ -67,9 +67,8 @@ func (r *logFileResolver) closeAll() {
 type localRunner struct {
 	buildDirectory               filesystem.Directory
 	buildDirectoryPath           *path.Builder
-	sysProcAttr                  *syscall.SysProcAttr
+	commandCreator               CommandCreator
 	setTmpdirEnvironmentVariable bool
-	chrootIntoInputRoot          bool
 }
 
 func (r *localRunner) openLog(logPath string) (filesystem.FileAppender, error) {
@@ -87,22 +86,25 @@ func (r *localRunner) openLog(logPath string) (filesystem.FileAppender, error) {
 	return d.OpenAppend(*logFileResolver.name, filesystem.CreateExcl(0o666))
 }
 
+type CommandCreator func(ctx context.Context, arguments []string, inputRootDirectory *path.Builder) (*exec.Cmd, *path.Builder)
+
+func NewPlainCommandCreator(sysProcAttr *syscall.SysProcAttr) CommandCreator {
+	return func(ctx context.Context, arguments []string, inputRootDirectory *path.Builder) (*exec.Cmd, *path.Builder) {
+		cmd := exec.CommandContext(ctx, arguments[0], arguments[1:]...)
+		cmd.SysProcAttr = sysProcAttr
+		return cmd, inputRootDirectory
+	}
+}
+
 // NewLocalRunner returns a Runner capable of running commands on the
 // local system directly.
-func NewLocalRunner(buildDirectory filesystem.Directory, buildDirectoryPath *path.Builder, sysProcAttr *syscall.SysProcAttr, setTmpdirEnvironmentVariable, chrootIntoInputRoot bool) (runner.RunnerServer, error) {
+func NewLocalRunner(buildDirectory filesystem.Directory, buildDirectoryPath *path.Builder, commandCreator CommandCreator, setTmpdirEnvironmentVariable bool) runner.RunnerServer {
 	return &localRunner{
-			buildDirectory:               buildDirectory,
-			buildDirectoryPath:           buildDirectoryPath,
-			sysProcAttr:                  sysProcAttr,
-			setTmpdirEnvironmentVariable: setTmpdirEnvironmentVariable,
-			chrootIntoInputRoot:          chrootIntoInputRoot,
-		}, checkNewLocalRunnerInput(
-			buildDirectory,
-			buildDirectoryPath,
-			sysProcAttr,
-			setTmpdirEnvironmentVariable,
-			chrootIntoInputRoot,
-		)
+		buildDirectory:               buildDirectory,
+		buildDirectoryPath:           buildDirectoryPath,
+		commandCreator:               commandCreator,
+		setTmpdirEnvironmentVariable: setTmpdirEnvironmentVariable,
+	}
 }
 
 func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*runner.RunResponse, error) {
@@ -115,24 +117,7 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 		return nil, util.StatusWrap(err, "Failed to resolve input root directory")
 	}
 
-	var cmd *exec.Cmd
-	var workingDirectoryBase *path.Builder
-	if r.chrootIntoInputRoot {
-		// The addition of /usr/bin/env is necessary as the PATH resolution
-		// will take place prior to the chroot, so the executable may not be
-		// found by exec.LookPath() inside exec.CommandContext() and may
-		// cause cmd.Start() to fail when it shouldn't.
-		// https://github.com/golang/go/issues/39341
-		envPrependedArguments := []string{"/usr/bin/env", "--"}
-		envPrependedArguments = append(envPrependedArguments, request.Arguments...)
-		cmd = exec.CommandContext(ctx, envPrependedArguments[0], envPrependedArguments[1:]...)
-		cmd.SysProcAttr = r.copySysProcAttrWithChroot(inputRootDirectory)
-		workingDirectoryBase = &path.RootBuilder
-	} else {
-		cmd = exec.CommandContext(ctx, request.Arguments[0], request.Arguments[1:]...)
-		cmd.SysProcAttr = r.sysProcAttr
-		workingDirectoryBase = inputRootDirectory
-	}
+	cmd, workingDirectoryBase := r.commandCreator(ctx, request.Arguments, inputRootDirectory)
 
 	// Set the environment variable.
 	cmd.Env = make([]string, 0, len(request.EnvironmentVariables)+1)

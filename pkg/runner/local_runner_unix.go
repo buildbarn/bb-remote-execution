@@ -3,30 +3,35 @@
 package runner
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"syscall"
 
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage"
-	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 
+func NewChrootedCommandCreator(sysProcAttr *syscall.SysProcAttr) (CommandCreator, error) {
+	return func(ctx context.Context, arguments []string, inputRootDirectory *path.Builder) (*exec.Cmd, *path.Builder) {
+		// The addition of /usr/bin/env is necessary as the PATH resolution
+		// will take place prior to the chroot, so the executable may not be
+		// found by exec.LookPath() inside exec.CommandContext() and may
+		// cause cmd.Start() to fail when it shouldn't.
+		// https://github.com/golang/go/issues/39341
+		cmd := exec.CommandContext(ctx, "/usr/bin/env", append([]string{"--"}, arguments...)...)
+		sysProcAttrCopy := *sysProcAttr
+		sysProcAttrCopy.Chroot = inputRootDirectory.String()
+		cmd.SysProcAttr = &sysProcAttrCopy
+		return cmd, &path.RootBuilder
+	}, nil
+}
+
 var temporaryDirectoryEnvironmentVariablePrefixes = [...]string{"TMPDIR="}
 
 var invalidArgumentErrs = [...]error{exec.ErrNotFound, os.ErrPermission, syscall.ENOENT, syscall.ENOEXEC}
-
-func checkNewLocalRunnerInput(buildDirectory filesystem.Directory, buildDirectoryPath *path.Builder, sysProcAttr *syscall.SysProcAttr, setTmpdirEnvironmentVariable, chrootIntoInputRoot bool) error {
-	return nil
-}
-
-func (r *localRunner) copySysProcAttrWithChroot(inputRootDirectory *path.Builder) *syscall.SysProcAttr {
-	sysProcAttr := *r.sysProcAttr
-	sysProcAttr.Chroot = inputRootDirectory.String()
-	return &sysProcAttr
-}
 
 func convertTimeval(t syscall.Timeval) *durationpb.Duration {
 	return &durationpb.Duration{

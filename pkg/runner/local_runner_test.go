@@ -57,8 +57,7 @@ func TestLocalRunner(t *testing.T) {
 		// variables should cause the process to be executed in
 		// an empty environment. It should not inherit the
 		// environment of the runner.
-		runner, err := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, &syscall.SysProcAttr{}, false, false)
-		require.NoError(t, err)
+		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, runner.NewPlainCommandCreator(&syscall.SysProcAttr{}), false)
 		response, err := runner.Run(context.Background(), &runner_pb.RunRequest{
 			Arguments:          getEnvCommand,
 			StdoutPath:         "EmptyEnvironment/stdout",
@@ -88,8 +87,7 @@ func TestLocalRunner(t *testing.T) {
 		// The environment variables provided in the RunRequest
 		// should be respected. If automatic injection of TMPDIR
 		// is enabled, that variable should also be added.
-		runner, err := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, &syscall.SysProcAttr{}, true, false)
-		require.NoError(t, err)
+		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, runner.NewPlainCommandCreator(&syscall.SysProcAttr{}), true)
 		response, err := runner.Run(context.Background(), &runner_pb.RunRequest{
 			Arguments: getEnvCommand,
 			EnvironmentVariables: map[string]string{
@@ -147,8 +145,7 @@ func TestLocalRunner(t *testing.T) {
 
 		// Automatic injection of TMPDIR should have no effect
 		// if the command to be run provides its own TMPDIR.
-		runner, err := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, &syscall.SysProcAttr{}, true, false)
-		require.NoError(t, err)
+		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, runner.NewPlainCommandCreator(&syscall.SysProcAttr{}), true)
 		response, err := runner.Run(context.Background(), &runner_pb.RunRequest{
 			Arguments:            getEnvCommand,
 			EnvironmentVariables: envMap,
@@ -192,8 +189,7 @@ func TestLocalRunner(t *testing.T) {
 		} else {
 			exit255Command = []string{"/bin/sh", "-c", "exit 255"}
 		}
-		runner, err := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, &syscall.SysProcAttr{}, false, false)
-		require.NoError(t, err)
+		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, runner.NewPlainCommandCreator(&syscall.SysProcAttr{}), false)
 		response, err := runner.Run(context.Background(), &runner_pb.RunRequest{
 			Arguments:          exit255Command,
 			StdoutPath:         "NonZeroExitCode/stdout",
@@ -223,9 +219,8 @@ func TestLocalRunner(t *testing.T) {
 		// against $PATH need to be performed. If the executable
 		// can't be found in any of the directories, the action
 		// should fail with a non-retriable error.
-		runner, err := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, &syscall.SysProcAttr{}, false, false)
-		require.NoError(t, err)
-		_, err = runner.Run(context.Background(), &runner_pb.RunRequest{
+		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, runner.NewPlainCommandCreator(&syscall.SysProcAttr{}), false)
+		_, err := runner.Run(context.Background(), &runner_pb.RunRequest{
 			Arguments:          []string{"nonexistent_command"},
 			StdoutPath:         "UnknownCommandInPath/stdout",
 			StderrPath:         "UnknownCommandInPath/stderr",
@@ -245,9 +240,8 @@ func TestLocalRunner(t *testing.T) {
 		// of multiple components, no $PATH lookup is performed.
 		// If the path does not exist, the action should fail
 		// with a non-retriable error.
-		runner, err := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, &syscall.SysProcAttr{}, false, false)
-		require.NoError(t, err)
-		_, err = runner.Run(context.Background(), &runner_pb.RunRequest{
+		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, runner.NewPlainCommandCreator(&syscall.SysProcAttr{}), false)
+		_, err := runner.Run(context.Background(), &runner_pb.RunRequest{
 			Arguments:          []string{"./nonexistent_command"},
 			StdoutPath:         "UnknownCommandRelative/stdout",
 			StderrPath:         "UnknownCommandRelative/stderr",
@@ -265,9 +259,8 @@ func TestLocalRunner(t *testing.T) {
 
 		// If argv[0] is an absolute path that does not exist,
 		// we should also return a non-retriable error.
-		runner, err := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, &syscall.SysProcAttr{}, false, false)
-		require.NoError(t, err)
-		_, err = runner.Run(context.Background(), &runner_pb.RunRequest{
+		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, runner.NewPlainCommandCreator(&syscall.SysProcAttr{}), false)
+		_, err := runner.Run(context.Background(), &runner_pb.RunRequest{
 			Arguments:          []string{"/nonexistent_command"},
 			StdoutPath:         "UnknownCommandAbsolute/stdout",
 			StderrPath:         "UnknownCommandAbsolute/stderr",
@@ -288,9 +281,8 @@ func TestLocalRunner(t *testing.T) {
 
 		// If argv[0] is a binary that cannot be executed we should also return
 		// a non-retriable error.
-		runner, err := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, &syscall.SysProcAttr{}, false, false)
-		require.NoError(t, err)
-		_, err = runner.Run(context.Background(), &runner_pb.RunRequest{
+		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, runner.NewPlainCommandCreator(&syscall.SysProcAttr{}), false)
+		_, err := runner.Run(context.Background(), &runner_pb.RunRequest{
 			Arguments:          []string{"./not_a.binary"},
 			StdoutPath:         "ExecFormatError/stdout",
 			StderrPath:         "ExecFormatError/stderr",
@@ -308,9 +300,8 @@ func TestLocalRunner(t *testing.T) {
 
 		// If argv[0] refers to a directory, we should also
 		// return a non-retriable error.
-		runner, err := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, &syscall.SysProcAttr{}, false, false)
-		require.NoError(t, err)
-		_, err = runner.Run(context.Background(), &runner_pb.RunRequest{
+		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, runner.NewPlainCommandCreator(&syscall.SysProcAttr{}), false)
+		_, err := runner.Run(context.Background(), &runner_pb.RunRequest{
 			Arguments:          []string{"/"},
 			StdoutPath:         "UnknownCommandDirectory/stdout",
 			StderrPath:         "UnknownCommandDirectory/stderr",
@@ -330,9 +321,8 @@ func TestLocalRunner(t *testing.T) {
 		// privileges. It shouldn't be possible to trick the
 		// runner into opening files outside the build
 		// directory.
-		runner, err := runner.NewLocalRunner(buildDirectory, &path.EmptyBuilder, &syscall.SysProcAttr{}, false, false)
-		require.NoError(t, err)
-		_, err = runner.Run(context.Background(), &runner_pb.RunRequest{
+		runner := runner.NewLocalRunner(buildDirectory, &path.EmptyBuilder, runner.NewPlainCommandCreator(&syscall.SysProcAttr{}), false)
+		_, err := runner.Run(context.Background(), &runner_pb.RunRequest{
 			Arguments:          getEnvCommand,
 			StdoutPath:         "hello/../../../../../../etc/passwd",
 			StderrPath:         "stderr",
