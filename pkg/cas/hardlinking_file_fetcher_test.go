@@ -2,6 +2,7 @@ package cas_test
 
 import (
 	"context"
+	"os"
 	"syscall"
 	"testing"
 
@@ -84,7 +85,7 @@ func TestHardlinkingFileFetcher(t *testing.T) {
 		Return(syscall.ENOENT)
 	baseFileFetcher.EXPECT().GetFile(ctx, blobDigest1, buildDirectory, path.MustNewComponent("hello.txt"), false)
 	buildDirectory.EXPECT().Link(path.MustNewComponent("hello.txt"), cacheDirectory, path.MustNewComponent("8b1a9953c4611296a827abf8c47804d7-5-x")).
-		Return(syscall.EEXIST)
+		Return(os.ErrExist)
 	require.NoError(
 		t,
 		fileFetcher.GetFile(ctx, blobDigest1, buildDirectory, path.MustNewComponent("hello.txt"), false))
