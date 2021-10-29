@@ -14,6 +14,8 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 
+// NewChrootedCommandCreator returns a CommandCreator for cases where we
+// need to chroot into the input root directory.
 func NewChrootedCommandCreator(sysProcAttr *syscall.SysProcAttr) (CommandCreator, error) {
 	return func(ctx context.Context, arguments []string, inputRootDirectory *path.Builder) (*exec.Cmd, *path.Builder) {
 		// The addition of /usr/bin/env is necessary as the PATH resolution

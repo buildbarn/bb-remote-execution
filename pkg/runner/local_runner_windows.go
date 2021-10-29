@@ -15,6 +15,8 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 
+// NewChrootedCommandCreator gives an error on Windows, as chroot is not
+// supported on the platform.
 func NewChrootedCommandCreator(sysProcAttr *syscall.SysProcAttr) (CommandCreator, error) {
 	return nil, status.Error(codes.InvalidArgument, "Chroot not supported on Windows")
 }

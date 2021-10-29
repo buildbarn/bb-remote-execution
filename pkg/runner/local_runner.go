@@ -86,8 +86,14 @@ func (r *localRunner) openLog(logPath string) (filesystem.FileAppender, error) {
 	return d.OpenAppend(*logFileResolver.name, filesystem.CreateExcl(0o666))
 }
 
+// CommandCreator is a type alias for a function that creates the cmd and
+// the workingDirectoryBase in localRunner.Run(). There is a shared
+// implementation for cases where chroot is not required and platform-specific
+// implementations for cases where it is.
 type CommandCreator func(ctx context.Context, arguments []string, inputRootDirectory *path.Builder) (*exec.Cmd, *path.Builder)
 
+// NewPlainCommandCreator returns a CommandCreator for cases where we don't
+// need to chroot into the input root directory.
 func NewPlainCommandCreator(sysProcAttr *syscall.SysProcAttr) CommandCreator {
 	return func(ctx context.Context, arguments []string, inputRootDirectory *path.Builder) (*exec.Cmd, *path.Builder) {
 		cmd := exec.CommandContext(ctx, arguments[0], arguments[1:]...)
