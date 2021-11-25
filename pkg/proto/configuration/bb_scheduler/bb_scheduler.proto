@@ -82,6 +82,11 @@ message ApplicationConfiguration {
   // Authorization requirements to be enforced for Execute and WaitExecution
   // requests.
   buildbarn.configuration.auth.AuthorizerConfiguration execute_authorizer = 15;
+
+  // Platform queues are removed when no workers have been present
+  // during this time period.
+  // Default value if unset: 15m
+  google.protobuf.Duration platform_queue_with_no_workers_timeout = 16;
 }
 
 message AWSASGLifecycleHookConfiguration {

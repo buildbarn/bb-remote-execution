@@ -85,6 +85,11 @@ func main() {
 		log.Fatal("Failed to create execute authorizer: ", err)
 	}
 
+	platformQueueWithNoWorkersTimeout := configuration.PlatformQueueWithNoWorkersTimeout.AsDuration()
+	if err := configuration.PlatformQueueWithNoWorkersTimeout.CheckValid(); err != nil {
+		log.Fatal("Invalid platform queue with no workers timeout: ", err)
+	}
+
 	// Create in-memory build queue.
 	// TODO: Make timeouts configurable.
 	generator := random.NewFastSingleThreadedGenerator()
@@ -95,7 +100,7 @@ func main() {
 		&builder.InMemoryBuildQueueConfiguration{
 			ExecutionUpdateInterval:           time.Minute,
 			OperationWithNoWaitersTimeout:     time.Minute,
-			PlatformQueueWithNoWorkersTimeout: 15 * time.Minute,
+			PlatformQueueWithNoWorkersTimeout: platformQueueWithNoWorkersTimeout,
 			BusyWorkerSynchronizationInterval: 10 * time.Second,
 			GetIdleWorkerSynchronizationInterval: func() time.Duration {
 				// Let synchronization calls block somewhere
