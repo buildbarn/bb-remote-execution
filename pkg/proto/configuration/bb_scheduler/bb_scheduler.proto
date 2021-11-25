@@ -129,6 +129,12 @@ message ApplicationConfiguration {
   // analyzers are configured through 'action_router'.
   buildbarn.configuration.blobstore.BlobAccessConfiguration
       initial_size_class_cache = 17;
+
+  // Platform queues are removed when no workers have been present
+  // during this time period.
+  //
+  // Recommended value: 900s
+  google.protobuf.Duration platform_queue_with_no_workers_timeout = 18;
 }
 
 message AWSASGLifecycleHookConfiguration {
