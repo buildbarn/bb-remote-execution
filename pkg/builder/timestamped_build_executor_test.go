@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -115,6 +116,7 @@ func TestTimestampedBuildExecutorExample(t *testing.T) {
 				OutputUploadCompletedTimestamp: &timestamppb.Timestamp{Seconds: 1004},
 				WorkerCompletedTimestamp:       &timestamppb.Timestamp{Seconds: 1004},
 				AuxiliaryMetadata:              []*anypb.Any{auxiliaryMetadata},
+				VirtualExecutionDuration:       &durationpb.Duration{Seconds: 1},
 			},
 		},
 	}, executeResponse)

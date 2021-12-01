@@ -39,6 +39,7 @@ func TestSuspendableClockNewContextWithTimeout(t *testing.T) {
 		maximumSuspensionCancel := mock.NewMockCancelFunc(ctrl)
 		baseClock.EXPECT().NewContextWithTimeout(baseContext, time.Hour+5*time.Second).
 			Return(maximumSuspensionContext, maximumSuspensionCancel.Call)
+		baseClock.EXPECT().Now().Return(time.Unix(1018, 0))
 		maximumSuspensionDoneChannel := make(chan struct{})
 		maximumSuspensionContext.EXPECT().Done().Return(maximumSuspensionDoneChannel)
 		baseTimer := mock.NewMockTimer(ctrl)
@@ -49,7 +50,7 @@ func TestSuspendableClockNewContextWithTimeout(t *testing.T) {
 		suspendableDoneChannel := suspendableContext.Done()
 		require.Empty(t, suspendableDoneChannel)
 
-		baseChannel <- time.Unix(123, 0)
+		baseChannel <- time.Unix(1023, 0)
 
 		<-suspendableContext.Done()
 		require.Equal(t, context.DeadlineExceeded, suspendableContext.Err())
@@ -57,7 +58,7 @@ func TestSuspendableClockNewContextWithTimeout(t *testing.T) {
 		maximumSuspensionCancel.EXPECT().Call()
 		suspendableCancel()
 
-		require.Equal(t, time.Duration(0), suspendableContext.Value(clock.SuspensionDurationKey{}))
+		require.Equal(t, 5*time.Second, suspendableContext.Value(clock.UnsuspendedDurationKey{}))
 	})
 
 	t.Run("Canceled", func(t *testing.T) {
@@ -68,6 +69,7 @@ func TestSuspendableClockNewContextWithTimeout(t *testing.T) {
 		maximumSuspensionCancel := mock.NewMockCancelFunc(ctrl)
 		baseClock.EXPECT().NewContextWithTimeout(baseContext, time.Hour+5*time.Second).
 			Return(maximumSuspensionContext, maximumSuspensionCancel.Call)
+		baseClock.EXPECT().Now().Return(time.Unix(1100, 0))
 		maximumSuspensionDoneChannel := make(chan struct{})
 		maximumSuspensionContext.EXPECT().Done().Return(maximumSuspensionDoneChannel)
 		baseTimer := mock.NewMockTimer(ctrl)
@@ -78,6 +80,7 @@ func TestSuspendableClockNewContextWithTimeout(t *testing.T) {
 		suspendableDoneChannel := suspendableContext.Done()
 		require.Empty(t, suspendableDoneChannel)
 
+		baseClock.EXPECT().Now().Return(time.Unix(1103, 0))
 		maximumSuspensionCancel.EXPECT().Call()
 		maximumSuspensionContext.EXPECT().Err().Return(context.Canceled)
 		baseTimer.EXPECT().Stop().Return(true)
@@ -89,7 +92,7 @@ func TestSuspendableClockNewContextWithTimeout(t *testing.T) {
 		<-suspendableContext.Done()
 		require.Equal(t, context.Canceled, suspendableContext.Err())
 
-		require.Equal(t, time.Duration(0), suspendableContext.Value(clock.SuspensionDurationKey{}))
+		require.Equal(t, 3*time.Second, suspendableContext.Value(clock.UnsuspendedDurationKey{}))
 	})
 
 	t.Run("Suspension", func(t *testing.T) {
@@ -102,6 +105,7 @@ func TestSuspendableClockNewContextWithTimeout(t *testing.T) {
 		maximumSuspensionCancel := mock.NewMockCancelFunc(ctrl)
 		baseClock.EXPECT().NewContextWithTimeout(baseContext, time.Hour+5*time.Second).
 			Return(maximumSuspensionContext, maximumSuspensionCancel.Call)
+		baseClock.EXPECT().Now().Return(time.Unix(1220, 0))
 		maximumSuspensionDoneChannel := make(chan struct{})
 		maximumSuspensionContext.EXPECT().Done().Return(maximumSuspensionDoneChannel)
 		baseTimer1 := mock.NewMockTimer(ctrl)
@@ -112,7 +116,7 @@ func TestSuspendableClockNewContextWithTimeout(t *testing.T) {
 		suspendableDoneChannel := suspendableContext.Done()
 		require.Empty(t, suspendableDoneChannel)
 
-		baseClock.EXPECT().Now().Return(time.Unix(122, 0))
+		baseClock.EXPECT().Now().Return(time.Unix(1222, 0))
 		suspendableClock.Suspend()
 
 		// It is possible to suspend the clock recursively. It
@@ -122,16 +126,16 @@ func TestSuspendableClockNewContextWithTimeout(t *testing.T) {
 		suspendableClock.Resume()
 		suspendableClock.Resume()
 
-		baseClock.EXPECT().Now().Return(time.Unix(123, 0))
+		baseClock.EXPECT().Now().Return(time.Unix(1223, 0))
 		suspendableClock.Resume()
 
 		baseTimer2 := mock.NewMockTimer(ctrl)
 		baseChannel2 := make(chan time.Time)
 		baseClock.EXPECT().NewTimer(1*time.Second).Return(baseTimer2, baseChannel2)
 
-		baseChannel1 <- time.Unix(125, 0)
+		baseChannel1 <- time.Unix(1225, 0)
 
-		baseChannel2 <- time.Unix(126, 0)
+		baseChannel2 <- time.Unix(1226, 0)
 
 		<-suspendableContext.Done()
 		require.Equal(t, context.DeadlineExceeded, suspendableContext.Err())
@@ -139,7 +143,7 @@ func TestSuspendableClockNewContextWithTimeout(t *testing.T) {
 		maximumSuspensionCancel.EXPECT().Call()
 		suspendableCancel()
 
-		require.Equal(t, time.Second, suspendableContext.Value(clock.SuspensionDurationKey{}))
+		require.Equal(t, 5*time.Second, suspendableContext.Value(clock.UnsuspendedDurationKey{}))
 	})
 }
 
@@ -156,6 +160,7 @@ func TestSuspendableClockNewTimer(t *testing.T) {
 		maximumSuspensionTimer := mock.NewMockTimer(ctrl)
 		maximumSuspensionChannel := make(chan time.Time)
 		baseClock.EXPECT().NewTimer(time.Hour+5*time.Second).Return(maximumSuspensionTimer, maximumSuspensionChannel)
+		baseClock.EXPECT().Now().Return(time.Unix(1018, 0))
 		baseTimer := mock.NewMockTimer(ctrl)
 		baseChannel := make(chan time.Time)
 		baseClock.EXPECT().NewTimer(5*time.Second).Return(baseTimer, baseChannel)
@@ -165,8 +170,8 @@ func TestSuspendableClockNewTimer(t *testing.T) {
 
 		maximumSuspensionTimer.EXPECT().Stop().Return(true)
 
-		baseChannel <- time.Unix(123, 0)
-		require.Equal(t, time.Unix(123, 0), <-suspendableChannel)
+		baseChannel <- time.Unix(1023, 0)
+		require.Equal(t, time.Unix(1023, 0), <-suspendableChannel)
 
 		require.False(t, suspendableTimer.Stop())
 	})
@@ -178,6 +183,7 @@ func TestSuspendableClockNewTimer(t *testing.T) {
 		maximumSuspensionTimer := mock.NewMockTimer(ctrl)
 		maximumSuspensionChannel := make(chan time.Time)
 		baseClock.EXPECT().NewTimer(time.Hour+5*time.Second).Return(maximumSuspensionTimer, maximumSuspensionChannel)
+		baseClock.EXPECT().Now().Return(time.Unix(1105, 0))
 		baseTimer := mock.NewMockTimer(ctrl)
 		baseChannel := make(chan time.Time)
 		baseClock.EXPECT().NewTimer(5*time.Second).Return(baseTimer, baseChannel)
@@ -203,6 +209,7 @@ func TestSuspendableClockNewTimer(t *testing.T) {
 		maximumSuspensionTimer := mock.NewMockTimer(ctrl)
 		maximumSuspensionChannel := make(chan time.Time)
 		baseClock.EXPECT().NewTimer(time.Hour+5*time.Second).Return(maximumSuspensionTimer, maximumSuspensionChannel)
+		baseClock.EXPECT().Now().Return(time.Unix(1220, 0))
 		baseTimer1 := mock.NewMockTimer(ctrl)
 		baseChannel1 := make(chan time.Time)
 		baseClock.EXPECT().NewTimer(5*time.Second).Return(baseTimer1, baseChannel1)
@@ -210,7 +217,7 @@ func TestSuspendableClockNewTimer(t *testing.T) {
 		_, suspendableChannel := suspendableClock.NewTimer(5 * time.Second)
 		require.Empty(t, suspendableChannel)
 
-		baseClock.EXPECT().Now().Return(time.Unix(122, 0))
+		baseClock.EXPECT().Now().Return(time.Unix(1222, 0))
 		suspendableClock.Suspend()
 
 		// It is possible to suspend the clock recursively. It
@@ -220,19 +227,19 @@ func TestSuspendableClockNewTimer(t *testing.T) {
 		suspendableClock.Resume()
 		suspendableClock.Resume()
 
-		baseClock.EXPECT().Now().Return(time.Unix(123, 0))
+		baseClock.EXPECT().Now().Return(time.Unix(1223, 0))
 		suspendableClock.Resume()
 
 		baseTimer2 := mock.NewMockTimer(ctrl)
 		baseChannel2 := make(chan time.Time)
 		baseClock.EXPECT().NewTimer(1*time.Second).Return(baseTimer2, baseChannel2)
 
-		baseChannel1 <- time.Unix(125, 0)
+		baseChannel1 <- time.Unix(1225, 0)
 
 		maximumSuspensionTimer.EXPECT().Stop().Return(true)
 
-		baseChannel2 <- time.Unix(126, 0)
-		require.Equal(t, time.Unix(126, 0), <-suspendableChannel)
+		baseChannel2 <- time.Unix(1226, 0)
+		require.Equal(t, time.Unix(1226, 0), <-suspendableChannel)
 	})
 
 	t.Run("SuspensionTooSmall", func(t *testing.T) {
@@ -243,6 +250,7 @@ func TestSuspendableClockNewTimer(t *testing.T) {
 		maximumSuspensionTimer := mock.NewMockTimer(ctrl)
 		maximumSuspensionChannel := make(chan time.Time)
 		baseClock.EXPECT().NewTimer(time.Hour+5*time.Second).Return(maximumSuspensionTimer, maximumSuspensionChannel)
+		baseClock.EXPECT().Now().Return(time.Unix(1320, 0))
 		baseTimer := mock.NewMockTimer(ctrl)
 		baseChannel := make(chan time.Time)
 		baseClock.EXPECT().NewTimer(5*time.Second).Return(baseTimer, baseChannel)
@@ -250,15 +258,15 @@ func TestSuspendableClockNewTimer(t *testing.T) {
 		_, suspendableChannel := suspendableClock.NewTimer(5 * time.Second)
 		require.Empty(t, suspendableChannel)
 
-		baseClock.EXPECT().Now().Return(time.Unix(122, 0))
+		baseClock.EXPECT().Now().Return(time.Unix(1322, 0))
 		suspendableClock.Suspend()
 
-		baseClock.EXPECT().Now().Return(time.Unix(122, 500000000))
+		baseClock.EXPECT().Now().Return(time.Unix(1322, 500000000))
 		suspendableClock.Resume()
 
 		maximumSuspensionTimer.EXPECT().Stop().Return(true)
 
-		baseChannel <- time.Unix(125, 0)
-		require.Equal(t, time.Unix(125, 0), <-suspendableChannel)
+		baseChannel <- time.Unix(1325, 0)
+		require.Equal(t, time.Unix(1325, 0), <-suspendableChannel)
 	})
 }

@@ -11,7 +11,6 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
 	re_clock "github.com/buildbarn/bb-remote-execution/pkg/clock"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
-	"github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage"
 	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
@@ -595,7 +594,7 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 	buildDirectory.EXPECT().Close()
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().NewContextWithTimeout(gomock.Any(), time.Hour).DoAndReturn(func(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
-		return context.WithCancel(context.WithValue(parent, re_clock.SuspensionDurationKey{}, 5*time.Second))
+		return context.WithCancel(context.WithValue(parent, re_clock.UnsuspendedDurationKey{}, 5*time.Second))
 	})
 	inputRootCharacterDevices := map[path.Component]int{
 		path.MustNewComponent("null"): 259,
@@ -608,9 +607,6 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 
 	requestMetadata, err := anypb.New(&remoteexecution.RequestMetadata{
 		ToolInvocationId: "666b72d8-c43e-4998-866c-9312a31fe86d",
-	})
-	buildExecutorResourceUsage, err := anypb.New(&resourceusage.BuildExecutorResourceUsage{
-		ExecutionTimeoutCompensation: &durationpb.Duration{Seconds: 5},
 	})
 	require.NoError(t, err)
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
@@ -665,7 +661,8 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 				SizeBytes: 678,
 			},
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
-				AuxiliaryMetadata: []*anypb.Any{requestMetadata, resourceUsage, buildExecutorResourceUsage},
+				AuxiliaryMetadata:        []*anypb.Any{requestMetadata, resourceUsage},
+				VirtualExecutionDuration: &durationpb.Duration{Seconds: 5},
 			},
 		},
 	}, executeResponse)

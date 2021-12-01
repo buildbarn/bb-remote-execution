@@ -8,10 +8,11 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/clock"
 )
 
-// SuspensionDurationKey instances can be provided to Context.Value() to
-// obtain the total amount of time a SuspendableClock associated with
-// the Context object was suspended, since the creation of the Context.
-type SuspensionDurationKey struct{}
+// UnsuspendedDurationKey instances can be provided to Context.Value()
+// to obtain the total amount of time a SuspendableClock associated with
+// the Context object was not suspended, since the creation of the
+// Context.
+type UnsuspendedDurationKey struct{}
 
 // SuspendableClock is a decorator for Clock that allows Timers and
 // Contexts with timeouts to be suspended temporarily. This decorator
@@ -23,10 +24,10 @@ type SuspendableClock struct {
 	maximumSuspension time.Duration
 	timeoutThreshold  time.Duration
 
-	lock            sync.Mutex
-	suspensionCount int
-	suspensionStart time.Time
-	totalSuspension time.Duration
+	lock              sync.Mutex
+	suspensionCount   int
+	unsuspensionStart time.Time
+	totalUnsuspended  time.Duration
 }
 
 var _ clock.Clock = &SuspendableClock{}
@@ -42,6 +43,7 @@ func NewSuspendableClock(base clock.Clock, maximumSuspension, timeoutThreshold t
 		base:              base,
 		maximumSuspension: maximumSuspension,
 		timeoutThreshold:  timeoutThreshold,
+		unsuspensionStart: time.Unix(0, 0),
 	}
 }
 
@@ -56,7 +58,7 @@ func (c *SuspendableClock) Suspend() {
 	defer c.lock.Unlock()
 
 	if c.suspensionCount == 0 {
-		c.suspensionStart = c.base.Now()
+		c.totalUnsuspended += c.base.Now().Sub(c.unsuspensionStart)
 	}
 	c.suspensionCount++
 }
@@ -72,7 +74,7 @@ func (c *SuspendableClock) Resume() {
 	}
 	c.suspensionCount--
 	if c.suspensionCount == 0 {
-		c.totalSuspension += c.base.Now().Sub(c.suspensionStart)
+		c.unsuspensionStart = c.base.Now()
 	}
 }
 
@@ -81,27 +83,28 @@ func (c *SuspendableClock) Now() time.Time {
 	return c.base.Now()
 }
 
-// getTotalSuspensionNow computes the total amount of time the clock was
-// suspended since its creation. If the current time is needed to
-// compute the exact duration, a call is made into the underlying clock.
-func (c *SuspendableClock) getTotalSuspensionNow() time.Duration {
-	totalSuspension := c.totalSuspension
-	if c.suspensionCount > 0 {
-		// Clock is suspended right now.
-		totalSuspension += c.base.Now().Sub(c.suspensionStart)
+// getTotalUnsuspendedNow computes the total amount of time the clock
+// was not suspended since its creation. If the current time is needed
+// to compute the exact duration, a call is made into the underlying
+// clock.
+func (c *SuspendableClock) getTotalUnsuspendedNow() time.Duration {
+	totalUnsuspended := c.totalUnsuspended
+	if c.suspensionCount == 0 {
+		// Clock is not suspended right now.
+		totalUnsuspended += c.base.Now().Sub(c.unsuspensionStart)
 	}
-	return totalSuspension
+	return totalUnsuspended
 }
 
-// getTotalSuspensionWithTime is identical to getTotalSuspensionNow,
+// getTotalUnsuspendedWithTime is identical to getTotalUnsuspendedNow,
 // except that a known time value can be provided.
-func (c *SuspendableClock) getTotalSuspensionWithTime(now time.Time) time.Duration {
-	totalSuspension := c.totalSuspension
-	if c.suspensionCount > 0 && now.After(c.suspensionStart) {
-		// Clock is suspended right now.
-		totalSuspension += now.Sub(c.suspensionStart)
+func (c *SuspendableClock) getTotalUnsuspendedWithTime(now time.Time) time.Duration {
+	totalUnsuspended := c.totalUnsuspended
+	if c.suspensionCount == 0 && now.After(c.unsuspensionStart) {
+		// Clock is not suspended right now.
+		totalUnsuspended += now.Sub(c.unsuspensionStart)
 	}
-	return totalSuspension
+	return totalUnsuspended
 }
 
 // NewContextWithTimeout creates a Context object that automatically
@@ -123,29 +126,28 @@ func (c *SuspendableClock) NewContextWithTimeout(parent context.Context, d time.
 		lock: &c.lock,
 	}
 
-	// Gather the initial amount of suspension of the clock at the
-	// start, so that we can compute the total amount of suspension
-	// we've observed upon completion.
+	// Gather the initial amount of time not suspended at the start,
+	// so that we can compute the total amount we've observed upon
+	// completion.
 	c.lock.Lock()
 	go func() {
-		initialTotalSuspension := c.getTotalSuspensionNow()
-		compensatedTotalSuspension := initialTotalSuspension - d
+		initialTotalUnsuspended := c.getTotalUnsuspendedNow()
+		finalTotalUnsuspended := initialTotalUnsuspended + d
 		for {
 			c.lock.Unlock()
 			baseTimer, baseChannel := c.base.NewTimer(d)
 			select {
 			case now := <-baseChannel:
 				// Timer expired.
-				compensatedTotalSuspension += d
 				c.lock.Lock()
-				currentTotalSuspension := c.getTotalSuspensionWithTime(now)
-				d = currentTotalSuspension - compensatedTotalSuspension
+				currentTotalUnsuspended := c.getTotalUnsuspendedWithTime(now)
+				d = finalTotalUnsuspended - currentTotalUnsuspended
 				if d < c.timeoutThreshold {
 					// Amount of time suspended in
 					// the meantime is not worth
 					// creating another timer for.
 					ctx.err = context.DeadlineExceeded
-					ctx.suspensionDuration = currentTotalSuspension - initialTotalSuspension
+					ctx.unsuspendedDuration = currentTotalUnsuspended - initialTotalUnsuspended
 					c.lock.Unlock()
 					close(doneChannel)
 					return
@@ -154,7 +156,7 @@ func (c *SuspendableClock) NewContextWithTimeout(parent context.Context, d time.
 				// Base context got canceled.
 				c.lock.Lock()
 				ctx.err = baseContext.Err()
-				ctx.suspensionDuration = c.getTotalSuspensionNow() - initialTotalSuspension
+				ctx.unsuspendedDuration = c.getTotalUnsuspendedNow() - initialTotalUnsuspended
 				c.lock.Unlock()
 				baseTimer.Stop()
 				close(doneChannel)
@@ -184,16 +186,15 @@ func (c *SuspendableClock) NewTimer(d time.Duration) (clock.Timer, <-chan time.T
 
 	c.lock.Lock()
 	go func() {
-		compensatedTotalSuspension := c.getTotalSuspensionNow() - d
+		finalTotalUnsuspended := c.getTotalUnsuspendedNow() + d
 		for {
 			c.lock.Unlock()
 			baseTimer, baseChannel := c.base.NewTimer(d)
 			select {
 			case now := <-baseChannel:
 				// Timer expired.
-				compensatedTotalSuspension += d
 				c.lock.Lock()
-				d = c.getTotalSuspensionWithTime(now) - compensatedTotalSuspension
+				d = finalTotalUnsuspended - c.getTotalUnsuspendedWithTime(now)
 				if d < c.timeoutThreshold {
 					// Amount of time suspended in
 					// the meantime is not worth
@@ -229,9 +230,9 @@ type suspendableContext struct {
 	context.Context
 	doneChannel <-chan struct{}
 
-	lock               *sync.Mutex
-	err                error
-	suspensionDuration time.Duration
+	lock                *sync.Mutex
+	err                 error
+	unsuspendedDuration time.Duration
 }
 
 func (ctx *suspendableContext) Done() <-chan struct{} {
@@ -246,14 +247,14 @@ func (ctx *suspendableContext) Err() error {
 }
 
 func (ctx *suspendableContext) Value(key interface{}) interface{} {
-	if key != (SuspensionDurationKey{}) {
+	if key != (UnsuspendedDurationKey{}) {
 		return ctx.Context.Value(key)
 	}
 
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 
-	return ctx.suspensionDuration
+	return ctx.unsuspendedDuration
 }
 
 // suspendableTimer is the implementation of Timer that is returned by

@@ -10,7 +10,6 @@ import (
 	re_clock "github.com/buildbarn/bb-remote-execution/pkg/clock"
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
-	"github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage"
 	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/clock"
@@ -20,7 +19,6 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
@@ -263,15 +261,9 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	}
 
 	// For FUSE-based workers: Attach the amount of time the action
-	// got delayed by reading data from storage.
-	if suspensionDuration, ok := ctxWithTimeout.Value(re_clock.SuspensionDurationKey{}).(time.Duration); ok {
-		if buildExecutorResourceUsage, err := anypb.New(&resourceusage.BuildExecutorResourceUsage{
-			ExecutionTimeoutCompensation: durationpb.New(suspensionDuration),
-		}); err == nil {
-			response.Result.ExecutionMetadata.AuxiliaryMetadata = append(response.Result.ExecutionMetadata.AuxiliaryMetadata, buildExecutorResourceUsage)
-		} else {
-			attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to marshal build executor resource usage"))
-		}
+	// ran, minus the time it was delayed reading data from storage.
+	if unsuspendedDuration, ok := ctxWithTimeout.Value(re_clock.UnsuspendedDurationKey{}).(time.Duration); ok {
+		response.Result.ExecutionMetadata.VirtualExecutionDuration = durationpb.New(unsuspendedDuration)
 	}
 
 	executionStateUpdates <- &remoteworker.CurrentState_Executing{

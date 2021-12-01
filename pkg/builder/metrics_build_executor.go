@@ -29,13 +29,11 @@ var (
 			Buckets:   util.DecimalExponentialBuckets(-3, 6, 2),
 		},
 		[]string{"result", "grpc_code", "stage"})
-
-	// Metrics for BuildExecutorResourceUsage.
-	buildExecutorExecutionTimeoutCompensation = prometheus.NewHistogramVec(
+	buildExecutorVirtualExecutionDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
 			Subsystem: "builder",
-			Name:      "build_executor_execution_timeout_compensation",
+			Name:      "build_executor_virtual_execution_duration",
 			Help:      "Amount of time the execution timeout was compensated, in seconds.",
 			Buckets:   util.DecimalExponentialBuckets(-3, 6, 2),
 		},
@@ -218,8 +216,7 @@ type metricsBuildExecutor struct {
 func NewMetricsBuildExecutor(buildExecutor BuildExecutor) BuildExecutor {
 	buildExecutorPrometheusMetrics.Do(func() {
 		prometheus.MustRegister(buildExecutorDurationSeconds)
-
-		prometheus.MustRegister(buildExecutorExecutionTimeoutCompensation)
+		prometheus.MustRegister(buildExecutorVirtualExecutionDuration)
 
 		prometheus.MustRegister(buildExecutorFilePoolFilesCreated)
 		prometheus.MustRegister(buildExecutorFilePoolFilesCountPeak)
@@ -276,15 +273,14 @@ func (be *metricsBuildExecutor) Execute(ctx context.Context, filePool filesystem
 	observeTimestampDelta(
 		buildExecutorDurationSeconds.WithLabelValues(result, grpcCode, "UploadingOutputs"),
 		metadata.OutputUploadStartTimestamp, metadata.OutputUploadCompletedTimestamp)
+	observeDuration(
+		buildExecutorVirtualExecutionDuration.WithLabelValues(result, grpcCode),
+		metadata.VirtualExecutionDuration)
 
 	for _, auxiliaryMetadata := range metadata.AuxiliaryMetadata {
-		var buildExecutor resourceusage.BuildExecutorResourceUsage
 		var filePool resourceusage.FilePoolResourceUsage
 		var posix resourceusage.POSIXResourceUsage
-		if auxiliaryMetadata.UnmarshalTo(&buildExecutor) == nil {
-			// Expose metrics stored in BuildExecutorResourceUsage.
-			observeDuration(buildExecutorExecutionTimeoutCompensation.WithLabelValues(result, grpcCode), buildExecutor.ExecutionTimeoutCompensation)
-		} else if auxiliaryMetadata.UnmarshalTo(&filePool) == nil {
+		if auxiliaryMetadata.UnmarshalTo(&filePool) == nil {
 			// Expose metrics stored in FilePoolResourceUsage.
 			buildExecutorFilePoolFilesCreated.WithLabelValues(result, grpcCode).Observe(float64(filePool.FilesCreated))
 			buildExecutorFilePoolFilesCountPeak.WithLabelValues(result, grpcCode).Observe(float64(filePool.FilesCountPeak))

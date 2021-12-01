@@ -10,6 +10,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/digest"
 
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -85,7 +86,17 @@ func (be *timestampedBuildExecutor) Execute(ctx context.Context, filePool re_fil
 
 			// Merge the metadata into the response.
 			metadata.WorkerCompletedTimestamp = now
-			proto.Merge(response.Result.ExecutionMetadata, &metadata)
+			baseMetadata := response.Result.ExecutionMetadata
+			proto.Merge(baseMetadata, &metadata)
+
+			// If the base BuildExecutor does not provide a
+			// virtual execution duration, set it to wall
+			// time. This ensures that feedback driven
+			// initial size class analysis at least has some
+			// information to work with.
+			if baseMetadata.VirtualExecutionDuration == nil && baseMetadata.ExecutionStartTimestamp != nil && baseMetadata.ExecutionCompletedTimestamp != nil {
+				baseMetadata.VirtualExecutionDuration = durationpb.New(baseMetadata.ExecutionCompletedTimestamp.AsTime().Sub(baseMetadata.ExecutionStartTimestamp.AsTime()))
+			}
 			return response
 		}
 	}
