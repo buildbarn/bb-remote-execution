@@ -2505,12 +2505,7 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 						Completed: &remoteexecution.ExecuteResponse{
 							Result: &remoteexecution.ActionResult{
 								ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
-									ExecutionStartTimestamp: &timestamppb.Timestamp{
-										Seconds: 1620590687,
-									},
-									ExecutionCompletedTimestamp: &timestamppb.Timestamp{
-										Seconds: 1620590697,
-									},
+									VirtualExecutionDuration: &durationpb.Duration{Seconds: 10},
 								},
 							},
 						},
@@ -2545,12 +2540,7 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 	executeResponse, err := anypb.New(&remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
-				ExecutionStartTimestamp: &timestamppb.Timestamp{
-					Seconds: 1620590687,
-				},
-				ExecutionCompletedTimestamp: &timestamppb.Timestamp{
-					Seconds: 1620590697,
-				},
+				VirtualExecutionDuration: &durationpb.Duration{Seconds: 10},
 			},
 		},
 	})
@@ -2893,12 +2883,7 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 						Completed: &remoteexecution.ExecuteResponse{
 							Result: &remoteexecution.ActionResult{
 								ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
-									ExecutionStartTimestamp: &timestamppb.Timestamp{
-										Seconds: 1620590687,
-									},
-									ExecutionCompletedTimestamp: &timestamppb.Timestamp{
-										Seconds: 1620590690,
-									},
+									VirtualExecutionDuration: &durationpb.Duration{Seconds: 3},
 								},
 							},
 						},
@@ -2930,12 +2915,7 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 	executeResponse, err := anypb.New(&remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
-				ExecutionStartTimestamp: &timestamppb.Timestamp{
-					Seconds: 1620590687,
-				},
-				ExecutionCompletedTimestamp: &timestamppb.Timestamp{
-					Seconds: 1620590690,
-				},
+				VirtualExecutionDuration: &durationpb.Duration{Seconds: 3},
 			},
 		},
 	})
@@ -3138,12 +3118,7 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 						Completed: &remoteexecution.ExecuteResponse{
 							Result: &remoteexecution.ActionResult{
 								ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
-									ExecutionStartTimestamp: &timestamppb.Timestamp{
-										Seconds: 1620590687,
-									},
-									ExecutionCompletedTimestamp: &timestamppb.Timestamp{
-										Seconds: 1620590690,
-									},
+									VirtualExecutionDuration: &durationpb.Duration{Seconds: 3},
 								},
 							},
 						},
@@ -3175,12 +3150,7 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 	executeResponse, err := anypb.New(&remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
-				ExecutionStartTimestamp: &timestamppb.Timestamp{
-					Seconds: 1620590687,
-				},
-				ExecutionCompletedTimestamp: &timestamppb.Timestamp{
-					Seconds: 1620590690,
-				},
+				VirtualExecutionDuration: &durationpb.Duration{Seconds: 3},
 			},
 		},
 	})
@@ -3258,12 +3228,7 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 						Completed: &remoteexecution.ExecuteResponse{
 							Result: &remoteexecution.ActionResult{
 								ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
-									ExecutionStartTimestamp: &timestamppb.Timestamp{
-										Seconds: 1620590687,
-									},
-									ExecutionCompletedTimestamp: &timestamppb.Timestamp{
-										Seconds: 1620590690,
-									},
+									VirtualExecutionDuration: &durationpb.Duration{Seconds: 3},
 								},
 							},
 						},

@@ -2098,8 +2098,7 @@ func (t *task) complete(bq *InMemoryBuildQueue, executeResponse *remoteexecution
 		// blocked on this.
 		executionMetadata := actionResult.GetExecutionMetadata()
 		backgroundSizeClassIndex, backgroundTimeout, backgroundInitialSizeClassLearner := t.initialSizeClassLearner.Succeeded(
-			executionMetadata.GetExecutionCompletedTimestamp().AsTime().Sub(
-				executionMetadata.GetExecutionStartTimestamp().AsTime()),
+			executionMetadata.GetVirtualExecutionDuration().AsDuration(),
 			pq.sizeClasses)
 		t.initialSizeClassLearner = nil
 		if backgroundInitialSizeClassLearner != nil {
