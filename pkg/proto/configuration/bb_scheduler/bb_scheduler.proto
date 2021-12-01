@@ -9,6 +9,7 @@ import "pkg/proto/configuration/blobstore/blobstore.proto";
 import "pkg/proto/configuration/cloud/aws/aws.proto";
 import "pkg/proto/configuration/global/global.proto";
 import "pkg/proto/configuration/grpc/grpc.proto";
+import "pkg/proto/configuration/scheduler/scheduler.proto";
 
 option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_scheduler";
 
@@ -72,16 +73,62 @@ message ApplicationConfiguration {
   repeated PredeclaredPlatformQueueConfiguration predeclared_platform_queues =
       12;
 
-  // Execution timeout that needs to be applied in case the build action
-  // contains no explicit timeout.
-  google.protobuf.Duration default_execution_timeout = 13;
+  // Was 'default_execution_timeout'. This setting is now configured
+  // through 'action_router'.
+  reserved 13;
 
-  // Maximum permitted execution timeout.
-  google.protobuf.Duration maximum_execution_timeout = 14;
+  // Was 'maximum_execution_timeout'. This setting is now configured
+  // through 'action_router'.
+  reserved 14;
 
   // Authorization requirements to be enforced for Execute and WaitExecution
   // requests.
   buildbarn.configuration.auth.AuthorizerConfiguration execute_authorizer = 15;
+
+  // The policy for routing actions.
+  //
+  // Before the scheduler is capable of enqueueing an action, it must
+  // extract some properties from the incoming execution request:
+  //
+  // - The platform on which the action has to run.
+  // - The invocation to which the execution request belongs, so that
+  //   may be scheduled fairly with respect to actions queued by other
+  //   users.
+  // - The execution timeout that needs to be applied.
+  // - If the platform has workers partitioned across multiple size
+  //   classes, it must choose a size class on which execution is
+  //   attempted initially.
+  //
+  // The action router is the subsystem that is responsible for
+  // extracting these properties.
+  //
+  // It is possible to write fairly complex action router configurations
+  // (e.g., ones that apply different policies between platforms, or
+  // reroute requests from one platform to another). However, for
+  // typical setups the configuration can remain fairly simple. It is
+  // recommended that a configuration like the one below is used as a
+  // starting point:
+  //
+  // {
+  //   simple: {
+  //     platformKeyExtractor: { actionAndCommand: {} },
+  //     invocationKeyExtractor: { requestMetadata: {} },
+  //     initialSizeClassAnalyzer: {
+  //       defaultExecutionTimeout: '1800s',
+  //       maximumExecutionTimeout: '7200s',
+  //     },
+  //   },
+  // }
+  buildbarn.configuration.scheduler.ActionRouterConfiguration action_router =
+      16;
+
+  // Optional: The Initial Size Class Cache (ISCC) where execution times
+  // of actions are read and written.
+  //
+  // This option only needs to be set if one or feedback driven
+  // analyzers are configured through 'action_router'.
+  buildbarn.configuration.blobstore.BlobAccessConfiguration
+      initial_size_class_cache = 17;
 }
 
 message AWSASGLifecycleHookConfiguration {
@@ -117,23 +164,9 @@ message PredeclaredPlatformQueueConfiguration {
   // retried on workers of this size class.
   uint32 maximum_size_class = 3;
 
-  // When not set, run all actions on the smallest size class for which
-  // workers exist. Upon failure, retry actions on the largest size
-  // class. This mode is not recommended for setups with more than two
-  // size classes, or workloads where build times matter.
-  //
-  // When set, run all actions on the largest size class if not seen
-  // before. Future invocations of actions with the same command line
-  // arguments and environment variables will run on all size classes,
-  // using probabilities based on how their execution times compare to
-  // those of the largest size class.
-  //
-  // Statistics on execution times are persisted into the Initial Size
-  // Class Cache (ISCC). bb_browser is also capable of reading data from
-  // this data store, making it possible to view these statistics by
-  // visiting the page of an action.
-  InitialSizeClassFeedbackDrivenAnalyzerConfiguration
-      initial_size_class_feedback_driven_analyzer = 4;
+  // Was 'initial_size_class_feedback_driven_analyzer'. This option has
+  // moved into ApplicationConfiguration.action_router.
+  reserved 4;
 
   // Allow workers to continue to execute actions from the same
   // invocation, if doing so keeps the number of workers assigned to an
@@ -151,144 +184,14 @@ message PredeclaredPlatformQueueConfiguration {
   // probability of needing to do virtual machine restarts decreases.
   //
   // This option may require a custom implementation of
-  // InvocationIDExtractor to be effective.
+  // invocation.KeyExtractor to be effective.
   //
   // Recommended value: 0s
   google.protobuf.Duration worker_invocation_stickiness_limit = 5;
-}
 
-message InitialSizeClassFeedbackDrivenAnalyzerConfiguration {
-  // The Initial Size Class Cache (ISCC) where execution times of
-  // actions are read and written.
-  buildbarn.configuration.blobstore.BlobAccessConfiguration
-      initial_size_class_cache = 1;
-
-  // Immediately schedule actions on the largest size class if they have
-  // failed at least once within the provided timeframe.
+  // NOTE: The option below only has effect when feedback driven initial
+  // size class analysis is enabled.
   //
-  // Actions that fail on any size class other than the largest will
-  // always be retried on the largest size class to rule out failures
-  // caused by a lack of resources. This means that if an action is
-  // known to fail, attempting to run it on smaller size classes causes
-  // unnecessary delays in error reporting.
-  //
-  // During iterative development, it is likely that the same action
-  // action is invoked repeatedly, each time having a high probability
-  // of failure. This option controls how long these kinds of actions
-  // should receive a boost, allowing them to be run on the largest size
-  // class and fail quickly.
-  //
-  // Recommended value: 86400s (1 day)
-  google.protobuf.Duration failure_cache_duration = 2;
-
-  // An exponent to determine whether an increase in execution time when
-  // scheduling an action on a smaller size class is considere
-  // acceptable.
-  //
-  // For example, consider the case where this exponent is set to 0.7,
-  // and a given action is known to have a 60s median execution time on
-  // the largest workers, having size class 16. For the execution time
-  // to be considered being acceptable on a smaller size class, this
-  // action must complete within:
-  //
-  // - 60s*(16/1)^0.7 = 417.8s on a worker with size class 1,
-  // - 60s*(16/2)^0.7 = 257.2s on a worker with size class 2,
-  // - 60s*(16/4)^0.7 = 158.3s on a worker with size class 4,
-  // - 60s*(16/8)^0.7 =  97.7s on a worker with size class 8.
-  //
-  // Whereas if this exponent is set to 0.3, the acceptable execution
-  // times would be significantly lower:
-  //
-  // - 60s*(16/1)^0.3 = 137.8s on a worker with size class 1,
-  // - 60s*(16/2)^0.3 = 112.0s on a worker with size class 2,
-  // - 60s*(16/4)^0.3 =  90.9s on a worker with size class 4,
-  // - 60s*(16/8)^0.3 =  73.9s on a worker with size class 8.
-  //
-  // In effect, this exponent determines how much speed you are willing
-  // to sacrifice for increased worker utilization. Setting this
-  // exponent to a higher value will increase worker utilization, but
-  // may cause actions that are only somewhat parallel to run slower.
-  //
-  // Recommended value: somewhere between 0.2 and 0.8.
-  double acceptable_execution_time_increase_exponent = 3;
-
-  // Actions scheduled on smaller size classes are run with a reduced
-  // timeout value that is based on the acceptable execution time of the
-  // action for that size class (see above). This ensures that if a
-  // misprediction is made and an action is running unacceptably slow on
-  // a size class that is too small, it is terminated and quickly
-  // retried on the largest size class.
-  //
-  // This option configures a multiplier that needs to be applied when
-  // computing the action's timeout. Setting it to >1.0 gives an action
-  // a bit more time to finish its work, even if its execution time has
-  // become unacceptable. This has two advantages:
-  //
-  // - Less work is wasted, as the action may likely still complete.
-  // - If we still observe a timeout on the smaller size class, we
-  //   insert a higher quality data point into the ISCC.
-  //
-  // Recommended value: 1.5
-  double smaller_size_class_execution_timeout_multiplier = 4;
-
-  // The execution timeout value that is used on smaller size classes is
-  // proportional to the median execution time observed on the largest
-  // size class. This means that if the median execution time on the
-  // largest size class is in the milliseconds, so will be the execution
-  // timeout on smaller size classes.
-  //
-  // Because this tends to introduce too much flakiness, this option can
-  // be used to set an lower bound on the execution timeout.
-  //
-  // Recommended value: 10s
-  google.protobuf.Duration minimum_execution_timeout = 5;
-
-  // This implementation compares previous execution stats between every
-  // pair of size classes. The resulting scores are stored in a
-  // stochastic matrix, of which the resulting eigenvector contains the
-  // probabilities at which size classes should be chosen. This
-  // algorithm has a strong resemblance with PageRank.
-  //
-  // To compute the eigenvector, a process called "power iteration" is
-  // used, in which repeated matrix multiplications are performed. This
-  // method approximates the eigenvector, each iteration giving more
-  // accurate results. This option can be used to control how many
-  // iterations should be performed. Matrix multiplication will be
-  // terminated as soon as the maximum observed error drops below a
-  // certain value.
-  //
-  // It is generally possible to set this option to an aggressive (low)
-  // value, for a couple of reasons:
-  //
-  // - The number of size classes tends to be small (<10), meaning that
-  //   the resulting probability matrix is also not too big (<10x10).
-  // - The probability function used to populate the stochastic matrix
-  //   is total and asymmetric, meaning that every iteration strongly
-  //   contributes to convergence.
-  // - Probabilities of previous executions of the same action are
-  //   cached in the Initial Size Class Cache (ISCC), meaning that
-  //   the algorithm often has a good starting point.
-  //
-  // Still, it is recommended to inspect Prometheus metrics
-  // buildbarn_builder_page_rank_strategy_calculator_* in case changes
-  // are made to this option to assess the performance impact.
-  //
-  // Recommended value: 0.002
-  double maximum_convergence_error = 6;
-
-  // The number of action outcomes to store per size class. Increasing
-  // this improves the accuracy of timing information that is captured,
-  // but has the downside that the system responds to changes in
-  // behavior of actions less quickly.
-  //
-  // To ensure that the system does not end up in a steady state where
-  // actions are always run on the same size class, there is roughly a
-  // 1.0 / history_size probability that actions are run on sizes
-  // classes other than the optimum, regardless of historical outcomes.
-  //
-  // Recommended value: 32
-  int32 history_size = 7;
-
   // There is a small probability that this implementation runs actions
   // on size classes even if it is fairly certain that they are
   // suboptimal (either too small or too large). This is necessary, as
@@ -321,8 +224,11 @@ message InitialSizeClassFeedbackDrivenAnalyzerConfiguration {
   // queue sizes is performed).
   //
   // Recommended value: 1000
-  int32 maximum_queued_background_learning_operations = 8;
+  int32 maximum_queued_background_learning_operations = 6;
 
+  // NOTE: The option below only has effect when feedback driven initial
+  // size class analysis is enabled.
+  //
   // The REv2 execution priority that needs to be used for background
   // learning operations.
   //
@@ -335,5 +241,5 @@ message InitialSizeClassFeedbackDrivenAnalyzerConfiguration {
   // operations should be preferred over operations enqueued by clients.
   //
   // Recommended value: 0
-  int32 background_learning_operation_priority = 9;
+  int32 background_learning_operation_priority = 7;
 }

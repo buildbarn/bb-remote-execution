@@ -215,6 +215,15 @@ gomock(
 )
 
 gomock(
+    name = "platform",
+    out = "platform.go",
+    interfaces = ["KeyExtractor"],
+    library = "//pkg/scheduler/platform",
+    mock_names = {"KeyExtractor": "MockPlatformKeyExtractor"},
+    package = "mock",
+)
+
+gomock(
     name = "random",
     out = "random.go",
     interfaces = [
@@ -245,6 +254,14 @@ gomock(
 )
 
 gomock(
+    name = "routing",
+    out = "routing.go",
+    interfaces = ["ActionRouter"],
+    library = "//pkg/scheduler/routing",
+    package = "mock",
+)
+
+gomock(
     name = "runner",
     out = "runner.go",
     interfaces = [
@@ -252,14 +269,6 @@ gomock(
         "RunnerServer",
     ],
     library = "//pkg/proto/runner",
-    package = "mock",
-)
-
-gomock(
-    name = "scheduler",
-    out = "scheduler.go",
-    interfaces = ["PlatformHooks"],
-    library = "//pkg/scheduler",
     package = "mock",
 )
 
@@ -321,11 +330,12 @@ go_library(
         ":filesystem_re.go",
         ":grpc_go.go",
         ":initialsizeclass.go",
+        ":platform.go",
         ":random.go",
         ":remoteexecution.go",
         ":remoteworker.go",
+        ":routing.go",
         ":runner.go",
-        ":scheduler.go",
         ":smithy.go",
         ":storage_builder.go",
         ":storage_util.go",
@@ -356,6 +366,8 @@ go_library(
         "//pkg/proto/remoteworker",
         "//pkg/proto/runner",
         "//pkg/scheduler/initialsizeclass",
+        "//pkg/scheduler/invocation",
+        "//pkg/scheduler/platform",
         "@com_github_aws_aws_sdk_go_v2_service_autoscaling//:autoscaling",
         "@com_github_aws_aws_sdk_go_v2_service_sqs//:sqs",
         "@com_github_aws_smithy_go//:smithy-go",

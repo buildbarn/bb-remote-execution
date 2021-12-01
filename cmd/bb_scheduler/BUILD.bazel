@@ -32,6 +32,7 @@ go_library(
         "//pkg/proto/remoteworker",
         "//pkg/scheduler",
         "//pkg/scheduler/initialsizeclass",
+        "//pkg/scheduler/routing",
         "//pkg/util",
         "@com_github_aws_aws_sdk_go_v2_service_autoscaling//:autoscaling",
         "@com_github_aws_aws_sdk_go_v2_service_sqs//:sqs",

@@ -7,6 +7,7 @@ proto_library(
     srcs = ["bb_scheduler.proto"],
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/proto/configuration/scheduler:scheduler_proto",
         "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:remote_execution_proto",
         "@com_github_buildbarn_bb_storage//pkg/proto/configuration/auth:auth_proto",
         "@com_github_buildbarn_bb_storage//pkg/proto/configuration/blobstore:blobstore_proto",
@@ -23,6 +24,7 @@ go_proto_library(
     proto = ":bb_scheduler_proto",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/proto/configuration/scheduler",
         "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:execution",
         "@com_github_buildbarn_bb_storage//pkg/proto/configuration/auth",
         "@com_github_buildbarn_bb_storage//pkg/proto/configuration/blobstore",

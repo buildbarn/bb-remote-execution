@@ -57,6 +57,15 @@ func NewKey(instanceNamePrefix digest.InstanceName, platform *remoteexecution.Pl
 	}, nil
 }
 
+// MustNewKey is identical to NewKey, except that it panics upon failure.
+func MustNewKey(instanceNamePrefix string, platform *remoteexecution.Platform) Key {
+	key, err := NewKey(digest.MustNewInstanceName(instanceNamePrefix), platform)
+	if err != nil {
+		panic(err)
+	}
+	return key
+}
+
 // GetInstanceNamePrefix returns the instance name that was provided
 // when the Key was created.
 func (k Key) GetInstanceNamePrefix() digest.InstanceName {

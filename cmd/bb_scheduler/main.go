@@ -17,6 +17,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-remote-execution/pkg/scheduler"
 	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/initialsizeclass"
+	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/routing"
 	"github.com/buildbarn/bb-storage/pkg/auth"
 	blobstore_configuration "github.com/buildbarn/bb-storage/pkg/blobstore/configuration"
 	"github.com/buildbarn/bb-storage/pkg/clock"
@@ -63,24 +64,35 @@ func main() {
 	}
 	contentAddressableStorage := re_blobstore.NewExistencePreconditionBlobAccess(info.BlobAccess)
 
-	// Platform queues that are not predeclared may not use multiple
-	// size classes. For those platform queues it is sufficient to
-	// just use a naive initial size class analyzer.
-	defaultExecutionTimeout := configuration.DefaultExecutionTimeout
-	if err := defaultExecutionTimeout.CheckValid(); err != nil {
-		log.Fatal("Invalid default execution timeout: ", err)
+	// Optional: Initial Size Class Cache (ISCC) access. This data
+	// store is only used if one or more parts of the ActionRouter
+	// are configured to use feedback driven initial size class
+	// analysis.
+	var previousExecutionStatsStore initialsizeclass.PreviousExecutionStatsStore
+	if isccConfiguration := configuration.InitialSizeClassCache; isccConfiguration != nil {
+		info, err := blobstore_configuration.NewBlobAccessFromConfiguration(
+			isccConfiguration,
+			blobstore_configuration.NewISCCBlobAccessCreator(
+				grpcClientFactory,
+				int(configuration.MaximumMessageSizeBytes)))
+		if err != nil {
+			log.Fatal("Failed to create Initial Size Class Cache: ", err)
+		}
+		previousExecutionStatsStore = initialsizeclass.NewBlobAccessPreviousExecutionStatsStore(
+			info.BlobAccess,
+			int(configuration.MaximumMessageSizeBytes))
 	}
-	maximumExecutionTimeout := configuration.MaximumExecutionTimeout
-	if err := maximumExecutionTimeout.CheckValid(); err != nil {
-		log.Fatal("Invalid maximum execution timeout: ", err)
+
+	// Create an action router that is responsible for analyzing
+	// incoming execution requests and determining how they are
+	// scheduled.
+	actionRouter, err := routing.NewActionRouterFromConfiguration(configuration.ActionRouter, contentAddressableStorage, int(configuration.MaximumMessageSizeBytes), previousExecutionStatsStore)
+	if err != nil {
+		log.Fatal("Failed to create action router: ", err)
 	}
-	actionTimeoutExtractor := initialsizeclass.NewActionTimeoutExtractor(
-		defaultExecutionTimeout.AsDuration(),
-		maximumExecutionTimeout.AsDuration())
-	defaultInitialSizeClassAnalyzer := initialsizeclass.NewFallbackAnalyzer(actionTimeoutExtractor)
 
 	authorizerFactory := auth.DefaultAuthorizerFactory
-	executeAuthorizer, err := authorizerFactory.NewAuthorizerFromConfiguration(configuration.GetExecuteAuthorizer())
+	executeAuthorizer, err := authorizerFactory.NewAuthorizerFromConfiguration(configuration.ExecuteAuthorizer)
 	if err != nil {
 		log.Fatal("Failed to create execute authorizer: ", err)
 	}
@@ -107,13 +119,7 @@ func main() {
 			WorkerWithNoSynchronizationsTimeout: time.Minute,
 		},
 		int(configuration.MaximumMessageSizeBytes),
-		struct {
-			scheduler.InvocationIDExtractor
-			initialsizeclass.Analyzer
-		}{
-			InvocationIDExtractor: scheduler.RequestMetadataInvocationIDExtractor,
-			Analyzer:              defaultInitialSizeClassAnalyzer,
-		},
+		actionRouter,
 		executeAuthorizer)
 
 	// Create predeclared platform queues.
@@ -127,67 +133,14 @@ func main() {
 			log.Fatal("Invalid worker invocation stickiness limit: ", err)
 		}
 
-		invocationIDExtractor := scheduler.RequestMetadataInvocationIDExtractor
-
-		// Create an analyzer for picking an initial size class.
-		// This lets bb_scheduler cache execution times and
-		// outcomes of actions, so that it can more accurately
-		// pick size classes in the future.
-		initialSizeClassAnalyzer := defaultInitialSizeClassAnalyzer
-		var maximumQueuedBackgroundLearningOperations int
-		var backgroundLearningOperationPriority int32
-		if fdaConfiguration := platformQueue.InitialSizeClassFeedbackDrivenAnalyzer; fdaConfiguration != nil {
-			info, err := blobstore_configuration.NewBlobAccessFromConfiguration(
-				fdaConfiguration.InitialSizeClassCache,
-				blobstore_configuration.NewISCCBlobAccessCreator(
-					grpcClientFactory,
-					int(configuration.MaximumMessageSizeBytes)))
-			if err != nil {
-				log.Fatal("Failed to create Initial Size Class Cache: ", err)
-			}
-
-			failureCacheDuration := fdaConfiguration.FailureCacheDuration
-			if err := failureCacheDuration.CheckValid(); err != nil {
-				log.Fatal("Invalid failure cache duration: ", err)
-			}
-
-			minimumExecutionTimeout := fdaConfiguration.MinimumExecutionTimeout
-			if err := minimumExecutionTimeout.CheckValid(); err != nil {
-				log.Fatal("Invalid minimum acceptable execution time: ", err)
-			}
-
-			initialSizeClassAnalyzer = initialsizeclass.NewFeedbackDrivenAnalyzer(
-				initialsizeclass.NewBlobAccessPreviousExecutionStatsStore(
-					info.BlobAccess,
-					int(configuration.MaximumMessageSizeBytes)),
-				random.NewFastSingleThreadedGenerator(),
-				clock.SystemClock,
-				actionTimeoutExtractor,
-				failureCacheDuration.AsDuration(),
-				initialsizeclass.NewPageRankStrategyCalculator(
-					minimumExecutionTimeout.AsDuration(),
-					fdaConfiguration.AcceptableExecutionTimeIncreaseExponent,
-					fdaConfiguration.SmallerSizeClassExecutionTimeoutMultiplier,
-					fdaConfiguration.MaximumConvergenceError),
-				int(fdaConfiguration.HistorySize))
-			maximumQueuedBackgroundLearningOperations = int(fdaConfiguration.MaximumQueuedBackgroundLearningOperations)
-			backgroundLearningOperationPriority = fdaConfiguration.BackgroundLearningOperationPriority
-		}
-
 		if err := buildQueue.RegisterPredeclaredPlatformQueue(
 			instanceName,
 			platformQueue.Platform,
 			workerInvocationStickinessLimit.AsDuration(),
-			maximumQueuedBackgroundLearningOperations,
-			backgroundLearningOperationPriority,
+			int(platformQueue.MaximumQueuedBackgroundLearningOperations),
+			platformQueue.BackgroundLearningOperationPriority,
 			platformQueue.MaximumSizeClass,
-			struct {
-				scheduler.InvocationIDExtractor
-				initialsizeclass.Analyzer
-			}{
-				InvocationIDExtractor: invocationIDExtractor,
-				Analyzer:              initialSizeClassAnalyzer,
-			}); err != nil {
+		); err != nil {
 			log.Fatal("Failed to register predeclared platform queue: ", err)
 		}
 	}

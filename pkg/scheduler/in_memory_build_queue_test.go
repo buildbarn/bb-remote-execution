@@ -13,6 +13,8 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/buildqueuestate"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-remote-execution/pkg/scheduler"
+	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/invocation"
+	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/platform"
 	"github.com/buildbarn/bb-storage/pkg/auth"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/builder"
@@ -46,6 +48,13 @@ var buildQueueConfigurationForTesting = scheduler.InMemoryBuildQueueConfiguratio
 	WorkerWithNoSynchronizationsTimeout:  time.Minute,
 }
 
+var platformForTesting = &remoteexecution.Platform{
+	Properties: []*remoteexecution.Platform_Property{
+		{Name: "cpu", Value: "armv6"},
+		{Name: "os", Value: "linux"},
+	},
+}
+
 // getExecutionClient creates a GRPC client for calling Execute() and
 // WaitExecution() operations against a build queue. These operations
 // use streaming RPCs, which prevents us from invoking these operations
@@ -77,8 +86,8 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
-	defaultPlatformHooks := mock.NewMockPlatformHooks(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks, allowAllAuthorizer())
+	actionRouter := mock.NewMockActionRouter(ctrl)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer())
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// ExecuteRequest contains an invalid action digest.
@@ -113,95 +122,6 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 		testutil.RequireEqualStatus(t, err, status.Error(codes.FailedPrecondition, "Failed to obtain action: Blob not found"))
 	})
 
-	// Action contains an invalid command digest.
-	t.Run("InvalidCommandDigest", func(t *testing.T) {
-		contentAddressableStorage.EXPECT().Get(
-			gomock.Any(),
-			digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
-			CommandDigest: &remoteexecution.Digest{
-				Hash:      "This is not a valid hash",
-				SizeBytes: 456,
-			},
-		}, buffer.UserProvided))
-
-		stream, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
-			InstanceName: "main",
-			ActionDigest: &remoteexecution.Digest{
-				Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
-				SizeBytes: 123,
-			},
-		})
-		require.NoError(t, err)
-		_, err = stream.Recv()
-		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Failed to extract digest for command: Unknown digest hash length: 24 characters"), err)
-	})
-
-	// Command cannot be found in the Content Addressable Storage (CAS).
-	t.Run("MissingCommand", func(t *testing.T) {
-		contentAddressableStorage.EXPECT().Get(
-			gomock.Any(),
-			digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
-			CommandDigest: &remoteexecution.Digest{
-				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
-				SizeBytes: 456,
-			},
-		}, buffer.UserProvided))
-		contentAddressableStorage.EXPECT().Get(
-			gomock.Any(),
-			digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
-		).Return(buffer.NewBufferFromError(status.Error(codes.FailedPrecondition, "Blob not found")))
-
-		stream, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
-			InstanceName: "main",
-			ActionDigest: &remoteexecution.Digest{
-				Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
-				SizeBytes: 123,
-			},
-		})
-		require.NoError(t, err)
-		_, err = stream.Recv()
-		testutil.RequireEqualStatus(t, err, status.Error(codes.FailedPrecondition, "Failed to obtain command: Blob not found"))
-	})
-
-	// Platform requirements should be provided in sorted order.
-	// Otherwise, there could be distinct queues that refer to the
-	// same platform.
-	t.Run("BadlySortedPlatformProperties", func(t *testing.T) {
-		contentAddressableStorage.EXPECT().Get(
-			gomock.Any(),
-			digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
-			CommandDigest: &remoteexecution.Digest{
-				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
-				SizeBytes: 456,
-			},
-		}, buffer.UserProvided))
-		contentAddressableStorage.EXPECT().Get(
-			gomock.Any(),
-			digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
-		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
-			Platform: &remoteexecution.Platform{
-				Properties: []*remoteexecution.Platform_Property{
-					{Name: "os", Value: "linux"},
-					{Name: "cpu", Value: "armv6"},
-				},
-			},
-		}, buffer.UserProvided))
-
-		stream, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
-			InstanceName: "main",
-			ActionDigest: &remoteexecution.Digest{
-				Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
-				SizeBytes: 123,
-			},
-		})
-		require.NoError(t, err)
-		_, err = stream.Recv()
-		testutil.RequireEqualStatus(t, err, status.Error(codes.InvalidArgument, "Platform properties are not sorted"))
-	})
-
 	// No workers have registered themselves against this queue,
 	// meaninig calls to Execute() should fail unconditionally. A
 	// soft error code should be returned if this happens not long
@@ -216,25 +136,13 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 				SizeBytes: 456,
 			},
 		}, buffer.UserProvided))
-		contentAddressableStorage.EXPECT().Get(
-			gomock.Any(),
-			digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
-		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
-			Platform: &remoteexecution.Platform{
-				Properties: []*remoteexecution.Platform_Property{
-					{Name: "cpu", Value: "armv6"},
-					{Name: "os", Value: "linux"},
-				},
-			},
-		}, buffer.UserProvided))
-		defaultPlatformHooks.EXPECT().ExtractInvocationID(gomock.Any(), digest.MustNewInstanceName("main"), gomock.Any(), nil).Return(&anypb.Any{}, nil)
 		initialSizeClassSelector := mock.NewMockSelector(ctrl)
-		defaultPlatformHooks.EXPECT().Analyze(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
+		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
 			CommandDigest: &remoteexecution.Digest{
 				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 				SizeBytes: 456,
 			},
-		})).Return(initialSizeClassSelector, nil)
+		}), nil).Return(platform.MustNewKey("main", platformForTesting), invocation.MustNewKey(&anypb.Any{}), initialSizeClassSelector, nil)
 		initialSizeClassSelector.EXPECT().Abandoned()
 		clock.EXPECT().Now().Return(time.Unix(899, 999999999))
 
@@ -263,25 +171,13 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 				SizeBytes: 456,
 			},
 		}, buffer.UserProvided))
-		contentAddressableStorage.EXPECT().Get(
-			gomock.Any(),
-			digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
-		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
-			Platform: &remoteexecution.Platform{
-				Properties: []*remoteexecution.Platform_Property{
-					{Name: "cpu", Value: "armv6"},
-					{Name: "os", Value: "linux"},
-				},
-			},
-		}, buffer.UserProvided))
-		defaultPlatformHooks.EXPECT().ExtractInvocationID(gomock.Any(), digest.MustNewInstanceName("main"), gomock.Any(), nil).Return(&anypb.Any{}, nil)
 		initialSizeClassSelector := mock.NewMockSelector(ctrl)
-		defaultPlatformHooks.EXPECT().Analyze(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
+		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
 			CommandDigest: &remoteexecution.Digest{
 				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 				SizeBytes: 456,
 			},
-		})).Return(initialSizeClassSelector, nil)
+		}), nil).Return(platform.MustNewKey("main", platformForTesting), invocation.MustNewKey(&anypb.Any{}), initialSizeClassSelector, nil)
 		initialSizeClassSelector.EXPECT().Abandoned()
 		clock.EXPECT().Now().Return(time.Unix(900, 0))
 
@@ -302,7 +198,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	defaultPlatformHooks := mock.NewMockPlatformHooks(ctrl)
+	actionRouter := mock.NewMockActionRouter(ctrl)
 	for i := 0; i < 10; i++ {
 		contentAddressableStorage.EXPECT().Get(
 			gomock.Any(),
@@ -314,15 +210,11 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 			},
 			DoNotCache: true,
 		}, buffer.UserProvided))
-		contentAddressableStorage.EXPECT().Get(
-			gomock.Any(),
-			digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
-		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{}, buffer.UserProvided))
 	}
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks, allowAllAuthorizer())
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer())
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -358,15 +250,14 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 	})
 
 	// Let a client enqueue a new operation.
-	defaultPlatformHooks.EXPECT().ExtractInvocationID(gomock.Any(), digest.MustNewInstanceName("main"), gomock.Any(), nil).Return(&anypb.Any{}, nil)
 	initialSizeClassSelector := mock.NewMockSelector(ctrl)
-	defaultPlatformHooks.EXPECT().Analyze(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
+	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
 		CommandDigest: &remoteexecution.Digest{
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 			SizeBytes: 456,
 		},
 		DoNotCache: true,
-	})).Return(initialSizeClassSelector, nil)
+	}), nil).Return(platform.MustNewKey("main", &remoteexecution.Platform{}), invocation.MustNewKey(&anypb.Any{}), initialSizeClassSelector, nil)
 	initialSizeClassLearner := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 		Return(0, 30*time.Minute, initialSizeClassLearner)
@@ -513,15 +404,14 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 	}
 	streams := make([]remoteexecution.Execution_ExecuteClient, 0, len(fakeUUIDs))
 	for _, fakeUUID := range fakeUUIDs {
-		defaultPlatformHooks.EXPECT().ExtractInvocationID(gomock.Any(), digest.MustNewInstanceName("main"), gomock.Any(), nil).Return(&anypb.Any{}, nil)
 		initialSizeClassSelector := mock.NewMockSelector(ctrl)
-		defaultPlatformHooks.EXPECT().Analyze(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
+		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
 			CommandDigest: &remoteexecution.Digest{
 				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 				SizeBytes: 456,
 			},
 			DoNotCache: true,
-		})).Return(initialSizeClassSelector, nil)
+		}), nil).Return(platform.MustNewKey("main", &remoteexecution.Platform{}), invocation.MustNewKey(&anypb.Any{}), initialSizeClassSelector, nil)
 		initialSizeClassLearner := mock.NewMockLearner(ctrl)
 		initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 			Return(0, 30*time.Minute, initialSizeClassLearner)
@@ -558,15 +448,14 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 
 	// After workers are absent for long enough, the corresponding
 	// platform queue is also garbage collected.
-	defaultPlatformHooks.EXPECT().ExtractInvocationID(gomock.Any(), digest.MustNewInstanceName("main"), gomock.Any(), nil).Return(&anypb.Any{}, nil)
 	initialSizeClassSelector = mock.NewMockSelector(ctrl)
-	defaultPlatformHooks.EXPECT().Analyze(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
+	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
 		CommandDigest: &remoteexecution.Digest{
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 			SizeBytes: 456,
 		},
 		DoNotCache: true,
-	})).Return(initialSizeClassSelector, nil)
+	}), nil).Return(platform.MustNewKey("main", &remoteexecution.Platform{}), invocation.MustNewKey(&anypb.Any{}), initialSizeClassSelector, nil)
 	initialSizeClassSelector.EXPECT().Abandoned()
 	clock.EXPECT().Now().Return(time.Unix(1962, 0)).Times(17)
 	stream3, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
@@ -622,23 +511,12 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 			gomock.Any(),
 			digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
 		).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
-		contentAddressableStorage.EXPECT().Get(
-			gomock.Any(),
-			digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
-		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
-			Platform: &remoteexecution.Platform{
-				Properties: []*remoteexecution.Platform_Property{
-					{Name: "cpu", Value: "armv6"},
-					{Name: "os", Value: "linux"},
-				},
-			},
-		}, buffer.UserProvided))
 	}
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
-	defaultPlatformHooks := mock.NewMockPlatformHooks(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks, allowAllAuthorizer())
+	actionRouter := mock.NewMockActionRouter(ctrl)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer())
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -649,12 +527,7 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 			"thread":   "42",
 		},
 		InstanceNamePrefix: "main",
-		Platform: &remoteexecution.Platform{
-			Properties: []*remoteexecution.Platform_Property{
-				{Name: "cpu", Value: "armv6"},
-				{Name: "os", Value: "linux"},
-			},
-		},
+		Platform:           platformForTesting,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
 				Executing: &remoteworker.CurrentState_Executing{
@@ -680,9 +553,9 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 	})
 
 	// Let one client enqueue an operation.
-	defaultPlatformHooks.EXPECT().ExtractInvocationID(gomock.Any(), digest.MustNewInstanceName("main"), testutil.EqProto(t, action), nil).Return(&anypb.Any{}, nil)
 	initialSizeClassSelector1 := mock.NewMockSelector(ctrl)
-	defaultPlatformHooks.EXPECT().Analyze(gomock.Any(), gomock.Any(), testutil.EqProto(t, action)).Return(initialSizeClassSelector1, nil)
+	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).
+		Return(platform.MustNewKey("main", platformForTesting), invocation.MustNewKey(&anypb.Any{}), initialSizeClassSelector1, nil)
 	initialSizeClassLearner1 := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector1.EXPECT().Select([]uint32{0}).
 		Return(0, 30*time.Minute, initialSizeClassLearner1)
@@ -718,14 +591,13 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 	// Let a second client enqueue the same action. Due to
 	// deduplication of in-flight actions, it will obtain the same
 	// operation.
-	defaultPlatformHooks.EXPECT().ExtractInvocationID(gomock.Any(), digest.MustNewInstanceName("main"), gomock.Any(), nil).Return(&anypb.Any{}, nil)
 	initialSizeClassSelector2 := mock.NewMockSelector(ctrl)
-	defaultPlatformHooks.EXPECT().Analyze(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
+	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
 		CommandDigest: &remoteexecution.Digest{
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 			SizeBytes: 456,
 		},
-	})).Return(initialSizeClassSelector2, nil)
+	}), nil).Return(platform.MustNewKey("main", platformForTesting), invocation.MustNewKey(&anypb.Any{}), initialSizeClassSelector2, nil)
 	initialSizeClassSelector2.EXPECT().Abandoned()
 	clock.EXPECT().Now().Return(time.Unix(1075, 0))
 	timer2 := mock.NewMockTimer(ctrl)
@@ -786,12 +658,7 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 	sizeClassQueueName := &buildqueuestate.SizeClassQueueName{
 		PlatformQueueName: &buildqueuestate.PlatformQueueName{
 			InstanceNamePrefix: "main",
-			Platform: &remoteexecution.Platform{
-				Properties: []*remoteexecution.Platform_Property{
-					{Name: "cpu", Value: "armv6"},
-					{Name: "os", Value: "linux"},
-				},
-			},
+			Platform:           platformForTesting,
 		},
 	}
 	clock.EXPECT().Now().Return(time.Unix(1080, 0))
@@ -890,22 +757,11 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 			SizeBytes: 456,
 		},
 	}, buffer.UserProvided))
-	contentAddressableStorage.EXPECT().Get(
-		gomock.Any(),
-		digest.MustNewDigest("main/suffix", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
-	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
-		Platform: &remoteexecution.Platform{
-			Properties: []*remoteexecution.Platform_Property{
-				{Name: "cpu", Value: "armv6"},
-				{Name: "os", Value: "linux"},
-			},
-		},
-	}, buffer.UserProvided))
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
-	defaultPlatformHooks := mock.NewMockPlatformHooks(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks, allowAllAuthorizer())
+	actionRouter := mock.NewMockActionRouter(ctrl)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer())
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -916,12 +772,7 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 			"thread":   "42",
 		},
 		InstanceNamePrefix: "main",
-		Platform: &remoteexecution.Platform{
-			Properties: []*remoteexecution.Platform_Property{
-				{Name: "cpu", Value: "armv6"},
-				{Name: "os", Value: "linux"},
-			},
-		},
+		Platform:           platformForTesting,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
 				Executing: &remoteworker.CurrentState_Executing{
@@ -947,14 +798,13 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 	})
 
 	// Let one client enqueue an operation.
-	defaultPlatformHooks.EXPECT().ExtractInvocationID(gomock.Any(), digest.MustNewInstanceName("main/suffix"), gomock.Any(), nil).Return(&anypb.Any{}, nil)
 	initialSizeClassSelector := mock.NewMockSelector(ctrl)
-	defaultPlatformHooks.EXPECT().Analyze(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
+	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
 		CommandDigest: &remoteexecution.Digest{
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 			SizeBytes: 456,
 		},
-	})).Return(initialSizeClassSelector, nil)
+	}), nil).Return(platform.MustNewKey("main/suffix", platformForTesting), invocation.MustNewKey(&anypb.Any{}), initialSizeClassSelector, nil)
 	initialSizeClassLearner := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 		Return(0, 30*time.Minute, initialSizeClassLearner)
@@ -1004,12 +854,7 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 				"thread":   "42",
 			},
 			InstanceNamePrefix: "main",
-			Platform: &remoteexecution.Platform{
-				Properties: []*remoteexecution.Platform_Property{
-					{Name: "cpu", Value: "armv6"},
-					{Name: "os", Value: "linux"},
-				},
-			},
+			Platform:           platformForTesting,
 			CurrentState: &remoteworker.CurrentState{
 				WorkerState: &remoteworker.CurrentState_Idle{
 					Idle: &emptypb.Empty{},
@@ -1070,12 +915,7 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 			"thread":   "42",
 		},
 		InstanceNamePrefix: "main",
-		Platform: &remoteexecution.Platform{
-			Properties: []*remoteexecution.Platform_Property{
-				{Name: "cpu", Value: "armv6"},
-				{Name: "os", Value: "linux"},
-			},
-		},
+		Platform:           platformForTesting,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
 				Executing: &remoteworker.CurrentState_Executing{
@@ -1137,22 +977,11 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 			SizeBytes: 456,
 		},
 	}, buffer.UserProvided))
-	contentAddressableStorage.EXPECT().Get(
-		gomock.Any(),
-		digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
-	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
-		Platform: &remoteexecution.Platform{
-			Properties: []*remoteexecution.Platform_Property{
-				{Name: "cpu", Value: "armv6"},
-				{Name: "os", Value: "linux"},
-			},
-		},
-	}, buffer.UserProvided))
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
-	defaultPlatformHooks := mock.NewMockPlatformHooks(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks, allowAllAuthorizer())
+	actionRouter := mock.NewMockActionRouter(ctrl)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer())
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -1163,12 +992,7 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 			"thread":   "42",
 		},
 		InstanceNamePrefix: "main",
-		Platform: &remoteexecution.Platform{
-			Properties: []*remoteexecution.Platform_Property{
-				{Name: "cpu", Value: "armv6"},
-				{Name: "os", Value: "linux"},
-			},
-		},
+		Platform:           platformForTesting,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
 				Executing: &remoteworker.CurrentState_Executing{
@@ -1194,14 +1018,13 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 	})
 
 	// Let one client enqueue an operation.
-	defaultPlatformHooks.EXPECT().ExtractInvocationID(gomock.Any(), digest.MustNewInstanceName("main"), gomock.Any(), nil).Return(&anypb.Any{}, nil)
 	initialSizeClassSelector := mock.NewMockSelector(ctrl)
-	defaultPlatformHooks.EXPECT().Analyze(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
+	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
 		CommandDigest: &remoteexecution.Digest{
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 			SizeBytes: 456,
 		},
-	})).Return(initialSizeClassSelector, nil)
+	}), nil).Return(platform.MustNewKey("main", platformForTesting), invocation.MustNewKey(&anypb.Any{}), initialSizeClassSelector, nil)
 	initialSizeClassLearner := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 		Return(0, 30*time.Minute, initialSizeClassLearner)
@@ -1244,12 +1067,7 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 			"thread":   "42",
 		},
 		InstanceNamePrefix: "main",
-		Platform: &remoteexecution.Platform{
-			Properties: []*remoteexecution.Platform_Property{
-				{Name: "cpu", Value: "armv6"},
-				{Name: "os", Value: "linux"},
-			},
-		},
+		Platform:           platformForTesting,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Idle{
 				Idle: &emptypb.Empty{},
@@ -1333,12 +1151,7 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 			"thread":   "42",
 		},
 		InstanceNamePrefix: "main",
-		Platform: &remoteexecution.Platform{
-			Properties: []*remoteexecution.Platform_Property{
-				{Name: "cpu", Value: "armv6"},
-				{Name: "os", Value: "linux"},
-			},
-		},
+		Platform:           platformForTesting,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
 				Executing: &remoteworker.CurrentState_Executing{
@@ -1371,8 +1184,8 @@ func TestInMemoryBuildQueueIdleWorkerSynchronizationTimeout(t *testing.T) {
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
-	defaultPlatformHooks := mock.NewMockPlatformHooks(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks, allowAllAuthorizer())
+	actionRouter := mock.NewMockActionRouter(ctrl)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer())
 
 	// When no work appears, workers should still be woken up
 	// periodically to resynchronize. This ensures that workers that
@@ -1426,31 +1239,14 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 			SizeBytes: 456,
 		},
 	}, buffer.UserProvided))
-	contentAddressableStorage.EXPECT().Get(
-		gomock.Any(),
-		digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
-	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
-		Platform: &remoteexecution.Platform{
-			Properties: []*remoteexecution.Platform_Property{
-				{Name: "cpu", Value: "armv6"},
-				{Name: "os", Value: "linux"},
-			},
-		},
-	}, buffer.UserProvided))
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
-	defaultPlatformHooks := mock.NewMockPlatformHooks(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks, allowAllAuthorizer())
+	actionRouter := mock.NewMockActionRouter(ctrl)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer())
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
-	platform := &remoteexecution.Platform{
-		Properties: []*remoteexecution.Platform_Property{
-			{Name: "cpu", Value: "armv6"},
-			{Name: "os", Value: "linux"},
-		},
-	}
 	clock.EXPECT().Now().Return(time.Unix(1000, 0))
 	response, err := buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
 		WorkerId: map[string]string{
@@ -1458,7 +1254,7 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 			"thread":   "42",
 		},
 		InstanceNamePrefix: "main",
-		Platform:           platform,
+		Platform:           platformForTesting,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
 				Executing: &remoteworker.CurrentState_Executing{
@@ -1585,14 +1381,13 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 	}, workerState)
 
 	// Enqueue an operation.
-	defaultPlatformHooks.EXPECT().ExtractInvocationID(gomock.Any(), digest.MustNewInstanceName("main"), gomock.Any(), nil).Return(&anypb.Any{}, nil)
 	initialSizeClassSelector := mock.NewMockSelector(ctrl)
-	defaultPlatformHooks.EXPECT().Analyze(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
+	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
 		CommandDigest: &remoteexecution.Digest{
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 			SizeBytes: 456,
 		},
-	})).Return(initialSizeClassSelector, nil)
+	}), nil).Return(platform.MustNewKey("main", platformForTesting), invocation.MustNewKey(&anypb.Any{}), initialSizeClassSelector, nil)
 	initialSizeClassLearner := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 		Return(0, 30*time.Minute, initialSizeClassLearner)
@@ -1632,7 +1427,7 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 			"thread":   "42",
 		},
 		InstanceNamePrefix: "main",
-		Platform:           platform,
+		Platform:           platformForTesting,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
 				Executing: &remoteworker.CurrentState_Executing{
@@ -1676,7 +1471,7 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 			"thread":   "42",
 		},
 		InstanceNamePrefix: "main",
-		Platform:           platform,
+		Platform:           platformForTesting,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
 				Executing: &remoteworker.CurrentState_Executing{
@@ -1736,17 +1531,11 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
-	defaultPlatformHooks := mock.NewMockPlatformHooks(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks, allowAllAuthorizer())
+	actionRouter := mock.NewMockActionRouter(ctrl)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer())
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
-	platform := &remoteexecution.Platform{
-		Properties: []*remoteexecution.Platform_Property{
-			{Name: "cpu", Value: "armv6"},
-			{Name: "os", Value: "linux"},
-		},
-	}
 	clock.EXPECT().Now().Return(time.Unix(1000, 0))
 	response, err := buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
 		WorkerId: map[string]string{
@@ -1754,7 +1543,7 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 			"thread":   "42",
 		},
 		InstanceNamePrefix: "main",
-		Platform:           platform,
+		Platform:           platformForTesting,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
 				Executing: &remoteworker.CurrentState_Executing{
@@ -1826,12 +1615,6 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 				SizeBytes: 456,
 			},
 		}, buffer.UserProvided))
-		contentAddressableStorage.EXPECT().Get(
-			gomock.Any(),
-			digest.MustNewDigest("main", p.commandHash, 456),
-		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
-			Platform: platform,
-		}, buffer.UserProvided))
 
 		requestMetadata := &remoteexecution.RequestMetadata{
 			ToolInvocationId: p.invocationID,
@@ -1840,15 +1623,19 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 		require.NoError(t, err)
 		requestMetadataBin, err := proto.Marshal(requestMetadata)
 		require.NoError(t, err)
-		defaultPlatformHooks.EXPECT().ExtractInvocationID(gomock.Any(), digest.MustNewInstanceName("main"), gomock.Any(), testutil.EqProto(t, requestMetadata)).Return(requestMetadataAny, nil)
-
 		initialSizeClassSelector := mock.NewMockSelector(ctrl)
-		defaultPlatformHooks.EXPECT().Analyze(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
+		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
 			CommandDigest: &remoteexecution.Digest{
 				Hash:      p.commandHash,
 				SizeBytes: 456,
 			},
-		})).Return(initialSizeClassSelector, nil)
+		}), testutil.EqProto(t, requestMetadata)).Return(
+			platform.MustNewKey("main", platformForTesting),
+			invocation.MustNewKey(requestMetadataAny),
+			initialSizeClassSelector,
+			nil,
+		)
+
 		initialSizeClassLearner := mock.NewMockLearner(ctrl)
 		initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 			Return(0, 30*time.Minute, initialSizeClassLearner)
@@ -1896,7 +1683,7 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 	sizeClassQueueName := &buildqueuestate.SizeClassQueueName{
 		PlatformQueueName: &buildqueuestate.PlatformQueueName{
 			InstanceNamePrefix: "main",
-			Platform:           platform,
+			Platform:           platformForTesting,
 		},
 	}
 	clock.EXPECT().Now().Return(time.Unix(1036, 0))
@@ -1972,7 +1759,7 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 				"thread":   strconv.FormatInt(int64(i), 10),
 			},
 			InstanceNamePrefix: "main",
-			Platform:           platform,
+			Platform:           platformForTesting,
 			CurrentState: &remoteworker.CurrentState{
 				WorkerState: &remoteworker.CurrentState_Idle{
 					Idle: &emptypb.Empty{},
@@ -2135,17 +1922,11 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonQueued(t *testing.T) {
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
-	defaultPlatformHooks := mock.NewMockPlatformHooks(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks, allowAllAuthorizer())
+	actionRouter := mock.NewMockActionRouter(ctrl)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer())
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
-	platform := &remoteexecution.Platform{
-		Properties: []*remoteexecution.Platform_Property{
-			{Name: "cpu", Value: "armv6"},
-			{Name: "os", Value: "linux"},
-		},
-	}
 	clock.EXPECT().Now().Return(time.Unix(1000, 0))
 	response, err := buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
 		WorkerId: map[string]string{
@@ -2153,7 +1934,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonQueued(t *testing.T) {
 			"thread":   "42",
 		},
 		InstanceNamePrefix: "main",
-		Platform:           platform,
+		Platform:           platformForTesting,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
 				Executing: &remoteworker.CurrentState_Executing{
@@ -2198,28 +1979,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonQueued(t *testing.T) {
 		{"d0438436-cff3-45e1-9c0b-7e5af632c0a4", "46cdaa7c-6bfa-49e2-822e-31be760c51c5"},
 		{"e4896008-d596-44c7-8df6-6ced53dff6b0", "88929b3e-f664-4f11-873d-40324d06378e"},
 	}
-
-	initialSizeClassSelector := mock.NewMockSelector(ctrl)
-	defaultPlatformHooks.EXPECT().Analyze(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
-		CommandDigest: &remoteexecution.Digest{
-			Hash:      "f7a3ac7c17e535bc9b54ab13dbbb95a52ca1f1edaf9503ce23ccb3eca331a4f5",
-			SizeBytes: 456,
-		},
-	})).Return(initialSizeClassSelector, nil)
 	initialSizeClassLearner := mock.NewMockLearner(ctrl)
-	initialSizeClassSelector.EXPECT().Select([]uint32{0}).
-		Return(0, 30*time.Minute, initialSizeClassLearner)
-	for i := 0; i < len(operationParameters)-1; i++ {
-		initialSizeClassSelector := mock.NewMockSelector(ctrl)
-		defaultPlatformHooks.EXPECT().Analyze(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
-			CommandDigest: &remoteexecution.Digest{
-				Hash:      "f7a3ac7c17e535bc9b54ab13dbbb95a52ca1f1edaf9503ce23ccb3eca331a4f5",
-				SizeBytes: 456,
-			},
-		})).Return(initialSizeClassSelector, nil)
-		initialSizeClassSelector.EXPECT().Abandoned()
-	}
-
 	for i, p := range operationParameters {
 		contentAddressableStorage.EXPECT().Get(
 			gomock.Any(),
@@ -2230,13 +1990,8 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonQueued(t *testing.T) {
 				SizeBytes: 456,
 			},
 		}, buffer.UserProvided))
-		contentAddressableStorage.EXPECT().Get(
-			gomock.Any(),
-			digest.MustNewDigest("main", "f7a3ac7c17e535bc9b54ab13dbbb95a52ca1f1edaf9503ce23ccb3eca331a4f5", 456),
-		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
-			Platform: platform,
-		}, buffer.UserProvided))
 
+		initialSizeClassSelector := mock.NewMockSelector(ctrl)
 		requestMetadata := &remoteexecution.RequestMetadata{
 			ToolInvocationId: p.invocationID,
 		}
@@ -2246,7 +2001,14 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonQueued(t *testing.T) {
 			ToolInvocationId: p.invocationID,
 		})
 		require.NoError(t, err)
-		defaultPlatformHooks.EXPECT().ExtractInvocationID(gomock.Any(), digest.MustNewInstanceName("main"), gomock.Any(), testutil.EqProto(t, requestMetadata)).Return(requestMetadataAny, nil)
+		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), gomock.Any(), testutil.EqProto(t, requestMetadata)).
+			Return(platform.MustNewKey("main", platformForTesting), invocation.MustNewKey(requestMetadataAny), initialSizeClassSelector, nil)
+		if i == 0 {
+			initialSizeClassSelector.EXPECT().Select([]uint32{0}).
+				Return(0, 30*time.Minute, initialSizeClassLearner)
+		} else {
+			initialSizeClassSelector.EXPECT().Abandoned()
+		}
 
 		ctxWithCancel, cancel := context.WithCancel(ctx)
 
@@ -2305,7 +2067,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonQueued(t *testing.T) {
 	sizeClassQueueName := &buildqueuestate.SizeClassQueueName{
 		PlatformQueueName: &buildqueuestate.PlatformQueueName{
 			InstanceNamePrefix: "main",
-			Platform:           platform,
+			Platform:           platformForTesting,
 		},
 	}
 	for i := 0; i <= len(operationParameters); i++ {
@@ -2345,17 +2107,11 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
-	defaultPlatformHooks := mock.NewMockPlatformHooks(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks, allowAllAuthorizer())
+	actionRouter := mock.NewMockActionRouter(ctrl)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer())
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
-	platform := &remoteexecution.Platform{
-		Properties: []*remoteexecution.Platform_Property{
-			{Name: "cpu", Value: "armv6"},
-			{Name: "os", Value: "linux"},
-		},
-	}
 	clock.EXPECT().Now().Return(time.Unix(1000, 0))
 	response, err := buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
 		WorkerId: map[string]string{
@@ -2363,7 +2119,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 			"thread":   "42",
 		},
 		InstanceNamePrefix: "main",
-		Platform:           platform,
+		Platform:           platformForTesting,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
 				Executing: &remoteworker.CurrentState_Executing{
@@ -2408,30 +2164,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 		{"d0438436-cff3-45e1-9c0b-7e5af632c0a4", "46cdaa7c-6bfa-49e2-822e-31be760c51c5"},
 		{"e4896008-d596-44c7-8df6-6ced53dff6b0", "88929b3e-f664-4f11-873d-40324d06378e"},
 	}
-
-	initialSizeClassSelector := mock.NewMockSelector(ctrl)
-	defaultPlatformHooks.EXPECT().Analyze(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
-		CommandDigest: &remoteexecution.Digest{
-			Hash:      "f7a3ac7c17e535bc9b54ab13dbbb95a52ca1f1edaf9503ce23ccb3eca331a4f5",
-			SizeBytes: 456,
-		},
-		Platform: platform,
-	})).Return(initialSizeClassSelector, nil)
 	initialSizeClassLearner := mock.NewMockLearner(ctrl)
-	initialSizeClassSelector.EXPECT().Select([]uint32{0}).
-		Return(0, 30*time.Minute, initialSizeClassLearner)
-	for i := 0; i < len(operationParameters)-1; i++ {
-		initialSizeClassSelector := mock.NewMockSelector(ctrl)
-		defaultPlatformHooks.EXPECT().Analyze(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
-			CommandDigest: &remoteexecution.Digest{
-				Hash:      "f7a3ac7c17e535bc9b54ab13dbbb95a52ca1f1edaf9503ce23ccb3eca331a4f5",
-				SizeBytes: 456,
-			},
-			Platform: platform,
-		})).Return(initialSizeClassSelector, nil)
-		initialSizeClassSelector.EXPECT().Abandoned()
-	}
-
 	for i, p := range operationParameters {
 		contentAddressableStorage.EXPECT().Get(
 			gomock.Any(),
@@ -2441,9 +2174,10 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 				Hash:      "f7a3ac7c17e535bc9b54ab13dbbb95a52ca1f1edaf9503ce23ccb3eca331a4f5",
 				SizeBytes: 456,
 			},
-			Platform: platform,
+			Platform: platformForTesting,
 		}, buffer.UserProvided))
 
+		initialSizeClassSelector := mock.NewMockSelector(ctrl)
 		requestMetadata := &remoteexecution.RequestMetadata{
 			ToolInvocationId: p.invocationID,
 			TargetId:         "//:hello_world",
@@ -2452,7 +2186,14 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 		require.NoError(t, err)
 		requestMetadataBin, err := proto.Marshal(requestMetadata)
 		require.NoError(t, err)
-		defaultPlatformHooks.EXPECT().ExtractInvocationID(gomock.Any(), digest.MustNewInstanceName("main"), gomock.Any(), testutil.EqProto(t, requestMetadata)).Return(requestMetadataAny, nil)
+		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), gomock.Any(), testutil.EqProto(t, requestMetadata)).
+			Return(platform.MustNewKey("main", platformForTesting), invocation.MustNewKey(requestMetadataAny), initialSizeClassSelector, nil)
+		if i == 0 {
+			initialSizeClassSelector.EXPECT().Select([]uint32{0}).
+				Return(0, 30*time.Minute, initialSizeClassLearner)
+		} else {
+			initialSizeClassSelector.EXPECT().Abandoned()
+		}
 
 		ctxWithCancel, cancel := context.WithCancel(ctx)
 
@@ -2513,7 +2254,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 			"thread":   "42",
 		},
 		InstanceNamePrefix: "main",
-		Platform:           platform,
+		Platform:           platformForTesting,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Idle{
 				Idle: &emptypb.Empty{},
@@ -2540,7 +2281,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 							Hash:      "f7a3ac7c17e535bc9b54ab13dbbb95a52ca1f1edaf9503ce23ccb3eca331a4f5",
 							SizeBytes: 456,
 						},
-						Platform: platform,
+						Platform: platformForTesting,
 						Timeout:  &durationpb.Duration{Seconds: 1800},
 					},
 					QueuedTimestamp:   &timestamppb.Timestamp{Seconds: 1010},
@@ -2558,7 +2299,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 	sizeClassQueueName := &buildqueuestate.SizeClassQueueName{
 		PlatformQueueName: &buildqueuestate.PlatformQueueName{
 			InstanceNamePrefix: "main",
-			Platform:           platform,
+			Platform:           platformForTesting,
 		},
 	}
 	for i := 0; i <= len(operationParameters); i++ {
@@ -2594,17 +2335,11 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
-	defaultPlatformHooks := mock.NewMockPlatformHooks(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks, allowAllAuthorizer())
+	actionRouter := mock.NewMockActionRouter(ctrl)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer())
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
-	platform := &remoteexecution.Platform{
-		Properties: []*remoteexecution.Platform_Property{
-			{Name: "cpu", Value: "armv6"},
-			{Name: "os", Value: "linux"},
-		},
-	}
 	clock.EXPECT().Now().Return(time.Unix(1000, 0))
 	response, err := buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
 		WorkerId: map[string]string{
@@ -2612,7 +2347,7 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 			"thread":   "42",
 		},
 		InstanceNamePrefix: "main",
-		Platform:           platform,
+		Platform:           platformForTesting,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
 				Executing: &remoteworker.CurrentState_Executing{
@@ -2647,20 +2382,13 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 			SizeBytes: 456,
 		},
 	}, buffer.UserProvided))
-	contentAddressableStorage.EXPECT().Get(
-		gomock.Any(),
-		digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
-	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
-		Platform: platform,
-	}, buffer.UserProvided))
-	defaultPlatformHooks.EXPECT().ExtractInvocationID(gomock.Any(), digest.MustNewInstanceName("main"), gomock.Any(), nil).Return(&anypb.Any{}, nil)
 	initialSizeClassSelector := mock.NewMockSelector(ctrl)
-	defaultPlatformHooks.EXPECT().Analyze(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
+	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
 		CommandDigest: &remoteexecution.Digest{
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 			SizeBytes: 456,
 		},
-	})).Return(initialSizeClassSelector, nil)
+	}), nil).Return(platform.MustNewKey("main", platformForTesting), invocation.MustNewKey(&anypb.Any{}), initialSizeClassSelector, nil)
 	initialSizeClassLearner := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 		Return(0, 30*time.Minute, initialSizeClassLearner)
@@ -2705,7 +2433,7 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 			"thread":   "42",
 		},
 		InstanceNamePrefix: "main",
-		Platform:           platform,
+		Platform:           platformForTesting,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Idle{
 				Idle: &emptypb.Empty{},
@@ -2765,7 +2493,7 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 			"thread":   "42",
 		},
 		InstanceNamePrefix: "main",
-		Platform:           platform,
+		Platform:           platformForTesting,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
 				Executing: &remoteworker.CurrentState_Executing{
@@ -2845,29 +2573,21 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
-	defaultPlatformHooks := mock.NewMockPlatformHooks(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks, allowAllAuthorizer())
+	actionRouter := mock.NewMockActionRouter(ctrl)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer())
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Register a platform queue that allows workers up to size
 	// class 8. The maximum needs to be provided to ensure that the
 	// execution strategy remains deterministic.
-	platform := &remoteexecution.Platform{
-		Properties: []*remoteexecution.Platform_Property{
-			{Name: "cpu", Value: "aarch64"},
-			{Name: "os", Value: "linux"},
-		},
-	}
-	platformHooks := mock.NewMockPlatformHooks(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(1000, 0))
 	require.NoError(t, buildQueue.RegisterPredeclaredPlatformQueue(
 		digest.MustNewInstanceName("main"),
-		platform,
+		platformForTesting,
 		/* workerInvocationStickinessLimit = */ 0,
 		/* maximumQueuedBackgroundLearningOperations = */ 0,
 		/* backgroundLearningOperationPriority = */ 0,
-		/* maximumSizeClass = */ 8,
-		platformHooks))
+		/* maximumSizeClass = */ 8))
 
 	// Workers with a higher size class should be rejected, as no
 	// requests will end up getting sent to them.
@@ -2878,7 +2598,7 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 			"thread":   "42",
 		},
 		InstanceNamePrefix: "main",
-		Platform:           platform,
+		Platform:           platformForTesting,
 		SizeClass:          9,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Idle{
@@ -2897,7 +2617,7 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 			"thread":   "42",
 		},
 		InstanceNamePrefix: "main",
-		Platform:           platform,
+		Platform:           platformForTesting,
 		SizeClass:          3,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
@@ -2934,20 +2654,13 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 			SizeBytes: 456,
 		},
 	}, buffer.UserProvided))
-	contentAddressableStorage.EXPECT().Get(
-		gomock.Any(),
-		digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
-	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
-		Platform: platform,
-	}, buffer.UserProvided))
-	platformHooks.EXPECT().ExtractInvocationID(gomock.Any(), digest.MustNewInstanceName("main"), gomock.Any(), nil).Return(&anypb.Any{}, nil)
 	initialSizeClassSelector := mock.NewMockSelector(ctrl)
-	platformHooks.EXPECT().Analyze(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
+	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
 		CommandDigest: &remoteexecution.Digest{
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 			SizeBytes: 456,
 		},
-	})).Return(initialSizeClassSelector, nil)
+	}), nil).Return(platform.MustNewKey("main", platformForTesting), invocation.MustNewKey(&anypb.Any{}), initialSizeClassSelector, nil)
 	initialSizeClassLearner1 := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{3, 8}).
 		Return(0, 7*time.Minute, initialSizeClassLearner1)
@@ -2990,7 +2703,7 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 			"thread":   "42",
 		},
 		InstanceNamePrefix: "main",
-		Platform:           platform,
+		Platform:           platformForTesting,
 		SizeClass:          3,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Idle{
@@ -3051,7 +2764,7 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 			"thread":   "42",
 		},
 		InstanceNamePrefix: "main",
-		Platform:           platform,
+		Platform:           platformForTesting,
 		SizeClass:          3,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
@@ -3109,7 +2822,7 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 			"thread":   "42",
 		},
 		InstanceNamePrefix: "main",
-		Platform:           platform,
+		Platform:           platformForTesting,
 		SizeClass:          8,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Idle{
@@ -3167,7 +2880,7 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 			"thread":   "42",
 		},
 		InstanceNamePrefix: "main",
-		Platform:           platform,
+		Platform:           platformForTesting,
 		SizeClass:          8,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
@@ -3242,29 +2955,21 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
-	defaultPlatformHooks := mock.NewMockPlatformHooks(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks, allowAllAuthorizer())
+	actionRouter := mock.NewMockActionRouter(ctrl)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer())
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Register a platform queue that allows workers up to size
 	// class 8. The maximum needs to be provided to ensure that the
 	// execution strategy remains deterministic.
-	platform := &remoteexecution.Platform{
-		Properties: []*remoteexecution.Platform_Property{
-			{Name: "cpu", Value: "aarch64"},
-			{Name: "os", Value: "linux"},
-		},
-	}
-	platformHooks := mock.NewMockPlatformHooks(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(1000, 0))
 	require.NoError(t, buildQueue.RegisterPredeclaredPlatformQueue(
 		digest.MustNewInstanceName("main"),
-		platform,
+		platformForTesting,
 		/* workerInvocationStickinessLimit = */ 0,
 		/* maximumQueuedBackgroundLearningOperations = */ 10,
 		/* backgroundLearningOperationPriority = */ 100,
-		/* maximumSizeClass = */ 8,
-		platformHooks))
+		/* maximumSizeClass = */ 8))
 
 	clock.EXPECT().Now().Return(time.Unix(1002, 0))
 	response, err := buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
@@ -3273,7 +2978,7 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 			"thread":   "42",
 		},
 		InstanceNamePrefix: "main",
-		Platform:           platform,
+		Platform:           platformForTesting,
 		SizeClass:          3,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
@@ -3310,20 +3015,13 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 			SizeBytes: 456,
 		},
 	}, buffer.UserProvided))
-	contentAddressableStorage.EXPECT().Get(
-		gomock.Any(),
-		digest.MustNewDigest("main", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
-	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
-		Platform: platform,
-	}, buffer.UserProvided))
-	platformHooks.EXPECT().ExtractInvocationID(gomock.Any(), digest.MustNewInstanceName("main"), gomock.Any(), nil).Return(&anypb.Any{}, nil)
 	initialSizeClassSelector := mock.NewMockSelector(ctrl)
-	platformHooks.EXPECT().Analyze(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
+	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
 		CommandDigest: &remoteexecution.Digest{
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 			SizeBytes: 456,
 		},
-	})).Return(initialSizeClassSelector, nil)
+	}), nil).Return(platform.MustNewKey("main", platformForTesting), invocation.MustNewKey(&anypb.Any{}), initialSizeClassSelector, nil)
 	initialSizeClassLearner1 := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{3, 8}).
 		Return(1, 7*time.Minute, initialSizeClassLearner1)
@@ -3366,7 +3064,7 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 			"thread":   "42",
 		},
 		InstanceNamePrefix: "main",
-		Platform:           platform,
+		Platform:           platformForTesting,
 		SizeClass:          8,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Idle{
@@ -3427,7 +3125,7 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 			"thread":   "42",
 		},
 		InstanceNamePrefix: "main",
-		Platform:           platform,
+		Platform:           platformForTesting,
 		SizeClass:          8,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
@@ -3505,7 +3203,7 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 			"thread":   "42",
 		},
 		InstanceNamePrefix: "main",
-		Platform:           platform,
+		Platform:           platformForTesting,
 		SizeClass:          3,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Idle{
@@ -3547,7 +3245,7 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 			"thread":   "42",
 		},
 		InstanceNamePrefix: "main",
-		Platform:           platform,
+		Platform:           platformForTesting,
 		SizeClass:          3,
 		CurrentState: &remoteworker.CurrentState{
 			WorkerState: &remoteworker.CurrentState_Executing_{
@@ -3593,17 +3291,11 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 	mockClock := mock.NewMockClock(ctrl)
 	mockClock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
-	defaultPlatformHooks := mock.NewMockPlatformHooks(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, mockClock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks, allowAllAuthorizer())
+	actionRouter := mock.NewMockActionRouter(ctrl)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, mockClock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer())
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Common values used by steps below.
-	platform := &remoteexecution.Platform{
-		Properties: []*remoteexecution.Platform_Property{
-			{Name: "cpu", Value: "aarch64"},
-			{Name: "os", Value: "linux"},
-		},
-	}
 	action := &remoteexecution.Action{
 		CommandDigest: &remoteexecution.Digest{
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
@@ -3638,7 +3330,7 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 	}
 	sizeClassQueueName := &buildqueuestate.SizeClassQueueName{
 		PlatformQueueName: &buildqueuestate.PlatformQueueName{
-			Platform: platform,
+			Platform: platformForTesting,
 		},
 	}
 	metadataExecuting, err := anypb.New(&remoteexecution.ExecuteOperationMetadata{
@@ -3660,12 +3352,6 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 		gomock.Any(),
 		digest.MustNewDigest("", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
 	).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided)).AnyTimes()
-	contentAddressableStorage.EXPECT().Get(
-		gomock.Any(),
-		digest.MustNewDigest("", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
-	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
-		Platform: platform,
-	}, buffer.UserProvided)).AnyTimes()
 
 	// Create a worker that does a blocking Synchronize() call
 	// against the scheduler.
@@ -3682,7 +3368,7 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 	go func() {
 		response1, err1 = buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
 			WorkerId: workerID1,
-			Platform: platform,
+			Platform: platformForTesting,
 			CurrentState: &remoteworker.CurrentState{
 				WorkerState: &remoteworker.CurrentState_Idle{
 					Idle: &emptypb.Empty{},
@@ -3696,9 +3382,9 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 	// Assign a task to it. The worker should be woken up directly.
 	// The client should immediately receive an EXECUTING update.
 	// There is no need to return QUEUED.
-	defaultPlatformHooks.EXPECT().ExtractInvocationID(gomock.Any(), digest.EmptyInstanceName, gomock.Any(), nil).Return(invocationID1, nil)
 	initialSizeClassSelector1 := mock.NewMockSelector(ctrl)
-	defaultPlatformHooks.EXPECT().Analyze(gomock.Any(), gomock.Any(), testutil.EqProto(t, action)).Return(initialSizeClassSelector1, nil)
+	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).
+		Return(platform.MustNewKey("", platformForTesting), invocation.MustNewKey(invocationID1), initialSizeClassSelector1, nil)
 	initialSizeClassLearner1 := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector1.EXPECT().Select([]uint32{0}).Return(0, 7*time.Minute, initialSizeClassLearner1)
 	mockClock.EXPECT().Now().Return(time.Unix(1001, 0)).Times(2)
@@ -3751,7 +3437,7 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 	go func() {
 		response2, err2 = buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
 			WorkerId: workerID1,
-			Platform: platform,
+			Platform: platformForTesting,
 			CurrentState: &remoteworker.CurrentState{
 				WorkerState: &remoteworker.CurrentState_Executing_{
 					Executing: &remoteworker.CurrentState_Executing{
@@ -3829,7 +3515,7 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 	go func() {
 		response3, err3 = buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
 			WorkerId: workerID2,
-			Platform: platform,
+			Platform: platformForTesting,
 			CurrentState: &remoteworker.CurrentState{
 				WorkerState: &remoteworker.CurrentState_Idle{
 					Idle: &emptypb.Empty{},
@@ -3844,9 +3530,9 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 	// different invocation ID, it must be scheduled on the second
 	// worker. We want to keep the first worker available for
 	// actions for the same invocation ID.
-	defaultPlatformHooks.EXPECT().ExtractInvocationID(gomock.Any(), digest.EmptyInstanceName, gomock.Any(), nil).Return(invocationID2, nil)
 	initialSizeClassSelector2 := mock.NewMockSelector(ctrl)
-	defaultPlatformHooks.EXPECT().Analyze(gomock.Any(), gomock.Any(), testutil.EqProto(t, action)).Return(initialSizeClassSelector2, nil)
+	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).
+		Return(platform.MustNewKey("", platformForTesting), invocation.MustNewKey(invocationID2), initialSizeClassSelector2, nil)
 	initialSizeClassLearner2 := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector2.EXPECT().Select([]uint32{0}).Return(0, 7*time.Minute, initialSizeClassLearner2)
 	mockClock.EXPECT().Now().Return(time.Unix(1005, 0)).Times(2)
@@ -3897,7 +3583,7 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 	go func() {
 		response4, err4 = buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
 			WorkerId: workerID2,
-			Platform: platform,
+			Platform: platformForTesting,
 			CurrentState: &remoteworker.CurrentState{
 				WorkerState: &remoteworker.CurrentState_Executing_{
 					Executing: &remoteworker.CurrentState_Executing{
@@ -3952,9 +3638,9 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 	// invocation, we should execute it on the first worker, as that
 	// worker is associated with an invocation that is least
 	// recently seen.
-	defaultPlatformHooks.EXPECT().ExtractInvocationID(gomock.Any(), digest.EmptyInstanceName, gomock.Any(), nil).Return(invocationID3, nil)
 	initialSizeClassSelector3 := mock.NewMockSelector(ctrl)
-	defaultPlatformHooks.EXPECT().Analyze(gomock.Any(), gomock.Any(), testutil.EqProto(t, action)).Return(initialSizeClassSelector3, nil)
+	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).
+		Return(platform.MustNewKey("", platformForTesting), invocation.MustNewKey(invocationID3), initialSizeClassSelector3, nil)
 	initialSizeClassLearner3 := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector3.EXPECT().Select([]uint32{0}).Return(0, 7*time.Minute, initialSizeClassLearner3)
 	mockClock.EXPECT().Now().Return(time.Unix(1008, 0)).Times(2)
@@ -3997,30 +3683,22 @@ func TestInMemoryBuildQueueWorkerInvocationStickinessLimit(t *testing.T) {
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
-	defaultPlatformHooks := mock.NewMockPlatformHooks(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks, allowAllAuthorizer())
+	actionRouter := mock.NewMockActionRouter(ctrl)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer())
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Register a platform queue that has a small amount of worker
 	// invocation stickiness. This should workers to prefer picking
 	// up operations belonging to the same invocation as the last
 	// executed task, if the difference in queueing time is small.
-	platform := &remoteexecution.Platform{
-		Properties: []*remoteexecution.Platform_Property{
-			{Name: "cpu", Value: "aarch64"},
-			{Name: "os", Value: "linux"},
-		},
-	}
-	platformHooks := mock.NewMockPlatformHooks(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(1000, 0))
 	require.NoError(t, buildQueue.RegisterPredeclaredPlatformQueue(
 		digest.EmptyInstanceName,
-		platform,
+		platformForTesting,
 		/* workerInvocationStickinessLimit = */ 3*time.Second,
 		/* maximumQueuedBackgroundLearningOperations = */ 10,
 		/* backgroundLearningOperationPriority = */ 100,
-		/* maximumSizeClass = */ 0,
-		platformHooks))
+		/* maximumSizeClass = */ 0))
 
 	operationParameters := []struct {
 		operationName    string
@@ -4052,20 +3730,14 @@ func TestInMemoryBuildQueueWorkerInvocationStickinessLimit(t *testing.T) {
 			gomock.Any(),
 			digest.MustNewDigest("", "0474d2f48968a56da4de20718d8ac23aafd80709", 123),
 		).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
-		contentAddressableStorage.EXPECT().Get(
-			gomock.Any(),
-			digest.MustNewDigest("", "9b818e201c59f31954cb1e126cc67562ec545ab4", 456),
-		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
-			Platform: platform,
-		}, buffer.UserProvided))
 		requestMetadata := &remoteexecution.RequestMetadata{
 			ToolInvocationId: p.toolInvocationID,
 		}
 		requestMetadataAny, err := anypb.New(requestMetadata)
 		require.NoError(t, err)
-		platformHooks.EXPECT().ExtractInvocationID(gomock.Any(), digest.EmptyInstanceName, gomock.Any(), nil).Return(requestMetadataAny, nil)
 		initialSizeClassSelector := mock.NewMockSelector(ctrl)
-		platformHooks.EXPECT().Analyze(gomock.Any(), gomock.Any(), testutil.EqProto(t, action)).Return(initialSizeClassSelector, nil)
+		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).
+			Return(platform.MustNewKey("", platformForTesting), invocation.MustNewKey(requestMetadataAny), initialSizeClassSelector, nil)
 		initialSizeClassLearner := mock.NewMockLearner(ctrl)
 		initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 			Return(0, time.Minute, initialSizeClassLearner)
@@ -4121,7 +3793,7 @@ func TestInMemoryBuildQueueWorkerInvocationStickinessLimit(t *testing.T) {
 				"hostname": "worker123",
 				"thread":   "42",
 			},
-			Platform: platform,
+			Platform: platformForTesting,
 			CurrentState: &remoteworker.CurrentState{
 				WorkerState: &remoteworker.CurrentState_Idle{
 					Idle: &emptypb.Empty{},
@@ -4179,7 +3851,7 @@ func TestInMemoryBuildQueueWorkerInvocationStickinessLimit(t *testing.T) {
 				"hostname": "worker123",
 				"thread":   "42",
 			},
-			Platform: platform,
+			Platform: platformForTesting,
 			CurrentState: &remoteworker.CurrentState{
 				WorkerState: &remoteworker.CurrentState_Executing_{
 					Executing: &remoteworker.CurrentState_Executing{
@@ -4228,9 +3900,9 @@ func TestInMemoryBuildQueueAuthorization(t *testing.T) {
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0)).AnyTimes()
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
-	defaultPlatformHooks := mock.NewMockPlatformHooks(ctrl)
+	actionRouter := mock.NewMockActionRouter(ctrl)
 	authorizer := mock.NewMockAuthorizer(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, defaultPlatformHooks, authorizer)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, authorizer)
 	beepboop := digest.MustNewInstanceName("beepboop")
 
 	t.Run("GetCapabilities-NotAuthorized", func(t *testing.T) {
@@ -4266,7 +3938,7 @@ func TestInMemoryBuildQueueAuthorization(t *testing.T) {
 	})
 
 	t.Run("WaitExecution", func(t *testing.T) {
-		buildQueue.RegisterPredeclaredPlatformQueue(digest.MustNewInstanceName(""), &remoteexecution.Platform{}, 0*time.Second, 0, 0, 0, defaultPlatformHooks)
+		buildQueue.RegisterPredeclaredPlatformQueue(digest.MustNewInstanceName(""), &remoteexecution.Platform{}, 0*time.Second, 0, 0, 0)
 
 		// Allow the Execute
 		authorizer.EXPECT().Authorize(gomock.Any(), []digest.InstanceName{beepboop}).Return([]error{nil})
@@ -4284,17 +3956,9 @@ func TestInMemoryBuildQueueAuthorization(t *testing.T) {
 			digest.MustNewDigest("beepboop", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
 		).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
 
-		contentAddressableStorage.EXPECT().Get(
-			gomock.Any(),
-			digest.MustNewDigest("beepboop", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
-			Platform: &remoteexecution.Platform{},
-		}, buffer.UserProvided))
-
-		defaultPlatformHooks.EXPECT().ExtractInvocationID(gomock.Any(), digest.MustNewInstanceName("beepboop"), gomock.Any(), nil).Return(&anypb.Any{}, nil)
-
 		initialSizeClassSelector := mock.NewMockSelector(ctrl)
-		defaultPlatformHooks.EXPECT().Analyze(gomock.Any(), gomock.Any(), testutil.EqProto(t, action)).Return(initialSizeClassSelector, nil)
+		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).
+			Return(platform.MustNewKey("beepboop", &remoteexecution.Platform{}), invocation.MustNewKey(&anypb.Any{}), initialSizeClassSelector, nil)
 
 		initialSizeClassLearner := mock.NewMockLearner(ctrl)
 		initialSizeClassSelector.EXPECT().Select([]uint32{0}).Return(0, 30*time.Minute, initialSizeClassLearner)

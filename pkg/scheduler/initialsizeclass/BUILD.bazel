@@ -6,6 +6,7 @@ go_library(
         "action_timeout_extractor.go",
         "analyzer.go",
         "blob_access_previous_execution_stats_pool.go",
+        "configuration.go",
         "fallback_analyzer.go",
         "feedback_driven_analyzer.go",
         "outcomes.go",
@@ -16,6 +17,7 @@ go_library(
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/scheduler/initialsizeclass",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/proto/configuration/scheduler",
         "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:execution",
         "@com_github_buildbarn_bb_storage//pkg/blobstore",
         "@com_github_buildbarn_bb_storage//pkg/blobstore/buffer",

@@ -17,7 +17,9 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/buildqueuestate"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/initialsizeclass"
+	scheduler_invocation "github.com/buildbarn/bb-remote-execution/pkg/scheduler/invocation"
 	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/platform"
+	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/routing"
 	"github.com/buildbarn/bb-storage/pkg/auth"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/builder"
@@ -32,7 +34,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -160,16 +161,6 @@ type InMemoryBuildQueueConfiguration struct {
 	WorkerWithNoSynchronizationsTimeout time.Duration
 }
 
-// PlatformHooks contains a set of methods that can be provided for any
-// platform managed by InMemoryBuildQueue to analyze incoming execution
-// requests. For each of these requests, it can compute what the
-// invocation ID is and on which size class the action needs to be
-// executed.
-type PlatformHooks interface {
-	InvocationIDExtractor
-	initialsizeclass.Analyzer
-}
-
 // InMemoryBuildQueue implements a BuildQueue that can distribute
 // requests through the Remote Worker protocol to worker processes. All
 // of the state of the build queue (i.e., list of queued execution
@@ -181,8 +172,7 @@ type InMemoryBuildQueue struct {
 	configuration                       *InMemoryBuildQueueConfiguration
 	platformQueueAbsenceHardFailureTime time.Time
 	maximumMessageSizeBytes             int
-	platformHooksTrie                   *platform.Trie
-	platformHooks                       []PlatformHooks
+	actionRouter                        routing.ActionRouter
 
 	lock               sync.Mutex
 	platformQueuesTrie *platform.Trie
@@ -216,7 +206,7 @@ type InMemoryBuildQueue struct {
 // NewInMemoryBuildQueue creates a new InMemoryBuildQueue that is in the
 // initial state. It does not have any queues, workers or queued
 // execution requests. All of these are created by sending it RPCs.
-func NewInMemoryBuildQueue(contentAddressableStorage blobstore.BlobAccess, clock clock.Clock, uuidGenerator util.UUIDGenerator, configuration *InMemoryBuildQueueConfiguration, maximumMessageSizeBytes int, defaultPlatformHooks PlatformHooks, executeAuthorizer auth.Authorizer) *InMemoryBuildQueue {
+func NewInMemoryBuildQueue(contentAddressableStorage blobstore.BlobAccess, clock clock.Clock, uuidGenerator util.UUIDGenerator, configuration *InMemoryBuildQueueConfiguration, maximumMessageSizeBytes int, actionRouter routing.ActionRouter, executeAuthorizer auth.Authorizer) *InMemoryBuildQueue {
 	inMemoryBuildQueuePrometheusMetrics.Do(func() {
 		prometheus.MustRegister(inMemoryBuildQueueTasksScheduledTotal)
 		prometheus.MustRegister(inMemoryBuildQueueTasksQueuedDurationSeconds)
@@ -237,8 +227,7 @@ func NewInMemoryBuildQueue(contentAddressableStorage blobstore.BlobAccess, clock
 		configuration:                       configuration,
 		platformQueueAbsenceHardFailureTime: clock.Now().Add(configuration.PlatformQueueWithNoWorkersTimeout),
 		maximumMessageSizeBytes:             maximumMessageSizeBytes,
-		platformHooksTrie:                   platform.NewTrie(),
-		platformHooks:                       []PlatformHooks{defaultPlatformHooks},
+		actionRouter:                        actionRouter,
 		platformQueuesTrie:                  platform.NewTrie(),
 		sizeClassQueues:                     map[sizeClassKey]*sizeClassQueue{},
 		operationsNameMap:                   map[string]*operation{},
@@ -261,7 +250,7 @@ var (
 // capable of using multiple size classes, as a maximum size class and
 // initialsizeclass.Analyzer can be provided for specifying how
 // operations are assigned to size classes.
-func (bq *InMemoryBuildQueue) RegisterPredeclaredPlatformQueue(instanceNamePrefix digest.InstanceName, platformMessage *remoteexecution.Platform, workerInvocationStickinessLimit time.Duration, maximumQueuedBackgroundLearningOperations int, backgroundLearningOperationPriority int32, maximumSizeClass uint32, platformHooks PlatformHooks) error {
+func (bq *InMemoryBuildQueue) RegisterPredeclaredPlatformQueue(instanceNamePrefix digest.InstanceName, platformMessage *remoteexecution.Platform, workerInvocationStickinessLimit time.Duration, maximumQueuedBackgroundLearningOperations int, backgroundLearningOperationPriority int32, maximumSizeClass uint32) error {
 	platformKey, err := platform.NewKey(instanceNamePrefix, platformMessage)
 	if err != nil {
 		return err
@@ -276,8 +265,6 @@ func (bq *InMemoryBuildQueue) RegisterPredeclaredPlatformQueue(instanceNamePrefi
 
 	pq := bq.addPlatformQueue(platformKey, workerInvocationStickinessLimit, maximumQueuedBackgroundLearningOperations, backgroundLearningOperationPriority)
 	pq.addSizeClassQueue(bq, maximumSizeClass, false)
-	bq.platformHooksTrie.Set(platformKey, len(bq.platformHooks)-1)
-	bq.platformHooks = append(bq.platformHooks, platformHooks)
 	return nil
 }
 
@@ -378,7 +365,6 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 	// Forward the client-provided request metadata, so that the
 	// worker logs it.
 	requestMetadata := getRequestMetadata(ctx)
-	targetID := requestMetadata.GetTargetId()
 	var auxiliaryMetadata []*anypb.Any
 	if requestMetadata != nil {
 		requestMetadataAny, err := anypb.New(requestMetadata)
@@ -389,52 +375,9 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 	}
 	w3cTraceContext := otel.W3CTraceContextFromContext(ctx)
 
-	// TODO: Remove this code once all clients support REv2.2.
-	if action.Platform == nil || targetID == "" {
-		commandDigest, err := instanceName.NewDigestFromProto(action.CommandDigest)
-		if err != nil {
-			return util.StatusWrap(err, "Failed to extract digest for command")
-		}
-		commandMessage, err := bq.contentAddressableStorage.Get(ctx, commandDigest).ToProto(&remoteexecution.Command{}, bq.maximumMessageSizeBytes)
-		if err != nil {
-			return util.StatusWrap(err, "Failed to obtain command")
-		}
-		command := commandMessage.(*remoteexecution.Command)
-
-		// REv2.1 and older don't provide platform properties as
-		// part of the Action message.
-		if action.Platform == nil {
-			platformKey, err = platform.NewKey(instanceName, command.Platform)
-			if err != nil {
-				return err
-			}
-		}
-
-		// REv2.1 RequestMetadata doesn't include the target_id
-		// field. Provide the argv[0] instead, so that we gain
-		// some insight in what this action does.
-		if targetID == "" && len(command.Arguments) > 0 {
-			targetID = command.Arguments[0]
-		}
-	}
-
-	// Create an invocation key. Operations are scheduled by
-	// grouping them by invocation, so that scheduling is fair.
-	platformHooks := bq.platformHooks[bq.platformHooksTrie.GetLongestPrefix(platformKey)+1]
-	invocationID, err := platformHooks.ExtractInvocationID(ctx, instanceName, action, requestMetadata)
+	platformKey, invocationKey, initialSizeClassSelector, err := bq.actionRouter.RouteAction(ctx, actionDigest.GetDigestFunction(), action, requestMetadata)
 	if err != nil {
-		return util.StatusWrap(err, "Failed to extract invocation ID from request")
-	}
-	invocationKey, err := newInvocationKey(invocationID)
-	if err != nil {
-		return err
-	}
-
-	// Analyze the action, so that we can later determine on which
-	// size class this action needs to run.
-	initialSizeClassSelector, err := platformHooks.Analyze(ctx, actionDigest.GetDigestFunction(), action)
-	if err != nil {
-		return util.StatusWrap(err, "Failed to analyze initial size class of action")
+		return util.StatusWrap(err, "Failed to route action")
 	}
 
 	bq.enter(bq.clock.Now())
@@ -509,7 +452,7 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 			InstanceNameSuffix: pq.instanceNamePatcher.PatchInstanceName(instanceName).String(),
 			W3CTraceContext:    w3cTraceContext,
 		},
-		targetID:                targetID,
+		targetID:                requestMetadata.GetTargetId(),
 		initialSizeClassLearner: initialSizeClassLearner,
 		stageChangeWakeup:       make(chan struct{}),
 	}
@@ -823,7 +766,7 @@ func (bq *InMemoryBuildQueue) ListInvocations(ctx context.Context, request *buil
 
 		invocations := make([]*buildqueuestate.InvocationState, 0, len(scq.invocations))
 		for _, key := range keyList {
-			invocationKey := invocationKey(key)
+			invocationKey := scheduler_invocation.Key(key)
 			i := scq.invocations[invocationKey]
 			invocations = append(invocations, i.getInvocationState(bq))
 		}
@@ -853,7 +796,7 @@ func (bq *InMemoryBuildQueue) ListQueuedOperations(ctx context.Context, request 
 	if err != nil {
 		return nil, err
 	}
-	invocationKey, err := newInvocationKey(request.InvocationId)
+	invocationKey, err := scheduler_invocation.NewKey(request.InvocationId)
 	if err != nil {
 		return nil, err
 	}
@@ -1255,7 +1198,7 @@ func (pq *platformQueue) addSizeClassQueue(bq *InMemoryBuildQueue, sizeClass uin
 		sizeClass:     sizeClass,
 		mayBeRemoved:  mayBeRemoved,
 
-		invocations: map[invocationKey]*invocation{},
+		invocations: map[scheduler_invocation.Key]*invocation{},
 		workers:     map[workerKey]*worker{},
 
 		drains:        map[string]*buildqueuestate.DrainState{},
@@ -1330,7 +1273,7 @@ type sizeClassQueue struct {
 	mayBeRemoved  bool
 
 	// Map of all invocations for which we track state.
-	invocations map[invocationKey]*invocation
+	invocations map[scheduler_invocation.Key]*invocation
 	// Binary heap of all invocations that have one or more queued
 	// operations. Used by workers to pick an operation.
 	queuedInvocations queuedInvocationsHeap
@@ -1441,7 +1384,7 @@ func (scq *sizeClassQueue) removeStaleWorker(bq *InMemoryBuildQueue, workerKey w
 // As the invocation may be just created, the caller must either queue
 // an operation, increase the executing operations count, place a worker
 // in the invocation or call invocation.removeIfEmpty().
-func (scq *sizeClassQueue) getOrCreateInvocation(invocationKey invocationKey) *invocation {
+func (scq *sizeClassQueue) getOrCreateInvocation(invocationKey scheduler_invocation.Key) *invocation {
 	if i, ok := scq.invocations[invocationKey]; ok {
 		return i
 	}
@@ -1592,53 +1535,12 @@ func (h *idleSynchronizingWorkersInvocationsHeap) Pop() interface{} {
 	return e
 }
 
-func mustNewAny(src proto.Message) *anypb.Any {
-	any, err := anypb.New(src)
-	if err != nil {
-		panic(err)
-	}
-	return any
-}
-
-// invocationKey is a key type for maps for identifying client
-// invocations.
-type invocationKey string
-
-// backgroundLearningInvocationKey is a predefined invocationKey that is
-// used for all operations that are created to perform background
-// learning (see initialsizeclass.FeedbackAnalyzer).
-var backgroundLearningInvocationKey = mustNewInvocationKey(mustNewAny(&buildqueuestate.BackgroundLearning{}))
-
-func newInvocationKey(invocationID *anypb.Any) (invocationKey, error) {
-	data, err := protojson.Marshal(invocationID)
-	if err != nil {
-		return "", util.StatusWrap(err, "Failed to marshal invocation ID")
-	}
-	return invocationKey(data), nil
-}
-
-func mustNewInvocationKey(invocationID *anypb.Any) invocationKey {
-	invocationKey, err := newInvocationKey(invocationID)
-	if err != nil {
-		panic(err)
-	}
-	return invocationKey
-}
-
-func (k invocationKey) getInvocationID() *anypb.Any {
-	var invocationID anypb.Any
-	if err := protojson.Unmarshal([]byte(k), &invocationID); err != nil {
-		panic(fmt.Sprintf("Failed to unmarshal previously marshalled invocation ID: %s", err))
-	}
-	return &invocationID
-}
-
 // Invocation keeps track of operations that all need to be scheduled on
 // a single size class queue, all having the same invocation ID. These
 // operations will be scheduled fairly with respect to other
 // invocations.
 type invocation struct {
-	invocationKey  invocationKey
+	invocationKey  scheduler_invocation.Key
 	sizeClassQueue *sizeClassQueue
 
 	// The index of this invocation inside the
@@ -1692,7 +1594,7 @@ func (i *invocation) removeIfEmpty() {
 
 func (i *invocation) getInvocationState(bq *InMemoryBuildQueue) *buildqueuestate.InvocationState {
 	is := &buildqueuestate.InvocationState{
-		Id:                            i.invocationKey.getInvocationID(),
+		Id:                            i.invocationKey.GetID(),
 		QueuedOperationsCount:         uint32(i.queuedOperations.Len()),
 		ExecutingWorkersCount:         i.executingWorkersCount,
 		IdleWorkersCount:              i.idleWorkersCount,
@@ -1988,7 +1890,7 @@ func (o *operation) getOperationState(bq *InMemoryBuildQueue) *buildqueuestate.O
 	s := &buildqueuestate.OperationState{
 		Name:               o.name,
 		SizeClassQueueName: sizeClassKey.getSizeClassQueueName(),
-		InvocationId:       i.invocationKey.getInvocationID(),
+		InvocationId:       i.invocationKey.GetID(),
 		QueuedTimestamp:    t.desiredState.QueuedTimestamp,
 		ActionDigest:       t.desiredState.ActionDigest,
 		TargetId:           t.targetID,
@@ -2206,7 +2108,7 @@ func (t *task) complete(bq *InMemoryBuildQueue, executeResponse *remoteexecution
 				backgroundInitialSizeClassLearner.Abandoned()
 			} else {
 				backgroundSCQ := pq.sizeClassQueues[backgroundSizeClassIndex]
-				backgroundInvocation := backgroundSCQ.getOrCreateInvocation(backgroundLearningInvocationKey)
+				backgroundInvocation := backgroundSCQ.getOrCreateInvocation(scheduler_invocation.BackgroundLearningKey)
 				if backgroundInvocation.queuedOperations.Len() >= pq.maximumQueuedBackgroundLearningOperations {
 					// Already running too many background tasks.
 					backgroundInitialSizeClassLearner.Abandoned()
