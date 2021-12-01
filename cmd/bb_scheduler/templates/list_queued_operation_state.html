@@ -67,7 +67,7 @@
 					<td style="background-color: {{to_background_color .ActionDigest.Hash}}">
 						<a class="font-monospace" href="{{action_url $browserURL $platformQueueName.InstanceNamePrefix .InstanceNameSuffix .ActionDigest}}" style="color: {{to_foreground_color .ActionDigest.Hash}}">{{abbreviate .ActionDigest.Hash}}</a>
 					</td>
-					<td>{{.TargetId}}</td>
+					<td style="word-break: break-all">{{.TargetId}}</td>
 				</tr>
 			{{end}}
 		</tbody>

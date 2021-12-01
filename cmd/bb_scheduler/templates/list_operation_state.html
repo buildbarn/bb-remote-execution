@@ -53,7 +53,7 @@
 					<td style="background-color: {{to_background_color .ActionDigest.Hash}}">
 						<a class="font-monospace" href="{{action_url $browserURL .SizeClassQueueName.PlatformQueueName.InstanceNamePrefix .InstanceNameSuffix .ActionDigest}}" style="color: {{to_foreground_color .ActionDigest.Hash}}">{{abbreviate .ActionDigest.Hash}}</a>
 					</td>
-					<td>{{.TargetId}}</td>
+					<td style="word-break: break-all">{{.TargetId}}</td>
 					{{if operation_stage_queued .}}
 						<td>Queued at priority {{.Priority}}</td>
 					{{else}}
