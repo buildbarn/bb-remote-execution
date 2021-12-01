@@ -177,7 +177,7 @@ func main() {
 
 	// Automatically drain workers based on AWS ASG lifecycle events.
 	if len(configuration.AwsAsgLifecycleHooks) > 0 {
-		cfg, err := aws.NewConfigFromConfiguration(configuration.AwsSession)
+		cfg, err := aws.NewConfigFromConfiguration(configuration.AwsSession, "LifecycleHookSQSMessageHandler")
 		if err != nil {
 			log.Fatal("Failed to create AWS session: ", err)
 		}

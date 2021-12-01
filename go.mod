@@ -10,7 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.13.0
 	github.com/aws/smithy-go v1.9.0
 	github.com/bazelbuild/remote-apis v0.0.0-20211004185116-636121a32fa7
-	github.com/buildbarn/bb-storage v0.0.0-20211130133743-45f650e95ebc
+	github.com/buildbarn/bb-storage v0.0.0-20211201064215-ca9b15db22c5
 	github.com/golang/protobuf v1.5.2
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
