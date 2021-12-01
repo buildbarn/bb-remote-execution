@@ -378,7 +378,15 @@ func (rfs *simpleRawFileSystem) Access(cancel <-chan struct{}, input *fuse.Acces
 }
 
 func (rfs *simpleRawFileSystem) GetXAttr(cancel <-chan struct{}, header *fuse.InHeader, attr string, dest []byte) (uint32, fuse.Status) {
-	return 0, fuse.ENOATTR
+	// By returning ENOSYS here, the Linux FUSE driver will set
+	// fuse_conn::no_getxattr. This will completely eliminate
+	// getxattr() calls going forward. More details:
+	//
+	// https://github.com/torvalds/linux/blob/371e8fd02969383204b1f6023451125dbc20dfbd/fs/fuse/xattr.c#L60-L61
+	// https://github.com/torvalds/linux/blob/371e8fd02969383204b1f6023451125dbc20dfbd/fs/fuse/xattr.c#L85-L88
+	//
+	// Similar logic is used for some of the other operations.
+	return 0, fuse.ENOSYS
 }
 
 func (rfs *simpleRawFileSystem) ListXAttr(cancel <-chan struct{}, header *fuse.InHeader, dest []byte) (uint32, fuse.Status) {
