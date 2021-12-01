@@ -37,10 +37,13 @@ func attachErrorToExecuteResponse(response *remoteexecution.ExecuteResponse, err
 	}
 }
 
-// getResultAndGRPCCodeFromExecuteResponse converts an ExecuteResponse
+// GetResultAndGRPCCodeFromExecuteResponse converts an ExecuteResponse
 // to a pair of strings that describe the execution outcome. These
 // strings can be used as part of metrics labels.
-func getResultAndGRPCCodeFromExecuteResponse(response *remoteexecution.ExecuteResponse) (result, grpcCode string) {
+//
+// TODO: Move this into some other package, so that pkg/scheduler
+// doesn't need to depend on pkg/builder?
+func GetResultAndGRPCCodeFromExecuteResponse(response *remoteexecution.ExecuteResponse) (result, grpcCode string) {
 	if c := status.FromProto(response.Status).Code(); c != codes.OK {
 		result = "Failure"
 		grpcCode = c.String()

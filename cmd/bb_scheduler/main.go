@@ -11,12 +11,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	re_blobstore "github.com/buildbarn/bb-remote-execution/pkg/blobstore"
-	"github.com/buildbarn/bb-remote-execution/pkg/builder"
-	"github.com/buildbarn/bb-remote-execution/pkg/builder/initialsizeclass"
 	re_aws "github.com/buildbarn/bb-remote-execution/pkg/cloud/aws"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/buildqueuestate"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_scheduler"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
+	"github.com/buildbarn/bb-remote-execution/pkg/scheduler"
+	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/initialsizeclass"
 	"github.com/buildbarn/bb-storage/pkg/auth"
 	blobstore_configuration "github.com/buildbarn/bb-storage/pkg/blobstore/configuration"
 	"github.com/buildbarn/bb-storage/pkg/clock"
@@ -88,11 +88,11 @@ func main() {
 	// Create in-memory build queue.
 	// TODO: Make timeouts configurable.
 	generator := random.NewFastSingleThreadedGenerator()
-	buildQueue := builder.NewInMemoryBuildQueue(
+	buildQueue := scheduler.NewInMemoryBuildQueue(
 		contentAddressableStorage,
 		clock.SystemClock,
 		uuid.NewRandom,
-		&builder.InMemoryBuildQueueConfiguration{
+		&scheduler.InMemoryBuildQueueConfiguration{
 			ExecutionUpdateInterval:           time.Minute,
 			OperationWithNoWaitersTimeout:     time.Minute,
 			PlatformQueueWithNoWorkersTimeout: 15 * time.Minute,
@@ -108,10 +108,10 @@ func main() {
 		},
 		int(configuration.MaximumMessageSizeBytes),
 		struct {
-			builder.InvocationIDExtractor
+			scheduler.InvocationIDExtractor
 			initialsizeclass.Analyzer
 		}{
-			InvocationIDExtractor: builder.RequestMetadataInvocationIDExtractor,
+			InvocationIDExtractor: scheduler.RequestMetadataInvocationIDExtractor,
 			Analyzer:              defaultInitialSizeClassAnalyzer,
 		},
 		executeAuthorizer)
@@ -127,7 +127,7 @@ func main() {
 			log.Fatal("Invalid worker invocation stickiness limit: ", err)
 		}
 
-		invocationIDExtractor := builder.RequestMetadataInvocationIDExtractor
+		invocationIDExtractor := scheduler.RequestMetadataInvocationIDExtractor
 
 		// Create an analyzer for picking an initial size class.
 		// This lets bb_scheduler cache execution times and
@@ -182,7 +182,7 @@ func main() {
 			backgroundLearningOperationPriority,
 			platformQueue.MaximumSizeClass,
 			struct {
-				builder.InvocationIDExtractor
+				scheduler.InvocationIDExtractor
 				initialsizeclass.Analyzer
 			}{
 				InvocationIDExtractor: invocationIDExtractor,

@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
-	"github.com/buildbarn/bb-remote-execution/pkg/builder/initialsizeclass"
+	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/initialsizeclass"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/proto/iscc"

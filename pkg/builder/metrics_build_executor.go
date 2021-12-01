@@ -263,7 +263,7 @@ func observeTimestampDelta(histogram prometheus.Observer, pbStart, pbCompleted *
 
 func (be *metricsBuildExecutor) Execute(ctx context.Context, filePool filesystem.FilePool, instanceName digest.InstanceName, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 	response := be.buildExecutor.Execute(ctx, filePool, instanceName, request, executionStateUpdates)
-	result, grpcCode := getResultAndGRPCCodeFromExecuteResponse(response)
+	result, grpcCode := GetResultAndGRPCCodeFromExecuteResponse(response)
 
 	// Expose metrics for timestamps stored in ExecutedActionMetadata.
 	metadata := response.Result.ExecutionMetadata

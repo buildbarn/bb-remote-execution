@@ -1,4 +1,4 @@
-package builder
+package scheduler
 
 import (
 	"container/heap"
@@ -13,10 +13,11 @@ import (
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/bazelbuild/remote-apis/build/bazel/semver"
-	"github.com/buildbarn/bb-remote-execution/pkg/builder/initialsizeclass"
-	"github.com/buildbarn/bb-remote-execution/pkg/builder/platform"
+	re_builder "github.com/buildbarn/bb-remote-execution/pkg/builder"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/buildqueuestate"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
+	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/initialsizeclass"
+	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/platform"
 	"github.com/buildbarn/bb-storage/pkg/auth"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/builder"
@@ -2180,7 +2181,7 @@ func (t *task) complete(bq *InMemoryBuildQueue, executeResponse *remoteexecution
 	}
 	t.currentWorker.currentTask = nil
 	t.currentWorker = nil
-	result, grpcCode := getResultAndGRPCCodeFromExecuteResponse(executeResponse)
+	result, grpcCode := re_builder.GetResultAndGRPCCodeFromExecuteResponse(executeResponse)
 	t.registerExecutingStageFinished(bq, result, grpcCode)
 
 	// Communicate the results to the initial size class learner,

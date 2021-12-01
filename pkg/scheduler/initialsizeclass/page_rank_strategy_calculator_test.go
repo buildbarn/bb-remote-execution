@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/buildbarn/bb-remote-execution/pkg/builder/initialsizeclass"
+	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/initialsizeclass"
 	"github.com/buildbarn/bb-storage/pkg/proto/iscc"
 	"github.com/stretchr/testify/require"
 

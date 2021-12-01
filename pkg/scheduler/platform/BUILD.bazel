@@ -6,7 +6,7 @@ go_library(
         "key.go",
         "trie.go",
     ],
-    importpath = "github.com/buildbarn/bb-remote-execution/pkg/builder/platform",
+    importpath = "github.com/buildbarn/bb-remote-execution/pkg/scheduler/platform",
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/proto/buildqueuestate",
