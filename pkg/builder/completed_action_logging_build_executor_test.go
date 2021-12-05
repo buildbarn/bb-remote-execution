@@ -49,7 +49,11 @@ func TestActionLoggingBuildExecutor(t *testing.T) {
 
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	lq := mock.NewMockCompletedActionLogger(ctrl)
-	completedActionLoggingBuildExecutor := builder.NewCompletedActionLoggingBuildExecutor(baseBuildExecutor, uuidGenerator.Call, lq)
+	completedActionLoggingBuildExecutor := builder.NewCompletedActionLoggingBuildExecutor(
+		baseBuildExecutor,
+		uuidGenerator.Call,
+		lq,
+		digest.NewInstanceNamePatcher(digest.EmptyInstanceName, digest.MustNewInstanceName("prefix")))
 
 	uuidGenerator.EXPECT().Call().Return(uuid.Parse("36ebab65-3c4f-4faf-818b-2eabb4cd1b02"))
 	lq.EXPECT().LogCompletedAction(&cal_proto.CompletedAction{
@@ -61,7 +65,7 @@ func TestActionLoggingBuildExecutor(t *testing.T) {
 			ExecuteResponse: executeResponse,
 		},
 		Uuid:         "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
-		InstanceName: "freebsd12",
+		InstanceName: "prefix/freebsd12",
 	})
 	resp := completedActionLoggingBuildExecutor.Execute(ctx, filePool, instanceName, request, metadata)
 

@@ -216,4 +216,8 @@ message CompletedActionLoggingConfiguration {
   // CompletedActions been have accumulated, new messages will be discarded
   // to prevent the worker process from exhausting memory.
   uint32 maximum_send_queue_size = 2;
+
+  // Prefix to add to the instance name that is set as part of
+  // CompletedAction messages that are sent to the logging server.
+  string add_instance_name_prefix = 3;
 }

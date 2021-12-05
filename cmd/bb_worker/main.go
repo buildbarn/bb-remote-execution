@@ -102,16 +102,26 @@ func main() {
 	// Setup the RemoteCompletedActionLogger for the
 	// ActionLoggingBuildExecutor to ensure we only create
 	// one client per worker rather than one per runner.
-	remoteCompletedActionLoggers := make([]builder.CompletedActionLogger, 0, len(configuration.CompletedActionLoggers))
+	type remoteCompletedActionLogger struct {
+		logger              builder.CompletedActionLogger
+		instanceNamePatcher digest.InstanceNamePatcher
+	}
+	remoteCompletedActionLoggers := make([]remoteCompletedActionLogger, 0, len(configuration.CompletedActionLoggers))
 	for _, c := range configuration.CompletedActionLoggers {
 		loggerQueueConnection, err := grpcClientFactory.NewClientFromConfiguration(c.Client)
 		if err != nil {
 			log.Fatal("Error occurred when creating a new gRPC client for logging completed actions: ", err)
-			continue
 		}
 		client := cal_proto.NewCompletedActionLoggerClient(loggerQueueConnection)
 		logger := builder.NewRemoteCompletedActionLogger(int(c.MaximumSendQueueSize), client)
-		remoteCompletedActionLoggers = append(remoteCompletedActionLoggers, logger)
+		instanceNamePrefix, err := digest.NewInstanceName(c.AddInstanceNamePrefix)
+		if err != nil {
+			log.Fatalf("Invalid instance name prefix %#v: %s", c.AddInstanceNamePrefix, err)
+		}
+		remoteCompletedActionLoggers = append(remoteCompletedActionLoggers, remoteCompletedActionLogger{
+			logger:              logger,
+			instanceNamePatcher: digest.NewInstanceNamePatcher(digest.EmptyInstanceName, instanceNamePrefix),
+		})
 		go func() {
 			for {
 				log.Print("Failure encountered while transmitting completed actions: ", logger.SendAllCompletedActions())
@@ -328,8 +338,12 @@ func main() {
 						actionCache,
 						browserURL)
 
-					for _, lq := range remoteCompletedActionLoggers {
-						buildExecutor = builder.NewCompletedActionLoggingBuildExecutor(buildExecutor, uuid.NewRandom, lq)
+					for _, remoteCompletedActionLogger := range remoteCompletedActionLoggers {
+						buildExecutor = builder.NewCompletedActionLoggingBuildExecutor(
+							buildExecutor,
+							uuid.NewRandom,
+							remoteCompletedActionLogger.logger,
+							remoteCompletedActionLogger.instanceNamePatcher)
 					}
 
 					buildExecutor = builder.NewTracingBuildExecutor(

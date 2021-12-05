@@ -14,20 +14,22 @@ import (
 )
 
 type completedActionLoggingBuildExecutor struct {
-	base          BuildExecutor
-	logger        CompletedActionLogger
-	uuidGenerator util.UUIDGenerator
+	base                BuildExecutor
+	uuidGenerator       util.UUIDGenerator
+	logger              CompletedActionLogger
+	instanceNamePatcher digest.InstanceNamePatcher
 }
 
 // NewCompletedActionLoggingBuildExecutor returns a new
 // completedActionLoggingBuildExecutor that will transmit CompletedActions
 // to an external server for real-time analysis of REv2 Action metadata
 // using a CompletedActionLogger.
-func NewCompletedActionLoggingBuildExecutor(base BuildExecutor, uuidGenerator util.UUIDGenerator, logger CompletedActionLogger) BuildExecutor {
+func NewCompletedActionLoggingBuildExecutor(base BuildExecutor, uuidGenerator util.UUIDGenerator, logger CompletedActionLogger, instanceNamePatcher digest.InstanceNamePatcher) BuildExecutor {
 	return &completedActionLoggingBuildExecutor{
-		base:          base,
-		logger:        logger,
-		uuidGenerator: uuidGenerator,
+		base:                base,
+		uuidGenerator:       uuidGenerator,
+		logger:              logger,
+		instanceNamePatcher: instanceNamePatcher,
 	}
 }
 
@@ -40,7 +42,7 @@ func (be *completedActionLoggingBuildExecutor) Execute(ctx context.Context, file
 			ExecuteResponse: response,
 		},
 		Uuid:         uuid.Must(be.uuidGenerator()).String(),
-		InstanceName: instanceName.String(),
+		InstanceName: be.instanceNamePatcher.PatchInstanceName(instanceName).String(),
 	}
 
 	be.logger.LogCompletedAction(completedAction)
