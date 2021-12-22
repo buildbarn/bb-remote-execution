@@ -34,14 +34,15 @@ func main() {
 		log.Fatal("Failed to apply global configuration options: ", err)
 	}
 
-	buildDirectory := re_filesystem.NewLazyDirectory(
-		func() (filesystem.DirectoryCloser, error) {
-			return filesystem.NewLocalDirectory(configuration.BuildDirectoryPath)
-		})
-	buildDirectoryPath, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
+	buildDirectoryPath, scopeWalker := path.EmptyBuilder.Join(path.NewAbsoluteScopeWalker(path.VoidComponentWalker))
 	if err := path.Resolve(configuration.BuildDirectoryPath, scopeWalker); err != nil {
 		log.Fatal("Failed to resolve build directory: ", err)
 	}
+	buildDirectoryPathString := buildDirectoryPath.String()
+	buildDirectory := re_filesystem.NewLazyDirectory(
+		func() (filesystem.DirectoryCloser, error) {
+			return filesystem.NewLocalDirectory(buildDirectoryPathString)
+		})
 
 	sysProcAttr, processTableCleaningUserID, err := credentials.GetSysProcAttrFromConfiguration(configuration.RunCommandsAs)
 	if err != nil {
