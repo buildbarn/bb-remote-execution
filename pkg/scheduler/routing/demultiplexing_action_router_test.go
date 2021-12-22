@@ -6,7 +6,6 @@ import (
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
-	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/invocation"
 	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/platform"
 	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/routing"
 	"github.com/buildbarn/bb-storage/pkg/digest"
@@ -58,7 +57,7 @@ func TestDemultiplexingActionRouter(t *testing.T) {
 		platformKeyExtractor.EXPECT().ExtractKey(ctx, digest.EmptyInstanceName, testutil.EqProto(t, &remoteexecution.Action{})).
 			Return(platform.MustNewKey("", linuxPlatform), nil)
 		defaultActionRouter.EXPECT().RouteAction(ctx, gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{}), testutil.EqProto(t, &remoteexecution.RequestMetadata{})).
-			Return(platform.Key{}, invocation.Key(""), nil, status.Error(codes.Internal, "Got routed to default"))
+			Return(platform.Key{}, nil, nil, status.Error(codes.Internal, "Got routed to default"))
 
 		_, _, _, err := actionRouter.RouteAction(
 			ctx,
@@ -74,7 +73,7 @@ func TestDemultiplexingActionRouter(t *testing.T) {
 		platformKeyExtractor.EXPECT().ExtractKey(ctx, digest.MustNewInstanceName("a"), testutil.EqProto(t, &remoteexecution.Action{})).
 			Return(platform.MustNewKey("a", linuxPlatform), nil)
 		linuxActionRouter.EXPECT().RouteAction(ctx, gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{}), testutil.EqProto(t, &remoteexecution.RequestMetadata{})).
-			Return(platform.Key{}, invocation.Key("a"), nil, status.Error(codes.Internal, "Got routed to Linux"))
+			Return(platform.Key{}, nil, nil, status.Error(codes.Internal, "Got routed to Linux"))
 
 		_, _, _, err := actionRouter.RouteAction(
 			ctx,

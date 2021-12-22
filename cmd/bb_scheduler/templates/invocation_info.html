@@ -1,0 +1,11 @@
+{{template "size_class_queue_info.html" .SizeClassQueueName}}
+<tr>
+	<th style="width: 25%">Invocation IDs:</th>
+	<td style="width: 75%; word-break: break-all">
+		<ul>
+			{{range .Ids}}
+				<li>{{proto_to_json .}}</li>
+			{{end}}
+		</ul>
+	</td>
+</tr>

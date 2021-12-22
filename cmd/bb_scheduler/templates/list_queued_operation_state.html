@@ -2,16 +2,11 @@
 
 <h1 class="my-4">Queued operations</h1>
 
-{{$sizeClassQueueName := .SizeClassQueueName}}
-{{$invocationID := proto_to_json .InvocationID}}
 <table class="table" style="table-layout: fixed">
-	{{template "size_class_queue_info.html" $sizeClassQueueName}}
-	<tr>
-		<th style="width: 25%">Invocation ID:</th>
-		<td style="width: 75%">{{$invocationID}}</td>
-	</tr>
+	{{template "invocation_info.html" .InvocationName}}
 </table>
 
+{{$invocationNameJSON := proto_to_json .InvocationName}}
 <nav>
 	<ul class="justify-content-end pagination">
 		{{if eq .PaginationInfo.StartIndex 0}}
@@ -20,7 +15,7 @@
 			</li>
 		{{else}}
 			<li class="page-item">
-				<a class="page-link" href="?size_class_queue_name={{proto_to_json $sizeClassQueueName}}&amp;invocation_id={{$invocationID}}">◀◀</a>
+				<a class="page-link" href="?invocation_name={{$invocationNameJSON}}">◀◀</a>
 			</li>
 		{{end}}
 		<li class="active page-item">
@@ -30,7 +25,7 @@
 		</li>
 		{{with .StartAfter}}
 			<li class="page-item">
-				<a class="page-link" href="?size_class_queue_name={{proto_to_json $sizeClassQueueName}}&amp;invocation_id={{$invocationID}}&amp;start_after={{proto_to_json .}}">▶</a>
+				<a class="page-link" href="?invocation_name={{$invocationNameJSON}}&amp;start_after={{proto_to_json .}}">▶</a>
 			</li>
 		{{else}}
 			<li class="disabled page-item">
@@ -55,7 +50,7 @@
 		<tbody>
 			{{$browserURL := .BrowserURL}}
 			{{$now := .Now}}
-			{{$platformQueueName := $sizeClassQueueName.PlatformQueueName}}
+			{{$instanceNamePrefix := .InvocationName.SizeClassQueueName.PlatformQueueName.InstanceNamePrefix}}
 			{{range .QueuedOperations}}
 				<tr>
 					<td class="text-end">{{.Priority}}</td>
@@ -65,7 +60,7 @@
 						<a class="font-monospace" href="operation?name={{.Name}}" style="color: {{to_foreground_color .Name}}">{{abbreviate .Name}}</a>
 					</td>
 					<td style="background-color: {{to_background_color .ActionDigest.Hash}}">
-						<a class="font-monospace" href="{{action_url $browserURL $platformQueueName.InstanceNamePrefix .InstanceNameSuffix .ActionDigest}}" style="color: {{to_foreground_color .ActionDigest.Hash}}">{{abbreviate .ActionDigest.Hash}}</a>
+						<a class="font-monospace" href="{{action_url $browserURL $instanceNamePrefix .InstanceNameSuffix .ActionDigest}}" style="color: {{to_foreground_color .ActionDigest.Hash}}">{{abbreviate .ActionDigest.Hash}}</a>
 					</td>
 					<td style="word-break: break-all">{{.TargetId}}</td>
 				</tr>

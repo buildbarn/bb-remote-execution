@@ -106,14 +106,15 @@ var (
 		},
 		[]string{"instance_name_prefix", "platform", "size_class", "state"})
 
-	inMemoryBuildQueueWorkerInvocationStickinessOutcomesTotal = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
+	inMemoryBuildQueueWorkerInvocationStickinessRetained = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
 			Subsystem: "builder",
-			Name:      "worker_invocation_stickiness_outcomes_total",
-			Help:      "Outcomes of worker invocation stickiness, as configured through worker_invocation_stickiness_limit.",
+			Name:      "in_memory_build_queue_worker_invocation_stickiness_retained",
+			Help:      "How many levels of worker invocation stickiness were respected, as configured through worker_invocation_stickiness_limits.",
+			Buckets:   prometheus.LinearBuckets(0, 1, 11),
 		},
-		[]string{"instance_name_prefix", "platform", "size_class", "outcome"})
+		[]string{"instance_name_prefix", "platform", "size_class"})
 )
 
 // InMemoryBuildQueueConfiguration contains all the tunable settings of
@@ -217,7 +218,7 @@ func NewInMemoryBuildQueue(contentAddressableStorage blobstore.BlobAccess, clock
 		prometheus.MustRegister(inMemoryBuildQueueWorkersCreatedTotal)
 		prometheus.MustRegister(inMemoryBuildQueueWorkersRemovedTotal)
 
-		prometheus.MustRegister(inMemoryBuildQueueWorkerInvocationStickinessOutcomesTotal)
+		prometheus.MustRegister(inMemoryBuildQueueWorkerInvocationStickinessRetained)
 	})
 
 	return &InMemoryBuildQueue{
@@ -250,7 +251,7 @@ var (
 // capable of using multiple size classes, as a maximum size class and
 // initialsizeclass.Analyzer can be provided for specifying how
 // operations are assigned to size classes.
-func (bq *InMemoryBuildQueue) RegisterPredeclaredPlatformQueue(instanceNamePrefix digest.InstanceName, platformMessage *remoteexecution.Platform, workerInvocationStickinessLimit time.Duration, maximumQueuedBackgroundLearningOperations int, backgroundLearningOperationPriority int32, maximumSizeClass uint32) error {
+func (bq *InMemoryBuildQueue) RegisterPredeclaredPlatformQueue(instanceNamePrefix digest.InstanceName, platformMessage *remoteexecution.Platform, workerInvocationStickinessLimits []time.Duration, maximumQueuedBackgroundLearningOperations int, backgroundLearningOperationPriority int32, maximumSizeClass uint32) error {
 	platformKey, err := platform.NewKey(instanceNamePrefix, platformMessage)
 	if err != nil {
 		return err
@@ -263,7 +264,7 @@ func (bq *InMemoryBuildQueue) RegisterPredeclaredPlatformQueue(instanceNamePrefi
 		return status.Error(codes.AlreadyExists, "A queue with the same instance name prefix or platform already exists")
 	}
 
-	pq := bq.addPlatformQueue(platformKey, workerInvocationStickinessLimit, maximumQueuedBackgroundLearningOperations, backgroundLearningOperationPriority)
+	pq := bq.addPlatformQueue(platformKey, workerInvocationStickinessLimits, maximumQueuedBackgroundLearningOperations, backgroundLearningOperationPriority)
 	pq.addSizeClassQueue(bq, maximumSizeClass, false)
 	return nil
 }
@@ -375,7 +376,7 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 	}
 	w3cTraceContext := otel.W3CTraceContextFromContext(ctx)
 
-	platformKey, invocationKey, initialSizeClassSelector, err := bq.actionRouter.RouteAction(ctx, actionDigest.GetDigestFunction(), action, requestMetadata)
+	platformKey, invocationKeys, initialSizeClassSelector, err := bq.actionRouter.RouteAction(ctx, actionDigest.GetDigestFunction(), action, requestMetadata)
 	if err != nil {
 		return util.StatusWrap(err, "Failed to route action")
 	}
@@ -388,8 +389,8 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 		// against which we may deduplicate. No need to create a
 		// task.
 		initialSizeClassSelector.Abandoned()
-		scq := t.getSizeClassQueue()
-		i := scq.getOrCreateInvocation(invocationKey)
+		scq := t.currentSizeClassQueue
+		i := scq.rootInvocation.getOrCreateChild(bq, invocationKeys)
 		if o, ok := t.operations[i]; ok {
 			// Task is already associated with the current
 			// invocation. Simply wait on the operation that
@@ -407,7 +408,7 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 		case remoteexecution.ExecutionStage_EXECUTING:
 			// The request has been deduplicated against a
 			// task that is already in the executing stage.
-			i.incrementExecutingWorkersCount()
+			i.incrementExecutingWorkersCount(bq, t.currentWorker)
 		default:
 			panic("Task in unexpected stage")
 		}
@@ -442,8 +443,9 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 	actionWithCustomTimeout := *action
 	actionWithCustomTimeout.Timeout = durationpb.New(timeout)
 	t := &task{
-		operations:   map[*invocation]*operation{},
-		actionDigest: actionDigest,
+		currentSizeClassQueue: scq,
+		operations:            map[*invocation]*operation{},
+		actionDigest:          actionDigest,
 		desiredState: remoteworker.DesiredState_Executing{
 			ActionDigest:       in.ActionDigest,
 			Action:             &actionWithCustomTimeout,
@@ -459,7 +461,7 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 	if !action.DoNotCache {
 		bq.inFlightDeduplicationMap[actionDigest] = t
 	}
-	i := scq.getOrCreateInvocation(invocationKey)
+	i := scq.rootInvocation.getOrCreateChild(bq, invocationKeys)
 	o := t.newOperation(bq, in.ExecutionPolicy.GetPriority(), i, false)
 	t.schedule(bq)
 	return o.waitExecution(bq, out)
@@ -547,7 +549,7 @@ func (bq *InMemoryBuildQueue) Synchronize(ctx context.Context, request *remotewo
 			// pair has not been observed before. Create a
 			// new platform queue containing a single size
 			// class queue.
-			pq = bq.addPlatformQueue(platformKey, 0, 0, 0)
+			pq = bq.addPlatformQueue(platformKey, nil, 0, 0)
 		}
 		scq = pq.addSizeClassQueue(bq, request.SizeClass, true)
 	}
@@ -561,8 +563,17 @@ func (bq *InMemoryBuildQueue) Synchronize(ctx context.Context, request *remotewo
 		}
 		bq.cleanupQueue.remove(w.cleanupKey)
 	} else {
-		// First time we're seeing this worker.
-		w = &worker{}
+		// First time we're seeing this worker. As this worker
+		// has never run an action before (that we know about),
+		// associate it with the root invocation.
+		i := &scq.rootInvocation
+		w = &worker{
+			workerKey:               workerKey,
+			lastInvocation:          i,
+			listIndex:               -1,
+			stickinessStartingTimes: make([]time.Time, len(pq.workerInvocationStickinessLimits)),
+		}
+		i.idleWorkersCount++
 		scq.workers[workerKey] = w
 		scq.workersCreatedTotal.Inc()
 	}
@@ -616,27 +627,12 @@ func (bq *InMemoryBuildQueue) ListPlatformQueues(ctx context.Context, request *e
 	for _, pq := range platformQueueList {
 		sizeClassQueues := make([]*buildqueuestate.SizeClassQueueState, 0, len(pq.sizeClassQueues))
 		for i, scq := range pq.sizeClassQueues {
-			executingWorkersCount := uint32(0)
-			for _, w := range scq.workers {
-				if w.currentTask != nil {
-					executingWorkersCount++
-				}
-			}
-			activeInvocationsCount := uint32(0)
-			for _, i := range scq.invocations {
-				if i.isActive() {
-					activeInvocationsCount++
-				}
-			}
 			sizeClassQueues = append(sizeClassQueues, &buildqueuestate.SizeClassQueueState{
-				SizeClass:              pq.sizeClasses[i],
-				Timeout:                bq.cleanupQueue.getTimestamp(scq.cleanupKey),
-				InvocationsCount:       uint32(len(scq.invocations)),
-				QueuedInvocationsCount: uint32(scq.queuedInvocations.Len()),
-				ActiveInvocationsCount: uint32(activeInvocationsCount),
-				WorkersCount:           uint32(len(scq.workers)),
-				ExecutingWorkersCount:  executingWorkersCount,
-				DrainsCount:            uint32(len(scq.drains)),
+				SizeClass:      pq.sizeClasses[i],
+				Timeout:        bq.cleanupQueue.getTimestamp(scq.cleanupKey),
+				RootInvocation: scq.rootInvocation.getInvocationState(bq),
+				WorkersCount:   uint32(len(scq.workers)),
+				DrainsCount:    uint32(len(scq.drains)),
 			})
 		}
 		platformQueues = append(platformQueues, &buildqueuestate.PlatformQueueState{
@@ -728,9 +724,44 @@ func (bq *InMemoryBuildQueue) ListOperations(ctx context.Context, request *build
 	}, nil
 }
 
-// ListInvocations returns properties of all client invocations for
-// which one or more operations are either queued or executing within a
-// given platform queue.
+func (bq *InMemoryBuildQueue) getSizeClassQueueByName(name *buildqueuestate.SizeClassQueueName) (*sizeClassQueue, error) {
+	sizeClassKey, err := newSizeClassKeyFromName(name)
+	if err != nil {
+		return nil, err
+	}
+	scq, ok := bq.sizeClassQueues[sizeClassKey]
+	if !ok {
+		return nil, status.Error(codes.NotFound, "No workers for this instance name, platform and size class exist")
+	}
+	return scq, nil
+}
+
+func (bq *InMemoryBuildQueue) getInvocationByName(name *buildqueuestate.InvocationName) (*invocation, *sizeClassQueue, error) {
+	if name == nil {
+		return nil, nil, status.Error(codes.InvalidArgument, "No invocation name provided")
+	}
+	scq, err := bq.getSizeClassQueueByName(name.SizeClassQueueName)
+	if err != nil {
+		return nil, nil, err
+	}
+	i := &scq.rootInvocation
+	for idx, id := range name.Ids {
+		key, err := scheduler_invocation.NewKey(id)
+		if err != nil {
+			return nil, nil, util.StatusWrapf(err, "Invalid invocation key at index %d", idx)
+		}
+		var ok bool
+		i, ok = i.children[key]
+		if !ok {
+			return nil, nil, status.Error(codes.NotFound, "Invocation not found")
+		}
+	}
+	return i, scq, nil
+}
+
+// ListInvocationChildren returns properties of all client invocations
+// for which one or more operations are either queued or executing
+// within a given platform queue.
 //
 // When justQueuedInvocations is false, entries for invocations are
 // returned even if they have no queued operations; only ones that are
@@ -739,50 +770,51 @@ func (bq *InMemoryBuildQueue) ListOperations(ctx context.Context, request *build
 // When justQueuedInvocations is true, entries for invocations are
 // returned only if they have queued operations. Entries will be sorted
 // by priority at which operations are scheduled.
-func (bq *InMemoryBuildQueue) ListInvocations(ctx context.Context, request *buildqueuestate.ListInvocationsRequest) (*buildqueuestate.ListInvocationsResponse, error) {
-	sizeClassKey, err := newSizeClassKeyFromName(request.SizeClassQueueName)
+func (bq *InMemoryBuildQueue) ListInvocationChildren(ctx context.Context, request *buildqueuestate.ListInvocationChildrenRequest) (*buildqueuestate.ListInvocationChildrenResponse, error) {
+	bq.enter(bq.clock.Now())
+	defer bq.leave()
+
+	i, _, err := bq.getInvocationByName(request.InvocationName)
 	if err != nil {
 		return nil, err
 	}
 
-	bq.enter(bq.clock.Now())
-	defer bq.leave()
-
-	scq, ok := bq.sizeClassQueues[sizeClassKey]
-	if !ok {
-		return nil, status.Error(codes.NotFound, "No workers for this instance name, platform and size class exist")
-	}
-
 	switch request.Filter {
-	case buildqueuestate.ListInvocationsRequest_ALL, buildqueuestate.ListInvocationsRequest_ACTIVE:
+	case buildqueuestate.ListInvocationChildrenRequest_ALL, buildqueuestate.ListInvocationChildrenRequest_ACTIVE:
 		// Return all or active invocations in alphabetic order.
-		keyList := make([]string, 0, len(scq.invocations))
-		for invocationKey, i := range scq.invocations {
-			if request.Filter == buildqueuestate.ListInvocationsRequest_ALL || i.isActive() {
+		keyList := make([]string, 0, len(i.children))
+		for invocationKey, i := range i.children {
+			if request.Filter == buildqueuestate.ListInvocationChildrenRequest_ALL || i.isActive() {
 				keyList = append(keyList, string(invocationKey))
 			}
 		}
 		sort.Strings(keyList)
 
-		invocations := make([]*buildqueuestate.InvocationState, 0, len(scq.invocations))
+		children := make([]*buildqueuestate.InvocationChildState, 0, len(i.children))
 		for _, key := range keyList {
 			invocationKey := scheduler_invocation.Key(key)
-			i := scq.invocations[invocationKey]
-			invocations = append(invocations, i.getInvocationState(bq))
+			i := i.children[invocationKey]
+			children = append(children, &buildqueuestate.InvocationChildState{
+				Id:    invocationKey.GetID(),
+				State: i.getInvocationState(bq),
+			})
 		}
-		return &buildqueuestate.ListInvocationsResponse{
-			Invocations: invocations,
+		return &buildqueuestate.ListInvocationChildrenResponse{
+			Children: children,
 		}, nil
-	case buildqueuestate.ListInvocationsRequest_QUEUED:
+	case buildqueuestate.ListInvocationChildrenRequest_QUEUED:
 		// Return invocations with one or more queued
 		// operations, sorted by scheduling order.
-		invocations := make([]*buildqueuestate.InvocationState, 0, scq.queuedInvocations.Len())
-		sort.Sort(&scq.queuedInvocations)
-		for _, i := range scq.queuedInvocations {
-			invocations = append(invocations, i.getInvocationState(bq))
+		children := make([]*buildqueuestate.InvocationChildState, 0, i.queuedChildren.Len())
+		sort.Sort(&i.queuedChildren)
+		for _, i := range i.queuedChildren {
+			children = append(children, &buildqueuestate.InvocationChildState{
+				Id:    i.invocationKeys[len(i.invocationKeys)-1].GetID(),
+				State: i.getInvocationState(bq),
+			})
 		}
-		return &buildqueuestate.ListInvocationsResponse{
-			Invocations: invocations,
+		return &buildqueuestate.ListInvocationChildrenResponse{
+			Children: children,
 		}, nil
 	default:
 		return nil, status.Error(codes.InvalidArgument, "Unknown filter provided")
@@ -792,25 +824,12 @@ func (bq *InMemoryBuildQueue) ListInvocations(ctx context.Context, request *buil
 // ListQueuedOperations returns properties of all queued operations
 // contained for a given invocation within a platform queue.
 func (bq *InMemoryBuildQueue) ListQueuedOperations(ctx context.Context, request *buildqueuestate.ListQueuedOperationsRequest) (*buildqueuestate.ListQueuedOperationsResponse, error) {
-	sizeClassKey, err := newSizeClassKeyFromName(request.SizeClassQueueName)
-	if err != nil {
-		return nil, err
-	}
-	invocationKey, err := scheduler_invocation.NewKey(request.InvocationId)
-	if err != nil {
-		return nil, err
-	}
-
 	bq.enter(bq.clock.Now())
 	defer bq.leave()
 
-	scq, ok := bq.sizeClassQueues[sizeClassKey]
-	if !ok {
-		return nil, status.Error(codes.NotFound, "No workers for this instance name, platform and size class exist")
-	}
-	i, ok := scq.invocations[invocationKey]
-	if !ok {
-		return nil, status.Error(codes.NotFound, "No operations for this invocation ID exist")
+	i, _, err := bq.getInvocationByName(request.InvocationName)
+	if err != nil {
+		return nil, err
 	}
 
 	startAfter := request.StartAfter
@@ -840,8 +859,7 @@ func (bq *InMemoryBuildQueue) ListQueuedOperations(ctx context.Context, request 
 	queuedOperations := make([]*buildqueuestate.OperationState, 0, queuedOperationsRegion.Len())
 	for _, o := range queuedOperationsRegion {
 		s := o.getOperationState(bq)
-		s.SizeClassQueueName = nil
-		s.InvocationId = nil
+		s.InvocationName = nil
 		queuedOperations = append(queuedOperations, s)
 	}
 	return &buildqueuestate.ListQueuedOperationsResponse{
@@ -853,10 +871,6 @@ func (bq *InMemoryBuildQueue) ListQueuedOperations(ctx context.Context, request 
 // ListWorkers returns basic properties of all workers for a given
 // platform queue.
 func (bq *InMemoryBuildQueue) ListWorkers(ctx context.Context, request *buildqueuestate.ListWorkersRequest) (*buildqueuestate.ListWorkersResponse, error) {
-	sizeClassKey, err := newSizeClassKeyFromName(request.SizeClassQueueName)
-	if err != nil {
-		return nil, err
-	}
 	var startAfterWorkerKey *string
 	if startAfter := request.StartAfter; startAfter != nil {
 		workerKey := string(newWorkerKey(startAfter.WorkerId))
@@ -866,17 +880,41 @@ func (bq *InMemoryBuildQueue) ListWorkers(ctx context.Context, request *buildque
 	bq.enter(bq.clock.Now())
 	defer bq.leave()
 
-	scq, ok := bq.sizeClassQueues[sizeClassKey]
-	if !ok {
-		return nil, status.Error(codes.NotFound, "No workers for this instance name, platform and size class exist")
-	}
-
 	// Obtain IDs of all workers in sorted order.
+	var scq *sizeClassQueue
 	var keyList []string
-	for workerKey, w := range scq.workers {
-		if !request.JustExecutingWorkers || w.currentTask != nil {
+	switch filter := request.Filter.GetType().(type) {
+	case *buildqueuestate.ListWorkersRequest_Filter_All:
+		var err error
+		scq, err = bq.getSizeClassQueueByName(filter.All)
+		if err != nil {
+			return nil, err
+		}
+		for workerKey := range scq.workers {
 			keyList = append(keyList, string(workerKey))
 		}
+	case *buildqueuestate.ListWorkersRequest_Filter_Executing:
+		var i *invocation
+		var err error
+		i, scq, err = bq.getInvocationByName(filter.Executing)
+		if err != nil {
+			return nil, err
+		}
+		for w := range i.executingWorkers {
+			keyList = append(keyList, string(w.workerKey))
+		}
+	case *buildqueuestate.ListWorkersRequest_Filter_IdleSynchronizing:
+		var i *invocation
+		var err error
+		i, scq, err = bq.getInvocationByName(filter.IdleSynchronizing)
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range i.idleSynchronizingWorkers {
+			keyList = append(keyList, string(entry.worker.workerKey))
+		}
+	default:
+		return nil, status.Error(codes.InvalidArgument, "Unknown filter provided")
 	}
 	sort.Strings(keyList)
 	paginationInfo, endIndex := getPaginationInfo(len(keyList), request.PageSize, func(i int) bool {
@@ -908,7 +946,7 @@ func (bq *InMemoryBuildQueue) ListWorkers(ctx context.Context, request *buildque
 				}
 			}
 			currentOperation = o.getOperationState(bq)
-			currentOperation.SizeClassQueueName = nil
+			currentOperation.InvocationName = nil
 			currentOperation.Stage = nil
 		}
 		workerID := workerKey.getWorkerID()
@@ -928,17 +966,12 @@ func (bq *InMemoryBuildQueue) ListWorkers(ctx context.Context, request *buildque
 // ListDrains returns a list of all the drains that are present within a
 // given platform queue.
 func (bq *InMemoryBuildQueue) ListDrains(ctx context.Context, request *buildqueuestate.ListDrainsRequest) (*buildqueuestate.ListDrainsResponse, error) {
-	sizeClassKey, err := newSizeClassKeyFromName(request.SizeClassQueueName)
-	if err != nil {
-		return nil, err
-	}
-
 	bq.enter(bq.clock.Now())
 	defer bq.leave()
 
-	scq, ok := bq.sizeClassQueues[sizeClassKey]
-	if !ok {
-		return nil, status.Error(codes.NotFound, "No workers for this instance name, platform and size class exist")
+	scq, err := bq.getSizeClassQueueByName(request.SizeClassQueueName)
+	if err != nil {
+		return nil, err
 	}
 
 	// Obtain IDs of all drains in sorted order.
@@ -959,10 +992,6 @@ func (bq *InMemoryBuildQueue) ListDrains(ctx context.Context, request *buildqueu
 }
 
 func (bq *InMemoryBuildQueue) modifyDrain(request *buildqueuestate.AddOrRemoveDrainRequest, modifyFunc func(scq *sizeClassQueue, drainKey string)) (*emptypb.Empty, error) {
-	sizeClassKey, err := newSizeClassKeyFromName(request.SizeClassQueueName)
-	if err != nil {
-		return nil, err
-	}
 	drainKey, err := json.Marshal(request.WorkerIdPattern)
 	if err != nil {
 		return nil, util.StatusWrapWithCode(err, codes.InvalidArgument, "Failed to marshal worker ID pattern")
@@ -971,9 +1000,9 @@ func (bq *InMemoryBuildQueue) modifyDrain(request *buildqueuestate.AddOrRemoveDr
 	bq.enter(bq.clock.Now())
 	defer bq.leave()
 
-	scq, ok := bq.sizeClassQueues[sizeClassKey]
-	if !ok {
-		return nil, status.Error(codes.NotFound, "No workers for this instance name, platform and size class exist")
+	scq, err := bq.getSizeClassQueueByName(request.SizeClassQueueName)
+	if err != nil {
+		return nil, err
 	}
 	modifyFunc(scq, string(drainKey))
 	return &emptypb.Empty{}, nil
@@ -1096,11 +1125,11 @@ func (bq *InMemoryBuildQueue) getIdleSynchronizeResponse() *remoteworker.Synchro
 }
 
 // addPlatformQueue creates a new platform queue for a given platform.
-func (bq *InMemoryBuildQueue) addPlatformQueue(platformKey platform.Key, workerInvocationStickinessLimit time.Duration, maximumQueuedBackgroundLearningOperations int, backgroundLearningOperationPriority int32) *platformQueue {
+func (bq *InMemoryBuildQueue) addPlatformQueue(platformKey platform.Key, workerInvocationStickinessLimits []time.Duration, maximumQueuedBackgroundLearningOperations int, backgroundLearningOperationPriority int32) *platformQueue {
 	pq := &platformQueue{
 		platformKey:                               platformKey,
 		instanceNamePatcher:                       digest.NewInstanceNamePatcher(platformKey.GetInstanceNamePrefix(), digest.EmptyInstanceName),
-		workerInvocationStickinessLimit:           workerInvocationStickinessLimit,
+		workerInvocationStickinessLimits:          workerInvocationStickinessLimits,
 		maximumQueuedBackgroundLearningOperations: maximumQueuedBackgroundLearningOperations,
 		backgroundLearningOperationPriority:       backgroundLearningOperationPriority,
 	}
@@ -1175,7 +1204,7 @@ func (k *sizeClassKey) getSizeClassQueueName() *buildqueuestate.SizeClassQueueNa
 type platformQueue struct {
 	platformKey                               platform.Key
 	instanceNamePatcher                       digest.InstanceNamePatcher
-	workerInvocationStickinessLimit           time.Duration
+	workerInvocationStickinessLimits          []time.Duration
 	maximumQueuedBackgroundLearningOperations int
 	backgroundLearningOperationPriority       int32
 
@@ -1198,32 +1227,27 @@ func (pq *platformQueue) addSizeClassQueue(bq *InMemoryBuildQueue, sizeClass uin
 		sizeClass:     sizeClass,
 		mayBeRemoved:  mayBeRemoved,
 
-		invocations: map[scheduler_invocation.Key]*invocation{},
-		workers:     map[workerKey]*worker{},
+		rootInvocation: invocation{
+			children:         map[scheduler_invocation.Key]*invocation{},
+			executingWorkers: map[*worker]int{},
+		},
+		workers: map[workerKey]*worker{},
 
 		drains:        map[string]*buildqueuestate.DrainState{},
 		undrainWakeup: make(chan struct{}),
 
-		tasksScheduledWorkerFromSameInvocation:  newTasksScheduledCounterVec(tasksScheduledTotal, "WorkerFromSameInvocation"),
-		tasksScheduledWorkerWithoutInvocation:   newTasksScheduledCounterVec(tasksScheduledTotal, "WorkerWithoutInvocation"),
-		tasksScheduledWorkerFromOtherInvocation: newTasksScheduledCounterVec(tasksScheduledTotal, "WorkerFromOtherInvocation"),
-		tasksScheduledQueue:                     newTasksScheduledCounterVec(tasksScheduledTotal, "Queue"),
-		tasksQueuedDurationSeconds:              inMemoryBuildQueueTasksQueuedDurationSeconds.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr),
-		tasksExecutingDurationSeconds:           inMemoryBuildQueueTasksExecutingDurationSeconds.MustCurryWith(platformLabels),
-		tasksExecutingRetries:                   inMemoryBuildQueueTasksExecutingRetries.MustCurryWith(platformLabels),
-		tasksCompletedDurationSeconds:           inMemoryBuildQueueTasksCompletedDurationSeconds.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr),
+		tasksScheduledWorker:          newTasksScheduledCounterVec(tasksScheduledTotal, "Worker"),
+		tasksScheduledQueue:           newTasksScheduledCounterVec(tasksScheduledTotal, "Queue"),
+		tasksQueuedDurationSeconds:    inMemoryBuildQueueTasksQueuedDurationSeconds.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr),
+		tasksExecutingDurationSeconds: inMemoryBuildQueueTasksExecutingDurationSeconds.MustCurryWith(platformLabels),
+		tasksExecutingRetries:         inMemoryBuildQueueTasksExecutingRetries.MustCurryWith(platformLabels),
+		tasksCompletedDurationSeconds: inMemoryBuildQueueTasksCompletedDurationSeconds.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr),
 
 		workersCreatedTotal:          inMemoryBuildQueueWorkersCreatedTotal.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr),
 		workersRemovedIdleTotal:      inMemoryBuildQueueWorkersRemovedTotal.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr, "Idle"),
 		workersRemovedExecutingTotal: inMemoryBuildQueueWorkersRemovedTotal.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr, "Executing"),
-	}
-	if pq.workerInvocationStickinessLimit > 0 {
-		outcomes := inMemoryBuildQueueWorkerInvocationStickinessOutcomesTotal.MustCurryWith(platformLabels)
-		scq.workerInvocationStickinessOutcomesNoLastInvocations = outcomes.WithLabelValues("NoLastInvocations")
-		scq.workerInvocationStickinessOutcomesNoQueuedLastInvocations = outcomes.WithLabelValues("NoQueuedLastInvocations")
-		scq.workerInvocationStickinessOutcomesNoStickyLastInvocations = outcomes.WithLabelValues("NoStickyLastInvocations")
-		scq.workerInvocationStickinessOutcomesSelectedBestTask = outcomes.WithLabelValues("SelectedBestTask")
-		scq.workerInvocationStickinessOutcomesSelectedStickyTask = outcomes.WithLabelValues("SelectedStickyTask")
+
+		workerInvocationStickinessRetained: inMemoryBuildQueueWorkerInvocationStickinessRetained.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr),
 	}
 
 	// Force creation of all metrics associated with this platform
@@ -1272,42 +1296,29 @@ type sizeClassQueue struct {
 	sizeClass     uint32
 	mayBeRemoved  bool
 
-	// Map of all invocations for which we track state.
-	invocations map[scheduler_invocation.Key]*invocation
-	// Binary heap of all invocations that have one or more queued
-	// operations. Used by workers to pick an operation.
-	queuedInvocations queuedInvocationsHeap
-	// Binary heap of all invocations for which one or more idle
-	// workers exist that previously ran a task belonging to an
-	// invocation. This heap is sorted by time at which the last
-	// operation completed.
-	idleSynchronizingWorkersInvocations idleSynchronizingWorkersInvocationsHeap
-	idleSynchronizingWorkers            idleSynchronizingWorkersList
-	workers                             map[workerKey]*worker
-	cleanupKey                          cleanupKey
+	// Data structure in which all queued and executing operations
+	// are placed, and which keeps track of all idle workers that
+	// are synchronizing against the scheduler.
+	rootInvocation invocation
+	workers        map[workerKey]*worker
+	cleanupKey     cleanupKey
 
 	drains        map[string]*buildqueuestate.DrainState
 	undrainWakeup chan struct{}
 
 	// Prometheus metrics.
-	tasksScheduledWorkerFromSameInvocation  tasksScheduledCounterVec
-	tasksScheduledWorkerWithoutInvocation   tasksScheduledCounterVec
-	tasksScheduledWorkerFromOtherInvocation tasksScheduledCounterVec
-	tasksScheduledQueue                     tasksScheduledCounterVec
-	tasksQueuedDurationSeconds              prometheus.Observer
-	tasksExecutingDurationSeconds           prometheus.ObserverVec
-	tasksExecutingRetries                   prometheus.ObserverVec
-	tasksCompletedDurationSeconds           prometheus.Observer
+	tasksScheduledWorker          tasksScheduledCounterVec
+	tasksScheduledQueue           tasksScheduledCounterVec
+	tasksQueuedDurationSeconds    prometheus.Observer
+	tasksExecutingDurationSeconds prometheus.ObserverVec
+	tasksExecutingRetries         prometheus.ObserverVec
+	tasksCompletedDurationSeconds prometheus.Observer
 
 	workersCreatedTotal          prometheus.Counter
 	workersRemovedIdleTotal      prometheus.Counter
 	workersRemovedExecutingTotal prometheus.Counter
 
-	workerInvocationStickinessOutcomesNoLastInvocations       prometheus.Counter
-	workerInvocationStickinessOutcomesNoQueuedLastInvocations prometheus.Counter
-	workerInvocationStickinessOutcomesNoStickyLastInvocations prometheus.Counter
-	workerInvocationStickinessOutcomesSelectedBestTask        prometheus.Counter
-	workerInvocationStickinessOutcomesSelectedStickyTask      prometheus.Counter
+	workerInvocationStickinessRetained prometheus.Observer
 }
 
 func (scq *sizeClassQueue) getKey() sizeClassKey {
@@ -1322,13 +1333,7 @@ func (scq *sizeClassQueue) getKey() sizeClassKey {
 // queue and all associated queued operations to be removed from the
 // InMemoryBuildQueue.
 func (scq *sizeClassQueue) remove(bq *InMemoryBuildQueue) {
-	// Cancel all queued operations.
-	for scq.queuedInvocations.Len() > 0 {
-		i := scq.queuedInvocations[scq.queuedInvocations.Len()-1]
-		i.queuedOperations[i.queuedOperations.Len()-1].task.complete(bq, &remoteexecution.ExecuteResponse{
-			Status: status.New(codes.Unavailable, "Workers for this instance name, platform and size class disappeared while task was queued").Proto(),
-		}, false)
-	}
+	scq.rootInvocation.cancelAllQueuedOperations(bq)
 
 	delete(bq.sizeClassQueues, scq.getKey())
 	pq := scq.platformQueue
@@ -1366,7 +1371,7 @@ func (scq *sizeClassQueue) removeStaleWorker(bq *InMemoryBuildQueue, workerKey w
 			Status: status.Newf(codes.Unavailable, "Worker %s disappeared while task was executing", workerKey).Proto(),
 		}, false)
 	}
-	w.clearLastInvocations()
+	w.clearLastInvocation()
 	delete(scq.workers, workerKey)
 
 	// Trigger platform queue removal if necessary.
@@ -1375,27 +1380,6 @@ func (scq *sizeClassQueue) removeStaleWorker(bq *InMemoryBuildQueue, workerKey w
 			scq.remove(bq)
 		})
 	}
-}
-
-// GetOrCreateInvocation looks up the invocation key in the size class
-// queue, returning the corresponding invocation. If no invocation under
-// this key exists, a new invocation is created.
-//
-// As the invocation may be just created, the caller must either queue
-// an operation, increase the executing operations count, place a worker
-// in the invocation or call invocation.removeIfEmpty().
-func (scq *sizeClassQueue) getOrCreateInvocation(invocationKey scheduler_invocation.Key) *invocation {
-	if i, ok := scq.invocations[invocationKey]; ok {
-		return i
-	}
-	i := &invocation{
-		invocationKey:                            invocationKey,
-		sizeClassQueue:                           scq,
-		queuedInvocationsIndex:                   -1,
-		idleSynchronizingWorkersInvocationsIndex: -1,
-	}
-	scq.invocations[invocationKey] = i
-	return i
 }
 
 // workerKey can be used as a key for maps to uniquely identify a worker
@@ -1422,65 +1406,65 @@ func (k workerKey) getWorkerID() map[string]string {
 	return workerID
 }
 
-// queuedInvocationsHeap is a binary heap that contains a list of all
-// invocations in a platform queue that have one or more queued
-// operations. It is used to determine which operation should be started
-// in case a worker requests a new task.
-type queuedInvocationsHeap []*invocation
+// queuedChildrenHeap is a binary heap that contains a list of all child
+// invocations in an invocation that have one or more queued operations.
+// It is used to determine which operation should be started in case a
+// worker requests a new task.
+type queuedChildrenHeap []*invocation
 
-func (h queuedInvocationsHeap) Len() int {
+func (h queuedChildrenHeap) Len() int {
 	return len(h)
 }
 
-func (h queuedInvocationsHeap) Less(i, j int) bool {
-	return h[i].isPreferred(h[j], 0)
+func (h queuedChildrenHeap) Less(i, j int) bool {
+	return h[i].isPreferred(h[j], h[i].lastOperationStarted.Before(h[j].lastOperationStarted))
 }
 
-func (h queuedInvocationsHeap) Swap(i, j int) {
-	if h[i].queuedInvocationsIndex != i || h[j].queuedInvocationsIndex != j {
+func (h queuedChildrenHeap) Swap(i, j int) {
+	if h[i].queuedChildrenIndex != i || h[j].queuedChildrenIndex != j {
 		panic("Invalid queue indices")
 	}
 	h[i], h[j] = h[j], h[i]
-	h[i].queuedInvocationsIndex = i
-	h[j].queuedInvocationsIndex = j
+	h[i].queuedChildrenIndex = i
+	h[j].queuedChildrenIndex = j
 }
 
-func (h *queuedInvocationsHeap) Push(x interface{}) {
+func (h *queuedChildrenHeap) Push(x interface{}) {
 	e := x.(*invocation)
-	if e.queuedInvocationsIndex != -1 {
+	if e.queuedChildrenIndex != -1 {
 		panic("Invalid queue index")
 	}
-	e.queuedInvocationsIndex = len(*h)
+	e.queuedChildrenIndex = len(*h)
 	*h = append(*h, e)
 }
 
-func (h *queuedInvocationsHeap) Pop() interface{} {
+func (h *queuedChildrenHeap) Pop() interface{} {
 	old := *h
 	n := len(old)
 	e := old[n-1]
 	old[n-1] = nil
 	*h = old[:n-1]
-	if e.queuedInvocationsIndex != n-1 {
+	if e.queuedChildrenIndex != n-1 {
 		panic("Invalid queue index")
 	}
-	e.queuedInvocationsIndex = -1
+	e.queuedChildrenIndex = -1
 	return e
 }
 
-// IdleSynchronizingWorkersInvocationsHeap is a binary heap that
+// idleSynchronizingWorkersInvocationsHeap is a binary heap that
 // contains all invocations for which one or more workers exist that
 // most recently ran a task associated with that invocation, and are
 // currently synchronizing against the scheduler.
 //
 // This heap is used to determine which invocations should have their
 // workers rebalanced to other invocations.
-type idleSynchronizingWorkersInvocationsHeap []*invocation
+type idleSynchronizingWorkersChildrenHeap []*invocation
 
-func (h idleSynchronizingWorkersInvocationsHeap) Len() int {
+func (h idleSynchronizingWorkersChildrenHeap) Len() int {
 	return len(h)
 }
 
-func (h idleSynchronizingWorkersInvocationsHeap) Less(i, j int) bool {
+func (h idleSynchronizingWorkersChildrenHeap) Less(i, j int) bool {
 	// Sort invocations by worker utilization rate, so that
 	// invocations with an excessive number of workers have their
 	// workers taken first. Invocations can only be part of this
@@ -1491,8 +1475,8 @@ func (h idleSynchronizingWorkersInvocationsHeap) Less(i, j int) bool {
 	//
 	// Simplify the comparison by cross-multiplying and removing the
 	// common part.
-	ui := uint64(h[i].executingWorkersCount) * uint64(len(h[j].idleSynchronizingWorkers))
-	uj := uint64(h[j].executingWorkersCount) * uint64(len(h[i].idleSynchronizingWorkers))
+	ui := uint64(len(h[i].executingWorkers)) * uint64(len(h[j].idleSynchronizingWorkers))
+	uj := uint64(len(h[j].executingWorkers)) * uint64(len(h[i].idleSynchronizingWorkers))
 	if ui < uj {
 		return true
 	} else if ui > uj {
@@ -1504,61 +1488,79 @@ func (h idleSynchronizingWorkersInvocationsHeap) Less(i, j int) bool {
 	return h[i].lastOperationCompletion.Before(h[j].lastOperationCompletion)
 }
 
-func (h idleSynchronizingWorkersInvocationsHeap) Swap(i, j int) {
-	if h[i].idleSynchronizingWorkersInvocationsIndex != i || h[j].idleSynchronizingWorkersInvocationsIndex != j {
+func (h idleSynchronizingWorkersChildrenHeap) Swap(i, j int) {
+	if h[i].idleSynchronizingWorkersChildrenIndex != i || h[j].idleSynchronizingWorkersChildrenIndex != j {
 		panic("Invalid queue indices")
 	}
 	h[i], h[j] = h[j], h[i]
-	h[i].idleSynchronizingWorkersInvocationsIndex = i
-	h[j].idleSynchronizingWorkersInvocationsIndex = j
+	h[i].idleSynchronizingWorkersChildrenIndex = i
+	h[j].idleSynchronizingWorkersChildrenIndex = j
 }
 
-func (h *idleSynchronizingWorkersInvocationsHeap) Push(x interface{}) {
+func (h *idleSynchronizingWorkersChildrenHeap) Push(x interface{}) {
 	e := x.(*invocation)
-	if e.idleSynchronizingWorkersInvocationsIndex != -1 {
+	if e.idleSynchronizingWorkersChildrenIndex != -1 {
 		panic("Invalid queue index")
 	}
-	e.idleSynchronizingWorkersInvocationsIndex = len(*h)
+	e.idleSynchronizingWorkersChildrenIndex = len(*h)
 	*h = append(*h, e)
 }
 
-func (h *idleSynchronizingWorkersInvocationsHeap) Pop() interface{} {
+func (h *idleSynchronizingWorkersChildrenHeap) Pop() interface{} {
 	old := *h
 	n := len(old)
 	e := old[n-1]
 	old[n-1] = nil
 	*h = old[:n-1]
-	if e.idleSynchronizingWorkersInvocationsIndex != n-1 {
+	if e.idleSynchronizingWorkersChildrenIndex != n-1 {
 		panic("Invalid queue index")
 	}
-	e.idleSynchronizingWorkersInvocationsIndex = -1
+	e.idleSynchronizingWorkersChildrenIndex = -1
 	return e
 }
 
-// Invocation keeps track of operations that all need to be scheduled on
+// invocation keeps track of operations that all need to be scheduled on
 // a single size class queue, all having the same invocation ID. These
 // operations will be scheduled fairly with respect to other
 // invocations.
 type invocation struct {
-	invocationKey  scheduler_invocation.Key
-	sizeClassQueue *sizeClassQueue
-
-	// The index of this invocation inside the
-	// sizeClassQueue.queuedInvocations heap.
-	queuedInvocationsIndex int
-	// The index of this invocation inside the
-	// sizeClassQueue.idleSynchronizingWorkersInvocations heap.
-	idleSynchronizingWorkersInvocationsIndex int
+	invocationKeys []scheduler_invocation.Key
+	parent         *invocation
 
 	// Heap of operations that are part of this invocation that are
 	// currently in the QUEUED stage.
 	queuedOperations queuedOperationsHeap
 
+	// All nested invocations for which one or more operations or
+	// workers exist.
+	children map[scheduler_invocation.Key]*invocation
+	// Heap of nested invocations for which one or more operations
+	// exist that are in the QUEUED stage.
+	queuedChildren queuedChildrenHeap
+	// All nested invocations for which one or more idle
+	// synchronizing workers exist.
+	idleSynchronizingWorkersChildren idleSynchronizingWorkersChildrenHeap
+
+	// The index of this invocation inside the queuedChildren heap
+	// of the parent invocation.
+	queuedChildrenIndex int
+	// The index of this invocation inside the
+	// sizeClassQueue.idleSynchronizingWorkersChildren heap.
+	idleSynchronizingWorkersChildrenIndex int
+
+	// The priority of the operation that is either queued in this
+	// invocation or one of its children that is expected to be
+	// executed next. This value needs to be tracked to ensure the
+	// queuedChildren heap of the parent invocation is ordered
+	// correctly.
+	firstQueuedOperationPriority int32
+
 	// Number of workers that are executing operations that belong
 	// to this invocation. This equals the number of operations that
 	// are part of this invocation that are currently in the
 	// EXECUTING stage.
-	executingWorkersCount uint32
+	executingWorkers     map[*worker]int
+	lastOperationStarted time.Time
 	// The time at which the last executing operation was completed.
 	// This value is used to determine which invocations are the
 	// best candidates for rebalancing idle synchronizing workers.
@@ -1572,43 +1574,82 @@ type invocation struct {
 	idleSynchronizingWorkers idleSynchronizingWorkersList
 }
 
-// IsActive returns whether an invocation has one or more queued or
+// getOrCreateChild looks up the invocation key in the size class queue,
+// returning the corresponding invocation. If no invocation under this key
+// exists, a new invocation is created.
+//
+// As the invocation may be just created, the caller must either queue
+// an operation, increase the executing operations count, place a worker
+// in the invocation or call invocation.removeIfEmpty().
+func (i *invocation) getOrCreateChild(bq *InMemoryBuildQueue, invocationKeys []scheduler_invocation.Key) *invocation {
+	for depth, invocationKey := range invocationKeys {
+		iChild, ok := i.children[invocationKey]
+		if !ok {
+			iChild = &invocation{
+				invocationKeys:                        invocationKeys[:depth+1],
+				parent:                                i,
+				children:                              map[scheduler_invocation.Key]*invocation{},
+				queuedChildrenIndex:                   -1,
+				executingWorkers:                      map[*worker]int{},
+				lastOperationStarted:                  bq.now,
+				lastOperationCompletion:               bq.now,
+				idleSynchronizingWorkersChildrenIndex: -1,
+			}
+			i.children[invocationKey] = iChild
+		}
+		i = iChild
+	}
+	return i
+}
+
+// isQueued returns whether an invocation has one or more queued
+// operations, or contains a child invocation that has one or more
+// queued operations.
+func (i *invocation) isQueued() bool {
+	return i.queuedOperations.Len() > 0 || i.queuedChildren.Len() > 0
+}
+
+// isActive returns whether an invocation has one or more queued or
 // executing operations. These are generally the ones that users of the
 // BuildQueueState service want to view.
 func (i *invocation) isActive() bool {
-	return i.queuedOperations.Len() > 0 || i.executingWorkersCount > 0
+	return i.isQueued() || len(i.executingWorkers) > 0
 }
 
-// RemoveIfEmpty checks whether the invocation is empty (i.e., not
+// removeIfEmpty checks whether the invocation is empty (i.e., not
 // containing any operations or workers). If so, it removes the
 // invocation from the size class queue in which it is contained.
-func (i *invocation) removeIfEmpty() {
-	if i.queuedOperations.Len() == 0 && i.executingWorkersCount == 0 && i.idleWorkersCount == 0 {
-		scq := i.sizeClassQueue
-		if scq.invocations[i.invocationKey] != i {
+func (i *invocation) removeIfEmpty() bool {
+	if i.parent != nil && !i.isActive() && i.idleWorkersCount == 0 {
+		invocationKey := i.invocationKeys[len(i.invocationKeys)-1]
+		if i.parent.children[invocationKey] != i {
 			panic("Attempted to remove an invocation that was already removed")
 		}
-		delete(scq.invocations, i.invocationKey)
+		delete(i.parent.children, invocationKey)
+		return true
 	}
+	return false
 }
 
 func (i *invocation) getInvocationState(bq *InMemoryBuildQueue) *buildqueuestate.InvocationState {
-	is := &buildqueuestate.InvocationState{
-		Id:                            i.invocationKey.GetID(),
+	activeInvocationsCount := uint32(0)
+	for _, iChild := range i.children {
+		if iChild.isActive() {
+			activeInvocationsCount++
+		}
+	}
+	return &buildqueuestate.InvocationState{
 		QueuedOperationsCount:         uint32(i.queuedOperations.Len()),
-		ExecutingWorkersCount:         i.executingWorkersCount,
+		ChildrenCount:                 uint32(len(i.children)),
+		QueuedChildrenCount:           uint32(i.queuedChildren.Len()),
+		ActiveChildrenCount:           uint32(activeInvocationsCount),
+		ExecutingWorkersCount:         uint32(len(i.executingWorkers)),
 		IdleWorkersCount:              i.idleWorkersCount,
 		IdleSynchronizingWorkersCount: uint32(len(i.idleSynchronizingWorkers)),
 	}
-	if is.QueuedOperationsCount > 0 {
-		is.FirstQueuedOperation = i.queuedOperations[0].getOperationState(bq)
-		is.FirstQueuedOperation.SizeClassQueueName = nil
-		is.FirstQueuedOperation.InvocationId = nil
-	}
-	return is
 }
 
-// DecrementExecutingWorkersCount decrements the number of operations in
+// decrementExecutingWorkersCount decrements the number of operations in
 // the EXECUTING stage that are part of this invocation.
 //
 // Because the number of operations in the EXECUTING stage is used to
@@ -1616,32 +1657,46 @@ func (i *invocation) getInvocationState(bq *InMemoryBuildQueue) *buildqueuestate
 // this invocation in the queued invocations heap. It may also need to
 // remove the invocation entirely in case it no longer contains any
 // operations.
-func (i *invocation) decrementExecutingWorkersCount(bq *InMemoryBuildQueue) {
-	if i.executingWorkersCount == 0 {
-		panic("Executing operations count invalid")
+func (i *invocation) decrementExecutingWorkersCount(bq *InMemoryBuildQueue, w *worker) {
+	for {
+		if i.executingWorkers[w] <= 0 {
+			panic("Executing workers count invalid")
+		}
+		i.executingWorkers[w]--
+		if i.executingWorkers[w] == 0 {
+			delete(i.executingWorkers, w)
+		}
+		i.lastOperationCompletion = bq.now
+		if i.parent == nil {
+			break
+		}
+		heapMaybeFix(&i.parent.queuedChildren, i.queuedChildrenIndex)
+		heapMaybeFix(&i.parent.idleSynchronizingWorkersChildren, i.idleSynchronizingWorkersChildrenIndex)
+		i.removeIfEmpty()
+		i = i.parent
 	}
-	i.executingWorkersCount--
-	i.lastOperationCompletion = bq.now
-	scq := i.sizeClassQueue
-	heapMaybeFix(&scq.queuedInvocations, i.queuedInvocationsIndex)
-	heapMaybeFix(&scq.idleSynchronizingWorkersInvocations, i.idleSynchronizingWorkersInvocationsIndex)
-	i.removeIfEmpty()
 }
 
-// IncrementExecutingWorkersCount increments the number of operations in
+// incrementExecutingWorkersCount increments the number of operations in
 // the EXECUTING stage that are part of this invocation.
-func (i *invocation) incrementExecutingWorkersCount() {
-	i.executingWorkersCount++
-	scq := i.sizeClassQueue
-	heapMaybeFix(&scq.queuedInvocations, i.queuedInvocationsIndex)
-	heapMaybeFix(&scq.idleSynchronizingWorkersInvocations, i.idleSynchronizingWorkersInvocationsIndex)
+func (i *invocation) incrementExecutingWorkersCount(bq *InMemoryBuildQueue, w *worker) {
+	for {
+		i.executingWorkers[w]++
+		i.lastOperationStarted = bq.now
+		if i.parent == nil {
+			break
+		}
+		heapMaybeFix(&i.parent.queuedChildren, i.queuedChildrenIndex)
+		heapMaybeFix(&i.parent.idleSynchronizingWorkersChildren, i.idleSynchronizingWorkersChildrenIndex)
+		i = i.parent
+	}
 }
 
 var priorityExponentiationBase = math.Pow(2.0, 0.01)
 
-// IsPreferred returns whether the first queued operation of invocation
+// isPreferred returns whether the first queued operation of invocation
 // i should be preferred over the first queued operation of invocation j.
-func (i *invocation) isPreferred(j *invocation, stickinessLimit time.Duration) bool {
+func (i *invocation) isPreferred(j *invocation, tieBreaker bool) bool {
 	// To introduce fairness, we want to prefer scheduling
 	// operations belonging to invocations that have the fewest
 	// running operations. In addition to that, we still want to
@@ -1662,10 +1717,9 @@ func (i *invocation) isPreferred(j *invocation, stickinessLimit time.Duration) b
 	// 2^0.01 =~ 1.007. This means that if the difference in
 	// priority between two builds is 100, one build will be allowed
 	// to run twice as many operations as the other.
-	oi, oj := i.queuedOperations[0], j.queuedOperations[0]
-	ei, ej := float64(i.executingWorkersCount+1), float64(j.executingWorkersCount+1)
+	ei, ej := float64(len(i.executingWorkers)+1), float64(len(j.executingWorkers)+1)
 	var si, sj float64
-	if pi, pj := float64(oi.priority), float64(oj.priority); pi < pj {
+	if pi, pj := float64(i.firstQueuedOperationPriority), float64(j.firstQueuedOperationPriority); pi < pj {
 		// Invocation i has a higher priority. Give invocation j
 		// a penalty based on the difference in priority.
 		si, sj = ei, ej*math.Pow(priorityExponentiationBase, pj-pi)
@@ -1677,7 +1731,32 @@ func (i *invocation) isPreferred(j *invocation, stickinessLimit time.Duration) b
 		// Both invocations have the same priority.
 		si, sj = ei, ej
 	}
-	return si < sj || (si == sj && oi.task.queuedBefore(oj.task, stickinessLimit))
+	return si < sj || (si == sj && tieBreaker)
+}
+
+func (i *invocation) cancelAllQueuedOperations(bq *InMemoryBuildQueue) {
+	// Recursively cancel operations belonging to nested invocations.
+	for i.queuedChildren.Len() > 0 {
+		i.queuedChildren[len(i.queuedChildren)-1].cancelAllQueuedOperations(bq)
+	}
+
+	// Cancel operations directly belonging to this invocation.
+	for i.queuedOperations.Len() > 0 {
+		i.queuedOperations[i.queuedOperations.Len()-1].task.complete(bq, &remoteexecution.ExecuteResponse{
+			Status: status.New(codes.Unavailable, "Workers for this instance name, platform and size class disappeared while task was queued").Proto(),
+		}, false)
+	}
+}
+
+func (i *invocation) updateFirstOperationPriority() {
+	// worker.assignNextQueuedTask() prefers scheduling queued
+	// operations stored directly underneath an invocation over ones
+	// stored in child invocations, so we do the same thing here.
+	if i.queuedOperations.Len() > 0 {
+		i.firstQueuedOperationPriority = i.queuedOperations[0].priority
+	} else if len(i.queuedChildren) > 0 {
+		i.firstQueuedOperationPriority = i.queuedChildren[0].firstQueuedOperationPriority
+	}
 }
 
 // queuedOperationsHeap is a binary heap that stores queued operations,
@@ -1691,7 +1770,7 @@ func (h queuedOperationsHeap) Len() int {
 func (h queuedOperationsHeap) Less(i, j int) bool {
 	// Lexicographic order on priority and queued timestamp.
 	return h[i].priority < h[j].priority || (h[i].priority == h[j].priority &&
-		h[i].task.queuedBefore(h[j].task, 0))
+		h[i].task.desiredState.QueuedTimestamp.AsTime().Before(h[j].task.desiredState.QueuedTimestamp.AsTime()))
 }
 
 func (h queuedOperationsHeap) Swap(i, j int) {
@@ -1725,7 +1804,7 @@ func (h *queuedOperationsHeap) Pop() interface{} {
 	return o
 }
 
-// Operation that a client can use to reference a task.
+// operation that a client can use to reference a task.
 //
 // The difference between operations and tasks is that tasks manage the
 // lifecycle of a piece of work in general, while operations manage it
@@ -1842,19 +1921,25 @@ func (o *operation) waitExecution(bq *InMemoryBuildQueue, out remoteexecution.Ex
 func (o *operation) removeQueuedFromInvocation() {
 	i := o.invocation
 	heap.Remove(&i.queuedOperations, o.queueIndex)
-	scq := i.sizeClassQueue
-	heapRemoveOrFix(&scq.queuedInvocations, i.queuedInvocationsIndex, i.queuedOperations.Len())
+	for i.parent != nil {
+		i.updateFirstOperationPriority()
+		heapRemoveOrFix(&i.parent.queuedChildren, i.queuedChildrenIndex, i.queuedChildren.Len()+i.queuedOperations.Len())
+		i = i.parent
+	}
 }
 
-// Enqueue a newly created operation in the heap of queued operations of
+// enqueue a newly created operation in the heap of queued operations of
 // an invocation. This method is called whenever an operation can't be
 // assigned to a worker immediately, due to no idle synchronizing
 // workers for this size class queue being available.
 func (o *operation) enqueue() {
 	i := o.invocation
 	heap.Push(&i.queuedOperations, o)
-	scq := i.sizeClassQueue
-	heapPushOrFix(&scq.queuedInvocations, i.queuedInvocationsIndex, i)
+	for i.parent != nil {
+		i.updateFirstOperationPriority()
+		heapPushOrFix(&i.parent.queuedChildren, i.queuedChildrenIndex, i)
+		i = i.parent
+	}
 }
 
 func (o *operation) remove(bq *InMemoryBuildQueue) {
@@ -1875,9 +1960,11 @@ func (o *operation) remove(bq *InMemoryBuildQueue) {
 		switch t.getStage() {
 		case remoteexecution.ExecutionStage_QUEUED:
 			o.removeQueuedFromInvocation()
-			i.removeIfEmpty()
+			for i.removeIfEmpty() {
+				i = i.parent
+			}
 		case remoteexecution.ExecutionStage_EXECUTING:
-			i.decrementExecutingWorkersCount(bq)
+			i.decrementExecutingWorkersCount(bq, t.currentWorker)
 		}
 	}
 	delete(t.operations, o.invocation)
@@ -1886,11 +1973,17 @@ func (o *operation) remove(bq *InMemoryBuildQueue) {
 func (o *operation) getOperationState(bq *InMemoryBuildQueue) *buildqueuestate.OperationState {
 	i := o.invocation
 	t := o.task
-	sizeClassKey := i.sizeClassQueue.getKey()
+	sizeClassKey := t.currentSizeClassQueue.getKey()
+	invocationIDs := make([]*anypb.Any, 0, len(i.invocationKeys))
+	for _, invocationKey := range i.invocationKeys {
+		invocationIDs = append(invocationIDs, invocationKey.GetID())
+	}
 	s := &buildqueuestate.OperationState{
-		Name:               o.name,
-		SizeClassQueueName: sizeClassKey.getSizeClassQueueName(),
-		InvocationId:       i.invocationKey.GetID(),
+		Name: o.name,
+		InvocationName: &buildqueuestate.InvocationName{
+			SizeClassQueueName: sizeClassKey.getSizeClassQueueName(),
+			Ids:                invocationIDs,
+		},
 		QueuedTimestamp:    t.desiredState.QueuedTimestamp,
 		ActionDigest:       t.desiredState.ActionDigest,
 		TargetId:           t.targetID,
@@ -1923,15 +2016,16 @@ func (o *operation) maybeStartCleanup(bq *InMemoryBuildQueue) {
 	}
 }
 
-// Task state that is created for every piece of work that needs to be
+// task state that is created for every piece of work that needs to be
 // executed by a worker. Tasks are associated with one or more
 // operations. In the general case a task has one operation, but there
 // may be multiple in case multiple clients request that the same action
 // is built and deduplication is performed.
 type task struct {
-	operations   map[*invocation]*operation
-	actionDigest digest.Digest
-	desiredState remoteworker.DesiredState_Executing
+	currentSizeClassQueue *sizeClassQueue
+	operations            map[*invocation]*operation
+	actionDigest          digest.Digest
+	desiredState          remoteworker.DesiredState_Executing
 
 	// The name of the target that triggered this operation. This
 	// field is not strictly necessary to implement the BuildQueue
@@ -1957,7 +2051,7 @@ type task struct {
 	stageChangeWakeup chan struct{}
 }
 
-// NewOperation attaches a new operation to a task. This function must
+// newOperation attaches a new operation to a task. This function must
 // be called at least once after creating a task. It is most frequently
 // called right after creating a task, but may also be used to attach
 // additional operations to an existing task in case of in-flight
@@ -1979,7 +2073,7 @@ func (t *task) newOperation(bq *InMemoryBuildQueue, priority int32, i *invocatio
 	return o
 }
 
-// ReportNonFinalStageChange can be used to wake up clients that are
+// reportNonFinalStageChange can be used to wake up clients that are
 // calling Execute() or WaitExecution(), causing them to receive another
 // non-final stage change update.
 func (t *task) reportNonFinalStageChange() {
@@ -1987,7 +2081,7 @@ func (t *task) reportNonFinalStageChange() {
 	t.stageChangeWakeup = make(chan struct{})
 }
 
-// Schedule a task. This function will first attempt to directly assign
+// schedule a task. This function will first attempt to directly assign
 // a task to an idle worker that is synchronizing against the scheduler.
 // When no such worker exists, it will queue the operation, so that a
 // worker may pick it up later.
@@ -1995,37 +2089,50 @@ func (t *task) schedule(bq *InMemoryBuildQueue) {
 	// Check whether there are idle workers that are synchronizing
 	// against the scheduler on which we can schedule the operation
 	// directly.
-	scq := t.getSizeClassQueue()
+	//
+	// We should prefer taking workers that are associated with
+	// invocations that have some similarity with those of the task,
+	// so that locality is improved. Scan the tree of invocations
+	// bottom up, breadth first to find an appropriate worker.
+	scq := t.currentSizeClassQueue
+	invocations := make([]*invocation, 0, len(t.operations))
 	for i := range t.operations {
-		if l := i.idleSynchronizingWorkers; len(l) > 0 {
-			// Pick a worker that last ran another task that
-			// belonged to the same invocation. These
-			// workers will most likely to give a high input
-			// file cache hit rate.
-			t.registerQueuedStageStarted(bq, &scq.tasksScheduledWorkerFromSameInvocation)
-			l[0].worker.assignUnqueuedTaskAndWakeUp(bq, t)
-			return
-		}
+		invocations = append(invocations, i)
 	}
-	if l := scq.idleSynchronizingWorkers; len(l) > 0 {
-		// Pick a recently created worker that hasn't run any
-		// tasks yet. This ensures that other workers remain
-		// available for their last invocations.
-		t.registerQueuedStageStarted(bq, &scq.tasksScheduledWorkerWithoutInvocation)
-		l[0].worker.assignUnqueuedTaskAndWakeUp(bq, t)
-	} else if h := scq.idleSynchronizingWorkersInvocations; len(h) > 0 {
-		// Pick a worker that most recently ran a task that is
-		// associated with the invocation with the lowest worker
-		// utilization rate.
-		t.registerQueuedStageStarted(bq, &scq.tasksScheduledWorkerFromOtherInvocation)
-		h[0].idleSynchronizingWorkers[0].worker.assignUnqueuedTaskAndWakeUp(bq, t)
-	} else {
-		// No idle workers are available that are synchronizing
-		// against the scheduler. Queue the operation, so that
-		// workers can pick it up when they become available.
-		t.registerQueuedStageStarted(bq, &scq.tasksScheduledQueue)
-		for _, o := range t.operations {
-			o.enqueue()
+	for {
+		for idx, i := range invocations {
+			if len(i.idleSynchronizingWorkers) > 0 || i.idleSynchronizingWorkersChildren.Len() > 0 {
+				// This invocation either has idle
+				// workers available, or it contains an
+				// invocation that has idle workers.
+				//
+				// Schedule the task directly on the
+				// most preferable worker.
+				for len(i.idleSynchronizingWorkers) == 0 {
+					i = i.idleSynchronizingWorkersChildren[0]
+				}
+				// TODO: Do we want to provide a histogram
+				// on how far the new invocation is removed
+				// from the original one?
+				t.registerQueuedStageStarted(bq, &scq.tasksScheduledWorker)
+				i.idleSynchronizingWorkers[0].worker.assignUnqueuedTaskAndWakeUp(bq, t, 0)
+				return
+			}
+			if i.parent == nil {
+				// Even the root invocation has no idle
+				// workers available that are
+				// synchronizing against the scheduler.
+				//
+				// Queue the operation, so that workers
+				// can pick it up when they become
+				// available.
+				t.registerQueuedStageStarted(bq, &scq.tasksScheduledQueue)
+				for _, o := range t.operations {
+					o.enqueue()
+				}
+				return
+			}
+			invocations[idx] = i.parent
 		}
 	}
 }
@@ -2042,44 +2149,62 @@ func (t *task) getStage() remoteexecution.ExecutionStage_Value {
 	return remoteexecution.ExecutionStage_QUEUED
 }
 
-func (t *task) queuedBefore(other *task, stickinessLimit time.Duration) bool {
-	return t.desiredState.QueuedTimestamp.AsTime().Before(other.desiredState.QueuedTimestamp.AsTime().Add(stickinessLimit))
-}
-
-// Complete execution of the task by registering the execution response.
+// complete execution of the task by registering the execution response.
 // This function wakes up any clients waiting on the task to complete.
 func (t *task) complete(bq *InMemoryBuildQueue, executeResponse *remoteexecution.ExecuteResponse, completedByWorker bool) {
+	currentSCQ := t.currentSizeClassQueue
 	switch t.getStage() {
 	case remoteexecution.ExecutionStage_QUEUED:
 		// The task isn't executing. Create a temporary worker
 		// on which we start the task, so that we can go through
 		// the regular completion code below.
 		var w worker
-		w.assignQueuedTask(bq, t)
+		w.assignQueuedTask(bq, t, 0)
 	case remoteexecution.ExecutionStage_EXECUTING:
 		// Task is executing on a worker. Make sure to preserve
-		// worker.lastInvocations.
+		// worker.lastInvocation.
+		w := t.currentWorker
 		if completedByWorker {
-			w := t.currentWorker
-			if len(w.lastInvocations) != 0 {
-				panic("Executing worker cannot have invocations associated with it")
-			}
-			if len(t.operations) == 0 {
-				panic("Task no longer has an invocation associated with it")
-			}
+			// Due to in-flight deduplication, the task may
+			// be associated with multiple invocations.
+			// Compute the invocation that is the lowest
+			// common ancestor.
+			var iLowest *invocation
 			for i := range t.operations {
-				w.lastInvocations = append(w.lastInvocations, i)
-				i.idleWorkersCount++
+				if iLowest == nil {
+					// First iteration.
+					iLowest = i
+				} else {
+					// Find lowest common ancestor
+					// of two invocations.
+					for len(iLowest.invocationKeys) > len(i.invocationKeys) {
+						iLowest = iLowest.parent
+					}
+					for len(i.invocationKeys) > len(iLowest.invocationKeys) {
+						i = i.parent
+					}
+					for iLowest != i {
+						iLowest = iLowest.parent
+						i = i.parent
+					}
+				}
 			}
+			w.setLastInvocation(iLowest)
+		} else {
+			// In case the worker didn't complete executing
+			// the task, move the worker back to the initial
+			// state where it's associated with the root
+			// invocation. There is no point in offering any
+			// locality/stickiness.
+			w.setLastInvocation(&currentSCQ.rootInvocation)
 		}
 	case remoteexecution.ExecutionStage_COMPLETED:
 		// Task is already completed. Nothing to do.
 		return
 	}
 
-	currentSCQ := t.getSizeClassQueue()
 	for i := range t.operations {
-		i.decrementExecutingWorkersCount(bq)
+		i.decrementExecutingWorkersCount(bq, t.currentWorker)
 	}
 	t.currentWorker.currentTask = nil
 	t.currentWorker = nil
@@ -2107,7 +2232,7 @@ func (t *task) complete(bq *InMemoryBuildQueue, executeResponse *remoteexecution
 				backgroundInitialSizeClassLearner.Abandoned()
 			} else {
 				backgroundSCQ := pq.sizeClassQueues[backgroundSizeClassIndex]
-				backgroundInvocation := backgroundSCQ.getOrCreateInvocation(scheduler_invocation.BackgroundLearningKey)
+				backgroundInvocation := backgroundSCQ.rootInvocation.getOrCreateChild(bq, scheduler_invocation.BackgroundLearningKeys)
 				if backgroundInvocation.queuedOperations.Len() >= pq.maximumQueuedBackgroundLearningOperations {
 					// Already running too many background tasks.
 					backgroundInitialSizeClassLearner.Abandoned()
@@ -2116,6 +2241,7 @@ func (t *task) complete(bq *InMemoryBuildQueue, executeResponse *remoteexecution
 					backgroundAction.DoNotCache = true
 					backgroundAction.Timeout = durationpb.New(backgroundTimeout)
 					backgroundTask := &task{
+						currentSizeClassQueue:   backgroundSCQ,
 						operations:              map[*invocation]*operation{},
 						actionDigest:            t.actionDigest,
 						desiredState:            t.desiredState,
@@ -2148,10 +2274,11 @@ func (t *task) complete(bq *InMemoryBuildQueue, executeResponse *remoteexecution
 		t.desiredState.Action.Timeout = durationpb.New(timeout)
 		t.registerCompletedStageFinished(bq)
 		largestSCQ := pq.sizeClassQueues[len(pq.sizeClassQueues)-1]
+		t.currentSizeClassQueue = largestSCQ
 		operations := t.operations
 		t.operations = make(map[*invocation]*operation, len(operations))
 		for oldI, o := range operations {
-			i := largestSCQ.getOrCreateInvocation(oldI.invocationKey)
+			i := largestSCQ.rootInvocation.getOrCreateChild(bq, oldI.invocationKeys)
 			t.operations[i] = o
 			o.invocation = i
 		}
@@ -2184,18 +2311,7 @@ func (t *task) complete(bq *InMemoryBuildQueue, executeResponse *remoteexecution
 	}
 }
 
-func (t *task) getSizeClassQueue() *sizeClassQueue {
-	// Tasks don't store an explicit reference to the size class
-	// queue. This isn't necessary, as a task is guaranteed to have
-	// one or more operations. We ensure that all operations belong
-	// to invocations inside the same size class queue.
-	for i := range t.operations {
-		return i.sizeClassQueue
-	}
-	panic("Task does not have any operation associated with it")
-}
-
-// RegisterQueuedStageStarted updates Prometheus metrics related to the
+// registerQueuedStageStarted updates Prometheus metrics related to the
 // task entering the QUEUED stage.
 func (t *task) registerQueuedStageStarted(bq *InMemoryBuildQueue, tasksScheduledCounterVec *tasksScheduledCounterVec) {
 	if t.desiredState.Action.DoNotCache {
@@ -2206,33 +2322,35 @@ func (t *task) registerQueuedStageStarted(bq *InMemoryBuildQueue, tasksScheduled
 	t.currentStageStartTime = bq.now
 }
 
-// RegisterQueuedStageFinished updates Prometheus metrics related to the
+// registerQueuedStageFinished updates Prometheus metrics related to the
 // task finishing the QUEUED stage.
 func (t *task) registerQueuedStageFinished(bq *InMemoryBuildQueue) {
-	scq := t.getSizeClassQueue()
+	scq := t.currentSizeClassQueue
 	scq.tasksQueuedDurationSeconds.Observe(bq.now.Sub(t.currentStageStartTime).Seconds())
 	t.currentStageStartTime = bq.now
 }
 
-// RegisterExecutingStageFinished updates Prometheus metrics related to
+// registerExecutingStageFinished updates Prometheus metrics related to
 // the task finishing the EXECUTING stage.
 func (t *task) registerExecutingStageFinished(bq *InMemoryBuildQueue, result, grpcCode string) {
-	scq := t.getSizeClassQueue()
+	scq := t.currentSizeClassQueue
 	scq.tasksExecutingDurationSeconds.WithLabelValues(result, grpcCode).Observe(bq.now.Sub(t.currentStageStartTime).Seconds())
 	scq.tasksExecutingRetries.WithLabelValues(result, grpcCode).Observe(float64(t.retryCount))
 	t.currentStageStartTime = bq.now
 }
 
-// RegisterCompletedStageFinished updates Prometheus metrics related to
+// registerCompletedStageFinished updates Prometheus metrics related to
 // the task finishing the COMPLETED stage, meaning the task got removed.
 func (t *task) registerCompletedStageFinished(bq *InMemoryBuildQueue) {
-	scq := t.getSizeClassQueue()
+	scq := t.currentSizeClassQueue
 	scq.tasksCompletedDurationSeconds.Observe(bq.now.Sub(t.currentStageStartTime).Seconds())
 	t.currentStageStartTime = bq.now
 }
 
 // worker state for every node capable of executing operations.
 type worker struct {
+	workerKey workerKey
+
 	// The task that this worker is currently executing. This field
 	// must be kept in sync with task.currentWorker.
 	currentTask *task
@@ -2242,31 +2360,32 @@ type worker struct {
 	// future. This is effectively a drain that cannot be cleared
 	// through the BuildQueueState interface.
 	terminating bool
-	// The set of invocations that were associated with the task
-	// that this worker completed most recently. This set is used to
-	// make sure successive tasks belonging to one of these
-	// invocations is more likely to end up on this worker. This
-	// improves locality.
-	lastInvocations []*invocation
+	// The invocation that was associated with the task that this
+	// worker completed most recently. This is used to make sure
+	// successive tasks belonging to this invocation is more likely
+	// to end up on this worker. This improves locality.
+	//
+	// Because of in-flight deduplication, it may be the case that
+	// the worker was executing a task that belonged to multiple
+	// invocations. If this is the case, lastInvocation will point
+	// to the lowest common ancestor.
+	lastInvocation *invocation
 	// When set, the worker is idle and currently issuing a blocking
 	// Synchronize() call against the scheduler. This channel can be
 	// closed to wake up the worker, either after assigning a task
 	// to it or to force it becoming drained.
 	wakeup chan<- struct{}
-	// When 'wakeup' is set, this list contains the indices at which
-	// this worker is placed in idleSynchronizingWorkersLists. These
-	// indices are needed to efficiently dequeue workers in case of
-	// wakeups or Synchronize() interruptions.
-	//
-	// When 'lastInvocations' is empty, this list contains a single
-	// element, storing at which index this worker is queued in
-	// sizeClassQueue.idleSynchronizingWorkers.
-	//
-	// When 'lastInvocations' is non-empty, this list contains
-	// indices at which this worker is queued in
-	// invocation.idleSynchronizingWorkers, where the order of
-	// invocations corresponds to that of 'lastInvocations'.
-	listIndices []int
+	// When 'wakeup' is set, this contains the index at which this
+	// worker is placed in lastInvocation's
+	// idleSynchronizingWorkers. This index is needed to efficiently
+	// dequeue the worker in case of wakeups or Synchronize()
+	// interruptions.
+	listIndex int
+	// For every level of worker invocation of stickiness, the time
+	// at which we started executing operations belonging to the
+	// current invocation. These values are used to determine
+	// whether the stickiness limit has been reached.
+	stickinessStartingTimes []time.Time
 }
 
 func workerMatchesPattern(workerID, workerIDPattern map[string]string) bool {
@@ -2292,30 +2411,22 @@ func (w *worker) isDrained(scq *sizeClassQueue, workerID map[string]string) bool
 	return false
 }
 
-// Dequeue a worker. This method is either called by the worker itself
+// dequeue a worker. This method is either called by the worker itself
 // at the end of Synchronize(), or when a worker needs to be woken up.
 func (w *worker) dequeue(scq *sizeClassQueue) {
-	if len(w.lastInvocations) == 0 {
-		// Worker has never run an operation before. The worker
-		// was only queued as part of the size class queue
-		// itself.
-		scq.idleSynchronizingWorkers.dequeue(w.listIndices[0])
-	} else {
-		// Worker has run an operation before. The worker was
-		// queued as part of one or more invocations.
-		for idx, i := range w.lastInvocations {
-			i.idleSynchronizingWorkers.dequeue(w.listIndices[idx])
-			heapRemoveOrFix(
-				&scq.idleSynchronizingWorkersInvocations,
-				i.idleSynchronizingWorkersInvocationsIndex,
-				len(i.idleSynchronizingWorkers))
-		}
+	i := w.lastInvocation
+	i.idleSynchronizingWorkers.dequeue(w.listIndex)
+	for i.parent != nil {
+		heapRemoveOrFix(
+			&i.parent.idleSynchronizingWorkersChildren,
+			i.idleSynchronizingWorkersChildrenIndex,
+			len(i.idleSynchronizingWorkers))
+		i = i.parent
 	}
 	w.wakeup = nil
-	w.listIndices = w.listIndices[:0]
 }
 
-// MaybeDequeue is the same as dequeue(), except that it may also be
+// maybeDequeue is the same as dequeue(), except that it may also be
 // called if the worker is not actually queued. This is used to dequeue
 // a worker as part of interrupted Synchronize() calls.
 func (w *worker) maybeDequeue(scq *sizeClassQueue) {
@@ -2324,15 +2435,15 @@ func (w *worker) maybeDequeue(scq *sizeClassQueue) {
 	}
 }
 
-// WakeUp wakes up an idle worker that is currently synchronizing
+// wakeUp wakes up an idle worker that is currently synchronizing
 // against the scheduler.
 func (w *worker) wakeUp(scq *sizeClassQueue) {
 	close(w.wakeup)
 	w.dequeue(scq)
 }
 
-// AssignUnqueuedTask assigns a task that is not queued to a worker.
-func (w *worker) assignUnqueuedTask(bq *InMemoryBuildQueue, t *task) {
+// assignUnqueuedTask assigns a task that is not queued to a worker.
+func (w *worker) assignUnqueuedTask(bq *InMemoryBuildQueue, t *task, stickinessRetained int) {
 	if w.currentTask != nil {
 		panic("Worker is already associated with a task")
 	}
@@ -2345,15 +2456,18 @@ func (w *worker) assignUnqueuedTask(bq *InMemoryBuildQueue, t *task) {
 	t.currentWorker = w
 	t.retryCount = 0
 	for i := range t.operations {
-		i.incrementExecutingWorkersCount()
+		i.incrementExecutingWorkersCount(bq, w)
 	}
-	w.clearLastInvocations()
+	w.clearLastInvocation()
+	for i := stickinessRetained; i < len(w.stickinessStartingTimes); i++ {
+		w.stickinessStartingTimes[i] = bq.now
+	}
 }
 
-// AssignQueuedTask assigns a task that is queued to a worker. The task
+// assignQueuedTask assigns a task that is queued to a worker. The task
 // is unqueued in the process.
-func (w *worker) assignQueuedTask(bq *InMemoryBuildQueue, t *task) {
-	w.assignUnqueuedTask(bq, t)
+func (w *worker) assignQueuedTask(bq *InMemoryBuildQueue, t *task, stickinessRetained int) {
+	w.assignUnqueuedTask(bq, t, stickinessRetained)
 
 	for _, o := range t.operations {
 		o.removeQueuedFromInvocation()
@@ -2361,89 +2475,120 @@ func (w *worker) assignQueuedTask(bq *InMemoryBuildQueue, t *task) {
 	t.reportNonFinalStageChange()
 }
 
-// AssignNextQueuedTask determines which queued task is the best
+// assignNextQueuedTask determines which queued task is the best
 // candidate for execution and assigns it to the current task.
 func (w *worker) assignNextQueuedTask(bq *InMemoryBuildQueue, scq *sizeClassQueue, workerID map[string]string) bool {
-	if scq.queuedInvocations.Len() == 0 {
-		return false
-	}
-
-	// Determine from which invocation we need to extract an
-	// operation. We always want to pick the one that has the fewest
-	// executing operations (corrected for the priority). In case of
-	// ties, we want to schedule the oldest operation.
-	//
-	// The exception to this rule is when worker invocation
-	// stickiness is enabled. In that case tie breaking gives a
-	// slight advantage to any of the invocations associated with
-	// the last executed task. This reduces the startup overhead of
-	// actions that leave state behind on the worker.
-	iBest := scq.queuedInvocations[0]
-	tBest := iBest.queuedOperations[0].task
-	tSelected := tBest
-	if workerInvocationStickinessLimit := scq.platformQueue.workerInvocationStickinessLimit; workerInvocationStickinessLimit > 0 {
-		var iSticky *invocation
-		hasQueuedLastInvocations := false
-		iSelected := iBest
-		for _, iLast := range w.lastInvocations {
-			if iLast.queuedOperations.Len() > 0 {
-				hasQueuedLastInvocations = true
-				if iLast.isPreferred(iBest, workerInvocationStickinessLimit) && (iSticky == nil || iLast.isPreferred(iSticky, 0)) {
-					iSticky = iLast
-					iSelected = iLast
+	lastInvocationKeys := w.lastInvocation.invocationKeys
+	pq := scq.platformQueue
+	workerInvocationStickinessLimits := pq.workerInvocationStickinessLimits
+	stickinessStartingTimes := w.stickinessStartingTimes
+	i := &scq.rootInvocation
+	stickinessRetained := 0
+	for {
+		// Even though an invocation can both have directly
+		// queued operations and queued children, it is uncommon
+		// in practice. Don't bother making smart decisions
+		// which to pick; always prefer directly queued
+		// operations over queued children.
+		if len(i.queuedOperations) > 0 {
+			// One or more operations are enqueued in this
+			// invocation directly. Pick the most preferable
+			// operation.
+			scq.workerInvocationStickinessRetained.Observe(float64(stickinessRetained))
+			w.assignQueuedTask(bq, i.queuedOperations[0].task, stickinessRetained)
+			return true
+		} else if len(i.queuedChildren) > 0 {
+			// One or more operations are enqueued in a
+			// child invocation.
+			//
+			// Determine from which invocation we need to
+			// extract an operation. We always want to pick
+			// the one that has the fewest executing
+			// operations (corrected for the priority). In
+			// case of ties, we want to schedule the
+			// invocation that is least recently used, so
+			// that they are scheduled round robin.
+			//
+			// The exception to this rule is when worker
+			// invocation stickiness is enabled. In that
+			// case tie breaking gives a slight advantage to
+			// any of the invocations associated with the
+			// last executed task. This reduces the startup
+			// overhead of actions that leave state behind
+			// on the worker.
+			iBest := i.queuedChildren[0]
+			if len(lastInvocationKeys) > 0 && len(workerInvocationStickinessLimits) > 0 {
+				iSticky := i.children[lastInvocationKeys[0]]
+				if iSticky.isQueued() && iSticky.isPreferred(iBest, w.stickinessStartingTimes[0].Add(workerInvocationStickinessLimits[0]).After(bq.now)) {
+					iBest = iSticky
+				}
+				if iBest == iSticky {
+					// Continue to process stickiness
+					// for child invocations.
+					stickinessRetained++
+					lastInvocationKeys = lastInvocationKeys[1:]
+					workerInvocationStickinessLimits = workerInvocationStickinessLimits[1:]
+					stickinessStartingTimes = stickinessStartingTimes[1:]
+				} else {
+					// Stop processing any further
+					// stickiness, as we're going to
+					// pick another invocation.
+					lastInvocationKeys = nil
 				}
 			}
-		}
-		tSelected = iSelected.queuedOperations[0].task
-
-		if len(w.lastInvocations) == 0 {
-			scq.workerInvocationStickinessOutcomesNoLastInvocations.Inc()
-		} else if !hasQueuedLastInvocations {
-			scq.workerInvocationStickinessOutcomesNoQueuedLastInvocations.Inc()
-		} else if iSticky == nil {
-			scq.workerInvocationStickinessOutcomesNoStickyLastInvocations.Inc()
-		} else if tSelected == tBest {
-			scq.workerInvocationStickinessOutcomesSelectedBestTask.Inc()
+			i = iBest
 		} else {
-			scq.workerInvocationStickinessOutcomesSelectedStickyTask.Inc()
+			// No queued operations available.
+			return false
 		}
 	}
-
-	w.assignQueuedTask(bq, tSelected)
-	return true
 }
 
-// ClearLastInvocations clears the list of invocations of the last task
-// to run on this worker. This method needs to be called when workers
-// are removed to make sure that invocations don't leak.
-func (w *worker) clearLastInvocations() {
+// clearLastInvocation clears the invocation of the last task to run on
+// this worker. This method needs to be called when workers are removed
+// to make sure that invocations don't leak.
+func (w *worker) clearLastInvocation() {
 	if w.wakeup != nil {
 		panic("Clearing last invocations would make it impossible to dequeue the worker")
 	}
-	for idx, i := range w.lastInvocations {
-		if i.idleWorkersCount == 0 {
-			panic("Invalid workers count")
+	if iLast := w.lastInvocation; iLast != nil {
+		for i := iLast; i != nil; i = i.parent {
+			if i.idleWorkersCount == 0 {
+				panic("Invalid workers count")
+			}
+			i.idleWorkersCount--
+			i.removeIfEmpty()
 		}
-		i.idleWorkersCount--
-		i.removeIfEmpty()
-		w.lastInvocations[idx] = nil
+		w.lastInvocation = nil
 	}
-	w.lastInvocations = w.lastInvocations[:0]
 }
 
-// AssignUnqueuedTaskAndWakeUp is used to assign a task to an idle
+// setLastInvocation sets the invocation of the last task to run on this
+// worker. This method needs to be called when execution of a task
+// completes.
+func (w *worker) setLastInvocation(iLast *invocation) {
+	if w.lastInvocation != nil {
+		panic("Executing worker cannot have a last invocation associated with it")
+	}
+	w.lastInvocation = iLast
+	for i := iLast; i != nil; i = i.parent {
+		i.idleWorkersCount++
+	}
+}
+
+// assignUnqueuedTaskAndWakeUp is used to assign a task to an idle
 // worker that is synchronizing against the scheduler and to wake it up.
 // This method is used when clients directly assign a task to a worker,
 // as opposed to letting the worker select a task itself.
-func (w *worker) assignUnqueuedTaskAndWakeUp(bq *InMemoryBuildQueue, t *task) {
+func (w *worker) assignUnqueuedTaskAndWakeUp(bq *InMemoryBuildQueue, t *task, stickinessRetained int) {
 	// Wake up the worker prior to assigning the task. Assigning
 	// clears w.lastInvocations, which cannot be done while the
 	// worker is queued.
-	w.wakeUp(t.getSizeClassQueue())
-	w.assignUnqueuedTask(bq, t)
+	w.wakeUp(t.currentSizeClassQueue)
+	w.assignUnqueuedTask(bq, t, stickinessRetained)
 }
 
-// GetExecutingSynchronizeResponse returns a synchronization response
+// getExecutingSynchronizeResponse returns a synchronization response
 // that instructs a worker to start executing a task.
 func (w *worker) getExecutingSynchronizeResponse(bq *InMemoryBuildQueue) *remoteworker.SynchronizeResponse {
 	t := w.currentTask
@@ -2515,35 +2660,25 @@ func (w *worker) getNextTask(ctx context.Context, bq *InMemoryBuildQueue, scq *s
 		} else {
 			// No queued tasks available. Queue the worker,
 			// so that clients may assign a task to us.
-			if w.wakeup != nil || len(w.listIndices) != 0 {
+			//
+			// Place ourselves in the queue belonging to the
+			// invocation of the last task that ran on this
+			// worker, so that we're more likely to receive
+			// tasks that share the same invocation keys
+			// prefix.
+			if w.wakeup != nil || w.listIndex != -1 {
 				panic("Worker is already queued")
 			}
 			wakeup := make(chan struct{})
 			w.wakeup = wakeup
-			lastInvocations := w.lastInvocations
-			if len(lastInvocations) == 0 {
-				// Worker has not completed any tasks
-				// before. Place ourselves in the size
-				// class queue.
-				w.listIndices = append(w.listIndices[:0], 0)
-				scq.idleSynchronizingWorkers.enqueue(&idleSynchronizingWorker{
-					worker:    w,
-					listIndex: &w.listIndices[0],
-				})
-			} else {
-				// Worker has completed a task before.
-				// Place ourselves in each of the
-				// invocations of the task, so that
-				// we're more likely to receive tasks
-				// belonging to the same invocations.
-				w.listIndices = append(w.listIndices[:0], make([]int, len(w.lastInvocations))...)
-				for idx, i := range w.lastInvocations {
-					i.idleSynchronizingWorkers.enqueue(&idleSynchronizingWorker{
-						worker:    w,
-						listIndex: &w.listIndices[idx],
-					})
-					heapPushOrFix(&scq.idleSynchronizingWorkersInvocations, i.idleSynchronizingWorkersInvocationsIndex, i)
-				}
+			i := w.lastInvocation
+			i.idleSynchronizingWorkers.enqueue(&idleSynchronizingWorker{
+				worker:    w,
+				listIndex: &w.listIndex,
+			})
+			for i.parent != nil {
+				heapPushOrFix(&i.parent.idleSynchronizingWorkersChildren, i.idleSynchronizingWorkersChildrenIndex, i)
+				i = i.parent
 			}
 			bq.leave()
 
@@ -2651,13 +2786,15 @@ func (l *idleSynchronizingWorkersList) enqueue(entry *idleSynchronizingWorker) {
 }
 
 func (l *idleSynchronizingWorkersList) dequeue(listIndex int) {
+	w := (*l)[listIndex].worker
 	(*l)[listIndex] = (*l)[len(*l)-1]
 	*(*l)[listIndex].listIndex = listIndex
+	w.listIndex = -1
 	(*l)[len(*l)-1] = idleSynchronizingWorker{}
 	(*l) = (*l)[:len(*l)-1]
 }
 
-// HeapRemoveOrFix either calls heap.Remove() or heap.Fix(), depending
+// heapRemoveOrFix either calls heap.Remove() or heap.Fix(), depending
 // on a provided counter value. This function may be used to correct the
 // position of an object that contains a counter or list inside a heap,
 // after the counter or list is mutated.
@@ -2669,7 +2806,7 @@ func heapRemoveOrFix(h heap.Interface, i, count int) {
 	}
 }
 
-// HeapPushOrFix either calls heap.Push() or heap.Fix(), depending on an
+// heapPushOrFix either calls heap.Push() or heap.Fix(), depending on an
 // existing heap index. This function can be used to push an object into
 // a heap, only if it's not part of the heap already.
 func heapPushOrFix(h heap.Interface, i int, v interface{}) {
@@ -2680,7 +2817,7 @@ func heapPushOrFix(h heap.Interface, i int, v interface{}) {
 	}
 }
 
-// HeapMaybeFix calls heap.Fix() only when an object is actually stored
+// heapMaybeFix calls heap.Fix() only when an object is actually stored
 // in the heap.
 func heapMaybeFix(h heap.Interface, i int) {
 	if i >= 0 {

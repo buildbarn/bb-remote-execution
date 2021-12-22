@@ -91,10 +91,10 @@ func (ar *DemultiplexingActionRouter) RegisterActionRouter(instanceNamePrefix di
 // RouteAction forwards requests to one of the ActionRouters that was
 // provided to NewDemultiplexingActionRouter() or
 // RegisterActionRouter().
-func (ar *DemultiplexingActionRouter) RouteAction(ctx context.Context, digestFunction digest.Function, action *remoteexecution.Action, requestMetadata *remoteexecution.RequestMetadata) (platform.Key, invocation.Key, initialsizeclass.Selector, error) {
+func (ar *DemultiplexingActionRouter) RouteAction(ctx context.Context, digestFunction digest.Function, action *remoteexecution.Action, requestMetadata *remoteexecution.RequestMetadata) (platform.Key, []invocation.Key, initialsizeclass.Selector, error) {
 	key, err := ar.platformKeyExtractor.ExtractKey(ctx, digestFunction.GetInstanceName(), action)
 	if err != nil {
-		return platform.Key{}, "", nil, util.StatusWrap(err, "Failed to extract platform key")
+		return platform.Key{}, nil, nil, util.StatusWrap(err, "Failed to extract platform key")
 	}
 	entry := &ar.entries[ar.trie.GetLongestPrefix(key)+1]
 	entry.requestsTotal.Inc()

@@ -25,15 +25,19 @@ func NewActionRouterFromConfiguration(configuration *pb.ActionRouterConfiguratio
 		if err != nil {
 			return nil, util.StatusWrap(err, "Failed to create platform key extractor")
 		}
-		invocationKeyExtractor, err := invocation.NewKeyExtractorFromConfiguration(kind.Simple.InvocationKeyExtractor)
-		if err != nil {
-			return nil, util.StatusWrap(err, "Failed to create invocation key extractor")
+		invocationKeyExtractors := make([]invocation.KeyExtractor, 0, len(kind.Simple.InvocationKeyExtractors))
+		for i, entry := range kind.Simple.InvocationKeyExtractors {
+			invocationKeyExtractor, err := invocation.NewKeyExtractorFromConfiguration(entry)
+			if err != nil {
+				return nil, util.StatusWrapf(err, "Failed to create invocation key extractor at index %d", i)
+			}
+			invocationKeyExtractors = append(invocationKeyExtractors, invocationKeyExtractor)
 		}
 		initialSizeClassAnalyzer, err := initialsizeclass.NewAnalyzerFromConfiguration(kind.Simple.InitialSizeClassAnalyzer, previousExecutionStatsStore)
 		if err != nil {
 			return nil, util.StatusWrap(err, "Failed to create initial size class analyzer")
 		}
-		return NewSimpleActionRouter(platformKeyExtractor, invocationKeyExtractor, initialSizeClassAnalyzer), nil
+		return NewSimpleActionRouter(platformKeyExtractor, invocationKeyExtractors, initialSizeClassAnalyzer), nil
 	case *pb.ActionRouterConfiguration_Demultiplexing:
 		platformKeyExtractor, err := platform.NewKeyExtractorFromConfiguration(kind.Demultiplexing.PlatformKeyExtractor, contentAddressableStorage, maximumMessageSizeBytes)
 		if err != nil {

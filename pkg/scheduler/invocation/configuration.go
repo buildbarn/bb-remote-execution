@@ -14,8 +14,6 @@ func NewKeyExtractorFromConfiguration(configuration *pb.InvocationKeyExtractorCo
 		return nil, status.Error(codes.InvalidArgument, "No invocation key extractor coniguration provided")
 	}
 	switch configuration.Kind.(type) {
-	case *pb.InvocationKeyExtractorConfiguration_Empty:
-		return EmptyKeyExtractor, nil
 	case *pb.InvocationKeyExtractorConfiguration_RequestMetadata:
 		return RequestMetadataKeyExtractor, nil
 	default:

@@ -13,7 +13,7 @@ import (
 
 type simpleActionRouter struct {
 	platformKeyExtractor     platform.KeyExtractor
-	invocationKeyExtractor   invocation.KeyExtractor
+	invocationKeyExtractors  []invocation.KeyExtractor
 	initialSizeClassAnalyzer initialsizeclass.Analyzer
 }
 
@@ -24,26 +24,30 @@ type simpleActionRouter struct {
 // This implementation should be sufficient for most simple setups,
 // where only a small number of execution platforms exist, or where
 // scheduling decisions are identical for all platforms.
-func NewSimpleActionRouter(platformKeyExtractor platform.KeyExtractor, invocationKeyExtractor invocation.KeyExtractor, initialSizeClassAnalyzer initialsizeclass.Analyzer) ActionRouter {
+func NewSimpleActionRouter(platformKeyExtractor platform.KeyExtractor, invocationKeyExtractors []invocation.KeyExtractor, initialSizeClassAnalyzer initialsizeclass.Analyzer) ActionRouter {
 	return &simpleActionRouter{
 		platformKeyExtractor:     platformKeyExtractor,
-		invocationKeyExtractor:   invocationKeyExtractor,
+		invocationKeyExtractors:  invocationKeyExtractors,
 		initialSizeClassAnalyzer: initialSizeClassAnalyzer,
 	}
 }
 
-func (ar *simpleActionRouter) RouteAction(ctx context.Context, digestFunction digest.Function, action *remoteexecution.Action, requestMetadata *remoteexecution.RequestMetadata) (platform.Key, invocation.Key, initialsizeclass.Selector, error) {
+func (ar *simpleActionRouter) RouteAction(ctx context.Context, digestFunction digest.Function, action *remoteexecution.Action, requestMetadata *remoteexecution.RequestMetadata) (platform.Key, []invocation.Key, initialsizeclass.Selector, error) {
 	platformKey, err := ar.platformKeyExtractor.ExtractKey(ctx, digestFunction.GetInstanceName(), action)
 	if err != nil {
-		return platform.Key{}, "", nil, util.StatusWrap(err, "Failed to extract platform key")
+		return platform.Key{}, nil, nil, util.StatusWrap(err, "Failed to extract platform key")
 	}
-	invocationKey, err := ar.invocationKeyExtractor.ExtractKey(ctx, requestMetadata)
-	if err != nil {
-		return platform.Key{}, "", nil, util.StatusWrap(err, "Failed to extract invocation key")
+	invocationKeys := make([]invocation.Key, 0, len(ar.invocationKeyExtractors))
+	for _, invocationKeyExtractor := range ar.invocationKeyExtractors {
+		invocationKey, err := invocationKeyExtractor.ExtractKey(ctx, requestMetadata)
+		if err != nil {
+			return platform.Key{}, nil, nil, util.StatusWrap(err, "Failed to extract invocation key")
+		}
+		invocationKeys = append(invocationKeys, invocationKey)
 	}
 	initialSizeClassSelector, err := ar.initialSizeClassAnalyzer.Analyze(ctx, digestFunction, action)
 	if err != nil {
-		return platform.Key{}, "", nil, util.StatusWrap(err, "Failed to analyze initial size class")
+		return platform.Key{}, nil, nil, util.StatusWrap(err, "Failed to analyze initial size class")
 	}
-	return platformKey, invocationKey, initialSizeClassSelector, nil
+	return platformKey, invocationKeys, initialSizeClassSelector, nil
 }

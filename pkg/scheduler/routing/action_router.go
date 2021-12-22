@@ -18,11 +18,11 @@ import (
 // - To extract a platform key from the action, so that
 //   InMemoryBuildQueue knows on which workers the action needs to
 //   execute.
-// - To extract an invocation key from the client's context, so that
+// - To extract invocation keys from the client's context, so that
 //   InMemoryBuildQueue can group operations belonging to the same
 //   client and schedule them fairly with respect to other clients.
 // - To create an initial size class selector, which InMemoryBuildQueue
 //   can use to select the appropriate worker size.
 type ActionRouter interface {
-	RouteAction(ctx context.Context, digestFunction digest.Function, action *remoteexecution.Action, requestMetadata *remoteexecution.RequestMetadata) (platform.Key, invocation.Key, initialsizeclass.Selector, error)
+	RouteAction(ctx context.Context, digestFunction digest.Function, action *remoteexecution.Action, requestMetadata *remoteexecution.RequestMetadata) (platform.Key, []invocation.Key, initialsizeclass.Selector, error)
 }

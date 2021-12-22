@@ -43,7 +43,13 @@ message SimpleActionRouterConfiguration {
   // implementation that, for example, extracts usernames from
   // authentication tokens. This ensures that every user receives an
   // equal number of workers.
-  InvocationKeyExtractorConfiguration invocation_key_extractor = 2;
+  //
+  // By leaving this field empty, all actions are grouped together in a
+  // single queue, meaning there is no fairness. When multiple elements
+  // are provided, fairness is provided on multiple levels. For example,
+  // one can enforce fairness at the user level, followed by fairness at
+  // the Bazel invocation ID level.
+  repeated InvocationKeyExtractorConfiguration invocation_key_extractors = 2;
 
   // The initial size class analyzer that is used. The initial size
   // class analyzer is responsible for determining the size of the
@@ -113,13 +119,11 @@ message PlatformKeyExtractorConfiguration {
 }
 
 message InvocationKeyExtractorConfiguration {
-  oneof kind {
-    // Do not attempt to extract any client provided request metadata,
-    // and use an empty Protobuf message as the invocation key. This
-    // causes the scheduler to group all incoming actions together and
-    // provide no fairness whatsoever.
-    google.protobuf.Empty empty = 1;
+  // Was 'empty'. The same behavior can now be achieved by leaving the
+  // 'invocation_key_extractors' list empty.
+  reserved 1;
 
+  oneof kind {
     // Use the 'tool_invocation_id' that the client provided as part of
     // the RequestMetadata message as the invocation key. In the case of
     // Bazel, this causes all actions belonging to the same Bazel

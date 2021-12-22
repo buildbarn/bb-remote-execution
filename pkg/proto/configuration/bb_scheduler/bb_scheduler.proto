@@ -112,7 +112,7 @@ message ApplicationConfiguration {
   // {
   //   simple: {
   //     platformKeyExtractor: { actionAndCommand: {} },
-  //     invocationKeyExtractor: { requestMetadata: {} },
+  //     invocationKeyExtractors: [{ requestMetadata: {} }],
   //     initialSizeClassAnalyzer: {
   //       defaultExecutionTimeout: '1800s',
   //       maximumExecutionTimeout: '7200s',
@@ -175,25 +175,33 @@ message PredeclaredPlatformQueueConfiguration {
   reserved 4;
 
   // Allow workers to continue to execute actions from the same
-  // invocation, if doing so keeps the number of workers assigned to an
-  // invocation balanced, and the difference in age between the first
-  // queued operation remains below the configured limit. It is worth
-  // setting this option if there is an inherent overhead when switching
-  // between actions belonging to different invocations.
+  // invocation up to given amount of time, if doing so keeps the number
+  // of workers assigned to an invocation balanced. It is worth setting
+  // this option if there is an inherent overhead when switching between
+  // actions belonging to different invocations.
   //
   // For example, consider the case where workers are configured to run
   // tests inside virtual machines, and that the virtual machine's boot
   // image is provided as part of the input root. When actions that use
   // the same boot image run right after each other, the existing
   // virtual machine may be repurposed. If the boot image is different,
-  // a costly restart needs to be performed. By adding stickiness, the
-  // probability of needing to do virtual machine restarts decreases.
+  // a costly restart needs to be performed, so that a new image may be
+  // loaded. By placing actions that use different boot images in
+  // separate invocations and adding stickiness, the probability of
+  // needing to do virtual machine restarts decreases.
   //
-  // This option may require a custom implementation of
+  // Because invocations can be nested by using multiple invocation key
+  // extractors, this field contains a list of durations of stickiness
+  // to apply at each level. If the number of invocation keys of an
+  // operation exceeds the configured number of stickiness limits, the
+  // stickiness limit for the remaining invocation keys is assumed to be
+  // zero.
+  //
+  // This option may require custom implementations of
   // invocation.KeyExtractor to be effective.
   //
-  // Recommended value: 0s
-  google.protobuf.Duration worker_invocation_stickiness_limit = 5;
+  // Recommended value: unset
+  repeated google.protobuf.Duration worker_invocation_stickiness_limits = 5;
 
   // NOTE: The option below only has effect when feedback driven initial
   // size class analysis is enabled.

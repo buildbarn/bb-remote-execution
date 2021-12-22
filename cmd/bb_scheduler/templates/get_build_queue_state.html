@@ -15,20 +15,26 @@
 	<table class="align-middle border-dark table table-bordered table-sm">
 		<thead class="text-center">
 			<tr>
-				<th rowspan="2">Instance name prefix</th>
-				<th rowspan="2">Platform properties</th>
-				<th rowspan="2">Size class</th>
-				<th rowspan="2">Timeout</th>
-				<th colspan="3">Invocations</th>
-				<th colspan="2">Workers</th>
-				<th rowspan="2">Drains</th>
+				<th rowspan="3">Instance name prefix</th>
+				<th rowspan="3">Platform properties</th>
+				<th rowspan="3">Size class</th>
+				<th rowspan="3">Timeout</th>
+				<th colspan="7">Root invocation</th>
+				<th rowspan="3">All workers</th>
+				<th rowspan="3">Drains</th>
+			</tr>
+			<tr>
+				<th rowspan="2">Queued operations</th>
+				<th colspan="3">Children</th>
+				<th colspan="3">Workers</th>
 			</tr>
 			<tr>
 				<th>Queued</th>
 				<th>Active</th>
 				<th>All</th>
 				<th>Executing</th>
-				<th>All</th>
+				<th>Idle</th>
+				<th>Idle synchronizing</th>
 			</tr>
 		</thead>
 		<tbody>
@@ -50,11 +56,15 @@
 						<td class="text-end">{{time_future .Timeout $now}}</td>
 						{{$sizeClassQueueName := get_size_class_queue_name $platformQueueName .SizeClass}}
 						{{$sizeClassQueueNameJSON := proto_to_json $sizeClassQueueName}}
-						<td class="text-end"><a href="invocations?size_class_queue_name={{$sizeClassQueueNameJSON}}&amp;filter=QUEUED">{{.QueuedInvocationsCount}}</a></td>
-						<td class="text-end"><a href="invocations?size_class_queue_name={{$sizeClassQueueNameJSON}}&amp;filter=ACTIVE">{{.ActiveInvocationsCount}}</a></td>
-						<td class="text-end"><a href="invocations?size_class_queue_name={{$sizeClassQueueNameJSON}}&amp;filter=ALL">{{.InvocationsCount}}</a></td>
-						<td class="text-end"><a href="workers?size_class_queue_name={{$sizeClassQueueNameJSON}}&amp;just_executing_workers=true">{{.ExecutingWorkersCount}}</a></td>
-						<td class="text-end"><a href="workers?size_class_queue_name={{$sizeClassQueueNameJSON}}">{{.WorkersCount}}</a></td>
+						{{$invocationNameJSON := printf "{\"sizeClassQueueName\":%s}" $sizeClassQueueNameJSON}}
+						<td class="text-end"><a href="queued_operations?invocation_name={{$invocationNameJSON}}">{{.RootInvocation.QueuedOperationsCount}}</a></td>
+						<td class="text-end"><a href="invocation_children?invocation_name={{$invocationNameJSON}}&amp;filter=QUEUED">{{.RootInvocation.QueuedChildrenCount}}</a></td>
+						<td class="text-end"><a href="invocation_children?invocation_name={{$invocationNameJSON}}&amp;filter=ACTIVE">{{.RootInvocation.ActiveChildrenCount}}</a></td>
+						<td class="text-end"><a href="invocation_children?invocation_name={{$invocationNameJSON}}&amp;filter=ALL">{{.RootInvocation.ChildrenCount}}</a></td>
+						<td class="text-end"><a href="workers?filter={{printf "{\"executing\":%s}" $invocationNameJSON}}">{{.RootInvocation.ExecutingWorkersCount}}</a></td>
+						<td class="text-end">{{.RootInvocation.IdleWorkersCount}}</td>
+						<td class="text-end"><a href="workers?filter={{printf "{\"idleSynchronizing\":%s}" $invocationNameJSON}}">{{.RootInvocation.IdleSynchronizingWorkersCount}}</a></td>
+						<td class="text-end"><a href="workers?filter={{printf "{\"all\":%s}" $sizeClassQueueNameJSON}}">{{.WorkersCount}}</a></td>
 						<td class="text-end"><a href="drains?size_class_queue_name={{$sizeClassQueueNameJSON}}">{{.DrainsCount}}</a></td>
 					{{end}}
 				</tr>

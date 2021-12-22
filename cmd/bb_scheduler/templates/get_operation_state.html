@@ -28,7 +28,8 @@
 
 <table class="table" style="table-layout: fixed">
 	{{$now := .Now}}
-	{{$sizeClassQueueName := .Operation.SizeClassQueueName}}
+	{{$invocationName := .Operation.InvocationName}}
+	{{$sizeClassQueueName := $invocationName.SizeClassQueueName}}
 	{{$platformQueueName := $sizeClassQueueName.PlatformQueueName}}
 	<tr>
 		<th style="width: 25%">Instance name prefix:</th>
@@ -51,8 +52,14 @@
 		<td style="width: 75%">{{$sizeClassQueueName.SizeClass}}</td>
 	</tr>
 	<tr>
-		<th style="width: 25%">Invocation ID:</th>
-		<td style="width: 75%">{{proto_to_json .Operation.InvocationId}}</td>
+		<th style="width: 25%">Invocation IDs:</th>
+		<td style="width: 75%; word-break: break-all">
+			<ul>
+				{{range $invocationName.Ids}}
+					<li>{{proto_to_json .}}</li>
+				{{end}}
+			</ul>
+		</td>
 	</tr>
 	<tr>
 		<th style="width: 25%">Action digest:</th>
@@ -104,7 +111,7 @@
 
 {{with operation_stage_completed .Operation}}
 	<h2 class="my-4">Execute response</h2>
-	<pre>{{proto_to_json .}}</pre>
+	<pre>{{proto_to_json_multiline .}}</pre>
 {{else}}
 	<form action="kill_operation" method="post">
 		<input name="name" type="hidden" value="{{.OperationName}}"/>

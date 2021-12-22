@@ -58,7 +58,9 @@ func (k Key) GetID() *anypb.Any {
 	return &id
 }
 
-// BackgroundLearningKey is a predefined Key that is used for all
-// operations that are created to perform background learning (see
+// BackgroundLearningKeys is a predefined list of Keys that is used for
+// all operations that are created to perform background learning (see
 // initialsizeclass.FeedbackAnalyzer).
-var BackgroundLearningKey = MustNewKey(mustNewAny(&buildqueuestate.BackgroundLearning{}))
+var BackgroundLearningKeys = []Key{
+	MustNewKey(mustNewAny(&buildqueuestate.BackgroundLearning{})),
+}

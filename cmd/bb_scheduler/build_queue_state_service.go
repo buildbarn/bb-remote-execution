@@ -65,6 +65,12 @@ var (
 			}
 			return re_util.GetBrowserURL(browserURL, "action", d)
 		},
+		"get_child_invocation_name": func(parent *buildqueuestate.InvocationName, id *anypb.Any) *buildqueuestate.InvocationName {
+			return &buildqueuestate.InvocationName{
+				SizeClassQueueName: parent.SizeClassQueueName,
+				Ids:                append(append(make([]*anypb.Any, 0, len(parent.Ids)+1), parent.Ids...), id),
+			}
+		},
 		"get_size_class_queue_name": func(platformQueueName *buildqueuestate.PlatformQueueName, sizeClass uint32) *buildqueuestate.SizeClassQueueName {
 			return &buildqueuestate.SizeClassQueueName{
 				PlatformQueueName: platformQueueName,
@@ -90,6 +96,13 @@ var (
 			return nil
 		},
 		"proto_to_json": func(m proto.Message) string {
+			json, err := protojson.MarshalOptions{}.Marshal(m)
+			if err != nil {
+				return ""
+			}
+			return string(json)
+		},
+		"proto_to_json_multiline": func(m proto.Message) string {
 			json, err := protojson.MarshalOptions{Multiline: true}.Marshal(m)
 			if err != nil {
 				return ""
@@ -164,7 +177,7 @@ func newBuildQueueStateService(buildQueue buildqueuestate.BuildQueueStateServer,
 	router.HandleFunc("/", s.handleGetBuildQueueState)
 	router.HandleFunc("/add_drain", s.handleAddDrain)
 	router.HandleFunc("/drains", s.handleListDrains)
-	router.HandleFunc("/invocations", s.handleListInvocations)
+	router.HandleFunc("/invocation_children", s.handleListInvocationChildren)
 	router.HandleFunc("/kill_operation", s.handleKillOperation)
 	router.HandleFunc("/operation", s.handleGetOperation)
 	router.HandleFunc("/operations", s.handleListOperations)
@@ -200,39 +213,39 @@ func (s *buildQueueStateService) handleGetBuildQueueState(w http.ResponseWriter,
 	}
 }
 
-func (s *buildQueueStateService) handleListInvocations(w http.ResponseWriter, req *http.Request) {
+func (s *buildQueueStateService) handleListInvocationChildren(w http.ResponseWriter, req *http.Request) {
 	query := req.URL.Query()
-	var sizeClassQueueName buildqueuestate.SizeClassQueueName
-	if err := protojson.Unmarshal([]byte(query.Get("size_class_queue_name")), &sizeClassQueueName); err != nil {
-		renderError(w, util.StatusWrapWithCode(err, codes.InvalidArgument, "Failed to extract size class queue name"))
+	var invocationName buildqueuestate.InvocationName
+	if err := protojson.Unmarshal([]byte(query.Get("invocation_name")), &invocationName); err != nil {
+		renderError(w, util.StatusWrapWithCode(err, codes.InvalidArgument, "Failed to extract invocation name"))
 		return
 	}
 	filterString := query.Get("filter")
-	filterValue, ok := buildqueuestate.ListInvocationsRequest_Filter_value[filterString]
+	filterValue, ok := buildqueuestate.ListInvocationChildrenRequest_Filter_value[filterString]
 	if !ok {
 		renderError(w, status.Error(codes.InvalidArgument, "Invalid filter"))
 		return
 	}
 
 	ctx := req.Context()
-	response, err := s.buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
-		SizeClassQueueName: &sizeClassQueueName,
-		Filter:             buildqueuestate.ListInvocationsRequest_Filter(filterValue),
+	response, err := s.buildQueue.ListInvocationChildren(ctx, &buildqueuestate.ListInvocationChildrenRequest{
+		InvocationName: &invocationName,
+		Filter:         buildqueuestate.ListInvocationChildrenRequest_Filter(filterValue),
 	})
 	if err != nil {
-		renderError(w, util.StatusWrap(err, "Failed to list invocations state"))
+		renderError(w, util.StatusWrap(err, "Failed to list invocation children"))
 		return
 	}
-	if err := templates.ExecuteTemplate(w, "list_invocation_state.html", struct {
-		SizeClassQueueName *buildqueuestate.SizeClassQueueName
-		Invocations        []*buildqueuestate.InvocationState
-		Filter             string
-		Now                time.Time
+	if err := templates.ExecuteTemplate(w, "list_invocation_child_state.html", struct {
+		InvocationName *buildqueuestate.InvocationName
+		Children       []*buildqueuestate.InvocationChildState
+		Filter         string
+		Now            time.Time
 	}{
-		SizeClassQueueName: &sizeClassQueueName,
-		Invocations:        response.Invocations,
-		Filter:             filterString,
-		Now:                s.clock.Now(),
+		InvocationName: &invocationName,
+		Children:       response.Children,
+		Filter:         filterString,
+		Now:            s.clock.Now(),
 	}); err != nil {
 		log.Print(err)
 	}
@@ -325,9 +338,9 @@ func (s *buildQueueStateService) handleListOperations(w http.ResponseWriter, req
 
 func (s *buildQueueStateService) handleListQueuedOperations(w http.ResponseWriter, req *http.Request) {
 	query := req.URL.Query()
-	var sizeClassQueueName buildqueuestate.SizeClassQueueName
-	if err := protojson.Unmarshal([]byte(query.Get("size_class_queue_name")), &sizeClassQueueName); err != nil {
-		renderError(w, util.StatusWrapWithCode(err, codes.InvalidArgument, "Failed to extract size class queue name"))
+	var invocationName buildqueuestate.InvocationName
+	if err := protojson.Unmarshal([]byte(query.Get("invocation_name")), &invocationName); err != nil {
+		renderError(w, util.StatusWrapWithCode(err, codes.InvalidArgument, "Failed to extract invocation name"))
 		return
 	}
 
@@ -341,18 +354,11 @@ func (s *buildQueueStateService) handleListQueuedOperations(w http.ResponseWrite
 		startAfter = &startAfterMessage
 	}
 
-	var invocationID anypb.Any
-	if err := protojson.Unmarshal([]byte(query.Get("invocation_id")), &invocationID); err != nil {
-		renderError(w, util.StatusWrapWithCode(err, codes.InvalidArgument, "Failed to extract invocation ID"))
-		return
-	}
-
 	ctx := req.Context()
 	response, err := s.buildQueue.ListQueuedOperations(ctx, &buildqueuestate.ListQueuedOperationsRequest{
-		SizeClassQueueName: &sizeClassQueueName,
-		InvocationId:       &invocationID,
-		PageSize:           pageSize,
-		StartAfter:         startAfter,
+		InvocationName: &invocationName,
+		PageSize:       pageSize,
+		StartAfter:     startAfter,
 	})
 	if err != nil {
 		renderError(w, util.StatusWrap(err, "Failed to list queued operation state"))
@@ -369,23 +375,21 @@ func (s *buildQueueStateService) handleListQueuedOperations(w http.ResponseWrite
 	}
 
 	if err := templates.ExecuteTemplate(w, "list_queued_operation_state.html", struct {
-		SizeClassQueueName *buildqueuestate.SizeClassQueueName
-		InvocationID       *anypb.Any
-		BrowserURL         *url.URL
-		Now                time.Time
-		PaginationInfo     *buildqueuestate.PaginationInfo
-		EndIndex           int
-		StartAfter         *buildqueuestate.ListQueuedOperationsRequest_StartAfter
-		QueuedOperations   []*buildqueuestate.OperationState
+		InvocationName   *buildqueuestate.InvocationName
+		BrowserURL       *url.URL
+		Now              time.Time
+		PaginationInfo   *buildqueuestate.PaginationInfo
+		EndIndex         int
+		StartAfter       *buildqueuestate.ListQueuedOperationsRequest_StartAfter
+		QueuedOperations []*buildqueuestate.OperationState
 	}{
-		SizeClassQueueName: &sizeClassQueueName,
-		InvocationID:       &invocationID,
-		BrowserURL:         s.browserURL,
-		Now:                s.clock.Now(),
-		PaginationInfo:     response.PaginationInfo,
-		EndIndex:           int(response.PaginationInfo.StartIndex) + len(response.QueuedOperations),
-		StartAfter:         nextStartAfter,
-		QueuedOperations:   response.QueuedOperations,
+		InvocationName:   &invocationName,
+		BrowserURL:       s.browserURL,
+		Now:              s.clock.Now(),
+		PaginationInfo:   response.PaginationInfo,
+		EndIndex:         int(response.PaginationInfo.StartIndex) + len(response.QueuedOperations),
+		StartAfter:       nextStartAfter,
+		QueuedOperations: response.QueuedOperations,
 	}); err != nil {
 		log.Print(err)
 	}
@@ -393,9 +397,9 @@ func (s *buildQueueStateService) handleListQueuedOperations(w http.ResponseWrite
 
 func (s *buildQueueStateService) handleListWorkers(w http.ResponseWriter, req *http.Request) {
 	query := req.URL.Query()
-	var sizeClassQueueName buildqueuestate.SizeClassQueueName
-	if err := protojson.Unmarshal([]byte(query.Get("size_class_queue_name")), &sizeClassQueueName); err != nil {
-		renderError(w, util.StatusWrapWithCode(err, codes.InvalidArgument, "Failed to extract size class queue name"))
+	var filter buildqueuestate.ListWorkersRequest_Filter
+	if err := protojson.Unmarshal([]byte(query.Get("filter")), &filter); err != nil {
+		renderError(w, util.StatusWrapWithCode(err, codes.InvalidArgument, "Failed to extract filter"))
 		return
 	}
 
@@ -408,14 +412,12 @@ func (s *buildQueueStateService) handleListWorkers(w http.ResponseWriter, req *h
 		}
 		startAfter = &startAfterMessage
 	}
-	justExecutingWorkers := query.Get("just_executing_workers") != ""
 
 	ctx := req.Context()
 	response, err := s.buildQueue.ListWorkers(ctx, &buildqueuestate.ListWorkersRequest{
-		SizeClassQueueName:   &sizeClassQueueName,
-		JustExecutingWorkers: justExecutingWorkers,
-		PageSize:             pageSize,
-		StartAfter:           startAfter,
+		Filter:     &filter,
+		PageSize:   pageSize,
+		StartAfter: startAfter,
 	})
 	if err != nil {
 		renderError(w, util.StatusWrap(err, "Failed to list worker state"))
@@ -431,23 +433,21 @@ func (s *buildQueueStateService) handleListWorkers(w http.ResponseWriter, req *h
 	}
 
 	if err := templates.ExecuteTemplate(w, "list_worker_state.html", struct {
-		SizeClassQueueName   *buildqueuestate.SizeClassQueueName
-		BrowserURL           *url.URL
-		Now                  time.Time
-		PaginationInfo       *buildqueuestate.PaginationInfo
-		EndIndex             int
-		StartAfter           *buildqueuestate.ListWorkersRequest_StartAfter
-		Workers              []*buildqueuestate.WorkerState
-		JustExecutingWorkers bool
+		Filter         *buildqueuestate.ListWorkersRequest_Filter
+		BrowserURL     *url.URL
+		Now            time.Time
+		PaginationInfo *buildqueuestate.PaginationInfo
+		EndIndex       int
+		StartAfter     *buildqueuestate.ListWorkersRequest_StartAfter
+		Workers        []*buildqueuestate.WorkerState
 	}{
-		SizeClassQueueName:   &sizeClassQueueName,
-		BrowserURL:           s.browserURL,
-		Now:                  s.clock.Now(),
-		PaginationInfo:       response.PaginationInfo,
-		EndIndex:             int(response.PaginationInfo.StartIndex) + len(response.Workers),
-		StartAfter:           nextStartAfter,
-		Workers:              response.Workers,
-		JustExecutingWorkers: justExecutingWorkers,
+		Filter:         &filter,
+		BrowserURL:     s.browserURL,
+		Now:            s.clock.Now(),
+		PaginationInfo: response.PaginationInfo,
+		EndIndex:       int(response.PaginationInfo.StartIndex) + len(response.Workers),
+		StartAfter:     nextStartAfter,
+		Workers:        response.Workers,
 	}); err != nil {
 		log.Print(err)
 	}

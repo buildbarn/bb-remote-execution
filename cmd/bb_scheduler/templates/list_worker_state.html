@@ -3,25 +3,58 @@
 <h1 class="my-4">Workers</h1>
 
 <table class="table" style="table-layout: fixed">
-	{{template "size_class_queue_info.html" .SizeClassQueueName}}
+	{{$sizeClassQueueNameJSON := "unset"}}
+	{{$invocationNameJSON := "unset"}}
+	{{$instanceNamePrefix := "unset"}}
+	{{with .Filter.GetExecuting}}
+		{{$sizeClassQueueNameJSON = proto_to_json .SizeClassQueueName}}
+		{{$invocationNameJSON = proto_to_json .}}
+		{{$instanceNamePrefix = .SizeClassQueueName.PlatformQueueName.InstanceNamePrefix}}
+		{{template "invocation_info.html" .}}
+	{{else}}
+		{{with .Filter.GetIdleSynchronizing}}
+			{{$sizeClassQueueNameJSON = proto_to_json .SizeClassQueueName}}
+			{{$invocationNameJSON = proto_to_json .}}
+			{{$instanceNamePrefix = .SizeClassQueueName.PlatformQueueName.InstanceNamePrefix}}
+			{{template "invocation_info.html" .}}
+		{{else}}
+			{{$sizeClassQueueName := .Filter.GetAll}}
+			{{$sizeClassQueueNameJSON = proto_to_json $sizeClassQueueName}}
+			{{$invocationNameJSON = printf "{\"sizeClassQueueName\":%s}" $sizeClassQueueNameJSON}}
+			{{$instanceNamePrefix = $sizeClassQueueName.PlatformQueueName.InstanceNamePrefix}}
+			{{template "size_class_queue_info.html" $sizeClassQueueName}}
+		{{end}}
+	{{end}}
 </table>
 
 <div class="d-flex justify-content-between">
 	<nav>
 		<ul class="pagination">
-			{{if .JustExecutingWorkers}}
+			{{if .Filter.GetExecuting}}
 				<li class="active page-item">
 					<span class="page-link">Executing</span>
 				</li>
+			{{else}}
 				<li class="page-item">
-					<a class="page-link" href="?size_class_queue_name={{proto_to_json .SizeClassQueueName}}">All</a>
+					<a class="page-link" href="?filter={{ printf "{\"executing\":%s}" $invocationNameJSON}}">Executing</a>
+				</li>
+			{{end}}
+			{{if .Filter.GetIdleSynchronizing}}
+				<li class="active page-item">
+					<span class="page-link">Idle synchronizing</span>
 				</li>
 			{{else}}
 				<li class="page-item">
-					<a class="page-link" href="?size_class_queue_name={{proto_to_json .SizeClassQueueName}}&amp;just_executing_workers=true">Executing</a>
+					<a class="page-link" href="?filter={{ printf "{\"idleSynchronizing\":%s}" $invocationNameJSON}}">Idle synchronizing</a>
 				</li>
+			{{end}}
+			{{if .Filter.GetAll}}
 				<li class="active page-item">
 					<span class="page-link">All</span>
+				</li>
+			{{else}}
+				<li class="page-item">
+					<a class="page-link" href="?filter={{ printf "{\"all\":%s}" $sizeClassQueueNameJSON}}">All</a>
 				</li>
 			{{end}}
 		</ul>
@@ -34,7 +67,7 @@
 				</li>
 			{{else}}
 				<li class="page-item">
-					<a class="page-link" href="?size_class_queue_name={{proto_to_json .SizeClassQueueName}}{{if .JustExecutingWorkers}}&amp;just_executing_workers=true{{end}}">◀◀</a>
+					<a class="page-link" href="?filter={{proto_to_json .Filter}}">◀◀</a>
 				</li>
 			{{end}}
 			<li class="active page-item">
@@ -44,7 +77,7 @@
 			</li>
 			{{if .StartAfter}}
 				<li class="page-item">
-					<a class="page-link" href="?size_class_queue_name={{proto_to_json .SizeClassQueueName}}{{if .JustExecutingWorkers}}&amp;just_executing_workers=true{{end}}&amp;start_after={{proto_to_json .StartAfter}}">▶</a>
+					<a class="page-link" href="?filter={{proto_to_json .Filter}}&amp;start_after={{proto_to_json .StartAfter}}">▶</a>
 				</li>
 			{{else}}
 				<li class="disabled page-item">
@@ -70,7 +103,6 @@
 		<tbody>
 			{{$browserURL := .BrowserURL}}
 			{{$now := .Now}}
-			{{$platformQueueName := .SizeClassQueueName.PlatformQueueName}}
 			{{range .Workers}}
 				<tr>
 					<td>
@@ -85,7 +117,7 @@
 							<a class="font-monospace" href="operation?name={{.Name}}" style="color: {{to_foreground_color .Name}}">{{abbreviate .Name}}</a>
 						</td>
 						<td style="background-color: {{to_background_color .ActionDigest.Hash}}">
-							<a class="font-monospace" href="{{action_url $browserURL $platformQueueName.InstanceNamePrefix .InstanceNameSuffix .ActionDigest}}" style="color: {{to_foreground_color .ActionDigest.Hash}}">{{abbreviate .ActionDigest.Hash}}</a>
+							<a class="font-monospace" href="{{action_url $browserURL $instanceNamePrefix .InstanceNameSuffix .ActionDigest}}" style="color: {{to_foreground_color .ActionDigest.Hash}}">{{abbreviate .ActionDigest.Hash}}</a>
 						</td>
 						<td style="word-break: break-all">{{.TargetId}}</td>
 					{{else}}

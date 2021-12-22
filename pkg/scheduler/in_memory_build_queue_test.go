@@ -142,7 +142,7 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 				SizeBytes: 456,
 			},
-		}), nil).Return(platform.MustNewKey("main", platformForTesting), invocation.MustNewKey(&anypb.Any{}), initialSizeClassSelector, nil)
+		}), nil).Return(platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
 		initialSizeClassSelector.EXPECT().Abandoned()
 		clock.EXPECT().Now().Return(time.Unix(899, 999999999))
 
@@ -177,7 +177,7 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 				SizeBytes: 456,
 			},
-		}), nil).Return(platform.MustNewKey("main", platformForTesting), invocation.MustNewKey(&anypb.Any{}), initialSizeClassSelector, nil)
+		}), nil).Return(platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
 		initialSizeClassSelector.EXPECT().Abandoned()
 		clock.EXPECT().Now().Return(time.Unix(900, 0))
 
@@ -257,7 +257,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 			SizeBytes: 456,
 		},
 		DoNotCache: true,
-	}), nil).Return(platform.MustNewKey("main", &remoteexecution.Platform{}), invocation.MustNewKey(&anypb.Any{}), initialSizeClassSelector, nil)
+	}), nil).Return(platform.MustNewKey("main", &remoteexecution.Platform{}), nil, initialSizeClassSelector, nil)
 	initialSizeClassLearner := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 		Return(0, 30*time.Minute, initialSizeClassLearner)
@@ -411,7 +411,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 				SizeBytes: 456,
 			},
 			DoNotCache: true,
-		}), nil).Return(platform.MustNewKey("main", &remoteexecution.Platform{}), invocation.MustNewKey(&anypb.Any{}), initialSizeClassSelector, nil)
+		}), nil).Return(platform.MustNewKey("main", &remoteexecution.Platform{}), nil, initialSizeClassSelector, nil)
 		initialSizeClassLearner := mock.NewMockLearner(ctrl)
 		initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 			Return(0, 30*time.Minute, initialSizeClassLearner)
@@ -455,7 +455,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 			SizeBytes: 456,
 		},
 		DoNotCache: true,
-	}), nil).Return(platform.MustNewKey("main", &remoteexecution.Platform{}), invocation.MustNewKey(&anypb.Any{}), initialSizeClassSelector, nil)
+	}), nil).Return(platform.MustNewKey("main", &remoteexecution.Platform{}), nil, initialSizeClassSelector, nil)
 	initialSizeClassSelector.EXPECT().Abandoned()
 	clock.EXPECT().Now().Return(time.Unix(1962, 0)).Times(17)
 	stream3, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
@@ -555,7 +555,7 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 	// Let one client enqueue an operation.
 	initialSizeClassSelector1 := mock.NewMockSelector(ctrl)
 	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).
-		Return(platform.MustNewKey("main", platformForTesting), invocation.MustNewKey(&anypb.Any{}), initialSizeClassSelector1, nil)
+		Return(platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector1, nil)
 	initialSizeClassLearner1 := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector1.EXPECT().Select([]uint32{0}).
 		Return(0, 30*time.Minute, initialSizeClassLearner1)
@@ -597,7 +597,7 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 			SizeBytes: 456,
 		},
-	}), nil).Return(platform.MustNewKey("main", platformForTesting), invocation.MustNewKey(&anypb.Any{}), initialSizeClassSelector2, nil)
+	}), nil).Return(platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector2, nil)
 	initialSizeClassSelector2.EXPECT().Abandoned()
 	clock.EXPECT().Now().Return(time.Unix(1075, 0))
 	timer2 := mock.NewMockTimer(ctrl)
@@ -655,10 +655,12 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 
 	// The operation should be present without any timeout
 	// associated with it, as there are multiple waiters.
-	sizeClassQueueName := &buildqueuestate.SizeClassQueueName{
-		PlatformQueueName: &buildqueuestate.PlatformQueueName{
-			InstanceNamePrefix: "main",
-			Platform:           platformForTesting,
+	invocationName := &buildqueuestate.InvocationName{
+		SizeClassQueueName: &buildqueuestate.SizeClassQueueName{
+			PlatformQueueName: &buildqueuestate.PlatformQueueName{
+				InstanceNamePrefix: "main",
+				Platform:           platformForTesting,
+			},
 		},
 	}
 	clock.EXPECT().Now().Return(time.Unix(1080, 0))
@@ -669,10 +671,9 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 	testutil.RequireEqualProto(t, &buildqueuestate.ListOperationsResponse{
 		Operations: []*buildqueuestate.OperationState{
 			{
-				Name:               "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
-				SizeClassQueueName: sizeClassQueueName,
-				InvocationId:       &anypb.Any{},
-				QueuedTimestamp:    &timestamppb.Timestamp{Seconds: 1070},
+				Name:            "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
+				InvocationName:  invocationName,
+				QueuedTimestamp: &timestamppb.Timestamp{Seconds: 1070},
 				ActionDigest: &remoteexecution.Digest{
 					Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
 					SizeBytes: 123,
@@ -709,10 +710,9 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 	testutil.RequireEqualProto(t, &buildqueuestate.ListOperationsResponse{
 		Operations: []*buildqueuestate.OperationState{
 			{
-				Name:               "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
-				SizeClassQueueName: sizeClassQueueName,
-				InvocationId:       &anypb.Any{},
-				QueuedTimestamp:    &timestamppb.Timestamp{Seconds: 1070},
+				Name:            "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
+				InvocationName:  invocationName,
+				QueuedTimestamp: &timestamppb.Timestamp{Seconds: 1070},
 				ActionDigest: &remoteexecution.Digest{
 					Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
 					SizeBytes: 123,
@@ -804,7 +804,7 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 			SizeBytes: 456,
 		},
-	}), nil).Return(platform.MustNewKey("main/suffix", platformForTesting), invocation.MustNewKey(&anypb.Any{}), initialSizeClassSelector, nil)
+	}), nil).Return(platform.MustNewKey("main/suffix", platformForTesting), nil, initialSizeClassSelector, nil)
 	initialSizeClassLearner := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 		Return(0, 30*time.Minute, initialSizeClassLearner)
@@ -1024,7 +1024,7 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 			SizeBytes: 456,
 		},
-	}), nil).Return(platform.MustNewKey("main", platformForTesting), invocation.MustNewKey(&anypb.Any{}), initialSizeClassSelector, nil)
+	}), nil).Return(platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
 	initialSizeClassLearner := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 		Return(0, 30*time.Minute, initialSizeClassLearner)
@@ -1293,8 +1293,12 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 	}
 	clock.EXPECT().Now().Return(time.Unix(1001, 0))
 	workerState, err := buildQueue.ListWorkers(ctx, &buildqueuestate.ListWorkersRequest{
-		SizeClassQueueName: sizeClassQueueName,
-		PageSize:           1000,
+		Filter: &buildqueuestate.ListWorkersRequest_Filter{
+			Type: &buildqueuestate.ListWorkersRequest_Filter_All{
+				All: sizeClassQueueName,
+			},
+		},
+		PageSize: 1000,
 	})
 	require.NoError(t, err)
 	require.Equal(t, &buildqueuestate.ListWorkersResponse{
@@ -1326,8 +1330,12 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 	require.NoError(t, err)
 	clock.EXPECT().Now().Return(time.Unix(1004, 0))
 	workerState, err = buildQueue.ListWorkers(ctx, &buildqueuestate.ListWorkersRequest{
-		SizeClassQueueName: sizeClassQueueName,
-		PageSize:           1000,
+		Filter: &buildqueuestate.ListWorkersRequest_Filter{
+			Type: &buildqueuestate.ListWorkersRequest_Filter_All{
+				All: sizeClassQueueName,
+			},
+		},
+		PageSize: 1000,
 	})
 	require.NoError(t, err)
 	require.Equal(t, &buildqueuestate.ListWorkersResponse{
@@ -1359,8 +1367,12 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 	require.NoError(t, err)
 	clock.EXPECT().Now().Return(time.Unix(1006, 0))
 	workerState, err = buildQueue.ListWorkers(ctx, &buildqueuestate.ListWorkersRequest{
-		SizeClassQueueName: sizeClassQueueName,
-		PageSize:           1000,
+		Filter: &buildqueuestate.ListWorkersRequest_Filter{
+			Type: &buildqueuestate.ListWorkersRequest_Filter_All{
+				All: sizeClassQueueName,
+			},
+		},
+		PageSize: 1000,
 	})
 	require.NoError(t, err)
 	require.Equal(t, &buildqueuestate.ListWorkersResponse{
@@ -1387,7 +1399,7 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 			SizeBytes: 456,
 		},
-	}), nil).Return(platform.MustNewKey("main", platformForTesting), invocation.MustNewKey(&anypb.Any{}), initialSizeClassSelector, nil)
+	}), nil).Return(platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
 	initialSizeClassLearner := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 		Return(0, 30*time.Minute, initialSizeClassLearner)
@@ -1631,7 +1643,7 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 			},
 		}), testutil.EqProto(t, requestMetadata)).Return(
 			platform.MustNewKey("main", platformForTesting),
-			invocation.MustNewKey(requestMetadataAny),
+			[]invocation.Key{invocation.MustNewKey(requestMetadataAny)},
 			initialSizeClassSelector,
 			nil,
 		)
@@ -1676,23 +1688,26 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 		})
 	}
 
-	// Check that ListInvocations() reports all five invocations,
-	// both when justQueuedInvocations is true and false. When true,
-	// the invocations should be returned in scheduling order.
-	// Otherwise, they should be returned alphabetically.
-	sizeClassQueueName := &buildqueuestate.SizeClassQueueName{
-		PlatformQueueName: &buildqueuestate.PlatformQueueName{
-			InstanceNamePrefix: "main",
-			Platform:           platformForTesting,
+	// Check that ListInvocationChildren() reports all five
+	// invocations, both when justQueuedInvocations is true and
+	// false. When true, the invocations should be returned in
+	// scheduling order. Otherwise, they should be returned
+	// alphabetically.
+	invocationName := &buildqueuestate.InvocationName{
+		SizeClassQueueName: &buildqueuestate.SizeClassQueueName{
+			PlatformQueueName: &buildqueuestate.PlatformQueueName{
+				InstanceNamePrefix: "main",
+				Platform:           platformForTesting,
+			},
 		},
 	}
 	clock.EXPECT().Now().Return(time.Unix(1036, 0))
-	invocationStates, err := buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
-		SizeClassQueueName: sizeClassQueueName,
-		Filter:             buildqueuestate.ListInvocationsRequest_QUEUED,
+	invocationStates, err := buildQueue.ListInvocationChildren(ctx, &buildqueuestate.ListInvocationChildrenRequest{
+		InvocationName: invocationName,
+		Filter:         buildqueuestate.ListInvocationChildrenRequest_QUEUED,
 	})
 	require.NoError(t, err)
-	require.Len(t, invocationStates.Invocations, 5)
+	require.Len(t, invocationStates.Children, 5)
 	for i, toolInvocationID := range []string{
 		"dfe3ca8b-64bc-4efd-b8a9-2bdc3827f0ac",
 		"4712de52-4518-4840-91d5-c9e13a38cc5a",
@@ -1704,20 +1719,20 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 			ToolInvocationId: toolInvocationID,
 		})
 		require.NoError(t, err)
-		testutil.RequireEqualProto(t, invocationID, invocationStates.Invocations[i].Id)
-		require.Equal(t, uint32(5), invocationStates.Invocations[i].QueuedOperationsCount)
-		require.Equal(t, uint32(0), invocationStates.Invocations[i].ExecutingWorkersCount)
-		require.Equal(t, uint32(0), invocationStates.Invocations[i].IdleWorkersCount)
-		require.Equal(t, uint32(0), invocationStates.Invocations[i].IdleSynchronizingWorkersCount)
+		testutil.RequireEqualProto(t, invocationID, invocationStates.Children[i].Id)
+		require.Equal(t, uint32(5), invocationStates.Children[i].State.QueuedOperationsCount)
+		require.Equal(t, uint32(0), invocationStates.Children[i].State.ExecutingWorkersCount)
+		require.Equal(t, uint32(0), invocationStates.Children[i].State.IdleWorkersCount)
+		require.Equal(t, uint32(0), invocationStates.Children[i].State.IdleSynchronizingWorkersCount)
 	}
 
 	clock.EXPECT().Now().Return(time.Unix(1036, 0))
-	invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
-		SizeClassQueueName: sizeClassQueueName,
-		Filter:             buildqueuestate.ListInvocationsRequest_ACTIVE,
+	invocationStates, err = buildQueue.ListInvocationChildren(ctx, &buildqueuestate.ListInvocationChildrenRequest{
+		InvocationName: invocationName,
+		Filter:         buildqueuestate.ListInvocationChildrenRequest_ACTIVE,
 	})
 	require.NoError(t, err)
-	require.Len(t, invocationStates.Invocations, 5)
+	require.Len(t, invocationStates.Children, 5)
 	for i, toolInvocationID := range []string{
 		"351fdffe-04df-4fe0-98c7-b4f5a463fd52",
 		"4712de52-4518-4840-91d5-c9e13a38cc5a",
@@ -1729,11 +1744,11 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 			ToolInvocationId: toolInvocationID,
 		})
 		require.NoError(t, err)
-		testutil.RequireEqualProto(t, invocationID, invocationStates.Invocations[i].Id)
-		require.Equal(t, uint32(5), invocationStates.Invocations[i].QueuedOperationsCount)
-		require.Equal(t, uint32(0), invocationStates.Invocations[i].ExecutingWorkersCount)
-		require.Equal(t, uint32(0), invocationStates.Invocations[i].IdleWorkersCount)
-		require.Equal(t, uint32(0), invocationStates.Invocations[i].IdleSynchronizingWorkersCount)
+		testutil.RequireEqualProto(t, invocationID, invocationStates.Children[i].Id)
+		require.Equal(t, uint32(5), invocationStates.Children[i].State.QueuedOperationsCount)
+		require.Equal(t, uint32(0), invocationStates.Children[i].State.ExecutingWorkersCount)
+		require.Equal(t, uint32(0), invocationStates.Children[i].State.IdleWorkersCount)
+		require.Equal(t, uint32(0), invocationStates.Children[i].State.IdleSynchronizingWorkersCount)
 	}
 
 	// Let 25 workers execute the operations that were created
@@ -1741,22 +1756,22 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 	// client invocations, we should not execute them in the order
 	// in which they arrived. Instead, we should alternate between
 	// invocations, so that each of them gets their fair share.
-	for _, i := range []int{
+	for i, j := range []int{
 		0, 5, 10, 15, 20,
 		1, 6, 11, 16, 21,
 		2, 7, 12, 17, 22,
 		3, 8, 13, 18, 23,
 		4, 9, 14, 19, 24,
 	} {
-		p := operationParameters[i]
-		clock.EXPECT().Now().Return(time.Unix(1040, 0)).Times(2)
+		p := operationParameters[j]
+		clock.EXPECT().Now().Return(time.Unix(1040+int64(i), 0)).Times(2)
 		timer := mock.NewMockTimer(ctrl)
 		clock.EXPECT().NewTimer(time.Minute).Return(timer, nil)
 		timer.EXPECT().Stop().Return(true)
 		response, err := buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
 			WorkerId: map[string]string{
 				"hostname": "worker123",
-				"thread":   strconv.FormatInt(int64(i), 10),
+				"thread":   strconv.FormatInt(int64(j), 10),
 			},
 			InstanceNamePrefix: "main",
 			Platform:           platformForTesting,
@@ -1772,7 +1787,7 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 		})
 		require.NoError(t, err)
 		testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
-			NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1050},
+			NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1050 + int64(i)},
 			DesiredState: &remoteworker.DesiredState{
 				WorkerState: &remoteworker.DesiredState_Executing_{
 					Executing: &remoteworker.DesiredState_Executing{
@@ -1787,14 +1802,14 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 							},
 							Timeout: &durationpb.Duration{Seconds: 1800},
 						},
-						QueuedTimestamp:   &timestamppb.Timestamp{Seconds: 1010 + int64(i)},
+						QueuedTimestamp:   &timestamppb.Timestamp{Seconds: 1010 + int64(j)},
 						AuxiliaryMetadata: []*anypb.Any{requestMetadata},
 					},
 				},
 			},
 		}, response)
 
-		update, err := streams[i].Recv()
+		update, err := streams[j].Recv()
 		require.NoError(t, err)
 		metadata, err := anypb.New(&remoteexecution.ExecuteOperationMetadata{
 			Stage: remoteexecution.ExecutionStage_EXECUTING,
@@ -1810,23 +1825,23 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 		}, update)
 	}
 
-	// Call ListInvocations() again. All operations should now be
+	// Call ListInvocationChildren() again. All operations should now be
 	// reported as executing, instead of being queued.
-	clock.EXPECT().Now().Return(time.Unix(1041, 0))
-	invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
-		SizeClassQueueName: sizeClassQueueName,
-		Filter:             buildqueuestate.ListInvocationsRequest_QUEUED,
+	clock.EXPECT().Now().Return(time.Unix(1070, 0))
+	invocationStates, err = buildQueue.ListInvocationChildren(ctx, &buildqueuestate.ListInvocationChildrenRequest{
+		InvocationName: invocationName,
+		Filter:         buildqueuestate.ListInvocationChildrenRequest_QUEUED,
 	})
 	require.NoError(t, err)
-	require.Empty(t, invocationStates.Invocations)
+	require.Empty(t, invocationStates.Children)
 
-	clock.EXPECT().Now().Return(time.Unix(1042, 0))
-	invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
-		SizeClassQueueName: sizeClassQueueName,
-		Filter:             buildqueuestate.ListInvocationsRequest_ACTIVE,
+	clock.EXPECT().Now().Return(time.Unix(1071, 0))
+	invocationStates, err = buildQueue.ListInvocationChildren(ctx, &buildqueuestate.ListInvocationChildrenRequest{
+		InvocationName: invocationName,
+		Filter:         buildqueuestate.ListInvocationChildrenRequest_ACTIVE,
 	})
 	require.NoError(t, err)
-	require.Len(t, invocationStates.Invocations, 5)
+	require.Len(t, invocationStates.Children, 5)
 	for i, toolInvocationID := range []string{
 		"351fdffe-04df-4fe0-98c7-b4f5a463fd52",
 		"4712de52-4518-4840-91d5-c9e13a38cc5a",
@@ -1838,49 +1853,49 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 			ToolInvocationId: toolInvocationID,
 		})
 		require.NoError(t, err)
-		testutil.RequireEqualProto(t, invocationID, invocationStates.Invocations[i].Id)
-		require.Equal(t, uint32(0), invocationStates.Invocations[i].QueuedOperationsCount)
-		require.Equal(t, uint32(5), invocationStates.Invocations[i].ExecutingWorkersCount)
-		require.Equal(t, uint32(0), invocationStates.Invocations[i].IdleWorkersCount)
-		require.Equal(t, uint32(0), invocationStates.Invocations[i].IdleSynchronizingWorkersCount)
+		testutil.RequireEqualProto(t, invocationID, invocationStates.Children[i].Id)
+		require.Equal(t, uint32(0), invocationStates.Children[i].State.QueuedOperationsCount)
+		require.Equal(t, uint32(5), invocationStates.Children[i].State.ExecutingWorkersCount)
+		require.Equal(t, uint32(0), invocationStates.Children[i].State.IdleWorkersCount)
+		require.Equal(t, uint32(0), invocationStates.Children[i].State.IdleSynchronizingWorkersCount)
 	}
 
-	clock.EXPECT().Now().Return(time.Unix(1043, 0))
-	invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
-		SizeClassQueueName: sizeClassQueueName,
-		Filter:             buildqueuestate.ListInvocationsRequest_ALL,
+	clock.EXPECT().Now().Return(time.Unix(1072, 0))
+	invocationStates, err = buildQueue.ListInvocationChildren(ctx, &buildqueuestate.ListInvocationChildrenRequest{
+		InvocationName: invocationName,
+		Filter:         buildqueuestate.ListInvocationChildrenRequest_ALL,
 	})
 	require.NoError(t, err)
-	require.Len(t, invocationStates.Invocations, 5)
+	require.Len(t, invocationStates.Children, 5)
 
-	// Call ListInvocations() a final time after letting a
+	// Call ListInvocationChildren() a final time after letting a
 	// sufficient amount of time pass. This should cause all workers
 	// to be removed from the scheduler, as they didn't provide any
 	// updates. All associated operations should be completed,
 	// meaning that no invocations will be reported.
 	clock.EXPECT().Now().Return(time.Unix(1200, 0)).Times(51)
-	invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
-		SizeClassQueueName: sizeClassQueueName,
-		Filter:             buildqueuestate.ListInvocationsRequest_QUEUED,
+	invocationStates, err = buildQueue.ListInvocationChildren(ctx, &buildqueuestate.ListInvocationChildrenRequest{
+		InvocationName: invocationName,
+		Filter:         buildqueuestate.ListInvocationChildrenRequest_QUEUED,
 	})
 	require.NoError(t, err)
-	require.Empty(t, invocationStates.Invocations)
+	require.Empty(t, invocationStates.Children)
 
 	clock.EXPECT().Now().Return(time.Unix(1200, 0))
-	invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
-		SizeClassQueueName: sizeClassQueueName,
-		Filter:             buildqueuestate.ListInvocationsRequest_ACTIVE,
+	invocationStates, err = buildQueue.ListInvocationChildren(ctx, &buildqueuestate.ListInvocationChildrenRequest{
+		InvocationName: invocationName,
+		Filter:         buildqueuestate.ListInvocationChildrenRequest_ACTIVE,
 	})
 	require.NoError(t, err)
-	require.Empty(t, invocationStates.Invocations)
+	require.Empty(t, invocationStates.Children)
 
 	clock.EXPECT().Now().Return(time.Unix(1200, 0))
-	invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
-		SizeClassQueueName: sizeClassQueueName,
-		Filter:             buildqueuestate.ListInvocationsRequest_ALL,
+	invocationStates, err = buildQueue.ListInvocationChildren(ctx, &buildqueuestate.ListInvocationChildrenRequest{
+		InvocationName: invocationName,
+		Filter:         buildqueuestate.ListInvocationChildrenRequest_ALL,
 	})
 	require.NoError(t, err)
-	require.Empty(t, invocationStates.Invocations)
+	require.Empty(t, invocationStates.Children)
 
 	// All clients should receive an error that their operations
 	// terminated due to the loss of workers.
@@ -2001,8 +2016,12 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonQueued(t *testing.T) {
 			ToolInvocationId: p.invocationID,
 		})
 		require.NoError(t, err)
-		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), gomock.Any(), testutil.EqProto(t, requestMetadata)).
-			Return(platform.MustNewKey("main", platformForTesting), invocation.MustNewKey(requestMetadataAny), initialSizeClassSelector, nil)
+		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), gomock.Any(), testutil.EqProto(t, requestMetadata)).Return(
+			platform.MustNewKey("main", platformForTesting),
+			[]invocation.Key{invocation.MustNewKey(requestMetadataAny)},
+			initialSizeClassSelector,
+			nil,
+		)
 		if i == 0 {
 			initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 				Return(0, 30*time.Minute, initialSizeClassLearner)
@@ -2064,35 +2083,37 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonQueued(t *testing.T) {
 	// created, we should gradually see this list shrink. Eventually
 	// all invocations should be removed.
 	initialSizeClassLearner.EXPECT().Abandoned()
-	sizeClassQueueName := &buildqueuestate.SizeClassQueueName{
-		PlatformQueueName: &buildqueuestate.PlatformQueueName{
-			InstanceNamePrefix: "main",
-			Platform:           platformForTesting,
+	invocationName := &buildqueuestate.InvocationName{
+		SizeClassQueueName: &buildqueuestate.SizeClassQueueName{
+			PlatformQueueName: &buildqueuestate.PlatformQueueName{
+				InstanceNamePrefix: "main",
+				Platform:           platformForTesting,
+			},
 		},
 	}
 	for i := 0; i <= len(operationParameters); i++ {
 		clock.EXPECT().Now().Return(time.Unix(1069+int64(i), 0)).Times(3)
 
-		invocationStates, err := buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
-			SizeClassQueueName: sizeClassQueueName,
-			Filter:             buildqueuestate.ListInvocationsRequest_ALL,
+		invocationStates, err := buildQueue.ListInvocationChildren(ctx, &buildqueuestate.ListInvocationChildrenRequest{
+			InvocationName: invocationName,
+			Filter:         buildqueuestate.ListInvocationChildrenRequest_ALL,
 		})
 		require.NoError(t, err)
-		require.Len(t, invocationStates.Invocations, len(operationParameters)-i)
+		require.Len(t, invocationStates.Children, len(operationParameters)-i)
 
-		invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
-			SizeClassQueueName: sizeClassQueueName,
-			Filter:             buildqueuestate.ListInvocationsRequest_ACTIVE,
+		invocationStates, err = buildQueue.ListInvocationChildren(ctx, &buildqueuestate.ListInvocationChildrenRequest{
+			InvocationName: invocationName,
+			Filter:         buildqueuestate.ListInvocationChildrenRequest_ACTIVE,
 		})
 		require.NoError(t, err)
-		require.Len(t, invocationStates.Invocations, len(operationParameters)-i)
+		require.Len(t, invocationStates.Children, len(operationParameters)-i)
 
-		invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
-			SizeClassQueueName: sizeClassQueueName,
-			Filter:             buildqueuestate.ListInvocationsRequest_QUEUED,
+		invocationStates, err = buildQueue.ListInvocationChildren(ctx, &buildqueuestate.ListInvocationChildrenRequest{
+			InvocationName: invocationName,
+			Filter:         buildqueuestate.ListInvocationChildrenRequest_QUEUED,
 		})
 		require.NoError(t, err)
-		require.Len(t, invocationStates.Invocations, len(operationParameters)-i)
+		require.Len(t, invocationStates.Children, len(operationParameters)-i)
 	}
 }
 
@@ -2186,8 +2207,12 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 		require.NoError(t, err)
 		requestMetadataBin, err := proto.Marshal(requestMetadata)
 		require.NoError(t, err)
-		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), gomock.Any(), testutil.EqProto(t, requestMetadata)).
-			Return(platform.MustNewKey("main", platformForTesting), invocation.MustNewKey(requestMetadataAny), initialSizeClassSelector, nil)
+		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), gomock.Any(), testutil.EqProto(t, requestMetadata)).Return(
+			platform.MustNewKey("main", platformForTesting),
+			[]invocation.Key{invocation.MustNewKey(requestMetadataAny)},
+			initialSizeClassSelector,
+			nil,
+		)
 		if i == 0 {
 			initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 				Return(0, 30*time.Minute, initialSizeClassLearner)
@@ -2296,35 +2321,37 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 	// created, we should gradually see this list shrink. Eventually
 	// all invocations should be removed.
 	initialSizeClassLearner.EXPECT().Abandoned()
-	sizeClassQueueName := &buildqueuestate.SizeClassQueueName{
-		PlatformQueueName: &buildqueuestate.PlatformQueueName{
-			InstanceNamePrefix: "main",
-			Platform:           platformForTesting,
+	invocationName := &buildqueuestate.InvocationName{
+		SizeClassQueueName: &buildqueuestate.SizeClassQueueName{
+			PlatformQueueName: &buildqueuestate.PlatformQueueName{
+				InstanceNamePrefix: "main",
+				Platform:           platformForTesting,
+			},
 		},
 	}
 	for i := 0; i <= len(operationParameters); i++ {
 		clock.EXPECT().Now().Return(time.Unix(1069+int64(i), 0)).Times(3)
 
-		invocationStates, err := buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
-			SizeClassQueueName: sizeClassQueueName,
-			Filter:             buildqueuestate.ListInvocationsRequest_ALL,
+		invocationStates, err := buildQueue.ListInvocationChildren(ctx, &buildqueuestate.ListInvocationChildrenRequest{
+			InvocationName: invocationName,
+			Filter:         buildqueuestate.ListInvocationChildrenRequest_ALL,
 		})
 		require.NoError(t, err)
-		require.Len(t, invocationStates.Invocations, len(operationParameters)-i)
+		require.Len(t, invocationStates.Children, len(operationParameters)-i)
 
-		invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
-			SizeClassQueueName: sizeClassQueueName,
-			Filter:             buildqueuestate.ListInvocationsRequest_ACTIVE,
+		invocationStates, err = buildQueue.ListInvocationChildren(ctx, &buildqueuestate.ListInvocationChildrenRequest{
+			InvocationName: invocationName,
+			Filter:         buildqueuestate.ListInvocationChildrenRequest_ACTIVE,
 		})
 		require.NoError(t, err)
-		require.Len(t, invocationStates.Invocations, len(operationParameters)-i)
+		require.Len(t, invocationStates.Children, len(operationParameters)-i)
 
-		invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
-			SizeClassQueueName: sizeClassQueueName,
-			Filter:             buildqueuestate.ListInvocationsRequest_QUEUED,
+		invocationStates, err = buildQueue.ListInvocationChildren(ctx, &buildqueuestate.ListInvocationChildrenRequest{
+			InvocationName: invocationName,
+			Filter:         buildqueuestate.ListInvocationChildrenRequest_QUEUED,
 		})
 		require.NoError(t, err)
-		require.Empty(t, invocationStates.Invocations)
+		require.Empty(t, invocationStates.Children)
 	}
 }
 
@@ -2388,7 +2415,7 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 			SizeBytes: 456,
 		},
-	}), nil).Return(platform.MustNewKey("main", platformForTesting), invocation.MustNewKey(&anypb.Any{}), initialSizeClassSelector, nil)
+	}), nil).Return(platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
 	initialSizeClassLearner := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 		Return(0, 30*time.Minute, initialSizeClassLearner)
@@ -2574,7 +2601,7 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 	require.NoError(t, buildQueue.RegisterPredeclaredPlatformQueue(
 		digest.MustNewInstanceName("main"),
 		platformForTesting,
-		/* workerInvocationStickinessLimit = */ 0,
+		/* workerInvocationStickinessLimits = */ nil,
 		/* maximumQueuedBackgroundLearningOperations = */ 0,
 		/* backgroundLearningOperationPriority = */ 0,
 		/* maximumSizeClass = */ 8))
@@ -2650,7 +2677,7 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 			SizeBytes: 456,
 		},
-	}), nil).Return(platform.MustNewKey("main", platformForTesting), invocation.MustNewKey(&anypb.Any{}), initialSizeClassSelector, nil)
+	}), nil).Return(platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
 	initialSizeClassLearner1 := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{3, 8}).
 		Return(0, 7*time.Minute, initialSizeClassLearner1)
@@ -2946,7 +2973,7 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 	require.NoError(t, buildQueue.RegisterPredeclaredPlatformQueue(
 		digest.MustNewInstanceName("main"),
 		platformForTesting,
-		/* workerInvocationStickinessLimit = */ 0,
+		/* workerInvocationStickinessLimits = */ nil,
 		/* maximumQueuedBackgroundLearningOperations = */ 10,
 		/* backgroundLearningOperationPriority = */ 100,
 		/* maximumSizeClass = */ 8))
@@ -3001,7 +3028,7 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 			SizeBytes: 456,
 		},
-	}), nil).Return(platform.MustNewKey("main", platformForTesting), invocation.MustNewKey(&anypb.Any{}), initialSizeClassSelector, nil)
+	}), nil).Return(platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
 	initialSizeClassLearner1 := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{3, 8}).
 		Return(1, 7*time.Minute, initialSizeClassLearner1)
@@ -3348,8 +3375,12 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 	// The client should immediately receive an EXECUTING update.
 	// There is no need to return QUEUED.
 	initialSizeClassSelector1 := mock.NewMockSelector(ctrl)
-	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).
-		Return(platform.MustNewKey("", platformForTesting), invocation.MustNewKey(invocationID1), initialSizeClassSelector1, nil)
+	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(
+		platform.MustNewKey("", platformForTesting),
+		[]invocation.Key{invocation.MustNewKey(invocationID1)},
+		initialSizeClassSelector1,
+		nil,
+	)
 	initialSizeClassLearner1 := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector1.EXPECT().Select([]uint32{0}).Return(0, 7*time.Minute, initialSizeClassLearner1)
 	mockClock.EXPECT().Now().Return(time.Unix(1001, 0)).Times(2)
@@ -3436,34 +3467,39 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 	// invocation belonging to the previously completed action,
 	// keeping track of how which workers are associated with it.
 	mockClock.EXPECT().Now().Return(time.Unix(1003, 0)).Times(3)
-	invocationStates, err := buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
+	invocationName := &buildqueuestate.InvocationName{
 		SizeClassQueueName: sizeClassQueueName,
-		Filter:             buildqueuestate.ListInvocationsRequest_ALL,
+	}
+	invocationStates, err := buildQueue.ListInvocationChildren(ctx, &buildqueuestate.ListInvocationChildrenRequest{
+		InvocationName: invocationName,
+		Filter:         buildqueuestate.ListInvocationChildrenRequest_ALL,
 	})
 	require.NoError(t, err)
-	testutil.RequireEqualProto(t, &buildqueuestate.ListInvocationsResponse{
-		Invocations: []*buildqueuestate.InvocationState{
+	testutil.RequireEqualProto(t, &buildqueuestate.ListInvocationChildrenResponse{
+		Children: []*buildqueuestate.InvocationChildState{
 			{
-				Id:                            invocationID1,
-				IdleWorkersCount:              1,
-				IdleSynchronizingWorkersCount: 1,
+				Id: invocationID1,
+				State: &buildqueuestate.InvocationState{
+					IdleWorkersCount:              1,
+					IdleSynchronizingWorkersCount: 1,
+				},
 			},
 		},
 	}, invocationStates)
 
-	invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
-		SizeClassQueueName: sizeClassQueueName,
-		Filter:             buildqueuestate.ListInvocationsRequest_ACTIVE,
+	invocationStates, err = buildQueue.ListInvocationChildren(ctx, &buildqueuestate.ListInvocationChildrenRequest{
+		InvocationName: invocationName,
+		Filter:         buildqueuestate.ListInvocationChildrenRequest_ACTIVE,
 	})
 	require.NoError(t, err)
-	testutil.RequireEqualProto(t, &buildqueuestate.ListInvocationsResponse{}, invocationStates)
+	testutil.RequireEqualProto(t, &buildqueuestate.ListInvocationChildrenResponse{}, invocationStates)
 
-	invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
-		SizeClassQueueName: sizeClassQueueName,
-		Filter:             buildqueuestate.ListInvocationsRequest_QUEUED,
+	invocationStates, err = buildQueue.ListInvocationChildren(ctx, &buildqueuestate.ListInvocationChildrenRequest{
+		InvocationName: invocationName,
+		Filter:         buildqueuestate.ListInvocationChildrenRequest_QUEUED,
 	})
 	require.NoError(t, err)
-	testutil.RequireEqualProto(t, &buildqueuestate.ListInvocationsResponse{}, invocationStates)
+	testutil.RequireEqualProto(t, &buildqueuestate.ListInvocationChildrenResponse{}, invocationStates)
 
 	// Create a second worker that issues a blocking Synchronize()
 	// call against the scheduler.
@@ -3496,8 +3532,12 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 	// worker. We want to keep the first worker available for
 	// actions for the same invocation ID.
 	initialSizeClassSelector2 := mock.NewMockSelector(ctrl)
-	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).
-		Return(platform.MustNewKey("", platformForTesting), invocation.MustNewKey(invocationID2), initialSizeClassSelector2, nil)
+	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(
+		platform.MustNewKey("", platformForTesting),
+		[]invocation.Key{invocation.MustNewKey(invocationID2)},
+		initialSizeClassSelector2,
+		nil,
+	)
 	initialSizeClassLearner2 := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector2.EXPECT().Select([]uint32{0}).Return(0, 7*time.Minute, initialSizeClassLearner2)
 	mockClock.EXPECT().Now().Return(time.Unix(1005, 0)).Times(2)
@@ -3579,22 +3619,26 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 
 	// Both invocations should now have one worker.
 	mockClock.EXPECT().Now().Return(time.Unix(1007, 0))
-	invocationStates, err = buildQueue.ListInvocations(ctx, &buildqueuestate.ListInvocationsRequest{
-		SizeClassQueueName: sizeClassQueueName,
-		Filter:             buildqueuestate.ListInvocationsRequest_ALL,
+	invocationStates, err = buildQueue.ListInvocationChildren(ctx, &buildqueuestate.ListInvocationChildrenRequest{
+		InvocationName: invocationName,
+		Filter:         buildqueuestate.ListInvocationChildrenRequest_ALL,
 	})
 	require.NoError(t, err)
-	testutil.RequireEqualProto(t, &buildqueuestate.ListInvocationsResponse{
-		Invocations: []*buildqueuestate.InvocationState{
+	testutil.RequireEqualProto(t, &buildqueuestate.ListInvocationChildrenResponse{
+		Children: []*buildqueuestate.InvocationChildState{
 			{
-				Id:                            invocationID1,
-				IdleWorkersCount:              1,
-				IdleSynchronizingWorkersCount: 1,
+				Id: invocationID1,
+				State: &buildqueuestate.InvocationState{
+					IdleWorkersCount:              1,
+					IdleSynchronizingWorkersCount: 1,
+				},
 			},
 			{
-				Id:                            invocationID2,
-				IdleWorkersCount:              1,
-				IdleSynchronizingWorkersCount: 1,
+				Id: invocationID2,
+				State: &buildqueuestate.InvocationState{
+					IdleWorkersCount:              1,
+					IdleSynchronizingWorkersCount: 1,
+				},
 			},
 		},
 	}, invocationStates)
@@ -3604,8 +3648,12 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 	// worker is associated with an invocation that is least
 	// recently seen.
 	initialSizeClassSelector3 := mock.NewMockSelector(ctrl)
-	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).
-		Return(platform.MustNewKey("", platformForTesting), invocation.MustNewKey(invocationID3), initialSizeClassSelector3, nil)
+	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(
+		platform.MustNewKey("", platformForTesting),
+		[]invocation.Key{invocation.MustNewKey(invocationID3)},
+		initialSizeClassSelector3,
+		nil,
+	)
 	initialSizeClassLearner3 := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector3.EXPECT().Select([]uint32{0}).Return(0, 7*time.Minute, initialSizeClassLearner3)
 	mockClock.EXPECT().Now().Return(time.Unix(1008, 0)).Times(2)
@@ -3660,7 +3708,7 @@ func TestInMemoryBuildQueueWorkerInvocationStickinessLimit(t *testing.T) {
 	require.NoError(t, buildQueue.RegisterPredeclaredPlatformQueue(
 		digest.EmptyInstanceName,
 		platformForTesting,
-		/* workerInvocationStickinessLimit = */ 3*time.Second,
+		/* workerInvocationStickinessLimits = */ []time.Duration{3 * time.Second},
 		/* maximumQueuedBackgroundLearningOperations = */ 10,
 		/* backgroundLearningOperationPriority = */ 100,
 		/* maximumSizeClass = */ 0))
@@ -3670,9 +3718,14 @@ func TestInMemoryBuildQueueWorkerInvocationStickinessLimit(t *testing.T) {
 		toolInvocationID string
 	}{
 		{"716f2e32-d273-49e7-a842-82282e89d1a3", "76d8f589-8d22-4541-a612-39e4c670e531"},
-		{"d354a1ea-0945-4c84-be17-ac01b8058d06", "0175ce91-1363-4cc9-8eb9-e67e82f9fdbb"},
 		{"0a656823-9f91-4220-9dcd-58503e62e6e8", "76d8f589-8d22-4541-a612-39e4c670e531"},
 		{"175ead9a-a095-43a5-9f2c-e3a293938ff3", "76d8f589-8d22-4541-a612-39e4c670e531"},
+		{"d354a1ea-0945-4c84-be17-ac01b8058d06", "0175ce91-1363-4cc9-8eb9-e67e82f9fdbb"},
+		{"5fe458ce-a28d-4478-9ced-7ee23a539cb6", "0175ce91-1363-4cc9-8eb9-e67e82f9fdbb"},
+		{"30e6d53c-a737-47bc-8b06-8e8f9cf7a3b3", "0175ce91-1363-4cc9-8eb9-e67e82f9fdbb"},
+		{"77d52264-940c-461b-b67f-e3e68cb5b7f0", "8414fe9e-67a9-4b0b-854a-e7f8f56cca50"},
+		{"201d6ff3-ffe3-4126-928b-cba38938ebb5", "8414fe9e-67a9-4b0b-854a-e7f8f56cca50"},
+		{"303fa653-8516-4a4f-9b6b-60c3f1f45f29", "8414fe9e-67a9-4b0b-854a-e7f8f56cca50"},
 	}
 	type streamHandle struct {
 		timer                   *mock.MockTimer
@@ -3681,8 +3734,7 @@ func TestInMemoryBuildQueueWorkerInvocationStickinessLimit(t *testing.T) {
 	}
 	var streamHandles []streamHandle
 
-	// Schedule some actions, all two seconds apart. They belong to
-	// two different invocation IDs.
+	// Schedule some actions belonging to three different invocation IDs.
 	for i, p := range operationParameters {
 		action := &remoteexecution.Action{
 			DoNotCache: true,
@@ -3701,12 +3753,16 @@ func TestInMemoryBuildQueueWorkerInvocationStickinessLimit(t *testing.T) {
 		requestMetadataAny, err := anypb.New(requestMetadata)
 		require.NoError(t, err)
 		initialSizeClassSelector := mock.NewMockSelector(ctrl)
-		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).
-			Return(platform.MustNewKey("", platformForTesting), invocation.MustNewKey(requestMetadataAny), initialSizeClassSelector, nil)
+		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(
+			platform.MustNewKey("", platformForTesting),
+			[]invocation.Key{invocation.MustNewKey(requestMetadataAny)},
+			initialSizeClassSelector,
+			nil,
+		)
 		initialSizeClassLearner := mock.NewMockLearner(ctrl)
 		initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 			Return(0, time.Minute, initialSizeClassLearner)
-		clock.EXPECT().Now().Return(time.Unix(1010+int64(i)*2, 0))
+		clock.EXPECT().Now().Return(time.Unix(1010+int64(i), 0))
 		timer := mock.NewMockTimer(ctrl)
 		clock.EXPECT().NewTimer(time.Minute).Return(timer, nil)
 		uuidGenerator.EXPECT().Call().Return(uuid.Parse(p.operationName))
@@ -3742,14 +3798,13 @@ func TestInMemoryBuildQueueWorkerInvocationStickinessLimit(t *testing.T) {
 
 	// Let a worker run the actions sequentially. The order in which
 	// execution takes place differs from the queueing order,
-	// because the third action is permitted to run before the
-	// second. The fourth action is not, because its queueing
-	// timestamp exceeds what's permitted by the worker invocation
-	// stickiness.
-	for i, operationIndex := range []int{0, 2, 1, 3} {
+	// because of stickiness. Every invocation is permitted to run
+	// for at least three seconds before switching to tasks
+	// belonging to another invocation.
+	for i, operationIndex := range []int{0, 1, 3, 4, 6, 7, 2, 5, 8} {
 		// Starting execution should cause the client to receive
 		// an EXECUTING message.
-		clock.EXPECT().Now().Return(time.Unix(1020+int64(i)*2, 0)).Times(2)
+		clock.EXPECT().Now().Return(time.Unix(1030+int64(i)*2, 0)).Times(2)
 		streamHandles[operationIndex].timer.EXPECT().Stop()
 		timer := mock.NewMockTimer(ctrl)
 		clock.EXPECT().NewTimer(time.Minute).Return(timer, nil)
@@ -3767,7 +3822,7 @@ func TestInMemoryBuildQueueWorkerInvocationStickinessLimit(t *testing.T) {
 		})
 		require.NoError(t, err)
 		testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
-			NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1030 + int64(i)*2},
+			NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1040 + int64(i)*2},
 			DesiredState: &remoteworker.DesiredState{
 				WorkerState: &remoteworker.DesiredState_Executing_{
 					Executing: &remoteworker.DesiredState_Executing{
@@ -3783,7 +3838,7 @@ func TestInMemoryBuildQueueWorkerInvocationStickinessLimit(t *testing.T) {
 							DoNotCache: true,
 							Timeout:    &durationpb.Duration{Seconds: 60},
 						},
-						QueuedTimestamp: &timestamppb.Timestamp{Seconds: 1010 + int64(operationIndex)*2},
+						QueuedTimestamp: &timestamppb.Timestamp{Seconds: 1010 + int64(operationIndex)},
 					},
 				},
 			},
@@ -3903,7 +3958,13 @@ func TestInMemoryBuildQueueAuthorization(t *testing.T) {
 	})
 
 	t.Run("WaitExecution", func(t *testing.T) {
-		buildQueue.RegisterPredeclaredPlatformQueue(digest.MustNewInstanceName(""), &remoteexecution.Platform{}, 0*time.Second, 0, 0, 0)
+		buildQueue.RegisterPredeclaredPlatformQueue(
+			digest.MustNewInstanceName(""),
+			&remoteexecution.Platform{},
+			/* workerInvocationStickinessLimits = */ nil,
+			/* maximumQueuedBackgroundLearningOperations = */ 0,
+			/* backgroundLearningOperationPriority = */ 0,
+			/* maximumSizeClass = */ 0)
 
 		// Allow the Execute
 		authorizer.EXPECT().Authorize(gomock.Any(), []digest.InstanceName{beepboop}).Return([]error{nil})
@@ -3923,7 +3984,7 @@ func TestInMemoryBuildQueueAuthorization(t *testing.T) {
 
 		initialSizeClassSelector := mock.NewMockSelector(ctrl)
 		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).
-			Return(platform.MustNewKey("beepboop", &remoteexecution.Platform{}), invocation.MustNewKey(&anypb.Any{}), initialSizeClassSelector, nil)
+			Return(platform.MustNewKey("beepboop", &remoteexecution.Platform{}), nil, initialSizeClassSelector, nil)
 
 		initialSizeClassLearner := mock.NewMockLearner(ctrl)
 		initialSizeClassSelector.EXPECT().Select([]uint32{0}).Return(0, 30*time.Minute, initialSizeClassLearner)
