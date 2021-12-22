@@ -75,7 +75,7 @@ func newOutputDirectory() *outputNode {
 // OutputHierarchy.CreateParentDirectories() to create parent
 // directories of locations where output directories and files are
 // expected.
-func (on *outputNode) createParentDirectories(d BuildDirectory, dPath *path.Trace) error {
+func (on *outputNode) createParentDirectories(d ParentPopulatableDirectory, dPath *path.Trace) error {
 	for _, name := range on.getSubdirectoryNames() {
 		childPath := dPath.Append(name)
 		if err := d.Mkdir(name, 0o777); err != nil && !os.IsExist(err) {
@@ -84,7 +84,7 @@ func (on *outputNode) createParentDirectories(d BuildDirectory, dPath *path.Trac
 
 		// Recurse if we need to create one or more directories within.
 		if child := on.subdirectories[name]; len(child.subdirectories) > 0 || len(child.directoriesToUpload) > 0 {
-			childDirectory, err := d.EnterBuildDirectory(name)
+			childDirectory, err := d.EnterParentPopulatableDirectory(name)
 			if err != nil {
 				return util.StatusWrapf(err, "Failed to enter output parent directory %#v", childPath.String())
 			}
@@ -480,9 +480,18 @@ func (oh *OutputHierarchy) lookup(workingDirectory outputNodePath, targetPath st
 	return on, &components[len(components)-1], nil
 }
 
+// ParentPopulatableDirectory contains a subset of the methods of
+// filesystem.Directory that are required for creating the parent
+// directories of output files of a build action.
+type ParentPopulatableDirectory interface {
+	Close() error
+	EnterParentPopulatableDirectory(name path.Component) (ParentPopulatableDirectory, error)
+	Mkdir(name path.Component, perm os.FileMode) error
+}
+
 // CreateParentDirectories creates parent directories of outputs. This
 // function is called prior to executing the build action.
-func (oh *OutputHierarchy) CreateParentDirectories(d BuildDirectory) error {
+func (oh *OutputHierarchy) CreateParentDirectories(d ParentPopulatableDirectory) error {
 	return oh.root.createParentDirectories(d, nil)
 }
 

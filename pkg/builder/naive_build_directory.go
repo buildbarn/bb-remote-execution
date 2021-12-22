@@ -57,6 +57,10 @@ func (d *naiveBuildDirectory) EnterBuildDirectory(name path.Component) (BuildDir
 	}, nil
 }
 
+func (d *naiveBuildDirectory) EnterParentPopulatableDirectory(name path.Component) (ParentPopulatableDirectory, error) {
+	return d.EnterBuildDirectory(name)
+}
+
 func (d *naiveBuildDirectory) EnterUploadableDirectory(name path.Component) (UploadableDirectory, error) {
 	return d.EnterBuildDirectory(name)
 }

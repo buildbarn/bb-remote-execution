@@ -68,6 +68,10 @@ func (d *fuseBuildDirectory) Close() error {
 	return nil
 }
 
+func (d *fuseBuildDirectory) EnterParentPopulatableDirectory(name path.Component) (ParentPopulatableDirectory, error) {
+	return d.EnterBuildDirectory(name)
+}
+
 func (d *fuseBuildDirectory) EnterUploadableDirectory(name path.Component) (UploadableDirectory, error) {
 	return d.EnterBuildDirectory(name)
 }

@@ -16,10 +16,10 @@ import (
 // implementations may use to run actions in a more efficient and
 // manageable way.
 type BuildDirectory interface {
+	ParentPopulatableDirectory
 	UploadableDirectory
 
 	// Methods inherited from filesystem.Directory.
-	Mkdir(name path.Component, perm os.FileMode) error
 	Mknod(name path.Component, perm os.FileMode, dev int) error
 	Remove(name path.Component) error
 	RemoveAll(name path.Component) error

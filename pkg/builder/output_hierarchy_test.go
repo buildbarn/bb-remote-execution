@@ -64,7 +64,7 @@ func TestOutputHierarchyCreation(t *testing.T) {
 func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
-	root := mock.NewMockBuildDirectory(ctrl)
+	root := mock.NewMockParentPopulatableDirectory(ctrl)
 
 	t.Run("Noop", func(t *testing.T) {
 		// No parent directories should be created.
@@ -104,11 +104,11 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		// Create /foo/bar/baz.
 		root.EXPECT().Mkdir(path.MustNewComponent("foo"), os.FileMode(0o777))
-		foo := mock.NewMockBuildDirectory(ctrl)
-		root.EXPECT().EnterBuildDirectory(path.MustNewComponent("foo")).Return(foo, nil)
+		foo := mock.NewMockParentPopulatableDirectory(ctrl)
+		root.EXPECT().EnterParentPopulatableDirectory(path.MustNewComponent("foo")).Return(foo, nil)
 		foo.EXPECT().Mkdir(path.MustNewComponent("bar"), os.FileMode(0o777))
-		bar := mock.NewMockBuildDirectory(ctrl)
-		foo.EXPECT().EnterBuildDirectory(path.MustNewComponent("bar")).Return(bar, nil)
+		bar := mock.NewMockParentPopulatableDirectory(ctrl)
+		foo.EXPECT().EnterParentPopulatableDirectory(path.MustNewComponent("bar")).Return(bar, nil)
 		bar.EXPECT().Mkdir(path.MustNewComponent("baz"), os.FileMode(0o777))
 		bar.EXPECT().Close()
 		// Create /foo/qux.
@@ -143,8 +143,8 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 		// Failure to create the parent directory of a location
 		// where an output file is expected.
 		root.EXPECT().Mkdir(path.MustNewComponent("foo"), os.FileMode(0o777))
-		foo := mock.NewMockBuildDirectory(ctrl)
-		root.EXPECT().EnterBuildDirectory(path.MustNewComponent("foo")).Return(foo, nil)
+		foo := mock.NewMockParentPopulatableDirectory(ctrl)
+		root.EXPECT().EnterParentPopulatableDirectory(path.MustNewComponent("foo")).Return(foo, nil)
 		foo.EXPECT().Mkdir(path.MustNewComponent("bar"), os.FileMode(0o777)).Return(status.Error(codes.Internal, "I/O error"))
 		foo.EXPECT().Close()
 
@@ -164,8 +164,8 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 		// the error is EEXIST. This should not cause a hard
 		// failure.
 		root.EXPECT().Mkdir(path.MustNewComponent("foo"), os.FileMode(0o777))
-		foo := mock.NewMockBuildDirectory(ctrl)
-		root.EXPECT().EnterBuildDirectory(path.MustNewComponent("foo")).Return(foo, nil)
+		foo := mock.NewMockParentPopulatableDirectory(ctrl)
+		root.EXPECT().EnterParentPopulatableDirectory(path.MustNewComponent("foo")).Return(foo, nil)
 		foo.EXPECT().Mkdir(path.MustNewComponent("bar"), os.FileMode(0o777)).Return(os.ErrExist)
 		foo.EXPECT().Close()
 
@@ -181,8 +181,8 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 		// Failure to create a location where an output
 		// directory is expected.
 		root.EXPECT().Mkdir(path.MustNewComponent("foo"), os.FileMode(0o777))
-		foo := mock.NewMockBuildDirectory(ctrl)
-		root.EXPECT().EnterBuildDirectory(path.MustNewComponent("foo")).Return(foo, nil)
+		foo := mock.NewMockParentPopulatableDirectory(ctrl)
+		root.EXPECT().EnterParentPopulatableDirectory(path.MustNewComponent("foo")).Return(foo, nil)
 		foo.EXPECT().Mkdir(path.MustNewComponent("bar"), os.FileMode(0o777)).Return(status.Error(codes.Internal, "I/O error"))
 		foo.EXPECT().Close()
 
@@ -202,8 +202,8 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 		// the error is EEXIST. This should not cause a hard
 		// failure.
 		root.EXPECT().Mkdir(path.MustNewComponent("foo"), os.FileMode(0o777))
-		foo := mock.NewMockBuildDirectory(ctrl)
-		root.EXPECT().EnterBuildDirectory(path.MustNewComponent("foo")).Return(foo, nil)
+		foo := mock.NewMockParentPopulatableDirectory(ctrl)
+		root.EXPECT().EnterParentPopulatableDirectory(path.MustNewComponent("foo")).Return(foo, nil)
 		foo.EXPECT().Mkdir(path.MustNewComponent("bar"), os.FileMode(0o777)).Return(os.ErrExist)
 		foo.EXPECT().Close()
 
@@ -217,10 +217,10 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 
 	t.Run("EnterFailure", func(t *testing.T) {
 		root.EXPECT().Mkdir(path.MustNewComponent("foo"), os.FileMode(0o777))
-		foo := mock.NewMockBuildDirectory(ctrl)
-		root.EXPECT().EnterBuildDirectory(path.MustNewComponent("foo")).Return(foo, nil)
+		foo := mock.NewMockParentPopulatableDirectory(ctrl)
+		root.EXPECT().EnterParentPopulatableDirectory(path.MustNewComponent("foo")).Return(foo, nil)
 		foo.EXPECT().Mkdir(path.MustNewComponent("bar"), os.FileMode(0o777))
-		foo.EXPECT().EnterBuildDirectory(path.MustNewComponent("bar")).Return(nil, status.Error(codes.Internal, "I/O error"))
+		foo.EXPECT().EnterParentPopulatableDirectory(path.MustNewComponent("bar")).Return(nil, status.Error(codes.Internal, "I/O error"))
 		foo.EXPECT().Close()
 
 		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{

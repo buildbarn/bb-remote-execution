@@ -57,6 +57,7 @@ gomock(
         "BuildDirectoryCreator",
         "BuildExecutor",
         "CompletedActionLogger",
+        "ParentPopulatableDirectory",
         "StorageFlusher",
         "UploadableDirectory",
     ],
