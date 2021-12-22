@@ -273,7 +273,6 @@ def go_dependencies():
         sum = "h1:j4LrlVXgrbIWO83mmQUnK0Hi+YnbD+vzrE1z/EphbFE=",
         version = "v1.2.0",
     )
-
     go_repository(
         name = "com_github_go_redis_redis_extra_rediscmd",
         importpath = "github.com/go-redis/redis/extra/rediscmd",
@@ -449,7 +448,6 @@ def go_dependencies():
         sum = "h1:Z9n2FFNUXsshfwJMBgNA0RU6/i7WVaAegv3PtuIHPMs=",
         version = "v0.0.0-20180428030007-95032a82bc51",
     )
-
     go_repository(
         name = "com_github_kisielk_errcheck",
         importpath = "github.com/kisielk/errcheck",
