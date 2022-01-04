@@ -34,6 +34,10 @@ type PrepopulatedDirectory interface {
 
 type SimpleRawFileSystemServerCallbacks struct{}
 
+type Server interface {
+	Unmount() error
+}
+
 func (sc *SimpleRawFileSystemServerCallbacks) EntryNotify() {
 	panic("FUSE is not supported on this platform")
 }
@@ -42,8 +46,8 @@ func NewInMemoryPrepopulatedDirectory(fileAllocator FileAllocator, errorLogger u
 	return nil
 }
 
-func NewMountFromConfiguration(configuration *pb.MountConfiguration, rootDirectory Directory, rootDirectoryInodeNumber uint64, serverCallbacks *SimpleRawFileSystemServerCallbacks, fsName string) error {
-	return status.Error(codes.Unimplemented, "FUSE is not supported on this platform")
+func NewMountFromConfiguration(configuration *pb.MountConfiguration, rootDirectory Directory, rootDirectoryInodeNumber uint64, serverCallbacks *SimpleRawFileSystemServerCallbacks, fsName string) (Server, error) {
+	return nil, status.Error(codes.Unimplemented, "FUSE is not supported on this platform")
 }
 
 func NewPoolBackedFileAllocator(pool re_filesystem.FilePool, errorLogger util.ErrorLogger, inodeNumberGenerator random.ThreadSafeGenerator) FileAllocator {

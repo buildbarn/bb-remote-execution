@@ -156,7 +156,7 @@ func main() {
 				}
 				return nil
 			}
-			if err := re_fuse.NewMountFromConfiguration(
+			if _, err := re_fuse.NewMountFromConfiguration(
 				backend.Fuse.Mount,
 				fuseBuildDirectory,
 				rootInodeNumber,

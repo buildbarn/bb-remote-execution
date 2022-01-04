@@ -14,10 +14,14 @@ import (
 	"github.com/hanwen/go-fuse/v2/fuse"
 )
 
+type Server interface {
+	Unmount() error
+}
+
 // NewMountFromConfiguration creates a new FUSE mount based on options
 // specified in a configuration message and starts processing of
 // incoming requests.
-func NewMountFromConfiguration(configuration *pb.MountConfiguration, rootDirectory Directory, rootDirectoryInodeNumber uint64, serverCallbacks *SimpleRawFileSystemServerCallbacks, fsName string) error {
+func NewMountFromConfiguration(configuration *pb.MountConfiguration, rootDirectory Directory, rootDirectoryInodeNumber uint64, serverCallbacks *SimpleRawFileSystemServerCallbacks, fsName string) (Server, error) {
 	// Parse configuration options.
 	var directoryEntryValidity time.Duration
 	if d := configuration.DirectoryEntryValidity; d != nil {
@@ -71,7 +75,7 @@ func NewMountFromConfiguration(configuration *pb.MountConfiguration, rootDirecto
 			DirectMount: configuration.DirectMount,
 		})
 	if err != nil {
-		return util.StatusWrap(err, "Failed to create FUSE server")
+		return nil, util.StatusWrap(err, "Failed to create FUSE server")
 	}
 	go server.Serve()
 
@@ -82,8 +86,8 @@ func NewMountFromConfiguration(configuration *pb.MountConfiguration, rootDirecto
 			configuration.MountPath,
 			int(configuration.MaximumDirtyPagesPercentage),
 		); err != nil {
-			return util.StatusWrap(err, "Failed to set maximum dirty pages percentage")
+			return nil, util.StatusWrap(err, "Failed to set maximum dirty pages percentage")
 		}
 	}
-	return nil
+	return server, nil
 }
