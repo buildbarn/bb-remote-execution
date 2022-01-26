@@ -14,8 +14,10 @@ func NewKeyExtractorFromConfiguration(configuration *pb.InvocationKeyExtractorCo
 		return nil, status.Error(codes.InvalidArgument, "No invocation key extractor coniguration provided")
 	}
 	switch configuration.Kind.(type) {
-	case *pb.InvocationKeyExtractorConfiguration_RequestMetadata:
-		return RequestMetadataKeyExtractor, nil
+	case *pb.InvocationKeyExtractorConfiguration_ToolInvocationId:
+		return ToolInvocationIDKeyExtractor, nil
+	case *pb.InvocationKeyExtractorConfiguration_CorrelatedInvocationsId:
+		return CorrelatedInvocationsIDKeyExtractor, nil
 	default:
 		return nil, status.Error(codes.InvalidArgument, "Configuration did not contain a supported invocation key extractor type")
 	}

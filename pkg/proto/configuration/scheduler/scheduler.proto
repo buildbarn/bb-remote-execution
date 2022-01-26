@@ -128,7 +128,14 @@ message InvocationKeyExtractorConfiguration {
     // the RequestMetadata message as the invocation key. In the case of
     // Bazel, this causes all actions belonging to the same Bazel
     // invocation to be grouped together.
-    google.protobuf.Empty request_metadata = 2;
+    google.protobuf.Empty tool_invocation_id = 2;
+
+    // Use the 'correlated_invocations_id' that the client provided as
+    // part of the RequestMetadata message as the invocation key. In the
+    // case of Bazel, this causes all actions belonging to instances of
+    // Bazel that were invoked with the same --build_request_id to be
+    // grouped together.
+    google.protobuf.Empty correlated_invocations_id = 3;
   }
 }
 

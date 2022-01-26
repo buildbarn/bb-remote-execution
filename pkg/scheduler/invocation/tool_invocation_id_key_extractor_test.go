@@ -12,10 +12,10 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-func TestRequestMetadataInvocationKeyExtractor(t *testing.T) {
+func TestToolInvocationIDInvocationKeyExtractor(t *testing.T) {
 	ctx := context.Background()
 
-	key, err := invocation.RequestMetadataKeyExtractor.ExtractKey(ctx, &remoteexecution.RequestMetadata{
+	key, err := invocation.ToolInvocationIDKeyExtractor.ExtractKey(ctx, &remoteexecution.RequestMetadata{
 		ToolDetails: &remoteexecution.ToolDetails{
 			ToolName:    "bazel",
 			ToolVersion: "4.2.1",

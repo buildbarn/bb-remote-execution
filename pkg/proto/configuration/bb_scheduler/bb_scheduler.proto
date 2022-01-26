@@ -112,7 +112,7 @@ message ApplicationConfiguration {
   // {
   //   simple: {
   //     platformKeyExtractor: { actionAndCommand: {} },
-  //     invocationKeyExtractors: [{ requestMetadata: {} }],
+  //     invocationKeyExtractors: [{ toolInvocationID: {} }],
   //     initialSizeClassAnalyzer: {
   //       defaultExecutionTimeout: '1800s',
   //       maximumExecutionTimeout: '7200s',

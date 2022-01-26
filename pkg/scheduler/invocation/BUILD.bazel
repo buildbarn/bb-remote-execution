@@ -4,9 +4,10 @@ go_library(
     name = "invocation",
     srcs = [
         "configuration.go",
+        "correlated_invocations_id_key_extractor.go",
         "key.go",
         "key_extractor.go",
-        "request_metadata_key_extractor.go",
+        "tool_invocation_id_key_extractor.go",
     ],
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/scheduler/invocation",
     visibility = ["//visibility:public"],
@@ -25,7 +26,10 @@ go_library(
 
 go_test(
     name = "invocation_test",
-    srcs = ["request_metadata_key_extractor_test.go"],
+    srcs = [
+        "correlated_invocations_id_key_extractor_test.go",
+        "tool_invocation_id_key_extractor_test.go",
+    ],
     deps = [
         ":invocation",
         "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:execution",
