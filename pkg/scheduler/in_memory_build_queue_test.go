@@ -55,6 +55,8 @@ var platformForTesting = &remoteexecution.Platform{
 	},
 }
 
+var allowAllAuthorizer = auth.NewStaticAuthorizer(func(digest.InstanceName) bool { return true })
+
 // getExecutionClient creates a GRPC client for calling Execute() and
 // WaitExecution() operations against a build queue. These operations
 // use streaming RPCs, which prevents us from invoking these operations
@@ -87,7 +89,7 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	actionRouter := mock.NewMockActionRouter(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer())
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// ExecuteRequest contains an invalid action digest.
@@ -214,7 +216,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer())
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -516,7 +518,7 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	actionRouter := mock.NewMockActionRouter(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer())
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -761,7 +763,7 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	actionRouter := mock.NewMockActionRouter(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer())
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -981,7 +983,7 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	actionRouter := mock.NewMockActionRouter(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer())
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -1185,7 +1187,7 @@ func TestInMemoryBuildQueueIdleWorkerSynchronizationTimeout(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	actionRouter := mock.NewMockActionRouter(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer())
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer)
 
 	// When no work appears, workers should still be woken up
 	// periodically to resynchronize. This ensures that workers that
@@ -1243,7 +1245,7 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	actionRouter := mock.NewMockActionRouter(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer())
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -1544,7 +1546,7 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	actionRouter := mock.NewMockActionRouter(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer())
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -1938,7 +1940,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonQueued(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	actionRouter := mock.NewMockActionRouter(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer())
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -2129,7 +2131,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	actionRouter := mock.NewMockActionRouter(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer())
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -2363,7 +2365,7 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	actionRouter := mock.NewMockActionRouter(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer())
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -2591,7 +2593,7 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	actionRouter := mock.NewMockActionRouter(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer())
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Register a platform queue that allows workers up to size
@@ -2963,7 +2965,7 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	actionRouter := mock.NewMockActionRouter(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer())
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Register a platform queue that allows workers up to size
@@ -3284,7 +3286,7 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 	mockClock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	actionRouter := mock.NewMockActionRouter(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, mockClock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer())
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, mockClock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Common values used by steps below.
@@ -3350,7 +3352,7 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 	mockClock.EXPECT().Now().Return(time.Unix(1000, 0))
 	timer1 := mock.NewMockTimer(ctrl)
 	wait1 := make(chan struct{}, 1)
-	mockClock.EXPECT().NewTimer(time.Minute).DoAndReturn(func(d time.Duration) (clock.Timer, chan<- time.Time) {
+	mockClock.EXPECT().NewTimer(time.Minute).DoAndReturn(func(d time.Duration) (clock.Timer, <-chan time.Time) {
 		wait1 <- struct{}{}
 		return timer1, nil
 	})
@@ -3423,7 +3425,7 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 	timer2.EXPECT().Stop()
 	timer3 := mock.NewMockTimer(ctrl)
 	wait3 := make(chan struct{}, 1)
-	mockClock.EXPECT().NewTimer(time.Minute).DoAndReturn(func(d time.Duration) (clock.Timer, chan<- time.Time) {
+	mockClock.EXPECT().NewTimer(time.Minute).DoAndReturn(func(d time.Duration) (clock.Timer, <-chan time.Time) {
 		wait3 <- struct{}{}
 		return timer3, nil
 	})
@@ -3506,7 +3508,7 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 	mockClock.EXPECT().Now().Return(time.Unix(1004, 0))
 	timer4 := mock.NewMockTimer(ctrl)
 	wait5 := make(chan struct{}, 1)
-	mockClock.EXPECT().NewTimer(time.Minute).DoAndReturn(func(d time.Duration) (clock.Timer, chan<- time.Time) {
+	mockClock.EXPECT().NewTimer(time.Minute).DoAndReturn(func(d time.Duration) (clock.Timer, <-chan time.Time) {
 		wait5 <- struct{}{}
 		return timer4, nil
 	})
@@ -3578,7 +3580,7 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 	timer5.EXPECT().Stop()
 	timer6 := mock.NewMockTimer(ctrl)
 	wait7 := make(chan struct{}, 1)
-	mockClock.EXPECT().NewTimer(time.Minute).DoAndReturn(func(d time.Duration) (clock.Timer, chan<- time.Time) {
+	mockClock.EXPECT().NewTimer(time.Minute).DoAndReturn(func(d time.Duration) (clock.Timer, <-chan time.Time) {
 		wait7 <- struct{}{}
 		return timer6, nil
 	})
@@ -3697,7 +3699,7 @@ func TestInMemoryBuildQueueWorkerInvocationStickinessLimit(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	actionRouter := mock.NewMockActionRouter(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer())
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Register a platform queue that has a small amount of worker
@@ -4029,8 +4031,279 @@ func TestInMemoryBuildQueueAuthorization(t *testing.T) {
 	})
 }
 
-func allowAllAuthorizer() auth.Authorizer {
-	return auth.NewStaticAuthorizer(func(digest.InstanceName) bool { return true })
-}
+func TestInMemoryBuildQueueNestedInvocationsSynchronization(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-// TODO: Make testing coverage of InMemoryBuildQueue complete.
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	mockClock := mock.NewMockClock(ctrl)
+	mockClock.EXPECT().Now().Return(time.Unix(0, 0))
+	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
+	actionRouter := mock.NewMockActionRouter(ctrl)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, mockClock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer)
+	executionClient := getExecutionClient(t, buildQueue)
+
+	mockClock.EXPECT().Now().Return(time.Unix(1000, 0))
+	require.NoError(t, buildQueue.RegisterPredeclaredPlatformQueue(
+		digest.EmptyInstanceName,
+		platformForTesting,
+		/* workerInvocationStickinessLimits = */ nil,
+		/* maximumQueuedBackgroundLearningOperations = */ 0,
+		/* backgroundLearningOperationPriority = */ 0,
+		/* maximumSizeClass = */ 0))
+
+	// Create ten workers. Let all of them complete a task that
+	// belonged to the same correlated invocations ID, but a
+	// different tool invocation ID.
+	correlatedInvocationsID := &remoteexecution.RequestMetadata{
+		CorrelatedInvocationsId: "7e5d4921-a6d2-480e-8e2d-a4afecd7ab33",
+	}
+	correlatedInvocationsIDAny, err := anypb.New(correlatedInvocationsID)
+	require.NoError(t, err)
+	for i, p := range []struct {
+		operationName    string
+		toolInvocationID string
+	}{
+		{"716f2e32-d273-49e7-a842-82282e89d1a3", "93b8f304-4a3d-4832-91b2-e596e8a08f42"},
+		{"0a656823-9f91-4220-9dcd-58503e62e6e8", "e3658358-6325-4405-a43c-b3f81ca6e52a"},
+		{"175ead9a-a095-43a5-9f2c-e3a293938ff3", "a76ecbfc-4a3a-4822-99c5-30c0ff7dbbb8"},
+		{"d354a1ea-0945-4c84-be17-ac01b8058d06", "167fda12-0c84-4936-978f-2b54ebe3b600"},
+		{"5fe458ce-a28d-4478-9ced-7ee23a539cb6", "02c0d7d2-2e0a-4664-8030-60ad5e9026bd"},
+		{"30e6d53c-a737-47bc-8b06-8e8f9cf7a3b3", "892d2891-8344-4cb0-88b6-852106b2b329"},
+		{"77d52264-940c-461b-b67f-e3e68cb5b7f0", "1ccd7a67-0b55-4242-a4a1-942064a79341"},
+		{"201d6ff3-ffe3-4126-928b-cba38938ebb5", "cbb6455f-ede1-4314-ba63-a44f18188672"},
+		{"303fa653-8516-4a4f-9b6b-60c3f1f45f29", "3c5c6475-5ce6-42ef-b8ba-aa0a67348174"},
+		{"ca172285-ba23-42fd-a714-b582cad3bf32", "fd345278-02e8-48d8-8ff6-4f467c0cd942"},
+	} {
+		action := &remoteexecution.Action{
+			DoNotCache: true,
+			CommandDigest: &remoteexecution.Digest{
+				Hash:      "9b818e201c59f31954cb1e126cc67562ec545ab4",
+				SizeBytes: 456,
+			},
+		}
+		contentAddressableStorage.EXPECT().Get(
+			gomock.Any(),
+			digest.MustNewDigest("", "0474d2f48968a56da4de20718d8ac23aafd80709", 123),
+		).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
+		toolInvocationID := &remoteexecution.RequestMetadata{
+			ToolInvocationId: p.toolInvocationID,
+		}
+		toolInvocationIDAny, err := anypb.New(toolInvocationID)
+		require.NoError(t, err)
+		initialSizeClassSelector := mock.NewMockSelector(ctrl)
+		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(
+			platform.MustNewKey("", platformForTesting),
+			[]invocation.Key{
+				invocation.MustNewKey(correlatedInvocationsIDAny),
+				invocation.MustNewKey(toolInvocationIDAny),
+			},
+			initialSizeClassSelector,
+			nil,
+		)
+		initialSizeClassLearner := mock.NewMockLearner(ctrl)
+		initialSizeClassSelector.EXPECT().Select([]uint32{0}).
+			Return(0, time.Minute, initialSizeClassLearner)
+		mockClock.EXPECT().Now().Return(time.Unix(1010+int64(i), 0))
+		timer1 := mock.NewMockTimer(ctrl)
+		mockClock.EXPECT().NewTimer(time.Minute).Return(timer1, nil)
+		uuidGenerator.EXPECT().Call().Return(uuid.Parse(p.operationName))
+
+		actionDigest := &remoteexecution.Digest{
+			Hash:      "0474d2f48968a56da4de20718d8ac23aafd80709",
+			SizeBytes: 123,
+		}
+		stream, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
+			ActionDigest: actionDigest,
+		})
+		require.NoError(t, err)
+		update, err := stream.Recv()
+		require.NoError(t, err)
+		metadata, err := anypb.New(&remoteexecution.ExecuteOperationMetadata{
+			Stage:        remoteexecution.ExecutionStage_QUEUED,
+			ActionDigest: actionDigest,
+		})
+		require.NoError(t, err)
+		testutil.RequireEqualProto(t, &longrunning.Operation{
+			Name:     p.operationName,
+			Metadata: metadata,
+		}, update)
+
+		mockClock.EXPECT().Now().Return(time.Unix(1010+int64(i), 1)).Times(2)
+		timer1.EXPECT().Stop()
+		timer2 := mock.NewMockTimer(ctrl)
+		mockClock.EXPECT().NewTimer(time.Minute).Return(timer2, nil)
+		workerID := map[string]string{
+			"hostname": "worker123",
+			"thread":   strconv.FormatInt(int64(i), 10),
+		}
+		response, err := buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
+			WorkerId: workerID,
+			Platform: platformForTesting,
+			CurrentState: &remoteworker.CurrentState{
+				WorkerState: &remoteworker.CurrentState_Idle{
+					Idle: &emptypb.Empty{},
+				},
+			},
+		})
+		require.NoError(t, err)
+		testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
+			NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1020 + int64(i), Nanos: 1},
+			DesiredState: &remoteworker.DesiredState{
+				WorkerState: &remoteworker.DesiredState_Executing_{
+					Executing: &remoteworker.DesiredState_Executing{
+						ActionDigest: actionDigest,
+						Action: &remoteexecution.Action{
+							DoNotCache: true,
+							CommandDigest: &remoteexecution.Digest{
+								Hash:      "9b818e201c59f31954cb1e126cc67562ec545ab4",
+								SizeBytes: 456,
+							},
+							Timeout: &durationpb.Duration{Seconds: 60},
+						},
+						QueuedTimestamp: &timestamppb.Timestamp{Seconds: 1010 + int64(i)},
+					},
+				},
+			},
+		}, response)
+
+		update, err = stream.Recv()
+		require.NoError(t, err)
+		metadata, err = anypb.New(&remoteexecution.ExecuteOperationMetadata{
+			Stage:        remoteexecution.ExecutionStage_EXECUTING,
+			ActionDigest: actionDigest,
+		})
+		require.NoError(t, err)
+		testutil.RequireEqualProto(t, update, &longrunning.Operation{
+			Name:     p.operationName,
+			Metadata: metadata,
+		})
+
+		initialSizeClassLearner.EXPECT().Succeeded(time.Duration(0), []uint32{0})
+		mockClock.EXPECT().Now().Return(time.Unix(1010+int64(i), 2)).Times(3)
+		timer2.EXPECT().Stop()
+		response, err = buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
+			WorkerId: workerID,
+			Platform: platformForTesting,
+			CurrentState: &remoteworker.CurrentState{
+				WorkerState: &remoteworker.CurrentState_Executing_{
+					Executing: &remoteworker.CurrentState_Executing{
+						ActionDigest: actionDigest,
+						ExecutionState: &remoteworker.CurrentState_Executing_Completed{
+							Completed: &remoteexecution.ExecuteResponse{
+								Result: &remoteexecution.ActionResult{},
+							},
+						},
+						PreferBeingIdle: true,
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
+			NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1010 + int64(i), Nanos: 2},
+			DesiredState: &remoteworker.DesiredState{
+				WorkerState: &remoteworker.DesiredState_Idle{
+					Idle: &emptypb.Empty{},
+				},
+			},
+		}, response)
+
+		update, err = stream.Recv()
+		require.NoError(t, err)
+		metadata, err = anypb.New(&remoteexecution.ExecuteOperationMetadata{
+			Stage:        remoteexecution.ExecutionStage_COMPLETED,
+			ActionDigest: actionDigest,
+		})
+		require.NoError(t, err)
+		executeResponse, err := anypb.New(&remoteexecution.ExecuteResponse{
+			Result: &remoteexecution.ActionResult{},
+		})
+		require.NoError(t, err)
+		testutil.RequireEqualProto(t, &longrunning.Operation{
+			Name:     p.operationName,
+			Metadata: metadata,
+			Done:     true,
+			Result:   &longrunning.Operation_Response{Response: executeResponse},
+		}, update)
+	}
+
+	// At the top level, we should see an invocation with ten children.
+	invocationName := &buildqueuestate.InvocationName{
+		SizeClassQueueName: &buildqueuestate.SizeClassQueueName{
+			PlatformQueueName: &buildqueuestate.PlatformQueueName{
+				Platform: platformForTesting,
+			},
+		},
+	}
+	mockClock.EXPECT().Now().Return(time.Unix(1030, 0))
+	invocationStates, err := buildQueue.ListInvocationChildren(ctx, &buildqueuestate.ListInvocationChildrenRequest{
+		InvocationName: invocationName,
+		Filter:         buildqueuestate.ListInvocationChildrenRequest_ALL,
+	})
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, &buildqueuestate.ListInvocationChildrenResponse{
+		Children: []*buildqueuestate.InvocationChildState{
+			{
+				Id: correlatedInvocationsIDAny,
+				State: &buildqueuestate.InvocationState{
+					IdleWorkersCount: 10,
+					ChildrenCount:    10,
+				},
+			},
+		},
+	}, invocationStates)
+
+	// Let all ten workers perform a blocking Synchronize() call.
+	allWorkersWait := make(chan struct{})
+	timers := make([]*mock.MockTimer, 0, 10)
+	wakeups := make([]chan<- time.Time, 0, 10)
+	for iIter := 0; iIter < 10; iIter++ {
+		i := iIter
+		mockClock.EXPECT().Now().Return(time.Unix(1040+int64(i), 0))
+		timer := mock.NewMockTimer(ctrl)
+		wakeup := make(chan time.Time, 1)
+		timerCreationWait := make(chan struct{})
+		mockClock.EXPECT().NewTimer(time.Minute).DoAndReturn(func(d time.Duration) (clock.Timer, <-chan time.Time) {
+			timerCreationWait <- struct{}{}
+			return timer, wakeup
+		})
+
+		go func() {
+			response, err := buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
+				WorkerId: map[string]string{
+					"hostname": "worker123",
+					"thread":   strconv.FormatInt(int64(i), 10),
+				},
+				Platform: platformForTesting,
+				CurrentState: &remoteworker.CurrentState{
+					WorkerState: &remoteworker.CurrentState_Idle{
+						Idle: &emptypb.Empty{},
+					},
+				},
+			})
+			require.NoError(t, err)
+			testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
+				NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1100 + int64(i)},
+				DesiredState: &remoteworker.DesiredState{
+					WorkerState: &remoteworker.DesiredState_Idle{
+						Idle: &emptypb.Empty{},
+					},
+				},
+			}, response)
+
+			allWorkersWait <- struct{}{}
+		}()
+
+		<-timerCreationWait
+		timers = append(timers, timer)
+		wakeups = append(wakeups, wakeup)
+	}
+
+	// Wake up all ten workers without receiving any new work. This
+	// should not cause any crashes.
+	for i := 0; i < 10; i++ {
+		timers[i].EXPECT().Stop()
+		wakeups[i] <- time.Unix(1100+int64(i), 0)
+		<-allWorkersWait
+	}
+}

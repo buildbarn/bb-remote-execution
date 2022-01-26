@@ -2420,7 +2420,7 @@ func (w *worker) dequeue(scq *sizeClassQueue) {
 		heapRemoveOrFix(
 			&i.parent.idleSynchronizingWorkersChildren,
 			i.idleSynchronizingWorkersChildrenIndex,
-			len(i.idleSynchronizingWorkers))
+			len(i.idleSynchronizingWorkers)+i.idleSynchronizingWorkersChildren.Len())
 		i = i.parent
 	}
 	w.wakeup = nil
