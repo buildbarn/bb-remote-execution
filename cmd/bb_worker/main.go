@@ -123,9 +123,10 @@ func main() {
 			instanceNamePatcher: digest.NewInstanceNamePatcher(digest.EmptyInstanceName, instanceNamePrefix),
 		})
 		go func() {
+			generator := random.NewFastSingleThreadedGenerator()
 			for {
 				log.Print("Failure encountered while transmitting completed actions: ", logger.SendAllCompletedActions())
-				time.Sleep(3 * time.Second)
+				time.Sleep(random.Duration(generator, 5*time.Second))
 			}
 		}()
 	}
@@ -377,6 +378,7 @@ func main() {
 					// TODO: Add a signal handler here, so
 					// that we can terminate workers without
 					// interrupting work.
+					generator := random.NewFastSingleThreadedGenerator()
 					for {
 						if !buildClient.InExecutingState() {
 							for {
@@ -385,13 +387,13 @@ func main() {
 									break
 								}
 								log.Printf("Runner for worker %s is not ready: %s", workerName, err)
-								time.Sleep(3 * time.Second)
+								time.Sleep(random.Duration(generator, 5*time.Second))
 							}
 						}
 
 						if err := buildClient.Run(); err != nil {
 							log.Printf("Worker %s: %s", workerName, err)
-							time.Sleep(3 * time.Second)
+							time.Sleep(random.Duration(generator, 5*time.Second))
 						}
 					}
 				}(runnerConfiguration, threadID)
