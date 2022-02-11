@@ -116,9 +116,9 @@ func main() {
 			BusyWorkerSynchronizationInterval: 10 * time.Second,
 			GetIdleWorkerSynchronizationInterval: func() time.Duration {
 				// Let synchronization calls block somewhere
-				// between 1 and 2 minutes. Add jitter to
+				// between 0 and 2 minutes. Add jitter to
 				// prevent recurring traffic spikes.
-				return time.Minute + time.Duration(generator.Intn(60*1e6))*time.Microsecond
+				return random.Duration(generator, 2*time.Minute)
 			},
 			WorkerTaskRetryCount:                9,
 			WorkerWithNoSynchronizationsTimeout: time.Minute,
