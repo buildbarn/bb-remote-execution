@@ -1,0 +1,15 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "fake_xcrun_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/buildbarn/bb-remote-execution/cmd/fake_xcrun",
+    visibility = ["//visibility:private"],
+    deps = ["@com_github_spf13_pflag//:pflag"],
+)
+
+go_binary(
+    name = "fake_xcrun",
+    embed = [":fake_xcrun_lib"],
+    visibility = ["//visibility:public"],
+)
