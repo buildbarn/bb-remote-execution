@@ -33,6 +33,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/google/uuid"
 
+	"golang.org/x/sync/semaphore"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/types/known/emptypb"
 
@@ -130,6 +131,12 @@ func main() {
 			}
 		}()
 	}
+
+	outputUploadConcurrency := configuration.OutputUploadConcurrency
+	if outputUploadConcurrency <= 0 {
+		log.Fatal("Nonpositive output upload concurrency: ", outputUploadConcurrency)
+	}
+	outputUploadConcurrencySemaphore := semaphore.NewWeighted(outputUploadConcurrency)
 
 	for _, buildDirectoryConfiguration := range configuration.BuildDirectories {
 		var fuseBuildDirectory re_fuse.PrepopulatedDirectory
@@ -253,7 +260,8 @@ func main() {
 					contentAddressableStorageWriter, contentAddressableStorageFlusher := re_blobstore.NewBatchedStoreBlobAccess(
 						globalContentAddressableStorage,
 						digest.KeyWithoutInstance,
-						uploadBatchSize)
+						uploadBatchSize,
+						outputUploadConcurrencySemaphore)
 					contentAddressableStorageWriter = blobstore.NewMetricsBlobAccess(
 						contentAddressableStorageWriter,
 						clock.SystemClock,

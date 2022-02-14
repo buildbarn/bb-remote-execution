@@ -67,6 +67,11 @@ message ApplicationConfiguration {
   // https://github.com/buildbarn/bb-adrs/blob/master/0006-operation-logging-and-monetary-resource-usage.md
   // for more details around the Completed Action Logger service.
   repeated CompletedActionLoggingConfiguration completed_action_loggers = 23;
+
+  // The maximum number of concurrent writes to issue against the
+  // Content Addressable Storage (CAS). This limit applied to the worker
+  // process as a whole; not individual worker threads.
+  int64 output_upload_concurrency = 24;
 }
 
 message BuildDirectoryConfiguration {

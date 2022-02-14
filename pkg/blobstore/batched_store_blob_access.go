@@ -2,13 +2,15 @@ package blobstore
 
 import (
 	"context"
-	"sort"
 	"sync"
 
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/util"
+
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 )
 
 type pendingPutOperation struct {
@@ -20,6 +22,7 @@ type batchedStoreBlobAccess struct {
 	blobstore.BlobAccess
 	blobKeyFormat digest.KeyFormat
 	batchSize     int
+	putSemaphore  *semaphore.Weighted
 
 	lock                 sync.Mutex
 	pendingPutOperations map[string]pendingPutOperation
@@ -34,12 +37,13 @@ type batchedStoreBlobAccess struct {
 //
 // This adapter may be used by the worker to speed up the uploading
 // phase of actions.
-func NewBatchedStoreBlobAccess(blobAccess blobstore.BlobAccess, blobKeyFormat digest.KeyFormat, batchSize int) (blobstore.BlobAccess, func(ctx context.Context) error) {
+func NewBatchedStoreBlobAccess(blobAccess blobstore.BlobAccess, blobKeyFormat digest.KeyFormat, batchSize int, putSemaphore *semaphore.Weighted) (blobstore.BlobAccess, func(ctx context.Context) error) {
 	ba := &batchedStoreBlobAccess{
 		BlobAccess:           blobAccess,
 		blobKeyFormat:        blobKeyFormat,
 		batchSize:            batchSize,
 		pendingPutOperations: map[string]pendingPutOperation{},
+		putSemaphore:         putSemaphore,
 	}
 	return ba, func(ctx context.Context) error {
 		ba.lock.Lock()
@@ -62,16 +66,10 @@ func (ba *batchedStoreBlobAccess) flushLocked(ctx context.Context) {
 		ba.pendingPutOperations = map[string]pendingPutOperation{}
 	}()
 
-	// Determine which blobs are missing. Pass blobs to
-	// FindMissing() in sorted order for testability.
-	keys := make([]string, 0, len(ba.pendingPutOperations))
-	for key := range ba.pendingPutOperations {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
+	// Determine which blobs are missing.
 	digests := digest.NewSetBuilder()
-	for _, key := range keys {
-		digests.Add(ba.pendingPutOperations[key].digest)
+	for _, pendingPutOperation := range ba.pendingPutOperations {
+		digests.Add(pendingPutOperation.digest)
 	}
 	missing, err := ba.BlobAccess.FindMissing(ctx, digests.Build())
 	if err != nil {
@@ -80,15 +78,28 @@ func (ba *batchedStoreBlobAccess) flushLocked(ctx context.Context) {
 	}
 
 	// Upload the missing ones.
+	group, groupCtx := errgroup.WithContext(ctx)
 	for _, digest := range missing.Items() {
 		key := digest.GetKey(ba.blobKeyFormat)
 		if pendingPutOperation, ok := ba.pendingPutOperations[key]; ok {
-			delete(ba.pendingPutOperations, key)
-			if err := ba.BlobAccess.Put(ctx, pendingPutOperation.digest, pendingPutOperation.b); err != nil {
-				ba.flushError = util.StatusWrapf(err, "Failed to store previous blob %s", pendingPutOperation.digest)
-				return
+			if groupCtx.Err() != nil || ba.putSemaphore.Acquire(groupCtx, 1) != nil {
+				break
 			}
+			delete(ba.pendingPutOperations, key)
+			group.Go(func() error {
+				err := ba.BlobAccess.Put(groupCtx, pendingPutOperation.digest, pendingPutOperation.b)
+				ba.putSemaphore.Release(1)
+				if err != nil {
+					return util.StatusWrapf(err, "Failed to store previous blob %s", pendingPutOperation.digest)
+				}
+				return nil
+			})
 		}
+	}
+	if err := group.Wait(); err != nil {
+		ba.flushError = err
+	} else if err := util.StatusFromContext(ctx); err != nil {
+		ba.flushError = err
 	}
 }
 

@@ -8,9 +8,11 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
+	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
+	"golang.org/x/sync/semaphore"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -19,7 +21,8 @@ func TestBatchedStoreBlobAccessSuccess(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	baseBlobAccess := mock.NewMockBlobAccess(ctrl)
-	blobAccess, flush := blobstore.NewBatchedStoreBlobAccess(baseBlobAccess, digest.KeyWithoutInstance, 2)
+	putSemaphore := semaphore.NewWeighted(1)
+	blobAccess, flush := blobstore.NewBatchedStoreBlobAccess(baseBlobAccess, digest.KeyWithoutInstance, 2, putSemaphore)
 
 	// Empty calls to FindMissing() may be generated at any point in
 	// time. It is up to the storage backend to filter those out.
@@ -49,7 +52,7 @@ func TestBatchedStoreBlobAccessSuccess(t *testing.T) {
 		ctx,
 		digest.NewSetBuilder().Add(digestHello).Add(digestEmpty).Build()).Return(
 		digest.NewSetBuilder().Add(digestHello).Build(), nil)
-	baseBlobAccess.EXPECT().Put(ctx, digestHello, gomock.Any()).DoAndReturn(
+	baseBlobAccess.EXPECT().Put(gomock.Any(), digestHello, gomock.Any()).DoAndReturn(
 		func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 			data, err := b.ToByteSlice(100)
 			require.NoError(t, err)
@@ -68,7 +71,7 @@ func TestBatchedStoreBlobAccessSuccess(t *testing.T) {
 		ctx,
 		digest.NewSetBuilder().Add(digestGoodbye).Build()).Return(
 		digest.NewSetBuilder().Add(digestGoodbye).Build(), nil)
-	baseBlobAccess.EXPECT().Put(ctx, digestGoodbye, gomock.Any()).DoAndReturn(
+	baseBlobAccess.EXPECT().Put(gomock.Any(), digestGoodbye, gomock.Any()).DoAndReturn(
 		func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 			data, err := b.ToByteSlice(100)
 			require.NoError(t, err)
@@ -86,7 +89,8 @@ func TestBatchedStoreBlobAccessFailure(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	baseBlobAccess := mock.NewMockBlobAccess(ctrl)
-	blobAccess, flush := blobstore.NewBatchedStoreBlobAccess(baseBlobAccess, digest.KeyWithoutInstance, 2)
+	putSemaphore := semaphore.NewWeighted(1)
+	blobAccess, flush := blobstore.NewBatchedStoreBlobAccess(baseBlobAccess, digest.KeyWithoutInstance, 2, putSemaphore)
 
 	// Empty calls to FindMissing() may be generated at any point in
 	// time. It is up to the storage backend to filter those out.
@@ -119,7 +123,7 @@ func TestBatchedStoreBlobAccessFailure(t *testing.T) {
 		digest.NewSetBuilder().Add(digestHello).Add(digestEmpty).Build()).Return(
 		digest.NewSetBuilder().Add(digestHello).Build(), nil)
 	baseBlobAccess.EXPECT().Put(
-		ctx, digestHello, gomock.Any(),
+		gomock.Any(), digestHello, gomock.Any(),
 	).DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 		data, err := b.ToByteSlice(100)
 		require.NoError(t, err)
@@ -131,25 +135,52 @@ func TestBatchedStoreBlobAccessFailure(t *testing.T) {
 		"default",
 		"6fc422233a40a75a1f028e11c3cd1140",
 		7)
-	require.Equal(
+	testutil.RequireEqualStatus(
 		t,
-		blobAccess.Put(ctx, digestGoodbye, buffer.NewValidatedBufferFromByteSlice([]byte("Goodbye"))),
-		status.Error(codes.Internal, "Failed to store previous blob 8b1a9953c4611296a827abf8c47804d7-5-default: Storage backend on fire"))
+		status.Error(codes.Internal, "Failed to store previous blob 8b1a9953c4611296a827abf8c47804d7-5-default: Storage backend on fire"),
+		blobAccess.Put(ctx, digestGoodbye, buffer.NewValidatedBufferFromByteSlice([]byte("Goodbye"))))
 
 	// Future requests to store blobs should be discarded
 	// immediately, returning same error.
-	require.Equal(
+	testutil.RequireEqualStatus(
 		t,
-		blobAccess.Put(ctx, digestGoodbye, buffer.NewValidatedBufferFromByteSlice([]byte("Goodbye"))),
-		status.Error(codes.Internal, "Failed to store previous blob 8b1a9953c4611296a827abf8c47804d7-5-default: Storage backend on fire"))
+		status.Error(codes.Internal, "Failed to store previous blob 8b1a9953c4611296a827abf8c47804d7-5-default: Storage backend on fire"),
+		blobAccess.Put(ctx, digestGoodbye, buffer.NewValidatedBufferFromByteSlice([]byte("Goodbye"))))
 
 	// Flushing should not cause any requests on the backend, due to
 	// it being in the error state. It should return the error that
 	// caused it to go into the error state.
-	require.Equal(t, flush(ctx), status.Error(codes.Internal, "Failed to store previous blob 8b1a9953c4611296a827abf8c47804d7-5-default: Storage backend on fire"))
+	testutil.RequireEqualStatus(
+		t,
+		status.Error(codes.Internal, "Failed to store previous blob 8b1a9953c4611296a827abf8c47804d7-5-default: Storage backend on fire"),
+		flush(ctx))
 
 	// Successive stores and flushes should be functional once again.
 	require.NoError(t, blobAccess.Put(ctx, digestGoodbye, buffer.NewValidatedBufferFromByteSlice([]byte("Goodbye"))))
 	baseBlobAccess.EXPECT().FindMissing(ctx, digest.NewSetBuilder().Add(digestGoodbye).Build()).Return(digest.EmptySet, nil)
 	require.NoError(t, flush(ctx))
+}
+
+func TestBatchedStoreBlobAccessCanceledWhileWaitingOnSemaphore(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+
+	baseBlobAccess := mock.NewMockBlobAccess(ctrl)
+	putSemaphore := semaphore.NewWeighted(0)
+	blobAccess, flush := blobstore.NewBatchedStoreBlobAccess(baseBlobAccess, digest.KeyWithoutInstance, 2, putSemaphore)
+
+	// Enqueue a blob for writing.
+	digestHello := digest.MustNewDigest("default", "8b1a9953c4611296a827abf8c47804d7", 5)
+	reader := mock.NewMockFileReader(ctrl)
+	require.NoError(t, blobAccess.Put(ctx, digestHello, buffer.NewValidatedBufferFromReaderAt(reader, 5)))
+
+	// Flushing it should attempt to write it. Because the semaphore
+	// is set to zero, there is no capacity to do this. As we're
+	// using a context that is canceled, this should not cause
+	// flushing to block.
+	ctxCanceled, cancel := context.WithCancel(ctx)
+	cancel()
+	baseBlobAccess.EXPECT().FindMissing(ctxCanceled, digestHello.ToSingletonSet()).Return(digestHello.ToSingletonSet(), nil)
+	reader.EXPECT().Close()
+
+	testutil.RequireEqualStatus(t, status.Error(codes.Canceled, "context canceled"), flush(ctxCanceled))
 }
