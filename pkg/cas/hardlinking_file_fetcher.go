@@ -87,7 +87,7 @@ func (ff *hardlinkingFileFetcher) GetFile(ctx context.Context, blobDigest digest
 			return util.StatusWrapfWithCode(err, codes.Internal, "Failed to create hardlink to cached file %#v", key)
 		}
 
-		// The was part of the cache, even though it did not
+		// The file was part of the cache, even though it did not
 		// exist on disk. Some other process may have tampered
 		// with the cache directory's contents.
 		wasMissing = true
