@@ -20,6 +20,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/routing"
 	"github.com/buildbarn/bb-storage/pkg/auth"
 	blobstore_configuration "github.com/buildbarn/bb-storage/pkg/blobstore/configuration"
+	"github.com/buildbarn/bb-storage/pkg/capabilities"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/cloud/aws"
 	"github.com/buildbarn/bb-storage/pkg/digest"
@@ -160,7 +161,9 @@ func main() {
 			bb_grpc.NewServersFromConfigurationAndServe(
 				configuration.ClientGrpcServers,
 				func(s grpc.ServiceRegistrar) {
-					remoteexecution.RegisterCapabilitiesServer(s, buildQueue)
+					remoteexecution.RegisterCapabilitiesServer(
+						s,
+						capabilities.NewServer(buildQueue))
 					remoteexecution.RegisterExecutionServer(s, buildQueue)
 				}))
 	}()

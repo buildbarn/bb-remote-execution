@@ -12,7 +12,6 @@ import (
 	"time"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
-	"github.com/bazelbuild/remote-apis/build/bazel/semver"
 	re_builder "github.com/buildbarn/bb-remote-execution/pkg/builder"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/buildqueuestate"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
@@ -23,6 +22,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/auth"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/builder"
+	"github.com/buildbarn/bb-storage/pkg/capabilities"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/otel"
@@ -167,6 +167,8 @@ type InMemoryBuildQueueConfiguration struct {
 // of the state of the build queue (i.e., list of queued execution
 // requests and list of workers) is kept in memory.
 type InMemoryBuildQueue struct {
+	capabilities.Provider
+
 	contentAddressableStorage           blobstore.BlobAccess
 	clock                               clock.Clock
 	uuidGenerator                       util.UUIDGenerator
@@ -204,6 +206,18 @@ type InMemoryBuildQueue struct {
 	executeAuthorizer auth.Authorizer
 }
 
+var inMemoryBuildQueueCapabilitiesProvider = capabilities.NewStaticProvider(&remoteexecution.ServerCapabilities{
+	ExecutionCapabilities: &remoteexecution.ExecutionCapabilities{
+		DigestFunction: remoteexecution.DigestFunction_SHA256,
+		ExecEnabled:    true,
+		ExecutionPriorityCapabilities: &remoteexecution.PriorityCapabilities{
+			Priorities: []*remoteexecution.PriorityCapabilities_PriorityRange{
+				{MinPriority: math.MinInt32, MaxPriority: math.MaxInt32},
+			},
+		},
+	},
+})
+
 // NewInMemoryBuildQueue creates a new InMemoryBuildQueue that is in the
 // initial state. It does not have any queues, workers or queued
 // execution requests. All of these are created by sending it RPCs.
@@ -222,6 +236,8 @@ func NewInMemoryBuildQueue(contentAddressableStorage blobstore.BlobAccess, clock
 	})
 
 	return &InMemoryBuildQueue{
+		Provider: capabilities.NewAuthorizingProvider(inMemoryBuildQueueCapabilitiesProvider, executeAuthorizer),
+
 		contentAddressableStorage:           contentAddressableStorage,
 		clock:                               clock,
 		uuidGenerator:                       uuidGenerator,
@@ -267,49 +283,6 @@ func (bq *InMemoryBuildQueue) RegisterPredeclaredPlatformQueue(instanceNamePrefi
 	pq := bq.addPlatformQueue(platformKey, workerInvocationStickinessLimits, maximumQueuedBackgroundLearningOperations, backgroundLearningOperationPriority)
 	pq.addSizeClassQueue(bq, maximumSizeClass, false)
 	return nil
-}
-
-// GetCapabilities returns the Remote Execution protocol capabilities
-// that this service supports.
-func (bq *InMemoryBuildQueue) GetCapabilities(ctx context.Context, in *remoteexecution.GetCapabilitiesRequest) (*remoteexecution.ServerCapabilities, error) {
-	instanceName, err := digest.NewInstanceName(in.InstanceName)
-	if err != nil {
-		return nil, err
-	}
-	execEnabled := true
-	authErr := auth.AuthorizeSingleInstanceName(ctx, bq.executeAuthorizer, instanceName)
-	switch status.Code(authErr) {
-	case codes.OK:
-		// Nothing to do.
-	case codes.PermissionDenied:
-		execEnabled = false
-	default:
-		return nil, util.StatusWrap(authErr, "Authorization")
-	}
-
-	return &remoteexecution.ServerCapabilities{
-		CacheCapabilities: &remoteexecution.CacheCapabilities{
-			DigestFunctions: digest.SupportedDigestFunctions,
-			ActionCacheUpdateCapabilities: &remoteexecution.ActionCacheUpdateCapabilities{
-				UpdateEnabled: false,
-			},
-			// CachePriorityCapabilities: Priorities not supported.
-			// MaxBatchTotalSize: Not used by Bazel yet.
-			SymlinkAbsolutePathStrategy: remoteexecution.SymlinkAbsolutePathStrategy_ALLOWED,
-		},
-		ExecutionCapabilities: &remoteexecution.ExecutionCapabilities{
-			DigestFunction: remoteexecution.DigestFunction_SHA256,
-			ExecEnabled:    execEnabled,
-			ExecutionPriorityCapabilities: &remoteexecution.PriorityCapabilities{
-				Priorities: []*remoteexecution.PriorityCapabilities_PriorityRange{
-					{MinPriority: math.MinInt32, MaxPriority: math.MaxInt32},
-				},
-			},
-		},
-		// TODO: DeprecatedApiVersion.
-		LowApiVersion:  &semver.SemVer{Major: 2},
-		HighApiVersion: &semver.SemVer{Major: 2},
-	}, nil
 }
 
 // getRequestMetadata extracts the RequestMetadata message stored in the

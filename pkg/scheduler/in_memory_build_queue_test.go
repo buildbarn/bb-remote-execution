@@ -3929,18 +3929,13 @@ func TestInMemoryBuildQueueAuthorization(t *testing.T) {
 
 	t.Run("GetCapabilities-NotAuthorized", func(t *testing.T) {
 		authorizer.EXPECT().Authorize(gomock.Any(), []digest.InstanceName{beepboop}).Return([]error{status.Error(codes.PermissionDenied, "You shall not pass")})
-		capabilities, err := buildQueue.GetCapabilities(ctx, &remoteexecution.GetCapabilitiesRequest{
-			InstanceName: "beepboop",
-		})
-		require.NoError(t, err)
-		require.False(t, capabilities.ExecutionCapabilities.ExecEnabled)
+		_, err := buildQueue.GetCapabilities(ctx, beepboop)
+		testutil.RequireEqualStatus(t, status.Error(codes.PermissionDenied, "Authorization: You shall not pass"), err)
 	})
 
 	t.Run("GetCapabilities-Error", func(t *testing.T) {
 		authorizer.EXPECT().Authorize(gomock.Any(), []digest.InstanceName{beepboop}).Return([]error{status.Error(codes.Internal, "I fell over")})
-		_, err := buildQueue.GetCapabilities(ctx, &remoteexecution.GetCapabilitiesRequest{
-			InstanceName: "beepboop",
-		})
+		_, err := buildQueue.GetCapabilities(ctx, beepboop)
 		testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Authorization: I fell over"), err)
 	})
 

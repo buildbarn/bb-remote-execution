@@ -3,6 +3,7 @@ package blobstore
 import (
 	"context"
 
+	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
@@ -53,6 +54,13 @@ func (ba *suspendingBlobAccess) FindMissing(ctx context.Context, digests digest.
 	defer ba.suspendable.Resume()
 
 	return ba.base.FindMissing(ctx, digests)
+}
+
+func (ba *suspendingBlobAccess) GetCapabilities(ctx context.Context, instanceName digest.InstanceName) (*remoteexecution.ServerCapabilities, error) {
+	ba.suspendable.Suspend()
+	defer ba.suspendable.Resume()
+
+	return ba.base.GetCapabilities(ctx, instanceName)
 }
 
 type resumingErrorHandler struct {

@@ -5,10 +5,12 @@ import (
 	"io"
 	"testing"
 
+	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
+	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
@@ -21,6 +23,7 @@ func TestSuspendingBlobAccess(t *testing.T) {
 	blobAccess := blobstore.NewSuspendingBlobAccess(baseBlobAccess, suspendable)
 
 	exampleDigest := digest.MustNewDigest("hello", "8b1a9953c4611296a827abf8c47804d7", 5)
+	exampleInstanceName := digest.MustNewInstanceName("hello")
 
 	t.Run("Get", func(t *testing.T) {
 		r := mock.NewMockReadCloser(ctrl)
@@ -67,5 +70,20 @@ func TestSuspendingBlobAccess(t *testing.T) {
 		missing, err := blobAccess.FindMissing(ctx, digest.EmptySet)
 		require.NoError(t, err)
 		require.Equal(t, digest.EmptySet, missing)
+	})
+
+	t.Run("GetCapabilities", func(t *testing.T) {
+		gomock.InOrder(
+			suspendable.EXPECT().Suspend(),
+			baseBlobAccess.EXPECT().GetCapabilities(ctx, exampleInstanceName).Return(&remoteexecution.ServerCapabilities{
+				CacheCapabilities: &remoteexecution.CacheCapabilities{},
+			}, nil),
+			suspendable.EXPECT().Resume())
+
+		serverCapabilities, err := blobAccess.GetCapabilities(ctx, exampleInstanceName)
+		require.NoError(t, err)
+		testutil.RequireEqualProto(t, &remoteexecution.ServerCapabilities{
+			CacheCapabilities: &remoteexecution.CacheCapabilities{},
+		}, serverCapabilities)
 	})
 }

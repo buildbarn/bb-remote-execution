@@ -5,12 +5,12 @@ go 1.17
 replace github.com/gordonklaus/ineffassign => github.com/gordonklaus/ineffassign v0.0.0-20201223204552-cba2d2a1d5d9
 
 require (
-	github.com/aws/aws-sdk-go-v2 v1.13.0
-	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.19.0
-	github.com/aws/aws-sdk-go-v2/service/sqs v1.16.0
-	github.com/aws/smithy-go v1.10.0
-	github.com/bazelbuild/remote-apis v0.0.0-20211004185116-636121a32fa7
-	github.com/buildbarn/bb-storage v0.0.0-20220211114844-e5ee29d82ea7
+	github.com/aws/aws-sdk-go-v2 v1.14.0
+	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.21.0
+	github.com/aws/aws-sdk-go-v2/service/sqs v1.17.0
+	github.com/aws/smithy-go v1.11.0
+	github.com/bazelbuild/remote-apis v0.0.0-20220223171137-04784f4a830c
+	github.com/buildbarn/bb-storage v0.0.0-20220228210157-444d20f4cbfd
 	github.com/golang/protobuf v1.5.2
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
@@ -18,11 +18,11 @@ require (
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/prometheus/client_golang v1.12.1
 	github.com/spf13/pflag v1.0.5
-	go.opentelemetry.io/otel v1.3.0
-	go.opentelemetry.io/otel/trace v1.3.0
+	go.opentelemetry.io/otel v1.4.1
+	go.opentelemetry.io/otel/trace v1.4.1
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20220209214540-3681064d5158
-	google.golang.org/genproto v0.0.0-20220210181026-6fee9acbd336
+	golang.org/x/sys v0.0.0-20220227234510-4e6760a101f9
+	google.golang.org/genproto v0.0.0-20220228195345-15d65a4533f7
 	google.golang.org/grpc v1.44.0
 	google.golang.org/protobuf v1.27.1
 )
@@ -33,8 +33,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.13.1 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.8.0 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.10.0 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.4 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.2.0 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.5 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.3.0 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.3.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.7.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.7.0 // indirect
@@ -45,8 +45,8 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
-	github.com/go-logr/logr v1.2.1 // indirect
-	github.com/go-logr/stdr v1.2.0 // indirect
+	github.com/go-logr/logr v1.2.2 // indirect
+	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-redis/redis/extra/rediscmd v0.2.0 // indirect
 	github.com/go-redis/redis/extra/redisotel v0.3.0 // indirect
 	github.com/go-redis/redis/v8 v8.11.4 // indirect
