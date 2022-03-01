@@ -98,6 +98,7 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
 http_file(
     name = "com_github_krallin_tini_tini_static_amd64",
     downloaded_file_path = "tini",
+    executable = True,
     sha256 = "eadb9d6e2dc960655481d78a92d2c8bc021861045987ccd3e27c7eae5af0cf33",
     urls = ["https://github.com/krallin/tini/releases/download/v0.18.0/tini-static-amd64"],
 )
