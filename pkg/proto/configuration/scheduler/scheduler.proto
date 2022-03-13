@@ -151,20 +151,26 @@ message InitialSizeClassAnalyzerConfiguration {
   // workers exist. Upon failure, retry actions on the largest size
   // class. This mode is not recommended for setups with more than two
   // size classes, or workloads where build times matter.
-  //
-  // When set, run all actions on the largest size class if not seen
-  // before. Future invocations of actions with the same command line
-  // arguments and environment variables will run on all size classes,
-  // using probabilities based on how their execution times compare to
-  // those of the largest size class.
-  //
-  // Statistics on execution times are persisted into the Initial Size
-  // Class Cache (ISCC). bb_browser is also capable of reading data from
-  // this data store, making it possible to view these statistics by
-  // visiting the page of an action. Because of this, enabling this
-  // option requires that bb_scheduler's 'initial_size_class_cache'
-  // option is set as well.
-  InitialSizeClassFeedbackDrivenAnalyzerConfiguration feedback_driven = 3;
+  oneof kind {
+
+    // Run all actions on the largest size class if not seen before.
+    // Future invocations of actions with the same command line arguments
+    // and environment variables will run on all size classes, using
+    // probabilities based on how their execution times compare to those
+    // of the largest size class.
+    //
+    // Statistics on execution times are persisted into the Initial Size
+    // Class Cache (ISCC). bb_browser is also capable of reading data
+    // from this data store, making it possible to view these statistics
+    // by visiting the page of an action. Because of this, enabling this
+    // option requires that bb_scheduler's 'initial_size_class_cache'
+    // option is set as well.
+    InitialSizeClassFeedbackDrivenAnalyzerConfiguration feedback_driven = 3;
+
+    // Use a platform key to explicitly specify what size class to use
+    // for an action.
+    OverridingSizeClassAnalyzerConfiguration overriding = 4;
+  }
 }
 
 message InitialSizeClassFeedbackDrivenAnalyzerConfiguration {
@@ -293,4 +299,21 @@ message InitialSizeClassFeedbackDrivenAnalyzerConfiguration {
   //
   // Recommended value: 32
   int32 history_size = 6;
+}
+
+message OverridingSizeClassAnalyzerConfiguration {
+  // The SizeClassAnalyzer to use when the specific platform key named
+  // below is not present.  If this is not provided, every action must
+  // specify the size class to use in its platform properties.
+  InitialSizeClassAnalyzerConfiguration base = 1;
+
+  // The name of the platform property to look at to determine how to
+  // size this invocation.  If the value of this property is 'max', the
+  // largest available size class is used.  If the value is 'min', the
+  // smallest available size class is used.  Any other value will be
+  // interpreted as a number indicating the specific size class to use.
+  // If the size class is not available, an error is returned.  If the
+  // platform key is not present in an Action, delegates to 'base' to
+  // determine how to size the invocation.
+  string platform_key = 2;
 }

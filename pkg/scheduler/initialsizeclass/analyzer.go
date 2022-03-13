@@ -36,7 +36,7 @@ type Selector interface {
 	// A Learner is returned that the scheduler must use to
 	// communicate the outcome of the execution, so that future
 	// executions have a lower probability of making mispredictions.
-	Select(sizeClasses []uint32) (int, time.Duration, Learner)
+	Select(sizeClasses []uint32) (int, time.Duration, Learner, error)
 
 	// Clients have abandoned the action, meaning that no size class
 	// selection decision needs to be made. This may, for example,

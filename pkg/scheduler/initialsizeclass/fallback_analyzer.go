@@ -40,15 +40,15 @@ type fallbackSelector struct {
 	timeout time.Duration
 }
 
-func (s fallbackSelector) Select(sizeClasses []uint32) (int, time.Duration, Learner) {
+func (s fallbackSelector) Select(sizeClasses []uint32) (int, time.Duration, Learner, error) {
 	if len(sizeClasses) > 1 {
 		// Multiple size classes available. Run all actions on
 		// the smallest size class, falling back to the largest.
 		return 0, s.timeout, smallerFallbackLearner{
 			timeout: s.timeout,
-		}
+		}, nil
 	}
-	return 0, s.timeout, largestFallbackLearner{}
+	return 0, s.timeout, largestFallbackLearner{}, nil
 }
 
 func (fallbackSelector) Abandoned() {}

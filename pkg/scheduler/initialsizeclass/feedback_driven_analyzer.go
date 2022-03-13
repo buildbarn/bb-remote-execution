@@ -71,7 +71,7 @@ type feedbackDrivenSelector struct {
 	originalTimeout time.Duration
 }
 
-func (s *feedbackDrivenSelector) Select(sizeClasses []uint32) (int, time.Duration, Learner) {
+func (s *feedbackDrivenSelector) Select(sizeClasses []uint32) (int, time.Duration, Learner, error) {
 	a := s.analyzer
 	stats := s.handle.GetPreviousExecutionStats()
 	largestSizeClass := sizeClasses[len(sizeClasses)-1]
@@ -99,7 +99,7 @@ func (s *feedbackDrivenSelector) Select(sizeClasses []uint32) (int, time.Duratio
 						largestSizeClass: largestSizeClass,
 						largestTimeout:   s.originalTimeout,
 						smallerSizeClass: sizeClasses[i],
-					}
+					}, nil
 				}
 				// The action doesn't seem prone to
 				// failures. Just run it on the smaller
@@ -117,7 +117,7 @@ func (s *feedbackDrivenSelector) Select(sizeClasses []uint32) (int, time.Duratio
 					smallerTimeout:   smallerTimeout,
 					largestSizeClass: largestSizeClass,
 					largestTimeout:   s.originalTimeout,
-				}
+				}, nil
 			}
 			r -= strategy.Probability
 		}
@@ -134,7 +134,7 @@ func (s *feedbackDrivenSelector) Select(sizeClasses []uint32) (int, time.Duratio
 			},
 		},
 		largestSizeClass: largestSizeClass,
-	}
+	}, nil
 }
 
 func (s *feedbackDrivenSelector) Abandoned() {

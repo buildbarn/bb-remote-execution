@@ -409,7 +409,10 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 		return status.Errorf(code, "No workers exist for instance name prefix %#v platform %s", platformKey.GetInstanceNamePrefix().String(), platformKey.GetPlatformString())
 	}
 	pq := bq.platformQueues[platformQueueIndex]
-	sizeClassIndex, timeout, initialSizeClassLearner := initialSizeClassSelector.Select(pq.sizeClasses)
+	sizeClassIndex, timeout, initialSizeClassLearner, err := initialSizeClassSelector.Select(pq.sizeClasses)
+	if err != nil {
+		return util.StatusWrap(err, "Failed to select size class")
+	}
 	scq := pq.sizeClassQueues[sizeClassIndex]
 
 	// Create the task.

@@ -48,7 +48,8 @@ func TestFallbackAnalyzer(t *testing.T) {
 		selector, err := analyzer.Analyze(ctx, exampleDigestFunction, exampleAction)
 		require.NoError(t, err)
 
-		sizeClassIndex, timeout1, learner1 := selector.Select([]uint32{4})
+		sizeClassIndex, timeout1, learner1, err := selector.Select([]uint32{4})
+		require.NoError(t, err)
 		require.Equal(t, 0, sizeClassIndex)
 		require.Equal(t, 300*time.Second, timeout1)
 
@@ -63,7 +64,8 @@ func TestFallbackAnalyzer(t *testing.T) {
 		selector, err := analyzer.Analyze(ctx, exampleDigestFunction, exampleAction)
 		require.NoError(t, err)
 
-		sizeClassIndex, timeout1, learner1 := selector.Select([]uint32{1, 2, 4, 8})
+		sizeClassIndex, timeout1, learner1, err := selector.Select([]uint32{1, 2, 4, 8})
+		require.NoError(t, err)
 		require.Equal(t, 0, sizeClassIndex)
 		require.Equal(t, 300*time.Second, timeout1)
 
@@ -83,7 +85,8 @@ func TestFallbackAnalyzer(t *testing.T) {
 		selector, err := analyzer.Analyze(ctx, exampleDigestFunction, exampleAction)
 		require.NoError(t, err)
 
-		sizeClassIndex1, timeout1, learner1 := selector.Select([]uint32{1, 2, 4, 8})
+		sizeClassIndex1, timeout1, learner1, err := selector.Select([]uint32{1, 2, 4, 8})
+		require.NoError(t, err)
 		require.NotNil(t, learner1)
 		require.Equal(t, 0, sizeClassIndex1)
 		require.Equal(t, 300*time.Second, timeout1)

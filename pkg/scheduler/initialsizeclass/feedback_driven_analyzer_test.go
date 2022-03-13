@@ -38,7 +38,8 @@ func TestFeedbackDrivenAnalyzer(t *testing.T) {
 		actionTimeoutExtractor,
 		/* failureCacheDuration = */ 24*time.Hour,
 		strategyCalculator,
-		/* historySize = */ 5)
+		/* historySize = */ 5,
+	)
 
 	exampleDigestFunction := digest.MustNewFunction("hello", remoteexecution.DigestFunction_MD5)
 	exampleAction := &remoteexecution.Action{
@@ -94,7 +95,8 @@ func TestFeedbackDrivenAnalyzer(t *testing.T) {
 			})
 		randomNumberGenerator.EXPECT().Float64().Return(0.1)
 
-		sizeClassIndex, timeout, learner := selector.Select([]uint32{1, 2, 4, 8})
+		sizeClassIndex, timeout, learner, err := selector.Select([]uint32{1, 2, 4, 8})
+		require.NoError(t, err)
 		require.Equal(t, 0, sizeClassIndex)
 		require.Equal(t, 15*time.Second, timeout)
 
@@ -137,7 +139,8 @@ func TestFeedbackDrivenAnalyzer(t *testing.T) {
 			})
 		randomNumberGenerator.EXPECT().Float64().Return(0.4)
 
-		sizeClassIndex, timeout, learner1 := selector.Select([]uint32{1, 2, 4, 8})
+		sizeClassIndex, timeout, learner1, err := selector.Select([]uint32{1, 2, 4, 8})
+		require.NoError(t, err)
 		require.Equal(t, 1, sizeClassIndex)
 		require.Equal(t, 15*time.Second, timeout)
 
@@ -193,7 +196,8 @@ func TestFeedbackDrivenAnalyzer(t *testing.T) {
 			})
 		randomNumberGenerator.EXPECT().Float64().Return(0.55)
 
-		sizeClassIndex, timeout1, learner1 := selector.Select([]uint32{1, 2, 4, 8})
+		sizeClassIndex, timeout1, learner1, err := selector.Select([]uint32{1, 2, 4, 8})
+		require.NoError(t, err)
 		require.Equal(t, 0, sizeClassIndex)
 		require.Equal(t, 40*time.Second, timeout1)
 
@@ -251,7 +255,8 @@ func TestFeedbackDrivenAnalyzer(t *testing.T) {
 		handle.EXPECT().GetPreviousExecutionStats().Return(&stats).AnyTimes()
 		clock.EXPECT().Now().Return(time.Unix(1620242374, 0))
 
-		sizeClassIndex, timeout, learner := selector.Select([]uint32{1, 2, 4, 8})
+		sizeClassIndex, timeout, learner, err := selector.Select([]uint32{1, 2, 4, 8})
+		require.NoError(t, err)
 		require.Equal(t, 3, sizeClassIndex)
 		require.Equal(t, 30*time.Minute, timeout)
 
@@ -297,7 +302,8 @@ func TestFeedbackDrivenAnalyzer(t *testing.T) {
 			})
 		randomNumberGenerator.EXPECT().Float64().Return(0.32)
 
-		sizeClassIndex1, timeout1, learner1 := selector.Select([]uint32{1, 2, 4, 8})
+		sizeClassIndex1, timeout1, learner1, err := selector.Select([]uint32{1, 2, 4, 8})
+		require.NoError(t, err)
 		require.Equal(t, 3, sizeClassIndex1)
 		require.Equal(t, 30*time.Minute, timeout1)
 

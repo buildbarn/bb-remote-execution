@@ -29,7 +29,10 @@ func NewAnalyzerFromConfiguration(configuration *pb.InitialSizeClassAnalyzerConf
 		defaultExecutionTimeout.AsDuration(),
 		maximumExecutionTimeout.AsDuration())
 
-	if fdConfiguration := configuration.FeedbackDriven; fdConfiguration != nil {
+	switch kind := configuration.Kind.(type) {
+	case *pb.InitialSizeClassAnalyzerConfiguration_FeedbackDriven:
+		fdConfiguration := kind.FeedbackDriven
+
 		if previousExecutionStatsStore == nil {
 			return nil, status.Error(codes.InvalidArgument, "Feedback driven analysis can only be enabled if an Initial Size Class Cache (ISCC) is configured")
 		}
@@ -53,6 +56,19 @@ func NewAnalyzerFromConfiguration(configuration *pb.InitialSizeClassAnalyzerConf
 				fdConfiguration.SmallerSizeClassExecutionTimeoutMultiplier,
 				fdConfiguration.MaximumConvergenceError),
 			int(fdConfiguration.HistorySize)), nil
+	case *pb.InitialSizeClassAnalyzerConfiguration_Overriding:
+		overriding := kind.Overriding
+
+		var base Analyzer = nil
+		if kind.Overriding.Base != nil {
+			var err error
+			base, err = NewAnalyzerFromConfiguration(kind.Overriding.Base, previousExecutionStatsStore)
+			if err != nil {
+				return nil, util.StatusWrap(err, "Error configuring base analyzer")
+			}
+		}
+
+		return NewPlatformOverridingAnalyzer(actionTimeoutExtractor, overriding.PlatformKey, base), nil
 	}
 	return NewFallbackAnalyzer(actionTimeoutExtractor), nil
 }

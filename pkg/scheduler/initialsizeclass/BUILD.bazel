@@ -11,6 +11,7 @@ go_library(
         "feedback_driven_analyzer.go",
         "outcomes.go",
         "page_rank_strategy_calculator.go",
+        "platform_overriding_size_class_analyzer.go",
         "previous_execution_stats_pool.go",
         "strategy_calculator.go",
     ],
@@ -46,6 +47,7 @@ go_test(
         "feedback_driven_analyzer_test.go",
         "outcomes_test.go",
         "page_rank_strategy_calculator_test.go",
+        "platform_overriding_size_class_analyzer_test.go",
     ],
     deps = [
         ":initialsizeclass",
