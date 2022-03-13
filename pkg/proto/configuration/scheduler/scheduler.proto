@@ -152,7 +152,6 @@ message InitialSizeClassAnalyzerConfiguration {
   // class. This mode is not recommended for setups with more than two
   // size classes, or workloads where build times matter.
   oneof kind {
-
     // Run all actions on the largest size class if not seen before.
     // Future invocations of actions with the same command line arguments
     // and environment variables will run on all size classes, using
