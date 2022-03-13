@@ -9,18 +9,20 @@ import (
 	"github.com/golang/protobuf/jsonpb"
 )
 
+// PropertyFilteringKeyExtractor takes a platform extracted by another
+// KeyExtractor, such as ActionKeyExtractor, and mutates it by either
+// discarding or only retaining specified keys.
 type propertyFilteringKeyExtractor struct {
 	base    KeyExtractor
 	keys    map[string]bool
 	discard bool
 }
 
-// PropertyFilteringKeyExtractor takes a platform extracted by another
-// KeyExtractor, such as ActionKeyExtractor, and mutates it by either discarding
-// or only retaining specified keys.  When `discard` is false, it acts like an
-// allowlist, only retaining platform properties whose name appears in `keys`.
-// Whe `discard` is true, any of `keys` that appear in platform properties are
-// removed from the platform.
+// NewPropertyFilteringKeyExtractor creates a
+// PropertyFilteringKeyExtractor.  When `discard` is false, it acts like
+// an allowlist, only retaining platform properties whose name appears in
+// `keys`. Whe `discard` is true, any of `keys` that appear in platform
+// properties are removed from the platform.
 func NewPropertyFilteringKeyExtractor(base KeyExtractor, keys []string, discard bool) KeyExtractor {
 	keyMap := make(map[string]bool)
 	for _, item := range keys {
