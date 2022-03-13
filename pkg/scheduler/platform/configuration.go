@@ -3,8 +3,8 @@ package platform
 import (
 	pb "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/scheduler"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
-
 	"github.com/buildbarn/bb-storage/pkg/util"
+
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -26,7 +26,7 @@ func NewKeyExtractorFromConfiguration(configuration *pb.PlatformKeyExtractorConf
 		config := kind.PropertyFiltering
 		base, err := NewKeyExtractorFromConfiguration(config.KeyExtractor, contentAddressableStorage, maximumMessageSizeBytes)
 		if err != nil {
-			return nil, util.StatusWrap(err, "Error in base platform key")
+			return nil, util.StatusWrap(err, "Creating base keyExtractor")
 		}
 		if len(config.KeepKeys) > 0 && len(config.DiscardKeys) > 0 {
 			return nil, status.Error(codes.InvalidArgument, "Cannot specify both keep and discard keys")
