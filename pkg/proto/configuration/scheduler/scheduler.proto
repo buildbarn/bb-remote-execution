@@ -115,7 +115,25 @@ message PlatformKeyExtractorConfiguration {
     // out, and best effort support is provided by directing requests to
     // workers of a newer similar platform.
     build.bazel.remote.execution.v2.Platform static = 3;
+
+    // Wraps another Key Extractor to modify platform properties used for
+    // dispatch.  Used in concert with DemultiplexingActionRouterConfiguration
+    // it allows treating invocations differently based on a subset of platform
+    // values.
+    PropertyFilteringKeyExtractorConfiguration property_filtering = 4;
   }
+}
+
+message PropertyFilteringKeyExtractorConfiguration {
+  // The source of the platform to filter.  Typically 'action' or
+  // 'actionAndCommand'.
+  PlatformKeyExtractorConfiguration key_extractor = 1;
+
+  // Keep only keys specified.  Exclusive with discard_keys.
+  repeated string keep_keys = 2;
+
+  // Remove these keys from the platform.  Exclusive with keep_keys.
+  repeated string discard_keys = 3;
 }
 
 message InvocationKeyExtractorConfiguration {

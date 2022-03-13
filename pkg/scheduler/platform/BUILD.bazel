@@ -8,6 +8,7 @@ go_library(
         "configuration.go",
         "key.go",
         "key_extractor.go",
+        "property_filtering_key_extractor.go",
         "static_key_extractor.go",
         "trie.go",
     ],
@@ -34,6 +35,7 @@ go_test(
         "action_and_command_key_extractor_test.go",
         "action_key_extractor_test.go",
         "key_test.go",
+        "property_filtering_key_extractor_test.go",
         "static_key_extractor_test.go",
     ],
     deps = [
