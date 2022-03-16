@@ -47,11 +47,9 @@ func TestRemoteCompletedActionLogger(t *testing.T) {
 	}
 
 	t.Run("OnlyRecvCallsFailure", func(t *testing.T) {
-		var savedCtx context.Context
 		clientStream := mock.NewMockClientStream(ctrl)
 		conn.EXPECT().NewStream(gomock.Any(), gomock.Any(), "/buildbarn.completedactionlogger.CompletedActionLogger/LogCompletedActions", gomock.Any()).
 			DoAndReturn(func(ctx context.Context, desc *grpc.StreamDesc, method string, opts ...grpc.CallOption) (grpc.ClientStream, error) {
-				savedCtx = ctx
 				return clientStream, nil
 			})
 

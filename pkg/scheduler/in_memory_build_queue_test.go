@@ -3584,11 +3584,9 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 		wait7 <- struct{}{}
 		return timer6, nil
 	})
-	var response4 *remoteworker.SynchronizeResponse
-	var err4 error
-	wait8 := make(chan struct{}, 1)
 	go func() {
-		response4, err4 = buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
+		// This call will wait for the idle response timeout to pass.
+		buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
 			WorkerId: workerID2,
 			Platform: platformForTesting,
 			CurrentState: &remoteworker.CurrentState{
@@ -3604,7 +3602,6 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 				},
 			},
 		})
-		wait8 <- struct{}{}
 	}()
 	<-wait7
 
