@@ -1,6 +1,6 @@
 module github.com/buildbarn/bb-remote-execution
 
-go 1.17
+go 1.18
 
 // Use the same version as in bb-storage.
 replace github.com/gordonklaus/ineffassign => github.com/gordonklaus/ineffassign v0.0.0-20201223204552-cba2d2a1d5d9
@@ -14,7 +14,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.18.0
 	github.com/aws/smithy-go v1.11.1
 	github.com/bazelbuild/remote-apis v0.0.0-20220223171137-04784f4a830c
-	github.com/buildbarn/bb-storage v0.0.0-20220316134132-d293162d3381
+	github.com/buildbarn/bb-storage v0.0.0-20220316195748-251ae686ce20
 	github.com/golang/mock v1.6.0
 	github.com/golang/protobuf v1.5.2
 	github.com/google/uuid v1.3.0

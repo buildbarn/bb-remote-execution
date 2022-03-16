@@ -98,8 +98,8 @@ github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24
 github.com/beorn7/perks v1.0.0/go.mod h1:KWe93zE9D1o94FZ5RNwFwVgaQK1VOXiVxmqh+CedLV8=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
-github.com/buildbarn/bb-storage v0.0.0-20220316134132-d293162d3381 h1:3k7HXf/neqR+lY9trzNnUXU6Xx+9LD9F75Dwbdki3MU=
-github.com/buildbarn/bb-storage v0.0.0-20220316134132-d293162d3381/go.mod h1:T5lnXHVYHk6x2+w6futgBn6TMAXUl7uJpZ/IXYR+unU=
+github.com/buildbarn/bb-storage v0.0.0-20220316195748-251ae686ce20 h1:Z/L1vAx2b8fdDlP7459uvf84zoNgttF7cMVZuR9LdwY=
+github.com/buildbarn/bb-storage v0.0.0-20220316195748-251ae686ce20/go.mod h1:prAd3v0rqcVFP2fzVrvzh5N5x3OitwcEiyiVoBTleN4=
 github.com/cenkalti/backoff/v4 v4.1.2/go.mod h1:scbssz8iZGpm3xbr14ovlUdkxfGXNInqkPWOWmG2CLw=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
 github.com/cespare/xxhash v1.1.0/go.mod h1:XrSqR1VqqWfGrhpAt58auRo0WTKS1nRRg3ghfAqPWnc=
