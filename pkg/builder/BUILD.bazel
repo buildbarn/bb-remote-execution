@@ -14,8 +14,6 @@ go_library(
         "completed_action_logging_build_executor.go",
         "cost_computing_build_executor.go",
         "file_pool_stats_build_executor.go",
-        "fuse_build_directory.go",
-        "fuse_build_directory_disabled.go",
         "local_build_executor.go",
         "logging_build_executor.go",
         "metrics_build_executor.go",
@@ -27,6 +25,7 @@ go_library(
         "timestamped_build_executor.go",
         "tracing_build_executor.go",
         "uploadable_directory.go",
+        "virtual_build_directory.go",
     ],
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/builder",
     visibility = ["//visibility:public"],
@@ -35,6 +34,7 @@ go_library(
         "//pkg/cleaner",
         "//pkg/clock",
         "//pkg/filesystem",
+        "//pkg/filesystem/virtual",
         "//pkg/proto/completedactionlogger",
         "//pkg/proto/remoteworker",
         "//pkg/proto/resourceusage",
@@ -64,31 +64,7 @@ go_library(
         "@org_golang_google_protobuf//types/known/emptypb",
         "@org_golang_google_protobuf//types/known/timestamppb",
         "@org_golang_x_sync//errgroup",
-    ] + select({
-        "@io_bazel_rules_go//go/platform:android": [
-            "//pkg/filesystem/fuse",
-            "@com_github_buildbarn_bb_storage//pkg/random",
-        ],
-        "@io_bazel_rules_go//go/platform:darwin": [
-            "//pkg/filesystem/fuse",
-            "@com_github_buildbarn_bb_storage//pkg/random",
-        ],
-        "@io_bazel_rules_go//go/platform:freebsd": [
-            "//pkg/filesystem/fuse",
-        ],
-        "@io_bazel_rules_go//go/platform:ios": [
-            "//pkg/filesystem/fuse",
-            "@com_github_buildbarn_bb_storage//pkg/random",
-        ],
-        "@io_bazel_rules_go//go/platform:linux": [
-            "//pkg/filesystem/fuse",
-            "@com_github_buildbarn_bb_storage//pkg/random",
-        ],
-        "@io_bazel_rules_go//go/platform:windows": [
-            "//pkg/filesystem/fuse",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )
 
 go_test(

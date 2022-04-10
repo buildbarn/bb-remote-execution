@@ -7,7 +7,7 @@ import "google/protobuf/duration.proto";
 import "pkg/proto/configuration/blobstore/blobstore.proto";
 import "pkg/proto/configuration/eviction/eviction.proto";
 import "pkg/proto/configuration/filesystem/filesystem.proto";
-import "pkg/proto/configuration/fuse/fuse.proto";
+import "pkg/proto/configuration/filesystem/virtual/virtual.proto";
 import "pkg/proto/configuration/global/global.proto";
 import "pkg/proto/configuration/grpc/grpc.proto";
 import "pkg/proto/resourceusage/resourceusage.proto";
@@ -82,20 +82,20 @@ message BuildDirectoryConfiguration {
     // take long to initialize.
     NativeBuildDirectoryConfiguration native = 1;
 
-    // Perform builds in a FUSE mount that is managed by this process.
-    // The FUSE mount instantiates build input roots lazily and loads
-    // input files on demand. This means that build actions can be
+    // Perform builds in a virtual mount (e.g., FUSE) that is managed by
+    // this process. The mount instantiates build input roots lazily and
+    // loads input files on demand. This means that build actions can be
     // started instantaneously, downloading data gradually.
     //
-    // The FUSE file system may impose a larger performance overhead for
-    // build actions that are I/O intensive. To provide adequate
+    // The virtual file system may impose a larger performance overhead
+    // for build actions that are I/O intensive. To provide adequate
     // performance, it is important that a Content Addressable Storage
     // backend is used that supports fast random access to blobs. It is
     // suggested that workers use ReadCachingBlobAccess in combination
     // with LocalBlobAccess to achieve this. When LocalBlobAcces is
     // backed by a block device, 'disable_integrity_checking' must be
     // enabled.
-    FUSEBuildDirectoryConfiguration fuse = 2;
+    VirtualBuildDirectoryConfiguration virtual = 2;
   }
 
   // Runners to which to send requests to invoke build action commands.
@@ -129,11 +129,11 @@ message NativeBuildDirectoryConfiguration {
       cache_replacement_policy = 5;
 }
 
-message FUSEBuildDirectoryConfiguration {
-  // Options for mounting the FUSE file system at a given path.
-  buildbarn.configuration.fuse.MountConfiguration mount = 1;
+message VirtualBuildDirectoryConfiguration {
+  // Options for mounting the virtual file system at a given path.
+  buildbarn.configuration.filesystem.virtual.MountConfiguration mount = 1;
 
-  // Because the FUSE file system only loads input root contents from
+  // Because the virtual file system only loads input root contents from
   // the Content Addressable Storage (CAS) lazily, build actions may
   // block during execution. To prevent these delays from causing
   // spurious test timeouts, this implementation is capable of
@@ -148,6 +148,20 @@ message FUSEBuildDirectoryConfiguration {
   //
   // Recommended value: 3600s
   google.protobuf.Duration maximum_execution_timeout_compensation = 2;
+
+  // POSIX doesn't guarantee that readdir() returns elements in any
+  // particular order. This is a common source of irreproducibility in
+  // builds. Because most file systems behave deterministically, it is
+  // typically hard to discover these problems without using multiple
+  // operating systems or file system types.
+  //
+  // Enabling this option causes the virtual file system to populate
+  // input root directories in random order, making it easier to detect
+  // irreproducible build actions. Disabling this option causes input
+  // root directories to be populated in alphabetic order, which reduces
+  // storage usage for build actions that are known to be
+  // irreproducible.
+  bool shuffle_directory_listings = 3;
 }
 
 message RunnerConfiguration {

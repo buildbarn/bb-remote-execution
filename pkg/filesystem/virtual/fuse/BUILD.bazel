@@ -1,0 +1,167 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "fuse",
+    srcs = [
+        "default_attributes_injecting_raw_file_system.go",
+        "metrics_raw_file_system.go",
+        "simple_raw_file_system.go",
+        "sysfs_disabled.go",
+        "sysfs_linux.go",
+    ],
+    importpath = "github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual/fuse",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@io_bazel_rules_go//go/platform:aix": [
+            "@org_golang_google_grpc//codes",
+            "@org_golang_google_grpc//status",
+        ],
+        "@io_bazel_rules_go//go/platform:android": [
+            "//pkg/filesystem/virtual",
+            "@com_github_buildbarn_bb_storage//pkg/clock",
+            "@com_github_buildbarn_bb_storage//pkg/filesystem",
+            "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
+            "@com_github_buildbarn_bb_storage//pkg/util",
+            "@com_github_hanwen_go_fuse_v2//fuse",
+            "@com_github_prometheus_client_golang//prometheus",
+            "@org_golang_x_sys//unix",
+        ],
+        "@io_bazel_rules_go//go/platform:darwin": [
+            "//pkg/filesystem/virtual",
+            "@com_github_buildbarn_bb_storage//pkg/clock",
+            "@com_github_buildbarn_bb_storage//pkg/filesystem",
+            "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
+            "@com_github_buildbarn_bb_storage//pkg/util",
+            "@com_github_hanwen_go_fuse_v2//fuse",
+            "@com_github_prometheus_client_golang//prometheus",
+            "@org_golang_google_grpc//codes",
+            "@org_golang_google_grpc//status",
+            "@org_golang_x_sys//unix",
+        ],
+        "@io_bazel_rules_go//go/platform:dragonfly": [
+            "@org_golang_google_grpc//codes",
+            "@org_golang_google_grpc//status",
+        ],
+        "@io_bazel_rules_go//go/platform:freebsd": [
+            "@org_golang_google_grpc//codes",
+            "@org_golang_google_grpc//status",
+        ],
+        "@io_bazel_rules_go//go/platform:illumos": [
+            "@org_golang_google_grpc//codes",
+            "@org_golang_google_grpc//status",
+        ],
+        "@io_bazel_rules_go//go/platform:ios": [
+            "//pkg/filesystem/virtual",
+            "@com_github_buildbarn_bb_storage//pkg/clock",
+            "@com_github_buildbarn_bb_storage//pkg/filesystem",
+            "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
+            "@com_github_buildbarn_bb_storage//pkg/util",
+            "@com_github_hanwen_go_fuse_v2//fuse",
+            "@com_github_prometheus_client_golang//prometheus",
+            "@org_golang_google_grpc//codes",
+            "@org_golang_google_grpc//status",
+            "@org_golang_x_sys//unix",
+        ],
+        "@io_bazel_rules_go//go/platform:js": [
+            "@org_golang_google_grpc//codes",
+            "@org_golang_google_grpc//status",
+        ],
+        "@io_bazel_rules_go//go/platform:linux": [
+            "//pkg/filesystem/virtual",
+            "@com_github_buildbarn_bb_storage//pkg/clock",
+            "@com_github_buildbarn_bb_storage//pkg/filesystem",
+            "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
+            "@com_github_buildbarn_bb_storage//pkg/util",
+            "@com_github_hanwen_go_fuse_v2//fuse",
+            "@com_github_prometheus_client_golang//prometheus",
+            "@org_golang_x_sys//unix",
+        ],
+        "@io_bazel_rules_go//go/platform:netbsd": [
+            "@org_golang_google_grpc//codes",
+            "@org_golang_google_grpc//status",
+        ],
+        "@io_bazel_rules_go//go/platform:openbsd": [
+            "@org_golang_google_grpc//codes",
+            "@org_golang_google_grpc//status",
+        ],
+        "@io_bazel_rules_go//go/platform:plan9": [
+            "@org_golang_google_grpc//codes",
+            "@org_golang_google_grpc//status",
+        ],
+        "@io_bazel_rules_go//go/platform:solaris": [
+            "@org_golang_google_grpc//codes",
+            "@org_golang_google_grpc//status",
+        ],
+        "@io_bazel_rules_go//go/platform:windows": [
+            "@org_golang_google_grpc//codes",
+            "@org_golang_google_grpc//status",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "fuse_test",
+    srcs = select({
+        "@io_bazel_rules_go//go/platform:android": [
+            "default_attributes_injecting_raw_file_system_test.go",
+            "simple_raw_file_system_test.go",
+        ],
+        "@io_bazel_rules_go//go/platform:darwin": [
+            "default_attributes_injecting_raw_file_system_test.go",
+            "simple_raw_file_system_test.go",
+        ],
+        "@io_bazel_rules_go//go/platform:ios": [
+            "default_attributes_injecting_raw_file_system_test.go",
+            "simple_raw_file_system_test.go",
+        ],
+        "@io_bazel_rules_go//go/platform:linux": [
+            "default_attributes_injecting_raw_file_system_test.go",
+            "simple_raw_file_system_test.go",
+        ],
+        "//conditions:default": [],
+    }),
+    deps = select({
+        "@io_bazel_rules_go//go/platform:android": [
+            ":fuse",
+            "//internal/mock",
+            "//pkg/filesystem/virtual",
+            "@com_github_buildbarn_bb_storage//pkg/filesystem",
+            "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
+            "@com_github_golang_mock//gomock",
+            "@com_github_hanwen_go_fuse_v2//fuse",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@io_bazel_rules_go//go/platform:darwin": [
+            ":fuse",
+            "//internal/mock",
+            "//pkg/filesystem/virtual",
+            "@com_github_buildbarn_bb_storage//pkg/filesystem",
+            "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
+            "@com_github_golang_mock//gomock",
+            "@com_github_hanwen_go_fuse_v2//fuse",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@io_bazel_rules_go//go/platform:ios": [
+            ":fuse",
+            "//internal/mock",
+            "//pkg/filesystem/virtual",
+            "@com_github_buildbarn_bb_storage//pkg/filesystem",
+            "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
+            "@com_github_golang_mock//gomock",
+            "@com_github_hanwen_go_fuse_v2//fuse",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@io_bazel_rules_go//go/platform:linux": [
+            ":fuse",
+            "//internal/mock",
+            "//pkg/filesystem/virtual",
+            "@com_github_buildbarn_bb_storage//pkg/filesystem",
+            "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
+            "@com_github_golang_mock//gomock",
+            "@com_github_hanwen_go_fuse_v2//fuse",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)

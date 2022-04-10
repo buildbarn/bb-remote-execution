@@ -155,30 +155,40 @@ gomock(
 )
 
 gomock(
-    name = "fuse",
-    out = "fuse.go",
+    name = "filesystem_virtual",
+    out = "filesystem_virtual.go",
     interfaces = [
         "CASFileFactory",
+        "CharacterDeviceFactory",
         "ChildFilter",
         "Directory",
-        "EntryNotifier",
+        "DirectoryEntryReporter",
         "FileAllocator",
+        "FUSERemovalNotifier",
+        "FUSERemovalNotifierRegistrar",
         "InitialContentsFetcher",
         "Leaf",
         "NativeLeaf",
+        "ResolvableHandleAllocation",
+        "ResolvableHandleAllocator",
+        "StatefulDirectoryHandle",
+        "StatefulHandleAllocation",
+        "StatefulHandleAllocator",
+        "StatelessHandleAllocation",
+        "StatelessHandleAllocator",
+        "SymlinkFactory",
     ],
-    library = "//pkg/filesystem/fuse",
+    library = "//pkg/filesystem/virtual",
     mock_names = {
-        "Directory": "MockFUSEDirectory",
-        "Leaf": "MockFUSELeaf",
+        "Directory": "MockVirtualDirectory",
+        "Leaf": "MockVirtualLeaf",
     },
     package = "mock",
-    tags = ["manual"],
 )
 
 gomock(
-    name = "go_fuse",
-    out = "go_fuse.go",
+    name = "fuse",
+    out = "fuse.go",
     interfaces = [
         "RawFileSystem",
         "ReadDirEntryList",
@@ -329,6 +339,7 @@ go_library(
         ":completedactionlogger.go",
         ":filesystem.go",
         ":filesystem_re.go",
+        ":filesystem_virtual.go",
         ":grpc_go.go",
         ":initialsizeclass.go",
         ":platform.go",
@@ -344,11 +355,9 @@ go_library(
     ] + select({
         "@io_bazel_rules_go//go/platform:darwin": [
             ":fuse.go",
-            ":go_fuse.go",
         ],
         "@io_bazel_rules_go//go/platform:linux": [
             ":fuse.go",
-            ":go_fuse.go",
         ],
         "//conditions:default": [],
     }),
@@ -359,7 +368,7 @@ go_library(
         "//pkg/cas",
         "//pkg/cleaner",
         "//pkg/filesystem",
-        "//pkg/filesystem/fuse",
+        "//pkg/filesystem/virtual",
         "//pkg/proto/buildqueuestate",
         "//pkg/proto/completedactionlogger",
         "//pkg/proto/outputpathpersistency",

@@ -1,0 +1,49 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "configuration",
+    srcs = [
+        "configuration.go",
+        "fuse_mount_disabled.go",
+        "fuse_mount_enabled.go",
+    ],
+    importpath = "github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual/configuration",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/filesystem/virtual",
+        "//pkg/proto/configuration/filesystem/virtual",
+        "@com_github_buildbarn_bb_storage//pkg/random",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+    ] + select({
+        "@io_bazel_rules_go//go/platform:android": [
+            "//pkg/filesystem/virtual/fuse",
+            "@com_github_buildbarn_bb_storage//pkg/clock",
+            "@com_github_buildbarn_bb_storage//pkg/filesystem",
+            "@com_github_buildbarn_bb_storage//pkg/util",
+            "@com_github_hanwen_go_fuse_v2//fuse",
+        ],
+        "@io_bazel_rules_go//go/platform:darwin": [
+            "//pkg/filesystem/virtual/fuse",
+            "@com_github_buildbarn_bb_storage//pkg/clock",
+            "@com_github_buildbarn_bb_storage//pkg/filesystem",
+            "@com_github_buildbarn_bb_storage//pkg/util",
+            "@com_github_hanwen_go_fuse_v2//fuse",
+        ],
+        "@io_bazel_rules_go//go/platform:ios": [
+            "//pkg/filesystem/virtual/fuse",
+            "@com_github_buildbarn_bb_storage//pkg/clock",
+            "@com_github_buildbarn_bb_storage//pkg/filesystem",
+            "@com_github_buildbarn_bb_storage//pkg/util",
+            "@com_github_hanwen_go_fuse_v2//fuse",
+        ],
+        "@io_bazel_rules_go//go/platform:linux": [
+            "//pkg/filesystem/virtual/fuse",
+            "@com_github_buildbarn_bb_storage//pkg/clock",
+            "@com_github_buildbarn_bb_storage//pkg/filesystem",
+            "@com_github_buildbarn_bb_storage//pkg/util",
+            "@com_github_hanwen_go_fuse_v2//fuse",
+        ],
+        "//conditions:default": [],
+    }),
+)
