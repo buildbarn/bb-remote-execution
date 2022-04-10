@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
 
@@ -15,8 +16,8 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func getInputRootCharacterDevices(names []string) (map[path.Component]int, error) {
-	inputRootCharacterDevices := map[path.Component]int{}
+func getInputRootCharacterDevices(names []string) (map[path.Component]filesystem.DeviceNumber, error) {
+	inputRootCharacterDevices := map[path.Component]filesystem.DeviceNumber{}
 	for _, device := range names {
 		var stat unix.Stat_t
 		devicePath := filepath.Join("/dev", device)
@@ -30,7 +31,7 @@ func getInputRootCharacterDevices(names []string) (map[path.Component]int, error
 		if !ok {
 			return nil, status.Errorf(codes.InvalidArgument, "Device %#v has an invalid name", devicePath)
 		}
-		inputRootCharacterDevices[component] = int(stat.Rdev)
+		inputRootCharacterDevices[component] = filesystem.NewDeviceNumberFromRaw(uint64(stat.Rdev))
 	}
 	return inputRootCharacterDevices, nil
 }

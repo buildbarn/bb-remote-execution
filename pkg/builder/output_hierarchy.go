@@ -150,8 +150,8 @@ func (on *outputNode) uploadOutputs(s *uploadOutputsState, d UploadableDirectory
 		paths := on.filesToUpload[component]
 		if fileInfo, err := d.Lstat(component); err == nil {
 			switch fileType := fileInfo.Type(); fileType {
-			case filesystem.FileTypeRegularFile, filesystem.FileTypeExecutableFile:
-				s.uploadOutputFile(d, component, childPath, fileType, paths)
+			case filesystem.FileTypeRegularFile:
+				s.uploadOutputFile(d, component, childPath, fileInfo.IsExecutable(), paths)
 			case filesystem.FileTypeSymlink:
 				s.uploadOutputSymlink(d, component, childPath, &s.actionResult.OutputFileSymlinks, paths)
 			default:
@@ -171,8 +171,8 @@ func (on *outputNode) uploadOutputs(s *uploadOutputsState, d UploadableDirectory
 			switch fileType := fileInfo.Type(); fileType {
 			case filesystem.FileTypeDirectory:
 				s.uploadOutputDirectory(d, component, childPath, paths)
-			case filesystem.FileTypeRegularFile, filesystem.FileTypeExecutableFile:
-				s.uploadOutputFile(d, component, childPath, fileType, paths)
+			case filesystem.FileTypeRegularFile:
+				s.uploadOutputFile(d, component, childPath, fileInfo.IsExecutable(), paths)
 			case filesystem.FileTypeSymlink:
 				s.uploadOutputSymlink(d, component, childPath, &s.actionResult.OutputSymlinks, paths)
 			default:
@@ -231,12 +231,12 @@ func (s *uploadOutputsState) uploadDirectory(d UploadableDirectory, dPath *path.
 		name := file.Name()
 		childPath := dPath.Append(name)
 		switch fileType := file.Type(); fileType {
-		case filesystem.FileTypeRegularFile, filesystem.FileTypeExecutableFile:
+		case filesystem.FileTypeRegularFile:
 			if childDigest, err := d.UploadFile(s.context, name, s.digestFunction); err == nil {
 				directory.Files = append(directory.Files, &remoteexecution.FileNode{
 					Name:         name.String(),
 					Digest:       childDigest.GetProto(),
-					IsExecutable: fileType == filesystem.FileTypeExecutableFile,
+					IsExecutable: file.IsExecutable(),
 				})
 			} else {
 				s.saveError(util.StatusWrapf(err, "Failed to store output file %#v", childPath.String()))
@@ -323,7 +323,7 @@ func (s *uploadOutputsState) uploadOutputDirectory(d UploadableDirectory, name p
 }
 
 // UploadOutputDirectory is called to upload a single output file.
-func (s *uploadOutputsState) uploadOutputFile(d UploadableDirectory, name path.Component, childPath *path.Trace, fileType filesystem.FileType, paths []string) {
+func (s *uploadOutputsState) uploadOutputFile(d UploadableDirectory, name path.Component, childPath *path.Trace, isExecutable bool, paths []string) {
 	if digest, err := d.UploadFile(s.context, name, s.digestFunction); err == nil {
 		for _, path := range paths {
 			s.actionResult.OutputFiles = append(
@@ -331,7 +331,7 @@ func (s *uploadOutputsState) uploadOutputFile(d UploadableDirectory, name path.C
 				&remoteexecution.OutputFile{
 					Path:         path,
 					Digest:       digest.GetProto(),
-					IsExecutable: fileType == filesystem.FileTypeExecutableFile,
+					IsExecutable: isExecutable,
 				})
 		}
 	} else {

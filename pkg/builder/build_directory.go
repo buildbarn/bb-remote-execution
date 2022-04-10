@@ -6,6 +6,7 @@ import (
 
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/digest"
+	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
 )
@@ -20,7 +21,7 @@ type BuildDirectory interface {
 	UploadableDirectory
 
 	// Methods inherited from filesystem.Directory.
-	Mknod(name path.Component, perm os.FileMode, dev int) error
+	Mknod(name path.Component, perm os.FileMode, deviceNumber filesystem.DeviceNumber) error
 	Remove(name path.Component) error
 	RemoveAll(name path.Component) error
 

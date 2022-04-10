@@ -129,13 +129,13 @@ func (d *lazyDirectory) Mkdir(name path.Component, perm os.FileMode) error {
 	return underlying.Mkdir(name, perm)
 }
 
-func (d *lazyDirectory) Mknod(name path.Component, perm os.FileMode, dev int) error {
+func (d *lazyDirectory) Mknod(name path.Component, perm os.FileMode, deviceNumber filesystem.DeviceNumber) error {
 	underlying, err := d.openUnderlying()
 	if err != nil {
 		return err
 	}
 	defer underlying.Close()
-	return underlying.Mknod(name, perm, dev)
+	return underlying.Mknod(name, perm, deviceNumber)
 }
 
 func (d *lazyDirectory) ReadDir() ([]filesystem.FileInfo, error) {

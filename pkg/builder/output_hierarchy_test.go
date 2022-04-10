@@ -262,17 +262,17 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		root.EXPECT().EnterUploadableDirectory(path.MustNewComponent("foo")).Return(foo, nil)
 
 		// Calls triggered to obtain the file type of the outputs.
-		foo.EXPECT().Lstat(path.MustNewComponent("directory-directory")).Return(filesystem.NewFileInfo(path.MustNewComponent("directory-directory"), filesystem.FileTypeDirectory), nil)
-		foo.EXPECT().Lstat(path.MustNewComponent("directory-symlink")).Return(filesystem.NewFileInfo(path.MustNewComponent("directory-symlink"), filesystem.FileTypeSymlink), nil)
+		foo.EXPECT().Lstat(path.MustNewComponent("directory-directory")).Return(filesystem.NewFileInfo(path.MustNewComponent("directory-directory"), filesystem.FileTypeDirectory, false), nil)
+		foo.EXPECT().Lstat(path.MustNewComponent("directory-symlink")).Return(filesystem.NewFileInfo(path.MustNewComponent("directory-symlink"), filesystem.FileTypeSymlink, false), nil)
 		foo.EXPECT().Lstat(path.MustNewComponent("directory-enoent")).Return(filesystem.FileInfo{}, syscall.ENOENT)
-		foo.EXPECT().Lstat(path.MustNewComponent("file-regular")).Return(filesystem.NewFileInfo(path.MustNewComponent("file-regular"), filesystem.FileTypeRegularFile), nil)
-		foo.EXPECT().Lstat(path.MustNewComponent("file-executable")).Return(filesystem.NewFileInfo(path.MustNewComponent("file-executable"), filesystem.FileTypeExecutableFile), nil)
-		foo.EXPECT().Lstat(path.MustNewComponent("file-symlink")).Return(filesystem.NewFileInfo(path.MustNewComponent("file-symlink"), filesystem.FileTypeSymlink), nil)
+		foo.EXPECT().Lstat(path.MustNewComponent("file-regular")).Return(filesystem.NewFileInfo(path.MustNewComponent("file-regular"), filesystem.FileTypeRegularFile, false), nil)
+		foo.EXPECT().Lstat(path.MustNewComponent("file-executable")).Return(filesystem.NewFileInfo(path.MustNewComponent("file-executable"), filesystem.FileTypeRegularFile, true), nil)
+		foo.EXPECT().Lstat(path.MustNewComponent("file-symlink")).Return(filesystem.NewFileInfo(path.MustNewComponent("file-symlink"), filesystem.FileTypeSymlink, false), nil)
 		foo.EXPECT().Lstat(path.MustNewComponent("file-enoent")).Return(filesystem.FileInfo{}, syscall.ENOENT)
-		foo.EXPECT().Lstat(path.MustNewComponent("path-regular")).Return(filesystem.NewFileInfo(path.MustNewComponent("path-regular"), filesystem.FileTypeRegularFile), nil)
-		foo.EXPECT().Lstat(path.MustNewComponent("path-executable")).Return(filesystem.NewFileInfo(path.MustNewComponent("path-executable"), filesystem.FileTypeExecutableFile), nil)
-		foo.EXPECT().Lstat(path.MustNewComponent("path-directory")).Return(filesystem.NewFileInfo(path.MustNewComponent("path-directory"), filesystem.FileTypeDirectory), nil)
-		foo.EXPECT().Lstat(path.MustNewComponent("path-symlink")).Return(filesystem.NewFileInfo(path.MustNewComponent("path-symlink"), filesystem.FileTypeSymlink), nil)
+		foo.EXPECT().Lstat(path.MustNewComponent("path-regular")).Return(filesystem.NewFileInfo(path.MustNewComponent("path-regular"), filesystem.FileTypeRegularFile, false), nil)
+		foo.EXPECT().Lstat(path.MustNewComponent("path-executable")).Return(filesystem.NewFileInfo(path.MustNewComponent("path-executable"), filesystem.FileTypeRegularFile, true), nil)
+		foo.EXPECT().Lstat(path.MustNewComponent("path-directory")).Return(filesystem.NewFileInfo(path.MustNewComponent("path-directory"), filesystem.FileTypeDirectory, false), nil)
+		foo.EXPECT().Lstat(path.MustNewComponent("path-symlink")).Return(filesystem.NewFileInfo(path.MustNewComponent("path-symlink"), filesystem.FileTypeSymlink, false), nil)
 		foo.EXPECT().Lstat(path.MustNewComponent("path-enoent")).Return(filesystem.FileInfo{}, syscall.ENOENT)
 
 		// Inspection/uploading of all non-directory outputs.
@@ -295,11 +295,11 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		directoryDirectory := mock.NewMockUploadableDirectory(ctrl)
 		foo.EXPECT().EnterUploadableDirectory(path.MustNewComponent("directory-directory")).Return(directoryDirectory, nil)
 		directoryDirectory.EXPECT().ReadDir().Return([]filesystem.FileInfo{
-			filesystem.NewFileInfo(path.MustNewComponent("directory"), filesystem.FileTypeDirectory),
-			filesystem.NewFileInfo(path.MustNewComponent("executable"), filesystem.FileTypeExecutableFile),
-			filesystem.NewFileInfo(path.MustNewComponent("other"), filesystem.FileTypeOther),
-			filesystem.NewFileInfo(path.MustNewComponent("regular"), filesystem.FileTypeRegularFile),
-			filesystem.NewFileInfo(path.MustNewComponent("symlink"), filesystem.FileTypeSymlink),
+			filesystem.NewFileInfo(path.MustNewComponent("directory"), filesystem.FileTypeDirectory, false),
+			filesystem.NewFileInfo(path.MustNewComponent("executable"), filesystem.FileTypeRegularFile, true),
+			filesystem.NewFileInfo(path.MustNewComponent("other"), filesystem.FileTypeOther, false),
+			filesystem.NewFileInfo(path.MustNewComponent("regular"), filesystem.FileTypeRegularFile, false),
+			filesystem.NewFileInfo(path.MustNewComponent("symlink"), filesystem.FileTypeSymlink, false),
 		}, nil)
 		directoryDirectoryDirectory := mock.NewMockUploadableDirectory(ctrl)
 		directoryDirectory.EXPECT().EnterUploadableDirectory(path.MustNewComponent("directory")).Return(directoryDirectoryDirectory, nil)

@@ -380,10 +380,10 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 		ExitCode: 0,
 	}, nil)
 	fooDirectory := mock.NewMockUploadableDirectory(ctrl)
-	inputRootDirectory.EXPECT().Lstat(path.MustNewComponent("foo")).Return(filesystem.NewFileInfo(path.MustNewComponent("foo"), filesystem.FileTypeDirectory), nil)
+	inputRootDirectory.EXPECT().Lstat(path.MustNewComponent("foo")).Return(filesystem.NewFileInfo(path.MustNewComponent("foo"), filesystem.FileTypeDirectory, false), nil)
 	inputRootDirectory.EXPECT().EnterUploadableDirectory(path.MustNewComponent("foo")).Return(fooDirectory, nil)
 	fooDirectory.EXPECT().ReadDir().Return([]filesystem.FileInfo{
-		filesystem.NewFileInfo(path.MustNewComponent("bar"), filesystem.FileTypeSymlink),
+		filesystem.NewFileInfo(path.MustNewComponent("bar"), filesystem.FileTypeSymlink, false),
 	}, nil)
 	fooDirectory.EXPECT().Readlink(path.MustNewComponent("bar")).Return("", status.Error(codes.Internal, "Cosmic rays caused interference"))
 	fooDirectory.EXPECT().Close()
@@ -485,8 +485,8 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 	objsUploadableDirectory.EXPECT().Close()
 	helloUploadableDirectory := mock.NewMockUploadableDirectory(ctrl)
 	objsUploadableDirectory.EXPECT().EnterUploadableDirectory(path.MustNewComponent("hello")).Return(helloUploadableDirectory, nil)
-	helloUploadableDirectory.EXPECT().Lstat(path.MustNewComponent("hello.pic.d")).Return(filesystem.NewFileInfo(path.MustNewComponent("hello.pic.d"), filesystem.FileTypeRegularFile), nil)
-	helloUploadableDirectory.EXPECT().Lstat(path.MustNewComponent("hello.pic.o")).Return(filesystem.NewFileInfo(path.MustNewComponent("hello.pic.o"), filesystem.FileTypeExecutableFile), nil)
+	helloUploadableDirectory.EXPECT().Lstat(path.MustNewComponent("hello.pic.d")).Return(filesystem.NewFileInfo(path.MustNewComponent("hello.pic.d"), filesystem.FileTypeRegularFile, false), nil)
+	helloUploadableDirectory.EXPECT().Lstat(path.MustNewComponent("hello.pic.o")).Return(filesystem.NewFileInfo(path.MustNewComponent("hello.pic.o"), filesystem.FileTypeRegularFile, true), nil)
 	helloUploadableDirectory.EXPECT().Close()
 
 	// Read operations against the Content Addressable Storage.
@@ -558,7 +558,10 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 	inputRootDirectory.EXPECT().Mkdir(path.MustNewComponent("dev"), os.FileMode(0o777))
 	inputRootDevDirectory := mock.NewMockBuildDirectory(ctrl)
 	inputRootDirectory.EXPECT().EnterBuildDirectory(path.MustNewComponent("dev")).Return(inputRootDevDirectory, nil)
-	inputRootDevDirectory.EXPECT().Mknod(path.MustNewComponent("null"), os.FileMode(os.ModeDevice|os.ModeCharDevice|0o666), 259).Return(nil)
+	inputRootDevDirectory.EXPECT().Mknod(
+		path.MustNewComponent("null"),
+		os.FileMode(os.ModeDevice|os.ModeCharDevice|0o666),
+		filesystem.NewDeviceNumberFromMajorMinor(1, 3))
 	inputRootDevDirectory.EXPECT().Close()
 	buildDirectory.EXPECT().Mkdir(path.MustNewComponent("tmp"), os.FileMode(0o777))
 	resourceUsage, err := anypb.New(&emptypb.Empty{})
@@ -596,8 +599,8 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 	clock.EXPECT().NewContextWithTimeout(gomock.Any(), time.Hour).DoAndReturn(func(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 		return context.WithCancel(context.WithValue(parent, re_clock.UnsuspendedDurationKey{}, 5*time.Second))
 	})
-	inputRootCharacterDevices := map[path.Component]int{
-		path.MustNewComponent("null"): 259,
+	inputRootCharacterDevices := map[path.Component]filesystem.DeviceNumber{
+		path.MustNewComponent("null"): filesystem.NewDeviceNumberFromMajorMinor(1, 3),
 	}
 	environmentVars := map[string]string{
 		"TEST_VAR": "123",
@@ -947,14 +950,18 @@ func TestLocalBuildExecutorCharacterDeviceNodeCreationFailed(t *testing.T) {
 	inputRootDirectory.EXPECT().Mkdir(path.MustNewComponent("dev"), os.FileMode(0o777))
 	inputRootDevDirectory := mock.NewMockBuildDirectory(ctrl)
 	inputRootDirectory.EXPECT().EnterBuildDirectory(path.MustNewComponent("dev")).Return(inputRootDevDirectory, nil)
-	inputRootDevDirectory.EXPECT().Mknod(path.MustNewComponent("null"), os.FileMode(os.ModeDevice|os.ModeCharDevice|0o666), 259).Return(status.Error(codes.Internal, "Device node creation failed"))
+	inputRootDevDirectory.EXPECT().Mknod(
+		path.MustNewComponent("null"),
+		os.FileMode(os.ModeDevice|os.ModeCharDevice|0o666),
+		filesystem.NewDeviceNumberFromMajorMinor(1, 3),
+	).Return(status.Error(codes.Internal, "Device node creation failed"))
 	inputRootDevDirectory.EXPECT().Close()
 	inputRootDirectory.EXPECT().Close()
 	buildDirectory.EXPECT().Close()
 	runner := mock.NewMockRunnerClient(ctrl)
 	clock := mock.NewMockClock(ctrl)
-	inputRootCharacterDevices := map[path.Component]int{
-		path.MustNewComponent("null"): 259,
+	inputRootCharacterDevices := map[path.Component]filesystem.DeviceNumber{
+		path.MustNewComponent("null"): filesystem.NewDeviceNumberFromMajorMinor(1, 3),
 	}
 	localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, buildDirectoryCreator, runner, clock, inputRootCharacterDevices, 10000, map[string]string{})
 

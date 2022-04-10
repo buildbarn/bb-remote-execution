@@ -60,13 +60,13 @@ func TestLazyDirectory(t *testing.T) {
 	t.Run("LstatSuccess", func(t *testing.T) {
 		underlyingDirectory := mock.NewMockDirectoryCloser(ctrl)
 		directoryOpener.EXPECT().Call().Return(underlyingDirectory, nil)
-		underlyingDirectory.EXPECT().Lstat(path.MustNewComponent("foo")).Return(filesystem.NewFileInfo(path.MustNewComponent("foo"), filesystem.FileTypeDirectory), nil)
+		underlyingDirectory.EXPECT().Lstat(path.MustNewComponent("foo")).Return(filesystem.NewFileInfo(path.MustNewComponent("foo"), filesystem.FileTypeDirectory, false), nil)
 		underlyingDirectory.EXPECT().Close().Return(nil)
 
 		// Call should be forwarded literally.
 		fileInfo, err := directory.Lstat(path.MustNewComponent("foo"))
 		require.NoError(t, err)
-		require.Equal(t, fileInfo, filesystem.NewFileInfo(path.MustNewComponent("foo"), filesystem.FileTypeDirectory))
+		require.Equal(t, fileInfo, filesystem.NewFileInfo(path.MustNewComponent("foo"), filesystem.FileTypeDirectory, false))
 	})
 
 	t.Run("MkdirSuccess", func(t *testing.T) {
@@ -97,8 +97,8 @@ func TestLazyDirectory(t *testing.T) {
 		underlyingDirectory := mock.NewMockDirectoryCloser(ctrl)
 		directoryOpener.EXPECT().Call().Return(underlyingDirectory, nil)
 		underlyingDirectory.EXPECT().ReadDir().Return([]filesystem.FileInfo{
-			filesystem.NewFileInfo(path.MustNewComponent("a"), filesystem.FileTypeDirectory),
-			filesystem.NewFileInfo(path.MustNewComponent("b"), filesystem.FileTypeRegularFile),
+			filesystem.NewFileInfo(path.MustNewComponent("a"), filesystem.FileTypeDirectory, false),
+			filesystem.NewFileInfo(path.MustNewComponent("b"), filesystem.FileTypeRegularFile, false),
 		}, nil)
 		underlyingDirectory.EXPECT().Close().Return(nil)
 
@@ -106,8 +106,8 @@ func TestLazyDirectory(t *testing.T) {
 		contents, err := directory.ReadDir()
 		require.NoError(t, err)
 		require.Equal(t, contents, []filesystem.FileInfo{
-			filesystem.NewFileInfo(path.MustNewComponent("a"), filesystem.FileTypeDirectory),
-			filesystem.NewFileInfo(path.MustNewComponent("b"), filesystem.FileTypeRegularFile),
+			filesystem.NewFileInfo(path.MustNewComponent("a"), filesystem.FileTypeDirectory, false),
+			filesystem.NewFileInfo(path.MustNewComponent("b"), filesystem.FileTypeRegularFile, false),
 		})
 	})
 
