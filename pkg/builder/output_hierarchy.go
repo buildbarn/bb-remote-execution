@@ -17,21 +17,6 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// componentsList is a sortable list of filenames in a directory.
-type componentsList []path.Component
-
-func (l componentsList) Len() int {
-	return len(l)
-}
-
-func (l componentsList) Less(i, j int) bool {
-	return l[i].String() < l[j].String()
-}
-
-func (l componentsList) Swap(i, j int) {
-	l[i], l[j] = l[j], l[i]
-}
-
 // OutputNode is a node in a directory hierarchy that contains one or
 // more locations where output directories and files are expected.
 type outputNode struct {
@@ -42,7 +27,7 @@ type outputNode struct {
 }
 
 func (on *outputNode) getSubdirectoryNames() []path.Component {
-	l := make(componentsList, 0, len(on.subdirectories))
+	l := make(path.ComponentsList, 0, len(on.subdirectories))
 	for k := range on.subdirectories {
 		l = append(l, k)
 	}
@@ -51,7 +36,7 @@ func (on *outputNode) getSubdirectoryNames() []path.Component {
 }
 
 func sortToUpload(m map[path.Component][]string) []path.Component {
-	l := make(componentsList, 0, len(m))
+	l := make(path.ComponentsList, 0, len(m))
 	for k := range m {
 		l = append(l, k)
 	}

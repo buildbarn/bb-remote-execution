@@ -45,7 +45,7 @@ func (d *mkdirEmittingDirectory) emitCommands(trace *path.Trace, w io.StringWrit
 	if len(d.children) > 0 {
 		// This directory has children, so there's no need to
 		// emit an 'mkdir -p' call for this directory.
-		l := make(componentsList, 0, len(d.children))
+		l := make(path.ComponentsList, 0, len(d.children))
 		for name := range d.children {
 			l = append(l, name)
 		}
