@@ -155,7 +155,7 @@ func (hr *NFSStatefulHandleAllocator) ResolveHandle(r io.ByteReader) (Directory,
 		return resolver(r)
 	}
 	p.lock.RUnlock()
-	return nil, nil, StatusErrBadHandle
+	return nil, nil, StatusErrStale
 }
 
 // New creates a new stateful handle allocation.

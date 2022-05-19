@@ -51,7 +51,7 @@ func TestNFSHandleAllocator(t *testing.T) {
 		directoryHandle.Release()
 
 		_, _, s = handleAllocator.ResolveHandle(bytes.NewBuffer(fileHandle))
-		require.Equal(t, virtual.StatusErrBadHandle, s)
+		require.Equal(t, virtual.StatusErrStale, s)
 	})
 
 	t.Run("StatelessDirectory", func(t *testing.T) {
@@ -159,7 +159,7 @@ func TestNFSHandleAllocator(t *testing.T) {
 			&attr3)
 
 		_, _, s = handleAllocator.ResolveHandle(bytes.NewBuffer(fileHandle))
-		require.Equal(t, virtual.StatusErrBadHandle, s)
+		require.Equal(t, virtual.StatusErrStale, s)
 
 		// Attempting to link it again should fail, as files
 		// cannot be brought back after being unlinked.
@@ -258,7 +258,7 @@ func TestNFSHandleAllocator(t *testing.T) {
 			&attr3)
 
 		_, _, s = handleAllocator.ResolveHandle(bytes.NewBuffer(fileHandle))
-		require.Equal(t, virtual.StatusErrBadHandle, s)
+		require.Equal(t, virtual.StatusErrStale, s)
 
 		// Attempting to link it again should fail, as files
 		// cannot be brought back after being unlinked.
