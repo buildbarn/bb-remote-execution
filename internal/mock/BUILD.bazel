@@ -166,6 +166,7 @@ gomock(
         "FileAllocator",
         "FUSERemovalNotifier",
         "FUSERemovalNotifierRegistrar",
+        "HandleResolver",
         "InitialContentsFetcher",
         "Leaf",
         "NativeLeaf",

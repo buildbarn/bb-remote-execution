@@ -11,9 +11,23 @@ message MountConfiguration {
   string mount_path = 1;
 
   oneof backend {
-    // Use the kernel's FUSE driver to expose the mount. This option is
-    // only supported on Linux and macOS.
+    // Use the kernel's FUSE driver to expose the mount.
+    //
+    // This option is supported on Linux and macOS, though its use is
+    // only recommended on Linux. On macOS, this option requires the
+    // OSXFUSE or macFUSE kernel extension to be installed. This kernel
+    // extension tends to cause system lockups under high load.
     FUSEMountConfiguration fuse = 2;
+
+    // Run an in-process NFSv4 server and use the kernel's NFSv4 client
+    // to expose the mount. This option is currently only supported on
+    // macOS.
+    //
+    // The NFS server is expected to conform to NFSv4.0 (RFC 7530).
+    // Features provided by newer versions of the protocol, such as
+    // NFSv4.1 (RFC 8881) and NFSv4.2 (RFC 7862), are not supported at
+    // this time. macOS also does not support the latter.
+    NFSv4MountConfiguration nfsv4 = 3;
   }
 }
 
@@ -87,4 +101,78 @@ message FUSEMountConfiguration {
   // enabled in environments where the fusermount utility is not
   // available, such as the bb_worker container images.
   bool direct_mount = 7;
+}
+
+message NFSv4MountConfiguration {
+  oneof operating_system {
+    // Configuration options specific to mounting the NFSv4 file system
+    // on macOS.
+    NFSv4DarwinMountConfiguration darwin = 1;
+  }
+
+  // The amount of time that needs to pass for the server to close files
+  // and remove state belonging to a client that has not shown any
+  // activity.
+  //
+  // This option also controls how long state associated with a single
+  // process on a client (an 'open-owner') is allowed to continue to
+  // exist on the server if no files are opened, or if left unconfirmed.
+  //
+  // Recommended value: 120s
+  google.protobuf.Duration enforced_lease_time = 2;
+
+  // The lease time to announce to clients through the FATTR4_LEASE_TIME
+  // attribute. This option should be set lower than
+  // 'enforced_lease_time', as it needs to account for network delays
+  // and instability.
+  //
+  // Recommended value: 60s
+  google.protobuf.Duration announced_lease_time = 3;
+}
+
+message NFSv4DarwinMountConfiguration {
+  // Path on which to bind the UNIX socket of the NFSv4 server. The
+  // kernel will connect to this socket when mounting.
+  //
+  // NOTE: No facilities are provided to set the ownership or
+  // permissions on the socket file. On most operating systems, the
+  // socket file will have mode 0777. How the mode is interpreted when
+  // changed is inconsistent between operating systems. Some require the
+  // socket to be writable in order to connect, while others ignore the
+  // permissions altogether.
+  //
+  // It is therefore strongly advised that socket files are placed
+  // inside directories that have access controls set up properly.
+  //
+  // TODO: Using UNIX sockets currently causes EIO errors under high
+  // load, caused by EMSGSIZE errors returned to the kernel's NFS client
+  // while writing data into the UNIX socket. As a workaround, this
+  // option can be left empty, causing to use TCP instead. This should
+  // be removed once rdar://82122890 is addressed.
+  string socket_path = 1;
+
+  // When set, override the minimum amount of time attributes of
+  // directories may be cached. This option is equivalent to
+  // mount_nfs(8)'s 'acdirmin'.
+  //
+  // Because the macOS NFS client doesn't support NFSv4.1's CB_NOTIFY
+  // callback operation, there is no way this backend can inform the
+  // kernel of files being removed from directories. Because of this, it
+  // is recommended that attribute caching timeouts for directories is
+  // either reduced or disabled, so that removals are detected more
+  // quickly.
+  //
+  // Recommended value:
+  // - For bb_worker: 1s
+  // - For bb_clientd: 0s
+  google.protobuf.Duration minimum_directories_attribute_cache_timeout = 2;
+
+  // When set, override the maximum amount of time attributes of
+  // directories may be cached. This option is equivalent to
+  // mount_nfs(8)'s 'acdirmax'.
+  //
+  // Recommended value:
+  // - For bb_worker: 1s
+  // - For bb_clientd: 0s
+  google.protobuf.Duration maximum_directories_attribute_cache_timeout = 3;
 }
