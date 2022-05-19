@@ -93,7 +93,7 @@ func (f *specialFile) VirtualReadlink() ([]byte, Status) {
 	return nil, StatusErrInval
 }
 
-func (f *specialFile) VirtualClose() {}
+func (f *specialFile) VirtualClose(count uint) {}
 
 func (f *specialFile) VirtualSetAttributes(in *Attributes, requested AttributesMask, out *Attributes) Status {
 	if _, ok := in.GetSizeBytes(); ok {

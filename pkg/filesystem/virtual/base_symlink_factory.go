@@ -101,7 +101,7 @@ func (f symlink) VirtualReadlink() ([]byte, Status) {
 	return f.target, StatusOK
 }
 
-func (f symlink) VirtualClose() {}
+func (f symlink) VirtualClose(count uint) {}
 
 func (f symlink) VirtualSetAttributes(in *Attributes, requested AttributesMask, out *Attributes) Status {
 	if _, ok := in.GetSizeBytes(); ok {

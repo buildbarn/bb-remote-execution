@@ -139,7 +139,7 @@ func (f *blobAccessCASFile) VirtualReadlink() ([]byte, Status) {
 	return nil, StatusErrInval
 }
 
-func (f *blobAccessCASFile) VirtualClose() {}
+func (f *blobAccessCASFile) VirtualClose(count uint) {}
 
 func (f *blobAccessCASFile) virtualSetAttributesCommon(in *Attributes) Status {
 	if _, ok := in.GetPermissions(); ok {
