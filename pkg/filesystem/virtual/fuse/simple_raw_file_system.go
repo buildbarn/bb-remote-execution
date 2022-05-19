@@ -6,8 +6,6 @@ package fuse
 import (
 	"fmt"
 	"log"
-	"runtime"
-	"strings"
 	"sync"
 	"syscall"
 
@@ -505,17 +503,6 @@ func oflagsToOpenExistingOptions(oflags uint32, options *virtual.OpenExistingOpt
 }
 
 func (rfs *simpleRawFileSystem) Create(cancel <-chan struct{}, input *fuse.CreateIn, name string, out *fuse.CreateOut) fuse.Status {
-	// Prevent the creation of AppleDouble files. These files are
-	// automatically created by the kernel on file systems that
-	// don't support extended attributes. Allowing the kernel to
-	// create them confuses build actions and pollutes output
-	// directories.
-	//
-	// https://github.com/apple/darwin-xnu/blob/2ff845c2e033bd0ff64b5b6aa6063a1f8f65aa32/bsd/vfs/vfs_xattr.c#L1248-L3412
-	if runtime.GOOS == "darwin" && strings.HasPrefix(name, "._") {
-		return fuse.EPERM
-	}
-
 	rfs.nodeLock.RLock()
 	i := rfs.getDirectoryLocked(input.NodeId)
 	rfs.nodeLock.RUnlock()

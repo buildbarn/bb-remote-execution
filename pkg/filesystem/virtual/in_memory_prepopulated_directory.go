@@ -12,12 +12,19 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/util"
 )
 
+// StringMatcher is a function type that has the same signature as
+// regexp.Regexp's MatchString() method. It is used by
+// InMemoryPrepopulatedDirectory to determine which files should be
+// hidden from directory listings.
+type StringMatcher func(s string) bool
+
 // inMemoryFilesystem contains state that is shared across all
 // inMemoryPrepopulatedDirectory objects that form a single hierarchy.
 type inMemoryFilesystem struct {
 	symlinkFactory          SymlinkFactory
 	statefulHandleAllocator StatefulHandleAllocator
 	initialContentsSorter   Sorter
+	hiddenFilesMatcher      StringMatcher
 }
 
 // inMemorySubtree contains state that is shared across all
@@ -145,8 +152,13 @@ func (c *inMemoryDirectoryContents) virtualMayAttach(name path.Component) Status
 	return StatusOK
 }
 
-func (c *inMemoryDirectoryContents) isEmpty() bool {
-	return len(c.entriesMap) == 0
+func (c *inMemoryDirectoryContents) isDeletable(hiddenFilesMatcher StringMatcher) bool {
+	for entry := c.entriesList.next; entry != &c.entriesList; entry = entry.next {
+		if entry.child.isDirectory() || !hiddenFilesMatcher(entry.name.String()) {
+			return false
+		}
+	}
+	return true
 }
 
 func (c *inMemoryDirectoryContents) createChildren(subtree *inMemorySubtree, children map[path.Component]InitialNode) {
@@ -208,11 +220,11 @@ func (c *inMemoryDirectoryContents) getAndLockIfDirectory(name path.Component, l
 	}
 }
 
-func (c *inMemoryDirectoryContents) getDirectoriesAndLeavesCount() (directoriesCount, leavesCount int) {
+func (c *inMemoryDirectoryContents) getDirectoriesAndLeavesCount(hiddenFilesMatcher StringMatcher) (directoriesCount, leavesCount int) {
 	for entry := c.entriesList.next; entry != &c.entriesList; entry = entry.next {
 		if entry.child.isDirectory() {
 			directoriesCount++
-		} else {
+		} else if !hiddenFilesMatcher(entry.name.String()) {
 			leavesCount++
 		}
 	}
@@ -244,12 +256,13 @@ type inMemoryPrepopulatedDirectory struct {
 // that keeps all directory metadata stored in memory. As the filesystem
 // API does not allow traversing the hierarchy upwards, this directory
 // can be considered the root directory of the hierarchy.
-func NewInMemoryPrepopulatedDirectory(fileAllocator FileAllocator, symlinkFactory SymlinkFactory, errorLogger util.ErrorLogger, handleAllocator StatefulHandleAllocator, initialContentsSorter Sorter) PrepopulatedDirectory {
+func NewInMemoryPrepopulatedDirectory(fileAllocator FileAllocator, symlinkFactory SymlinkFactory, errorLogger util.ErrorLogger, handleAllocator StatefulHandleAllocator, initialContentsSorter Sorter, hiddenFilesMatcher StringMatcher) PrepopulatedDirectory {
 	subtree := &inMemorySubtree{
 		filesystem: &inMemoryFilesystem{
 			symlinkFactory:          symlinkFactory,
 			statefulHandleAllocator: handleAllocator,
 			initialContentsSorter:   initialContentsSorter,
+			hiddenFilesMatcher:      hiddenFilesMatcher,
 		},
 		fileAllocator: fileAllocator,
 		errorLogger:   errorLogger,
@@ -275,9 +288,23 @@ func (i *inMemoryPrepopulatedDirectory) getContents() (*inMemoryDirectoryContent
 
 func (i *inMemoryPrepopulatedDirectory) markDeleted() {
 	if !i.contents.isDeleted {
-		if i.initialContentsFetcher != nil || !i.contents.isEmpty() {
+		if i.initialContentsFetcher != nil || !i.contents.isDeletable(i.subtree.filesystem.hiddenFilesMatcher) {
 			panic("Attempted to delete a directory that was not empty")
 		}
+
+		// The directory may still contain hidden files. Remove
+		// these prior to marking the directory as deleted.
+		//
+		// TODO: This should call i.handle.NotifyRemoval(), but
+		// that cannot be done while locks are held. Is this
+		// even necessary, considering that the directory is
+		// removed entirely?
+		for i.contents.entriesList.next != &i.contents.entriesList {
+			entry := i.contents.entriesList.next
+			i.contents.detach(entry)
+			entry.child.leaf.Unlink()
+		}
+
 		i.contents.isDeleted = true
 		i.handle.Release()
 	}
@@ -311,7 +338,7 @@ func (i *inMemoryPrepopulatedDirectory) LookupAllChildren() ([]DirectoryPrepopul
 		return nil, nil, err
 	}
 
-	directoriesCount, leavesCount := contents.getDirectoriesAndLeavesCount()
+	directoriesCount, leavesCount := contents.getDirectoriesAndLeavesCount(i.subtree.filesystem.hiddenFilesMatcher)
 	directories := make(directoryPrepopulatedDirEntryList, 0, directoriesCount)
 	leaves := make(leafPrepopulatedDirEntryList, 0, leavesCount)
 	for entry := contents.entriesList.next; entry != &contents.entriesList; entry = entry.next {
@@ -320,7 +347,7 @@ func (i *inMemoryPrepopulatedDirectory) LookupAllChildren() ([]DirectoryPrepopul
 				Child: child.directory,
 				Name:  entry.name,
 			})
-		} else {
+		} else if !i.subtree.filesystem.hiddenFilesMatcher(entry.name.String()) {
 			leaves = append(leaves, LeafPrepopulatedDirEntry{
 				Child: child.leaf,
 				Name:  entry.name,
@@ -347,7 +374,7 @@ func (i *inMemoryPrepopulatedDirectory) ReadDir() ([]filesystem.FileInfo, error)
 		if child := &entry.child; child.isDirectory() {
 			entries = append(entries,
 				filesystem.NewFileInfo(entry.name, filesystem.FileTypeDirectory, false))
-		} else {
+		} else if !i.subtree.filesystem.hiddenFilesMatcher(entry.name.String()) {
 			entries = append(entries, GetFileInfo(entry.name, child.leaf))
 		}
 	}
@@ -373,7 +400,7 @@ func (i *inMemoryPrepopulatedDirectory) Remove(name path.Component) error {
 			if err != nil {
 				return err
 			}
-			if !childContents.isEmpty() {
+			if !childContents.isDeletable(i.subtree.filesystem.hiddenFilesMatcher) {
 				return syscall.ENOTEMPTY
 			}
 			child.directory.markDeleted()
@@ -571,7 +598,7 @@ func (i *inMemoryPrepopulatedDirectory) filterChildrenRecursive(childFilter Chil
 		name path.Component
 		leaf NativeLeaf
 	}
-	directoriesCount, leavesCount := i.contents.getDirectoriesAndLeavesCount()
+	directoriesCount, leavesCount := i.contents.getDirectoriesAndLeavesCount(i.subtree.filesystem.hiddenFilesMatcher)
 	directories := make([]*inMemoryPrepopulatedDirectory, 0, directoriesCount)
 	leaves := make([]leafInfo, 0, leavesCount)
 	for entry := i.contents.entriesList.next; entry != &i.contents.entriesList; entry = entry.next {
@@ -863,7 +890,7 @@ func (i *inMemoryPrepopulatedDirectory) VirtualReadDir(firstCookie uint64, reque
 			if !reporter.ReportDirectory(entry.cookie+1, entry.name, directory, &attributes) {
 				break
 			}
-		} else {
+		} else if !i.subtree.filesystem.hiddenFilesMatcher(entry.name.String()) {
 			leaf := child.leaf
 			var attributes Attributes
 			leaf.VirtualGetAttributes(requested, &attributes)
@@ -920,7 +947,7 @@ func (i *inMemoryPrepopulatedDirectory) VirtualRename(oldName path.Component, ne
 				if s != StatusOK {
 					return ChangeInfo{}, ChangeInfo{}, s
 				}
-				if !newChildContents.isEmpty() {
+				if !newChildContents.isDeletable(i.subtree.filesystem.hiddenFilesMatcher) {
 					return ChangeInfo{}, ChangeInfo{}, StatusErrNotEmpty
 				}
 				oldContents.detach(oldEntry)
@@ -994,7 +1021,7 @@ func (i *inMemoryPrepopulatedDirectory) VirtualRemove(name path.Component, remov
 			if s != StatusOK {
 				return ChangeInfo{}, s
 			}
-			if !childContents.isEmpty() {
+			if !childContents.isDeletable(i.subtree.filesystem.hiddenFilesMatcher) {
 				return ChangeInfo{}, StatusErrNotEmpty
 			}
 			child.directory.markDeleted()

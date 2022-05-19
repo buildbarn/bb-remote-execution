@@ -162,6 +162,27 @@ message VirtualBuildDirectoryConfiguration {
   // storage usage for build actions that are known to be
   // irreproducible.
   bool shuffle_directory_listings = 3;
+
+  // When set, hide files from directory listings that match a given
+  // regular expression. The presence of hidden files will not cause
+  // ENOTEMPTY to be returned upon directory removal. There are various
+  // use cases for this option:
+  //
+  // - On macOS, this feature can be used to prevent capturing of ._*
+  //   (AppleDouble) files.
+  //
+  // - NFSv4 clients may delay unlink() operations, ensuring that opened
+  //   files remain accessible. To prevent these files from being in the
+  //   way when creating a new file with the same name, clients will
+  //   rename the old file to .nfs*. This is called a "silly rename":
+  //   https://linux-nfs.org/wiki/index.php/Server-side_silly_rename.
+  //   This option can be used to prevent ENOTEMPTY errors when removing
+  //   directories containing one or more silly renamed files.
+  //
+  // Recommended value:
+  // - macOS: ^\._|^\.nfs\.[0-9a-f]{8}\.[0-9a-f]{4}$
+  // - Other platforms: unset
+  string hidden_files_pattern = 4;
 }
 
 message RunnerConfiguration {

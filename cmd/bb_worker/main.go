@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"regexp"
 	"sort"
 	"strconv"
 	"time"
@@ -158,6 +159,15 @@ func main() {
 				log.Fatal("Failed to create build directory mount: ", err)
 			}
 
+			hiddenFilesPattern := func(s string) bool { return false }
+			if pattern := backend.Virtual.HiddenFilesPattern; pattern != "" {
+				hiddenFilesRegexp, err := regexp.Compile(pattern)
+				if err != nil {
+					log.Fatal("Failed to parse hidden files pattern: ", err)
+				}
+				hiddenFilesPattern = hiddenFilesRegexp.MatchString
+			}
+
 			initialContentsSorter := sort.Sort
 			if backend.Virtual.ShuffleDirectoryListings {
 				initialContentsSorter = virtual.Shuffle
@@ -177,7 +187,8 @@ func main() {
 				symlinkFactory,
 				util.DefaultErrorLogger,
 				handleAllocator,
-				initialContentsSorter)
+				initialContentsSorter,
+				hiddenFilesPattern)
 
 			if err := mount.Expose(virtualBuildDirectory); err != nil {
 				log.Fatal("Failed to expose build directory mount: ", err)

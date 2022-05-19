@@ -2,6 +2,7 @@ package virtual_test
 
 import (
 	"os"
+	"regexp"
 	"sort"
 	"syscall"
 	"testing"
@@ -40,6 +41,8 @@ func inMemoryPrepopulatedDirectoryExpectMkdir(ctrl *gomock.Controller, handleAll
 	return directoryHandle
 }
 
+var hiddenFilesPatternForTesting = regexp.MustCompile("^\\._")
+
 func TestInMemoryPrepopulatedDirectoryLookupChildNonExistent(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
@@ -48,7 +51,7 @@ func TestInMemoryPrepopulatedDirectoryLookupChildNonExistent(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	_, _, err := d.LookupChild(path.MustNewComponent("nonexistent"))
 	require.True(t, os.IsNotExist(err))
@@ -62,7 +65,7 @@ func TestInMemoryPrepopulatedDirectoryLookupChildFile(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	leaf := mock.NewMockNativeLeaf(ctrl)
 	require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
@@ -85,7 +88,7 @@ func TestInMemoryPrepopulatedDirectoryLookupChildDirectory(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
 	require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
@@ -108,7 +111,7 @@ func TestInMemoryPrepopulatedDirectoryLookupAllChildrenFailure(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
 	initialContentsFetcher := mock.NewMockInitialContentsFetcher(ctrl)
@@ -140,7 +143,7 @@ func TestInMemoryPrepopulatedDirectoryLookupAllChildrenSuccess(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	// Populate the directory with files and directories.
 	leaf1 := mock.NewMockNativeLeaf(ctrl)
@@ -149,7 +152,7 @@ func TestInMemoryPrepopulatedDirectoryLookupAllChildrenSuccess(t *testing.T) {
 		path.MustNewComponent("leaf1"): {
 			Leaf: leaf1,
 		},
-		path.MustNewComponent("leaf2"): {
+		path.MustNewComponent("._leaf2"): {
 			Leaf: leaf2,
 		},
 	}, false))
@@ -161,7 +164,8 @@ func TestInMemoryPrepopulatedDirectoryLookupAllChildrenSuccess(t *testing.T) {
 	subdir2, err := d.CreateAndEnterPrepopulatedDirectory(path.MustNewComponent("subdir2"))
 	require.NoError(t, err)
 
-	// All children should be returned in sorted order.
+	// All children should be returned in sorted order. Hidden
+	// entries should be omitted.
 	directories, leaves, err := d.LookupAllChildren()
 	require.NoError(t, err)
 	require.Equal(t, []virtual.DirectoryPrepopulatedDirEntry{
@@ -170,7 +174,6 @@ func TestInMemoryPrepopulatedDirectoryLookupAllChildrenSuccess(t *testing.T) {
 	}, directories)
 	require.Equal(t, []virtual.LeafPrepopulatedDirEntry{
 		{Name: path.MustNewComponent("leaf1"), Child: leaf1},
-		{Name: path.MustNewComponent("leaf2"), Child: leaf2},
 	}, leaves)
 }
 
@@ -182,22 +185,26 @@ func TestInMemoryPrepopulatedDirectoryReadDir(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	// Prepare file system.
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	leaf := mock.NewMockNativeLeaf(ctrl)
+	leaf1 := mock.NewMockNativeLeaf(ctrl)
+	leaf2 := mock.NewMockNativeLeaf(ctrl)
 	require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
 		path.MustNewComponent("directory"): {
 			Directory: virtual.EmptyInitialContentsFetcher,
 		},
 		path.MustNewComponent("file"): {
-			Leaf: leaf,
+			Leaf: leaf1,
+		},
+		path.MustNewComponent("._hidden_file"): {
+			Leaf: leaf2,
 		},
 	}, false))
 
 	// Validate directory listing.
-	leaf.EXPECT().VirtualGetAttributes(
+	leaf1.EXPECT().VirtualGetAttributes(
 		virtual.AttributesMaskFileType|virtual.AttributesMaskPermissions,
 		gomock.Any(),
 	).Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
@@ -221,7 +228,7 @@ func TestInMemoryPrepopulatedDirectoryRemoveNonExistent(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	require.True(t, os.IsNotExist(d.Remove(path.MustNewComponent("nonexistent"))))
 }
@@ -234,7 +241,7 @@ func TestInMemoryPrepopulatedDirectoryRemoveDirectory(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	dHandle := inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	subdirHandle := inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
 	require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
@@ -258,7 +265,7 @@ func TestInMemoryPrepopulatedDirectoryRemoveDirectoryNotEmpty(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
 	initialContentsFetcher := mock.NewMockInitialContentsFetcher(ctrl)
@@ -285,7 +292,7 @@ func TestInMemoryPrepopulatedDirectoryRemoveFile(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	dHandle := inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	leaf := mock.NewMockNativeLeaf(ctrl)
 	require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
@@ -310,7 +317,7 @@ func TestInMemoryPrepopulatedDirectoryCreateChildrenSuccess(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	// Merge another directory and file into it.
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
@@ -373,7 +380,7 @@ func TestInMemoryPrepopulatedDirectoryCreateChildrenInRemovedDirectory(t *testin
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	dHandle := inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	// Create a reference to a removed child directory.
 	childHandle := inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
@@ -396,7 +403,7 @@ func TestInMemoryPrepopulatedDirectoryInstallHooks(t *testing.T) {
 	errorLogger1 := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator1, symlinkFactory1, errorLogger1, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator1, symlinkFactory1, errorLogger1, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 	fileAllocator2 := mock.NewMockFileAllocator(ctrl)
 	errorLogger2 := mock.NewMockErrorLogger(ctrl)
 	d.InstallHooks(fileAllocator2, errorLogger2)
@@ -438,7 +445,7 @@ func TestInMemoryPrepopulatedDirectoryFilterChildren(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	dHandle := inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	// In the initial state, InMemoryPrepopulatedDirectory will have
 	// an EmptyInitialContentsFetcher associated with it.
@@ -504,7 +511,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualOpenChildFileExists(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	// Create a file at the desired target location.
 	leaf := mock.NewMockNativeLeaf(ctrl)
@@ -534,7 +541,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualOpenChildDirectoryExists(t *testing
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	// Create a directory at the desired target location.
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
@@ -565,7 +572,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualOpenChildAllocationFailure(t *testi
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	// File allocation errors should translate to EIO. The actual
 	// error should get forwarded to the error logger.
@@ -588,7 +595,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualOpenChildInRemovedDirectory(t *test
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	dHandle := inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	// Create a reference to a removed child directory.
 	childHandle := inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
@@ -633,7 +640,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualOpenChildSuccess(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	// Creation of the directory should fully succeed. The file
 	// should be present within the directory afterwards.
@@ -670,7 +677,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualGetAttributes(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	dHandle := inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	dHandle.EXPECT().GetAttributes(inMemoryPrepopulatedDirectoryAttributesMask, gomock.Any()).
 		Do(func(attributesMask virtual.AttributesMask, attributes *virtual.Attributes) {
@@ -699,7 +706,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualLinkExists(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	// Attempting to link to a file that already exists should fail.
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
@@ -722,7 +729,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualLinkInRemovedDirectory(t *testing.T
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	dHandle := inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	// Create a reference to a removed child directory.
 	childHandle := inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
@@ -746,7 +753,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualLinkNotNativeLeaf(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	// Trying to link a file that does not implement NativeLeaf is
 	// not possible. We can only store leaf nodes that implement
@@ -765,7 +772,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualLinkStale(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	// Attempting to link a file that has already been removed
 	// should fail.
@@ -793,7 +800,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualLinkSuccess(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	// We should return the attributes of the existing leaf.
 	var attr virtual.Attributes
@@ -814,7 +821,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualLookup(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	// Create an example directory and file that we'll try to look up.
 	subdirHandle := inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
@@ -881,7 +888,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualMkdir(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	t.Run("FailureInitialContentsFetcher", func(t *testing.T) {
 		// Create a subdirectory that has an initial contents fetcher.
@@ -952,7 +959,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualMkdir(t *testing.T) {
 	})
 }
 
-func TestInMemoryPrepopulatedDirectoryFUSEMknodExists(t *testing.T) {
+func TestInMemoryPrepopulatedDirectoryVirtualMknodExists(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	fileAllocator := mock.NewMockFileAllocator(ctrl)
@@ -960,7 +967,7 @@ func TestInMemoryPrepopulatedDirectoryFUSEMknodExists(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	// Files may not be overwritten by mknod().
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
@@ -974,7 +981,7 @@ func TestInMemoryPrepopulatedDirectoryFUSEMknodExists(t *testing.T) {
 	require.Equal(t, virtual.StatusErrExist, s)
 }
 
-func TestInMemoryPrepopulatedDirectoryFUSEMknodSuccess(t *testing.T) {
+func TestInMemoryPrepopulatedDirectoryVirtualMknodSuccess(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	fileAllocator := mock.NewMockFileAllocator(ctrl)
@@ -982,7 +989,7 @@ func TestInMemoryPrepopulatedDirectoryFUSEMknodSuccess(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	// Create a FIFO and a UNIX domain socket.
 	fifoHandleAllocation := mock.NewMockStatefulHandleAllocation(ctrl)
@@ -1055,19 +1062,23 @@ func TestInMemoryPrepopulatedDirectoryVirtualReadDir(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	// Populate the directory with subdirectory that is
 	// uninitialized and a file.
 	childDirectoryHandle := inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
 	childDirectory := mock.NewMockInitialContentsFetcher(ctrl)
-	childFile := mock.NewMockNativeLeaf(ctrl)
+	childFile1 := mock.NewMockNativeLeaf(ctrl)
+	childFile2 := mock.NewMockNativeLeaf(ctrl)
 	require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
 		path.MustNewComponent("directory"): {
 			Directory: childDirectory,
 		},
 		path.MustNewComponent("file"): {
-			Leaf: childFile,
+			Leaf: childFile1,
+		},
+		path.MustNewComponent("._hidden_file"): {
+			Leaf: childFile2,
 		},
 	}, false))
 
@@ -1080,7 +1091,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualReadDir(t *testing.T) {
 		Do(func(attributesMask virtual.AttributesMask, attributes *virtual.Attributes) {
 			attributes.SetInodeNumber(101)
 		})
-	childFile.EXPECT().VirtualGetAttributes(
+	childFile1.EXPECT().VirtualGetAttributes(
 		inMemoryPrepopulatedDirectoryAttributesMask,
 		gomock.Any(),
 	).Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
@@ -1089,7 +1100,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualReadDir(t *testing.T) {
 	})
 	reporter := mock.NewMockDirectoryEntryReporter(ctrl)
 	reporter.EXPECT().ReportDirectory(
-		uint64(1),
+		uint64(2),
 		path.MustNewComponent("directory"),
 		gomock.Any(),
 		(&virtual.Attributes{}).
@@ -1101,9 +1112,9 @@ func TestInMemoryPrepopulatedDirectoryVirtualReadDir(t *testing.T) {
 			SetSizeBytes(0),
 	).Return(true)
 	reporter.EXPECT().ReportLeaf(
-		uint64(2),
+		uint64(3),
 		path.MustNewComponent("file"),
-		childFile,
+		childFile1,
 		(&virtual.Attributes{}).
 			SetFileType(filesystem.FileTypeRegularFile).
 			SetInodeNumber(123),
@@ -1120,7 +1131,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRenameSelfDirectory(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	// Renaming a directory to itself should be permitted, even when
 	// it is not empty.
@@ -1160,7 +1171,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRenameSelfFile(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	leaf := mock.NewMockNativeLeaf(ctrl)
 	require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
@@ -1223,7 +1234,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRenameDirectoryInRemovedDirectory(t
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	dHandle := inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	// Create a reference to a removed child directory.
 	childHandle := inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
@@ -1259,7 +1270,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRenameFileInRemovedDirectory(t *tes
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	dHandle := inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	// Create a reference to a removed child directory.
 	childHandle := inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
@@ -1302,7 +1313,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRenameDirectoryTwice(t *testing.T) 
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	// Create two empty directories.
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
@@ -1365,7 +1376,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRenameCrossDevice1(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d1 := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d1 := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	d2 := mock.NewMockVirtualDirectory(ctrl)
 
@@ -1384,14 +1395,14 @@ func TestInMemoryPrepopulatedDirectoryVirtualRenameCrossDevice2(t *testing.T) {
 	errorLogger1 := mock.NewMockErrorLogger(ctrl)
 	handleAllocator1 := mock.NewMockStatefulHandleAllocator(ctrl)
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator1)
-	d1 := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator1, symlinkFactory1, errorLogger1, handleAllocator1, sort.Sort)
+	d1 := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator1, symlinkFactory1, errorLogger1, handleAllocator1, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	fileAllocator2 := mock.NewMockFileAllocator(ctrl)
 	symlinkFactory2 := mock.NewMockSymlinkFactory(ctrl)
 	errorLogger2 := mock.NewMockErrorLogger(ctrl)
 	handleAllocator2 := mock.NewMockStatefulHandleAllocator(ctrl)
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator2)
-	d2 := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator2, symlinkFactory2, errorLogger2, handleAllocator2, sort.Sort)
+	d2 := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator2, symlinkFactory2, errorLogger2, handleAllocator2, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	// It should not be possible to rename directories from one
 	// hierarchy to another, as this completely messes up
@@ -1441,7 +1452,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRemove(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	t.Run("NotFound", func(t *testing.T) {
 		// Attempting to remove a file that does not exist.
@@ -1516,7 +1527,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRemove(t *testing.T) {
 		require.Equal(t, virtual.StatusErrNotEmpty, s)
 	})
 
-	t.Run("Success", func(t *testing.T) {
+	t.Run("SuccessFile", func(t *testing.T) {
 		leaf := mock.NewMockNativeLeaf(ctrl)
 		require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
 			path.MustNewComponent("success"): {
@@ -1532,6 +1543,39 @@ func TestInMemoryPrepopulatedDirectoryVirtualRemove(t *testing.T) {
 			After:  6,
 		}, changeInfo)
 	})
+
+	t.Run("SuccessDirectory", func(t *testing.T) {
+		// Directories may be removed, even if they are not
+		// empty. In that case they should exclusively consist
+		// of hidden files.
+		dHandle := inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
+		initialContentsFetcher := mock.NewMockInitialContentsFetcher(ctrl)
+		require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
+			path.MustNewComponent("directory_with_hidden_files"): {
+				Directory: initialContentsFetcher,
+			},
+		}, false))
+		leaf1 := mock.NewMockNativeLeaf(ctrl)
+		leaf2 := mock.NewMockNativeLeaf(ctrl)
+		initialContentsFetcher.EXPECT().FetchContents().Return(map[path.Component]virtual.InitialNode{
+			path.MustNewComponent("._hidden_file1"): {
+				Leaf: leaf1,
+			},
+			path.MustNewComponent("._hidden_file2"): {
+				Leaf: leaf2,
+			},
+		}, nil)
+		leaf1.EXPECT().Unlink()
+		leaf2.EXPECT().Unlink()
+		dHandle.EXPECT().Release()
+
+		changeInfo, s := d.VirtualRemove(path.MustNewComponent("directory_with_hidden_files"), true, true)
+		require.Equal(t, virtual.StatusOK, s)
+		require.Equal(t, virtual.ChangeInfo{
+			Before: 7,
+			After:  8,
+		}, changeInfo)
+	})
 }
 
 func TestInMemoryPrepopulatedDirectoryVirtualSymlink(t *testing.T) {
@@ -1542,7 +1586,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualSymlink(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString)
 
 	t.Run("FailureInitialContentsFetcher", func(t *testing.T) {
 		// Create a subdirectory that has an initial contents fetcher.
