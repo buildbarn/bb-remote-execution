@@ -6,6 +6,7 @@ go_library(
         "attributes.go",
         "base_symlink_factory.go",
         "blob_access_cas_file_factory.go",
+        "byte_range_lock_set.go",
         "cas_file_factory.go",
         "cas_initial_contents_fetcher.go",
         "character_device_factory.go",
@@ -59,6 +60,7 @@ go_test(
     name = "virtual_test",
     srcs = [
         "blob_access_cas_file_factory_test.go",
+        "byte_range_lock_set_test.go",
         "cas_initial_contents_fetcher_test.go",
         "character_device_factory_test.go",
         "fuse_handle_allocator_test.go",
