@@ -3585,7 +3585,6 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 		return timer6, nil
 	})
 	go func() {
-		// This call will wait for the idle response timeout to pass.
 		buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
 			WorkerId: workerID2,
 			Platform: platformForTesting,
