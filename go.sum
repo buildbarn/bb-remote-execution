@@ -109,6 +109,8 @@ github.com/buildbarn/go-xdr v0.0.0-20220519071414-5ac7dc151220 h1:jporlcQKb4KBxL
 github.com/buildbarn/go-xdr v0.0.0-20220519071414-5ac7dc151220/go.mod h1:z/IoLaQHBTk5YL1OFY4WSjW2NMoATNltPHJDD+xXgmE=
 github.com/buildbarn/go-xdr v0.0.0-20220519081609-da07cfd21fa0 h1:n4WcJBxZ7nKYGRreNmXGMhsLaGRAQsCeH9UfD6u2NuY=
 github.com/buildbarn/go-xdr v0.0.0-20220519081609-da07cfd21fa0/go.mod h1:z/IoLaQHBTk5YL1OFY4WSjW2NMoATNltPHJDD+xXgmE=
+github.com/buildbarn/go-xdr v0.0.0-20220523173935-ef493a66bd14 h1:Mrb3r0s1DDC7rdYSHZgyLAbUd+OgFGRsy4PGE98W/kM=
+github.com/buildbarn/go-xdr v0.0.0-20220523173935-ef493a66bd14/go.mod h1:z/IoLaQHBTk5YL1OFY4WSjW2NMoATNltPHJDD+xXgmE=
 github.com/cenkalti/backoff/v4 v4.1.2/go.mod h1:scbssz8iZGpm3xbr14ovlUdkxfGXNInqkPWOWmG2CLw=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
 github.com/cespare/xxhash v1.1.0/go.mod h1:XrSqR1VqqWfGrhpAt58auRo0WTKS1nRRg3ghfAqPWnc=

@@ -15,7 +15,7 @@ require (
 	github.com/aws/smithy-go v1.11.2
 	github.com/bazelbuild/remote-apis v0.0.0-20220510175640-3b4b64021035
 	github.com/buildbarn/bb-storage v0.0.0-20220409201227-01fc04b652f6
-	github.com/buildbarn/go-xdr v0.0.0-20220519081609-da07cfd21fa0
+	github.com/buildbarn/go-xdr v0.0.0-20220523173935-ef493a66bd14
 	github.com/golang/protobuf v1.5.2
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
