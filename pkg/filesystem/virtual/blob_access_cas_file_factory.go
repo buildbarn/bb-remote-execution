@@ -142,9 +142,15 @@ func (f *blobAccessCASFile) VirtualReadlink() ([]byte, Status) {
 func (f *blobAccessCASFile) VirtualClose(count uint) {}
 
 func (f *blobAccessCASFile) virtualSetAttributesCommon(in *Attributes) Status {
-	if _, ok := in.GetPermissions(); ok {
-		return StatusErrPerm
-	}
+	// TODO: chmod() calls against CAS backed files should not be
+	// permitted. Unfortunately, we allowed it in the past. When
+	// using bb_clientd's Remote Output Service, we see Bazel
+	// performing such calls, so we can't forbid it right now.
+	/*
+		if _, ok := in.GetPermissions(); ok {
+			return StatusErrPerm
+		}
+	*/
 	if _, ok := in.GetSizeBytes(); ok {
 		return StatusErrAccess
 	}
