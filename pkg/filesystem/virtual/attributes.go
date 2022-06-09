@@ -1,6 +1,8 @@
 package virtual
 
 import (
+	"time"
+
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 )
 
@@ -25,6 +27,9 @@ const (
 	AttributesMaskFileType
 	// AttributesMaskInodeNumber requests the inode number (st_ino).
 	AttributesMaskInodeNumber
+	// AttributesMaskLastDataModificationTime requests the last data
+	// modification time (st_mtim).
+	AttributesMaskLastDataModificationTime
 	// AttributesMaskLinkCount requests the link count (st_nlink).
 	AttributesMaskLinkCount
 	// AttributesMaskPermissions requests the permissions (lowest 12
@@ -39,14 +44,15 @@ const (
 type Attributes struct {
 	fieldsPresent AttributesMask
 
-	changeID     uint64
-	deviceNumber filesystem.DeviceNumber
-	fileHandle   []byte
-	fileType     filesystem.FileType
-	inodeNumber  uint64
-	linkCount    uint32
-	permissions  Permissions
-	sizeBytes    uint64
+	changeID                 uint64
+	deviceNumber             filesystem.DeviceNumber
+	fileHandle               []byte
+	fileType                 filesystem.FileType
+	inodeNumber              uint64
+	lastDataModificationTime time.Time
+	linkCount                uint32
+	permissions              Permissions
+	sizeBytes                uint64
 }
 
 // GetChangeID returns the change ID, which clients can use to determine
@@ -126,6 +132,20 @@ func (a *Attributes) GetInodeNumber() uint64 {
 func (a *Attributes) SetInodeNumber(inodeNumber uint64) *Attributes {
 	a.inodeNumber = inodeNumber
 	a.fieldsPresent |= AttributesMaskInodeNumber
+	return a
+}
+
+// GetLastDataModificationTime returns the last data modification time
+// (st_mtim).
+func (a *Attributes) GetLastDataModificationTime() (time.Time, bool) {
+	return a.lastDataModificationTime, a.fieldsPresent&AttributesMaskLastDataModificationTime != 0
+}
+
+// SetLastDataModificationTime sets the last data modification time
+// (st_mtim).
+func (a *Attributes) SetLastDataModificationTime(lastDataModificationTime time.Time) *Attributes {
+	a.lastDataModificationTime = lastDataModificationTime
+	a.fieldsPresent |= AttributesMaskLastDataModificationTime
 	return a
 }
 

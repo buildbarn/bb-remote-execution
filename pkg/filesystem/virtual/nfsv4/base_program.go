@@ -644,7 +644,11 @@ func (p *baseProgram) writeAttributes(attributes *virtual.Attributes, attrReques
 		}
 		if b := uint32(1 << (nfsv4.FATTR4_TIME_MODIFY - 32)); f&b != 0 {
 			s |= b
-			deterministicNfstime4.WriteTo(w)
+			t := deterministicNfstime4
+			if lastDataModificationTime, ok := attributes.GetLastDataModificationTime(); ok {
+				t = timeToNfstime4(lastDataModificationTime)
+			}
+			t.WriteTo(w)
 		}
 		attrMask[1] = s
 	}
@@ -2969,6 +2973,9 @@ func attrRequestToAttributesMask(attrRequest nfsv4.Bitmap4) virtual.AttributesMa
 		if f&uint32(1<<(nfsv4.FATTR4_NUMLINKS-32)) != 0 {
 			attributesMask |= virtual.AttributesMaskLinkCount
 		}
+		if f&uint32(1<<(nfsv4.FATTR4_TIME_MODIFY-32)) != 0 {
+			attributesMask |= virtual.AttributesMaskLastDataModificationTime
+		}
 	}
 	return attributesMask
 }
@@ -2977,9 +2984,7 @@ func attrRequestToAttributesMask(attrRequest nfsv4.Bitmap4) virtual.AttributesMa
 // metadata and modify time of all files. If these timestamps were not
 // returned, clients would use 1970-01-01T00:00:00Z. As this tends to
 // confuse many tools, a deterministic timestamp is used instead.
-var deterministicNfstime4 = nfsv4.Nfstime4{
-	Seconds: filesystem.DeterministicFileModificationTimestamp.Unix(),
-}
+var deterministicNfstime4 = timeToNfstime4(filesystem.DeterministicFileModificationTimestamp)
 
 func attributesMaskToBitmap4(in virtual.AttributesMask) []uint32 {
 	out := make([]uint32, 2)
@@ -3240,4 +3245,13 @@ func nfsv4NewComponent(name string) (path.Component, nfsv4.Nfsstat4) {
 		return path.Component{}, nfsv4.NFS4ERR_BADNAME
 	}
 	return component, nfsv4.NFS4_OK
+}
+
+// timeToNfstime4 converts a timestamp to its NFSv4 equivalent.
+func timeToNfstime4(t time.Time) nfsv4.Nfstime4 {
+	nanos := t.UnixNano()
+	return nfsv4.Nfstime4{
+		Seconds:  nanos / 1e9,
+		Nseconds: uint32(nanos % 1e9),
+	}
 }

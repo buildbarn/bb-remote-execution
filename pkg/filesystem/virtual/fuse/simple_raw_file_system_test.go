@@ -6,6 +6,7 @@ package fuse_test
 import (
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual"
@@ -80,6 +81,7 @@ func TestSimpleRawFileSystemLookup(t *testing.T) {
 			func(name path.Component, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Directory, virtual.Leaf, virtual.Status) {
 				out.SetFileType(filesystem.FileTypeDirectory)
 				out.SetInodeNumber(123)
+				out.SetLastDataModificationTime(time.Unix(1654790759, 405372932))
 				out.SetLinkCount(5)
 				out.SetPermissions(virtual.PermissionsExecute)
 				out.SetSizeBytes(2048)
@@ -93,10 +95,12 @@ func TestSimpleRawFileSystemLookup(t *testing.T) {
 		require.Equal(t, go_fuse.EntryOut{
 			NodeId: 123,
 			Attr: go_fuse.Attr{
-				Mode:  go_fuse.S_IFDIR | 0o111,
-				Ino:   123,
-				Nlink: 5,
-				Size:  2048,
+				Mode:      go_fuse.S_IFDIR | 0o111,
+				Ino:       123,
+				Mtime:     1654790759,
+				Mtimensec: 405372932,
+				Nlink:     5,
+				Size:      2048,
 			},
 		}, entryOut)
 

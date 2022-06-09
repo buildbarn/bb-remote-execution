@@ -188,7 +188,8 @@ func main() {
 				util.DefaultErrorLogger,
 				handleAllocator,
 				initialContentsSorter,
-				hiddenFilesPattern)
+				hiddenFilesPattern,
+				clock.SystemClock)
 
 			if err := mount.Expose(virtualBuildDirectory); err != nil {
 				log.Fatal("Failed to expose build directory mount: ", err)

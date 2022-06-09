@@ -24,8 +24,9 @@ const (
 	AttributesMaskForFUSEAttr = virtual.AttributesMaskDeviceNumber |
 		virtual.AttributesMaskFileType |
 		virtual.AttributesMaskInodeNumber |
-		virtual.AttributesMaskPermissions |
+		virtual.AttributesMaskLastDataModificationTime |
 		virtual.AttributesMaskLinkCount |
+		virtual.AttributesMaskPermissions |
 		virtual.AttributesMaskSizeBytes
 	// AttributesMaskForFUSEDirEntry is the attributes mask to use
 	// for VirtualReadDir() to populate all relevant fields of
@@ -152,6 +153,12 @@ func populateAttr(attributes *virtual.Attributes, out *fuse.Attr) {
 	out.Ino = attributes.GetInodeNumber()
 	out.Nlink = attributes.GetLinkCount()
 	out.Mode = toFUSEFileType(attributes.GetFileType())
+
+	if lastDataModificationTime, ok := attributes.GetLastDataModificationTime(); ok {
+		nanos := lastDataModificationTime.UnixNano()
+		out.Mtime = uint64(nanos / 1e9)
+		out.Mtimensec = uint32(nanos % 1e9)
+	}
 
 	permissions, ok := attributes.GetPermissions()
 	if !ok {

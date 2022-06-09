@@ -1633,13 +1633,14 @@ func TestBaseProgramCompound_OP_GETATTR(t *testing.T) {
 	t.Run("AllAttributes", func(t *testing.T) {
 		// Request all supported attributes.
 		rootDirectory.EXPECT().VirtualGetAttributes(
-			virtual.AttributesMaskChangeID|virtual.AttributesMaskFileHandle|virtual.AttributesMaskFileType|virtual.AttributesMaskInodeNumber|virtual.AttributesMaskLinkCount|virtual.AttributesMaskPermissions|virtual.AttributesMaskSizeBytes,
+			virtual.AttributesMaskChangeID|virtual.AttributesMaskFileHandle|virtual.AttributesMaskFileType|virtual.AttributesMaskInodeNumber|virtual.AttributesMaskLastDataModificationTime|virtual.AttributesMaskLinkCount|virtual.AttributesMaskPermissions|virtual.AttributesMaskSizeBytes,
 			gomock.Any(),
 		).Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
 			attributes.SetChangeID(0xeaab7253dad16ee5)
 			attributes.SetFileHandle([]byte{0xcd, 0xe9, 0xc7, 0x4c, 0x8b, 0x8d, 0x58, 0xef, 0xd9, 0x9f})
 			attributes.SetFileType(filesystem.FileTypeDirectory)
 			attributes.SetInodeNumber(0xfcadd45521cb1db2)
+			attributes.SetLastDataModificationTime(time.Unix(1654791566, 4839067173))
 			attributes.SetLinkCount(12)
 			attributes.SetPermissions(virtual.PermissionsRead | virtual.PermissionsExecute)
 			attributes.SetSizeBytes(8192)
@@ -1749,9 +1750,9 @@ func TestBaseProgramCompound_OP_GETATTR(t *testing.T) {
 									// FATTR4_TIME_METADATA == 2000-01-01T00:00:00Z.
 									0x00, 0x00, 0x00, 0x00, 0x38, 0x6d, 0x43, 0x80,
 									0x00, 0x00, 0x00, 0x00,
-									// FATTR4_TIME_MODIFY == 2000-01-01T00:00:00Z.
-									0x00, 0x00, 0x00, 0x00, 0x38, 0x6d, 0x43, 0x80,
-									0x00, 0x00, 0x00, 0x00,
+									// FATTR4_TIME_MODIFY == 2022-06-09T16:19:26.4839067173Z.
+									0x00, 0x00, 0x00, 0x00, 0x62, 0xa2, 0x1d, 0x92,
+									0x32, 0x03, 0x26, 0x25,
 								},
 							},
 						},

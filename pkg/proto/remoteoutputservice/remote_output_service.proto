@@ -18,6 +18,7 @@ package remote_output_service;
 
 import "build/bazel/remote/execution/v2/remote_execution.proto";
 import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
 
 option java_package = "com.google.devtools.build.lib.remote";
 option java_outer_classname = "RemoteOutputServiceProto";
@@ -32,6 +33,11 @@ option go_package = "remoteoutputservice";
 // designated location. Complex implementations may use a pseudo file
 // system (e.g., FUSE) to support deduplication, lazy loading and
 // snapshotting.
+//
+// Details:
+// https://github.com/bazelbuild/proposals/blob/master/designs/2021-02-09-remote-output-service.md
+// https://groups.google.com/g/remote-execution-apis/c/qOSWWwBLPzo
+// https://groups.google.com/g/bazel-dev/c/lKzENsNd1Do
 service RemoteOutputService {
   // Methods that can be invoked at any point in time.
 
@@ -47,7 +53,7 @@ service RemoteOutputService {
   // the build may be stored, called the output path. Based on the
   // parameters provided, the remote output service may provide an empty
   // output path, or one that has contents from a previous build of the
-  // same project.
+  // same workspace.
   //
   // In case the output path contains data from a previous build, the
   // remote output service is responsible for calling
@@ -79,9 +85,10 @@ message CleanRequest {
 }
 
 message StartBuildRequest {
-  // A client-chosen value that uniquely identifies this output path.
-  // This value must be set to ensure that the remote output service is
-  // capable of managing builds concurrently.
+  // A client-chosen value that uniquely identifies the workspace for
+  // which the build is being started.  This value must be set to ensure
+  // that the remote output service is capable of managing builds for
+  // distinct workspaces concurrently.
   //
   // This value must be a valid filename for the operating system on
   // which the remote output service and client are being executed. This
@@ -92,6 +99,9 @@ message StartBuildRequest {
   // path of the workspace directory. This is generally sufficient,
   // though a more complex scheme may necessary in case the file system
   // namespace is virtualized.
+  //
+  // Starting a build finalizes any previous build with the same
+  // output_base_id that has not been finalized yet.
   string output_base_id = 1;
 
   // A client-chosen value that uniquely identifies this build. This
@@ -133,8 +143,8 @@ message StartBuildRequest {
 }
 
 message InitialOutputPathContents {
-  // The identifier of a finalized build whose results are stored in the
-  // output path.
+  // The identifier of a previously finalized build whose results are
+  // stored in the output path.
   string build_id = 1;
 
   // Paths that have been modified or removed since the build finalized.
@@ -264,6 +274,11 @@ message FileStatus {
     string target = 1;
   }
 
+  message Directory {
+    // The time at which the directory contents were last modified.
+    google.protobuf.Timestamp last_modified_time = 1;
+  }
+
   message External {
     // The path relative to the root of the output path where the file
     // is located. This path is absolute, or it is relative, starting
@@ -284,7 +299,7 @@ message FileStatus {
     Symlink symlink = 2;
 
     // The path resolves to a directory.
-    google.protobuf.Empty directory = 3;
+    Directory directory = 3;
 
     // The path resolves to a location outside the output path. The
     // remote output service is unable to determine whether any file
