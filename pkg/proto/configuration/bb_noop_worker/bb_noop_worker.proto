@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package buildbarn.configuration.bb_noop_worker;
+
+import "build/bazel/remote/execution/v2/remote_execution.proto";
+import "pkg/proto/configuration/global/global.proto";
+import "pkg/proto/configuration/grpc/grpc.proto";
+
+option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_noop_worker";
+
+message ApplicationConfiguration {
+  // Common configuration options that apply to all Buildbarn binaries.
+  buildbarn.configuration.global.Configuration global = 1;
+
+  // URL of the Buildbarn Browser, shown to the user upon build completion.
+  string browser_url = 2;
+
+  // Endpoint of the scheduler to which to connect.
+  buildbarn.configuration.grpc.ClientConfiguration scheduler = 3;
+
+  // The prefix of the instance name for which requests from clients
+  // should be routed to this worker.
+  string instance_name_prefix = 4;
+
+  // Platform properties that need to be reported to the scheduler.
+  build.bazel.remote.execution.v2.Platform platform = 5;
+
+  // Additional fields that need to be attached to the ID of the worker,
+  // as announced to the scheduler.
+  map<string, string> worker_id = 6;
+}
