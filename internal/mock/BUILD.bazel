@@ -365,6 +365,7 @@ go_library(
     importpath = "github.com/buildbarn/bb-remote-execution/internal/mock",
     visibility = ["//:__subpackages__"],
     deps = [
+        "//pkg/blobstore",
         "//pkg/builder",
         "//pkg/cas",
         "//pkg/cleaner",

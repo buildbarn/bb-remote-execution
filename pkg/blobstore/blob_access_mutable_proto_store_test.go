@@ -1,11 +1,11 @@
-package initialsizeclass_test
+package blobstore_test
 
 import (
 	"context"
 	"testing"
 
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
-	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/initialsizeclass"
+	"github.com/buildbarn/bb-remote-execution/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/proto/iscc"
@@ -18,11 +18,11 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func TestBlobAccessPreviousExecutionStatsPool(t *testing.T) {
+func TestBlobAccessMutableProtoStore(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	blobAccess := mock.NewMockBlobAccess(ctrl)
-	store := initialsizeclass.NewBlobAccessPreviousExecutionStatsStore(blobAccess, 10000)
+	store := blobstore.NewBlobAccessMutableProtoStore[iscc.PreviousExecutionStats](blobAccess, 10000)
 
 	t.Run("InitialStorageGetFailure", func(t *testing.T) {
 		// Errors should be propagated from the backend.
@@ -30,7 +30,7 @@ func TestBlobAccessPreviousExecutionStatsPool(t *testing.T) {
 			Return(buffer.NewBufferFromError(status.Error(codes.Internal, "Storage failure")))
 
 		_, err := store.Get(ctx, digest.MustNewDigest("hello", "a8ade48a0fb410f9c315723ef0aca3e3", 123))
-		testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to read previous execution stats with digest \"a8ade48a0fb410f9c315723ef0aca3e3-123-hello\": Storage failure"), err)
+		testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to read mutable Protobuf message with digest \"a8ade48a0fb410f9c315723ef0aca3e3-123-hello\": Storage failure"), err)
 	})
 
 	t.Run("EmptyMessages", func(t *testing.T) {
@@ -41,7 +41,7 @@ func TestBlobAccessPreviousExecutionStatsPool(t *testing.T) {
 
 		handle1, err := store.Get(ctx, digest.MustNewDigest("hello", "a8ade48a0fb410f9c315723ef0aca3e3", 123))
 		require.NoError(t, err)
-		testutil.RequireEqualProto(t, &iscc.PreviousExecutionStats{}, handle1.GetPreviousExecutionStats())
+		testutil.RequireEqualProto(t, &iscc.PreviousExecutionStats{}, handle1.GetMutableProto())
 		handle1.Release(false)
 
 		blobAccess.EXPECT().Get(gomock.Any(), digest.MustNewDigest("hello", "ad328f7d3be9f12b93ce14e8937a083e", 456)).
@@ -49,7 +49,7 @@ func TestBlobAccessPreviousExecutionStatsPool(t *testing.T) {
 
 		handle2, err := store.Get(ctx, digest.MustNewDigest("hello", "ad328f7d3be9f12b93ce14e8937a083e", 456))
 		require.NoError(t, err)
-		testutil.RequireEqualProto(t, &iscc.PreviousExecutionStats{}, handle2.GetPreviousExecutionStats())
+		testutil.RequireEqualProto(t, &iscc.PreviousExecutionStats{}, handle2.GetMutableProto())
 		handle2.Release(false)
 
 		blobAccess.EXPECT().Get(gomock.Any(), digest.MustNewDigest("hello", "4c754f07001495a591b25e486d45b347", 789)).
@@ -57,7 +57,7 @@ func TestBlobAccessPreviousExecutionStatsPool(t *testing.T) {
 
 		handle3, err := store.Get(ctx, digest.MustNewDigest("hello", "4c754f07001495a591b25e486d45b347", 789))
 		require.NoError(t, err)
-		testutil.RequireEqualProto(t, &iscc.PreviousExecutionStats{}, handle3.GetPreviousExecutionStats())
+		testutil.RequireEqualProto(t, &iscc.PreviousExecutionStats{}, handle3.GetMutableProto())
 		handle3.Release(false)
 	})
 
@@ -75,7 +75,7 @@ func TestBlobAccessPreviousExecutionStatsPool(t *testing.T) {
 		testutil.RequireEqualProto(t, &iscc.PreviousExecutionStats{
 			SizeClasses:     map[uint32]*iscc.PerSizeClassStats{},
 			LastSeenFailure: &timestamppb.Timestamp{Seconds: 1620818827},
-		}, handle1.GetPreviousExecutionStats())
+		}, handle1.GetMutableProto())
 
 		// Because the first handle hasn't been released, we can
 		// create other handles without causing the first handle
@@ -85,12 +85,12 @@ func TestBlobAccessPreviousExecutionStatsPool(t *testing.T) {
 
 		handle2, err := store.Get(ctx, digest.MustNewDigest("hello", "57f48d9268744c949c1103bf0e665e28", 456))
 		require.NoError(t, err)
-		testutil.RequireEqualProto(t, &iscc.PreviousExecutionStats{}, handle2.GetPreviousExecutionStats())
+		testutil.RequireEqualProto(t, &iscc.PreviousExecutionStats{}, handle2.GetMutableProto())
 		handle2.Release(false)
 
 		// Modify and release the original handle. This should
 		// normally cause the next call to Get() to write it...
-		handle1.GetPreviousExecutionStats().LastSeenFailure = &timestamppb.Timestamp{Seconds: 1620819007}
+		handle1.GetMutableProto().LastSeenFailure = &timestamppb.Timestamp{Seconds: 1620819007}
 		handle1.Release(true)
 
 		// ... except if the next call to Get() requests the
@@ -100,7 +100,7 @@ func TestBlobAccessPreviousExecutionStatsPool(t *testing.T) {
 		testutil.RequireEqualProto(t, &iscc.PreviousExecutionStats{
 			SizeClasses:     map[uint32]*iscc.PerSizeClassStats{},
 			LastSeenFailure: &timestamppb.Timestamp{Seconds: 1620819007},
-		}, handle3.GetPreviousExecutionStats())
+		}, handle3.GetMutableProto())
 
 		// Release it once again. Even though we did not make
 		// any changes to it, it's still dirty. This means the
@@ -122,7 +122,7 @@ func TestBlobAccessPreviousExecutionStatsPool(t *testing.T) {
 			})
 
 		_, err = store.Get(ctx, digest.MustNewDigest("hello", "ee2d29afd9b3e8715e68a709c15a6784", 789))
-		testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to read previous execution stats with digest \"ee2d29afd9b3e8715e68a709c15a6784-789-hello\": Storage failure"), err)
+		testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to read mutable Protobuf message with digest \"ee2d29afd9b3e8715e68a709c15a6784-789-hello\": Storage failure"), err)
 
 		// Let's try this again. Except that now the write fails.
 		blobAccess.EXPECT().Get(gomock.Any(), digest.MustNewDigest("hello", "e1e6496be3124289bfb7374bbab057bf", 234)).
@@ -138,7 +138,7 @@ func TestBlobAccessPreviousExecutionStatsPool(t *testing.T) {
 			})
 
 		_, err = store.Get(ctx, digest.MustNewDigest("hello", "e1e6496be3124289bfb7374bbab057bf", 234))
-		testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to write previous execution stats with digest \"6467817c5aab2f887b2d88679cc2fd76-123-hello\": Storage failure"), err)
+		testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to write mutable Protobuf message with digest \"6467817c5aab2f887b2d88679cc2fd76-123-hello\": Storage failure"), err)
 
 		// Now we let both the read and write succeed.
 		blobAccess.EXPECT().Get(gomock.Any(), digest.MustNewDigest("hello", "e1e6496be3124289bfb7374bbab057bf", 345)).

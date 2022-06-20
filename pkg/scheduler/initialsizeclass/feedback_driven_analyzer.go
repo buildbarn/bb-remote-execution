@@ -5,6 +5,7 @@ import (
 	"time"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	re_blobstore "github.com/buildbarn/bb-remote-execution/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
@@ -17,6 +18,15 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+// PreviousExecutionStatsStore is used by FeedbackDrivenAnalyzer
+// to gain access to previous execution stats stored in the
+// Initial Size Class Cache (ISCC).
+type PreviousExecutionStatsStore re_blobstore.MutableProtoStore[*iscc.PreviousExecutionStats]
+
+// PreviousExecutionStatsHandle refers to a single previous execution
+// stats message read from the Initial Size Class Cache (ISCC).
+type PreviousExecutionStatsHandle re_blobstore.MutableProtoHandle[*iscc.PreviousExecutionStats]
 
 type feedbackDrivenAnalyzer struct {
 	store                  PreviousExecutionStatsStore
@@ -73,7 +83,10 @@ type feedbackDrivenSelector struct {
 
 func (s *feedbackDrivenSelector) Select(sizeClasses []uint32) (int, time.Duration, Learner) {
 	a := s.analyzer
-	stats := s.handle.GetPreviousExecutionStats()
+	stats := s.handle.GetMutableProto()
+	if stats.SizeClasses == nil {
+		stats.SizeClasses = map[uint32]*iscc.PerSizeClassStats{}
+	}
 	largestSizeClass := sizeClasses[len(sizeClasses)-1]
 	if lastSeenFailure := stats.LastSeenFailure; lastSeenFailure.CheckValid() != nil || lastSeenFailure.AsTime().Before(a.clock.Now().Add(-a.failureCacheDuration)) {
 		strategies := a.strategyCalculator.GetStrategies(stats.SizeClasses, sizeClasses, s.originalTimeout)
@@ -150,7 +163,7 @@ type baseLearner struct {
 }
 
 func (l *baseLearner) addPreviousExecution(sizeClass uint32, previousExecution *iscc.PreviousExecution) {
-	stats := l.handle.GetPreviousExecutionStats()
+	stats := l.handle.GetMutableProto()
 	perSizeClassStats, ok := stats.SizeClasses[sizeClass]
 	if !ok {
 		// Size class does not exist yet. Create it.
@@ -166,7 +179,7 @@ func (l *baseLearner) addPreviousExecution(sizeClass uint32, previousExecution *
 }
 
 func (l *baseLearner) updateLastSeenFailure() {
-	stats := l.handle.GetPreviousExecutionStats()
+	stats := l.handle.GetMutableProto()
 	stats.LastSeenFailure = timestamppb.New(l.analyzer.clock.Now())
 }
 
@@ -287,7 +300,7 @@ func (l *largestBackgroundLearner) Succeeded(duration time.Duration, sizeClasses
 			// Request that it's run on that size class once
 			// again, for training purposes.
 			smallerTimeout := l.analyzer.strategyCalculator.GetBackgroundExecutionTimeout(
-				l.handle.GetPreviousExecutionStats().SizeClasses,
+				l.handle.GetMutableProto().SizeClasses,
 				sizeClasses,
 				i,
 				l.largestTimeout)

@@ -26,6 +26,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/global"
 	bb_grpc "github.com/buildbarn/bb-storage/pkg/grpc"
+	"github.com/buildbarn/bb-storage/pkg/proto/iscc"
 	"github.com/buildbarn/bb-storage/pkg/random"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/google/uuid"
@@ -79,7 +80,7 @@ func main() {
 		if err != nil {
 			log.Fatal("Failed to create Initial Size Class Cache: ", err)
 		}
-		previousExecutionStatsStore = initialsizeclass.NewBlobAccessPreviousExecutionStatsStore(
+		previousExecutionStatsStore = re_blobstore.NewBlobAccessMutableProtoStore[iscc.PreviousExecutionStats](
 			info.BlobAccess,
 			int(configuration.MaximumMessageSizeBytes))
 	}

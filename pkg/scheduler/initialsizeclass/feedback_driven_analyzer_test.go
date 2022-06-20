@@ -73,11 +73,9 @@ func TestFeedbackDrivenAnalyzer(t *testing.T) {
 		// Return an empty stats message. The strategy
 		// calculator will most likely just return a uniform
 		// distribution. Let's pick the smallest size class.
-		stats := iscc.PreviousExecutionStats{
-			SizeClasses: map[uint32]*iscc.PerSizeClassStats{},
-		}
-		handle.EXPECT().GetPreviousExecutionStats().Return(&stats).AnyTimes()
-		strategyCalculator.EXPECT().GetStrategies(stats.SizeClasses, []uint32{1, 2, 4, 8}, 30*time.Minute).
+		var stats iscc.PreviousExecutionStats
+		handle.EXPECT().GetMutableProto().Return(&stats).AnyTimes()
+		strategyCalculator.EXPECT().GetStrategies(gomock.Not(gomock.Nil()), []uint32{1, 2, 4, 8}, 30*time.Minute).
 			Return([]initialsizeclass.Strategy{
 				{
 					Probability:                0.25,
@@ -116,11 +114,9 @@ func TestFeedbackDrivenAnalyzer(t *testing.T) {
 
 		// Same as before: empty stats message. Now pick the
 		// second smallest size class.
-		stats := iscc.PreviousExecutionStats{
-			SizeClasses: map[uint32]*iscc.PerSizeClassStats{},
-		}
-		handle.EXPECT().GetPreviousExecutionStats().Return(&stats).AnyTimes()
-		strategyCalculator.EXPECT().GetStrategies(stats.SizeClasses, []uint32{1, 2, 4, 8}, 30*time.Minute).
+		var stats iscc.PreviousExecutionStats
+		handle.EXPECT().GetMutableProto().Return(&stats).AnyTimes()
+		strategyCalculator.EXPECT().GetStrategies(gomock.Not(gomock.Nil()), []uint32{1, 2, 4, 8}, 30*time.Minute).
 			Return([]initialsizeclass.Strategy{
 				{
 					Probability:                0.25,
@@ -175,8 +171,8 @@ func TestFeedbackDrivenAnalyzer(t *testing.T) {
 				},
 			},
 		}
-		handle.EXPECT().GetPreviousExecutionStats().Return(&stats).AnyTimes()
-		strategyCalculator.EXPECT().GetStrategies(stats.SizeClasses, []uint32{1, 2, 4, 8}, 30*time.Minute).
+		handle.EXPECT().GetMutableProto().Return(&stats).AnyTimes()
+		strategyCalculator.EXPECT().GetStrategies(gomock.Not(gomock.Nil()), []uint32{1, 2, 4, 8}, 30*time.Minute).
 			Return([]initialsizeclass.Strategy{
 				{
 					Probability:                0.6,
@@ -248,7 +244,7 @@ func TestFeedbackDrivenAnalyzer(t *testing.T) {
 			},
 			LastSeenFailure: &timestamppb.Timestamp{Seconds: 1620218381},
 		}
-		handle.EXPECT().GetPreviousExecutionStats().Return(&stats).AnyTimes()
+		handle.EXPECT().GetMutableProto().Return(&stats).AnyTimes()
 		clock.EXPECT().Now().Return(time.Unix(1620242374, 0))
 
 		sizeClassIndex, timeout, learner := selector.Select([]uint32{1, 2, 4, 8})
@@ -284,11 +280,9 @@ func TestFeedbackDrivenAnalyzer(t *testing.T) {
 		// the smallest size class. If both succeed, we have
 		// more freedom when scheduling this action the next
 		// time.
-		stats := iscc.PreviousExecutionStats{
-			SizeClasses: map[uint32]*iscc.PerSizeClassStats{},
-		}
-		handle.EXPECT().GetPreviousExecutionStats().Return(&stats).AnyTimes()
-		strategyCalculator.EXPECT().GetStrategies(stats.SizeClasses, []uint32{1, 2, 4, 8}, 30*time.Minute).
+		var stats iscc.PreviousExecutionStats
+		handle.EXPECT().GetMutableProto().Return(&stats).AnyTimes()
+		strategyCalculator.EXPECT().GetStrategies(gomock.Not(gomock.Nil()), []uint32{1, 2, 4, 8}, 30*time.Minute).
 			Return([]initialsizeclass.Strategy{
 				{
 					Probability:     1.0,
@@ -309,7 +303,7 @@ func TestFeedbackDrivenAnalyzer(t *testing.T) {
 		// smallest size class depends on that of the largest
 		// size class, we should see a request to recompute the
 		// execution timeout.
-		strategyCalculator.EXPECT().GetBackgroundExecutionTimeout(stats.SizeClasses, []uint32{1, 2, 4, 8}, 0, 30*time.Minute).DoAndReturn(
+		strategyCalculator.EXPECT().GetBackgroundExecutionTimeout(gomock.Not(gomock.Nil()), []uint32{1, 2, 4, 8}, 0, 30*time.Minute).DoAndReturn(
 			func(perSizeClassStatsMap map[uint32]*iscc.PerSizeClassStats, sizeClasses []uint32, sizeClassIndex int, originalTimeout time.Duration) time.Duration {
 				testutil.RequireEqualProto(t, &iscc.PreviousExecutionStats{
 					SizeClasses: map[uint32]*iscc.PerSizeClassStats{
