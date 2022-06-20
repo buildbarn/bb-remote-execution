@@ -2,7 +2,7 @@ diff --git lint.go lint.go
 index 7d813e0..6453496 100644
 --- lint.go
 +++ lint.go
-@@ -1453,16 +1453,20 @@ func (f *file) containsComments(start, end token.Pos) bool {
+@@ -1453,16 +1453,22 @@ func (f *file) containsComments(start, end token.Pos) bool {
  // receiverType returns the named type of the method receiver, sans "*",
  // or "invalid-type" if fn.Recv is ill formed.
  func receiverType(fn *ast.FuncDecl) string {
@@ -20,6 +20,8 @@ index 7d813e0..6453496 100644
 +		case *ast.StarExpr:
 +			e = et.X
 +		case *ast.IndexExpr:
++			e = et.X
++		case *ast.IndexListExpr:
 +			e = et.X
 +		default:
 +			// The parser accepts much more than just the legal forms.
