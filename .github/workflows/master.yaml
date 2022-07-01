@@ -60,6 +60,18 @@
                "run": "bazel test --test_output=errors --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //..."
             },
             {
+               "name": "linux_amd64: copy bb_noop_worker",
+               "run": "rm -f bb_noop_worker && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //cmd/bb_noop_worker $(pwd)/bb_noop_worker"
+            },
+            {
+               "name": "linux_amd64: upload bb_noop_worker",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "bb_noop_worker.linux_amd64",
+                  "path": "bb_noop_worker"
+               }
+            },
+            {
                "name": "linux_amd64: copy bb_runner",
                "run": "rm -f bb_runner && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //cmd/bb_runner $(pwd)/bb_runner"
             },
@@ -108,8 +120,32 @@
                }
             },
             {
+               "name": "linux_amd64: copy fake_xcrun",
+               "run": "rm -f fake_xcrun && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //cmd/fake_xcrun $(pwd)/fake_xcrun"
+            },
+            {
+               "name": "linux_amd64: upload fake_xcrun",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "fake_xcrun.linux_amd64",
+                  "path": "fake_xcrun"
+               }
+            },
+            {
                "name": "linux_386: build and test",
                "run": "bazel test --test_output=errors --platforms=@io_bazel_rules_go//go/toolchain:linux_386 //..."
+            },
+            {
+               "name": "linux_386: copy bb_noop_worker",
+               "run": "rm -f bb_noop_worker && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_386 //cmd/bb_noop_worker $(pwd)/bb_noop_worker"
+            },
+            {
+               "name": "linux_386: upload bb_noop_worker",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "bb_noop_worker.linux_386",
+                  "path": "bb_noop_worker"
+               }
             },
             {
                "name": "linux_386: copy bb_runner",
@@ -160,8 +196,32 @@
                }
             },
             {
+               "name": "linux_386: copy fake_xcrun",
+               "run": "rm -f fake_xcrun && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_386 //cmd/fake_xcrun $(pwd)/fake_xcrun"
+            },
+            {
+               "name": "linux_386: upload fake_xcrun",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "fake_xcrun.linux_386",
+                  "path": "fake_xcrun"
+               }
+            },
+            {
                "name": "linux_arm: build and test",
                "run": "bazel build --platforms=@io_bazel_rules_go//go/toolchain:linux_arm //..."
+            },
+            {
+               "name": "linux_arm: copy bb_noop_worker",
+               "run": "rm -f bb_noop_worker && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_arm //cmd/bb_noop_worker $(pwd)/bb_noop_worker"
+            },
+            {
+               "name": "linux_arm: upload bb_noop_worker",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "bb_noop_worker.linux_arm",
+                  "path": "bb_noop_worker"
+               }
             },
             {
                "name": "linux_arm: copy bb_runner",
@@ -212,8 +272,32 @@
                }
             },
             {
+               "name": "linux_arm: copy fake_xcrun",
+               "run": "rm -f fake_xcrun && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_arm //cmd/fake_xcrun $(pwd)/fake_xcrun"
+            },
+            {
+               "name": "linux_arm: upload fake_xcrun",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "fake_xcrun.linux_arm",
+                  "path": "fake_xcrun"
+               }
+            },
+            {
                "name": "linux_arm64: build and test",
                "run": "bazel build --platforms=@io_bazel_rules_go//go/toolchain:linux_arm64 //..."
+            },
+            {
+               "name": "linux_arm64: copy bb_noop_worker",
+               "run": "rm -f bb_noop_worker && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_arm64 //cmd/bb_noop_worker $(pwd)/bb_noop_worker"
+            },
+            {
+               "name": "linux_arm64: upload bb_noop_worker",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "bb_noop_worker.linux_arm64",
+                  "path": "bb_noop_worker"
+               }
             },
             {
                "name": "linux_arm64: copy bb_runner",
@@ -264,8 +348,32 @@
                }
             },
             {
+               "name": "linux_arm64: copy fake_xcrun",
+               "run": "rm -f fake_xcrun && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_arm64 //cmd/fake_xcrun $(pwd)/fake_xcrun"
+            },
+            {
+               "name": "linux_arm64: upload fake_xcrun",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "fake_xcrun.linux_arm64",
+                  "path": "fake_xcrun"
+               }
+            },
+            {
                "name": "darwin_amd64: build and test",
                "run": "bazel build --platforms=@io_bazel_rules_go//go/toolchain:darwin_amd64 //..."
+            },
+            {
+               "name": "darwin_amd64: copy bb_noop_worker",
+               "run": "rm -f bb_noop_worker && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:darwin_amd64 //cmd/bb_noop_worker $(pwd)/bb_noop_worker"
+            },
+            {
+               "name": "darwin_amd64: upload bb_noop_worker",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "bb_noop_worker.darwin_amd64",
+                  "path": "bb_noop_worker"
+               }
             },
             {
                "name": "darwin_amd64: copy bb_runner",
@@ -316,8 +424,32 @@
                }
             },
             {
+               "name": "darwin_amd64: copy fake_xcrun",
+               "run": "rm -f fake_xcrun && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:darwin_amd64 //cmd/fake_xcrun $(pwd)/fake_xcrun"
+            },
+            {
+               "name": "darwin_amd64: upload fake_xcrun",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "fake_xcrun.darwin_amd64",
+                  "path": "fake_xcrun"
+               }
+            },
+            {
                "name": "darwin_arm64: build and test",
                "run": "bazel build --platforms=@io_bazel_rules_go//go/toolchain:darwin_arm64 //..."
+            },
+            {
+               "name": "darwin_arm64: copy bb_noop_worker",
+               "run": "rm -f bb_noop_worker && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:darwin_arm64 //cmd/bb_noop_worker $(pwd)/bb_noop_worker"
+            },
+            {
+               "name": "darwin_arm64: upload bb_noop_worker",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "bb_noop_worker.darwin_arm64",
+                  "path": "bb_noop_worker"
+               }
             },
             {
                "name": "darwin_arm64: copy bb_runner",
@@ -368,8 +500,32 @@
                }
             },
             {
+               "name": "darwin_arm64: copy fake_xcrun",
+               "run": "rm -f fake_xcrun && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:darwin_arm64 //cmd/fake_xcrun $(pwd)/fake_xcrun"
+            },
+            {
+               "name": "darwin_arm64: upload fake_xcrun",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "fake_xcrun.darwin_arm64",
+                  "path": "fake_xcrun"
+               }
+            },
+            {
                "name": "freebsd_amd64: build and test",
-               "run": "bazel build --platforms=@io_bazel_rules_go//go/toolchain:freebsd_amd64 //cmd/bb_runner //cmd/bb_scheduler //cmd/bb_worker //cmd/fake_python"
+               "run": "bazel build --platforms=@io_bazel_rules_go//go/toolchain:freebsd_amd64 //cmd/bb_noop_worker //cmd/bb_runner //cmd/bb_scheduler //cmd/bb_worker //cmd/fake_python //cmd/fake_xcrun"
+            },
+            {
+               "name": "freebsd_amd64: copy bb_noop_worker",
+               "run": "rm -f bb_noop_worker && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:freebsd_amd64 //cmd/bb_noop_worker $(pwd)/bb_noop_worker"
+            },
+            {
+               "name": "freebsd_amd64: upload bb_noop_worker",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "bb_noop_worker.freebsd_amd64",
+                  "path": "bb_noop_worker"
+               }
             },
             {
                "name": "freebsd_amd64: copy bb_runner",
@@ -420,8 +576,32 @@
                }
             },
             {
+               "name": "freebsd_amd64: copy fake_xcrun",
+               "run": "rm -f fake_xcrun && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:freebsd_amd64 //cmd/fake_xcrun $(pwd)/fake_xcrun"
+            },
+            {
+               "name": "freebsd_amd64: upload fake_xcrun",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "fake_xcrun.freebsd_amd64",
+                  "path": "fake_xcrun"
+               }
+            },
+            {
                "name": "windows_amd64: build and test",
                "run": "bazel build --platforms=@io_bazel_rules_go//go/toolchain:windows_amd64 //..."
+            },
+            {
+               "name": "windows_amd64: copy bb_noop_worker",
+               "run": "rm -f bb_noop_worker.exe && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:windows_amd64 //cmd/bb_noop_worker $(pwd)/bb_noop_worker.exe"
+            },
+            {
+               "name": "windows_amd64: upload bb_noop_worker",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "bb_noop_worker.windows_amd64",
+                  "path": "bb_noop_worker.exe"
+               }
             },
             {
                "name": "windows_amd64: copy bb_runner",
@@ -472,11 +652,27 @@
                }
             },
             {
+               "name": "windows_amd64: copy fake_xcrun",
+               "run": "rm -f fake_xcrun.exe && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:windows_amd64 //cmd/fake_xcrun $(pwd)/fake_xcrun.exe"
+            },
+            {
+               "name": "windows_amd64: upload fake_xcrun",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "fake_xcrun.windows_amd64",
+                  "path": "fake_xcrun.exe"
+               }
+            },
+            {
                "env": {
                   "DOCKER_CONFIG_JSON": "${{ secrets.DOCKER_CONFIG_JSON }}"
                },
                "name": "Install Docker credentials",
                "run": "mkdir -p ~/.docker && echo \"${DOCKER_CONFIG_JSON}\" > ~/.docker/config.json"
+            },
+            {
+               "name": "Push container bb_noop_worker:bb_noop_worker",
+               "run": "bazel run //cmd/bb_noop_worker:bb_noop_worker_container_push"
             },
             {
                "name": "Push container bb_runner:bb_runner_bare",
