@@ -47,6 +47,7 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to apply global configuration options: ", err)
 	}
+	terminationContext, terminationGroup := global.InstallGracefulTerminationHandler()
 
 	browserURL, err := url.Parse(configuration.BrowserUrl)
 	if err != nil {
@@ -57,6 +58,8 @@ func main() {
 	// and Command messages stored in the CAS to obtain platform
 	// properties.
 	info, err := blobstore_configuration.NewBlobAccessFromConfiguration(
+		terminationContext,
+		terminationGroup,
 		configuration.ContentAddressableStorage,
 		blobstore_configuration.NewCASBlobAccessCreator(
 			grpcClientFactory,
@@ -73,6 +76,8 @@ func main() {
 	var previousExecutionStatsStore initialsizeclass.PreviousExecutionStatsStore
 	if isccConfiguration := configuration.InitialSizeClassCache; isccConfiguration != nil {
 		info, err := blobstore_configuration.NewBlobAccessFromConfiguration(
+			terminationContext,
+			terminationGroup,
 			isccConfiguration,
 			blobstore_configuration.NewISCCBlobAccessCreator(
 				grpcClientFactory,

@@ -55,6 +55,7 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to apply global configuration options: ", err)
 	}
+	terminationContext, terminationGroup := global.InstallGracefulTerminationHandler()
 	tracerProvider := otel.GetTracerProvider()
 
 	browserURL, err := url.Parse(configuration.BrowserUrl)
@@ -80,6 +81,8 @@ func main() {
 
 	// Storage access.
 	globalContentAddressableStorage, actionCache, err := blobstore_configuration.NewCASAndACBlobAccessFromConfiguration(
+		terminationContext,
+		terminationGroup,
 		configuration.Blobstore,
 		grpcClientFactory,
 		int(configuration.MaximumMessageSizeBytes))

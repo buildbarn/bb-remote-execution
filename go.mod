@@ -11,12 +11,12 @@ replace github.com/gordonklaus/ineffassign => github.com/gordonklaus/ineffassign
 replace mvdan.cc/gofumpt => mvdan.cc/gofumpt v0.2.1
 
 require (
-	github.com/aws/aws-sdk-go-v2 v1.16.5
-	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.23.3
-	github.com/aws/aws-sdk-go-v2/service/sqs v1.18.6
-	github.com/aws/smithy-go v1.11.3
+	github.com/aws/aws-sdk-go-v2 v1.16.6
+	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.23.4
+	github.com/aws/aws-sdk-go-v2/service/sqs v1.18.7
+	github.com/aws/smithy-go v1.12.0
 	github.com/bazelbuild/remote-apis v0.0.0-20220510175640-3b4b64021035
-	github.com/buildbarn/bb-storage v0.0.0-20220620161559-514d4e1d4113
+	github.com/buildbarn/bb-storage v0.0.0-20220701050019-3f0259c1cd28
 	github.com/buildbarn/go-xdr v0.0.0-20220523175039-a489da6738c1
 	github.com/golang/protobuf v1.5.2
 	github.com/google/uuid v1.3.0
@@ -28,8 +28,8 @@ require (
 	go.opentelemetry.io/otel v1.7.0
 	go.opentelemetry.io/otel/trace v1.7.0
 	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f
-	golang.org/x/sys v0.0.0-20220615213510-4f61da869c0c
-	google.golang.org/genproto v0.0.0-20220617124728-180714bec0ad
+	golang.org/x/sys v0.0.0-20220627191245-f75cf1eec38b
+	google.golang.org/genproto v0.0.0-20220630174209-ad1d48641aa7
 	google.golang.org/grpc v1.47.0
 	google.golang.org/protobuf v1.28.0
 )
@@ -40,8 +40,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.15.11 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.12.6 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.12.6 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.12 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.6 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.13 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.7 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.3.13 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.0.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.9.2 // indirect
