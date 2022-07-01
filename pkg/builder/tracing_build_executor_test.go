@@ -12,6 +12,11 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/golang/mock/gomock"
+
+	"google.golang.org/protobuf/types/known/durationpb"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func TestTracingBuildExecutor(t *testing.T) {
@@ -27,7 +32,16 @@ func TestTracingBuildExecutor(t *testing.T) {
 	buildExecutor := builder.NewTracingBuildExecutor(baseBuildExecutor, tracerProvider)
 
 	// Example execution request, response and execution state updates.
-	request := &remoteworker.DesiredState_Executing{}
+	request := &remoteworker.DesiredState_Executing{
+		ActionDigest: &remoteexecution.Digest{
+			Hash:      "caa9adf60f3b5fd05d7cb6f17bac9201ad9d444d01e7b6964901055e6d6a5c4b",
+			SizeBytes: 142,
+		},
+		Action: &remoteexecution.Action{
+			DoNotCache: true,
+			Timeout:    &durationpb.Duration{Seconds: 5},
+		},
+	}
 	response := &remoteexecution.ExecuteResponse{}
 	fetchingInputs := &remoteworker.CurrentState_Executing{
 		ExecutionState: &remoteworker.CurrentState_Executing_FetchingInputs{},
@@ -56,7 +70,13 @@ func TestTracingBuildExecutor(t *testing.T) {
 		})
 
 	span := mock.NewMockSpan(ctrl)
-	tracer.EXPECT().Start(ctx, "BuildExecutor.Execute").Return(ctxWithTracing, span)
+	tracer.EXPECT().Start(ctx, "BuildExecutor.Execute", trace.WithAttributes(
+		attribute.String("action_digest.hash", "caa9adf60f3b5fd05d7cb6f17bac9201ad9d444d01e7b6964901055e6d6a5c4b"),
+		attribute.Int64("action_digest.size_bytes", 142),
+		attribute.Bool("do_not_cache", true),
+		attribute.String("instance_name", "hello"),
+		attribute.Float64("timeout", 5),
+	)).Return(ctxWithTracing, span)
 	span.EXPECT().AddEvent("FetchingInputs")
 	span.EXPECT().AddEvent("Running")
 	span.EXPECT().AddEvent("UploadingOutputs")

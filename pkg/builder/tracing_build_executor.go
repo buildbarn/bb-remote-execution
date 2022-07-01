@@ -8,6 +8,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -28,7 +29,15 @@ func NewTracingBuildExecutor(buildExecutor BuildExecutor, tracerProvider trace.T
 }
 
 func (be *tracingBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, instanceName digest.InstanceName, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
-	ctxWithTracing, span := be.tracer.Start(ctx, "BuildExecutor.Execute")
+	actionDigest := request.ActionDigest
+	action := request.Action
+	ctxWithTracing, span := be.tracer.Start(ctx, "BuildExecutor.Execute", trace.WithAttributes(
+		attribute.String("action_digest.hash", actionDigest.GetHash()),
+		attribute.Int64("action_digest.size_bytes", actionDigest.GetSizeBytes()),
+		attribute.Bool("do_not_cache", action.GetDoNotCache()),
+		attribute.String("instance_name", instanceName.String()),
+		attribute.Float64("timeout", action.GetTimeout().AsDuration().Seconds()),
+	))
 	defer span.End()
 
 	baseUpdates := make(chan *remoteworker.CurrentState_Executing)
