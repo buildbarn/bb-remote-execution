@@ -12,6 +12,8 @@ go_test(
     srcs = ["lock_pile_test.go"],
     deps = [
         ":sync",
+        "//internal/mock",
+        "@com_github_golang_mock//gomock",
         "@com_github_stretchr_testify//require",
     ],
 )

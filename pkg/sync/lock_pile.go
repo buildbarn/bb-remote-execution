@@ -1,12 +1,23 @@
 package sync
 
 import (
-	"reflect"
 	"sync"
 )
 
+// TryLocker represents a lock type that can both be acquired in a
+// blocking and non-blocking fashion.
+type TryLocker interface {
+	sync.Locker
+	TryLock() bool
+}
+
+var (
+	_ TryLocker = &sync.Mutex{}
+	_ TryLocker = &sync.RWMutex{}
+)
+
 type lockHandle struct {
-	lock      sync.Locker
+	lock      TryLocker
 	recursion int
 }
 
@@ -16,17 +27,8 @@ type lockHandle struct {
 // will only be unlocked if the recursion count reaches zero.
 //
 // LockPile implements a deadlock avoidance algorithm, ensuring that
-// locks are always acquired along a total order. It's not important
-// what the actual order is, as long as it is guaranteed to be total.
-// This implementation orders locks by numerical memory address.
-//
-// There are better algorithms for achieving deadlock avoidance, but
-// those generally depend on the availability of a TryLock() function,
-// which sync.Locker does not support:
-//
-// https://github.com/golang/go/issues/6123
-//
-// What LockPile implements is equivalent to the "Ordered" algorithm
+// blocking on a lock is only performed when no other locks are held.
+// What LockPile implements is equivalent to the "Smart" algorithm
 // described on Howard Hinnant's page titled "Dining Philosophers
 // Rebooted":
 //
@@ -39,40 +41,19 @@ type lockHandle struct {
 // the state's validity, the caller may either continue or retry.
 type LockPile []lockHandle
 
-func (lp *LockPile) insert(newLock sync.Locker, lockedUpTo *int) {
-	// Find spot at which to store the lock in the pile. Store locks
-	// by memory address in increasing order in the list.
-	i := len(*lp)
-	for i > 0 {
-		lh := &(*lp)[i-1]
-		newLockAddress := reflect.ValueOf(newLock).Pointer()
-		existingLockAddress := reflect.ValueOf(lh.lock).Pointer()
-		if newLockAddress == existingLockAddress {
-			// Lock has already been acquired. No need to
-			// lock it; just increase the recursion count.
+func (lp *LockPile) insert(newLock TryLocker) {
+	for i := 0; i < len(*lp); i++ {
+		lh := &(*lp)[i]
+		if lh.lock == newLock {
+			// Lock already required. Increase recursion count.
 			lh.recursion++
 			return
-		} else if newLockAddress > existingLockAddress {
-			break
 		}
-		i--
 	}
-
-	// Before inserting, unlock all locks that are stored further
-	// within the list. This way Lock() will pick up the locks in
-	// sorted order once again.
-	for *lockedUpTo > i {
-		*lockedUpTo--
-		(*lp)[*lockedUpTo].lock.Unlock()
-	}
-
-	// Insert the lock into the list.
-	*lp = append(*lp, lockHandle{})
-	copy((*lp)[i+1:], (*lp)[i:])
-	(*lp)[i] = lockHandle{lock: newLock}
+	*lp = append(*lp, lockHandle{lock: newLock})
 }
 
-// Lock one or more Locker objects, adding them to the LockPile. This
+// Lock one or more TryLocker objects, adding them to the LockPile. This
 // function returns true iff it was capable of acquiring all locks
 // without temporarily unlocking one of the existingly owned locks.
 // Regardless of whether this function returns true or false, the same
@@ -102,23 +83,44 @@ func (lp *LockPile) insert(newLock sync.Locker, lockedUpTo *int) {
 //         }
 //         return node.value + child.value, true
 //     }
-func (lp *LockPile) Lock(newLocks ...sync.Locker) bool {
-	// Insert the locks into the pile one by one.
-	originallyLockedUpTo := len(*lp)
-	lockedUpTo := len(*lp)
+func (lp *LockPile) Lock(newLocks ...TryLocker) bool {
+	currentlyAcquired := len(*lp)
 	for _, newLock := range newLocks {
-		lp.insert(newLock, &lockedUpTo)
+		lp.insert(newLock)
 	}
 
-	// Acquire any new locks or reacquire any we had to drop.
-	for i := lockedUpTo; i < len(*lp); i++ {
-		(*lp)[i].lock.Lock()
+	completedWithoutUnlocking := true
+	lhFirst := &(*lp)[0]
+	for currentlyAcquired < len(*lp) {
+		if currentlyAcquired > 0 {
+			lhTry := &(*lp)[currentlyAcquired]
+			if lhTry.lock.TryLock() {
+				// Successfully acquired a subsequent lock.
+				currentlyAcquired++
+				continue
+			}
+
+			// Cannot acquire a subsequent lock. Temporarily
+			// release all other locks, so that we can
+			// attempt a blocking acquisition of the
+			// subsequent lock.
+			completedWithoutUnlocking = false
+			for i := 0; i < currentlyAcquired; i++ {
+				lhUnlock := &(*lp)[i]
+				lhUnlock.lock.Unlock()
+			}
+			*lhFirst, *lhTry = *lhTry, *lhFirst
+		}
+
+		// First lock to acquire. Perform blocking acquisition.
+		lhFirst.lock.Lock()
+		currentlyAcquired = 1
 	}
-	return originallyLockedUpTo == lockedUpTo
+	return completedWithoutUnlocking
 }
 
-// Unlock a Locker object, removing it from the LockPile.
-func (lp *LockPile) Unlock(oldLock sync.Locker) {
+// Unlock a TryLocker object, removing it from the LockPile.
+func (lp *LockPile) Unlock(oldLock TryLocker) {
 	// Find lock to unlock.
 	i := 0
 	for (*lp)[i].lock != oldLock {
@@ -133,7 +135,8 @@ func (lp *LockPile) Unlock(oldLock sync.Locker) {
 
 	// Unlock and remove entry from lock pile.
 	(*lp)[i].lock.Unlock()
-	copy((*lp)[i:], (*lp)[i+1:])
+	(*lp)[i] = (*lp)[len(*lp)-1]
+	(*lp)[len(*lp)-1].lock = nil
 	*lp = (*lp)[:len(*lp)-1]
 }
 

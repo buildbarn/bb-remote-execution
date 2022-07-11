@@ -3,88 +3,52 @@ package sync_test
 import (
 	"testing"
 
+	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/sync"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
-type simpleLock struct {
-	t              *testing.T
-	operationCount int
-}
-
-func (s *simpleLock) Lock() {
-	require.Equal(s.t, 0, s.operationCount%2)
-	s.operationCount++
-}
-
-func (s *simpleLock) Unlock() {
-	require.Equal(s.t, 1, s.operationCount%2)
-	s.operationCount++
-}
-
 func TestLockPile(t *testing.T) {
-	locks := [...]simpleLock{
-		{t: t},
-		{t: t},
-		{t: t},
-		{t: t},
-	}
+	ctrl := gomock.NewController(t)
+
+	// Attempt to acquire an initial lock. Because it's the initial
+	// lock, it's fine to block.
+	l1 := mock.NewMockTryLocker(ctrl)
+	l1.EXPECT().Lock()
 	lockPile := sync.LockPile{}
+	require.True(t, lockPile.Lock(l1))
 
-	// Initial set of locks should always be acquired without any
-	// deadlock avoidance.
-	require.True(t, lockPile.Lock(&locks[0], &locks[1]))
-	require.Equal(t, 1, locks[0].operationCount)
-	require.Equal(t, 1, locks[1].operationCount)
-	require.Equal(t, 0, locks[2].operationCount)
-	require.Equal(t, 0, locks[3].operationCount)
+	// Subsequent lock acquisition attempts should not be blocking,
+	// as that could cause deadlocks.
+	l2 := mock.NewMockTryLocker(ctrl)
+	l3 := mock.NewMockTryLocker(ctrl)
+	l2.EXPECT().TryLock().Return(true)
+	l3.EXPECT().TryLock().Return(true)
+	require.True(t, lockPile.Lock(l2, l3))
 
-	// Additional locks have a higher memory address, meaning they
-	// are further on the total order. They can also be acquired
-	// without deadlock avoidance.
-	require.True(t, lockPile.Lock(&locks[2], &locks[3]))
-	require.Equal(t, 1, locks[0].operationCount)
-	require.Equal(t, 1, locks[1].operationCount)
-	require.Equal(t, 1, locks[2].operationCount)
-	require.Equal(t, 1, locks[3].operationCount)
+	// If a subsequent lock acquisition attempt fails, we should
+	// temporarily release all locks and retry acquiring it through
+	// blocking.
+	l4 := mock.NewMockTryLocker(ctrl)
+	l4.EXPECT().TryLock().Return(false)
+	l1.EXPECT().Unlock()
+	l2.EXPECT().Unlock()
+	l3.EXPECT().Unlock()
+	l4.EXPECT().Lock()
+	l1.EXPECT().TryLock().Return(true)
+	l2.EXPECT().TryLock().Return(true)
+	l3.EXPECT().TryLock().Return(true)
+	require.False(t, lockPile.Lock(l4))
 
-	// Unlocking a single lock should only affect one lock.
-	lockPile.Unlock(&locks[1])
-	require.Equal(t, 1, locks[0].operationCount)
-	require.Equal(t, 2, locks[1].operationCount)
-	require.Equal(t, 1, locks[2].operationCount)
-	require.Equal(t, 1, locks[3].operationCount)
+	// Recursively acquiring a lock should have no effect.
+	require.True(t, lockPile.Lock(l1))
+	lockPile.Unlock(l1)
 
-	// Recursively picking up an existing lock should have no
-	// effect. The underlying lock shouldn't be reacquired.
-	require.True(t, lockPile.Lock(&locks[2]))
-	require.Equal(t, 1, locks[0].operationCount)
-	require.Equal(t, 2, locks[1].operationCount)
-	require.Equal(t, 1, locks[2].operationCount)
-	require.Equal(t, 1, locks[3].operationCount)
-
-	// Similarly, unlocking a recursively held lock should also have
-	// no effect. The underlying lock should not be released yet.
-	lockPile.Unlock(&locks[2])
-	require.Equal(t, 1, locks[0].operationCount)
-	require.Equal(t, 2, locks[1].operationCount)
-	require.Equal(t, 1, locks[2].operationCount)
-	require.Equal(t, 1, locks[3].operationCount)
-
-	// Picking up a lock with a lower memory address  would cause a
-	// deadlock, which is why Lock() temporarily drops some of the
-	// other locks to be able to progress. The function should
-	// return false to indicate this.
-	require.False(t, lockPile.Lock(&locks[1]))
-	require.Equal(t, 1, locks[0].operationCount)
-	require.Equal(t, 3, locks[1].operationCount)
-	require.Equal(t, 3, locks[2].operationCount)
-	require.Equal(t, 3, locks[3].operationCount)
-
-	// Termination.
+	// Drop all locks.
+	l1.EXPECT().Unlock()
+	l2.EXPECT().Unlock()
+	l3.EXPECT().Unlock()
+	l4.EXPECT().Unlock()
 	lockPile.UnlockAll()
-	require.Equal(t, 2, locks[0].operationCount)
-	require.Equal(t, 4, locks[1].operationCount)
-	require.Equal(t, 4, locks[2].operationCount)
-	require.Equal(t, 4, locks[3].operationCount)
 }

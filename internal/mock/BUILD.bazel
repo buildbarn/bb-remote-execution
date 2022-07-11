@@ -312,6 +312,14 @@ gomock(
 )
 
 gomock(
+    name = "sync",
+    out = "sync.go",
+    interfaces = ["TryLocker"],
+    library = "//pkg/sync",
+    package = "mock",
+)
+
+gomock(
     name = "trace",
     out = "trace.go",
     interfaces = [
@@ -352,6 +360,7 @@ go_library(
         ":smithy.go",
         ":storage_builder.go",
         ":storage_util.go",
+        ":sync.go",
         ":trace.go",
     ] + select({
         "@io_bazel_rules_go//go/platform:darwin": [
