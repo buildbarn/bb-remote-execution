@@ -54,7 +54,7 @@ func NewQuotaEnforcingFilePool(base FilePool, maximumFileCount, maximumTotalSize
 
 func (fp *quotaEnforcingFilePool) NewFile() (filesystem.FileReadWriter, error) {
 	if !fp.filesRemaining.allocate(1) {
-		return nil, status.Error(codes.ResourceExhausted, "File count quota reached")
+		return nil, status.Error(codes.InvalidArgument, "File count quota reached")
 	}
 	f, err := fp.base.NewFile()
 	if err != nil {
@@ -97,7 +97,7 @@ func (f *quotaEnforcingFile) Truncate(size int64) error {
 		// File is growing.
 		additionalSpace := size - f.size
 		if !f.pool.bytesRemaining.allocate(additionalSpace) {
-			return status.Error(codes.ResourceExhausted, "File size quota reached")
+			return status.Error(codes.InvalidArgument, "File size quota reached")
 		}
 		if err := f.FileReadWriter.Truncate(size); err != nil {
 			f.pool.bytesRemaining.release(additionalSpace)
@@ -118,7 +118,7 @@ func (f *quotaEnforcingFile) WriteAt(p []byte, off int64) (int, error) {
 	// File is growing. Allocate space prior to writing. Release it,
 	// potentially partially, upon failure.
 	if !f.pool.bytesRemaining.allocate(desiredSize - f.size) {
-		return 0, status.Error(codes.ResourceExhausted, "File size quota reached")
+		return 0, status.Error(codes.InvalidArgument, "File size quota reached")
 	}
 	n, err := f.FileReadWriter.WriteAt(p, off)
 	actualSize := int64(0)

@@ -30,7 +30,7 @@ func testRemainingQuota(t *testing.T, ctrl *gomock.Controller, underlyingPool *m
 		require.NoError(t, err)
 	}
 	_, err := pool.NewFile()
-	require.Equal(t, err, status.Error(codes.ResourceExhausted, "File count quota reached"))
+	require.Equal(t, err, status.Error(codes.InvalidArgument, "File count quota reached"))
 	for i := 0; i < filesRemaining; i++ {
 		underlyingFiles[i].EXPECT().Close().Return(nil)
 		require.NoError(t, files[i].Close())
@@ -46,7 +46,7 @@ func testRemainingQuota(t *testing.T, ctrl *gomock.Controller, underlyingPool *m
 		underlyingFile.EXPECT().Truncate(bytesRemaining).Return(nil)
 	}
 	require.NoError(t, f.Truncate(bytesRemaining))
-	require.Equal(t, f.Truncate(bytesRemaining+1), status.Error(codes.ResourceExhausted, "File size quota reached"))
+	require.Equal(t, f.Truncate(bytesRemaining+1), status.Error(codes.InvalidArgument, "File size quota reached"))
 	underlyingFile.EXPECT().Close().Return(nil)
 	require.NoError(t, f.Close())
 }
@@ -85,7 +85,7 @@ func TestQuotaEnforcingFilePoolExample(t *testing.T) {
 	// size should be disallowed.
 	n, err = f.WriteAt(p[:], 991)
 	require.Equal(t, 0, n)
-	require.Equal(t, err, status.Error(codes.ResourceExhausted, "File size quota reached"))
+	require.Equal(t, err, status.Error(codes.InvalidArgument, "File size quota reached"))
 	testRemainingQuota(t, ctrl, underlyingPool, pool, 9, 1000)
 
 	// A failed write should initially allocate all of the required
@@ -117,7 +117,7 @@ func TestQuotaEnforcingFilePoolExample(t *testing.T) {
 
 	// Growing the file past the permitted size should not be
 	// allowed.
-	require.Equal(t, f.Truncate(1001), status.Error(codes.ResourceExhausted, "File size quota reached"))
+	require.Equal(t, f.Truncate(1001), status.Error(codes.InvalidArgument, "File size quota reached"))
 	testRemainingQuota(t, ctrl, underlyingPool, pool, 9, 877)
 
 	// I/O error while growing file should not cause the quotas to
