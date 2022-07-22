@@ -9,6 +9,8 @@ import (
 	"math"
 	"net"
 	"os"
+	"os/exec"
+	"sync"
 	"time"
 	"unsafe"
 
@@ -22,6 +24,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+var initializeNFSOnce sync.Once
 
 func toNfstime32(d time.Duration) *nfs_sys_prot.Nfstime32 {
 	nanos := d.Nanoseconds()
@@ -160,6 +164,17 @@ func (m *nfsv4Mount) mount(rpcServer *rpcserver.Server) error {
 	if _, err := mountArgs.WriteTo(mountArgsBuf); err != nil {
 		return util.StatusWrap(err, "Failed to marshal NFS mount arguments")
 	}
+
+	// macOS may require us to perform certain initialisation steps
+	// before attempting to create the NFS mount, such as loading
+	// the kernel extension containing the NFS client.
+	//
+	// Instead of trying to mimic those steps, call mount_nfs(8) in
+	// such a way that the arguments are valid, but is guaranteed to
+	// fail quickly.
+	initializeNFSOnce.Do(func() {
+		exec.Command("/sbin/mount_nfs", "0.0.0.0:/", "/").Run()
+	})
 
 	// Call mount(2) with the serialized nfs_mount_args message.
 	unix.Unmount(m.mountPath, 0)
