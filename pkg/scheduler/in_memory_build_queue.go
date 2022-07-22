@@ -44,6 +44,15 @@ import (
 var (
 	inMemoryBuildQueuePrometheusMetrics sync.Once
 
+	inMemoryBuildQueueInFlightDeduplicationsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "buildbarn",
+			Subsystem: "builder",
+			Name:      "in_memory_build_queue_in_flight_deduplications_total",
+			Help:      "Number of times an Execute() request of a cacheable action was performed, and whether it was in-flight deduplicated against an existing task.",
+		},
+		[]string{"instance_name_prefix", "platform", "size_class", "outcome"})
+
 	inMemoryBuildQueueTasksScheduledTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "buildbarn",
@@ -223,6 +232,8 @@ var inMemoryBuildQueueCapabilitiesProvider = capabilities.NewStaticProvider(&rem
 // execution requests. All of these are created by sending it RPCs.
 func NewInMemoryBuildQueue(contentAddressableStorage blobstore.BlobAccess, clock clock.Clock, uuidGenerator util.UUIDGenerator, configuration *InMemoryBuildQueueConfiguration, maximumMessageSizeBytes int, actionRouter routing.ActionRouter, executeAuthorizer auth.Authorizer) *InMemoryBuildQueue {
 	inMemoryBuildQueuePrometheusMetrics.Do(func() {
+		prometheus.MustRegister(inMemoryBuildQueueInFlightDeduplicationsTotal)
+
 		prometheus.MustRegister(inMemoryBuildQueueTasksScheduledTotal)
 		prometheus.MustRegister(inMemoryBuildQueueTasksQueuedDurationSeconds)
 		prometheus.MustRegister(inMemoryBuildQueueTasksExecutingDurationSeconds)
@@ -368,6 +379,7 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 			// Task is already associated with the current
 			// invocation. Simply wait on the operation that
 			// already exists.
+			scq.inFlightDeduplicationsSameInvocation.Inc()
 			return o.waitExecution(bq, out)
 		}
 
@@ -385,6 +397,7 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 		default:
 			panic("Task in unexpected stage")
 		}
+		scq.inFlightDeduplicationsOtherInvocation.Inc()
 		return o.waitExecution(bq, out)
 	}
 
@@ -433,6 +446,7 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 	}
 	if !action.DoNotCache {
 		bq.inFlightDeduplicationMap[actionDigest] = t
+		scq.inFlightDeduplicationsNew.Inc()
 	}
 	i := scq.rootInvocation.getOrCreateChild(bq, invocationKeys)
 	o := t.newOperation(bq, in.ExecutionPolicy.GetPriority(), i, false)
@@ -1209,6 +1223,10 @@ func (pq *platformQueue) addSizeClassQueue(bq *InMemoryBuildQueue, sizeClass uin
 		drains:        map[string]*buildqueuestate.DrainState{},
 		undrainWakeup: make(chan struct{}),
 
+		inFlightDeduplicationsSameInvocation:  inMemoryBuildQueueInFlightDeduplicationsTotal.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr, "SameInvocation"),
+		inFlightDeduplicationsOtherInvocation: inMemoryBuildQueueInFlightDeduplicationsTotal.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr, "OtherInvocation"),
+		inFlightDeduplicationsNew:             inMemoryBuildQueueInFlightDeduplicationsTotal.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr, "New"),
+
 		tasksScheduledWorker:          newTasksScheduledCounterVec(tasksScheduledTotal, "Worker"),
 		tasksScheduledQueue:           newTasksScheduledCounterVec(tasksScheduledTotal, "Queue"),
 		tasksQueuedDurationSeconds:    inMemoryBuildQueueTasksQueuedDurationSeconds.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr),
@@ -1280,6 +1298,10 @@ type sizeClassQueue struct {
 	undrainWakeup chan struct{}
 
 	// Prometheus metrics.
+	inFlightDeduplicationsSameInvocation  prometheus.Counter
+	inFlightDeduplicationsOtherInvocation prometheus.Counter
+	inFlightDeduplicationsNew             prometheus.Counter
+
 	tasksScheduledWorker          tasksScheduledCounterVec
 	tasksScheduledQueue           tasksScheduledCounterVec
 	tasksQueuedDurationSeconds    prometheus.Observer
