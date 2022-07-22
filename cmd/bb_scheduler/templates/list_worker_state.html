@@ -119,7 +119,7 @@
 						<td style="background-color: {{to_background_color .ActionDigest.Hash}}">
 							<a class="font-monospace" href="{{action_url $browserURL $instanceNamePrefix .InstanceNameSuffix .ActionDigest}}" style="color: {{to_foreground_color .ActionDigest.Hash}}">{{abbreviate .ActionDigest.Hash}}</a>
 						</td>
-						<td style="word-break: break-all">{{.TargetId}}</td>
+						<td><span style="word-break: break-all">{{.TargetId}}</span></td>
 					{{else}}
 						<td class="text-center" colspan="4">{{if .Drained}}drained{{else}}idle{{end}}</td>
 					{{end}}
