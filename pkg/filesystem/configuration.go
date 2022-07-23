@@ -22,9 +22,10 @@ func NewFilePoolFromConfiguration(configuration *pb.FilePoolConfiguration) (File
 		return EmptyFilePool, nil
 	}
 
+	var filePool FilePool
 	switch backend := configuration.Backend.(type) {
 	case *pb.FilePoolConfiguration_InMemory:
-		return InMemoryFilePool, nil
+		filePool = InMemoryFilePool
 	case *pb.FilePoolConfiguration_DirectoryPath:
 		directory, err := filesystem.NewLocalDirectory(backend.DirectoryPath)
 		if err != nil {
@@ -34,7 +35,7 @@ func NewFilePoolFromConfiguration(configuration *pb.FilePoolConfiguration) (File
 			directory.Close()
 			return nil, util.StatusWrapf(err, "Failed to empty out directory %#v", backend.DirectoryPath)
 		}
-		return NewDirectoryBackedFilePool(directory), nil
+		filePool = NewDirectoryBackedFilePool(directory)
 	case *pb.FilePoolConfiguration_BlockDevice:
 		blockDevice, sectorSizeBytes, sectorCount, err := blockdevice.NewBlockDeviceFromConfiguration(backend.BlockDevice, true)
 		if err != nil {
@@ -43,11 +44,12 @@ func NewFilePoolFromConfiguration(configuration *pb.FilePoolConfiguration) (File
 		if sectorCount > math.MaxUint32 {
 			return nil, util.StatusWrapf(err, "Block device has %d sectors, while only %d may be addressed", sectorCount, uint32(math.MaxUint32))
 		}
-		return NewBlockDeviceBackedFilePool(
+		filePool = NewBlockDeviceBackedFilePool(
 			blockDevice,
 			NewBitmapSectorAllocator(uint32(sectorCount)),
-			sectorSizeBytes), nil
+			sectorSizeBytes)
 	default:
 		return nil, status.Error(codes.InvalidArgument, "Configuration did not contain a supported file pool backend")
 	}
+	return NewMetricsFilePool(filePool), nil
 }
