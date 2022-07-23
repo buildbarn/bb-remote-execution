@@ -521,3 +521,34 @@ func TestPoolBackedFileAllocatorFUSEUploadFile(t *testing.T) {
 		require.Equal(t, status.Error(codes.NotFound, "File was unlinked before uploading could start"), err)
 	})
 }
+
+func TestPoolBackedFileAllocatorVirtualClose(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	// Create a new file.
+	pool := mock.NewMockFilePool(ctrl)
+	underlyingFile := mock.NewMockFileReadWriter(ctrl)
+	pool.EXPECT().NewFile().Return(underlyingFile, nil)
+	errorLogger := mock.NewMockErrorLogger(ctrl)
+
+	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger).
+		NewFile(false, 0)
+	require.Equal(t, virtual.StatusOK, s)
+
+	// Initially it should be opened exactly once. Open it a couple
+	// more times.
+	for i := 0; i < 10; i++ {
+		require.Equal(t, virtual.StatusOK, f.VirtualOpenSelf(virtual.ShareMaskRead, &virtual.OpenExistingOptions{}, 0, &virtual.Attributes{}))
+	}
+
+	// Unlinking the file should not cause the underlying file to be
+	// released, as it's opened.
+	f.Unlink()
+
+	// The underlying file should be released only when the close
+	// count matches the number of times the file was opened.
+	f.VirtualClose(6)
+	f.VirtualClose(3)
+	underlyingFile.EXPECT().Close()
+	f.VirtualClose(2)
+}

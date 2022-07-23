@@ -377,7 +377,7 @@ func (f *fileBackedFile) VirtualReadlink() ([]byte, Status) {
 }
 
 func (f *fileBackedFile) VirtualClose(count uint) {
-	f.release(1, false)
+	f.release(count, false)
 }
 
 func (f *fileBackedFile) virtualTruncate(size uint64) Status {
