@@ -42,6 +42,21 @@ var (
 			Name:      "base_program_open_owners_removed_total",
 			Help:      "Number of open-owners removed due to inactivity.",
 		})
+
+	baseProgramOpenOwnerFilesCreated = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: "buildbarn",
+			Subsystem: "nfsv4",
+			Name:      "base_program_open_owner_files_created_total",
+			Help:      "Number of open-owner files created through NFSv4 OPEN operations.",
+		})
+	baseProgramOpenOwnerFilesRemoved = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: "buildbarn",
+			Subsystem: "nfsv4",
+			Name:      "base_program_open_owner_files_removed_total",
+			Help:      "Number of open-owner files removed, either through NFSv4 CLOSE operations or due to inactivity on the open-owner.",
+		})
 )
 
 type baseProgram struct {
@@ -73,6 +88,9 @@ func NewBaseProgram(rootDirectory virtual.Directory, handleResolver virtual.Hand
 	baseProgramPrometheusMetrics.Do(func() {
 		prometheus.MustRegister(baseProgramOpenOwnersCreated)
 		prometheus.MustRegister(baseProgramOpenOwnersRemoved)
+
+		prometheus.MustRegister(baseProgramOpenOwnerFilesCreated)
+		prometheus.MustRegister(baseProgramOpenOwnerFilesRemoved)
 	})
 
 	var attributes virtual.Attributes
@@ -1647,6 +1665,7 @@ func (s *compoundState) txOpen(args *nfsv4.Open4args, oos *openOwnerState) nfsv4
 		}
 		oos.filesByHandle[handleKey] = oofs
 		p.openOwnerFilesByOther[oofs.stateID.other] = oofs
+		baseProgramOpenOwnerFilesCreated.Inc()
 	}
 
 	response.Resok4.Stateid = p.externalizeStateID(oofs.stateID)
@@ -2770,6 +2789,7 @@ func (oofs *openOwnerFileState) removeFinalize(p *baseProgram) {
 	delete(oofs.openOwner.filesByHandle, handleKey)
 	delete(p.openOwnerFilesByOther, oofs.stateID.other)
 	oofs.openOwner = nil
+	baseProgramOpenOwnerFilesRemoved.Inc()
 
 	// Disconnect the openedFileState. Do leave it attached to the
 	// openOwnerFileState, so that in-flight READ and WRITE
