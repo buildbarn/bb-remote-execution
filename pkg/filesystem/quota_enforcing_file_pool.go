@@ -1,7 +1,8 @@
 package filesystem
 
 import (
-	"github.com/buildbarn/bb-storage/pkg/atomic"
+	"sync/atomic"
+
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 
 	"google.golang.org/grpc/codes"
@@ -47,8 +48,8 @@ func NewQuotaEnforcingFilePool(base FilePool, maximumFileCount, maximumTotalSize
 	fp := &quotaEnforcingFilePool{
 		base: base,
 	}
-	fp.filesRemaining.remaining.Initialize(maximumFileCount)
-	fp.bytesRemaining.remaining.Initialize(maximumTotalSize)
+	fp.filesRemaining.remaining.Store(maximumFileCount)
+	fp.bytesRemaining.remaining.Store(maximumTotalSize)
 	return fp
 }
 

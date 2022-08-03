@@ -3,11 +3,11 @@ package builder_test
 import (
 	"context"
 	"os"
+	"sync/atomic"
 	"testing"
 
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
-	"github.com/buildbarn/bb-storage/pkg/atomic"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/golang/mock/gomock"

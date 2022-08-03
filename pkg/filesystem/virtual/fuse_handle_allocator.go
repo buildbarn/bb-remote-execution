@@ -3,8 +3,8 @@ package virtual
 import (
 	"io"
 	"sync"
+	"sync/atomic"
 
-	"github.com/buildbarn/bb-storage/pkg/atomic"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/random"
 )
@@ -134,7 +134,7 @@ func (hn *fuseStatefulHandleAllocation) AsNativeLeaf(leaf NativeLeaf) NativeLeaf
 		NativeLeaf:  leaf,
 		inodeNumber: hn.options.randomNumberGenerator.Uint64(),
 	}
-	l.linkCount.Initialize(1)
+	l.linkCount.Store(1)
 	*hn = fuseStatefulHandleAllocation{}
 	return l
 }

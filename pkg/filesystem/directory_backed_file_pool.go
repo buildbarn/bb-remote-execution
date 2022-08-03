@@ -4,8 +4,8 @@ import (
 	"io"
 	"os"
 	"strconv"
+	"sync/atomic"
 
-	"github.com/buildbarn/bb-storage/pkg/atomic"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 )

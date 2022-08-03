@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"sort"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	re_blobstore "github.com/buildbarn/bb-remote-execution/pkg/blobstore"
@@ -24,7 +25,6 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_worker"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
-	"github.com/buildbarn/bb-storage/pkg/atomic"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	blobstore_configuration "github.com/buildbarn/bb-storage/pkg/blobstore/configuration"
 	"github.com/buildbarn/bb-storage/pkg/clock"

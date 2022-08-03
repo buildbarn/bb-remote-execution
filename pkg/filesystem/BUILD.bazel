@@ -19,7 +19,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/proto/configuration/filesystem",
-        "@com_github_buildbarn_bb_storage//pkg/atomic",
         "@com_github_buildbarn_bb_storage//pkg/blockdevice",
         "@com_github_buildbarn_bb_storage//pkg/filesystem",
         "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
