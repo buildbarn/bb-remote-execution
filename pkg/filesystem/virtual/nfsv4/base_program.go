@@ -492,7 +492,7 @@ func (p *baseProgram) internalizeStateID(stateID *nfsv4.Stateid4) (*regularState
 	default:
 		// Regular state ID. Only permit state IDs with a given
 		// prefix, so that we can accurately distinguish between
-		// NFS4ERR_STATE_STATEID and NFS4ERR_BAD_STATEID.
+		// NFS4ERR_STALE_STATEID and NFS4ERR_BAD_STATEID.
 		var prefix [stateIDOtherPrefixLength]byte
 		copy(prefix[:], stateID.Other[:])
 		if prefix != p.stateIDOtherPrefix {
