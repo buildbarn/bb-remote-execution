@@ -2,7 +2,6 @@ package runner_test
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -68,11 +67,11 @@ func TestLocalRunner(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, int32(0), response.ExitCode)
 
-		stdout, err := ioutil.ReadFile(filepath.Join(testPath, "stdout"))
+		stdout, err := os.ReadFile(filepath.Join(testPath, "stdout"))
 		require.NoError(t, err)
 		require.Empty(t, stdout)
 
-		stderr, err := ioutil.ReadFile(filepath.Join(testPath, "stderr"))
+		stderr, err := os.ReadFile(filepath.Join(testPath, "stderr"))
 		require.NoError(t, err)
 		require.Empty(t, stderr)
 	})
@@ -102,7 +101,7 @@ func TestLocalRunner(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, int32(0), response.ExitCode)
 
-		stdout, err := ioutil.ReadFile(filepath.Join(testPath, "stdout"))
+		stdout, err := os.ReadFile(filepath.Join(testPath, "stdout"))
 		require.NoError(t, err)
 		if runtime.GOOS == "windows" {
 			require.Subset(t, strings.Fields(string(stdout)), []string{
@@ -119,7 +118,7 @@ func TestLocalRunner(t *testing.T) {
 			}, strings.Fields(string(stdout)))
 		}
 
-		stderr, err := ioutil.ReadFile(filepath.Join(testPath, "stderr"))
+		stderr, err := os.ReadFile(filepath.Join(testPath, "stderr"))
 		require.NoError(t, err)
 		require.Empty(t, stderr)
 	})
@@ -157,7 +156,7 @@ func TestLocalRunner(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, int32(0), response.ExitCode)
 
-		stdout, err := ioutil.ReadFile(filepath.Join(testPath, "stdout"))
+		stdout, err := os.ReadFile(filepath.Join(testPath, "stdout"))
 		require.NoError(t, err)
 		if runtime.GOOS == "windows" {
 			require.Subset(t, strings.Fields(string(stdout)), []string{
@@ -168,7 +167,7 @@ func TestLocalRunner(t *testing.T) {
 			require.Equal(t, "TMPDIR=/somewhere/else\n", string(stdout))
 		}
 
-		stderr, err := ioutil.ReadFile(filepath.Join(testPath, "stderr"))
+		stderr, err := os.ReadFile(filepath.Join(testPath, "stderr"))
 		require.NoError(t, err)
 		require.Empty(t, stderr)
 	})
@@ -200,11 +199,11 @@ func TestLocalRunner(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, int32(255), response.ExitCode)
 
-		stdout, err := ioutil.ReadFile(filepath.Join(testPath, "stdout"))
+		stdout, err := os.ReadFile(filepath.Join(testPath, "stdout"))
 		require.NoError(t, err)
 		require.Empty(t, stdout)
 
-		stderr, err := ioutil.ReadFile(filepath.Join(testPath, "stderr"))
+		stderr, err := os.ReadFile(filepath.Join(testPath, "stderr"))
 		require.NoError(t, err)
 		require.Empty(t, stderr)
 	})
