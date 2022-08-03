@@ -8,6 +8,7 @@ import (
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
+	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
@@ -42,7 +43,7 @@ func TestLazyDirectory(t *testing.T) {
 		// that could cause confusion/invalid behaviour (e.g.,
 		// NotFound).
 		_, err := directory.EnterDirectory(path.MustNewComponent("sub"))
-		require.Equal(t, err, status.Error(codes.Internal, "Failed to open underlying directory: Not allowed to access build directory"))
+		testutil.RequireEqualStatus(t, err, status.Error(codes.Internal, "Failed to open underlying directory: Not allowed to access build directory"))
 	})
 
 	t.Run("LinkSuccess", func(t *testing.T) {

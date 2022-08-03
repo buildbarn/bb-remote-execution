@@ -12,6 +12,7 @@ import (
 	"github.com/aws/smithy-go"
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	re_aws "github.com/buildbarn/bb-remote-execution/pkg/cloud/aws"
+	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
@@ -77,7 +78,7 @@ func TestSQSReceiver(t *testing.T) {
 			Return(status.Error(codes.Internal, "Cannot contact backend service"))
 		testCompleted := make(chan struct{})
 		errorLogger.EXPECT().
-			Log(status.Error(codes.Internal, "Failed to process message \"8dcc80c7-83ed-4d3c-aa38-59342fd192f8\": Cannot contact backend service")).
+			Log(testutil.EqStatus(t, status.Error(codes.Internal, "Failed to process message \"8dcc80c7-83ed-4d3c-aa38-59342fd192f8\": Cannot contact backend service"))).
 			Do(func(err error) { close(testCompleted) })
 
 		require.NoError(t, sr.PerformSingleRequest())
@@ -113,7 +114,7 @@ func TestSQSReceiver(t *testing.T) {
 		})
 		testCompleted := make(chan struct{})
 		errorLogger.EXPECT().
-			Log(status.Error(codes.Internal, "Failed to delete message \"8dcc80c7-83ed-4d3c-aa38-59342fd192f8\": operation error sqs: DeleteMessage, received a HTTP 503")).
+			Log(testutil.EqStatus(t, status.Error(codes.Internal, "Failed to delete message \"8dcc80c7-83ed-4d3c-aa38-59342fd192f8\": operation error sqs: DeleteMessage, received a HTTP 503"))).
 			Do(func(err error) { close(testCompleted) })
 
 		require.NoError(t, sr.PerformSingleRequest())

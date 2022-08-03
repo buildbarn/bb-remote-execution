@@ -9,6 +9,7 @@ import (
 	"github.com/aws/smithy-go"
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	re_aws "github.com/buildbarn/bb-remote-execution/pkg/cloud/aws"
+	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
@@ -142,7 +143,7 @@ func TestLifecycleHookSQSMessageHandler(t *testing.T) {
 			Err:           errors.New("received a HTTP 503"),
 		})
 
-		require.Equal(
+		testutil.RequireEqualStatus(
 			t,
 			status.Error(codes.Internal, "Failed to complete lifecycle action: operation error autoscaling: CompleteLifecycleAction, received a HTTP 503"),
 			smh.HandleMessage(`{

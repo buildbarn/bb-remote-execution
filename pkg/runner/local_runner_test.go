@@ -328,10 +328,10 @@ func TestLocalRunner(t *testing.T) {
 			InputRootDirectory: ".",
 			TemporaryDirectory: ".",
 		})
-		require.Equal(
+		testutil.RequireEqualStatus(
 			t,
-			err,
-			status.Error(codes.InvalidArgument, "Failed to open stdout path \"hello/../../../../../../etc/passwd\": Path resolves to a location outside the build directory"))
+			status.Error(codes.InvalidArgument, "Failed to open stdout path \"hello/../../../../../../etc/passwd\": Path resolves to a location outside the build directory"),
+			err)
 	})
 
 	// TODO: Improve testing coverage of LocalRunner.

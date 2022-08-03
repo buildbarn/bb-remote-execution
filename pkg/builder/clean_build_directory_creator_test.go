@@ -34,7 +34,7 @@ func TestCleanBuildDirectoryCreator(t *testing.T) {
 			ctx,
 			digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 			false)
-		require.Equal(t, status.Error(codes.Internal, "Failed to clean before acquiring build directory: Cannot remove files from build directory"), err)
+		testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to clean before acquiring build directory: Cannot remove files from build directory"), err)
 	})
 
 	t.Run("GetBuildDirectoryFailure", func(t *testing.T) {

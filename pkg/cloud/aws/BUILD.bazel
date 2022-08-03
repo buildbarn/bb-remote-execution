@@ -37,6 +37,7 @@ go_test(
         "@com_github_aws_aws_sdk_go_v2_service_sqs//:sqs",
         "@com_github_aws_aws_sdk_go_v2_service_sqs//types",
         "@com_github_aws_smithy_go//:smithy-go",
+        "@com_github_buildbarn_bb_storage//pkg/testutil",
         "@com_github_golang_mock//gomock",
         "@com_github_stretchr_testify//require",
         "@org_golang_google_grpc//codes",

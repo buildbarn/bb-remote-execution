@@ -924,7 +924,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualMkdir(t *testing.T) {
 		// file under that name is already present.
 		initialContentsFetcher.EXPECT().FetchContents().
 			Return(nil, status.Error(codes.Internal, "Network error"))
-		errorLogger.EXPECT().Log(status.Error(codes.Internal, "Failed to initialize directory: Network error"))
+		errorLogger.EXPECT().Log(testutil.EqStatus(t, status.Error(codes.Internal, "Failed to initialize directory: Network error")))
 
 		_, _, s := childDirectory.VirtualMkdir(path.MustNewComponent("subsubdir"), 0, &virtual.Attributes{})
 		require.Equal(t, virtual.StatusErrIO, s)
@@ -1522,7 +1522,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRemove(t *testing.T) {
 		}, false))
 		initialContentsFetcher.EXPECT().FetchContents().
 			Return(nil, status.Error(codes.Internal, "Network error"))
-		errorLogger.EXPECT().Log(status.Error(codes.Internal, "Failed to initialize directory: Network error"))
+		errorLogger.EXPECT().Log(testutil.EqStatus(t, status.Error(codes.Internal, "Failed to initialize directory: Network error")))
 
 		_, s := d.VirtualRemove(path.MustNewComponent("broken_directory"), true, false)
 		require.Equal(t, virtual.StatusErrIO, s)
@@ -1629,7 +1629,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualSymlink(t *testing.T) {
 		// file under that name is already present.
 		initialContentsFetcher.EXPECT().FetchContents().
 			Return(nil, status.Error(codes.Internal, "Network error"))
-		errorLogger.EXPECT().Log(status.Error(codes.Internal, "Failed to initialize directory: Network error"))
+		errorLogger.EXPECT().Log(testutil.EqStatus(t, status.Error(codes.Internal, "Failed to initialize directory: Network error")))
 
 		_, _, s := childDirectory.VirtualSymlink([]byte("target"), path.MustNewComponent("symlink"), 0, &virtual.Attributes{})
 		require.Equal(t, virtual.StatusErrIO, s)

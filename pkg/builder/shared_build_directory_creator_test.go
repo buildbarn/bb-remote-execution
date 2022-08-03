@@ -10,6 +10,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
+	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
@@ -34,7 +35,7 @@ func TestSharedBuildDirectoryCreatorGetBuildDirectoryFailure(t *testing.T) {
 		ctx,
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		false)
-	require.Equal(t, status.Error(codes.Internal, "No space left on device"), err)
+	testutil.RequireEqualStatus(t, status.Error(codes.Internal, "No space left on device"), err)
 }
 
 func TestSharedBuildDirectoryCreatorMkdirFailure(t *testing.T) {
@@ -58,7 +59,7 @@ func TestSharedBuildDirectoryCreatorMkdirFailure(t *testing.T) {
 		ctx,
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		false)
-	require.Equal(t, status.Error(codes.Internal, "Failed to create build directory \"base-directory/e3b0c44298fc1c14\": Directory already exists"), err)
+	testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to create build directory \"base-directory/e3b0c44298fc1c14\": Directory already exists"), err)
 }
 
 func TestSharedBuildDirectoryCreatorEnterBuildDirectoryFailure(t *testing.T) {
@@ -83,7 +84,7 @@ func TestSharedBuildDirectoryCreatorEnterBuildDirectoryFailure(t *testing.T) {
 		ctx,
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		false)
-	require.Equal(t, status.Error(codes.Internal, "Failed to enter build directory \"base-directory/e3b0c44298fc1c14\": Out of file descriptors"), err)
+	testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to enter build directory \"base-directory/e3b0c44298fc1c14\": Out of file descriptors"), err)
 }
 
 func TestSharedBuildDirectoryCreatorCloseChildFailure(t *testing.T) {
@@ -113,7 +114,7 @@ func TestSharedBuildDirectoryCreatorCloseChildFailure(t *testing.T) {
 		false)
 	require.NoError(t, err)
 	require.Equal(t, baseBuildDirectoryPath.Append(path.MustNewComponent("e3b0c44298fc1c14")), buildDirectoryPath)
-	require.Equal(t, status.Error(codes.Internal, "Failed to close build directory \"base-directory/e3b0c44298fc1c14\": Bad file descriptor"), buildDirectory.Close())
+	testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to close build directory \"base-directory/e3b0c44298fc1c14\": Bad file descriptor"), buildDirectory.Close())
 }
 
 func TestSharedBuildDirectoryCreatorRemoveAllFailure(t *testing.T) {
@@ -145,7 +146,7 @@ func TestSharedBuildDirectoryCreatorRemoveAllFailure(t *testing.T) {
 		false)
 	require.NoError(t, err)
 	require.Equal(t, baseBuildDirectoryPath.Append(path.MustNewComponent("e3b0c44298fc1c14")), buildDirectoryPath)
-	require.Equal(t, status.Error(codes.Internal, "Failed to remove build directory \"base-directory/e3b0c44298fc1c14\": Directory is owned by another user"), buildDirectory.Close())
+	testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to remove build directory \"base-directory/e3b0c44298fc1c14\": Directory is owned by another user"), buildDirectory.Close())
 }
 
 func TestSharedBuildDirectoryCreatorCloseParentFailure(t *testing.T) {
@@ -178,7 +179,7 @@ func TestSharedBuildDirectoryCreatorCloseParentFailure(t *testing.T) {
 		false)
 	require.NoError(t, err)
 	require.Equal(t, baseBuildDirectoryPath.Append(path.MustNewComponent("e3b0c44298fc1c14")), buildDirectoryPath)
-	require.Equal(t, status.Error(codes.Internal, "Bad file descriptor"), buildDirectory.Close())
+	testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Bad file descriptor"), buildDirectory.Close())
 }
 
 func TestSharedBuildDirectoryCreatorSuccessNotParallel(t *testing.T) {
@@ -236,7 +237,7 @@ func TestSharedBuildDirectoryCreatorMkdirSuccessParallel(t *testing.T) {
 		ctx,
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		true)
-	require.Equal(t, status.Error(codes.Internal, "Failed to create build directory \"base-directory/1\": Foo"), err)
+	testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to create build directory \"base-directory/1\": Foo"), err)
 
 	baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(
 		ctx,
@@ -250,5 +251,5 @@ func TestSharedBuildDirectoryCreatorMkdirSuccessParallel(t *testing.T) {
 		ctx,
 		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		true)
-	require.Equal(t, status.Error(codes.Internal, "Failed to create build directory \"base-directory/2\": Foo"), err)
+	testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to create build directory \"base-directory/2\": Foo"), err)
 }

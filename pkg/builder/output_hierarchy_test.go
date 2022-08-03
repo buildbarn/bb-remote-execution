@@ -26,14 +26,14 @@ func TestOutputHierarchyCreation(t *testing.T) {
 		_, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory: "/tmp/hello/../..",
 		})
-		require.Equal(t, err, status.Error(codes.InvalidArgument, "Invalid working directory: Path is absolute, while a relative path was expected"))
+		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Invalid working directory: Path is absolute, while a relative path was expected"), err)
 	})
 
 	t.Run("InvalidWorkingDirectory", func(t *testing.T) {
 		_, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory: "hello/../..",
 		})
-		require.Equal(t, err, status.Error(codes.InvalidArgument, "Invalid working directory: Path resolves to a location outside the input root directory"))
+		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Invalid working directory: Path resolves to a location outside the input root directory"), err)
 	})
 
 	t.Run("AbsoluteOutputDirectory", func(t *testing.T) {
@@ -41,7 +41,7 @@ func TestOutputHierarchyCreation(t *testing.T) {
 			WorkingDirectory:  ".",
 			OutputDirectories: []string{"/etc/passwd"},
 		})
-		require.Equal(t, err, status.Error(codes.InvalidArgument, "Invalid output directory \"/etc/passwd\": Path is absolute, while a relative path was expected"))
+		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Invalid output directory \"/etc/passwd\": Path is absolute, while a relative path was expected"), err)
 	})
 
 	t.Run("InvalidOutputDirectory", func(t *testing.T) {
@@ -49,7 +49,7 @@ func TestOutputHierarchyCreation(t *testing.T) {
 			WorkingDirectory:  "hello",
 			OutputDirectories: []string{"../.."},
 		})
-		require.Equal(t, err, status.Error(codes.InvalidArgument, "Invalid output directory \"../..\": Path resolves to a location outside the input root directory"))
+		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Invalid output directory \"../..\": Path resolves to a location outside the input root directory"), err)
 	})
 
 	t.Run("InvalidOutputFile", func(t *testing.T) {
@@ -57,7 +57,7 @@ func TestOutputHierarchyCreation(t *testing.T) {
 			WorkingDirectory: "hello",
 			OutputFiles:      []string{".."},
 		})
-		require.Equal(t, err, status.Error(codes.InvalidArgument, "Output file \"..\" resolves to the input root directory"))
+		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Output file \"..\" resolves to the input root directory"), err)
 	})
 }
 
@@ -153,7 +153,7 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 			OutputFiles:      []string{"bar/baz"},
 		})
 		require.NoError(t, err)
-		require.Equal(
+		testutil.RequireEqualStatus(
 			t,
 			status.Error(codes.Internal, "Failed to create output parent directory \"foo/bar\": I/O error"),
 			oh.CreateParentDirectories(root))
@@ -191,7 +191,7 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 			OutputDirectories: []string{"bar"},
 		})
 		require.NoError(t, err)
-		require.Equal(
+		testutil.RequireEqualStatus(
 			t,
 			status.Error(codes.Internal, "Failed to create output directory \"foo/bar\": I/O error"),
 			oh.CreateParentDirectories(root))
@@ -228,7 +228,7 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 			OutputDirectories: []string{"bar/baz"},
 		})
 		require.NoError(t, err)
-		require.Equal(
+		testutil.RequireEqualStatus(
 			t,
 			status.Error(codes.Internal, "Failed to enter output parent directory \"foo/bar\": I/O error"),
 			oh.CreateParentDirectories(root))
@@ -783,7 +783,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		})
 		require.NoError(t, err)
 		var actionResult remoteexecution.ActionResult
-		require.Equal(
+		testutil.RequireEqualStatus(
 			t,
 			status.Error(codes.Internal, "Failed to read attributes of output directory \"foo\": I/O error"),
 			oh.UploadOutputs(ctx, root, contentAddressableStorage, digestFunction, &actionResult))
@@ -801,7 +801,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		})
 		require.NoError(t, err)
 		var actionResult remoteexecution.ActionResult
-		require.Equal(
+		testutil.RequireEqualStatus(
 			t,
 			status.Error(codes.Internal, "Failed to read attributes of output file \"foo\": I/O error"),
 			oh.UploadOutputs(ctx, root, contentAddressableStorage, digestFunction, &actionResult))
@@ -819,7 +819,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		})
 		require.NoError(t, err)
 		var actionResult remoteexecution.ActionResult
-		require.Equal(
+		testutil.RequireEqualStatus(
 			t,
 			status.Error(codes.Internal, "Failed to read attributes of output path \"foo\": I/O error"),
 			oh.UploadOutputs(ctx, root, contentAddressableStorage, digestFunction, &actionResult))

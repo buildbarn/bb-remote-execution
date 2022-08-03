@@ -40,7 +40,7 @@ func TestTemporaryDirectorySymlinkingRunnerRun(t *testing.T) {
 			InputRootDirectory: "a/root",
 			TemporaryDirectory: "a/\x00tmp",
 		})
-		require.Equal(t, status.Error(codes.InvalidArgument, "Failed to resolve temporary directory: Path contains a null byte"), err)
+		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Failed to resolve temporary directory: Path contains a null byte"), err)
 	})
 
 	t.Run("InvalidSymlinkPath", func(t *testing.T) {

@@ -13,6 +13,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
+	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
@@ -122,7 +123,7 @@ func TestNaiveBuildDirectoryInputRootNotInStorage(t *testing.T) {
 		ctx,
 		errorLogger,
 		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42))
-	require.Equal(t, err, status.Error(codes.Internal, "Failed to obtain input directory \".\": Storage is offline"))
+	testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to obtain input directory \".\": Storage is offline"), err)
 }
 
 func TestNaiveBuildDirectoryMissingInputDirectoryDigest(t *testing.T) {
@@ -167,7 +168,7 @@ func TestNaiveBuildDirectoryMissingInputDirectoryDigest(t *testing.T) {
 		ctx,
 		errorLogger,
 		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42))
-	require.Equal(t, err, status.Error(codes.InvalidArgument, "Failed to extract digest for input directory \"Hello/World\": No digest provided"))
+	testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Failed to extract digest for input directory \"Hello/World\": No digest provided"), err)
 }
 
 func TestNaiveBuildDirectoryDirectoryCreationFailure(t *testing.T) {
@@ -217,7 +218,7 @@ func TestNaiveBuildDirectoryDirectoryCreationFailure(t *testing.T) {
 		ctx,
 		errorLogger,
 		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42))
-	require.Equal(t, err, status.Error(codes.DataLoss, "Failed to create input directory \"Hello/World\": Disk on fire"))
+	testutil.RequireEqualStatus(t, status.Error(codes.DataLoss, "Failed to create input directory \"Hello/World\": Disk on fire"), err)
 }
 
 func TestNaiveBuildDirectoryDirectoryEnterDirectoryFailure(t *testing.T) {
@@ -268,7 +269,7 @@ func TestNaiveBuildDirectoryDirectoryEnterDirectoryFailure(t *testing.T) {
 		ctx,
 		errorLogger,
 		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42))
-	require.Equal(t, err, status.Error(codes.PermissionDenied, "Failed to enter input directory \"Hello/World\": Thou shalt not pass!"))
+	testutil.RequireEqualStatus(t, status.Error(codes.PermissionDenied, "Failed to enter input directory \"Hello/World\": Thou shalt not pass!"), err)
 }
 
 func TestNaiveBuildDirectoryMissingInputFileDigest(t *testing.T) {
@@ -313,7 +314,7 @@ func TestNaiveBuildDirectoryMissingInputFileDigest(t *testing.T) {
 		ctx,
 		errorLogger,
 		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42))
-	require.Equal(t, err, status.Error(codes.InvalidArgument, "Failed to extract digest for input file \"Hello/World\": No digest provided"))
+	testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Failed to extract digest for input file \"Hello/World\": No digest provided"), err)
 }
 
 func TestNaiveBuildDirectoryFileCreationFailure(t *testing.T) {
@@ -368,7 +369,7 @@ func TestNaiveBuildDirectoryFileCreationFailure(t *testing.T) {
 		ctx,
 		errorLogger,
 		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42))
-	require.Equal(t, err, status.Error(codes.DataLoss, "Failed to obtain input file \"Hello/World\": Disk on fire"))
+	testutil.RequireEqualStatus(t, status.Error(codes.DataLoss, "Failed to obtain input file \"Hello/World\": Disk on fire"), err)
 }
 
 func TestNaiveBuildDirectorySymlinkCreationFailure(t *testing.T) {
@@ -415,7 +416,7 @@ func TestNaiveBuildDirectorySymlinkCreationFailure(t *testing.T) {
 		ctx,
 		errorLogger,
 		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42))
-	require.Equal(t, err, status.Error(codes.Unimplemented, "Failed to create input symlink \"Hello/World\": This filesystem does not support symbolic links"))
+	testutil.RequireEqualStatus(t, status.Error(codes.Unimplemented, "Failed to create input symlink \"Hello/World\": This filesystem does not support symbolic links"), err)
 }
 
 func TestNaiveBuildDirectoryUploadFile(t *testing.T) {
@@ -452,7 +453,7 @@ func TestNaiveBuildDirectoryUploadFile(t *testing.T) {
 			file.EXPECT().Close().Return(nil))
 
 		_, err := inputRootPopulator.UploadFile(ctx, path.MustNewComponent("hello"), digestFunction)
-		require.Equal(t, status.Error(codes.Unavailable, "Failed to compute file digest: Disk on fire"), err)
+		testutil.RequireEqualStatus(t, status.Error(codes.Unavailable, "Failed to compute file digest: Disk on fire"), err)
 	})
 
 	t.Run("FileChangedDuringUpload", func(t *testing.T) {
@@ -477,12 +478,12 @@ func TestNaiveBuildDirectoryUploadFile(t *testing.T) {
 		contentAddressableStorage.EXPECT().Put(ctx, helloWorldDigest, gomock.Any()).DoAndReturn(
 			func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 				_, err := b.ToByteSlice(100)
-				require.Equal(t, status.Error(codes.InvalidArgument, "Buffer is 9 bytes in size, while 11 bytes were expected"), err)
+				testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Buffer is 9 bytes in size, while 11 bytes were expected"), err)
 				return err
 			})
 
 		_, err := inputRootPopulator.UploadFile(ctx, path.MustNewComponent("hello"), digestFunction)
-		require.Equal(t, status.Error(codes.InvalidArgument, "Failed to upload file: Buffer is 9 bytes in size, while 11 bytes were expected"), err)
+		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Failed to upload file: Buffer is 9 bytes in size, while 11 bytes were expected"), err)
 	})
 
 	t.Run("SuccessFileGrownDuringUpload", func(t *testing.T) {
