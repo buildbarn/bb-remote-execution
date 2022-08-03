@@ -45,12 +45,12 @@ func (o Outcomes) GetMedianExecutionTime() *time.Duration {
 // to compute the average rank in B for every element in A, similar to
 // the Mann-Whitney U test. This is done for two reasons:
 //
-// - Analysis on mean or median values is not always possible, as a set
-//   of outcomes may contain (or consist only of) failures of which the
-//   execution time is unknown.
-// - When implemented properly, it is an asymmetric relation, in that
-//   x.IsFaster(x) == 0.5 and x.IsFaster(y) + y.IsFaster(x) == 1.0 for
-//   any sets of outcomes x and y.
+//   - Analysis on mean or median values is not always possible, as a set
+//     of outcomes may contain (or consist only of) failures of which the
+//     execution time is unknown.
+//   - When implemented properly, it is an asymmetric relation, in that
+//     x.IsFaster(x) == 0.5 and x.IsFaster(y) + y.IsFaster(x) == 1.0 for
+//     any sets of outcomes x and y.
 //
 // This function works by running a 2-way merge algorithm against both
 // sets of outcomes, awarding scores between [0, 2*len(B)] based on the

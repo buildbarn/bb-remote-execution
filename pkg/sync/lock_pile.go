@@ -62,27 +62,27 @@ func (lp *LockPile) insert(newLock TryLocker) {
 // Example usage, of a function that computes the sum of two value nodes
 // in a tree atomically:
 //
-//     func (node *Node) GetSumOfParentAndChild(name string) (int, bool) {
-//         lockPile := util.LockPile{}
-//         defer lockPile.UnlockAll()
-//         lockPile.Lock(&node.lock)  // Always returns 'true'
-//         for {
-//             if child, ok := node.children[name]; !ok {
-//                 return 0, false
-//             } else if lockPile.Lock(&child.lock) {
-//                 // Successfully acquired child lock without unlocking
-//                 // the parent.
-//                 break
-//             } else if node.children[name] == child {
-//                 // Even though the parent was temporarily unlocked,
-//                 // the parent-child relationship did not change.
-//                 break
-//             }
-//             // Race condition during unlock. Retry.
-//             lockPile.Unlock(&child.Lock)
-//         }
-//         return node.value + child.value, true
-//     }
+//	func (node *Node) GetSumOfParentAndChild(name string) (int, bool) {
+//	    lockPile := util.LockPile{}
+//	    defer lockPile.UnlockAll()
+//	    lockPile.Lock(&node.lock)  // Always returns 'true'
+//	    for {
+//	        if child, ok := node.children[name]; !ok {
+//	            return 0, false
+//	        } else if lockPile.Lock(&child.lock) {
+//	            // Successfully acquired child lock without unlocking
+//	            // the parent.
+//	            break
+//	        } else if node.children[name] == child {
+//	            // Even though the parent was temporarily unlocked,
+//	            // the parent-child relationship did not change.
+//	            break
+//	        }
+//	        // Race condition during unlock. Retry.
+//	        lockPile.Unlock(&child.Lock)
+//	    }
+//	    return node.value + child.value, true
+//	}
 func (lp *LockPile) Lock(newLocks ...TryLocker) bool {
 	currentlyAcquired := len(*lp)
 	for _, newLock := range newLocks {
