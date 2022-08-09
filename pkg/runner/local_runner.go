@@ -25,41 +25,39 @@ import (
 // TODO: This code seems fairly generic. Should move it to the
 // filesystem package?
 type logFileResolver struct {
-	stack []filesystem.DirectoryCloser
-	name  *path.Component
+	path.TerminalNameTrackingComponentWalker
+	stack util.NonEmptyStack[filesystem.DirectoryCloser]
 }
 
 func (r *logFileResolver) OnDirectory(name path.Component) (path.GotDirectoryOrSymlink, error) {
-	d := r.stack[len(r.stack)-1]
-	child, err := d.EnterDirectory(name)
+	child, err := r.stack.Peek().EnterDirectory(name)
 	if err != nil {
 		return nil, err
 	}
-	r.stack = append(r.stack, child)
+	r.stack.Push(child)
 	return path.GotDirectory{
 		Child:        r,
 		IsReversible: true,
 	}, nil
 }
 
-func (r *logFileResolver) OnTerminal(name path.Component) (*path.GotSymlink, error) {
-	r.name = &name
-	return nil, nil
-}
-
 func (r *logFileResolver) OnUp() (path.ComponentWalker, error) {
-	if len(r.stack) == 1 {
-		return nil, status.Error(codes.InvalidArgument, "Path resolves to a location outside the build directory")
+	if d, ok := r.stack.PopSingle(); ok {
+		if err := d.Close(); err != nil {
+			r.stack.Push(d)
+			return nil, err
+		}
+		return r, nil
 	}
-	if err := r.stack[len(r.stack)-1].Close(); err != nil {
-		return nil, err
-	}
-	r.stack = r.stack[:len(r.stack)-1]
-	return r, nil
+	return nil, status.Error(codes.InvalidArgument, "Path resolves to a location outside the build directory")
 }
 
 func (r *logFileResolver) closeAll() {
-	for _, d := range r.stack {
+	for {
+		d, ok := r.stack.PopSingle()
+		if !ok {
+			break
+		}
 		d.Close()
 	}
 }
@@ -73,17 +71,16 @@ type localRunner struct {
 
 func (r *localRunner) openLog(logPath string) (filesystem.FileAppender, error) {
 	logFileResolver := logFileResolver{
-		stack: []filesystem.DirectoryCloser{filesystem.NopDirectoryCloser(r.buildDirectory)},
+		stack: util.NewNonEmptyStack(filesystem.NopDirectoryCloser(r.buildDirectory)),
 	}
 	defer logFileResolver.closeAll()
 	if err := path.Resolve(logPath, path.NewRelativeScopeWalker(&logFileResolver)); err != nil {
 		return nil, err
 	}
-	if logFileResolver.name == nil {
+	if logFileResolver.TerminalName == nil {
 		return nil, status.Error(codes.InvalidArgument, "Path resolves to a directory")
 	}
-	d := logFileResolver.stack[len(logFileResolver.stack)-1]
-	return d.OpenAppend(*logFileResolver.name, filesystem.CreateExcl(0o666))
+	return logFileResolver.stack.Peek().OpenAppend(*logFileResolver.TerminalName, filesystem.CreateExcl(0o666))
 }
 
 // CommandCreator is a type alias for a function that creates the cmd and
