@@ -5,6 +5,7 @@ package buildbarn.configuration.bb_worker;
 import "build/bazel/remote/execution/v2/remote_execution.proto";
 import "google/protobuf/duration.proto";
 import "pkg/proto/configuration/blobstore/blobstore.proto";
+import "pkg/proto/configuration/cas/cas.proto";
 import "pkg/proto/configuration/eviction/eviction.proto";
 import "pkg/proto/configuration/filesystem/filesystem.proto";
 import "pkg/proto/configuration/filesystem/virtual/virtual.proto";
@@ -31,8 +32,8 @@ message ApplicationConfiguration {
   // 'global.diagnostics_http_listen_address'.
   reserved 9;
 
-  // Maximum number of directory listings to keep in memory.
-  uint64 maximum_memory_cached_directories = 12;
+  // Was 'maximum_memory_cached_directories'. Moved into 'directory_cache'.
+  reserved 12;
 
   // Was 'instance_name'. This option has been renamed to
   // 'RunnerConfiguration.instance_name_prefix'.
@@ -72,6 +73,11 @@ message ApplicationConfiguration {
   // Content Addressable Storage (CAS). This limit applied to the worker
   // process as a whole; not individual worker threads.
   int64 output_upload_concurrency = 24;
+
+  // If set, cache REv2 Directory objects in memory. These objects need
+  // to be loaded from the Content Addressable Storage when populating
+  // input roots.
+  buildbarn.configuration.cas.CachingFetcherConfiguration directory_cache = 25;
 }
 
 message BuildDirectoryConfiguration {

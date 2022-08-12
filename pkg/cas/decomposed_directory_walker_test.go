@@ -39,7 +39,7 @@ func TestDecomposedDirectoryWalker(t *testing.T) {
 	// CAS, and that error messages use the right prefix.
 
 	t.Run("ParentGetDirectorySuccess", func(t *testing.T) {
-		directoryFetcher.EXPECT().GetDirectory(ctx, parentDigest).
+		directoryFetcher.EXPECT().Get(ctx, parentDigest).
 			Return(exampleDirectory, nil)
 		parentDirectory, err := parentDirectoryWalker.GetDirectory(ctx)
 		require.NoError(t, err)
@@ -47,7 +47,7 @@ func TestDecomposedDirectoryWalker(t *testing.T) {
 	})
 
 	t.Run("ParentGetDirectoryFailure", func(t *testing.T) {
-		directoryFetcher.EXPECT().GetDirectory(ctx, parentDigest).
+		directoryFetcher.EXPECT().Get(ctx, parentDigest).
 			Return(nil, status.Error(codes.Internal, "Server failure"))
 		_, err := parentDirectoryWalker.GetDirectory(ctx)
 		require.Equal(t, status.Error(codes.Internal, "Server failure"), err)
@@ -74,7 +74,7 @@ func TestDecomposedDirectoryWalker(t *testing.T) {
 	// sure those also load the right object from the CAS.
 
 	t.Run("ChildGetDirectory", func(t *testing.T) {
-		directoryFetcher.EXPECT().GetDirectory(ctx, childDigest).
+		directoryFetcher.EXPECT().Get(ctx, childDigest).
 			Return(exampleDirectory, nil)
 		childDirectory, err := childDirectoryWalker.GetDirectory(ctx)
 		require.NoError(t, err)

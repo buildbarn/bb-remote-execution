@@ -25,7 +25,7 @@ func NewDecomposedDirectoryWalker(fetcher DirectoryFetcher, digest digest.Digest
 }
 
 func (dw *decomposedDirectoryWalker) GetDirectory(ctx context.Context) (*remoteexecution.Directory, error) {
-	return dw.fetcher.GetDirectory(ctx, dw.digest)
+	return dw.fetcher.Get(ctx, dw.digest)
 }
 
 func (dw *decomposedDirectoryWalker) GetChild(digest digest.Digest) DirectoryWalker {

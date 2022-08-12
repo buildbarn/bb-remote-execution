@@ -7,6 +7,7 @@ proto_library(
     srcs = ["bb_worker.proto"],
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/proto/configuration/cas:cas_proto",
         "//pkg/proto/configuration/filesystem:filesystem_proto",
         "//pkg/proto/configuration/filesystem/virtual:virtual_proto",
         "//pkg/proto/resourceusage:resourceusage_proto",
@@ -25,6 +26,7 @@ go_proto_library(
     proto = ":bb_worker_proto",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/proto/configuration/cas",
         "//pkg/proto/configuration/filesystem",
         "//pkg/proto/configuration/filesystem/virtual",
         "//pkg/proto/resourceusage",

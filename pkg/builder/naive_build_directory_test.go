@@ -25,7 +25,7 @@ func TestNaiveBuildDirectorySuccess(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	directoryFetcher := mock.NewMockDirectoryFetcher(ctrl)
-	directoryFetcher.EXPECT().GetDirectory(
+	directoryFetcher.EXPECT().Get(
 		ctx,
 		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42),
 	).Return(&remoteexecution.Directory{
@@ -62,7 +62,7 @@ func TestNaiveBuildDirectorySuccess(t *testing.T) {
 			},
 		},
 	}, nil)
-	directoryFetcher.EXPECT().GetDirectory(
+	directoryFetcher.EXPECT().Get(
 		ctx,
 		digest.MustNewDigest("netbsd", "8888888888888888888888888888888888888888888888888888888888888888", 123),
 	).Return(&remoteexecution.Directory{
@@ -109,7 +109,7 @@ func TestNaiveBuildDirectoryInputRootNotInStorage(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	directoryFetcher := mock.NewMockDirectoryFetcher(ctrl)
-	directoryFetcher.EXPECT().GetDirectory(
+	directoryFetcher.EXPECT().Get(
 		ctx,
 		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42),
 	).Return(nil, status.Error(codes.Internal, "Storage is offline"))
@@ -130,7 +130,7 @@ func TestNaiveBuildDirectoryMissingInputDirectoryDigest(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	directoryFetcher := mock.NewMockDirectoryFetcher(ctrl)
-	directoryFetcher.EXPECT().GetDirectory(
+	directoryFetcher.EXPECT().Get(
 		ctx,
 		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42),
 	).Return(&remoteexecution.Directory{
@@ -144,7 +144,7 @@ func TestNaiveBuildDirectoryMissingInputDirectoryDigest(t *testing.T) {
 			},
 		},
 	}, nil)
-	directoryFetcher.EXPECT().GetDirectory(
+	directoryFetcher.EXPECT().Get(
 		ctx,
 		digest.MustNewDigest("netbsd", "8888888888888888888888888888888888888888888888888888888888888888", 123),
 	).Return(&remoteexecution.Directory{
@@ -175,7 +175,7 @@ func TestNaiveBuildDirectoryDirectoryCreationFailure(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	directoryFetcher := mock.NewMockDirectoryFetcher(ctrl)
-	directoryFetcher.EXPECT().GetDirectory(
+	directoryFetcher.EXPECT().Get(
 		ctx,
 		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42),
 	).Return(&remoteexecution.Directory{
@@ -189,7 +189,7 @@ func TestNaiveBuildDirectoryDirectoryCreationFailure(t *testing.T) {
 			},
 		},
 	}, nil)
-	directoryFetcher.EXPECT().GetDirectory(
+	directoryFetcher.EXPECT().Get(
 		ctx,
 		digest.MustNewDigest("netbsd", "8888888888888888888888888888888888888888888888888888888888888888", 123),
 	).Return(&remoteexecution.Directory{
@@ -225,7 +225,7 @@ func TestNaiveBuildDirectoryDirectoryEnterDirectoryFailure(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	directoryFetcher := mock.NewMockDirectoryFetcher(ctrl)
-	directoryFetcher.EXPECT().GetDirectory(
+	directoryFetcher.EXPECT().Get(
 		ctx,
 		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42),
 	).Return(&remoteexecution.Directory{
@@ -239,7 +239,7 @@ func TestNaiveBuildDirectoryDirectoryEnterDirectoryFailure(t *testing.T) {
 			},
 		},
 	}, nil)
-	directoryFetcher.EXPECT().GetDirectory(
+	directoryFetcher.EXPECT().Get(
 		ctx,
 		digest.MustNewDigest("netbsd", "8888888888888888888888888888888888888888888888888888888888888888", 123),
 	).Return(&remoteexecution.Directory{
@@ -276,7 +276,7 @@ func TestNaiveBuildDirectoryMissingInputFileDigest(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	directoryFetcher := mock.NewMockDirectoryFetcher(ctrl)
-	directoryFetcher.EXPECT().GetDirectory(
+	directoryFetcher.EXPECT().Get(
 		ctx,
 		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42),
 	).Return(&remoteexecution.Directory{
@@ -290,7 +290,7 @@ func TestNaiveBuildDirectoryMissingInputFileDigest(t *testing.T) {
 			},
 		},
 	}, nil)
-	directoryFetcher.EXPECT().GetDirectory(
+	directoryFetcher.EXPECT().Get(
 		ctx,
 		digest.MustNewDigest("netbsd", "8888888888888888888888888888888888888888888888888888888888888888", 123),
 	).Return(&remoteexecution.Directory{
@@ -321,7 +321,7 @@ func TestNaiveBuildDirectoryFileCreationFailure(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	directoryFetcher := mock.NewMockDirectoryFetcher(ctrl)
-	directoryFetcher.EXPECT().GetDirectory(
+	directoryFetcher.EXPECT().Get(
 		ctx,
 		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42),
 	).Return(&remoteexecution.Directory{
@@ -335,7 +335,7 @@ func TestNaiveBuildDirectoryFileCreationFailure(t *testing.T) {
 			},
 		},
 	}, nil)
-	directoryFetcher.EXPECT().GetDirectory(
+	directoryFetcher.EXPECT().Get(
 		ctx,
 		digest.MustNewDigest("netbsd", "8888888888888888888888888888888888888888888888888888888888888888", 123),
 	).Return(&remoteexecution.Directory{
@@ -376,7 +376,7 @@ func TestNaiveBuildDirectorySymlinkCreationFailure(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	directoryFetcher := mock.NewMockDirectoryFetcher(ctrl)
-	directoryFetcher.EXPECT().GetDirectory(
+	directoryFetcher.EXPECT().Get(
 		ctx,
 		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42),
 	).Return(&remoteexecution.Directory{
@@ -390,7 +390,7 @@ func TestNaiveBuildDirectorySymlinkCreationFailure(t *testing.T) {
 			},
 		},
 	}, nil)
-	directoryFetcher.EXPECT().GetDirectory(
+	directoryFetcher.EXPECT().Get(
 		ctx,
 		digest.MustNewDigest("netbsd", "8888888888888888888888888888888888888888888888888888888888888888", 123),
 	).Return(&remoteexecution.Directory{
