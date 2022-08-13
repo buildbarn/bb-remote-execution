@@ -691,6 +691,33 @@ func TestSimpleRawFileSystemCreate(t *testing.T) {
 	})
 }
 
+func TestSimpleRawFileSystemOpenDir(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
+	removalNotifierRegistrar := mock.NewMockFUSERemovalNotifierRegistrar(ctrl)
+	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call)
+
+	t.Run("PermissionDenied", func(t *testing.T) {
+		// FUSE on Linux doesn't check permissions on the
+		// directory prior to opening. Do that on the caller's
+		// behalf.
+		rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskPermissions, gomock.Any()).DoAndReturn(
+			func(requested virtual.AttributesMask, out *virtual.Attributes) {
+				out.SetPermissions(virtual.PermissionsExecute)
+			})
+
+		require.Equal(t, go_fuse.EACCES, rfs.OpenDir(nil, &go_fuse.OpenIn{
+			InHeader: go_fuse.InHeader{
+				NodeId: go_fuse.FUSE_ROOT_ID,
+			},
+		}, &go_fuse.OpenOut{}))
+	})
+
+	// Further testing coverage is provided as part of ReadDir() and
+	// ReadDirPlus() tests.
+}
+
 func TestSimpleRawFileSystemReadDir(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
@@ -699,6 +726,11 @@ func TestSimpleRawFileSystemReadDir(t *testing.T) {
 	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call)
 
 	// Open the root directory.
+	rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskPermissions, gomock.Any()).DoAndReturn(
+		func(requested virtual.AttributesMask, out *virtual.Attributes) {
+			out.SetPermissions(virtual.PermissionsRead)
+		})
+
 	var openOut go_fuse.OpenOut
 	require.Equal(t, go_fuse.OK, rfs.OpenDir(nil, &go_fuse.OpenIn{
 		InHeader: go_fuse.InHeader{
@@ -920,6 +952,11 @@ func TestSimpleRawFileSystemReadDirPlus(t *testing.T) {
 	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call)
 
 	// Open the root directory.
+	rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskPermissions, gomock.Any()).DoAndReturn(
+		func(requested virtual.AttributesMask, out *virtual.Attributes) {
+			out.SetPermissions(virtual.PermissionsRead)
+		})
+
 	var openOut go_fuse.OpenOut
 	require.Equal(t, go_fuse.OK, rfs.OpenDir(nil, &go_fuse.OpenIn{
 		InHeader: go_fuse.InHeader{

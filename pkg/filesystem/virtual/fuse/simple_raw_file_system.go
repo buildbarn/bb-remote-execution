@@ -645,6 +645,19 @@ func (rfs *simpleRawFileSystem) Fallocate(cancel <-chan struct{}, input *fuse.Fa
 }
 
 func (rfs *simpleRawFileSystem) OpenDir(cancel <-chan struct{}, input *fuse.OpenIn, out *fuse.OpenOut) fuse.Status {
+	rfs.nodeLock.RLock()
+	i := rfs.getDirectoryLocked(input.NodeId)
+	rfs.nodeLock.RUnlock()
+
+	var attributes virtual.Attributes
+	i.VirtualGetAttributes(virtual.AttributesMaskPermissions, &attributes)
+	permissions, ok := attributes.GetPermissions()
+	if !ok {
+		panic("Node did not return permissions attribute, even though it was requested")
+	}
+	if permissions&virtual.PermissionsRead == 0 {
+		return fuse.EACCES
+	}
 	return fuse.OK
 }
 
