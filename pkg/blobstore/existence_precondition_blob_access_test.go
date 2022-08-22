@@ -83,6 +83,43 @@ func TestExistencePreconditionBlobAccessGetNotFound(t *testing.T) {
 	testutil.RequireEqualStatus(t, wantErr.Err(), gotErr)
 }
 
+func TestExistencePreconditionBlobAccessGetFromCompositeNotFound(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+
+	// Let GetFromComposite() return NotFound.
+	bottomBlobAccess := mock.NewMockBlobAccess(ctrl)
+	blobSlicer := mock.NewMockBlobSlicer(ctrl)
+	bottomBlobAccess.EXPECT().GetFromComposite(
+		ctx,
+		digest.MustNewDigest("ubuntu1604", "c015ad6ddaf8bb50689d2d7cbf1539dff6dd84473582a08ed1d15d841f4254f4", 7),
+		digest.MustNewDigest("ubuntu1604", "f91881078baff10d91f796347efa85304240db6a162d46edcdd56154e91e1d8a", 3),
+		blobSlicer,
+	).Return(buffer.NewBufferFromError(status.Error(codes.NotFound, "Blob doesn't exist!")))
+
+	// The error should be translated to FailedPrecondition. The
+	// digest of the parent is the one that should be attached to
+	// the error, as that's the one that needs to be reuploaded to
+	// satisfy the request.
+	_, gotErr := blobstore.NewExistencePreconditionBlobAccess(bottomBlobAccess).GetFromComposite(
+		ctx,
+		digest.MustNewDigest("ubuntu1604", "c015ad6ddaf8bb50689d2d7cbf1539dff6dd84473582a08ed1d15d841f4254f4", 7),
+		digest.MustNewDigest("ubuntu1604", "f91881078baff10d91f796347efa85304240db6a162d46edcdd56154e91e1d8a", 3),
+		blobSlicer,
+	).ToByteSlice(100)
+
+	wantErr, err := status.New(codes.FailedPrecondition, "Blob doesn't exist!").WithDetails(&errdetails.PreconditionFailure{
+		Violations: []*errdetails.PreconditionFailure_Violation{
+			{
+				Type:    "MISSING",
+				Subject: "blobs/c015ad6ddaf8bb50689d2d7cbf1539dff6dd84473582a08ed1d15d841f4254f4/7",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	testutil.RequireEqualStatus(t, wantErr.Err(), gotErr)
+}
+
 func TestExistencePreconditionBlobAccessPutNotFound(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 

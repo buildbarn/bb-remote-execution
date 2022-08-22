@@ -6,6 +6,7 @@ import (
 
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
+	"github.com/buildbarn/bb-storage/pkg/blobstore/slicing"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
@@ -31,6 +32,12 @@ func (ba *existencePreconditionBlobAccess) Get(ctx context.Context, digest diges
 	return buffer.WithErrorHandler(
 		ba.BlobAccess.Get(ctx, digest),
 		existencePreconditionErrorHandler{digest: digest})
+}
+
+func (ba *existencePreconditionBlobAccess) GetFromComposite(ctx context.Context, parentDigest, childDigest digest.Digest, slicer slicing.BlobSlicer) buffer.Buffer {
+	return buffer.WithErrorHandler(
+		ba.BlobAccess.GetFromComposite(ctx, parentDigest, childDigest, slicer),
+		existencePreconditionErrorHandler{digest: parentDigest})
 }
 
 type existencePreconditionErrorHandler struct {

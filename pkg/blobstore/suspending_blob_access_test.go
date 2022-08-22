@@ -46,6 +46,29 @@ func TestSuspendingBlobAccess(t *testing.T) {
 		require.Equal(t, []byte("Hello"), data)
 	})
 
+	t.Run("GetFromComposite", func(t *testing.T) {
+		llDigest := digest.MustNewDigest("hello", "5b54c0a045f179bcbbbc9abcb8b5cd4c", 2)
+		blobSlicer := mock.NewMockBlobSlicer(ctrl)
+		r := mock.NewMockReadCloser(ctrl)
+		gomock.InOrder(
+			suspendable.EXPECT().Suspend(),
+			baseBlobAccess.EXPECT().GetFromComposite(ctx, exampleDigest, llDigest, blobSlicer).
+				Return(buffer.NewCASBufferFromReader(llDigest, r, buffer.UserProvided)))
+
+		b := blobAccess.GetFromComposite(ctx, exampleDigest, llDigest, blobSlicer)
+
+		gomock.InOrder(
+			r.EXPECT().Read(gomock.Any()).DoAndReturn(func(p []byte) (int, error) {
+				return copy(p, "ll"), io.EOF
+			}),
+			r.EXPECT().Close(),
+			suspendable.EXPECT().Resume())
+
+		data, err := b.ToByteSlice(1000)
+		require.NoError(t, err)
+		require.Equal(t, []byte("ll"), data)
+	})
+
 	t.Run("Put", func(t *testing.T) {
 		gomock.InOrder(
 			suspendable.EXPECT().Suspend(),

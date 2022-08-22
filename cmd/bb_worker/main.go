@@ -234,7 +234,7 @@ func main() {
 			if err := cacheDirectory.RemoveAllChildren(); err != nil {
 				log.Fatal("Failed to clear cache directory: ", err)
 			}
-			evictionSet, err := eviction.NewSetFromConfiguration(nativeConfiguration.CacheReplacementPolicy)
+			evictionSet, err := eviction.NewSetFromConfiguration[string](nativeConfiguration.CacheReplacementPolicy)
 			if err != nil {
 				log.Fatal("Failed to create eviction set for cache directory: ", err)
 			}

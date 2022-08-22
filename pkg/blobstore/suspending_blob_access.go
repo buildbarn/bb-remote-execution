@@ -6,6 +6,7 @@ import (
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
+	"github.com/buildbarn/bb-storage/pkg/blobstore/slicing"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 )
 
@@ -39,6 +40,13 @@ func (ba *suspendingBlobAccess) Get(ctx context.Context, digest digest.Digest) b
 	ba.suspendable.Suspend()
 	return buffer.WithErrorHandler(
 		ba.base.Get(ctx, digest),
+		&resumingErrorHandler{suspendable: ba.suspendable})
+}
+
+func (ba *suspendingBlobAccess) GetFromComposite(ctx context.Context, parentDigest, childDigest digest.Digest, slicer slicing.BlobSlicer) buffer.Buffer {
+	ba.suspendable.Suspend()
+	return buffer.WithErrorHandler(
+		ba.base.GetFromComposite(ctx, parentDigest, childDigest, slicer),
 		&resumingErrorHandler{suspendable: ba.suspendable})
 }
 

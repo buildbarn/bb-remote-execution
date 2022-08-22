@@ -25,7 +25,7 @@ type hardlinkingFileFetcher struct {
 	filesTotalSize int64
 
 	evictionLock sync.Mutex
-	evictionSet  eviction.Set
+	evictionSet  eviction.Set[string]
 }
 
 // NewHardlinkingFileFetcher is an adapter for FileFetcher that stores
@@ -33,7 +33,7 @@ type hardlinkingFileFetcher struct {
 // at the target location, they are hardlinked into the cache. Future
 // calls for the same file will hardlink them from the cache to the
 // target location. This reduces the amount of network traffic needed.
-func NewHardlinkingFileFetcher(base FileFetcher, cacheDirectory filesystem.Directory, maxFiles int, maxSize int64, evictionSet eviction.Set) FileFetcher {
+func NewHardlinkingFileFetcher(base FileFetcher, cacheDirectory filesystem.Directory, maxFiles int, maxSize int64, evictionSet eviction.Set[string]) FileFetcher {
 	return &hardlinkingFileFetcher{
 		base:           base,
 		cacheDirectory: cacheDirectory,

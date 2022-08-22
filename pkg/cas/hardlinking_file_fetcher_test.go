@@ -24,7 +24,7 @@ func TestHardlinkingFileFetcher(t *testing.T) {
 
 	baseFileFetcher := mock.NewMockFileFetcher(ctrl)
 	cacheDirectory := mock.NewMockDirectory(ctrl)
-	fileFetcher := cas.NewHardlinkingFileFetcher(baseFileFetcher, cacheDirectory, 1, 1024, eviction.NewLRUSet())
+	fileFetcher := cas.NewHardlinkingFileFetcher(baseFileFetcher, cacheDirectory, 1, 1024, eviction.NewLRUSet[string]())
 
 	blobDigest1 := digest.MustNewDigest("example", "8b1a9953c4611296a827abf8c47804d7", 5)
 	buildDirectory := mock.NewMockDirectory(ctrl)
