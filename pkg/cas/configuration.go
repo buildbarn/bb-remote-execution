@@ -6,23 +6,24 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/eviction"
 )
 
-// NewCachingFetcherFromConfiguration creates a new CachingFetcher based
-// on parameters provided in a configuration file.
-func NewCachingFetcherFromConfiguration[T any](configuration *pb.CachingFetcherConfiguration, base Fetcher[T], name string) (Fetcher[T], error) {
+// NewCachingDirectoryFetcherFromConfiguration creates a new
+// CachingDirectoryFetcher based on parameters provided in a
+// configuration file.
+func NewCachingDirectoryFetcherFromConfiguration(configuration *pb.CachingDirectoryFetcherConfiguration, base DirectoryFetcher) (DirectoryFetcher, error) {
 	if configuration == nil {
 		// No configuration provided. Disable in-memory caching.
 		return base, nil
 	}
 
-	evictionSet, err := eviction.NewSetFromConfiguration(configuration.CacheReplacementPolicy)
+	evictionSet, err := eviction.NewSetFromConfiguration[CachingDirectoryFetcherKey](configuration.CacheReplacementPolicy)
 	if err != nil {
 		return nil, err
 	}
-	return NewCachingFetcher(
+	return NewCachingDirectoryFetcher(
 		base,
 		digest.KeyWithoutInstance,
 		int(configuration.MaximumCount),
 		configuration.MaximumSizeBytes,
-		eviction.NewMetricsSet(evictionSet, name),
+		eviction.NewMetricsSet(evictionSet, "CachingDirectoryFetcher"),
 	), nil
 }

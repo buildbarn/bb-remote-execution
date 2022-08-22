@@ -24,7 +24,6 @@ go_library(
         "//pkg/proto/configuration/bb_worker",
         "//pkg/proto/remoteworker",
         "//pkg/proto/runner",
-        "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:execution",
         "@com_github_buildbarn_bb_storage//pkg/blobstore",
         "@com_github_buildbarn_bb_storage//pkg/blobstore/configuration",
         "@com_github_buildbarn_bb_storage//pkg/clock",

@@ -85,6 +85,7 @@ gomock(
     name = "cas",
     out = "cas.go",
     interfaces = [
+        "CachingDirectoryFetcherEvictionSet",
         "DirectoryFetcher",
         "DirectoryWalker",
         "FileFetcher",

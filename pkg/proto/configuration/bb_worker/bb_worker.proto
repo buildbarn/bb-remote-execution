@@ -77,7 +77,8 @@ message ApplicationConfiguration {
   // If set, cache REv2 Directory objects in memory. These objects need
   // to be loaded from the Content Addressable Storage when populating
   // input roots.
-  buildbarn.configuration.cas.CachingFetcherConfiguration directory_cache = 25;
+  buildbarn.configuration.cas.CachingDirectoryFetcherConfiguration
+      directory_cache = 25;
 }
 
 message BuildDirectoryConfiguration {

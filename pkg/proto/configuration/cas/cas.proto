@@ -6,13 +6,13 @@ import "pkg/proto/configuration/eviction/eviction.proto";
 
 option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/cas";
 
-message CachingFetcherConfiguration {
-  // Maximum number of objects to keep in memory.
+message CachingDirectoryFetcherConfiguration {
+  // Maximum number of REv2 Directory objects to keep in memory.
   int64 maximum_count = 1;
 
-  // Maximum combined size in bytes of the objects. The size encoded in
-  // the digest is used; not the size of the in-memory representation of
-  // the object.
+  // Maximum combined size in bytes of the REv2 Directory objects. The
+  // size encoded in the digest is used; not the size of the in-memory
+  // representation of the object.
   //
   // As a starting point, set this field to the value of maximum_count,
   // multiplied by the expected average object size. REv2 Directory

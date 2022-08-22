@@ -73,7 +73,7 @@ func (d *naiveBuildDirectory) InstallHooks(filePool re_filesystem.FilePool, erro
 
 func (d *naiveBuildDirectory) mergeDirectoryContents(ctx context.Context, digest digest.Digest, inputDirectory filesystem.Directory, pathTrace *path.Trace) error {
 	// Obtain directory.
-	directory, err := d.directoryFetcher.Get(ctx, digest)
+	directory, err := d.directoryFetcher.GetDirectory(ctx, digest)
 	if err != nil {
 		return util.StatusWrapf(err, "Failed to obtain input directory %#v", pathTrace.String())
 	}

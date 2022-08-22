@@ -13,7 +13,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	re_blobstore "github.com/buildbarn/bb-remote-execution/pkg/blobstore"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
 	"github.com/buildbarn/bb-remote-execution/pkg/cas"
@@ -95,12 +94,11 @@ func main() {
 	// Cached read access for directory objects stored in the
 	// Content Addressable Storage. All workers make use of the same
 	// cache, to increase the hit rate.
-	directoryFetcher, err := cas.NewCachingFetcherFromConfiguration[remoteexecution.Directory](
+	directoryFetcher, err := cas.NewCachingDirectoryFetcherFromConfiguration(
 		configuration.DirectoryCache,
 		cas.NewBlobAccessDirectoryFetcher(
 			globalContentAddressableStorage,
-			int(configuration.MaximumMessageSizeBytes)),
-		"CachingDirectoryFetcher")
+			int(configuration.MaximumMessageSizeBytes)))
 	if err != nil {
 		log.Fatal("Failed to create caching directory fetcher: ", err)
 	}
