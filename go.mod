@@ -11,12 +11,12 @@ replace github.com/gordonklaus/ineffassign => github.com/gordonklaus/ineffassign
 replace mvdan.cc/gofumpt => mvdan.cc/gofumpt v0.2.1
 
 require (
-	github.com/aws/aws-sdk-go-v2 v1.16.11
-	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.23.10
-	github.com/aws/aws-sdk-go-v2/service/sqs v1.19.4
-	github.com/aws/smithy-go v1.12.1
+	github.com/aws/aws-sdk-go-v2 v1.16.13
+	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.23.13
+	github.com/aws/aws-sdk-go-v2/service/sqs v1.19.7
+	github.com/aws/smithy-go v1.13.1
 	github.com/bazelbuild/remote-apis v0.0.0-20220727181745-aa29b91f336b
-	github.com/buildbarn/bb-storage v0.0.0-20220822190643-c185ce695d76
+	github.com/buildbarn/bb-storage v0.0.0-20220831181722-b7b9358c3da8
 	github.com/buildbarn/go-xdr v0.0.0-20220804060714-a6fffae29b77
 	github.com/golang/protobuf v1.5.2
 	github.com/google/uuid v1.3.0
@@ -28,9 +28,9 @@ require (
 	go.opentelemetry.io/otel v1.9.0
 	go.opentelemetry.io/otel/trace v1.9.0
 	golang.org/x/sync v0.0.0-20220819030929-7fc1605a5dde
-	golang.org/x/sys v0.0.0-20220818161305-2296e01440c6
-	google.golang.org/genproto v0.0.0-20220822174746-9e6da59bd2fc
-	google.golang.org/grpc v1.48.0
+	golang.org/x/sys v0.0.0-20220829200755-d48e67d00261
+	google.golang.org/genproto v0.0.0-20220829175752-36a9c930ecbf
+	google.golang.org/grpc v1.49.0
 	google.golang.org/protobuf v1.28.1
 )
 
@@ -40,8 +40,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.15.15 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.12.10 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.12.9 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.18 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.12 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.20 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.14 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.3.16 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.0.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.9.3 // indirect
