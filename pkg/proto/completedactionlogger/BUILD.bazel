@@ -7,7 +7,7 @@ proto_library(
     srcs = ["completed_action_logger.proto"],
     visibility = ["//visibility:public"],
     deps = [
-        "@com_github_buildbarn_bb_storage//pkg/proto/cas:cas_proto",
+        "//pkg/proto/cas:cas_proto",
         "@com_google_protobuf//:empty_proto",
     ],
 )
@@ -18,7 +18,7 @@ go_proto_library(
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/proto/completedactionlogger",
     proto = ":completedactionlogger_proto",
     visibility = ["//visibility:public"],
-    deps = ["@com_github_buildbarn_bb_storage//pkg/proto/cas"],
+    deps = ["//pkg/proto/cas"],
 )
 
 go_library(

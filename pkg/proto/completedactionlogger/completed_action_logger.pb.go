@@ -8,7 +8,7 @@ package completedactionlogger
 
 import (
 	context "context"
-	cas "github.com/buildbarn/bb-storage/pkg/proto/cas"
+	cas "github.com/buildbarn/bb-remote-execution/pkg/proto/cas"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
