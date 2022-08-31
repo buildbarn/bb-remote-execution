@@ -102,6 +102,11 @@ func (be *localBuildExecutor) createCharacterDevices(inputRootDirectory BuildDir
 	return nil
 }
 
+func (be *localBuildExecutor) CheckReadiness(ctx context.Context) error {
+	_, err := be.runner.CheckReadiness(ctx, &emptypb.Empty{})
+	return err
+}
+
 func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, instanceName digest.InstanceName, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 	// Timeout handling.
 	response := NewDefaultExecuteResponse(request)

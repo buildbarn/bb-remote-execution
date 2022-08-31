@@ -14,7 +14,7 @@ import (
 type StorageFlusher func(context.Context) error
 
 type storageFlushingBuildExecutor struct {
-	base  BuildExecutor
+	BuildExecutor
 	flush StorageFlusher
 }
 
@@ -25,13 +25,13 @@ type storageFlushingBuildExecutor struct {
 // completion of the operation.
 func NewStorageFlushingBuildExecutor(base BuildExecutor, flush StorageFlusher) BuildExecutor {
 	return &storageFlushingBuildExecutor{
-		base:  base,
-		flush: flush,
+		BuildExecutor: base,
+		flush:         flush,
 	}
 }
 
 func (be *storageFlushingBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, instanceName digest.InstanceName, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
-	response := be.base.Execute(ctx, filePool, instanceName, request, executionStateUpdates)
+	response := be.BuildExecutor.Execute(ctx, filePool, instanceName, request, executionStateUpdates)
 	if err := be.flush(ctx); err != nil {
 		attachErrorToExecuteResponse(response, err)
 

@@ -207,7 +207,7 @@ var (
 )
 
 type metricsBuildExecutor struct {
-	buildExecutor BuildExecutor
+	BuildExecutor
 }
 
 // NewMetricsBuildExecutor creates a decorator for BuildExecutor that
@@ -240,7 +240,7 @@ func NewMetricsBuildExecutor(buildExecutor BuildExecutor) BuildExecutor {
 	})
 
 	return &metricsBuildExecutor{
-		buildExecutor: buildExecutor,
+		BuildExecutor: buildExecutor,
 	}
 }
 
@@ -259,7 +259,7 @@ func observeTimestampDelta(histogram prometheus.Observer, pbStart, pbCompleted *
 }
 
 func (be *metricsBuildExecutor) Execute(ctx context.Context, filePool filesystem.FilePool, instanceName digest.InstanceName, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
-	response := be.buildExecutor.Execute(ctx, filePool, instanceName, request, executionStateUpdates)
+	response := be.BuildExecutor.Execute(ctx, filePool, instanceName, request, executionStateUpdates)
 	result, grpcCode := GetResultAndGRPCCodeFromExecuteResponse(response)
 
 	// Expose metrics for timestamps stored in ExecutedActionMetadata.

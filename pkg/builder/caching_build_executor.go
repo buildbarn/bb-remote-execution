@@ -19,7 +19,7 @@ import (
 )
 
 type cachingBuildExecutor struct {
-	base                      BuildExecutor
+	BuildExecutor
 	contentAddressableStorage blobstore.BlobAccess
 	actionCache               blobstore.BlobAccess
 	browserURL                *url.URL
@@ -34,7 +34,7 @@ type cachingBuildExecutor struct {
 // so that the user may inspect the Action and ActionResult in detail.
 func NewCachingBuildExecutor(base BuildExecutor, contentAddressableStorage, actionCache blobstore.BlobAccess, browserURL *url.URL) BuildExecutor {
 	return &cachingBuildExecutor{
-		base:                      base,
+		BuildExecutor:             base,
 		contentAddressableStorage: contentAddressableStorage,
 		actionCache:               actionCache,
 		browserURL:                browserURL,
@@ -42,7 +42,7 @@ func NewCachingBuildExecutor(base BuildExecutor, contentAddressableStorage, acti
 }
 
 func (be *cachingBuildExecutor) Execute(ctx context.Context, filePool filesystem.FilePool, instanceName digest.InstanceName, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
-	response := be.base.Execute(ctx, filePool, instanceName, request, executionStateUpdates)
+	response := be.BuildExecutor.Execute(ctx, filePool, instanceName, request, executionStateUpdates)
 	if actionDigest, err := instanceName.NewDigestFromProto(request.ActionDigest); err != nil {
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to extract digest for action"))
 	} else if action := request.Action; action == nil {

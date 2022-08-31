@@ -13,8 +13,8 @@ import (
 )
 
 type tracingBuildExecutor struct {
-	buildExecutor BuildExecutor
-	tracer        trace.Tracer
+	BuildExecutor
+	tracer trace.Tracer
 }
 
 // NewTracingBuildExecutor is a decorator for BuildExecutor that creates
@@ -23,7 +23,7 @@ type tracingBuildExecutor struct {
 // indicates which state is entered.
 func NewTracingBuildExecutor(buildExecutor BuildExecutor, tracerProvider trace.TracerProvider) BuildExecutor {
 	return &tracingBuildExecutor{
-		buildExecutor: buildExecutor,
+		BuildExecutor: buildExecutor,
 		tracer:        tracerProvider.Tracer("github.com/buildbarn/bb-remote-execution/pkg/builder"),
 	}
 }
@@ -43,7 +43,7 @@ func (be *tracingBuildExecutor) Execute(ctx context.Context, filePool re_filesys
 	baseUpdates := make(chan *remoteworker.CurrentState_Executing)
 	baseCompletion := make(chan *remoteexecution.ExecuteResponse)
 	go func() {
-		baseCompletion <- be.buildExecutor.Execute(ctxWithTracing, filePool, instanceName, request, baseUpdates)
+		baseCompletion <- be.BuildExecutor.Execute(ctxWithTracing, filePool, instanceName, request, baseUpdates)
 	}()
 
 	for {

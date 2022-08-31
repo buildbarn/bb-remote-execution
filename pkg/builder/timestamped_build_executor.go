@@ -15,9 +15,9 @@ import (
 )
 
 type timestampedBuildExecutor struct {
-	buildExecutor BuildExecutor
-	clock         clock.Clock
-	workerName    string
+	BuildExecutor
+	clock      clock.Clock
+	workerName string
 }
 
 // NewTimestampedBuildExecutor creates a decorator for BuildExecutor
@@ -27,7 +27,7 @@ type timestampedBuildExecutor struct {
 // timing information.
 func NewTimestampedBuildExecutor(buildExecutor BuildExecutor, clock clock.Clock, workerName string) BuildExecutor {
 	return &timestampedBuildExecutor{
-		buildExecutor: buildExecutor,
+		BuildExecutor: buildExecutor,
 		clock:         clock,
 		workerName:    workerName,
 	}
@@ -49,7 +49,7 @@ func (be *timestampedBuildExecutor) Execute(ctx context.Context, filePool re_fil
 	baseUpdates := make(chan *remoteworker.CurrentState_Executing)
 	baseCompletion := make(chan *remoteexecution.ExecuteResponse)
 	go func() {
-		baseCompletion <- be.buildExecutor.Execute(ctx, filePool, instanceName, request, baseUpdates)
+		baseCompletion <- be.BuildExecutor.Execute(ctx, filePool, instanceName, request, baseUpdates)
 	}()
 
 	var completedTimestamp **timestamppb.Timestamp

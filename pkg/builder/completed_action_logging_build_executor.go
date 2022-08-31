@@ -14,7 +14,7 @@ import (
 )
 
 type completedActionLoggingBuildExecutor struct {
-	base                BuildExecutor
+	BuildExecutor
 	uuidGenerator       util.UUIDGenerator
 	logger              CompletedActionLogger
 	instanceNamePatcher digest.InstanceNamePatcher
@@ -26,7 +26,7 @@ type completedActionLoggingBuildExecutor struct {
 // using a CompletedActionLogger.
 func NewCompletedActionLoggingBuildExecutor(base BuildExecutor, uuidGenerator util.UUIDGenerator, logger CompletedActionLogger, instanceNamePatcher digest.InstanceNamePatcher) BuildExecutor {
 	return &completedActionLoggingBuildExecutor{
-		base:                base,
+		BuildExecutor:       base,
 		uuidGenerator:       uuidGenerator,
 		logger:              logger,
 		instanceNamePatcher: instanceNamePatcher,
@@ -34,7 +34,7 @@ func NewCompletedActionLoggingBuildExecutor(base BuildExecutor, uuidGenerator ut
 }
 
 func (be *completedActionLoggingBuildExecutor) Execute(ctx context.Context, filePool filesystem.FilePool, instanceName digest.InstanceName, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
-	response := be.base.Execute(ctx, filePool, instanceName, request, executionStateUpdates)
+	response := be.BuildExecutor.Execute(ctx, filePool, instanceName, request, executionStateUpdates)
 
 	completedAction := &cal_proto.CompletedAction{
 		HistoricalExecuteResponse: &cas_proto.HistoricalExecuteResponse{

@@ -15,7 +15,7 @@ import (
 )
 
 type loggingBuildExecutor struct {
-	base       BuildExecutor
+	BuildExecutor
 	browserURL *url.URL
 }
 
@@ -25,8 +25,8 @@ type loggingBuildExecutor struct {
 // completion.
 func NewLoggingBuildExecutor(base BuildExecutor, browserURL *url.URL) BuildExecutor {
 	return &loggingBuildExecutor{
-		base:       base,
-		browserURL: browserURL,
+		BuildExecutor: base,
+		browserURL:    browserURL,
 	}
 }
 
@@ -38,7 +38,7 @@ func (be *loggingBuildExecutor) Execute(ctx context.Context, filePool re_filesys
 		log.Print("Action: Failed to extract digest: ", err)
 	}
 
-	response := be.base.Execute(ctx, filePool, instanceName, request, executionStateUpdates)
+	response := be.BuildExecutor.Execute(ctx, filePool, instanceName, request, executionStateUpdates)
 
 	// Print execution response to log.
 	if responseJSON, err := protojson.Marshal(response); err == nil {

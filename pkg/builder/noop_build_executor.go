@@ -32,6 +32,10 @@ func NewNoopBuildExecutor(browserURL *url.URL) BuildExecutor {
 	}
 }
 
+func (be *noopBuildExecutor) CheckReadiness(ctx context.Context) error {
+	return nil
+}
+
 func (be *noopBuildExecutor) Execute(ctx context.Context, filePool filesystem.FilePool, instanceName digest.InstanceName, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 	response := NewDefaultExecuteResponse(request)
 	if actionDigest, err := instanceName.NewDigestFromProto(request.ActionDigest); err != nil {

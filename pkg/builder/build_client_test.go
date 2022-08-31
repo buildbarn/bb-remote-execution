@@ -37,12 +37,10 @@ func TestBuildClient(t *testing.T) {
 	}
 	bc := builder.NewBuildClient(operationQueueClient, buildExecutor, filePool, clock, workerID, digest.MustNewInstanceName("prefix"), platform, 4)
 
-	// By default, the client should not be in the executing state.
-	require.False(t, bc.InExecutingState())
-
 	// If synchronizing against the scheduler doesn't yield any
 	// action to run, the client should remain in the idle state.
-	operationQueueClient.EXPECT().Synchronize(context.Background(), &remoteworker.SynchronizeRequest{
+	buildExecutor.EXPECT().CheckReadiness(context.Background())
+	operationQueueClient.EXPECT().Synchronize(context.Background(), testutil.EqProto(t, &remoteworker.SynchronizeRequest{
 		WorkerId:           workerID,
 		InstanceNamePrefix: "prefix",
 		Platform:           platform,
@@ -52,14 +50,14 @@ func TestBuildClient(t *testing.T) {
 				Idle: &emptypb.Empty{},
 			},
 		},
-	}).Return(&remoteworker.SynchronizeResponse{
+	})).Return(&remoteworker.SynchronizeResponse{
 		NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1010},
 	}, nil)
 	require.NoError(t, bc.Run())
-	require.False(t, bc.InExecutingState())
 
 	// Let the scheduler return an action to execute. This should
 	// cause a call against the BuildExecutor.
+	buildExecutor.EXPECT().CheckReadiness(context.Background())
 	desiredStateExecuting1 := &remoteworker.DesiredState_Executing{
 		ActionDigest: &remoteexecution.Digest{
 			Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
@@ -74,7 +72,7 @@ func TestBuildClient(t *testing.T) {
 		QueuedTimestamp:    &timestamppb.Timestamp{Seconds: 1007},
 		InstanceNameSuffix: "suffix",
 	}
-	operationQueueClient.EXPECT().Synchronize(context.Background(), &remoteworker.SynchronizeRequest{
+	operationQueueClient.EXPECT().Synchronize(context.Background(), testutil.EqProto(t, &remoteworker.SynchronizeRequest{
 		WorkerId:           workerID,
 		InstanceNamePrefix: "prefix",
 		Platform:           platform,
@@ -84,7 +82,7 @@ func TestBuildClient(t *testing.T) {
 				Idle: &emptypb.Empty{},
 			},
 		},
-	}).Return(&remoteworker.SynchronizeResponse{
+	})).Return(&remoteworker.SynchronizeResponse{
 		NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1020},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Executing_{
@@ -102,7 +100,6 @@ func TestBuildClient(t *testing.T) {
 		Result: &remoteexecution.ActionResult{},
 	})
 	require.NoError(t, bc.Run())
-	require.True(t, bc.InExecutingState())
 
 	// Synchronize against the scheduler to report the successful
 	// completion of the action. This should cause the scheduler to
@@ -125,7 +122,7 @@ func TestBuildClient(t *testing.T) {
 	timer1 := mock.NewMockTimer(ctrl)
 	clock.EXPECT().NewTimer(5*time.Second).Return(timer1, nil)
 	timer1.EXPECT().Stop().Return(true)
-	operationQueueClient.EXPECT().Synchronize(context.Background(), &remoteworker.SynchronizeRequest{
+	operationQueueClient.EXPECT().Synchronize(context.Background(), testutil.EqProto(t, &remoteworker.SynchronizeRequest{
 		WorkerId:           workerID,
 		InstanceNamePrefix: "prefix",
 		Platform:           platform,
@@ -145,7 +142,7 @@ func TestBuildClient(t *testing.T) {
 				},
 			},
 		},
-	}).Return(&remoteworker.SynchronizeResponse{
+	})).Return(&remoteworker.SynchronizeResponse{
 		NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1025},
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Executing_{
@@ -163,7 +160,6 @@ func TestBuildClient(t *testing.T) {
 		Status: status.New(codes.Internal, "Failed to contact runner").Proto(),
 	})
 	require.NoError(t, bc.Run())
-	require.True(t, bc.InExecutingState())
 
 	// Also synchronize to report the outcome of the second action.
 	// Unlike the first one, it failed catastrophically. This should
@@ -205,5 +201,29 @@ func TestBuildClient(t *testing.T) {
 		},
 	}, nil)
 	require.NoError(t, bc.Run())
-	require.False(t, bc.InExecutingState())
+
+	// Because we've transitioned back to idle, the next run can
+	// once again do a readiness check. As long as it fails, no
+	// synchronizations should be attempted.
+	buildExecutor.EXPECT().CheckReadiness(context.Background()).
+		Return(status.Error(codes.Internal, "Still cannot contact runner"))
+	testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Worker failed readiness check: Still cannot contact runner"), bc.Run())
+
+	// As soon as the readiness check starts to succeed, we should
+	// do additional synchronizations.
+	buildExecutor.EXPECT().CheckReadiness(context.Background())
+	operationQueueClient.EXPECT().Synchronize(context.Background(), testutil.EqProto(t, &remoteworker.SynchronizeRequest{
+		WorkerId:           workerID,
+		InstanceNamePrefix: "prefix",
+		Platform:           platform,
+		SizeClass:          4,
+		CurrentState: &remoteworker.CurrentState{
+			WorkerState: &remoteworker.CurrentState_Idle{
+				Idle: &emptypb.Empty{},
+			},
+		},
+	})).Return(&remoteworker.SynchronizeResponse{
+		NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1065},
+	}, nil)
+	require.NoError(t, bc.Run())
 }

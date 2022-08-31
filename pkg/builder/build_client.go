@@ -165,6 +165,15 @@ func (bc *BuildClient) consumeExecutionUpdatesNonBlocking() {
 // Run a iteration of the Remote Worker client, by performing a single
 // synchronization against the scheduler.
 func (bc *BuildClient) Run() error {
+	// If the scheduler isn't assuming we're executing any action
+	// right now, perform some readiness checks. This ensures we
+	// don't dequeue actions from the scheduler while unhealthy.
+	if !bc.inExecutingState {
+		if err := bc.buildExecutor.CheckReadiness(context.Background()); err != nil {
+			return util.StatusWrap(err, "Worker failed readiness check")
+		}
+	}
+
 	// When executing an action, see if there are any updates on the
 	// execution state.
 	if bc.executionCancellation != nil {
@@ -216,15 +225,4 @@ func (bc *BuildClient) Run() error {
 		}
 	}
 	return nil
-}
-
-// InExecutingState returns true if the worker is executing an action,
-// or still needs to successfully synchronize against the scheduler to
-// communicate the completion of an action.
-//
-// If this function returns false, it is safe for the worker to stop
-// synchronizing against the scheduler without causing any operations to
-// fail.
-func (bc *BuildClient) InExecutingState() bool {
-	return bc.inExecutingState
 }

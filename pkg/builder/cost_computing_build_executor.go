@@ -15,7 +15,7 @@ import (
 )
 
 type costComputingBuildExecutor struct {
-	base             BuildExecutor
+	BuildExecutor
 	pricingPerSecond map[string]*resourceusage.MonetaryResourceUsage_Expense
 }
 
@@ -25,13 +25,13 @@ type costComputingBuildExecutor struct {
 // by the amount of seconds that it took for a worker to complete the Action.
 func NewCostComputingBuildExecutor(base BuildExecutor, expensesPerSecond map[string]*resourceusage.MonetaryResourceUsage_Expense) BuildExecutor {
 	return &costComputingBuildExecutor{
-		base:             base,
+		BuildExecutor:    base,
 		pricingPerSecond: expensesPerSecond,
 	}
 }
 
 func (be *costComputingBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, instanceName digest.InstanceName, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
-	response := be.base.Execute(ctx, filePool, instanceName, request, executionStateUpdates)
+	response := be.BuildExecutor.Execute(ctx, filePool, instanceName, request, executionStateUpdates)
 
 	totalTime := response.Result.ExecutionMetadata.WorkerCompletedTimestamp.AsTime().Sub(response.Result.ExecutionMetadata.WorkerStartTimestamp.AsTime()).Seconds()
 	costsPerSecond := resourceusage.MonetaryResourceUsage{

@@ -38,7 +38,6 @@ import (
 
 	"golang.org/x/sync/semaphore"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/protobuf/types/known/emptypb"
 
 	"go.opentelemetry.io/otel"
 )
@@ -423,17 +422,6 @@ func main() {
 					// interrupting work.
 					generator := random.NewFastSingleThreadedGenerator()
 					for {
-						if !buildClient.InExecutingState() {
-							for {
-								_, err := runnerClient.CheckReadiness(context.Background(), &emptypb.Empty{})
-								if err == nil {
-									break
-								}
-								log.Printf("Runner for worker %s is not ready: %s", workerName, err)
-								time.Sleep(random.Duration(generator, 5*time.Second))
-							}
-						}
-
 						if err := buildClient.Run(); err != nil {
 							log.Printf("Worker %s: %s", workerName, err)
 							time.Sleep(random.Duration(generator, 5*time.Second))
