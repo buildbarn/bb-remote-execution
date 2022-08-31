@@ -3,17 +3,6 @@ workspace(name = "com_github_buildbarn_bb_remote_execution")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 http_archive(
-    name = "bazel_gomock",
-    patches = [
-        "//:patches/bazel_gomock/tags-manual.diff",
-        "@com_github_buildbarn_bb_storage//:patches/bazel_gomock/upstream-pr-50.diff",
-    ],
-    sha256 = "4baf3389ca48c30d8b072a027923c91c45915ab8061e39e7a0c62706332e096e",
-    strip_prefix = "bazel_gomock-1.2",
-    urls = ["https://github.com/jmhodges/bazel_gomock/archive/v1.2.tar.gz"],
-)
-
-http_archive(
     name = "io_bazel_rules_docker",
     sha256 = "59d5b42ac315e7eadffa944e86e90c2990110a1c8075f1cd145f487e999d22b3",
     strip_prefix = "rules_docker-0.17.0",
@@ -22,6 +11,7 @@ http_archive(
 
 http_archive(
     name = "io_bazel_rules_go",
+    patches = ["//:patches/io_bazel_rules_go/tags-manual.diff"],
     sha256 = "16e9fca53ed6bd4ff4ad76facc9b7b651a89db1689a2877d6fd7b82aa824e366",
     urls = [
         "https://mirror.bazel.build/github.com/bazelbuild/rules_go/releases/download/v0.34.0/rules_go-v0.34.0.zip",

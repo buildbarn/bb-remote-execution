@@ -1,8 +1,8 @@
-diff --git gomock.bzl gomock.bzl
-index 5f55e87..c3019de 100644
---- gomock.bzl
-+++ gomock.bzl
-@@ -150,12 +150,14 @@ def _gomock_reflect(name, library, out, mockgen_tool, **kwargs):
+diff --git extras/gomock.bzl extras/gomock.bzl
+index 7e960eae..47799dfb 100644
+--- extras/gomock.bzl
++++ extras/gomock.bzl
+@@ -215,12 +215,14 @@ def _gomock_reflect(name, library, out, mockgen_tool, **kwargs):
          library = library,
          out = prog_src_out,
          mockgen_tool = mockgen_tool,
