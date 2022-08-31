@@ -117,8 +117,8 @@ func (bc *BuildClient) startExecution(executionRequest *remoteworker.DesiredStat
 }
 
 func (bc *BuildClient) stopExecution() {
-	// Triger cancellation of the existing build action and wait for
-	// it to complete. Discard the results.
+	// Trigger cancellation of the existing build action and wait
+	// for it to complete. Discard the results.
 	if bc.executionCancellation != nil {
 		bc.executionCancellation()
 		for {
