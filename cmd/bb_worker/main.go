@@ -375,6 +375,10 @@ func main() {
 						buildExecutor = builder.NewCostComputingBuildExecutor(buildExecutor, runnerConfiguration.CostsPerSecond)
 					}
 
+					if maximumConsecutiveFailures := runnerConfiguration.MaximumConsecutiveTestInfrastructureFailures; maximumConsecutiveFailures > 0 {
+						buildExecutor = builder.NewTestInfrastructureFailureDetectingBuildExecutor(buildExecutor, maximumConsecutiveFailures)
+					}
+
 					buildExecutor = builder.NewCachingBuildExecutor(
 						buildExecutor,
 						globalContentAddressableStorage,

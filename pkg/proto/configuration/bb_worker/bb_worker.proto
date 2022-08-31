@@ -252,6 +252,25 @@ message RunnerConfiguration {
   // --action_env, however, has limited scope that makes it not useful
   // in some scenarios: https://github.com/bazelbuild/bazel/issues/3320
   map<string, string> environment_variables = 11;
+
+  // If set to a positive value, only allow up to a maximum number of
+  // consecutively executed actions to report an infrastructure failure.
+  // Once reached, the worker will stop synchronizing against the
+  // scheduler.
+  //
+  // Test actions executed by Bazel may report infrastructure failures
+  // by creating the output file referenced by the
+  // TEST_INFRASTRUCTURE_FAILURE_FILE environment variable. Setting this
+  // configuration option causes bb_worker to count the number of
+  // consecutive actions that create this file.
+  //
+  // Note that any action that does not create this output file causes
+  // the counter to be reset to zero. This means that this option is
+  // only usable on workers that exclusively receive actions running
+  // Bazel test actions (i.e., ones running the "test-setup.sh" script).
+  // You may need to implement a custom ActionRouter for bb_scheduler to
+  // enforce this.
+  uint32 maximum_consecutive_test_infrastructure_failures = 14;
 }
 
 message CompletedActionLoggingConfiguration {
