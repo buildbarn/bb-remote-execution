@@ -16,7 +16,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.19.7
 	github.com/aws/smithy-go v1.13.1
 	github.com/bazelbuild/remote-apis v0.0.0-20220727181745-aa29b91f336b
-	github.com/buildbarn/bb-storage v0.0.0-20220831181722-b7b9358c3da8
+	github.com/buildbarn/bb-storage v0.0.0-20220831202219-a9af534e3929
 	github.com/buildbarn/go-xdr v0.0.0-20220804060714-a6fffae29b77
 	github.com/golang/protobuf v1.5.2
 	github.com/google/uuid v1.3.0
