@@ -76,4 +76,19 @@ message ApplicationConfiguration {
   // It is only safe to enable this option when this runner executes
   // only up to a single command concurrently.
   repeated string symlink_temporary_directories = 12;
+
+  // Run a clean command with arguments. This option allows a custom clean
+  // operation that can perform arbitrary cleaning desired on the system.
+  // This could be useful reset state that cannot be changed using the other
+  // built-in options (e.g. stopping docker containers left running by an
+  // action).
+  //
+  // This command runs when the runner transitions from being idle to running
+  // at least one action, and vice versa. It is also called periodically
+  // whenever the runner is idle.
+  //
+  // Caution; since this option executes a command in a separate process
+  // there is an inherent performance penalty. If possible, use the built-in
+  // cleaning options that are handled in-process for optimal performance.
+  repeated string run_command_cleaner = 13;
 }
