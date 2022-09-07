@@ -4,6 +4,7 @@ go_library(
     name = "cleaner",
     srcs = [
         "chained_cleaner.go",
+        "command_running_cleaner.go",
         "directory_cleaner.go",
         "filtering_process_table.go",
         "idle_invoker.go",
@@ -49,6 +50,7 @@ go_test(
     name = "cleaner_test",
     srcs = [
         "chained_cleaner_test.go",
+        "command_running_cleaner_test.go",
         "directory_cleaner_test.go",
         "filtering_process_table_test.go",
         "idle_invoker_test.go",

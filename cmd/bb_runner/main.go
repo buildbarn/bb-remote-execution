@@ -111,6 +111,15 @@ func main() {
 		}
 		cleaners = append(cleaners, cleaner.NewDirectoryCleaner(directory, d))
 	}
+
+	if len(configuration.RunCommandCleaner) > 0 {
+		cleaners = append(
+			cleaners,
+			cleaner.NewCommandRunningCleaner(
+				configuration.RunCommandCleaner[0],
+				configuration.RunCommandCleaner[1:]))
+	}
+
 	if len(cleaners) > 0 {
 		r = runner.NewCleanRunner(
 			r,
