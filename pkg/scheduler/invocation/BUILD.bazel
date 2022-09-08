@@ -3,6 +3,7 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "invocation",
     srcs = [
+        "authentication_metadata_key_extractor.go",
         "configuration.go",
         "correlated_invocations_id_key_extractor.go",
         "key.go",
@@ -15,6 +16,7 @@ go_library(
         "//pkg/proto/buildqueuestate",
         "//pkg/proto/configuration/scheduler",
         "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:execution",
+        "@com_github_buildbarn_bb_storage//pkg/auth",
         "@com_github_buildbarn_bb_storage//pkg/util",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//status",

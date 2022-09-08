@@ -136,6 +136,11 @@ message InvocationKeyExtractorConfiguration {
     // Bazel that were invoked with the same --build_request_id to be
     // grouped together.
     google.protobuf.Empty correlated_invocations_id = 3;
+
+    // Use the publicly displayable part of the authentication metadata
+    // as the invocation key. This causes all actions belonging to the
+    // same user to be grouped together.
+    google.protobuf.Empty authentication_metadata = 4;
   }
 }
 
