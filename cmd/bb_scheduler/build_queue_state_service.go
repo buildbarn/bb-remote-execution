@@ -23,7 +23,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -95,22 +94,10 @@ var (
 			}
 			return nil
 		},
-		"proto_to_json": func(m proto.Message) string {
-			json, err := protojson.MarshalOptions{}.Marshal(m)
-			if err != nil {
-				return ""
-			}
-			return string(json)
-		},
-		"proto_to_json_multiline": func(m proto.Message) string {
-			json, err := protojson.MarshalOptions{Multiline: true}.Marshal(m)
-			if err != nil {
-				return ""
-			}
-			return string(json)
-		},
-		"error_proto": status.ErrorProto,
-		"stylesheet":  func() template.CSS { return stylesheet },
+		"proto_to_json":           protojson.MarshalOptions{}.Format,
+		"proto_to_json_multiline": protojson.MarshalOptions{Multiline: true}.Format,
+		"error_proto":             status.ErrorProto,
+		"stylesheet":              func() template.CSS { return stylesheet },
 		"time_future": func(t *timestamppb.Timestamp, now time.Time) string {
 			if t == nil {
 				return "∞"
