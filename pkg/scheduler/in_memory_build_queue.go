@@ -347,16 +347,23 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 		return err
 	}
 
-	// Forward the client-provided request metadata, so that the
-	// worker logs it.
+	// Forward the client-provided authentication and request
+	// metadata, so that the worker logs it.
+	auxiliaryMetadata := make([]*anypb.Any, 0, 2)
+	if authenticationMetadata, shouldDisplay := auth.AuthenticationMetadataFromContext(ctx).GetPublicProto(); shouldDisplay {
+		authenticationMetadataAny, err := anypb.New(authenticationMetadata)
+		if err != nil {
+			return util.StatusWrapWithCode(err, codes.InvalidArgument, "Failed to marshal authentication metadata")
+		}
+		auxiliaryMetadata = append(auxiliaryMetadata, authenticationMetadataAny)
+	}
 	requestMetadata := getRequestMetadata(ctx)
-	var auxiliaryMetadata []*anypb.Any
 	if requestMetadata != nil {
 		requestMetadataAny, err := anypb.New(requestMetadata)
 		if err != nil {
 			return util.StatusWrapWithCode(err, codes.InvalidArgument, "Failed to marshal request metadata")
 		}
-		auxiliaryMetadata = []*anypb.Any{requestMetadataAny}
+		auxiliaryMetadata = append(auxiliaryMetadata, requestMetadataAny)
 	}
 	w3cTraceContext := otel.W3CTraceContextFromContext(ctx)
 
