@@ -3,6 +3,7 @@ syntax = "proto3";
 package buildbarn.configuration.bb_noop_worker;
 
 import "build/bazel/remote/execution/v2/remote_execution.proto";
+import "pkg/proto/configuration/blobstore/blobstore.proto";
 import "pkg/proto/configuration/global/global.proto";
 import "pkg/proto/configuration/grpc/grpc.proto";
 
@@ -28,4 +29,11 @@ message ApplicationConfiguration {
   // Additional fields that need to be attached to the ID of the worker,
   // as announced to the scheduler.
   map<string, string> worker_id = 6;
+
+  // Configuration for blob storage.
+  buildbarn.configuration.blobstore.BlobAccessConfiguration
+      content_addressable_storage = 7;
+
+  // Maximum Protobuf message size to unmarshal.
+  int64 maximum_message_size_bytes = 8;
 }

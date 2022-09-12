@@ -6,10 +6,12 @@ import (
 	"os"
 	"time"
 
+	re_blobstore "github.com/buildbarn/bb-remote-execution/pkg/blobstore"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_noop_worker"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
+	blobstore_configuration "github.com/buildbarn/bb-storage/pkg/blobstore/configuration"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/global"
@@ -34,6 +36,22 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to apply global configuration options: ", err)
 	}
+	terminationContext, terminationGroup := global.InstallGracefulTerminationHandler()
+
+	// Storage access. This worker loads Command objects from the
+	// Content Addressable Storage (CAS), as those may contain error
+	// message templates that this worker respects.
+	info, err := blobstore_configuration.NewBlobAccessFromConfiguration(
+		terminationContext,
+		terminationGroup,
+		configuration.ContentAddressableStorage,
+		blobstore_configuration.NewCASBlobAccessCreator(
+			grpcClientFactory,
+			int(configuration.MaximumMessageSizeBytes)))
+	if err != nil {
+		log.Fatal("Failed to create Content Adddressable Storage: ", err)
+	}
+	contentAddressableStorage := re_blobstore.NewExistencePreconditionBlobAccess(info.BlobAccess)
 
 	browserURL, err := url.Parse(configuration.BrowserUrl)
 	if err != nil {
@@ -53,7 +71,10 @@ func main() {
 
 	buildClient := builder.NewBuildClient(
 		schedulerClient,
-		builder.NewNoopBuildExecutor(browserURL),
+		builder.NewNoopBuildExecutor(
+			contentAddressableStorage,
+			int(configuration.MaximumMessageSizeBytes),
+			browserURL),
 		re_filesystem.EmptyFilePool,
 		clock.SystemClock,
 		configuration.WorkerId,
