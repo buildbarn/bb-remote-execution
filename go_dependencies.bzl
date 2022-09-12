@@ -168,8 +168,8 @@ def go_dependencies():
     go_repository(
         name = "com_github_buildbarn_bb_storage",
         importpath = "github.com/buildbarn/bb-storage",
-        sum = "h1:a9I+ZU5Zqa/dlBLsmAsgFXF/3iKbIBsOJnY3wP7+j7M=",
-        version = "v0.0.0-20220908085343-52fb213f6a54",
+        sum = "h1:YG795/mmHoD2yr7YV7dNjgk6P15hzOPDZWWG7KTQoKA=",
+        version = "v0.0.0-20220912104841-b7137ecb5613",
     )
     go_repository(
         name = "com_github_buildbarn_go_xdr",
@@ -796,6 +796,12 @@ def go_dependencies():
         version = "v0.65.0",
     )
     go_repository(
+        name = "com_google_cloud_go_asset",
+        importpath = "cloud.google.com/go/asset",
+        sum = "h1:Px0CZuM7u6mcDysLR2QHlEWza0tN+iSjwCtFZtBY6DA=",
+        version = "v1.5.0",
+    )
+    go_repository(
         name = "com_google_cloud_go_bigquery",
         importpath = "cloud.google.com/go/bigquery",
         sum = "h1:PQcPefKFdaIzjQFbiyOgAqyx8q5djaE7x9Sqe712DPA=",
@@ -812,6 +818,12 @@ def go_dependencies():
         importpath = "cloud.google.com/go/pubsub",
         sum = "h1:ukjixP1wl0LpnZ6LWtZJ0mX5tBmjp1f8Sqer8Z2OMUU=",
         version = "v1.3.1",
+    )
+    go_repository(
+        name = "com_google_cloud_go_security",
+        importpath = "cloud.google.com/go/security",
+        sum = "h1:D7ZpeFbcu1o6Z/93vDmHxG6cWWVFTCvdN4m+dx6vcCQ=",
+        version = "v1.5.0",
     )
     go_repository(
         name = "com_google_cloud_go_storage",
@@ -973,8 +985,8 @@ def go_dependencies():
     go_repository(
         name = "org_golang_google_genproto",
         importpath = "google.golang.org/genproto",
-        sum = "h1:vXJMM8Shg7TGaYxZsQ++A/FOSlbDmDtWhS/o+3w/hj4=",
-        version = "v0.0.0-20220902135211-223410557253",
+        sum = "h1:ngtP8S8JkBWfJACT9cmj5eTkS9tIWPQI5leBz/7Bq/c=",
+        version = "v0.0.0-20220909194730-69f6226f97e5",
     )
     go_repository(
         name = "org_golang_google_grpc",
@@ -1032,8 +1044,8 @@ def go_dependencies():
     go_repository(
         name = "org_golang_x_net",
         importpath = "golang.org/x/net",
-        sum = "h1:oA4XRj0qtSt8Yo1Zms0CUlsT3KG69V2UGQWPBxujDmc=",
-        version = "v0.0.0-20220225172249-27dd8689420f",
+        sum = "h1:TsQ7F31D3bUCLeqPT0u+yjp1guoArKaNKmCr22PYgTQ=",
+        version = "v0.0.0-20220624214902-1bab6f366d9e",
     )
     go_repository(
         name = "org_golang_x_oauth2",
@@ -1050,8 +1062,8 @@ def go_dependencies():
     go_repository(
         name = "org_golang_x_sys",
         importpath = "golang.org/x/sys",
-        sum = "h1:AZeIEzg+8RCELJYq8w+ODLVxFgLMMigSwO/ffKPEd9U=",
-        version = "v0.0.0-20220907062415-87db552b00fd",
+        sum = "h1:wM1k/lXfpc5HdkJJyW9GELpd8ERGdnh8sMGL6Gzq3Ho=",
+        version = "v0.0.0-20220909162455-aba9fc2a8ff2",
     )
     go_repository(
         name = "org_golang_x_term",

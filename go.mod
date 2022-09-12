@@ -16,7 +16,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.19.8
 	github.com/aws/smithy-go v1.13.2
 	github.com/bazelbuild/remote-apis v0.0.0-20220727181745-aa29b91f336b
-	github.com/buildbarn/bb-storage v0.0.0-20220908085343-52fb213f6a54
+	github.com/buildbarn/bb-storage v0.0.0-20220912104841-b7137ecb5613
 	github.com/buildbarn/go-xdr v0.0.0-20220804060714-a6fffae29b77
 	github.com/golang/protobuf v1.5.2
 	github.com/google/uuid v1.3.0
@@ -28,8 +28,8 @@ require (
 	go.opentelemetry.io/otel v1.9.0
 	go.opentelemetry.io/otel/trace v1.9.0
 	golang.org/x/sync v0.0.0-20220907140024-f12130a52804
-	golang.org/x/sys v0.0.0-20220907062415-87db552b00fd
-	google.golang.org/genproto v0.0.0-20220902135211-223410557253
+	golang.org/x/sys v0.0.0-20220909162455-aba9fc2a8ff2
+	google.golang.org/genproto v0.0.0-20220909194730-69f6226f97e5
 	google.golang.org/grpc v1.49.0
 	google.golang.org/protobuf v1.28.1
 )
@@ -76,7 +76,7 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.9.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.9.0 // indirect
 	go.opentelemetry.io/proto/otlp v0.18.0 // indirect
-	golang.org/x/net v0.0.0-20220225172249-27dd8689420f // indirect
+	golang.org/x/net v0.0.0-20220624214902-1bab6f366d9e // indirect
 	golang.org/x/oauth2 v0.0.0-20220223155221-ee480838109b // indirect
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/appengine v1.6.6 // indirect
