@@ -95,7 +95,7 @@ type ResolvableHandleAllocator interface {
 // directories and leaves that are returned are decorated with a handle
 // allocation. Can't we let implementations of ResolvableHandleAllocator
 // do this? That way resolvers may remain simple.
-type HandleResolver func(r io.ByteReader) (Directory, Leaf, Status)
+type HandleResolver func(r io.ByteReader) (DirectoryChild, Status)
 
 // ResolvableHandleAllocation corresponds to an allocation of a file
 // handle that is not only stateless, but can also be trivially

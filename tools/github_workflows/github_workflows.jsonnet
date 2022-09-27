@@ -5,6 +5,7 @@ workflows_template.getWorkflows(
     'bb_noop_worker',
     'bb_runner',
     'bb_scheduler',
+    'bb_virtual_tmp',
     'bb_worker',
     'fake_python',
     'fake_xcrun',

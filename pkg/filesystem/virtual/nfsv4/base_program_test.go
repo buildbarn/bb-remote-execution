@@ -18,15 +18,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func handleResolverExpectCall(t *testing.T, handleResolver *mock.MockHandleResolver, expectedID []byte, directory virtual.Directory, leaf virtual.Leaf, status virtual.Status) {
+func handleResolverExpectCall(t *testing.T, handleResolver *mock.MockHandleResolver, expectedID []byte, child virtual.DirectoryChild, status virtual.Status) {
 	handleResolver.EXPECT().Call(gomock.Any()).
-		DoAndReturn(func(id io.WriterTo) (virtual.Directory, virtual.Leaf, virtual.Status) {
+		DoAndReturn(func(id io.WriterTo) (virtual.DirectoryChild, virtual.Status) {
 			idBuf := bytes.NewBuffer(nil)
 			n, err := id.WriteTo(idBuf)
 			require.NoError(t, err)
 			require.Equal(t, int64(len(expectedID)), n)
 			require.Equal(t, expectedID, idBuf.Bytes())
-			return directory, leaf, status
+			return child, status
 		})
 }
 
@@ -105,13 +105,14 @@ func setClientIDForTesting(ctx context.Context, t *testing.T, randomNumberGenera
 
 func openUnconfirmedFileForTesting(ctx context.Context, t *testing.T, randomNumberGenerator *mock.MockSingleThreadedGenerator, program nfsv4_xdr.Nfs4Program, rootDirectory *mock.MockVirtualDirectory, leaf *mock.MockVirtualLeaf, fileHandle nfsv4_xdr.NfsFh4, shortClientID nfsv4_xdr.Clientid4, seqID nfsv4_xdr.Seqid4, stateIDOther [nfsv4_xdr.NFS4_OTHER_SIZE]byte) {
 	rootDirectory.EXPECT().VirtualOpenChild(
+		ctx,
 		path.MustNewComponent("Hello"),
 		virtual.ShareMaskRead,
 		nil,
 		&virtual.OpenExistingOptions{},
 		virtual.AttributesMaskFileHandle,
 		gomock.Any(),
-	).DoAndReturn(func(name path.Component, shareAccess virtual.ShareMask, createAttributes *virtual.Attributes, existingOptions *virtual.OpenExistingOptions, requested virtual.AttributesMask, openedFileAttributes *virtual.Attributes) (virtual.Leaf, virtual.AttributesMask, virtual.ChangeInfo, virtual.Status) {
+	).DoAndReturn(func(ctx context.Context, name path.Component, shareAccess virtual.ShareMask, createAttributes *virtual.Attributes, existingOptions *virtual.OpenExistingOptions, requested virtual.AttributesMask, openedFileAttributes *virtual.Attributes) (virtual.Leaf, virtual.AttributesMask, virtual.ChangeInfo, virtual.Status) {
 		openedFileAttributes.SetFileHandle(fileHandle)
 		return leaf, 0, virtual.ChangeInfo{
 			Before: 0x29291f1b07caf9ea,
@@ -229,8 +230,8 @@ func TestBaseProgramCompound_OP_ACCESS(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
-	rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskFileHandle, gomock.Any()).
-		Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+	rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskFileHandle, gomock.Any()).
+		Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 			attributes.SetFileHandle([]byte{0x63, 0x40, 0xb6, 0x51, 0x6d, 0xa1, 0x7f, 0xcb})
 		})
 	handleResolver := mock.NewMockHandleResolver(ctrl)
@@ -268,8 +269,8 @@ func TestBaseProgramCompound_OP_ACCESS(t *testing.T) {
 
 	t.Run("Directory", func(t *testing.T) {
 		// Access checks against a directory.
-		rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskPermissions, gomock.Any()).
-			Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+		rootDirectory.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskPermissions, gomock.Any()).
+			Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 				attributes.SetPermissions(virtual.PermissionsExecute)
 			})
 
@@ -310,9 +311,9 @@ func TestBaseProgramCompound_OP_ACCESS(t *testing.T) {
 		// Access checks against a file.
 		leaf := mock.NewMockVirtualLeaf(ctrl)
 		clock.EXPECT().Now().Return(time.Unix(1000, 0))
-		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, nil, leaf, virtual.StatusOK)
-		leaf.EXPECT().VirtualGetAttributes(virtual.AttributesMaskPermissions, gomock.Any()).
-			Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
+		leaf.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskPermissions, gomock.Any()).
+			Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 				attributes.SetPermissions(virtual.PermissionsRead | virtual.PermissionsWrite)
 			})
 
@@ -358,8 +359,8 @@ func TestBaseProgramCompound_OP_CLOSE(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
-	rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskFileHandle, gomock.Any()).
-		Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+	rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskFileHandle, gomock.Any()).
+		Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 			attributes.SetFileHandle([]byte{0x14, 0x55, 0xb5, 0x51, 0x02, 0x31, 0xd6, 0x75})
 		})
 	handleResolver := mock.NewMockHandleResolver(ctrl)
@@ -375,7 +376,7 @@ func TestBaseProgramCompound_OP_CLOSE(t *testing.T) {
 		// called against regular state IDs.
 		leaf := mock.NewMockVirtualLeaf(ctrl)
 		clock.EXPECT().Now().Return(time.Unix(1000, 0))
-		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, nil, leaf, virtual.StatusOK)
+		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "close",
@@ -418,7 +419,7 @@ func TestBaseProgramCompound_OP_CLOSE(t *testing.T) {
 		// restart.
 		leaf := mock.NewMockVirtualLeaf(ctrl)
 		clock.EXPECT().Now().Return(time.Unix(1001, 0))
-		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, nil, leaf, virtual.StatusOK)
+		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "close",
@@ -468,7 +469,7 @@ func TestBaseProgramCompound_OP_CLOSE(t *testing.T) {
 		leaf := mock.NewMockVirtualLeaf(ctrl)
 		clock.EXPECT().Now().Return(time.Unix(1002, 0))
 		clock.EXPECT().Now().Return(time.Unix(1003, 0))
-		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, nil, leaf, virtual.StatusOK)
+		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "close",
@@ -846,8 +847,8 @@ func TestBaseProgramCompound_OP_COMMIT(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
-	rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskFileHandle, gomock.Any()).
-		Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+	rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskFileHandle, gomock.Any()).
+		Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 			attributes.SetFileHandle([]byte{0x5e, 0x1e, 0xca, 0x70, 0xcc, 0x9d, 0x5e, 0xd5})
 		})
 	handleResolver := mock.NewMockHandleResolver(ctrl)
@@ -919,7 +920,7 @@ func TestBaseProgramCompound_OP_COMMIT(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		leaf := mock.NewMockVirtualLeaf(ctrl)
 		clock.EXPECT().Now().Return(time.Unix(1000, 0))
-		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, nil, leaf, virtual.StatusOK)
+		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "fsync",
@@ -963,8 +964,8 @@ func TestBaseProgramCompound_OP_CREATE(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
-	rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskFileHandle, gomock.Any()).
-		Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+	rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskFileHandle, gomock.Any()).
+		Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 			attributes.SetFileHandle([]byte{0x9b, 0xe9, 0x83, 0x67, 0x8d, 0x92, 0x5e, 0x62})
 		})
 	handleResolver := mock.NewMockHandleResolver(ctrl)
@@ -1004,7 +1005,7 @@ func TestBaseProgramCompound_OP_CREATE(t *testing.T) {
 	t.Run("NotDirectory", func(t *testing.T) {
 		leaf := mock.NewMockVirtualLeaf(ctrl)
 		clock.EXPECT().Now().Return(time.Unix(1000, 0))
-		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, nil, leaf, virtual.StatusOK)
+		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "lookup",
@@ -1140,6 +1141,7 @@ func TestBaseProgramCompound_OP_CREATE(t *testing.T) {
 
 	t.Run("SymlinkFailure", func(t *testing.T) {
 		rootDirectory.EXPECT().VirtualSymlink(
+			ctx,
 			[]byte("target"),
 			path.MustNewComponent("symlink"),
 			virtual.AttributesMaskFileHandle,
@@ -1182,11 +1184,12 @@ func TestBaseProgramCompound_OP_CREATE(t *testing.T) {
 	t.Run("SymlinkSuccess", func(t *testing.T) {
 		leaf := mock.NewMockVirtualLeaf(ctrl)
 		rootDirectory.EXPECT().VirtualSymlink(
+			ctx,
 			[]byte("target"),
 			path.MustNewComponent("symlink"),
 			virtual.AttributesMaskFileHandle,
 			gomock.Any(),
-		).DoAndReturn(func(target []byte, name path.Component, requested virtual.AttributesMask, attributes *virtual.Attributes) (virtual.Leaf, virtual.ChangeInfo, virtual.Status) {
+		).DoAndReturn(func(ctx context.Context, target []byte, name path.Component, requested virtual.AttributesMask, attributes *virtual.Attributes) (virtual.Leaf, virtual.ChangeInfo, virtual.Status) {
 			attributes.SetFileHandle([]byte{0xbe, 0xb7, 0xe9, 0xb1, 0xbb, 0x21, 0x9a, 0xa8})
 			return leaf, virtual.ChangeInfo{
 				Before: 0x803325cc21deffd8,
@@ -1324,11 +1327,12 @@ func TestBaseProgramCompound_OP_CREATE(t *testing.T) {
 	t.Run("SocketSuccess", func(t *testing.T) {
 		leaf := mock.NewMockVirtualLeaf(ctrl)
 		rootDirectory.EXPECT().VirtualMknod(
+			ctx,
 			path.MustNewComponent("socket"),
 			filesystem.FileTypeSocket,
 			virtual.AttributesMaskFileHandle,
 			gomock.Any(),
-		).DoAndReturn(func(name path.Component, fileType filesystem.FileType, requested virtual.AttributesMask, attributes *virtual.Attributes) (virtual.Leaf, virtual.ChangeInfo, virtual.Status) {
+		).DoAndReturn(func(ctx context.Context, name path.Component, fileType filesystem.FileType, requested virtual.AttributesMask, attributes *virtual.Attributes) (virtual.Leaf, virtual.ChangeInfo, virtual.Status) {
 			attributes.SetFileHandle([]byte{0xe0, 0x45, 0x9a, 0xca, 0x4f, 0x67, 0x7c, 0xaa})
 			return leaf, virtual.ChangeInfo{
 				Before: 0xf46dd045aaf43210,
@@ -1386,11 +1390,12 @@ func TestBaseProgramCompound_OP_CREATE(t *testing.T) {
 	t.Run("FIFOSuccess", func(t *testing.T) {
 		leaf := mock.NewMockVirtualLeaf(ctrl)
 		rootDirectory.EXPECT().VirtualMknod(
+			ctx,
 			path.MustNewComponent("fifo"),
 			filesystem.FileTypeFIFO,
 			virtual.AttributesMaskFileHandle,
 			gomock.Any(),
-		).DoAndReturn(func(name path.Component, fileType filesystem.FileType, requested virtual.AttributesMask, attributes *virtual.Attributes) (virtual.Leaf, virtual.ChangeInfo, virtual.Status) {
+		).DoAndReturn(func(ctx context.Context, name path.Component, fileType filesystem.FileType, requested virtual.AttributesMask, attributes *virtual.Attributes) (virtual.Leaf, virtual.ChangeInfo, virtual.Status) {
 			attributes.SetFileHandle([]byte{0x73, 0x9c, 0x31, 0x40, 0x63, 0x49, 0xbb, 0x09})
 			return leaf, virtual.ChangeInfo{
 				Before: 0x1e80315f7745fc50,
@@ -1511,8 +1516,8 @@ func TestBaseProgramCompound_OP_DELEGPURGE(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
-	rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskFileHandle, gomock.Any()).
-		Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+	rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskFileHandle, gomock.Any()).
+		Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 			attributes.SetFileHandle([]byte{0x45, 0x22, 0xbb, 0xf6, 0xf0, 0x61, 0x71, 0x6d})
 		})
 	handleResolver := mock.NewMockHandleResolver(ctrl)
@@ -1556,8 +1561,8 @@ func TestBaseProgramCompound_OP_GETATTR(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
-	rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskFileHandle, gomock.Any()).
-		Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+	rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskFileHandle, gomock.Any()).
+		Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 			attributes.SetFileHandle([]byte{0x9b, 0x51, 0x40, 0x9b, 0x8c, 0x7a, 0x54, 0x47})
 		})
 	handleResolver := mock.NewMockHandleResolver(ctrl)
@@ -1598,7 +1603,7 @@ func TestBaseProgramCompound_OP_GETATTR(t *testing.T) {
 
 	t.Run("NoAttributes", func(t *testing.T) {
 		// Request absolutely no attributes.
-		rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMask(0), gomock.Any())
+		rootDirectory.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMask(0), gomock.Any())
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "stat",
@@ -1633,9 +1638,10 @@ func TestBaseProgramCompound_OP_GETATTR(t *testing.T) {
 	t.Run("AllAttributes", func(t *testing.T) {
 		// Request all supported attributes.
 		rootDirectory.EXPECT().VirtualGetAttributes(
+			ctx,
 			virtual.AttributesMaskChangeID|virtual.AttributesMaskFileHandle|virtual.AttributesMaskFileType|virtual.AttributesMaskInodeNumber|virtual.AttributesMaskLastDataModificationTime|virtual.AttributesMaskLinkCount|virtual.AttributesMaskPermissions|virtual.AttributesMaskSizeBytes,
 			gomock.Any(),
-		).Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+		).Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 			attributes.SetChangeID(0xeaab7253dad16ee5)
 			attributes.SetFileHandle([]byte{0xcd, 0xe9, 0xc7, 0x4c, 0x8b, 0x8d, 0x58, 0xef, 0xd9, 0x9f})
 			attributes.SetFileType(filesystem.FileTypeDirectory)
@@ -1768,8 +1774,8 @@ func TestBaseProgramCompound_OP_GETFH(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
-	rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskFileHandle, gomock.Any()).
-		Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+	rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskFileHandle, gomock.Any()).
+		Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 			attributes.SetFileHandle([]byte{0x85, 0xc5, 0x54, 0x77, 0x90, 0x7c, 0xf1, 0xf9})
 		})
 	handleResolver := mock.NewMockHandleResolver(ctrl)
@@ -1837,8 +1843,8 @@ func TestBaseProgramCompound_OP_ILLEGAL(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
-	rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskFileHandle, gomock.Any()).
-		Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+	rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskFileHandle, gomock.Any()).
+		Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 			attributes.SetFileHandle([]byte{0x0e, 0xad, 0xf1, 0x83, 0xb1, 0xc0, 0xfc, 0x6f})
 		})
 	handleResolver := mock.NewMockHandleResolver(ctrl)
@@ -1874,8 +1880,8 @@ func TestBaseProgramCompound_OP_LINK(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
-	rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskFileHandle, gomock.Any()).
-		Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+	rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskFileHandle, gomock.Any()).
+		Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 			attributes.SetFileHandle([]byte{0x27, 0xec, 0x12, 0x85, 0xcb, 0x2d, 0x57, 0xe2})
 		})
 	handleResolver := mock.NewMockHandleResolver(ctrl)
@@ -1947,7 +1953,7 @@ func TestBaseProgramCompound_OP_LINK(t *testing.T) {
 		// Calling LINK with a bad filename should fail.
 		leaf := mock.NewMockVirtualLeaf(ctrl)
 		clock.EXPECT().Now().Return(time.Unix(1000, 0))
-		handleResolverExpectCall(t, handleResolver, []byte{0x62, 0xfc, 0x0c, 0x8c, 0x94, 0x86, 0x8d, 0xc7}, nil, leaf, virtual.StatusOK)
+		handleResolverExpectCall(t, handleResolver, []byte{0x62, 0xfc, 0x0c, 0x8c, 0x94, 0x86, 0x8d, 0xc7}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "link",
@@ -2002,7 +2008,7 @@ func TestBaseProgramCompound_OP_LINK(t *testing.T) {
 		// with NFS4ERR_INVAL.
 		leaf := mock.NewMockVirtualLeaf(ctrl)
 		clock.EXPECT().Now().Return(time.Unix(1001, 0))
-		handleResolverExpectCall(t, handleResolver, []byte{0x62, 0xfc, 0x0c, 0x8c, 0x94, 0x86, 0x8d, 0xc7}, nil, leaf, virtual.StatusOK)
+		handleResolverExpectCall(t, handleResolver, []byte{0x62, 0xfc, 0x0c, 0x8c, 0x94, 0x86, 0x8d, 0xc7}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "link",
@@ -2052,7 +2058,7 @@ func TestBaseProgramCompound_OP_LINK(t *testing.T) {
 		// Calling LINK with a directory as a source object should fail.
 		directory := mock.NewMockVirtualDirectory(ctrl)
 		clock.EXPECT().Now().Return(time.Unix(1002, 0))
-		handleResolverExpectCall(t, handleResolver, []byte{0x92, 0xcc, 0xd9, 0x59, 0xef, 0xf3, 0xef, 0x0a}, directory, nil, virtual.StatusOK)
+		handleResolverExpectCall(t, handleResolver, []byte{0x92, 0xcc, 0xd9, 0x59, 0xef, 0xf3, 0xef, 0x0a}, virtual.DirectoryChild{}.FromDirectory(directory), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "link",
@@ -2107,8 +2113,9 @@ func TestBaseProgramCompound_OP_LINK(t *testing.T) {
 		// directory does not allow the link to be created.
 		leaf := mock.NewMockVirtualLeaf(ctrl)
 		clock.EXPECT().Now().Return(time.Unix(1003, 0))
-		handleResolverExpectCall(t, handleResolver, []byte{0x98, 0x55, 0x2f, 0xf4, 0x06, 0xa1, 0xea, 0xbd}, nil, leaf, virtual.StatusOK)
+		handleResolverExpectCall(t, handleResolver, []byte{0x98, 0x55, 0x2f, 0xf4, 0x06, 0xa1, 0xea, 0xbd}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 		rootDirectory.EXPECT().VirtualLink(
+			ctx,
 			path.MustNewComponent("Hello"),
 			leaf,
 			virtual.AttributesMask(0),
@@ -2166,8 +2173,9 @@ func TestBaseProgramCompound_OP_LINK(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		leaf := mock.NewMockVirtualLeaf(ctrl)
 		clock.EXPECT().Now().Return(time.Unix(1004, 0))
-		handleResolverExpectCall(t, handleResolver, []byte{0x98, 0x55, 0x2f, 0xf4, 0x06, 0xa1, 0xea, 0xbd}, nil, leaf, virtual.StatusOK)
+		handleResolverExpectCall(t, handleResolver, []byte{0x98, 0x55, 0x2f, 0xf4, 0x06, 0xa1, 0xea, 0xbd}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 		rootDirectory.EXPECT().VirtualLink(
+			ctx,
 			path.MustNewComponent("Hello"),
 			leaf,
 			virtual.AttributesMask(0),
@@ -2236,8 +2244,8 @@ func TestBaseProgramCompound_OP_LOOKUP(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
-	rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskFileHandle, gomock.Any()).
-		Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+	rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskFileHandle, gomock.Any()).
+		Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 			attributes.SetFileHandle([]byte{0x5a, 0x8a, 0xf7, 0x7b, 0x6f, 0x5e, 0xbc, 0xff})
 		})
 	handleResolver := mock.NewMockHandleResolver(ctrl)
@@ -2336,9 +2344,9 @@ func TestBaseProgramCompound_OP_LOOKUP(t *testing.T) {
 		// LOOKUP should return NFS4ERR_NOTDIR.
 		leaf := mock.NewMockVirtualLeaf(ctrl)
 		clock.EXPECT().Now().Return(time.Unix(1000, 0))
-		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, nil, leaf, virtual.StatusOK)
-		leaf.EXPECT().VirtualGetAttributes(virtual.AttributesMaskFileType, gomock.Any()).
-			Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
+		leaf.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskFileType, gomock.Any()).
+			Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 				attributes.SetFileType(filesystem.FileTypeRegularFile)
 			})
 
@@ -2382,9 +2390,9 @@ func TestBaseProgramCompound_OP_LOOKUP(t *testing.T) {
 		// may need to do symlink expansion.
 		leaf := mock.NewMockVirtualLeaf(ctrl)
 		clock.EXPECT().Now().Return(time.Unix(1001, 0))
-		handleResolverExpectCall(t, handleResolver, []byte{4, 5, 6}, nil, leaf, virtual.StatusOK)
-		leaf.EXPECT().VirtualGetAttributes(virtual.AttributesMaskFileType, gomock.Any()).
-			Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+		handleResolverExpectCall(t, handleResolver, []byte{4, 5, 6}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
+		leaf.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskFileType, gomock.Any()).
+			Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 				attributes.SetFileType(filesystem.FileTypeSymlink)
 			})
 
@@ -2424,10 +2432,11 @@ func TestBaseProgramCompound_OP_LOOKUP(t *testing.T) {
 
 	t.Run("NotFound", func(t *testing.T) {
 		rootDirectory.EXPECT().VirtualLookup(
+			gomock.Any(),
 			path.MustNewComponent("Hello"),
 			virtual.AttributesMaskFileHandle,
 			gomock.Any(),
-		).Return(nil, nil, virtual.StatusErrNoEnt)
+		).Return(virtual.DirectoryChild{}, virtual.StatusErrNoEnt)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "lookup",
@@ -2462,12 +2471,13 @@ func TestBaseProgramCompound_OP_LOOKUP(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		leaf := mock.NewMockVirtualLeaf(ctrl)
 		rootDirectory.EXPECT().VirtualLookup(
+			ctx,
 			path.MustNewComponent("Hello"),
 			virtual.AttributesMaskFileHandle,
 			gomock.Any(),
-		).DoAndReturn(func(name path.Component, requested virtual.AttributesMask, attributes *virtual.Attributes) (virtual.Directory, virtual.Leaf, virtual.Status) {
+		).DoAndReturn(func(ctx context.Context, name path.Component, requested virtual.AttributesMask, attributes *virtual.Attributes) (virtual.DirectoryChild, virtual.Status) {
 			attributes.SetFileHandle([]byte{0x98, 0xb2, 0xdc, 0x6e, 0x34, 0xa2, 0xcf, 0xa5})
-			return nil, leaf, virtual.StatusOK
+			return virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK
 		})
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -2517,8 +2527,8 @@ func TestBaseProgramCompound_OP_NVERIFY(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
-	rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskFileHandle, gomock.Any()).
-		Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+	rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskFileHandle, gomock.Any()).
+		Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 			attributes.SetFileHandle([]byte{0xe0, 0x7a, 0x5b, 0x53, 0x03, 0x7a, 0x0a, 0x6f})
 		})
 	handleResolver := mock.NewMockHandleResolver(ctrl)
@@ -2532,8 +2542,8 @@ func TestBaseProgramCompound_OP_NVERIFY(t *testing.T) {
 	// assumed most of the logic is shared with VERIFY.
 
 	t.Run("Match", func(t *testing.T) {
-		rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskFileType|virtual.AttributesMaskInodeNumber, gomock.Any()).
-			Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+		rootDirectory.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskFileType|virtual.AttributesMaskInodeNumber, gomock.Any()).
+			Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 				attributes.SetFileType(filesystem.FileTypeDirectory)
 				attributes.SetInodeNumber(0x676b7bcb66d92ed6)
 			})
@@ -2580,8 +2590,8 @@ func TestBaseProgramCompound_OP_NVERIFY(t *testing.T) {
 	})
 
 	t.Run("Mismatch", func(t *testing.T) {
-		rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskFileType, gomock.Any()).
-			Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+		rootDirectory.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskFileType, gomock.Any()).
+			Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 				attributes.SetFileType(filesystem.FileTypeDirectory)
 			})
 
@@ -2630,8 +2640,8 @@ func TestBaseProgramCompound_OP_OPENATTR(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
-	rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskFileHandle, gomock.Any()).
-		Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+	rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskFileHandle, gomock.Any()).
+		Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 			attributes.SetFileHandle([]byte{0x03, 0x86, 0xd4, 0xcb, 0x44, 0x7c, 0x7e, 0x77})
 		})
 	handleResolver := mock.NewMockHandleResolver(ctrl)
@@ -2710,8 +2720,8 @@ func TestBaseProgramCompound_OP_READ(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
-	rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskFileHandle, gomock.Any()).
-		Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+	rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskFileHandle, gomock.Any()).
+		Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 			attributes.SetFileHandle([]byte{0x37, 0xfd, 0xd0, 0xfc, 0x45, 0x2b, 0x79, 0x32})
 		})
 	handleResolver := mock.NewMockHandleResolver(ctrl)
@@ -2728,7 +2738,7 @@ func TestBaseProgramCompound_OP_READ(t *testing.T) {
 		// restart.
 		leaf := mock.NewMockVirtualLeaf(ctrl)
 		clock.EXPECT().Now().Return(time.Unix(1000, 0))
-		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, nil, leaf, virtual.StatusOK)
+		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "read",
@@ -2779,7 +2789,7 @@ func TestBaseProgramCompound_OP_READ(t *testing.T) {
 		leaf := mock.NewMockVirtualLeaf(ctrl)
 		clock.EXPECT().Now().Return(time.Unix(1001, 0))
 		clock.EXPECT().Now().Return(time.Unix(1002, 0))
-		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, nil, leaf, virtual.StatusOK)
+		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "read",
@@ -2830,7 +2840,7 @@ func TestBaseProgramCompound_OP_READ(t *testing.T) {
 		// field must match.
 		leaf := mock.NewMockVirtualLeaf(ctrl)
 		clock.EXPECT().Now().Return(time.Unix(1003, 0))
-		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, nil, leaf, virtual.StatusOK)
+		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "read",
@@ -2908,8 +2918,8 @@ func TestBaseProgramCompound_OP_READ(t *testing.T) {
 		// Failures when doing so should propagate.
 		leaf := mock.NewMockVirtualLeaf(ctrl)
 		clock.EXPECT().Now().Return(time.Unix(1004, 0))
-		handleResolverExpectCall(t, handleResolver, []byte{4, 5, 6}, nil, leaf, virtual.StatusOK)
-		leaf.EXPECT().VirtualOpenSelf(virtual.ShareMaskRead, &virtual.OpenExistingOptions{}, virtual.AttributesMask(0), gomock.Any()).Return(virtual.StatusErrIO)
+		handleResolverExpectCall(t, handleResolver, []byte{4, 5, 6}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
+		leaf.EXPECT().VirtualOpenSelf(ctx, virtual.ShareMaskRead, &virtual.OpenExistingOptions{}, virtual.AttributesMask(0), gomock.Any()).Return(virtual.StatusErrIO)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "read",
@@ -2949,9 +2959,9 @@ func TestBaseProgramCompound_OP_READ(t *testing.T) {
 	t.Run("AnonymousStateIDReadFailure", func(t *testing.T) {
 		leaf := mock.NewMockVirtualLeaf(ctrl)
 		clock.EXPECT().Now().Return(time.Unix(1005, 0))
-		handleResolverExpectCall(t, handleResolver, []byte{4, 5, 6}, nil, leaf, virtual.StatusOK)
+		handleResolverExpectCall(t, handleResolver, []byte{4, 5, 6}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 		gomock.InOrder(
-			leaf.EXPECT().VirtualOpenSelf(virtual.ShareMaskRead, &virtual.OpenExistingOptions{}, virtual.AttributesMask(0), gomock.Any()),
+			leaf.EXPECT().VirtualOpenSelf(ctx, virtual.ShareMaskRead, &virtual.OpenExistingOptions{}, virtual.AttributesMask(0), gomock.Any()),
 			leaf.EXPECT().VirtualRead(gomock.Len(100), uint64(1000)).Return(0, false, virtual.StatusErrIO),
 			leaf.EXPECT().VirtualClose(uint(1)))
 
@@ -2993,9 +3003,9 @@ func TestBaseProgramCompound_OP_READ(t *testing.T) {
 	t.Run("AnonymousStateIDSuccess", func(t *testing.T) {
 		leaf := mock.NewMockVirtualLeaf(ctrl)
 		clock.EXPECT().Now().Return(time.Unix(1006, 0))
-		handleResolverExpectCall(t, handleResolver, []byte{4, 5, 6}, nil, leaf, virtual.StatusOK)
+		handleResolverExpectCall(t, handleResolver, []byte{4, 5, 6}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 		gomock.InOrder(
-			leaf.EXPECT().VirtualOpenSelf(virtual.ShareMaskRead, &virtual.OpenExistingOptions{}, virtual.AttributesMask(0), gomock.Any()),
+			leaf.EXPECT().VirtualOpenSelf(ctx, virtual.ShareMaskRead, &virtual.OpenExistingOptions{}, virtual.AttributesMask(0), gomock.Any()),
 			leaf.EXPECT().VirtualRead(gomock.Len(100), uint64(1000)).
 				DoAndReturn(func(buf []byte, offset uint64) (int, bool, virtual.Status) {
 					return copy(buf, "Hello"), true, virtual.StatusOK
@@ -3569,8 +3579,8 @@ func TestBaseProgramCompound_OP_READDIR(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
-	rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskFileHandle, gomock.Any()).
-		Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+	rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskFileHandle, gomock.Any()).
+		Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 			attributes.SetFileHandle([]byte{0x52, 0x5e, 0x17, 0x6e, 0xad, 0x2f, 0xc3, 0xf9})
 		})
 	handleResolver := mock.NewMockHandleResolver(ctrl)
@@ -3615,12 +3625,13 @@ func TestBaseProgramCompound_OP_READDIR(t *testing.T) {
 		// should fail.
 		leaf := mock.NewMockVirtualLeaf(ctrl)
 		rootDirectory.EXPECT().VirtualLookup(
+			ctx,
 			path.MustNewComponent("file"),
 			virtual.AttributesMaskFileHandle,
 			gomock.Any(),
-		).DoAndReturn(func(name path.Component, requested virtual.AttributesMask, attributes *virtual.Attributes) (virtual.Directory, virtual.Leaf, virtual.Status) {
+		).DoAndReturn(func(ctx context.Context, name path.Component, requested virtual.AttributesMask, attributes *virtual.Attributes) (virtual.DirectoryChild, virtual.Status) {
 			attributes.SetFileHandle([]byte{0x1c, 0xae, 0xab, 0x22, 0xdf, 0xf4, 0x9e, 0x93})
-			return nil, leaf, virtual.StatusOK
+			return virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK
 		})
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -3670,6 +3681,7 @@ func TestBaseProgramCompound_OP_READDIR(t *testing.T) {
 	t.Run("EmptyDirectory", func(t *testing.T) {
 		// Returning no results should cause EOF to be set.
 		rootDirectory.EXPECT().VirtualReadDir(
+			ctx,
 			uint64(0),
 			virtual.AttributesMaskFileType|virtual.AttributesMaskInodeNumber,
 			gomock.Any(),
@@ -3719,15 +3731,16 @@ func TestBaseProgramCompound_OP_READDIR(t *testing.T) {
 		// If READDIR is called with maxcount set to 59, the
 		// request should fail with NFS4ERR_TOOSMALL.
 		rootDirectory.EXPECT().VirtualReadDir(
+			ctx,
 			uint64(0),
 			virtual.AttributesMaskFileType|virtual.AttributesMaskInodeNumber,
 			gomock.Any(),
-		).DoAndReturn(func(firstCookie uint64, attributesMask virtual.AttributesMask, reporter virtual.DirectoryEntryReporter) virtual.Status {
+		).DoAndReturn(func(ctx context.Context, firstCookie uint64, attributesMask virtual.AttributesMask, reporter virtual.DirectoryEntryReporter) virtual.Status {
 			leaf := mock.NewMockVirtualLeaf(ctrl)
-			require.False(t, reporter.ReportLeaf(
+			require.False(t, reporter.ReportEntry(
 				uint64(1),
 				path.MustNewComponent("file"),
-				leaf,
+				virtual.DirectoryChild{}.FromLeaf(leaf),
 				(&virtual.Attributes{}).
 					SetFileType(filesystem.FileTypeRegularFile).
 					SetInodeNumber(123)))
@@ -3772,15 +3785,16 @@ func TestBaseProgramCompound_OP_READDIR(t *testing.T) {
 		// The same test as the one above, but with a maxcount
 		// of 60 bytes. This should make the call succeed.
 		rootDirectory.EXPECT().VirtualReadDir(
+			ctx,
 			uint64(0),
 			virtual.AttributesMaskFileType|virtual.AttributesMaskInodeNumber,
 			gomock.Any(),
-		).DoAndReturn(func(firstCookie uint64, attributesMask virtual.AttributesMask, reporter virtual.DirectoryEntryReporter) virtual.Status {
+		).DoAndReturn(func(ctx context.Context, firstCookie uint64, attributesMask virtual.AttributesMask, reporter virtual.DirectoryEntryReporter) virtual.Status {
 			leaf := mock.NewMockVirtualLeaf(ctrl)
-			require.True(t, reporter.ReportLeaf(
+			require.True(t, reporter.ReportEntry(
 				uint64(1),
 				path.MustNewComponent("file"),
-				leaf,
+				virtual.DirectoryChild{}.FromLeaf(leaf),
 				(&virtual.Attributes{}).
 					SetFileType(filesystem.FileTypeRegularFile).
 					SetInodeNumber(123)))
@@ -3889,8 +3903,8 @@ func TestBaseProgramCompound_OP_READLINK(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
-	rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskFileHandle, gomock.Any()).
-		Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+	rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskFileHandle, gomock.Any()).
+		Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 			attributes.SetFileHandle([]byte{0xe7, 0x09, 0xea, 0x64, 0xd4, 0x5a, 0xf2, 0x87})
 		})
 	handleResolver := mock.NewMockHandleResolver(ctrl)
@@ -3955,8 +3969,8 @@ func TestBaseProgramCompound_OP_READLINK(t *testing.T) {
 	t.Run("Failure", func(t *testing.T) {
 		leaf := mock.NewMockVirtualLeaf(ctrl)
 		clock.EXPECT().Now().Return(time.Unix(1000, 0))
-		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, nil, leaf, virtual.StatusOK)
-		leaf.EXPECT().VirtualReadlink().Return(nil, virtual.StatusErrIO)
+		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
+		leaf.EXPECT().VirtualReadlink(ctx).Return(nil, virtual.StatusErrIO)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "readlink",
@@ -3991,8 +4005,8 @@ func TestBaseProgramCompound_OP_READLINK(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		leaf := mock.NewMockVirtualLeaf(ctrl)
 		clock.EXPECT().Now().Return(time.Unix(1001, 0))
-		handleResolverExpectCall(t, handleResolver, []byte{4, 5, 6}, nil, leaf, virtual.StatusOK)
-		leaf.EXPECT().VirtualReadlink().Return([]byte("target"), virtual.StatusOK)
+		handleResolverExpectCall(t, handleResolver, []byte{4, 5, 6}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
+		leaf.EXPECT().VirtualReadlink(ctx).Return([]byte("target"), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "readlink",
@@ -4031,8 +4045,8 @@ func TestBaseProgramCompound_OP_RELEASE_LOCKOWNER(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
-	rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskFileHandle, gomock.Any()).
-		Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+	rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskFileHandle, gomock.Any()).
+		Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 			attributes.SetFileHandle([]byte{0x8e, 0x16, 0xec, 0x1a, 0x60, 0x6a, 0x9d, 0x3d})
 		})
 	handleResolver := mock.NewMockHandleResolver(ctrl)
@@ -4394,8 +4408,8 @@ func TestBaseProgramCompound_OP_REMOVE(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
-	rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskFileHandle, gomock.Any()).
-		Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+	rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskFileHandle, gomock.Any()).
+		Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 			attributes.SetFileHandle([]byte{0xe3, 0x85, 0x4a, 0x60, 0x0d, 0xaf, 0x14, 0x20})
 		})
 	handleResolver := mock.NewMockHandleResolver(ctrl)
@@ -4434,7 +4448,7 @@ func TestBaseProgramCompound_OP_REMOVE(t *testing.T) {
 	t.Run("NotDirectory", func(t *testing.T) {
 		leaf := mock.NewMockVirtualLeaf(ctrl)
 		clock.EXPECT().Now().Return(time.Unix(1000, 0))
-		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, nil, leaf, virtual.StatusOK)
+		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "unlink",
@@ -4619,8 +4633,8 @@ func TestBaseProgramCompound_OP_RESTOREFH(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
-	rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskFileHandle, gomock.Any()).
-		Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+	rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskFileHandle, gomock.Any()).
+		Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 			attributes.SetFileHandle([]byte{0x16, 0xb9, 0x45, 0x1d, 0x06, 0x85, 0xc4, 0xbb})
 		})
 	handleResolver := mock.NewMockHandleResolver(ctrl)
@@ -4658,7 +4672,7 @@ func TestBaseProgramCompound_OP_RESTOREFH(t *testing.T) {
 		// operations should apply to that file instead.
 		leaf := mock.NewMockVirtualLeaf(ctrl)
 		clock.EXPECT().Now().Return(time.Unix(1000, 0))
-		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, nil, leaf, virtual.StatusOK)
+		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "restorefh",
@@ -4723,8 +4737,8 @@ func TestBaseProgramCompound_OP_SAVEFH(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
-	rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskFileHandle, gomock.Any()).
-		Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+	rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskFileHandle, gomock.Any()).
+		Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 			attributes.SetFileHandle([]byte{0xc4, 0x2b, 0x0e, 0x04, 0xde, 0x15, 0x66, 0x77})
 		})
 	handleResolver := mock.NewMockHandleResolver(ctrl)
@@ -4763,8 +4777,8 @@ func TestBaseProgramCompound_OP_SECINFO(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
-	rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskFileHandle, gomock.Any()).
-		Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+	rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskFileHandle, gomock.Any()).
+		Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 			attributes.SetFileHandle([]byte{0x0a, 0xa2, 0x92, 0x2f, 0x06, 0x66, 0xd8, 0x80})
 		})
 	handleResolver := mock.NewMockHandleResolver(ctrl)
@@ -4806,7 +4820,7 @@ func TestBaseProgramCompound_OP_SECINFO(t *testing.T) {
 		// requirement. It should always return NFS4ERR_NOTDIR.
 		leaf := mock.NewMockVirtualLeaf(ctrl)
 		clock.EXPECT().Now().Return(time.Unix(1000, 0))
-		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, nil, leaf, virtual.StatusOK)
+		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "secinfo",
@@ -4902,10 +4916,11 @@ func TestBaseProgramCompound_OP_SECINFO(t *testing.T) {
 
 	t.Run("NotFound", func(t *testing.T) {
 		rootDirectory.EXPECT().VirtualLookup(
+			gomock.Any(),
 			path.MustNewComponent("Hello"),
 			virtual.AttributesMask(0),
 			gomock.Any(),
-		).Return(nil, nil, virtual.StatusErrNoEnt)
+		).Return(virtual.DirectoryChild{}, virtual.StatusErrNoEnt)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "secinfo",
@@ -4940,10 +4955,11 @@ func TestBaseProgramCompound_OP_SECINFO(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		leaf := mock.NewMockNativeLeaf(ctrl)
 		rootDirectory.EXPECT().VirtualLookup(
+			gomock.Any(),
 			path.MustNewComponent("Hello"),
 			virtual.AttributesMask(0),
 			gomock.Any(),
-		).Return(nil, leaf, virtual.StatusOK)
+		).Return(virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "secinfo",
@@ -4987,8 +5003,8 @@ func TestBaseProgramCompound_OP_SETCLIENTID_CONFIRM(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
-	rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskFileHandle, gomock.Any()).
-		Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+	rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskFileHandle, gomock.Any()).
+		Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 			attributes.SetFileHandle([]byte{0x3d, 0x01, 0x56, 0xaf, 0xab, 0x16, 0xe9, 0x23})
 		})
 	handleResolver := mock.NewMockHandleResolver(ctrl)
@@ -5302,8 +5318,8 @@ func TestBaseProgramCompound_OP_VERIFY(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
-	rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskFileHandle, gomock.Any()).
-		Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+	rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskFileHandle, gomock.Any()).
+		Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 			attributes.SetFileHandle([]byte{0xe1, 0x79, 0xc1, 0x39, 0x2a, 0xef, 0xbb, 0xde})
 		})
 	handleResolver := mock.NewMockHandleResolver(ctrl)
@@ -5352,8 +5368,8 @@ func TestBaseProgramCompound_OP_VERIFY(t *testing.T) {
 		// prefix of what we compute ourselves, then the data
 		// provided by the client must be corrupted. XDR would
 		// never allow that.
-		rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskFileType, gomock.Any()).
-			Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+		rootDirectory.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskFileType, gomock.Any()).
+			Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 				attributes.SetFileType(filesystem.FileTypeDirectory)
 			})
 
@@ -5398,8 +5414,8 @@ func TestBaseProgramCompound_OP_VERIFY(t *testing.T) {
 	t.Run("BadXDR2", func(t *testing.T) {
 		// The same holds for when the client provides more data
 		// than we generate.
-		rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskFileType, gomock.Any()).
-			Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+		rootDirectory.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskFileType, gomock.Any()).
+			Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 				attributes.SetFileType(filesystem.FileTypeDirectory)
 			})
 
@@ -5447,8 +5463,8 @@ func TestBaseProgramCompound_OP_VERIFY(t *testing.T) {
 		// We don't support the 'system' attribute. Providing it
 		// as part of VERIFY should cause us to return
 		// NFS4ERR_ATTRNOTSUPP.
-		rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskFileType, gomock.Any()).
-			Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+		rootDirectory.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskFileType, gomock.Any()).
+			Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 				attributes.SetFileType(filesystem.FileTypeDirectory)
 			})
 
@@ -5496,8 +5512,8 @@ func TestBaseProgramCompound_OP_VERIFY(t *testing.T) {
 	t.Run("InvalidAttribute", func(t *testing.T) {
 		// The 'rdattr_error' attribute is only returned as part
 		// of READDIR. It cannot be provided to VERIFY.
-		rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskFileType, gomock.Any()).
-			Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+		rootDirectory.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskFileType, gomock.Any()).
+			Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 				attributes.SetFileType(filesystem.FileTypeDirectory)
 			})
 
@@ -5543,8 +5559,8 @@ func TestBaseProgramCompound_OP_VERIFY(t *testing.T) {
 	})
 
 	t.Run("Mismatch", func(t *testing.T) {
-		rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskFileType, gomock.Any()).
-			Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+		rootDirectory.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskFileType, gomock.Any()).
+			Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 				attributes.SetFileType(filesystem.FileTypeDirectory)
 			})
 
@@ -5587,8 +5603,8 @@ func TestBaseProgramCompound_OP_VERIFY(t *testing.T) {
 	})
 
 	t.Run("Match", func(t *testing.T) {
-		rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskFileType|virtual.AttributesMaskInodeNumber, gomock.Any()).
-			Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+		rootDirectory.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskFileType|virtual.AttributesMaskInodeNumber, gomock.Any()).
+			Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 				attributes.SetFileType(filesystem.FileTypeDirectory)
 				attributes.SetInodeNumber(0x676b7bcb66d92ed6)
 			})

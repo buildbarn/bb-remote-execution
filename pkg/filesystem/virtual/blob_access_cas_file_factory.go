@@ -135,7 +135,7 @@ func (f *blobAccessCASFile) VirtualRead(buf []byte, off uint64) (int, bool, Stat
 	return len(buf), eof, StatusOK
 }
 
-func (f *blobAccessCASFile) VirtualReadlink() ([]byte, Status) {
+func (f *blobAccessCASFile) VirtualReadlink(ctx context.Context) ([]byte, Status) {
 	return nil, StatusErrInval
 }
 
@@ -175,24 +175,24 @@ func (f *regularBlobAccessCASFile) AppendOutputPathPersistencyDirectoryNode(dire
 	})
 }
 
-func (f *regularBlobAccessCASFile) VirtualGetAttributes(requested AttributesMask, attributes *Attributes) {
+func (f *regularBlobAccessCASFile) VirtualGetAttributes(ctx context.Context, requested AttributesMask, attributes *Attributes) {
 	f.virtualGetAttributesCommon(attributes)
 	attributes.SetPermissions(PermissionsRead)
 }
 
-func (f *regularBlobAccessCASFile) VirtualOpenSelf(shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status {
+func (f *regularBlobAccessCASFile) VirtualOpenSelf(ctx context.Context, shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status {
 	if shareAccess&^ShareMaskRead != 0 || options.Truncate {
 		return StatusErrAccess
 	}
-	f.VirtualGetAttributes(requested, attributes)
+	f.VirtualGetAttributes(ctx, requested, attributes)
 	return StatusOK
 }
 
-func (f *regularBlobAccessCASFile) VirtualSetAttributes(in *Attributes, requested AttributesMask, out *Attributes) Status {
+func (f *regularBlobAccessCASFile) VirtualSetAttributes(ctx context.Context, in *Attributes, requested AttributesMask, out *Attributes) Status {
 	if s := f.virtualSetAttributesCommon(in); s != StatusOK {
 		return s
 	}
-	f.VirtualGetAttributes(requested, out)
+	f.VirtualGetAttributes(ctx, requested, out)
 	return StatusOK
 }
 
@@ -210,23 +210,23 @@ func (f *executableBlobAccessCASFile) AppendOutputPathPersistencyDirectoryNode(d
 	})
 }
 
-func (f *executableBlobAccessCASFile) VirtualGetAttributes(requested AttributesMask, attributes *Attributes) {
+func (f *executableBlobAccessCASFile) VirtualGetAttributes(ctx context.Context, requested AttributesMask, attributes *Attributes) {
 	f.virtualGetAttributesCommon(attributes)
 	attributes.SetPermissions(PermissionsRead | PermissionsExecute)
 }
 
-func (f *executableBlobAccessCASFile) VirtualOpenSelf(shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status {
+func (f *executableBlobAccessCASFile) VirtualOpenSelf(ctx context.Context, shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status {
 	if shareAccess&^ShareMaskRead != 0 || options.Truncate {
 		return StatusErrAccess
 	}
-	f.VirtualGetAttributes(requested, attributes)
+	f.VirtualGetAttributes(ctx, requested, attributes)
 	return StatusOK
 }
 
-func (f *executableBlobAccessCASFile) VirtualSetAttributes(in *Attributes, requested AttributesMask, out *Attributes) Status {
+func (f *executableBlobAccessCASFile) VirtualSetAttributes(ctx context.Context, in *Attributes, requested AttributesMask, out *Attributes) Status {
 	if s := f.virtualSetAttributesCommon(in); s != StatusOK {
 		return s
 	}
-	f.VirtualGetAttributes(requested, out)
+	f.VirtualGetAttributes(ctx, requested, out)
 	return StatusOK
 }

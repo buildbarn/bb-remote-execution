@@ -1,6 +1,7 @@
 package virtual
 
 import (
+	"context"
 	"io"
 	"sync"
 	"sync/atomic"
@@ -253,15 +254,15 @@ type fuseStatelessDirectory struct {
 	inodeNumber uint64
 }
 
-func (d *fuseStatelessDirectory) VirtualGetAttributes(requested AttributesMask, attributes *Attributes) {
+func (d *fuseStatelessDirectory) VirtualGetAttributes(ctx context.Context, requested AttributesMask, attributes *Attributes) {
 	if remaining := requested &^ AttributesMaskInodeNumber; remaining != 0 {
-		d.Directory.VirtualGetAttributes(remaining, attributes)
+		d.Directory.VirtualGetAttributes(ctx, remaining, attributes)
 	}
 	attributes.SetInodeNumber(d.inodeNumber)
 }
 
-func (d *fuseStatelessDirectory) VirtualSetAttributes(in *Attributes, requested AttributesMask, attributes *Attributes) Status {
-	if s := d.Directory.VirtualSetAttributes(in, requested, attributes); s != StatusOK {
+func (d *fuseStatelessDirectory) VirtualSetAttributes(ctx context.Context, in *Attributes, requested AttributesMask, attributes *Attributes) Status {
+	if s := d.Directory.VirtualSetAttributes(ctx, in, requested, attributes); s != StatusOK {
 		return s
 	}
 	attributes.SetInodeNumber(d.inodeNumber)
@@ -305,23 +306,23 @@ func (l *fuseStatefulNativeLeaf) injectAttributes(attributes *Attributes) {
 	// does not depend on it.
 }
 
-func (l *fuseStatefulNativeLeaf) VirtualGetAttributes(requested AttributesMask, attributes *Attributes) {
+func (l *fuseStatefulNativeLeaf) VirtualGetAttributes(ctx context.Context, requested AttributesMask, attributes *Attributes) {
 	if remaining := requested &^ (AttributesMaskInodeNumber | AttributesMaskLinkCount); remaining != 0 {
-		l.NativeLeaf.VirtualGetAttributes(remaining, attributes)
+		l.NativeLeaf.VirtualGetAttributes(ctx, remaining, attributes)
 	}
 	l.injectAttributes(attributes)
 }
 
-func (l *fuseStatefulNativeLeaf) VirtualSetAttributes(in *Attributes, requested AttributesMask, attributes *Attributes) Status {
-	if s := l.NativeLeaf.VirtualSetAttributes(in, requested, attributes); s != StatusOK {
+func (l *fuseStatefulNativeLeaf) VirtualSetAttributes(ctx context.Context, in *Attributes, requested AttributesMask, attributes *Attributes) Status {
+	if s := l.NativeLeaf.VirtualSetAttributes(ctx, in, requested, attributes); s != StatusOK {
 		return s
 	}
 	l.injectAttributes(attributes)
 	return StatusOK
 }
 
-func (l *fuseStatefulNativeLeaf) VirtualOpenSelf(shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status {
-	if s := l.NativeLeaf.VirtualOpenSelf(shareAccess, options, requested, attributes); s != StatusOK {
+func (l *fuseStatefulNativeLeaf) VirtualOpenSelf(ctx context.Context, shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status {
+	if s := l.NativeLeaf.VirtualOpenSelf(ctx, shareAccess, options, requested, attributes); s != StatusOK {
 		return s
 	}
 	l.injectAttributes(attributes)
@@ -348,23 +349,23 @@ func (l *fuseStatelessNativeLeaf) injectAttributes(attributes *Attributes) {
 	attributes.SetLinkCount(StatelessLeafLinkCount)
 }
 
-func (l *fuseStatelessNativeLeaf) VirtualGetAttributes(requested AttributesMask, attributes *Attributes) {
+func (l *fuseStatelessNativeLeaf) VirtualGetAttributes(ctx context.Context, requested AttributesMask, attributes *Attributes) {
 	if remaining := requested &^ (AttributesMaskInodeNumber | AttributesMaskLinkCount); remaining != 0 {
-		l.NativeLeaf.VirtualGetAttributes(remaining, attributes)
+		l.NativeLeaf.VirtualGetAttributes(ctx, remaining, attributes)
 	}
 	l.injectAttributes(attributes)
 }
 
-func (l *fuseStatelessNativeLeaf) VirtualSetAttributes(in *Attributes, requested AttributesMask, attributes *Attributes) Status {
-	if s := l.NativeLeaf.VirtualSetAttributes(in, requested, attributes); s != StatusOK {
+func (l *fuseStatelessNativeLeaf) VirtualSetAttributes(ctx context.Context, in *Attributes, requested AttributesMask, attributes *Attributes) Status {
+	if s := l.NativeLeaf.VirtualSetAttributes(ctx, in, requested, attributes); s != StatusOK {
 		return s
 	}
 	l.injectAttributes(attributes)
 	return StatusOK
 }
 
-func (l *fuseStatelessNativeLeaf) VirtualOpenSelf(shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status {
-	if s := l.NativeLeaf.VirtualOpenSelf(shareAccess, options, requested, attributes); s != StatusOK {
+func (l *fuseStatelessNativeLeaf) VirtualOpenSelf(ctx context.Context, shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status {
+	if s := l.NativeLeaf.VirtualOpenSelf(ctx, shareAccess, options, requested, attributes); s != StatusOK {
 		return s
 	}
 	l.injectAttributes(attributes)
@@ -384,23 +385,23 @@ func (l *fuseStatelessLeaf) injectAttributes(attributes *Attributes) {
 	attributes.SetLinkCount(StatelessLeafLinkCount)
 }
 
-func (l *fuseStatelessLeaf) VirtualGetAttributes(requested AttributesMask, attributes *Attributes) {
+func (l *fuseStatelessLeaf) VirtualGetAttributes(ctx context.Context, requested AttributesMask, attributes *Attributes) {
 	if remaining := requested &^ (AttributesMaskInodeNumber | AttributesMaskLinkCount); remaining != 0 {
-		l.Leaf.VirtualGetAttributes(remaining, attributes)
+		l.Leaf.VirtualGetAttributes(ctx, remaining, attributes)
 	}
 	l.injectAttributes(attributes)
 }
 
-func (l *fuseStatelessLeaf) VirtualSetAttributes(in *Attributes, requested AttributesMask, attributes *Attributes) Status {
-	if s := l.Leaf.VirtualSetAttributes(in, requested, attributes); s != StatusOK {
+func (l *fuseStatelessLeaf) VirtualSetAttributes(ctx context.Context, in *Attributes, requested AttributesMask, attributes *Attributes) Status {
+	if s := l.Leaf.VirtualSetAttributes(ctx, in, requested, attributes); s != StatusOK {
 		return s
 	}
 	l.injectAttributes(attributes)
 	return StatusOK
 }
 
-func (l *fuseStatelessLeaf) VirtualOpenSelf(shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status {
-	if s := l.Leaf.VirtualOpenSelf(shareAccess, options, requested, attributes); s != StatusOK {
+func (l *fuseStatelessLeaf) VirtualOpenSelf(ctx context.Context, shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status {
+	if s := l.Leaf.VirtualOpenSelf(ctx, shareAccess, options, requested, attributes); s != StatusOK {
 		return s
 	}
 	l.injectAttributes(attributes)

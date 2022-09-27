@@ -12,6 +12,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	go_fuse "github.com/hanwen/go-fuse/v2/fuse"
+	"github.com/jmespath/go-jmespath"
 )
 
 func (m *fuseMount) Expose(rootDirectory virtual.Directory) error {
@@ -31,6 +32,15 @@ func (m *fuseMount) Expose(rootDirectory virtual.Directory) error {
 		inodeAttributeValidity = d.AsDuration()
 	}
 
+	authenticator := fuse.AllowAuthenticator
+	if expression := m.configuration.InHeaderAuthenticationMetadataJmespathExpression; expression != "" {
+		compiledExpression, err := jmespath.Compile(expression)
+		if err != nil {
+			return util.StatusWrap(err, "Failed to compile in-header authentication metadata JMESPath expression")
+		}
+		authenticator = fuse.NewInHeaderAuthenticator(compiledExpression)
+	}
+
 	// Launch the FUSE server.
 	deterministicTimestamp := uint64(filesystem.DeterministicFileModificationTimestamp.Unix())
 	server, err := go_fuse.NewServer(
@@ -38,7 +48,8 @@ func (m *fuseMount) Expose(rootDirectory virtual.Directory) error {
 			fuse.NewDefaultAttributesInjectingRawFileSystem(
 				fuse.NewSimpleRawFileSystem(
 					rootDirectory,
-					m.handleAllocator.RegisterRemovalNotifier),
+					m.handleAllocator.RegisterRemovalNotifier,
+					authenticator),
 				directoryEntryValidity,
 				inodeAttributeValidity,
 				&go_fuse.Attr{

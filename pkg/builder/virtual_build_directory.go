@@ -50,10 +50,11 @@ func NewVirtualBuildDirectory(directory virtual.PrepopulatedDirectory, directory
 }
 
 func (d *virtualBuildDirectory) EnterBuildDirectory(name path.Component) (BuildDirectory, error) {
-	directory, _, err := d.LookupChild(name)
+	child, err := d.LookupChild(name)
 	if err != nil {
 		return nil, err
 	}
+	directory, _ := child.GetPair()
 	if directory == nil {
 		return nil, syscall.ENOTDIR
 	}
@@ -104,32 +105,30 @@ func (d *virtualBuildDirectory) MergeDirectoryContents(ctx context.Context, erro
 }
 
 func (d *virtualBuildDirectory) UploadFile(ctx context.Context, name path.Component, digestFunction digest.Function) (digest.Digest, error) {
-	_, leaf, err := d.LookupChild(name)
+	child, err := d.LookupChild(name)
 	if err != nil {
 		return digest.BadDigest, err
 	}
-	if leaf == nil {
-		return digest.BadDigest, syscall.EISDIR
+	if _, leaf := child.GetPair(); leaf != nil {
+		return leaf.UploadFile(ctx, d.options.contentAddressableStorage, digestFunction)
 	}
-	return leaf.UploadFile(ctx, d.options.contentAddressableStorage, digestFunction)
+	return digest.BadDigest, syscall.EISDIR
 }
 
 func (d *virtualBuildDirectory) Lstat(name path.Component) (filesystem.FileInfo, error) {
-	_, leaf, err := d.LookupChild(name)
+	child, err := d.LookupChild(name)
 	if err != nil {
 		return filesystem.FileInfo{}, err
 	}
-	if leaf == nil {
-		return filesystem.NewFileInfo(name, filesystem.FileTypeDirectory, false), nil
+	if _, leaf := child.GetPair(); leaf != nil {
+		return virtual.GetFileInfo(name, leaf), nil
 	}
-	return virtual.GetFileInfo(name, leaf), nil
+	return filesystem.NewFileInfo(name, filesystem.FileTypeDirectory, false), nil
 }
 
 func (d *virtualBuildDirectory) Mkdir(name path.Component, mode os.FileMode) error {
 	return d.CreateChildren(map[path.Component]virtual.InitialNode{
-		name: {
-			Directory: virtual.EmptyInitialContentsFetcher,
-		},
+		name: virtual.InitialNode{}.FromDirectory(virtual.EmptyInitialContentsFetcher),
 	}, false)
 }
 
@@ -139,7 +138,7 @@ func (d *virtualBuildDirectory) Mknod(name path.Component, perm os.FileMode, dev
 	}
 	characterDevice := d.options.characterDeviceFactory.LookupCharacterDevice(deviceNumber)
 	if err := d.CreateChildren(map[path.Component]virtual.InitialNode{
-		name: {Leaf: characterDevice},
+		name: virtual.InitialNode{}.FromLeaf(characterDevice),
 	}, false); err != nil {
 		characterDevice.Unlink()
 		return err
@@ -148,12 +147,12 @@ func (d *virtualBuildDirectory) Mknod(name path.Component, perm os.FileMode, dev
 }
 
 func (d *virtualBuildDirectory) Readlink(name path.Component) (string, error) {
-	_, leaf, err := d.LookupChild(name)
+	child, err := d.LookupChild(name)
 	if err != nil {
 		return "", err
 	}
-	if leaf == nil {
-		return "", syscall.EISDIR
+	if _, leaf := child.GetPair(); leaf != nil {
+		return leaf.Readlink()
 	}
-	return leaf.Readlink()
+	return "", syscall.EISDIR
 }

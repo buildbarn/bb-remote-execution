@@ -161,7 +161,7 @@ func TestPoolBackedFileAllocatorGetOutputServiceFileStatus(t *testing.T) {
 // SEEK_DATA, the kernel does create calls, as the kernel is unaware of
 // which parts of the file contain holes.
 func TestPoolBackedFileAllocatorVirtualSeek(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	pool := mock.NewMockFilePool(ctrl)
 	underlyingFile := mock.NewMockFileReadWriter(ctrl)
@@ -176,6 +176,7 @@ func TestPoolBackedFileAllocatorVirtualSeek(t *testing.T) {
 	underlyingFile.EXPECT().Truncate(int64(1000))
 
 	require.Equal(t, virtual.StatusOK, f.VirtualSetAttributes(
+		ctx,
 		(&virtual.Attributes{}).SetSizeBytes(1000),
 		0,
 		&virtual.Attributes{}))
@@ -227,7 +228,7 @@ func TestPoolBackedFileAllocatorVirtualSeek(t *testing.T) {
 // could cause go-fuse to call Open() on a file that is already closed.
 // Nothing bad should happen when this occurs.
 func TestPoolBackedFileAllocatorVirtualOpenSelfStaleAfterUnlink(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	pool := mock.NewMockFilePool(ctrl)
 	underlyingFile := mock.NewMockFileReadWriter(ctrl)
@@ -245,14 +246,14 @@ func TestPoolBackedFileAllocatorVirtualOpenSelfStaleAfterUnlink(t *testing.T) {
 	require.Equal(
 		t,
 		virtual.StatusErrStale,
-		f.VirtualOpenSelf(virtual.ShareMaskRead, &virtual.OpenExistingOptions{}, 0, &virtual.Attributes{}))
+		f.VirtualOpenSelf(ctx, virtual.ShareMaskRead, &virtual.OpenExistingOptions{}, 0, &virtual.Attributes{}))
 }
 
 // This test is the same as the above, except that the file reference
 // count drops from one to zero due to Release() (i.e., file descriptor
 // closure), as opposed to Unlink().
 func TestPoolBackedFileAllocatorVirtualOpenSelfStaleAfterClose(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	pool := mock.NewMockFilePool(ctrl)
 	underlyingFile := mock.NewMockFileReadWriter(ctrl)
@@ -270,7 +271,7 @@ func TestPoolBackedFileAllocatorVirtualOpenSelfStaleAfterClose(t *testing.T) {
 	require.Equal(
 		t,
 		virtual.StatusErrStale,
-		f.VirtualOpenSelf(virtual.ShareMaskRead, &virtual.OpenExistingOptions{}, 0, &virtual.Attributes{}))
+		f.VirtualOpenSelf(ctx, virtual.ShareMaskRead, &virtual.OpenExistingOptions{}, 0, &virtual.Attributes{}))
 }
 
 func TestPoolBackedFileAllocatorVirtualRead(t *testing.T) {
@@ -349,7 +350,7 @@ func TestPoolBackedFileAllocatorVirtualRead(t *testing.T) {
 // capture error details, the underlying error is forwarded to an error
 // logger.
 func TestPoolBackedFileAllocatorFUSETruncateFailure(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	pool := mock.NewMockFilePool(ctrl)
 	underlyingFile := mock.NewMockFileReadWriter(ctrl)
@@ -365,6 +366,7 @@ func TestPoolBackedFileAllocatorFUSETruncateFailure(t *testing.T) {
 	require.Equal(t, virtual.StatusOK, s)
 
 	require.Equal(t, virtual.StatusErrIO, f.VirtualSetAttributes(
+		ctx,
 		(&virtual.Attributes{}).SetSizeBytes(42),
 		0,
 		&virtual.Attributes{}))
@@ -463,6 +465,7 @@ func TestPoolBackedFileAllocatorFUSEUploadFile(t *testing.T) {
 				a2 := make(chan struct{})
 				go func() {
 					require.Equal(t, virtual.StatusOK, f.VirtualSetAttributes(
+						ctx,
 						(&virtual.Attributes{}).SetSizeBytes(123),
 						0,
 						&virtual.Attributes{}))
@@ -482,6 +485,7 @@ func TestPoolBackedFileAllocatorFUSEUploadFile(t *testing.T) {
 				// block, it is perfectly fine to change
 				// the file's permissions.
 				require.Equal(t, virtual.StatusOK, f.VirtualSetAttributes(
+					ctx,
 					(&virtual.Attributes{}).SetPermissions(virtual.PermissionsRead|virtual.PermissionsWrite|virtual.PermissionsExecute),
 					0,
 					&virtual.Attributes{}))
@@ -523,7 +527,7 @@ func TestPoolBackedFileAllocatorFUSEUploadFile(t *testing.T) {
 }
 
 func TestPoolBackedFileAllocatorVirtualClose(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	// Create a new file.
 	pool := mock.NewMockFilePool(ctrl)
@@ -538,7 +542,7 @@ func TestPoolBackedFileAllocatorVirtualClose(t *testing.T) {
 	// Initially it should be opened exactly once. Open it a couple
 	// more times.
 	for i := 0; i < 10; i++ {
-		require.Equal(t, virtual.StatusOK, f.VirtualOpenSelf(virtual.ShareMaskRead, &virtual.OpenExistingOptions{}, 0, &virtual.Attributes{}))
+		require.Equal(t, virtual.StatusOK, f.VirtualOpenSelf(ctx, virtual.ShareMaskRead, &virtual.OpenExistingOptions{}, 0, &virtual.Attributes{}))
 	}
 
 	// Unlinking the file should not cause the underlying file to be

@@ -2,6 +2,7 @@ package virtual_test
 
 import (
 	"bytes"
+	"context"
 	"testing"
 
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
@@ -11,7 +12,7 @@ import (
 )
 
 func TestNFSHandleAllocator(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	randomNumberGenerator := mock.NewMockSingleThreadedGenerator(ctrl)
 	handleAllocator := virtual.NewNFSHandleAllocator(randomNumberGenerator)
@@ -41,16 +42,15 @@ func TestNFSHandleAllocator(t *testing.T) {
 			&attr)
 
 		// The directory should be resolvable.
-		resolvedDirectory, resolvedLeaf, s := handleAllocator.ResolveHandle(bytes.NewBuffer(fileHandle))
+		resolvedChild, s := handleAllocator.ResolveHandle(bytes.NewBuffer(fileHandle))
 		require.Equal(t, virtual.StatusOK, s)
-		require.Equal(t, baseDirectory, resolvedDirectory)
-		require.Nil(t, resolvedLeaf)
+		require.Equal(t, virtual.DirectoryChild{}.FromDirectory(baseDirectory), resolvedChild)
 
 		// After releasing the directory, it should no longer be
 		// resolvable.
 		directoryHandle.Release()
 
-		_, _, s = handleAllocator.ResolveHandle(bytes.NewBuffer(fileHandle))
+		_, s = handleAllocator.ResolveHandle(bytes.NewBuffer(fileHandle))
 		require.Equal(t, virtual.StatusErrStale, s)
 	})
 
@@ -61,8 +61,8 @@ func TestNFSHandleAllocator(t *testing.T) {
 		// link count. The link count is based on the number of
 		// child directories.
 		baseDirectory := mock.NewMockVirtualDirectory(ctrl)
-		baseDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskChangeID|virtual.AttributesMaskLinkCount|virtual.AttributesMaskSizeBytes, gomock.Any()).
-			Do(func(attributesMask virtual.AttributesMask, attributes *virtual.Attributes) {
+		baseDirectory.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskChangeID|virtual.AttributesMaskLinkCount|virtual.AttributesMaskSizeBytes, gomock.Any()).
+			Do(func(ctx context.Context, attributesMask virtual.AttributesMask, attributes *virtual.Attributes) {
 				attributes.SetChangeID(0)
 				attributes.SetLinkCount(17)
 				attributes.SetSizeBytes(42)
@@ -73,7 +73,7 @@ func TestNFSHandleAllocator(t *testing.T) {
 
 		fileHandle := []byte{0x36, 0x9d, 0x36, 0x91, 0xc4, 0x71, 0x46, 0xa4}
 		var attr virtual.Attributes
-		wrappedDirectory.VirtualGetAttributes(attributesMask, &attr)
+		wrappedDirectory.VirtualGetAttributes(ctx, attributesMask, &attr)
 		require.Equal(
 			t,
 			(&virtual.Attributes{}).
@@ -85,18 +85,17 @@ func TestNFSHandleAllocator(t *testing.T) {
 			&attr)
 
 		// The directory should be resolvable.
-		resolvedDirectory, resolvedLeaf, s := handleAllocator.ResolveHandle(bytes.NewBuffer(fileHandle))
+		resolvedChild, s := handleAllocator.ResolveHandle(bytes.NewBuffer(fileHandle))
 		require.Equal(t, virtual.StatusOK, s)
-		require.Equal(t, wrappedDirectory, resolvedDirectory)
-		require.Nil(t, resolvedLeaf)
+		require.Equal(t, virtual.DirectoryChild{}.FromDirectory(wrappedDirectory), resolvedChild)
 	})
 
 	t.Run("StatefulNativeLeaf", func(t *testing.T) {
 		// Create a stateful file and wrap it. A file handle, link
 		// count and inode number should be added.
 		baseLeaf := mock.NewMockNativeLeaf(ctrl)
-		baseLeaf.EXPECT().VirtualGetAttributes(virtual.AttributesMaskChangeID|virtual.AttributesMaskSizeBytes, gomock.Any()).
-			Do(func(attributesMask virtual.AttributesMask, attributes *virtual.Attributes) {
+		baseLeaf.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskChangeID|virtual.AttributesMaskSizeBytes, gomock.Any()).
+			Do(func(ctx context.Context, attributesMask virtual.AttributesMask, attributes *virtual.Attributes) {
 				attributes.SetChangeID(7)
 				attributes.SetSizeBytes(42)
 			}).AnyTimes()
@@ -106,7 +105,7 @@ func TestNFSHandleAllocator(t *testing.T) {
 
 		fileHandle := []byte{0xd8, 0x21, 0x24, 0xd2, 0x2f, 0xbb, 0x99, 0xf9}
 		var attr1 virtual.Attributes
-		wrappedLeaf.VirtualGetAttributes(attributesMask, &attr1)
+		wrappedLeaf.VirtualGetAttributes(ctx, attributesMask, &attr1)
 		require.Equal(
 			t,
 			(&virtual.Attributes{}).
@@ -118,17 +117,16 @@ func TestNFSHandleAllocator(t *testing.T) {
 			&attr1)
 
 		// The leaf should be resolvable.
-		resolvedDirectory, resolvedLeaf, s := handleAllocator.ResolveHandle(bytes.NewBuffer(fileHandle))
+		resolvedChild, s := handleAllocator.ResolveHandle(bytes.NewBuffer(fileHandle))
 		require.Equal(t, virtual.StatusOK, s)
-		require.Nil(t, resolvedDirectory)
-		require.Equal(t, wrappedLeaf, resolvedLeaf)
+		require.Equal(t, virtual.DirectoryChild{}.FromLeaf(wrappedLeaf), resolvedChild)
 
 		// Hardlinking it should cause the link count to be
 		// increased.
 		require.Equal(t, virtual.StatusOK, wrappedLeaf.Link())
 
 		var attr2 virtual.Attributes
-		wrappedLeaf.VirtualGetAttributes(attributesMask, &attr2)
+		wrappedLeaf.VirtualGetAttributes(ctx, attributesMask, &attr2)
 		require.Equal(
 			t,
 			(&virtual.Attributes{}).
@@ -147,7 +145,7 @@ func TestNFSHandleAllocator(t *testing.T) {
 		wrappedLeaf.Unlink()
 
 		var attr3 virtual.Attributes
-		wrappedLeaf.VirtualGetAttributes(attributesMask, &attr3)
+		wrappedLeaf.VirtualGetAttributes(ctx, attributesMask, &attr3)
 		require.Equal(
 			t,
 			(&virtual.Attributes{}).
@@ -158,7 +156,7 @@ func TestNFSHandleAllocator(t *testing.T) {
 				SetSizeBytes(42),
 			&attr3)
 
-		_, _, s = handleAllocator.ResolveHandle(bytes.NewBuffer(fileHandle))
+		_, s = handleAllocator.ResolveHandle(bytes.NewBuffer(fileHandle))
 		require.Equal(t, virtual.StatusErrStale, s)
 
 		// Attempting to link it again should fail, as files
@@ -166,7 +164,7 @@ func TestNFSHandleAllocator(t *testing.T) {
 		require.Equal(t, virtual.StatusErrStale, wrappedLeaf.Link())
 
 		var attr4 virtual.Attributes
-		wrappedLeaf.VirtualGetAttributes(attributesMask, &attr4)
+		wrappedLeaf.VirtualGetAttributes(ctx, attributesMask, &attr4)
 		require.Equal(
 			t,
 			(&virtual.Attributes{}).
@@ -190,8 +188,8 @@ func TestNFSHandleAllocator(t *testing.T) {
 		// FNV-1a hash of "Hello", using 0x6aae40a05f45b861 as
 		// the offset basis.
 		baseLeaf := mock.NewMockNativeLeaf(ctrl)
-		baseLeaf.EXPECT().VirtualGetAttributes(virtual.AttributesMaskChangeID|virtual.AttributesMaskSizeBytes, gomock.Any()).
-			Do(func(attributesMask virtual.AttributesMask, attributes *virtual.Attributes) {
+		baseLeaf.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskChangeID|virtual.AttributesMaskSizeBytes, gomock.Any()).
+			Do(func(ctx context.Context, attributesMask virtual.AttributesMask, attributes *virtual.Attributes) {
 				attributes.SetChangeID(0)
 				attributes.SetSizeBytes(123)
 			}).AnyTimes()
@@ -205,7 +203,7 @@ func TestNFSHandleAllocator(t *testing.T) {
 
 		fileHandle := []byte{0x0f, 0x81, 0x5c, 0x1c, 0xc7, 0x04, 0xac, 0x2f}
 		var attr1 virtual.Attributes
-		wrappedLeaf.VirtualGetAttributes(attributesMask, &attr1)
+		wrappedLeaf.VirtualGetAttributes(ctx, attributesMask, &attr1)
 		require.Equal(
 			t,
 			(&virtual.Attributes{}).
@@ -217,17 +215,16 @@ func TestNFSHandleAllocator(t *testing.T) {
 			&attr1)
 
 		// The leaf should be resolvable.
-		resolvedDirectory, resolvedLeaf, s := handleAllocator.ResolveHandle(bytes.NewBuffer(fileHandle))
+		resolvedChild, s := handleAllocator.ResolveHandle(bytes.NewBuffer(fileHandle))
 		require.Equal(t, virtual.StatusOK, s)
-		require.Nil(t, resolvedDirectory)
-		require.Equal(t, wrappedLeaf, resolvedLeaf)
+		require.Equal(t, virtual.DirectoryChild{}.FromLeaf(wrappedLeaf), resolvedChild)
 
 		// Hardlinking should have no visible effect, even
 		// though a link count under the hood is adjusted.
 		require.Equal(t, virtual.StatusOK, wrappedLeaf.Link())
 
 		var attr2 virtual.Attributes
-		wrappedLeaf.VirtualGetAttributes(attributesMask, &attr2)
+		wrappedLeaf.VirtualGetAttributes(ctx, attributesMask, &attr2)
 		require.Equal(
 			t,
 			(&virtual.Attributes{}).
@@ -246,7 +243,7 @@ func TestNFSHandleAllocator(t *testing.T) {
 		wrappedLeaf.Unlink()
 
 		var attr3 virtual.Attributes
-		wrappedLeaf.VirtualGetAttributes(attributesMask, &attr3)
+		wrappedLeaf.VirtualGetAttributes(ctx, attributesMask, &attr3)
 		require.Equal(
 			t,
 			(&virtual.Attributes{}).
@@ -257,7 +254,7 @@ func TestNFSHandleAllocator(t *testing.T) {
 				SetSizeBytes(123),
 			&attr3)
 
-		_, _, s = handleAllocator.ResolveHandle(bytes.NewBuffer(fileHandle))
+		_, s = handleAllocator.ResolveHandle(bytes.NewBuffer(fileHandle))
 		require.Equal(t, virtual.StatusErrStale, s)
 
 		// Attempting to link it again should fail, as files
@@ -265,7 +262,7 @@ func TestNFSHandleAllocator(t *testing.T) {
 		require.Equal(t, virtual.StatusErrStale, wrappedLeaf.Link())
 
 		var attr4 virtual.Attributes
-		wrappedLeaf.VirtualGetAttributes(attributesMask, &attr4)
+		wrappedLeaf.VirtualGetAttributes(ctx, attributesMask, &attr4)
 		require.Equal(
 			t,
 			(&virtual.Attributes{}).

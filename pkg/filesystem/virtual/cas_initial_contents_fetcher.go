@@ -67,12 +67,10 @@ func (icf *casInitialContentsFetcher) fetchContentsUnwrapped() (map[path.Compone
 		if err != nil {
 			return nil, util.StatusWrapf(err, "Failed to obtain digest for directory %#v", entry.Name)
 		}
-		children[component] = InitialNode{
-			Directory: &casInitialContentsFetcher{
-				options:         icf.options,
-				directoryWalker: icf.directoryWalker.GetChild(childDigest),
-			},
-		}
+		children[component] = InitialNode{}.FromDirectory(&casInitialContentsFetcher{
+			options:         icf.options,
+			directoryWalker: icf.directoryWalker.GetChild(childDigest),
+		})
 	}
 
 	// Ensure that leaves are properly unlinked if this method fails.
@@ -98,7 +96,7 @@ func (icf *casInitialContentsFetcher) fetchContentsUnwrapped() (map[path.Compone
 			return nil, util.StatusWrapf(err, "Failed to obtain digest for file %#v", entry.Name)
 		}
 		leaf := icf.options.casFileFactory.LookupFile(childDigest, entry.IsExecutable)
-		children[component] = InitialNode{Leaf: leaf}
+		children[component] = InitialNode{}.FromLeaf(leaf)
 		leavesToUnlink = append(leavesToUnlink, leaf)
 	}
 
@@ -113,7 +111,7 @@ func (icf *casInitialContentsFetcher) fetchContentsUnwrapped() (map[path.Compone
 		}
 
 		leaf := icf.options.symlinkFactory.LookupSymlink([]byte(entry.Target))
-		children[component] = InitialNode{Leaf: leaf}
+		children[component] = InitialNode{}.FromLeaf(leaf)
 		leavesToUnlink = append(leavesToUnlink, leaf)
 	}
 

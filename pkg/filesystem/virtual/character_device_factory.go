@@ -58,17 +58,17 @@ func (cdf *handleAllocatingCharacterDeviceFactory) LookupCharacterDevice(deviceN
 		AsNativeLeaf(cdf.base.LookupCharacterDevice(deviceNumber))
 }
 
-func (cdf *handleAllocatingCharacterDeviceFactory) resolve(r io.ByteReader) (Directory, Leaf, Status) {
+func (cdf *handleAllocatingCharacterDeviceFactory) resolve(r io.ByteReader) (DirectoryChild, Status) {
 	// Convert the binary identifier to a device number.
 	major, err := binary.ReadUvarint(r)
 	if err != nil || major > math.MaxUint32 {
-		return nil, nil, StatusErrBadHandle
+		return DirectoryChild{}, StatusErrBadHandle
 	}
 	minor, err := binary.ReadUvarint(r)
 	if err != nil || minor > math.MaxUint32 {
-		return nil, nil, StatusErrBadHandle
+		return DirectoryChild{}, StatusErrBadHandle
 	}
 	deviceNumber := filesystem.NewDeviceNumberFromMajorMinor(uint32(major), uint32(minor))
 
-	return nil, cdf.LookupCharacterDevice(deviceNumber), StatusOK
+	return DirectoryChild{}.FromLeaf(cdf.LookupCharacterDevice(deviceNumber)), StatusOK
 }

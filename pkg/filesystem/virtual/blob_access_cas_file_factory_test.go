@@ -35,7 +35,7 @@ func TestBlobAccessCASFileFactoryVirtualSeek(t *testing.T) {
 	digest := digest.MustNewDigest("example", "8b1a9953c4611296a827abf8c47804d7", 123)
 	f := casFileFactory.LookupFile(digest, false)
 	var out virtual.Attributes
-	f.VirtualGetAttributes(blobAccessCASFileFactoryAttributesMask, &out)
+	f.VirtualGetAttributes(ctx, blobAccessCASFileFactoryAttributesMask, &out)
 	require.Equal(
 		t,
 		(&virtual.Attributes{}).
@@ -85,7 +85,7 @@ func TestBlobAccessCASFileFactoryGetContainingDigests(t *testing.T) {
 	digest := digest.MustNewDigest("example", "d7ac2672607ba20a44d01d03a6685b24", 400)
 	f := casFileFactory.LookupFile(digest, true)
 	var out virtual.Attributes
-	f.VirtualGetAttributes(blobAccessCASFileFactoryAttributesMask, &out)
+	f.VirtualGetAttributes(ctx, blobAccessCASFileFactoryAttributesMask, &out)
 	require.Equal(
 		t,
 		(&virtual.Attributes{}).
@@ -111,7 +111,7 @@ func TestBlobAccessCASFileFactoryGetOutputServiceFileStatus(t *testing.T) {
 	digest := digest.MustNewDigest("example", "8b1a9953c4611296a827abf8c47804d7", 123)
 	f := casFileFactory.LookupFile(digest, false)
 	var out virtual.Attributes
-	f.VirtualGetAttributes(blobAccessCASFileFactoryAttributesMask, &out)
+	f.VirtualGetAttributes(ctx, blobAccessCASFileFactoryAttributesMask, &out)
 	require.Equal(
 		t,
 		(&virtual.Attributes{}).
@@ -162,7 +162,7 @@ func TestBlobAccessCASFileFactoryAppendOutputPathPersistencyDirectoryNode(t *tes
 	digest1 := digest.MustNewDigest("example", "8b1a9953c4611296a827abf8c47804d7", 123)
 	f1 := casFileFactory.LookupFile(digest1, false)
 	var out1 virtual.Attributes
-	f1.VirtualGetAttributes(blobAccessCASFileFactoryAttributesMask, &out1)
+	f1.VirtualGetAttributes(ctx, blobAccessCASFileFactoryAttributesMask, &out1)
 	require.Equal(
 		t,
 		(&virtual.Attributes{}).
@@ -175,7 +175,7 @@ func TestBlobAccessCASFileFactoryAppendOutputPathPersistencyDirectoryNode(t *tes
 	digest2 := digest.MustNewDigest("example", "0282d25bf4aefdb9cb50ccc78d974f0a", 456)
 	f2 := casFileFactory.LookupFile(digest2, true)
 	var out2 virtual.Attributes
-	f2.VirtualGetAttributes(blobAccessCASFileFactoryAttributesMask, &out2)
+	f2.VirtualGetAttributes(ctx, blobAccessCASFileFactoryAttributesMask, &out2)
 	require.Equal(
 		t,
 		(&virtual.Attributes{}).

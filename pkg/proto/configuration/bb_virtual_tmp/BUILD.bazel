@@ -1,0 +1,33 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
+
+proto_library(
+    name = "bb_virtual_tmp_proto",
+    srcs = ["bb_virtual_tmp.proto"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/proto/configuration/filesystem/virtual:virtual_proto",
+        "@com_github_buildbarn_bb_storage//pkg/proto/configuration/global:global_proto",
+        "@com_github_buildbarn_bb_storage//pkg/proto/configuration/grpc:grpc_proto",
+    ],
+)
+
+go_proto_library(
+    name = "bb_virtual_tmp_go_proto",
+    importpath = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_virtual_tmp",
+    proto = ":bb_virtual_tmp_proto",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/proto/configuration/filesystem/virtual",
+        "@com_github_buildbarn_bb_storage//pkg/proto/configuration/global",
+        "@com_github_buildbarn_bb_storage//pkg/proto/configuration/grpc",
+    ],
+)
+
+go_library(
+    name = "bb_virtual_tmp",
+    embed = [":bb_virtual_tmp_go_proto"],
+    importpath = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_virtual_tmp",
+    visibility = ["//visibility:public"],
+)

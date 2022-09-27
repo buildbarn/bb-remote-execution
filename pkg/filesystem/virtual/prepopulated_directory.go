@@ -38,6 +38,10 @@ type LeafPrepopulatedDirEntry struct {
 	Name  path.Component
 }
 
+// PrepopulatedDirectoryChild is either a PrepopulatedDirectory or a
+// NativeLeaf, as returned by PrepopulatedDirectory.LookupChild().
+type PrepopulatedDirectoryChild = Child[PrepopulatedDirectory, NativeLeaf, Node]
+
 // PrepopulatedDirectory is a Directory that is writable and can contain
 // files of type NativeLeaf.
 //
@@ -54,7 +58,10 @@ type PrepopulatedDirectory interface {
 	// PrepopulatedDirectory. This method is similar to
 	// VirtualLookup(), except that it returns the native types
 	// managed by PrepopulatedDirectory.
-	LookupChild(name path.Component) (PrepopulatedDirectory, NativeLeaf, error)
+	//
+	// TODO: Can't use PrepopulatedDirectoryChild in the return type
+	// here, due to https://github.com/golang/go/issues/50259.
+	LookupChild(name path.Component) (Child[PrepopulatedDirectory, NativeLeaf, Node], error)
 	// LookupAllChildren() looks up all files and directories
 	// contained in a PrepopulatedDirectory. This method is similar
 	// to VirtualReadDir(), except that it returns the native types

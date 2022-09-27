@@ -1,6 +1,8 @@
 package virtual
 
 import (
+	"context"
+
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 )
 
@@ -35,14 +37,16 @@ func (o *OpenExistingOptions) ToAttributesMask() (m AttributesMask) {
 // Leaf node that is exposed through FUSE using SimpleRawFileSystem, or
 // through NFSv4. Examples of leaf nodes are regular files, sockets,
 // FIFOs, symbolic links and devices.
+//
+// TODO: Should all methods take an instance of Context?
 type Leaf interface {
 	Node
 
 	VirtualAllocate(off, size uint64) Status
 	VirtualSeek(offset uint64, regionType filesystem.RegionType) (*uint64, Status)
-	VirtualOpenSelf(shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status
+	VirtualOpenSelf(ctx context.Context, shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status
 	VirtualRead(buf []byte, offset uint64) (n int, eof bool, s Status)
-	VirtualReadlink() ([]byte, Status)
+	VirtualReadlink(ctx context.Context) ([]byte, Status)
 	VirtualClose(count uint)
 	VirtualWrite(buf []byte, offset uint64) (int, Status)
 }

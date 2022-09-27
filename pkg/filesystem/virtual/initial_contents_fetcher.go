@@ -10,10 +10,7 @@ import (
 // InitialNode is the value type of the map of directory entries
 // returned by InitialContentsFetcher.FetchContents(). Either Directory
 // or Leaf is set, but not both.
-type InitialNode struct {
-	Directory InitialContentsFetcher
-	Leaf      NativeLeaf
-}
+type InitialNode = Child[InitialContentsFetcher, NativeLeaf, any]
 
 // InitialContentsFetcher is called into by PrepopulatedDirectory when a
 // directory whose contents need to be instantiated lazily is accessed.

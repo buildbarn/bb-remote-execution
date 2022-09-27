@@ -7,7 +7,6 @@ import (
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/outputpathpersistency"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteoutputservice"
-	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
@@ -26,11 +25,9 @@ func (symlinkFactory) LookupSymlink(target []byte) NativeLeaf {
 var BaseSymlinkFactory SymlinkFactory = symlinkFactory{}
 
 type symlink struct {
-	target []byte
-}
+	placeholderFile
 
-func (f symlink) Link() Status {
-	return StatusOK
+	target []byte
 }
 
 func (f symlink) Readlink() (string, error) {
@@ -38,17 +35,6 @@ func (f symlink) Readlink() (string, error) {
 		return "", status.Error(codes.InvalidArgument, "Symbolic link contents are not valid UTF-8")
 	}
 	return string(f.target), nil
-}
-
-func (f symlink) Unlink() {
-}
-
-func (f symlink) UploadFile(ctx context.Context, contentAddressableStorage blobstore.BlobAccess, digestFunction digest.Function) (digest.Digest, error) {
-	return digest.BadDigest, status.Error(codes.InvalidArgument, "This file cannot be uploaded, as it is a symbolic link")
-}
-
-func (f symlink) GetContainingDigests() digest.Set {
-	return digest.EmptySet
 }
 
 func (f symlink) GetOutputServiceFileStatus(digestFunction *digest.Function) (*remoteoutputservice.FileStatus, error) {
@@ -74,43 +60,21 @@ func (f symlink) AppendOutputPathPersistencyDirectoryNode(directory *outputpathp
 	}
 }
 
-func (f symlink) VirtualAllocate(off, size uint64) Status {
-	return StatusErrWrongType
-}
-
-func (f symlink) VirtualGetAttributes(requested AttributesMask, attributes *Attributes) {
+func (f symlink) VirtualGetAttributes(ctx context.Context, requested AttributesMask, attributes *Attributes) {
 	attributes.SetChangeID(0)
 	attributes.SetFileType(filesystem.FileTypeSymlink)
 	attributes.SetPermissions(PermissionsRead | PermissionsWrite | PermissionsExecute)
 	attributes.SetSizeBytes(uint64(len(f.target)))
 }
 
-func (f symlink) VirtualSeek(offset uint64, regionType filesystem.RegionType) (*uint64, Status) {
-	panic("Request to seek on symbolic link should have been intercepted")
-}
-
-func (f symlink) VirtualOpenSelf(shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status {
-	return StatusErrSymlink
-}
-
-func (f symlink) VirtualRead(buf []byte, offset uint64) (int, bool, Status) {
-	panic("Request to read from symbolic link should have been intercepted")
-}
-
-func (f symlink) VirtualReadlink() ([]byte, Status) {
+func (f symlink) VirtualReadlink(ctx context.Context) ([]byte, Status) {
 	return f.target, StatusOK
 }
 
-func (f symlink) VirtualClose(count uint) {}
-
-func (f symlink) VirtualSetAttributes(in *Attributes, requested AttributesMask, out *Attributes) Status {
+func (f symlink) VirtualSetAttributes(ctx context.Context, in *Attributes, requested AttributesMask, out *Attributes) Status {
 	if _, ok := in.GetSizeBytes(); ok {
 		return StatusErrInval
 	}
-	f.VirtualGetAttributes(requested, out)
+	f.VirtualGetAttributes(ctx, requested, out)
 	return StatusOK
-}
-
-func (f symlink) VirtualWrite(buf []byte, off uint64) (int, Status) {
-	panic("Request to write to symbolic link should have been intercepted")
 }

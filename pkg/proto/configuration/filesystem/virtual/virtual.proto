@@ -3,6 +3,7 @@ syntax = "proto3";
 package buildbarn.configuration.filesystem.virtual;
 
 import "google/protobuf/duration.proto";
+import "pkg/proto/configuration/eviction/eviction.proto";
 
 option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem/virtual";
 
@@ -101,6 +102,20 @@ message FUSEMountConfiguration {
   // enabled in environments where the fusermount utility is not
   // available, such as the bb_worker container images.
   bool direct_mount = 7;
+
+  // If set, extract authentication metadata from the "fuse_in_header"
+  // messages sent by the kernel. This field contains a JMESPath
+  // expression that is used to construct the authentication metadata.
+  // The input data will have the following format:
+  //
+  //     {
+  //       "uid": number,
+  //       "gid": number,
+  //       "pid": number,
+  //     }
+  //
+  // NOTE: This option is only used by bb_virtual_tmp.
+  string in_header_authentication_metadata_jmespath_expression = 8;
 }
 
 message NFSv4MountConfiguration {
@@ -128,6 +143,15 @@ message NFSv4MountConfiguration {
   //
   // Recommended value: 60s
   google.protobuf.Duration announced_lease_time = 3;
+
+  // If set, extract the system authentication (AUTH_SYS) data from
+  // RPCv2 requests and convert them to authentication metadata. The
+  // resulting metadata can be used for purposes such as authorization.
+  //
+  // Please refer to RFC 5531, appendix A for more details.
+  //
+  // NOTE: This option is only used by bb_virtual_tmp.
+  RPCv2SystemAuthenticationConfiguration system_authentication = 4;
 }
 
 message NFSv4DarwinMountConfiguration {
@@ -165,6 +189,7 @@ message NFSv4DarwinMountConfiguration {
   // Recommended value:
   // - For bb_worker: 1s
   // - For bb_clientd: 0s
+  // - For bb_virtual_tmp: unset
   google.protobuf.Duration minimum_directories_attribute_cache_timeout = 2;
 
   // When set, override the maximum amount of time attributes of
@@ -174,5 +199,36 @@ message NFSv4DarwinMountConfiguration {
   // Recommended value:
   // - For bb_worker: 1s
   // - For bb_clientd: 0s
+  // - For bb_virtual_tmp: unset
   google.protobuf.Duration maximum_directories_attribute_cache_timeout = 3;
+}
+
+message RPCv2SystemAuthenticationConfiguration {
+  // The JMESPath expression to be used to construct authentication
+  // metadata. The expression receives the following input, which
+  // corresponds to the authsys_parms structure that is described in RFC
+  // 5531, appendix A.
+  //
+  //     {
+  //       "stamp": number,
+  //       "machinename": string,
+  //       "uid": number,
+  //       "gid": number,
+  //       "gids": list<number>,
+  //     }
+  string metadata_jmespath_expression = 1;
+
+  // The number of authentication metadata objects to cache. This cache
+  // allows clients to use authentication flavor AUTH_SHORT in
+  // subsequent requests, meaning they don't need to transmit full
+  // credentials as part of every request.
+  //
+  // It is recommended that this cache is sized proportionally to the
+  // number of UNIX users accessing the server.
+  int32 maximum_cache_size = 2;
+
+  // The cache replacement policy that should be applied. It is advised
+  // that this is set to LEAST_RECENTLY_USED.
+  buildbarn.configuration.eviction.CacheReplacementPolicy
+      cache_replacement_policy = 3;
 }

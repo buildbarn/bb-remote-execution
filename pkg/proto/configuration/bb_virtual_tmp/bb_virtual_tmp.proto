@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package buildbarn.configuration.bb_virtual_tmp;
+
+import "pkg/proto/configuration/filesystem/virtual/virtual.proto";
+import "pkg/proto/configuration/global/global.proto";
+import "pkg/proto/configuration/grpc/grpc.proto";
+
+option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_virtual_tmp";
+
+message ApplicationConfiguration {
+  // Common configuration options that apply to all Buildbarn binaries.
+  buildbarn.configuration.global.Configuration global = 1;
+
+  // The path of the build directory, as managed by bb_worker.
+  string build_directory_path = 2;
+
+  // The virtual file system to expose, containing the "tmp" symbolic link.
+  buildbarn.configuration.filesystem.virtual.MountConfiguration mount = 3;
+
+  // The gRPC servers that offer the tmp_installer service, allowing
+  // instances of bb_runner to configure the target location of the
+  // temporary directory.
+  repeated buildbarn.configuration.grpc.ServerConfiguration grpc_servers = 4;
+}

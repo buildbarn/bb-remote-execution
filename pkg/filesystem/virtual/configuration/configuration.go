@@ -5,10 +5,12 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual/nfsv4"
 	pb "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem/virtual"
 	"github.com/buildbarn/bb-storage/pkg/clock"
+	"github.com/buildbarn/bb-storage/pkg/eviction"
 	"github.com/buildbarn/bb-storage/pkg/random"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	nfsv4_xdr "github.com/buildbarn/go-xdr/pkg/protocols/nfsv4"
 	"github.com/buildbarn/go-xdr/pkg/rpcserver"
+	"github.com/jmespath/go-jmespath"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -30,9 +32,11 @@ type fuseMount struct {
 }
 
 type nfsv4Mount struct {
-	mountPath       string
-	configuration   *pb.NFSv4MountConfiguration
-	handleAllocator *virtual.NFSStatefulHandleAllocator
+	mountPath                    string
+	configuration                *pb.NFSv4MountConfiguration
+	handleAllocator              *virtual.NFSStatefulHandleAllocator
+	authenticator                rpcserver.Authenticator
+	containsSelfMutatingSymlinks bool
 }
 
 func (m *nfsv4Mount) Expose(rootDirectory virtual.Directory) error {
@@ -65,7 +69,7 @@ func (m *nfsv4Mount) Expose(rootDirectory virtual.Directory) error {
 					clock.SystemClock,
 					enforcedLeaseTime.AsDuration(),
 					announcedLeaseTime.AsDuration()))),
-	})
+	}, m.authenticator)
 
 	return m.mount(rpcServer)
 }
@@ -73,7 +77,7 @@ func (m *nfsv4Mount) Expose(rootDirectory virtual.Directory) error {
 // NewMountFromConfiguration creates a new FUSE mount based on options
 // specified in a configuration message and starts processing of
 // incoming requests.
-func NewMountFromConfiguration(configuration *pb.MountConfiguration, fsName string) (Mount, virtual.StatefulHandleAllocator, error) {
+func NewMountFromConfiguration(configuration *pb.MountConfiguration, fsName string, containsSelfMutatingSymlinks bool) (Mount, virtual.StatefulHandleAllocator, error) {
 	switch backend := configuration.Backend.(type) {
 	case *pb.MountConfiguration_Fuse:
 		handleAllocator := virtual.NewFUSEHandleAllocator(random.FastThreadSafeGenerator)
@@ -85,10 +89,29 @@ func NewMountFromConfiguration(configuration *pb.MountConfiguration, fsName stri
 		}, handleAllocator, nil
 	case *pb.MountConfiguration_Nfsv4:
 		handleAllocator := virtual.NewNFSHandleAllocator(random.NewFastSingleThreadedGenerator())
+
+		authenticator := rpcserver.AllowAuthenticator
+		if systemAuthentication := backend.Nfsv4.SystemAuthentication; systemAuthentication != nil {
+			compiledExpression, err := jmespath.Compile(systemAuthentication.MetadataJmespathExpression)
+			if err != nil {
+				return nil, nil, util.StatusWrap(err, "Failed to compile system authentication metadata JMESPath expression")
+			}
+			evictionSet, err := eviction.NewSetFromConfiguration[nfsv4.SystemAuthenticatorCacheKey](systemAuthentication.CacheReplacementPolicy)
+			if err != nil {
+				return nil, nil, util.StatusWrap(err, "Failed to create system authentication eviction set")
+			}
+			authenticator = nfsv4.NewSystemAuthenticator(
+				compiledExpression,
+				int(systemAuthentication.MaximumCacheSize),
+				eviction.NewMetricsSet(evictionSet, "SystemAuthenticator"))
+		}
+
 		return &nfsv4Mount{
-			mountPath:       configuration.MountPath,
-			configuration:   backend.Nfsv4,
-			handleAllocator: handleAllocator,
+			mountPath:                    configuration.MountPath,
+			configuration:                backend.Nfsv4,
+			handleAllocator:              handleAllocator,
+			authenticator:                authenticator,
+			containsSelfMutatingSymlinks: containsSelfMutatingSymlinks,
 		}, handleAllocator, nil
 	default:
 		return nil, nil, status.Error(codes.InvalidArgument, "No virtual file system backend configuration provided")

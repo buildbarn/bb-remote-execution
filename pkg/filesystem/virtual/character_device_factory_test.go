@@ -51,13 +51,13 @@ func TestHandleAllocatingCharacterDeviceFactory(t *testing.T) {
 
 	t.Run("ResolverEmpty", func(t *testing.T) {
 		// An empty file handle should not resolve.
-		_, _, s := handleResolver(bytes.NewBuffer(nil))
+		_, s := handleResolver(bytes.NewBuffer(nil))
 		require.Equal(t, virtual.StatusErrBadHandle, s)
 	})
 
 	t.Run("ResolverSingleNumber", func(t *testing.T) {
 		// Only provided a major number.
-		_, _, s := handleResolver(bytes.NewBuffer([]byte{1}))
+		_, s := handleResolver(bytes.NewBuffer([]byte{1}))
 		require.Equal(t, virtual.StatusErrBadHandle, s)
 	})
 
@@ -79,8 +79,8 @@ func TestHandleAllocatingCharacterDeviceFactory(t *testing.T) {
 			})
 		leafHandleAllocation.EXPECT().AsNativeLeaf(underlyingLeaf).Return(wrappedLeaf)
 
-		_, actualLeaf, s := handleResolver(bytes.NewBuffer([]byte{1, 3}))
+		actualChild, s := handleResolver(bytes.NewBuffer([]byte{1, 3}))
 		require.Equal(t, virtual.StatusOK, s)
-		require.Equal(t, wrappedLeaf, actualLeaf)
+		require.Equal(t, virtual.DirectoryChild{}.FromLeaf(wrappedLeaf), actualChild)
 	})
 }

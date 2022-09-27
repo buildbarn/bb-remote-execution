@@ -4,6 +4,7 @@
 package fuse_test
 
 import (
+	"context"
 	"syscall"
 	"testing"
 	"time"
@@ -23,11 +24,11 @@ func TestSimpleRawFileSystemAccess(t *testing.T) {
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
 	removalNotifierRegistrar := mock.NewMockFUSERemovalNotifierRegistrar(ctrl)
-	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call)
+	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call, fuse.AllowAuthenticator)
 
 	t.Run("Failure", func(t *testing.T) {
-		rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskPermissions, gomock.Any()).DoAndReturn(
-			func(requested virtual.AttributesMask, out *virtual.Attributes) {
+		rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskPermissions, gomock.Any()).DoAndReturn(
+			func(ctx context.Context, requested virtual.AttributesMask, out *virtual.Attributes) {
 				out.SetPermissions(virtual.PermissionsWrite | virtual.PermissionsExecute)
 			})
 
@@ -40,8 +41,8 @@ func TestSimpleRawFileSystemAccess(t *testing.T) {
 	})
 
 	t.Run("Success", func(t *testing.T) {
-		rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskPermissions, gomock.Any()).DoAndReturn(
-			func(requested virtual.AttributesMask, out *virtual.Attributes) {
+		rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskPermissions, gomock.Any()).DoAndReturn(
+			func(ctx context.Context, requested virtual.AttributesMask, out *virtual.Attributes) {
 				out.SetPermissions(virtual.PermissionsRead | virtual.PermissionsWrite | virtual.PermissionsExecute)
 			})
 
@@ -59,12 +60,12 @@ func TestSimpleRawFileSystemLookup(t *testing.T) {
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
 	removalNotifierRegistrar := mock.NewMockFUSERemovalNotifierRegistrar(ctrl)
-	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call)
+	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call, fuse.AllowAuthenticator)
 
 	t.Run("NotFound", func(t *testing.T) {
 		// Lookup failure errors should be propagated.
-		rootDirectory.EXPECT().VirtualLookup(path.MustNewComponent("nonexistent"), fuse.AttributesMaskForFUSEAttr, gomock.Any()).
-			Return(nil, nil, virtual.StatusErrNoEnt)
+		rootDirectory.EXPECT().VirtualLookup(gomock.Any(), path.MustNewComponent("nonexistent"), fuse.AttributesMaskForFUSEAttr, gomock.Any()).
+			Return(virtual.DirectoryChild{}, virtual.StatusErrNoEnt)
 
 		var entryOut go_fuse.EntryOut
 		require.Equal(t, go_fuse.ENOENT, rfs.Lookup(nil, &go_fuse.InHeader{
@@ -77,15 +78,15 @@ func TestSimpleRawFileSystemLookup(t *testing.T) {
 		// be returned. The inode number should be used as the
 		// node ID, so that future operations can refer to it.
 		childDirectory := mock.NewMockVirtualDirectory(ctrl)
-		rootDirectory.EXPECT().VirtualLookup(path.MustNewComponent("directory"), fuse.AttributesMaskForFUSEAttr, gomock.Any()).DoAndReturn(
-			func(name path.Component, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Directory, virtual.Leaf, virtual.Status) {
+		rootDirectory.EXPECT().VirtualLookup(gomock.Any(), path.MustNewComponent("directory"), fuse.AttributesMaskForFUSEAttr, gomock.Any()).DoAndReturn(
+			func(ctx context.Context, name path.Component, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.DirectoryChild, virtual.Status) {
 				out.SetFileType(filesystem.FileTypeDirectory)
 				out.SetInodeNumber(123)
 				out.SetLastDataModificationTime(time.Unix(1654790759, 405372932))
 				out.SetLinkCount(5)
 				out.SetPermissions(virtual.PermissionsExecute)
 				out.SetSizeBytes(2048)
-				return childDirectory, nil, virtual.StatusOK
+				return virtual.DirectoryChild{}.FromDirectory(childDirectory), virtual.StatusOK
 			})
 
 		var entryOut go_fuse.EntryOut
@@ -107,8 +108,8 @@ func TestSimpleRawFileSystemLookup(t *testing.T) {
 		// Performing a successive lookup against the node ID of
 		// the directory should call into that directory; not
 		// the root directory.
-		childDirectory.EXPECT().VirtualLookup(path.MustNewComponent("nonexistent"), fuse.AttributesMaskForFUSEAttr, gomock.Any()).
-			Return(nil, nil, virtual.StatusErrNoEnt)
+		childDirectory.EXPECT().VirtualLookup(gomock.Any(), path.MustNewComponent("nonexistent"), fuse.AttributesMaskForFUSEAttr, gomock.Any()).
+			Return(virtual.DirectoryChild{}, virtual.StatusErrNoEnt)
 
 		require.Equal(t, go_fuse.ENOENT, rfs.Lookup(nil, &go_fuse.InHeader{
 			NodeId: 123,
@@ -118,14 +119,14 @@ func TestSimpleRawFileSystemLookup(t *testing.T) {
 	t.Run("File", func(t *testing.T) {
 		// Looking up a file should work similarly to the above.
 		childFile := mock.NewMockVirtualLeaf(ctrl)
-		rootDirectory.EXPECT().VirtualLookup(path.MustNewComponent("file"), fuse.AttributesMaskForFUSEAttr, gomock.Any()).DoAndReturn(
-			func(name path.Component, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Directory, virtual.Leaf, virtual.Status) {
+		rootDirectory.EXPECT().VirtualLookup(gomock.Any(), path.MustNewComponent("file"), fuse.AttributesMaskForFUSEAttr, gomock.Any()).DoAndReturn(
+			func(ctx context.Context, name path.Component, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.DirectoryChild, virtual.Status) {
 				out.SetFileType(filesystem.FileTypeRegularFile)
 				out.SetInodeNumber(456)
 				out.SetLinkCount(1)
 				out.SetPermissions(virtual.PermissionsRead)
 				out.SetSizeBytes(1300)
-				return nil, childFile, virtual.StatusOK
+				return virtual.DirectoryChild{}.FromLeaf(childFile), virtual.StatusOK
 			})
 
 		var entryOut go_fuse.EntryOut
@@ -149,20 +150,20 @@ func TestSimpleRawFileSystemForget(t *testing.T) {
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
 	removalNotifierRegistrar := mock.NewMockFUSERemovalNotifierRegistrar(ctrl)
-	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call)
+	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call, fuse.AllowAuthenticator)
 
 	for i := 0; i < 10; i++ {
 		// Perform ten lookups of the same directory.
 		childDirectory := mock.NewMockVirtualDirectory(ctrl)
 		for j := 0; j < 10; j++ {
-			rootDirectory.EXPECT().VirtualLookup(path.MustNewComponent("directory"), fuse.AttributesMaskForFUSEAttr, gomock.Any()).DoAndReturn(
-				func(name path.Component, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Directory, virtual.Leaf, virtual.Status) {
+			rootDirectory.EXPECT().VirtualLookup(gomock.Any(), path.MustNewComponent("directory"), fuse.AttributesMaskForFUSEAttr, gomock.Any()).DoAndReturn(
+				func(ctx context.Context, name path.Component, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.DirectoryChild, virtual.Status) {
 					out.SetFileType(filesystem.FileTypeDirectory)
 					out.SetInodeNumber(123)
 					out.SetLinkCount(4)
 					out.SetPermissions(virtual.PermissionsExecute)
 					out.SetSizeBytes(2048)
-					return childDirectory, nil, virtual.StatusOK
+					return virtual.DirectoryChild{}.FromDirectory(childDirectory), virtual.StatusOK
 				})
 
 			var entryOut go_fuse.EntryOut
@@ -182,8 +183,8 @@ func TestSimpleRawFileSystemForget(t *testing.T) {
 
 		// Operations against the node ID of the directory
 		// should all be forwarded to the directory object.
-		childDirectory.EXPECT().VirtualGetAttributes(fuse.AttributesMaskForFUSEAttr, gomock.Any()).DoAndReturn(
-			func(requested virtual.AttributesMask, out *virtual.Attributes) {
+		childDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), fuse.AttributesMaskForFUSEAttr, gomock.Any()).DoAndReturn(
+			func(ctx context.Context, requested virtual.AttributesMask, out *virtual.Attributes) {
 				out.SetFileType(filesystem.FileTypeDirectory)
 				out.SetInodeNumber(123)
 				out.SetLinkCount(4)
@@ -219,14 +220,14 @@ func TestSimpleRawFileSystemForget(t *testing.T) {
 		// forgotten.
 		childFile := mock.NewMockVirtualLeaf(ctrl)
 		for j := 0; j < 10; j++ {
-			rootDirectory.EXPECT().VirtualLookup(path.MustNewComponent("file"), fuse.AttributesMaskForFUSEAttr, gomock.Any()).DoAndReturn(
-				func(name path.Component, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Directory, virtual.Leaf, virtual.Status) {
+			rootDirectory.EXPECT().VirtualLookup(gomock.Any(), path.MustNewComponent("file"), fuse.AttributesMaskForFUSEAttr, gomock.Any()).DoAndReturn(
+				func(ctx context.Context, name path.Component, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.DirectoryChild, virtual.Status) {
 					out.SetFileType(filesystem.FileTypeRegularFile)
 					out.SetInodeNumber(123)
 					out.SetLinkCount(1)
 					out.SetPermissions(virtual.PermissionsRead)
 					out.SetSizeBytes(42)
-					return nil, childFile, virtual.StatusOK
+					return virtual.DirectoryChild{}.FromLeaf(childFile), virtual.StatusOK
 				})
 
 			var entryOut go_fuse.EntryOut
@@ -246,8 +247,8 @@ func TestSimpleRawFileSystemForget(t *testing.T) {
 
 		// Operations against the node ID should now all go to
 		// the file -- not the directory.
-		childFile.EXPECT().VirtualGetAttributes(fuse.AttributesMaskForFUSEAttr, gomock.Any()).DoAndReturn(
-			func(requested virtual.AttributesMask, out *virtual.Attributes) {
+		childFile.EXPECT().VirtualGetAttributes(gomock.Any(), fuse.AttributesMaskForFUSEAttr, gomock.Any()).DoAndReturn(
+			func(ctx context.Context, requested virtual.AttributesMask, out *virtual.Attributes) {
 				out.SetFileType(filesystem.FileTypeRegularFile)
 				out.SetInodeNumber(123)
 				out.SetLinkCount(1)
@@ -281,11 +282,11 @@ func TestSimpleRawFileSystemGetAttr(t *testing.T) {
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
 	removalNotifierRegistrar := mock.NewMockFUSERemovalNotifierRegistrar(ctrl)
-	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call)
+	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call, fuse.AllowAuthenticator)
 
 	t.Run("Success", func(t *testing.T) {
-		rootDirectory.EXPECT().VirtualGetAttributes(fuse.AttributesMaskForFUSEAttr, gomock.Any()).DoAndReturn(
-			func(requested virtual.AttributesMask, out *virtual.Attributes) {
+		rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), fuse.AttributesMaskForFUSEAttr, gomock.Any()).DoAndReturn(
+			func(ctx context.Context, requested virtual.AttributesMask, out *virtual.Attributes) {
 				out.SetFileType(filesystem.FileTypeDirectory)
 				out.SetInodeNumber(42)
 				out.SetLinkCount(7)
@@ -315,7 +316,7 @@ func TestSimpleRawFileSystemSetAttr(t *testing.T) {
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
 	removalNotifierRegistrar := mock.NewMockFUSERemovalNotifierRegistrar(ctrl)
-	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call)
+	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call, fuse.AllowAuthenticator)
 
 	t.Run("Chown", func(t *testing.T) {
 		// chown() operations are not supported.
@@ -337,6 +338,7 @@ func TestSimpleRawFileSystemSetAttr(t *testing.T) {
 	t.Run("Failure", func(t *testing.T) {
 		// A truncate() call that is denied.
 		rootDirectory.EXPECT().VirtualSetAttributes(
+			gomock.Any(),
 			(&virtual.Attributes{}).SetSizeBytes(400),
 			fuse.AttributesMaskForFUSEAttr,
 			gomock.Any(),
@@ -357,10 +359,11 @@ func TestSimpleRawFileSystemSetAttr(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		// A chmod() call that is permitted.
 		rootDirectory.EXPECT().VirtualSetAttributes(
+			gomock.Any(),
 			(&virtual.Attributes{}).SetPermissions(virtual.PermissionsRead|virtual.PermissionsExecute),
 			fuse.AttributesMaskForFUSEAttr,
 			gomock.Any(),
-		).DoAndReturn(func(in *virtual.Attributes, requested virtual.AttributesMask, out *virtual.Attributes) virtual.Status {
+		).DoAndReturn(func(ctx context.Context, in *virtual.Attributes, requested virtual.AttributesMask, out *virtual.Attributes) virtual.Status {
 			out.SetFileType(filesystem.FileTypeDirectory)
 			out.SetInodeNumber(9000)
 			out.SetLinkCount(12)
@@ -395,7 +398,7 @@ func TestSimpleRawFileSystemMknod(t *testing.T) {
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
 	removalNotifierRegistrar := mock.NewMockFUSERemovalNotifierRegistrar(ctrl)
-	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call)
+	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call, fuse.AllowAuthenticator)
 
 	t.Run("BlockDevice", func(t *testing.T) {
 		// An mknod() call for a block device should be
@@ -412,7 +415,7 @@ func TestSimpleRawFileSystemMknod(t *testing.T) {
 
 	t.Run("Failure", func(t *testing.T) {
 		// An mknod() call for a socket that is denied.
-		rootDirectory.EXPECT().VirtualMknod(path.MustNewComponent("hello"), filesystem.FileTypeSocket, fuse.AttributesMaskForFUSEAttr, gomock.Any()).
+		rootDirectory.EXPECT().VirtualMknod(gomock.Any(), path.MustNewComponent("hello"), filesystem.FileTypeSocket, fuse.AttributesMaskForFUSEAttr, gomock.Any()).
 			Return(nil, virtual.ChangeInfo{}, virtual.StatusErrPerm)
 
 		var entryOut go_fuse.EntryOut
@@ -428,8 +431,8 @@ func TestSimpleRawFileSystemMknod(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		// An mknod() call for a FIFO that succeeds.
 		childLeaf := mock.NewMockVirtualLeaf(ctrl)
-		rootDirectory.EXPECT().VirtualMknod(path.MustNewComponent("hello"), filesystem.FileTypeFIFO, fuse.AttributesMaskForFUSEAttr, gomock.Any()).DoAndReturn(
-			func(name path.Component, fileType filesystem.FileType, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Leaf, virtual.ChangeInfo, virtual.Status) {
+		rootDirectory.EXPECT().VirtualMknod(gomock.Any(), path.MustNewComponent("hello"), filesystem.FileTypeFIFO, fuse.AttributesMaskForFUSEAttr, gomock.Any()).DoAndReturn(
+			func(ctx context.Context, name path.Component, fileType filesystem.FileType, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Leaf, virtual.ChangeInfo, virtual.Status) {
 				out.SetFileType(filesystem.FileTypeFIFO)
 				out.SetInodeNumber(123)
 				out.SetLinkCount(1)
@@ -465,7 +468,7 @@ func TestSimpleRawFileSystemMkdir(t *testing.T) {
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
 	removalNotifierRegistrar := mock.NewMockFUSERemovalNotifierRegistrar(ctrl)
-	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call)
+	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call, fuse.AllowAuthenticator)
 
 	t.Run("Failure", func(t *testing.T) {
 		// An mkdir() call that fails due to an I/O error.
@@ -521,7 +524,7 @@ func TestSimpleRawFileSystemUnlink(t *testing.T) {
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
 	removalNotifierRegistrar := mock.NewMockFUSERemovalNotifierRegistrar(ctrl)
-	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call)
+	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call, fuse.AllowAuthenticator)
 
 	t.Run("Failure", func(t *testing.T) {
 		// An unlink() call that fails due to an I/O error.
@@ -552,7 +555,7 @@ func TestSimpleRawFileSystemRmdir(t *testing.T) {
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
 	removalNotifierRegistrar := mock.NewMockFUSERemovalNotifierRegistrar(ctrl)
-	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call)
+	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call, fuse.AllowAuthenticator)
 
 	t.Run("Failure", func(t *testing.T) {
 		// An rmdir() call that fails due to an I/O error.
@@ -583,10 +586,11 @@ func TestSimpleRawFileSystemSymlink(t *testing.T) {
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
 	removalNotifierRegistrar := mock.NewMockFUSERemovalNotifierRegistrar(ctrl)
-	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call)
+	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call, fuse.AllowAuthenticator)
 
 	t.Run("Failure", func(t *testing.T) {
 		rootDirectory.EXPECT().VirtualSymlink(
+			gomock.Any(),
 			[]byte("target"),
 			path.MustNewComponent("symlink"),
 			fuse.AttributesMaskForFUSEAttr,
@@ -603,11 +607,12 @@ func TestSimpleRawFileSystemSymlink(t *testing.T) {
 		// Create a symbolic link.
 		symlink := mock.NewMockVirtualLeaf(ctrl)
 		rootDirectory.EXPECT().VirtualSymlink(
+			gomock.Any(),
 			[]byte("target"),
 			path.MustNewComponent("symlink"),
 			fuse.AttributesMaskForFUSEAttr,
 			gomock.Any(),
-		).DoAndReturn(func(pointedTo []byte, linkName path.Component, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Leaf, virtual.ChangeInfo, virtual.Status) {
+		).DoAndReturn(func(ctx context.Context, pointedTo []byte, linkName path.Component, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Leaf, virtual.ChangeInfo, virtual.Status) {
 			out.SetFileType(filesystem.FileTypeSymlink)
 			out.SetInodeNumber(123)
 			out.SetLinkCount(1)
@@ -635,7 +640,7 @@ func TestSimpleRawFileSystemSymlink(t *testing.T) {
 
 		// Future calls of the node should be forwarded to the
 		// right symlink instance.
-		symlink.EXPECT().VirtualReadlink().Return([]byte("target"), virtual.StatusOK)
+		symlink.EXPECT().VirtualReadlink(gomock.Any()).Return([]byte("target"), virtual.StatusOK)
 
 		target, s := rfs.Readlink(nil, &go_fuse.InHeader{NodeId: 123})
 		require.Equal(t, go_fuse.OK, s)
@@ -648,10 +653,11 @@ func TestSimpleRawFileSystemCreate(t *testing.T) {
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
 	removalNotifierRegistrar := mock.NewMockFUSERemovalNotifierRegistrar(ctrl)
-	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call)
+	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call, fuse.AllowAuthenticator)
 
 	t.Run("ReadWriteCreateExcl", func(t *testing.T) {
 		rootDirectory.EXPECT().VirtualOpenChild(
+			gomock.Any(),
 			path.MustNewComponent("excl"),
 			virtual.ShareMaskRead|virtual.ShareMaskWrite,
 			(&virtual.Attributes{}).SetPermissions(virtual.PermissionsRead|virtual.PermissionsWrite|virtual.PermissionsExecute),
@@ -672,6 +678,7 @@ func TestSimpleRawFileSystemCreate(t *testing.T) {
 
 	t.Run("WriteTruncate", func(t *testing.T) {
 		rootDirectory.EXPECT().VirtualOpenChild(
+			gomock.Any(),
 			path.MustNewComponent("trunc"),
 			virtual.ShareMaskWrite,
 			(&virtual.Attributes{}).SetPermissions(virtual.PermissionsRead|virtual.PermissionsWrite),
@@ -696,14 +703,14 @@ func TestSimpleRawFileSystemOpenDir(t *testing.T) {
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
 	removalNotifierRegistrar := mock.NewMockFUSERemovalNotifierRegistrar(ctrl)
-	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call)
+	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call, fuse.AllowAuthenticator)
 
 	t.Run("PermissionDenied", func(t *testing.T) {
 		// FUSE on Linux doesn't check permissions on the
 		// directory prior to opening. Do that on the caller's
 		// behalf.
-		rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskPermissions, gomock.Any()).DoAndReturn(
-			func(requested virtual.AttributesMask, out *virtual.Attributes) {
+		rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskPermissions, gomock.Any()).DoAndReturn(
+			func(ctx context.Context, requested virtual.AttributesMask, out *virtual.Attributes) {
 				out.SetPermissions(virtual.PermissionsExecute)
 			})
 
@@ -723,11 +730,11 @@ func TestSimpleRawFileSystemReadDir(t *testing.T) {
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
 	removalNotifierRegistrar := mock.NewMockFUSERemovalNotifierRegistrar(ctrl)
-	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call)
+	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call, fuse.AllowAuthenticator)
 
 	// Open the root directory.
-	rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskPermissions, gomock.Any()).DoAndReturn(
-		func(requested virtual.AttributesMask, out *virtual.Attributes) {
+	rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskPermissions, gomock.Any()).DoAndReturn(
+		func(ctx context.Context, requested virtual.AttributesMask, out *virtual.Attributes) {
 			out.SetPermissions(virtual.PermissionsRead)
 		})
 
@@ -742,6 +749,7 @@ func TestSimpleRawFileSystemReadDir(t *testing.T) {
 	t.Run("Failure", func(t *testing.T) {
 		// Directory listing failures should be propagated.
 		rootDirectory.EXPECT().VirtualReadDir(
+			gomock.Any(),
 			uint64(0),
 			fuse.AttributesMaskForFUSEDirEntry,
 			gomock.Any(),
@@ -770,28 +778,29 @@ func TestSimpleRawFileSystemReadDir(t *testing.T) {
 		// cause all cookies of child entries to be incremented
 		// by two to make space.
 		rootDirectory.EXPECT().VirtualReadDir(
+			gomock.Any(),
 			uint64(0),
 			fuse.AttributesMaskForFUSEDirEntry,
 			gomock.Any(),
-		).DoAndReturn(func(firstCookie uint64, requested virtual.AttributesMask, reporter virtual.DirectoryEntryReporter) virtual.Status {
-			require.True(t, reporter.ReportDirectory(
+		).DoAndReturn(func(ctx context.Context, firstCookie uint64, requested virtual.AttributesMask, reporter virtual.DirectoryEntryReporter) virtual.Status {
+			require.True(t, reporter.ReportEntry(
 				uint64(1),
 				path.MustNewComponent("directory"),
-				mock.NewMockVirtualDirectory(ctrl),
+				virtual.DirectoryChild{}.FromDirectory(mock.NewMockVirtualDirectory(ctrl)),
 				(&virtual.Attributes{}).
 					SetFileType(filesystem.FileTypeDirectory).
 					SetInodeNumber(27)))
-			require.True(t, reporter.ReportLeaf(
+			require.True(t, reporter.ReportEntry(
 				uint64(2),
 				path.MustNewComponent("file"),
-				mock.NewMockVirtualLeaf(ctrl),
+				virtual.DirectoryChild{}.FromLeaf(mock.NewMockVirtualLeaf(ctrl)),
 				(&virtual.Attributes{}).
 					SetFileType(filesystem.FileTypeRegularFile).
 					SetInodeNumber(42)))
-			require.True(t, reporter.ReportLeaf(
+			require.True(t, reporter.ReportEntry(
 				uint64(3),
 				path.MustNewComponent("symlink"),
-				mock.NewMockVirtualLeaf(ctrl),
+				virtual.DirectoryChild{}.FromLeaf(mock.NewMockVirtualLeaf(ctrl)),
 				(&virtual.Attributes{}).
 					SetFileType(filesystem.FileTypeSymlink).
 					SetInodeNumber(83)))
@@ -835,14 +844,15 @@ func TestSimpleRawFileSystemReadDir(t *testing.T) {
 		// Perform a partial read, starting between the "." and
 		// ".." directory entries.
 		rootDirectory.EXPECT().VirtualReadDir(
+			gomock.Any(),
 			uint64(0),
 			fuse.AttributesMaskForFUSEDirEntry,
 			gomock.Any(),
-		).DoAndReturn(func(firstCookie uint64, requested virtual.AttributesMask, reporter virtual.DirectoryEntryReporter) virtual.Status {
-			require.True(t, reporter.ReportDirectory(
+		).DoAndReturn(func(ctx context.Context, firstCookie uint64, requested virtual.AttributesMask, reporter virtual.DirectoryEntryReporter) virtual.Status {
+			require.True(t, reporter.ReportEntry(
 				uint64(1),
 				path.MustNewComponent("directory"),
-				mock.NewMockVirtualDirectory(ctrl),
+				virtual.DirectoryChild{}.FromDirectory(mock.NewMockVirtualDirectory(ctrl)),
 				(&virtual.Attributes{}).
 					SetFileType(filesystem.FileTypeDirectory).
 					SetInodeNumber(27)))
@@ -873,14 +883,15 @@ func TestSimpleRawFileSystemReadDir(t *testing.T) {
 		// Perform a partial read, starting right after the "."
 		// and ".." directory entries.
 		rootDirectory.EXPECT().VirtualReadDir(
+			gomock.Any(),
 			uint64(0),
 			fuse.AttributesMaskForFUSEDirEntry,
 			gomock.Any(),
-		).DoAndReturn(func(firstCookie uint64, requested virtual.AttributesMask, reporter virtual.DirectoryEntryReporter) virtual.Status {
-			require.True(t, reporter.ReportDirectory(
+		).DoAndReturn(func(ctx context.Context, firstCookie uint64, requested virtual.AttributesMask, reporter virtual.DirectoryEntryReporter) virtual.Status {
+			require.True(t, reporter.ReportEntry(
 				uint64(1),
 				path.MustNewComponent("directory"),
-				mock.NewMockVirtualDirectory(ctrl),
+				virtual.DirectoryChild{}.FromDirectory(mock.NewMockVirtualDirectory(ctrl)),
 				(&virtual.Attributes{}).
 					SetFileType(filesystem.FileTypeDirectory).
 					SetInodeNumber(27)))
@@ -906,14 +917,15 @@ func TestSimpleRawFileSystemReadDir(t *testing.T) {
 	t.Run("AtOffset", func(t *testing.T) {
 		// Perform a partial read at an arbitrary offset.
 		rootDirectory.EXPECT().VirtualReadDir(
+			gomock.Any(),
 			uint64(52),
 			fuse.AttributesMaskForFUSEDirEntry,
 			gomock.Any(),
-		).DoAndReturn(func(firstCookie uint64, requested virtual.AttributesMask, reporter virtual.DirectoryEntryReporter) virtual.Status {
-			require.False(t, reporter.ReportDirectory(
+		).DoAndReturn(func(ctx context.Context, firstCookie uint64, requested virtual.AttributesMask, reporter virtual.DirectoryEntryReporter) virtual.Status {
+			require.False(t, reporter.ReportEntry(
 				uint64(55),
 				path.MustNewComponent("directory"),
-				mock.NewMockVirtualDirectory(ctrl),
+				virtual.DirectoryChild{}.FromDirectory(mock.NewMockVirtualDirectory(ctrl)),
 				(&virtual.Attributes{}).
 					SetFileType(filesystem.FileTypeDirectory).
 					SetInodeNumber(27)))
@@ -949,11 +961,11 @@ func TestSimpleRawFileSystemReadDirPlus(t *testing.T) {
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
 	removalNotifierRegistrar := mock.NewMockFUSERemovalNotifierRegistrar(ctrl)
-	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call)
+	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call, fuse.AllowAuthenticator)
 
 	// Open the root directory.
-	rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskPermissions, gomock.Any()).DoAndReturn(
-		func(requested virtual.AttributesMask, out *virtual.Attributes) {
+	rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskPermissions, gomock.Any()).DoAndReturn(
+		func(ctx context.Context, requested virtual.AttributesMask, out *virtual.Attributes) {
 			out.SetPermissions(virtual.PermissionsRead)
 		})
 
@@ -968,6 +980,7 @@ func TestSimpleRawFileSystemReadDirPlus(t *testing.T) {
 	t.Run("Failure", func(t *testing.T) {
 		// Directory listing failures should be propagated.
 		rootDirectory.EXPECT().VirtualReadDir(
+			gomock.Any(),
 			uint64(0),
 			fuse.AttributesMaskForFUSEAttr,
 			gomock.Any(),
@@ -1000,24 +1013,25 @@ func TestSimpleRawFileSystemReadDirPlus(t *testing.T) {
 		childDirectory := mock.NewMockVirtualDirectory(ctrl)
 		childLeaf := mock.NewMockVirtualLeaf(ctrl)
 		rootDirectory.EXPECT().VirtualReadDir(
+			gomock.Any(),
 			uint64(0),
 			fuse.AttributesMaskForFUSEAttr,
 			gomock.Any(),
-		).DoAndReturn(func(firstCookie uint64, requested virtual.AttributesMask, reporter virtual.DirectoryEntryReporter) virtual.Status {
-			require.True(t, reporter.ReportDirectory(
+		).DoAndReturn(func(ctx context.Context, firstCookie uint64, requested virtual.AttributesMask, reporter virtual.DirectoryEntryReporter) virtual.Status {
+			require.True(t, reporter.ReportEntry(
 				uint64(1),
 				path.MustNewComponent("directory"),
-				childDirectory,
+				virtual.DirectoryChild{}.FromDirectory(childDirectory),
 				(&virtual.Attributes{}).
 					SetFileType(filesystem.FileTypeDirectory).
 					SetInodeNumber(2).
 					SetLinkCount(12).
 					SetPermissions(virtual.PermissionsExecute).
 					SetSizeBytes(4096)))
-			require.True(t, reporter.ReportLeaf(
+			require.True(t, reporter.ReportEntry(
 				uint64(2),
 				path.MustNewComponent("file"),
-				childLeaf,
+				virtual.DirectoryChild{}.FromLeaf(childLeaf),
 				(&virtual.Attributes{}).
 					SetFileType(filesystem.FileTypeRegularFile).
 					SetInodeNumber(3).
@@ -1078,16 +1092,16 @@ func TestSimpleRawFileSystemReadDirPlus(t *testing.T) {
 		// VirtualGetAttributes() should only be called on
 		// objects contained within the resulting directory
 		// listing.
-		childDirectory.EXPECT().VirtualGetAttributes(fuse.AttributesMaskForFUSEAttr, gomock.Any()).DoAndReturn(
-			func(requested virtual.AttributesMask, out *virtual.Attributes) {
+		childDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), fuse.AttributesMaskForFUSEAttr, gomock.Any()).DoAndReturn(
+			func(ctx context.Context, requested virtual.AttributesMask, out *virtual.Attributes) {
 				out.SetFileType(filesystem.FileTypeDirectory)
 				out.SetInodeNumber(2)
 				out.SetLinkCount(12)
 				out.SetPermissions(virtual.PermissionsExecute)
 				out.SetSizeBytes(4096)
 			})
-		childLeaf.EXPECT().VirtualGetAttributes(fuse.AttributesMaskForFUSEAttr, gomock.Any()).DoAndReturn(
-			func(requested virtual.AttributesMask, out *virtual.Attributes) {
+		childLeaf.EXPECT().VirtualGetAttributes(gomock.Any(), fuse.AttributesMaskForFUSEAttr, gomock.Any()).DoAndReturn(
+			func(ctx context.Context, requested virtual.AttributesMask, out *virtual.Attributes) {
 				out.SetFileType(filesystem.FileTypeRegularFile)
 				out.SetInodeNumber(3)
 				out.SetLinkCount(4)
@@ -1148,17 +1162,17 @@ func TestSimpleRawFileSystemReadlink(t *testing.T) {
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
 	removalNotifierRegistrar := mock.NewMockFUSERemovalNotifierRegistrar(ctrl)
-	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call)
+	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call, fuse.AllowAuthenticator)
 
 	symlink := mock.NewMockVirtualLeaf(ctrl)
-	rootDirectory.EXPECT().VirtualLookup(path.MustNewComponent("symlink"), fuse.AttributesMaskForFUSEAttr, gomock.Any()).DoAndReturn(
-		func(name path.Component, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Directory, virtual.Leaf, virtual.Status) {
+	rootDirectory.EXPECT().VirtualLookup(gomock.Any(), path.MustNewComponent("symlink"), fuse.AttributesMaskForFUSEAttr, gomock.Any()).DoAndReturn(
+		func(ctx context.Context, name path.Component, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.DirectoryChild, virtual.Status) {
 			out.SetFileType(filesystem.FileTypeSymlink)
 			out.SetInodeNumber(2)
 			out.SetLinkCount(1)
 			out.SetPermissions(virtual.PermissionsRead | virtual.PermissionsWrite | virtual.PermissionsExecute)
 			out.SetSizeBytes(6)
-			return nil, symlink, virtual.StatusOK
+			return virtual.DirectoryChild{}.FromLeaf(symlink), virtual.StatusOK
 		})
 
 	var entryOut go_fuse.EntryOut
@@ -1176,21 +1190,21 @@ func TestSimpleRawFileSystemReadlink(t *testing.T) {
 	}, entryOut)
 
 	t.Run("IOError", func(t *testing.T) {
-		symlink.EXPECT().VirtualReadlink().Return(nil, virtual.StatusErrIO)
+		symlink.EXPECT().VirtualReadlink(gomock.Any()).Return(nil, virtual.StatusErrIO)
 
 		_, s := rfs.Readlink(nil, &go_fuse.InHeader{NodeId: 2})
 		require.Equal(t, go_fuse.EIO, s)
 	})
 
 	t.Run("WrongFileType", func(t *testing.T) {
-		symlink.EXPECT().VirtualReadlink().Return(nil, virtual.StatusErrInval)
+		symlink.EXPECT().VirtualReadlink(gomock.Any()).Return(nil, virtual.StatusErrInval)
 
 		_, s := rfs.Readlink(nil, &go_fuse.InHeader{NodeId: 2})
 		require.Equal(t, go_fuse.EINVAL, s)
 	})
 
 	t.Run("Success", func(t *testing.T) {
-		symlink.EXPECT().VirtualReadlink().Return([]byte("target"), virtual.StatusOK)
+		symlink.EXPECT().VirtualReadlink(gomock.Any()).Return([]byte("target"), virtual.StatusOK)
 
 		target, s := rfs.Readlink(nil, &go_fuse.InHeader{NodeId: 2})
 		require.Equal(t, go_fuse.OK, s)
@@ -1203,7 +1217,7 @@ func TestSimpleRawFileSystemStatFs(t *testing.T) {
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
 	removalNotifierRegistrar := mock.NewMockFUSERemovalNotifierRegistrar(ctrl)
-	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call)
+	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call, fuse.AllowAuthenticator)
 
 	t.Run("Success", func(t *testing.T) {
 		// OSXFUSE lets the statvfs() system call succeed, even
@@ -1228,7 +1242,7 @@ func TestSimpleRawFileSystemInit(t *testing.T) {
 
 	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
 	removalNotifierRegistrar := mock.NewMockFUSERemovalNotifierRegistrar(ctrl)
-	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call)
+	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call, fuse.AllowAuthenticator)
 
 	// An Init() operation should cause SimpleRawFileSystem to
 	// register a removal notifier that forwards calls to
@@ -1239,8 +1253,8 @@ func TestSimpleRawFileSystemInit(t *testing.T) {
 	// one-time lookup of the inode number of the root directory, so
 	// that we can distinguish it from the other directories going
 	// forward.
-	rootDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskInodeNumber, gomock.Any()).
-		Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+	rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskInodeNumber, gomock.Any()).
+		Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 			attributes.SetInodeNumber(123)
 		})
 	var removalNotifier virtual.FUSERemovalNotifier
@@ -1263,14 +1277,14 @@ func TestSimpleRawFileSystemInit(t *testing.T) {
 		// Add a second directory to the map of directories
 		// tracked by SimpleRawFileSystem.
 		childDirectory := mock.NewMockVirtualDirectory(ctrl)
-		rootDirectory.EXPECT().VirtualLookup(path.MustNewComponent("directory"), fuse.AttributesMaskForFUSEAttr, gomock.Any()).DoAndReturn(
-			func(name path.Component, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Directory, virtual.Leaf, virtual.Status) {
+		rootDirectory.EXPECT().VirtualLookup(gomock.Any(), path.MustNewComponent("directory"), fuse.AttributesMaskForFUSEAttr, gomock.Any()).DoAndReturn(
+			func(ctx context.Context, name path.Component, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.DirectoryChild, virtual.Status) {
 				out.SetFileType(filesystem.FileTypeDirectory)
 				out.SetInodeNumber(456)
 				out.SetLinkCount(1)
 				out.SetPermissions(virtual.PermissionsExecute)
 				out.SetSizeBytes(1200)
-				return childDirectory, nil, virtual.StatusOK
+				return virtual.DirectoryChild{}.FromDirectory(childDirectory), virtual.StatusOK
 			})
 
 		var entryOut go_fuse.EntryOut

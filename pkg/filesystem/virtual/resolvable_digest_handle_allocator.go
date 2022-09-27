@@ -12,7 +12,7 @@ import (
 // callback is responsible for looking up a file or directory that
 // corresponds to a given REv2 digest that was reobtained from a file
 // handle.
-type DigestHandleResolver func(blobDigest digest.Digest, remainder io.ByteReader) (Directory, Leaf, Status)
+type DigestHandleResolver func(blobDigest digest.Digest, remainder io.ByteReader) (DirectoryChild, Status)
 
 // ResolvableDigestHandleAllocator is a convenience type for the handle
 // allocator API, used for identifying objects by REv2 digest. It is
@@ -48,10 +48,10 @@ func (a *ResolvableDigestHandleAllocator) New(blobDigest digest.Digest) Resolvab
 	resolver := a.resolver
 	return a.allocator.
 		New(ByteSliceID([]byte(instanceName.String()))).
-		AsResolvableAllocator(func(r io.ByteReader) (Directory, Leaf, Status) {
+		AsResolvableAllocator(func(r io.ByteReader) (DirectoryChild, Status) {
 			blobDigest, err := instanceName.NewDigestFromCompactBinary(r)
 			if err != nil {
-				return nil, nil, StatusErrBadHandle
+				return DirectoryChild{}, StatusErrBadHandle
 			}
 			return resolver(blobDigest, r)
 		}).

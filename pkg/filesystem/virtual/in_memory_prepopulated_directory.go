@@ -1,6 +1,7 @@
 package virtual
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"sync"
@@ -58,14 +59,7 @@ func (s *inMemorySubtree) createNewDirectory(initialContentsFetcher InitialConte
 
 // inMemoryDirectoryChild contains exactly one reference to an object
 // that's embedded in a parent directory.
-type inMemoryDirectoryChild struct {
-	directory *inMemoryPrepopulatedDirectory
-	leaf      NativeLeaf
-}
-
-func (c *inMemoryDirectoryChild) isDirectory() bool {
-	return c.directory != nil
-}
+type inMemoryDirectoryChild = Child[*inMemoryPrepopulatedDirectory, NativeLeaf, Node]
 
 // inMemoryDirectoryEntry is a directory entry for an object stored in
 // inMemoryDirectoryContents.
@@ -123,7 +117,7 @@ func (c *inMemoryDirectoryContents) attach(subtree *inMemorySubtree, name path.C
 // of an InitialContentsFetcher, which gets evaluated lazily.
 func (c *inMemoryDirectoryContents) attachNewDirectory(subtree *inMemorySubtree, name path.Component, initialContentsFetcher InitialContentsFetcher) *inMemoryPrepopulatedDirectory {
 	newDirectory := subtree.createNewDirectory(initialContentsFetcher)
-	c.attach(subtree, name, inMemoryDirectoryChild{directory: newDirectory})
+	c.attach(subtree, name, inMemoryDirectoryChild{}.FromDirectory(newDirectory))
 	return newDirectory
 }
 
@@ -166,7 +160,7 @@ func (c *inMemoryDirectoryContents) touch(subtree *inMemorySubtree) {
 
 func (c *inMemoryDirectoryContents) isDeletable(hiddenFilesMatcher StringMatcher) bool {
 	for entry := c.entriesList.next; entry != &c.entriesList; entry = entry.next {
-		if entry.child.isDirectory() || !hiddenFilesMatcher(entry.name.String()) {
+		if directory, _ := entry.child.GetPair(); directory != nil || !hiddenFilesMatcher(entry.name.String()) {
 			return false
 		}
 	}
@@ -184,10 +178,10 @@ func (c *inMemoryDirectoryContents) createChildren(subtree *inMemorySubtree, chi
 	subtree.filesystem.initialContentsSorter(namesList)
 
 	for _, name := range namesList {
-		if child := children[name]; child.Directory != nil {
-			c.attachNewDirectory(subtree, name, child.Directory)
+		if directory, leaf := children[name].GetPair(); directory != nil {
+			c.attachNewDirectory(subtree, name, directory)
 		} else {
-			c.attach(subtree, name, inMemoryDirectoryChild{leaf: child.Leaf})
+			c.attach(subtree, name, inMemoryDirectoryChild{}.FromLeaf(leaf))
 		}
 	}
 }
@@ -214,11 +208,12 @@ func (c *inMemoryDirectoryContents) getAndLockIfDirectory(name path.Component, l
 			// No child node present.
 			return nil, false
 		}
-		if !entry.child.isDirectory() {
+		directory, _ := entry.child.GetPair()
+		if directory == nil {
 			// Not a directory.
 			return entry, true
 		}
-		childDirectoryLock := &entry.child.directory.lock
+		childDirectoryLock := &directory.lock
 		if lockPile.Lock(childDirectoryLock) {
 			// Lock acquisition of child succeeded without
 			// dropping any of the existing locks.
@@ -234,7 +229,7 @@ func (c *inMemoryDirectoryContents) getAndLockIfDirectory(name path.Component, l
 
 func (c *inMemoryDirectoryContents) getDirectoriesAndLeavesCount(hiddenFilesMatcher StringMatcher) (directoriesCount, leavesCount int) {
 	for entry := c.entriesList.next; entry != &c.entriesList; entry = entry.next {
-		if entry.child.isDirectory() {
+		if directory, _ := entry.child.GetPair(); directory != nil {
 			directoriesCount++
 		} else if !hiddenFilesMatcher(entry.name.String()) {
 			leavesCount++
@@ -315,7 +310,8 @@ func (i *inMemoryPrepopulatedDirectory) markDeleted() {
 		for i.contents.entriesList.next != &i.contents.entriesList {
 			entry := i.contents.entriesList.next
 			i.contents.detach(i.subtree, entry)
-			entry.child.leaf.Unlink()
+			_, leaf := entry.child.GetPair()
+			leaf.Unlink()
 		}
 
 		i.contents.isDeleted = true
@@ -323,23 +319,24 @@ func (i *inMemoryPrepopulatedDirectory) markDeleted() {
 	}
 }
 
-func (i *inMemoryPrepopulatedDirectory) LookupChild(name path.Component) (PrepopulatedDirectory, NativeLeaf, error) {
+func (i *inMemoryPrepopulatedDirectory) LookupChild(name path.Component) (PrepopulatedDirectoryChild, error) {
 	i.lock.Lock()
 	defer i.lock.Unlock()
 
 	contents, err := i.getContents()
 	if err != nil {
-		return nil, nil, err
+		return PrepopulatedDirectoryChild{}, err
 	}
 
 	if entry, ok := contents.entriesMap[name]; ok {
 		child := &entry.child
-		if child.isDirectory() {
-			return child.directory, nil, nil
+		directory, leaf := child.GetPair()
+		if directory != nil {
+			return PrepopulatedDirectoryChild{}.FromDirectory(directory), nil
 		}
-		return nil, child.leaf, nil
+		return PrepopulatedDirectoryChild{}.FromLeaf(leaf), nil
 	}
-	return nil, nil, syscall.ENOENT
+	return PrepopulatedDirectoryChild{}, syscall.ENOENT
 }
 
 func (i *inMemoryPrepopulatedDirectory) LookupAllChildren() ([]DirectoryPrepopulatedDirEntry, []LeafPrepopulatedDirEntry, error) {
@@ -355,14 +352,14 @@ func (i *inMemoryPrepopulatedDirectory) LookupAllChildren() ([]DirectoryPrepopul
 	directories := make(directoryPrepopulatedDirEntryList, 0, directoriesCount)
 	leaves := make(leafPrepopulatedDirEntryList, 0, leavesCount)
 	for entry := contents.entriesList.next; entry != &contents.entriesList; entry = entry.next {
-		if child := &entry.child; child.isDirectory() {
+		if directory, leaf := entry.child.GetPair(); directory != nil {
 			directories = append(directories, DirectoryPrepopulatedDirEntry{
-				Child: child.directory,
+				Child: directory,
 				Name:  entry.name,
 			})
 		} else if !i.subtree.filesystem.hiddenFilesMatcher(entry.name.String()) {
 			leaves = append(leaves, LeafPrepopulatedDirEntry{
-				Child: child.leaf,
+				Child: leaf,
 				Name:  entry.name,
 			})
 		}
@@ -384,11 +381,11 @@ func (i *inMemoryPrepopulatedDirectory) ReadDir() ([]filesystem.FileInfo, error)
 
 	entries := make(filesystem.FileInfoList, 0, len(contents.entriesMap))
 	for entry := contents.entriesList.next; entry != &contents.entriesList; entry = entry.next {
-		if child := &entry.child; child.isDirectory() {
+		if directory, leaf := entry.child.GetPair(); directory != nil {
 			entries = append(entries,
 				filesystem.NewFileInfo(entry.name, filesystem.FileTypeDirectory, false))
 		} else if !i.subtree.filesystem.hiddenFilesMatcher(entry.name.String()) {
-			entries = append(entries, GetFileInfo(entry.name, child.leaf))
+			entries = append(entries, GetFileInfo(entry.name, leaf))
 		}
 	}
 	sort.Sort(entries)
@@ -406,21 +403,21 @@ func (i *inMemoryPrepopulatedDirectory) Remove(name path.Component) error {
 	}
 
 	if entry, ok := contents.getAndLockIfDirectory(name, &lockPile); ok {
-		if child := &entry.child; child.isDirectory() {
+		if directory, leaf := entry.child.GetPair(); directory != nil {
 			// The directory has a child directory under
 			// that name. Perform an rmdir().
-			childContents, err := child.directory.getContents()
+			childContents, err := directory.getContents()
 			if err != nil {
 				return err
 			}
 			if !childContents.isDeletable(i.subtree.filesystem.hiddenFilesMatcher) {
 				return syscall.ENOTEMPTY
 			}
-			child.directory.markDeleted()
+			directory.markDeleted()
 		} else {
 			// The directory has a child file/symlink under
 			// that name. Perform an unlink().
-			child.leaf.Unlink()
+			leaf.Unlink()
 		}
 		contents.detach(i.subtree, entry)
 		lockPile.UnlockAll()
@@ -444,14 +441,14 @@ func (i *inMemoryPrepopulatedDirectory) RemoveAll(name path.Component) error {
 		contents.detach(i.subtree, entry)
 		i.lock.Unlock()
 		i.handle.NotifyRemoval(name)
-		if child := &entry.child; child.isDirectory() {
+		if directory, leaf := entry.child.GetPair(); directory != nil {
 			// The directory has a child directory under
 			// that name. Perform a recursive removal.
-			child.directory.removeAllChildren(true)
+			directory.removeAllChildren(true)
 		} else {
 			// The directory has a child file/symlink under
 			// that name. Perform an unlink().
-			child.leaf.Unlink()
+			leaf.Unlink()
 		}
 		return nil
 	}
@@ -503,10 +500,10 @@ func (i *inMemoryPrepopulatedDirectory) removeAllChildren(deleteSelf bool) {
 func (i *inMemoryPrepopulatedDirectory) postRemoveChildren(entries *inMemoryDirectoryEntry) {
 	for entry := entries; entry != nil; entry = entry.previous {
 		i.handle.NotifyRemoval(entry.name)
-		if child := &entry.child; child.isDirectory() {
-			child.directory.removeAllChildren(true)
+		if directory, leaf := entry.child.GetPair(); directory != nil {
+			directory.removeAllChildren(true)
 		} else {
-			child.leaf.Unlink()
+			leaf.Unlink()
 		}
 	}
 }
@@ -571,15 +568,15 @@ func (i *inMemoryPrepopulatedDirectory) CreateAndEnterPrepopulatedDirectory(name
 	}
 
 	if entry, ok := contents.entriesMap[name]; ok {
-		child := &entry.child
-		if child.isDirectory() {
+		directory, leaf := entry.child.GetPair()
+		if directory != nil {
 			// Already a directory.
 			i.lock.Unlock()
-			return child.directory, nil
+			return directory, nil
 		}
 		// Not a directory. Replace it.
 		contents.detach(i.subtree, entry)
-		child.leaf.Unlink()
+		leaf.Unlink()
 		newChild := contents.attachNewDirectory(i.subtree, name, EmptyInitialContentsFetcher)
 		i.lock.Unlock()
 		i.handle.NotifyRemoval(name)
@@ -601,7 +598,7 @@ func (i *inMemoryPrepopulatedDirectory) filterChildrenRecursive(childFilter Chil
 		// instantiate it. Simply provide the
 		// InitialContentsFetcher to the callback.
 		i.lock.Unlock()
-		return childFilter(InitialNode{Directory: initialContentsFetcher}, func() error {
+		return childFilter(InitialNode{}.FromDirectory(initialContentsFetcher), func() error {
 			return i.RemoveAllChildren(false)
 		})
 	}
@@ -615,12 +612,12 @@ func (i *inMemoryPrepopulatedDirectory) filterChildrenRecursive(childFilter Chil
 	directories := make([]*inMemoryPrepopulatedDirectory, 0, directoriesCount)
 	leaves := make([]leafInfo, 0, leavesCount)
 	for entry := i.contents.entriesList.next; entry != &i.contents.entriesList; entry = entry.next {
-		if child := &entry.child; child.isDirectory() {
-			directories = append(directories, child.directory)
+		if directory, leaf := entry.child.GetPair(); directory != nil {
+			directories = append(directories, directory)
 		} else {
 			leaves = append(leaves, leafInfo{
 				name: entry.name,
-				leaf: child.leaf,
+				leaf: leaf,
 			})
 		}
 	}
@@ -629,7 +626,7 @@ func (i *inMemoryPrepopulatedDirectory) filterChildrenRecursive(childFilter Chil
 	// Invoke the callback for all children.
 	for _, child := range leaves {
 		name := child.name
-		if !childFilter(InitialNode{Leaf: child.leaf}, func() error {
+		if !childFilter(InitialNode{}.FromLeaf(child.leaf), func() error {
 			return i.Remove(name)
 		}) {
 			return false
@@ -657,7 +654,7 @@ func (i *inMemoryPrepopulatedDirectory) virtualGetContents() (*inMemoryDirectory
 	return contents, StatusOK
 }
 
-func (i *inMemoryPrepopulatedDirectory) VirtualOpenChild(name path.Component, shareAccess ShareMask, createAttributes *Attributes, existingOptions *OpenExistingOptions, requested AttributesMask, openedFileAttributes *Attributes) (Leaf, AttributesMask, ChangeInfo, Status) {
+func (i *inMemoryPrepopulatedDirectory) VirtualOpenChild(ctx context.Context, name path.Component, shareAccess ShareMask, createAttributes *Attributes, existingOptions *OpenExistingOptions, requested AttributesMask, openedFileAttributes *Attributes) (Leaf, AttributesMask, ChangeInfo, Status) {
 	i.lock.Lock()
 	defer i.lock.Unlock()
 
@@ -671,12 +668,11 @@ func (i *inMemoryPrepopulatedDirectory) VirtualOpenChild(name path.Component, sh
 		if existingOptions == nil {
 			return nil, 0, ChangeInfo{}, StatusErrExist
 		}
-		child := &entry.child
-		if child.isDirectory() {
+		directory, leaf := entry.child.GetPair()
+		if directory != nil {
 			return nil, 0, ChangeInfo{}, StatusErrIsDir
 		}
-		leaf := child.leaf
-		s := leaf.VirtualOpenSelf(shareAccess, existingOptions, requested, openedFileAttributes)
+		s := leaf.VirtualOpenSelf(ctx, shareAccess, existingOptions, requested, openedFileAttributes)
 		return leaf, existingOptions.ToAttributesMask(), ChangeInfo{
 			Before: contents.changeID,
 			After:  contents.changeID,
@@ -707,8 +703,8 @@ func (i *inMemoryPrepopulatedDirectory) VirtualOpenChild(name path.Component, sh
 
 	// Attach file to the directory.
 	changeIDBefore := contents.changeID
-	contents.attach(i.subtree, name, inMemoryDirectoryChild{leaf: leaf})
-	leaf.VirtualGetAttributes(requested, openedFileAttributes)
+	contents.attach(i.subtree, name, inMemoryDirectoryChild{}.FromLeaf(leaf))
+	leaf.VirtualGetAttributes(ctx, requested, openedFileAttributes)
 	return leaf, respected, ChangeInfo{
 		Before: changeIDBefore,
 		After:  contents.changeID,
@@ -717,7 +713,7 @@ func (i *inMemoryPrepopulatedDirectory) VirtualOpenChild(name path.Component, sh
 
 const inMemoryPrepopulatedDirectoryLockedAttributesMask = AttributesMaskChangeID | AttributesMaskLastDataModificationTime
 
-func (i *inMemoryPrepopulatedDirectory) VirtualGetAttributes(requested AttributesMask, attributes *Attributes) {
+func (i *inMemoryPrepopulatedDirectory) VirtualGetAttributes(ctx context.Context, requested AttributesMask, attributes *Attributes) {
 	i.virtualGetAttributesUnlocked(requested, attributes)
 	if requested&inMemoryPrepopulatedDirectoryLockedAttributesMask != 0 {
 		i.lock.Lock()
@@ -742,7 +738,7 @@ func (i *inMemoryPrepopulatedDirectory) virtualGetAttributesLocked(requested Att
 	attributes.SetLastDataModificationTime(i.contents.lastDataModificationTime)
 }
 
-func (i *inMemoryPrepopulatedDirectory) VirtualLink(name path.Component, leaf Leaf, requested AttributesMask, out *Attributes) (ChangeInfo, Status) {
+func (i *inMemoryPrepopulatedDirectory) VirtualLink(ctx context.Context, name path.Component, leaf Leaf, requested AttributesMask, out *Attributes) (ChangeInfo, Status) {
 	child, ok := leaf.(NativeLeaf)
 	if !ok {
 		// The file is not the kind that can be embedded into
@@ -765,23 +761,23 @@ func (i *inMemoryPrepopulatedDirectory) VirtualLink(name path.Component, leaf Le
 		return ChangeInfo{}, s
 	}
 	changeIDBefore := contents.changeID
-	contents.attach(i.subtree, name, inMemoryDirectoryChild{leaf: child})
+	contents.attach(i.subtree, name, inMemoryDirectoryChild{}.FromLeaf(child))
 
-	child.VirtualGetAttributes(requested, out)
+	child.VirtualGetAttributes(ctx, requested, out)
 	return ChangeInfo{
 		Before: changeIDBefore,
 		After:  contents.changeID,
 	}, StatusOK
 }
 
-func (i *inMemoryPrepopulatedDirectory) VirtualLookup(name path.Component, requested AttributesMask, out *Attributes) (Directory, Leaf, Status) {
+func (i *inMemoryPrepopulatedDirectory) VirtualLookup(ctx context.Context, name path.Component, requested AttributesMask, out *Attributes) (DirectoryChild, Status) {
 	lockPile := re_sync.LockPile{}
 	defer lockPile.UnlockAll()
 	lockPile.Lock(&i.lock)
 
 	contents, s := i.virtualGetContents()
 	if s != StatusOK {
-		return nil, nil, s
+		return DirectoryChild{}, s
 	}
 
 	// Depending on which attributes need to be returned, we either
@@ -790,27 +786,27 @@ func (i *inMemoryPrepopulatedDirectory) VirtualLookup(name path.Component, reque
 	// might cause a deadlock.
 	if requested&inMemoryPrepopulatedDirectoryLockedAttributesMask != 0 {
 		if entry, ok := contents.getAndLockIfDirectory(name, &lockPile); ok {
-			child := &entry.child
-			if child.isDirectory() {
-				child.directory.virtualGetAttributesUnlocked(requested, out)
-				child.directory.virtualGetAttributesLocked(requested, out)
-				return child.directory, nil, StatusOK
+			directory, leaf := entry.child.GetPair()
+			if directory != nil {
+				directory.virtualGetAttributesUnlocked(requested, out)
+				directory.virtualGetAttributesLocked(requested, out)
+				return DirectoryChild{}.FromDirectory(directory), StatusOK
 			}
-			child.leaf.VirtualGetAttributes(requested, out)
-			return nil, child.leaf, StatusOK
+			leaf.VirtualGetAttributes(ctx, requested, out)
+			return DirectoryChild{}.FromLeaf(leaf), StatusOK
 		}
 	} else {
 		if entry, ok := contents.entriesMap[name]; ok {
-			child := &entry.child
-			if child.isDirectory() {
-				child.directory.virtualGetAttributesUnlocked(requested, out)
-				return child.directory, nil, StatusOK
+			directory, leaf := entry.child.GetPair()
+			if directory != nil {
+				directory.virtualGetAttributesUnlocked(requested, out)
+				return DirectoryChild{}.FromDirectory(directory), StatusOK
 			}
-			child.leaf.VirtualGetAttributes(requested, out)
-			return nil, child.leaf, StatusOK
+			leaf.VirtualGetAttributes(ctx, requested, out)
+			return DirectoryChild{}.FromLeaf(leaf), StatusOK
 		}
 	}
-	return nil, nil, StatusErrNoEnt
+	return DirectoryChild{}, StatusErrNoEnt
 }
 
 func (i *inMemoryPrepopulatedDirectory) VirtualMkdir(name path.Component, requested AttributesMask, out *Attributes) (Directory, ChangeInfo, Status) {
@@ -838,7 +834,7 @@ func (i *inMemoryPrepopulatedDirectory) VirtualMkdir(name path.Component, reques
 	}, StatusOK
 }
 
-func (i *inMemoryPrepopulatedDirectory) VirtualMknod(name path.Component, fileType filesystem.FileType, requested AttributesMask, out *Attributes) (Leaf, ChangeInfo, Status) {
+func (i *inMemoryPrepopulatedDirectory) VirtualMknod(ctx context.Context, name path.Component, fileType filesystem.FileType, requested AttributesMask, out *Attributes) (Leaf, ChangeInfo, Status) {
 	i.lock.Lock()
 	defer i.lock.Unlock()
 
@@ -857,16 +853,16 @@ func (i *inMemoryPrepopulatedDirectory) VirtualMknod(name path.Component, fileTy
 		New().
 		AsNativeLeaf(NewSpecialFile(fileType, nil))
 	changeIDBefore := contents.changeID
-	contents.attach(i.subtree, name, inMemoryDirectoryChild{leaf: child})
+	contents.attach(i.subtree, name, inMemoryDirectoryChild{}.FromLeaf(child))
 
-	child.VirtualGetAttributes(requested, out)
+	child.VirtualGetAttributes(ctx, requested, out)
 	return child, ChangeInfo{
 		Before: changeIDBefore,
 		After:  contents.changeID,
 	}, StatusOK
 }
 
-func (i *inMemoryPrepopulatedDirectory) VirtualReadDir(firstCookie uint64, requested AttributesMask, reporter DirectoryEntryReporter) Status {
+func (i *inMemoryPrepopulatedDirectory) VirtualReadDir(ctx context.Context, firstCookie uint64, requested AttributesMask, reporter DirectoryEntryReporter) Status {
 	lockPile := re_sync.LockPile{}
 	defer lockPile.UnlockAll()
 	lockPile.Lock(&i.lock)
@@ -877,8 +873,7 @@ func (i *inMemoryPrepopulatedDirectory) VirtualReadDir(firstCookie uint64, reque
 	}
 
 	for entry := contents.getEntryAtCookie(firstCookie); entry != &contents.entriesList; {
-		if child := &entry.child; child.isDirectory() {
-			directory := child.directory
+		if directory, leaf := entry.child.GetPair(); directory != nil {
 			var attributes Attributes
 			directory.virtualGetAttributesUnlocked(requested, &attributes)
 
@@ -901,14 +896,13 @@ func (i *inMemoryPrepopulatedDirectory) VirtualReadDir(firstCookie uint64, reque
 				lockPile.Unlock(&directory.lock)
 			}
 
-			if !reporter.ReportDirectory(entry.cookie+1, entry.name, directory, &attributes) {
+			if !reporter.ReportEntry(entry.cookie+1, entry.name, DirectoryChild{}.FromDirectory(directory), &attributes) {
 				break
 			}
 		} else if !i.subtree.filesystem.hiddenFilesMatcher(entry.name.String()) {
-			leaf := child.leaf
 			var attributes Attributes
-			leaf.VirtualGetAttributes(requested, &attributes)
-			if !reporter.ReportLeaf(entry.cookie+1, entry.name, leaf, &attributes) {
+			leaf.VirtualGetAttributes(ctx, requested, &attributes)
+			if !reporter.ReportEntry(entry.cookie+1, entry.name, DirectoryChild{}.FromLeaf(leaf), &attributes) {
 				break
 			}
 		}
@@ -945,19 +939,21 @@ func (i *inMemoryPrepopulatedDirectory) VirtualRename(oldName path.Component, ne
 			return ChangeInfo{}, ChangeInfo{}, StatusErrNoEnt
 		}
 		oldChild := oldEntry.child
-		if newChild := &newEntry.child; newChild.isDirectory() {
+		oldDirectory, oldLeaf := oldChild.GetPair()
+		newChild := newEntry.child
+		if newDirectory, newLeaf := newChild.GetPair(); newDirectory != nil {
 			// Renaming to a location at which a directory
 			// already exists.
-			if !oldChild.isDirectory() {
+			if oldDirectory == nil {
 				return ChangeInfo{}, ChangeInfo{}, StatusErrIsDir
 			}
 			// Renaming a directory to itself is always
 			// permitted, even when not empty.
-			if newChild.directory != oldChild.directory {
+			if newDirectory != oldDirectory {
 				if iOld.subtree.filesystem != iNew.subtree.filesystem {
 					return ChangeInfo{}, ChangeInfo{}, StatusErrXDev
 				}
-				newChildContents, s := newChild.directory.virtualGetContents()
+				newChildContents, s := newDirectory.virtualGetContents()
 				if s != StatusOK {
 					return ChangeInfo{}, ChangeInfo{}, s
 				}
@@ -969,23 +965,23 @@ func (i *inMemoryPrepopulatedDirectory) VirtualRename(oldName path.Component, ne
 				// potential creation of cyclic directory
 				// structures.
 				newContents.detach(i.subtree, newEntry)
-				newChild.directory.markDeleted()
+				newDirectory.markDeleted()
 				newContents.attach(i.subtree, newName, oldChild)
 			}
 		} else {
 			// Renaming to a location at which a leaf
 			// already exists.
-			if oldChild.isDirectory() {
+			if oldDirectory != nil {
 				return ChangeInfo{}, ChangeInfo{}, StatusErrNotDir
 			}
 			// POSIX requires that renaming a file to itself
 			// has no effect. After running the following
 			// sequence of commands, both "a" and "b" should
 			// still exist: "touch a; ln a b; mv a b".
-			if newChild.leaf != oldChild.leaf {
+			if newLeaf != oldLeaf {
 				oldContents.detach(i.subtree, oldEntry)
 				newContents.detach(i.subtree, newEntry)
-				newChild.leaf.Unlink()
+				newLeaf.Unlink()
 				newContents.attach(i.subtree, newName, oldChild)
 			}
 		}
@@ -999,7 +995,7 @@ func (i *inMemoryPrepopulatedDirectory) VirtualRename(oldName path.Component, ne
 			return ChangeInfo{}, ChangeInfo{}, StatusErrNoEnt
 		}
 		oldChild := oldEntry.child
-		if oldChild.isDirectory() {
+		if oldDirectory, _ := oldChild.GetPair(); oldDirectory != nil {
 			if iOld.subtree.filesystem != iNew.subtree.filesystem {
 				return ChangeInfo{}, ChangeInfo{}, StatusErrXDev
 			}
@@ -1027,23 +1023,23 @@ func (i *inMemoryPrepopulatedDirectory) VirtualRemove(name path.Component, remov
 	}
 
 	if entry, ok := contents.getAndLockIfDirectory(name, &lockPile); ok {
-		if child := &entry.child; child.isDirectory() {
+		if directory, leaf := entry.child.GetPair(); directory != nil {
 			if !removeDirectory {
 				return ChangeInfo{}, StatusErrPerm
 			}
-			childContents, s := child.directory.virtualGetContents()
+			childContents, s := directory.virtualGetContents()
 			if s != StatusOK {
 				return ChangeInfo{}, s
 			}
 			if !childContents.isDeletable(i.subtree.filesystem.hiddenFilesMatcher) {
 				return ChangeInfo{}, StatusErrNotEmpty
 			}
-			child.directory.markDeleted()
+			directory.markDeleted()
 		} else {
 			if !removeLeaf {
 				return ChangeInfo{}, StatusErrNotDir
 			}
-			child.leaf.Unlink()
+			leaf.Unlink()
 		}
 		changeIDBefore := contents.changeID
 		contents.detach(i.subtree, entry)
@@ -1056,15 +1052,15 @@ func (i *inMemoryPrepopulatedDirectory) VirtualRemove(name path.Component, remov
 	return ChangeInfo{}, StatusErrNoEnt
 }
 
-func (i *inMemoryPrepopulatedDirectory) VirtualSetAttributes(in *Attributes, requested AttributesMask, out *Attributes) Status {
+func (i *inMemoryPrepopulatedDirectory) VirtualSetAttributes(ctx context.Context, in *Attributes, requested AttributesMask, out *Attributes) Status {
 	if _, ok := in.GetSizeBytes(); ok {
 		return StatusErrInval
 	}
-	i.VirtualGetAttributes(requested, out)
+	i.VirtualGetAttributes(ctx, requested, out)
 	return StatusOK
 }
 
-func (i *inMemoryPrepopulatedDirectory) VirtualSymlink(pointedTo []byte, linkName path.Component, requested AttributesMask, out *Attributes) (Leaf, ChangeInfo, Status) {
+func (i *inMemoryPrepopulatedDirectory) VirtualSymlink(ctx context.Context, pointedTo []byte, linkName path.Component, requested AttributesMask, out *Attributes) (Leaf, ChangeInfo, Status) {
 	i.lock.Lock()
 	defer i.lock.Unlock()
 
@@ -1078,9 +1074,9 @@ func (i *inMemoryPrepopulatedDirectory) VirtualSymlink(pointedTo []byte, linkNam
 	}
 	child := i.subtree.filesystem.symlinkFactory.LookupSymlink(pointedTo)
 	changeIDBefore := contents.changeID
-	contents.attach(i.subtree, linkName, inMemoryDirectoryChild{leaf: child})
+	contents.attach(i.subtree, linkName, inMemoryDirectoryChild{}.FromLeaf(child))
 
-	child.VirtualGetAttributes(requested, out)
+	child.VirtualGetAttributes(ctx, requested, out)
 	return child, ChangeInfo{
 		Before: changeIDBefore,
 		After:  contents.changeID,

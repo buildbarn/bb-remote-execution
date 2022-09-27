@@ -1,6 +1,8 @@
 package virtual
 
 import (
+	"context"
+
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 )
@@ -10,13 +12,10 @@ import (
 // on the underlying directory are held. This means that it's not safe
 // to call methods of the child directory, as that could cause
 // deadlocks.
-//
-// TODO: For directories it makes sense that attributes are returned, as
-// it prevents potential deadlocks. For leaves there is likely no gain.
-// Should we remove ReportLeaf()'s 'attributes' argument?
 type DirectoryEntryReporter interface {
-	ReportDirectory(nextCookie uint64, name path.Component, directory Directory, attributes *Attributes) bool
-	ReportLeaf(nextCookie uint64, name path.Component, leaf Leaf, attributes *Attributes) bool
+	// TODO: Can't use DirectoryChild in the arguments here, due to
+	// https://github.com/golang/go/issues/50259.
+	ReportEntry(nextCookie uint64, name path.Component, child Child[Directory, Leaf, Node], attributes *Attributes) bool
 }
 
 // ChangeInfo contains a pair of change IDs of a directory, before and
@@ -26,6 +25,10 @@ type ChangeInfo struct {
 	Before uint64
 	After  uint64
 }
+
+// DirectoryChild is either a Directory or a Leaf, as returned by
+// Directory.VirtualLookup().
+type DirectoryChild = Child[Directory, Leaf, Node]
 
 // Directory node that is exposed through FUSE using
 // SimpleRawFileSystem, or through NFSv4. The names of all of these
@@ -46,21 +49,24 @@ type Directory interface {
 	//
 	// Either one or both of createAttributes and existingOptions
 	// need to be provided.
-	VirtualOpenChild(name path.Component, shareAccess ShareMask, createAttributes *Attributes, existingOptions *OpenExistingOptions, requested AttributesMask, openedFileAttributes *Attributes) (Leaf, AttributesMask, ChangeInfo, Status)
+	VirtualOpenChild(ctx context.Context, name path.Component, shareAccess ShareMask, createAttributes *Attributes, existingOptions *OpenExistingOptions, requested AttributesMask, openedFileAttributes *Attributes) (Leaf, AttributesMask, ChangeInfo, Status)
 	// VirtualLink links an existing file into the directory.
-	VirtualLink(name path.Component, leaf Leaf, requested AttributesMask, attributes *Attributes) (ChangeInfo, Status)
+	VirtualLink(ctx context.Context, name path.Component, leaf Leaf, requested AttributesMask, attributes *Attributes) (ChangeInfo, Status)
 	// VirtualLookup obtains the inode corresponding with a child
 	// stored within the directory.
-	VirtualLookup(name path.Component, requested AttributesMask, out *Attributes) (Directory, Leaf, Status)
+	//
+	// TODO: Can't use DirectoryChild in the return type here, due to
+	// https://github.com/golang/go/issues/50259.
+	VirtualLookup(ctx context.Context, name path.Component, requested AttributesMask, out *Attributes) (Child[Directory, Leaf, Node], Status)
 	// VirtualMkdir creates an empty directory within the current
 	// directory.
 	VirtualMkdir(name path.Component, requested AttributesMask, attributes *Attributes) (Directory, ChangeInfo, Status)
 	// VirtualMknod creates a character FIFO or UNIX domain socket
 	// within the current directory.
-	VirtualMknod(name path.Component, fileType filesystem.FileType, requested AttributesMask, attributes *Attributes) (Leaf, ChangeInfo, Status)
+	VirtualMknod(ctx context.Context, name path.Component, fileType filesystem.FileType, requested AttributesMask, attributes *Attributes) (Leaf, ChangeInfo, Status)
 	// VirtualReadDir reports files and directories stored within
 	// the directory.
-	VirtualReadDir(firstCookie uint64, requested AttributesMask, reporter DirectoryEntryReporter) Status
+	VirtualReadDir(ctx context.Context, firstCookie uint64, requested AttributesMask, reporter DirectoryEntryReporter) Status
 	// VirtualRename renames a file stored in the current directory,
 	// potentially moving it to another directory.
 	VirtualRename(oldName path.Component, newDirectory Directory, newName path.Component) (ChangeInfo, ChangeInfo, Status)
@@ -71,7 +77,7 @@ type Directory interface {
 	VirtualRemove(name path.Component, removeDirectory, removeLeaf bool) (ChangeInfo, Status)
 	// VirtualSymlink creates a symbolic link within the current
 	// directory.
-	VirtualSymlink(pointedTo []byte, linkName path.Component, requested AttributesMask, attributes *Attributes) (Leaf, ChangeInfo, Status)
+	VirtualSymlink(ctx context.Context, pointedTo []byte, linkName path.Component, requested AttributesMask, attributes *Attributes) (Leaf, ChangeInfo, Status)
 }
 
 const (

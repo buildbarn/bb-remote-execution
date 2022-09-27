@@ -157,7 +157,10 @@ func main() {
 		switch backend := buildDirectoryConfiguration.Backend.(type) {
 		case *bb_worker.BuildDirectoryConfiguration_Virtual:
 			var mount virtual_configuration.Mount
-			mount, handleAllocator, err = virtual_configuration.NewMountFromConfiguration(backend.Virtual.Mount, "bb_worker")
+			mount, handleAllocator, err = virtual_configuration.NewMountFromConfiguration(
+				backend.Virtual.Mount,
+				"bb_worker",
+				/* containsSelfMutatingSymlinks = */ false)
 			if err != nil {
 				log.Fatal("Failed to create build directory mount: ", err)
 			}

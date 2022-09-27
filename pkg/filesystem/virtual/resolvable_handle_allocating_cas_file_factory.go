@@ -37,24 +37,24 @@ func (cff *resolvableHandleAllocatingCASFileFactory) LookupFile(blobDigest diges
 	}
 	return cff.allocator.
 		New(blobDigest).
-		AsResolvableAllocator(func(r io.ByteReader) (Directory, Leaf, Status) {
+		AsResolvableAllocator(func(r io.ByteReader) (DirectoryChild, Status) {
 			return cff.resolve(blobDigest, r)
 		}).
 		New(bytes.NewBuffer(isExecutableField[:])).
 		AsNativeLeaf(cff.base.LookupFile(blobDigest, isExecutable))
 }
 
-func (cff *resolvableHandleAllocatingCASFileFactory) resolve(blobDigest digest.Digest, remainder io.ByteReader) (Directory, Leaf, Status) {
+func (cff *resolvableHandleAllocatingCASFileFactory) resolve(blobDigest digest.Digest, remainder io.ByteReader) (DirectoryChild, Status) {
 	isExecutable, err := remainder.ReadByte()
 	if err != nil {
-		return nil, nil, StatusErrBadHandle
+		return DirectoryChild{}, StatusErrBadHandle
 	}
 	switch isExecutable {
 	case 0:
-		return nil, cff.LookupFile(blobDigest, false), StatusOK
+		return DirectoryChild{}.FromLeaf(cff.LookupFile(blobDigest, false)), StatusOK
 	case 1:
-		return nil, cff.LookupFile(blobDigest, true), StatusOK
+		return DirectoryChild{}.FromLeaf(cff.LookupFile(blobDigest, true)), StatusOK
 	default:
-		return nil, nil, StatusErrBadHandle
+		return DirectoryChild{}, StatusErrBadHandle
 	}
 }

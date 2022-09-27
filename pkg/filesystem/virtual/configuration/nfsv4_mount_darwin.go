@@ -25,7 +25,10 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-var initializeNFSOnce sync.Once
+var (
+	initializeNFSOnce            sync.Once
+	initializeNFSReadlinkNoCache sync.Once
+)
 
 func toNfstime32(d time.Duration) *nfs_sys_prot.Nfstime32 {
 	nanos := d.Nanoseconds()
@@ -36,6 +39,17 @@ func toNfstime32(d time.Duration) *nfs_sys_prot.Nfstime32 {
 }
 
 func (m *nfsv4Mount) mount(rpcServer *rpcserver.Server) error {
+	// macOS may require us to perform certain initialisation steps
+	// before attempting to create the NFS mount, such as loading
+	// the kernel extension containing the NFS client.
+	//
+	// Instead of trying to mimic those steps, call mount_nfs(8) in
+	// such a way that the arguments are valid, but is guaranteed to
+	// fail quickly.
+	initializeNFSOnce.Do(func() {
+		exec.Command("/sbin/mount_nfs", "0.0.0.0:/", "/").Run()
+	})
+
 	darwinConfiguration, ok := m.configuration.OperatingSystem.(*pb.NFSv4MountConfiguration_Darwin)
 	if !ok {
 		return status.Error(codes.InvalidArgument, "Darwin specific NFSv4 server configuration options not provided")
@@ -103,6 +117,20 @@ func (m *nfsv4Mount) mount(rpcServer *rpcserver.Server) error {
 	attrMask |= 1 << nfs_sys_prot.NFS_MATTR_NFS_MINOR_VERSION
 	nfs_sys_prot.WriteNfsMattrNfsMinorVersion(attrVals, 0)
 
+	// The bb_virtual_tmp service exposes a symbolic link whose
+	// contents should under no condition be cached by the kernel.
+	if m.containsSelfMutatingSymlinks {
+		// TODO: Is it possible to configure this feature
+		// through a mount option?
+		initializeNFSReadlinkNoCache.Do(func() {
+			exec.Command("/usr/sbin/sysctl", "vfs.generic.nfs.client.readlink_nocache=1").Run()
+		})
+		attrMask |= 1 << nfs_sys_prot.NFS_MATTR_ATTRCACHE_REG_MIN
+		toNfstime32(0).WriteTo(attrVals)
+		attrMask |= 1 << nfs_sys_prot.NFS_MATTR_ATTRCACHE_REG_MAX
+		toNfstime32(0).WriteTo(attrVals)
+	}
+
 	if d := osConfiguration.MinimumDirectoriesAttributeCacheTimeout; d != nil {
 		if err := d.CheckValid(); err != nil {
 			return util.StatusWrapWithCode(err, codes.InvalidArgument, "Invalid minimum directories attribute cache timeout")
@@ -164,17 +192,6 @@ func (m *nfsv4Mount) mount(rpcServer *rpcserver.Server) error {
 	if _, err := mountArgs.WriteTo(mountArgsBuf); err != nil {
 		return util.StatusWrap(err, "Failed to marshal NFS mount arguments")
 	}
-
-	// macOS may require us to perform certain initialisation steps
-	// before attempting to create the NFS mount, such as loading
-	// the kernel extension containing the NFS client.
-	//
-	// Instead of trying to mimic those steps, call mount_nfs(8) in
-	// such a way that the arguments are valid, but is guaranteed to
-	// fail quickly.
-	initializeNFSOnce.Do(func() {
-		exec.Command("/sbin/mount_nfs", "0.0.0.0:/", "/").Run()
-	})
 
 	// Call mount(2) with the serialized nfs_mount_args message.
 	unix.Unmount(m.mountPath, 0)

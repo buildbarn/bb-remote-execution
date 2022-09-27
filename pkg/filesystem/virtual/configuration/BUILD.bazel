@@ -16,10 +16,12 @@ go_library(
         "//pkg/filesystem/virtual/nfsv4",
         "//pkg/proto/configuration/filesystem/virtual",
         "@com_github_buildbarn_bb_storage//pkg/clock",
+        "@com_github_buildbarn_bb_storage//pkg/eviction",
         "@com_github_buildbarn_bb_storage//pkg/random",
         "@com_github_buildbarn_bb_storage//pkg/util",
         "@com_github_buildbarn_go_xdr//pkg/protocols/nfsv4",
         "@com_github_buildbarn_go_xdr//pkg/rpcserver",
+        "@com_github_jmespath_go_jmespath//:go-jmespath",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//status",
     ] + select({

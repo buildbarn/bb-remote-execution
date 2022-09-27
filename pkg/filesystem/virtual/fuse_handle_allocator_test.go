@@ -2,6 +2,7 @@ package virtual_test
 
 import (
 	"bytes"
+	"context"
 	"testing"
 
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
@@ -12,7 +13,7 @@ import (
 )
 
 func TestFUSEHandleAllocator(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	randomNumberGenerator := mock.NewMockThreadSafeGenerator(ctrl)
 	handleAllocator := virtual.NewFUSEHandleAllocator(randomNumberGenerator)
@@ -53,8 +54,8 @@ func TestFUSEHandleAllocator(t *testing.T) {
 		// The link count is based on the number of child
 		// directories.
 		baseDirectory := mock.NewMockVirtualDirectory(ctrl)
-		baseDirectory.EXPECT().VirtualGetAttributes(virtual.AttributesMaskLinkCount|virtual.AttributesMaskSizeBytes, gomock.Any()).
-			Do(func(attributesMask virtual.AttributesMask, attributes *virtual.Attributes) {
+		baseDirectory.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskLinkCount|virtual.AttributesMaskSizeBytes, gomock.Any()).
+			Do(func(ctx context.Context, attributesMask virtual.AttributesMask, attributes *virtual.Attributes) {
 				attributes.SetLinkCount(17)
 				attributes.SetSizeBytes(42)
 			}).AnyTimes()
@@ -63,7 +64,7 @@ func TestFUSEHandleAllocator(t *testing.T) {
 		wrappedDirectory := handleAllocator.New().AsStatelessDirectory(baseDirectory)
 
 		var attr virtual.Attributes
-		wrappedDirectory.VirtualGetAttributes(attributesMask, &attr)
+		wrappedDirectory.VirtualGetAttributes(ctx, attributesMask, &attr)
 		require.Equal(
 			t,
 			(&virtual.Attributes{}).
@@ -77,8 +78,8 @@ func TestFUSEHandleAllocator(t *testing.T) {
 		// Create a stateful file and wrap it. A link count and
 		// inode number should be added.
 		baseLeaf := mock.NewMockNativeLeaf(ctrl)
-		baseLeaf.EXPECT().VirtualGetAttributes(virtual.AttributesMaskSizeBytes, gomock.Any()).
-			Do(func(attributesMask virtual.AttributesMask, attributes *virtual.Attributes) {
+		baseLeaf.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskSizeBytes, gomock.Any()).
+			Do(func(ctx context.Context, attributesMask virtual.AttributesMask, attributes *virtual.Attributes) {
 				attributes.SetSizeBytes(42)
 			}).AnyTimes()
 
@@ -86,7 +87,7 @@ func TestFUSEHandleAllocator(t *testing.T) {
 		wrappedLeaf := handleAllocator.New().AsNativeLeaf(baseLeaf)
 
 		var attr1 virtual.Attributes
-		wrappedLeaf.VirtualGetAttributes(attributesMask, &attr1)
+		wrappedLeaf.VirtualGetAttributes(ctx, attributesMask, &attr1)
 		require.Equal(
 			t,
 			(&virtual.Attributes{}).
@@ -100,7 +101,7 @@ func TestFUSEHandleAllocator(t *testing.T) {
 		require.Equal(t, virtual.StatusOK, wrappedLeaf.Link())
 
 		var attr2 virtual.Attributes
-		wrappedLeaf.VirtualGetAttributes(attributesMask, &attr2)
+		wrappedLeaf.VirtualGetAttributes(ctx, attributesMask, &attr2)
 		require.Equal(
 			t,
 			(&virtual.Attributes{}).
@@ -116,7 +117,7 @@ func TestFUSEHandleAllocator(t *testing.T) {
 		wrappedLeaf.Unlink()
 
 		var attr3 virtual.Attributes
-		wrappedLeaf.VirtualGetAttributes(attributesMask, &attr3)
+		wrappedLeaf.VirtualGetAttributes(ctx, attributesMask, &attr3)
 		require.Equal(
 			t,
 			(&virtual.Attributes{}).
@@ -130,7 +131,7 @@ func TestFUSEHandleAllocator(t *testing.T) {
 		require.Equal(t, virtual.StatusErrStale, wrappedLeaf.Link())
 
 		var attr4 virtual.Attributes
-		wrappedLeaf.VirtualGetAttributes(attributesMask, &attr4)
+		wrappedLeaf.VirtualGetAttributes(ctx, attributesMask, &attr4)
 		require.Equal(
 			t,
 			(&virtual.Attributes{}).
@@ -149,8 +150,8 @@ func TestFUSEHandleAllocator(t *testing.T) {
 		// FNV-1a hash of "Hello", using 0x6aae40a05f45b861 as
 		// the offset basis.
 		baseLeaf := mock.NewMockNativeLeaf(ctrl)
-		baseLeaf.EXPECT().VirtualGetAttributes(virtual.AttributesMaskSizeBytes, gomock.Any()).
-			Do(func(attributesMask virtual.AttributesMask, attributes *virtual.Attributes) {
+		baseLeaf.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskSizeBytes, gomock.Any()).
+			Do(func(ctx context.Context, attributesMask virtual.AttributesMask, attributes *virtual.Attributes) {
 				attributes.SetSizeBytes(123)
 			}).AnyTimes()
 
@@ -162,7 +163,7 @@ func TestFUSEHandleAllocator(t *testing.T) {
 			AsNativeLeaf(baseLeaf)
 
 		var attr1 virtual.Attributes
-		wrappedLeaf.VirtualGetAttributes(attributesMask, &attr1)
+		wrappedLeaf.VirtualGetAttributes(ctx, attributesMask, &attr1)
 		require.Equal(
 			t,
 			(&virtual.Attributes{}).
@@ -175,7 +176,7 @@ func TestFUSEHandleAllocator(t *testing.T) {
 		require.Equal(t, virtual.StatusOK, wrappedLeaf.Link())
 
 		var attr2 virtual.Attributes
-		wrappedLeaf.VirtualGetAttributes(attributesMask, &attr2)
+		wrappedLeaf.VirtualGetAttributes(ctx, attributesMask, &attr2)
 		require.Equal(
 			t,
 			(&virtual.Attributes{}).
@@ -189,7 +190,7 @@ func TestFUSEHandleAllocator(t *testing.T) {
 		wrappedLeaf.Unlink()
 
 		var attr3 virtual.Attributes
-		wrappedLeaf.VirtualGetAttributes(attributesMask, &attr3)
+		wrappedLeaf.VirtualGetAttributes(ctx, attributesMask, &attr3)
 		require.Equal(
 			t,
 			(&virtual.Attributes{}).

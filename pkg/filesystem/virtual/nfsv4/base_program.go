@@ -94,11 +94,11 @@ func NewBaseProgram(rootDirectory virtual.Directory, handleResolver virtual.Hand
 	})
 
 	var attributes virtual.Attributes
-	rootDirectory.VirtualGetAttributes(virtual.AttributesMaskFileHandle, &attributes)
+	rootDirectory.VirtualGetAttributes(context.Background(), virtual.AttributesMaskFileHandle, &attributes)
 	p := &baseProgram{
 		rootFileHandle: fileHandle{
-			handle:    attributes.GetFileHandle(),
-			directory: rootDirectory,
+			handle: attributes.GetFileHandle(),
+			node:   virtual.DirectoryChild{}.FromDirectory(rootDirectory),
 		},
 		handleResolver:     handleResolver,
 		rebootVerifier:     rebootVerifier,
@@ -135,7 +135,7 @@ func (p *baseProgram) NfsV4Nfsproc4Compound(ctx context.Context, arguments *nfsv
 	for _, operation := range arguments.Argarray {
 		switch op := operation.(type) {
 		case *nfsv4.NfsArgop4_OP_ACCESS:
-			res := state.opAccess(&op.Opaccess)
+			res := state.opAccess(ctx, &op.Opaccess)
 			resarray = append(resarray, &nfsv4.NfsResop4_OP_ACCESS{
 				Opaccess: res,
 			})
@@ -153,7 +153,7 @@ func (p *baseProgram) NfsV4Nfsproc4Compound(ctx context.Context, arguments *nfsv
 			})
 			status = res.GetStatus()
 		case *nfsv4.NfsArgop4_OP_CREATE:
-			res := state.opCreate(&op.Opcreate)
+			res := state.opCreate(ctx, &op.Opcreate)
 			resarray = append(resarray, &nfsv4.NfsResop4_OP_CREATE{
 				Opcreate: res,
 			})
@@ -171,7 +171,7 @@ func (p *baseProgram) NfsV4Nfsproc4Compound(ctx context.Context, arguments *nfsv
 			})
 			status = res.Status
 		case *nfsv4.NfsArgop4_OP_GETATTR:
-			res := state.opGetattr(&op.Opgetattr)
+			res := state.opGetattr(ctx, &op.Opgetattr)
 			resarray = append(resarray, &nfsv4.NfsResop4_OP_GETATTR{
 				Opgetattr: res,
 			})
@@ -183,7 +183,7 @@ func (p *baseProgram) NfsV4Nfsproc4Compound(ctx context.Context, arguments *nfsv
 			})
 			status = res.GetStatus()
 		case *nfsv4.NfsArgop4_OP_LINK:
-			res := state.opLink(&op.Oplink)
+			res := state.opLink(ctx, &op.Oplink)
 			resarray = append(resarray, &nfsv4.NfsResop4_OP_LINK{
 				Oplink: res,
 			})
@@ -207,25 +207,25 @@ func (p *baseProgram) NfsV4Nfsproc4Compound(ctx context.Context, arguments *nfsv
 			})
 			status = res.GetStatus()
 		case *nfsv4.NfsArgop4_OP_LOOKUP:
-			res := state.opLookup(&op.Oplookup)
+			res := state.opLookup(ctx, &op.Oplookup)
 			resarray = append(resarray, &nfsv4.NfsResop4_OP_LOOKUP{
 				Oplookup: res,
 			})
 			status = res.Status
 		case *nfsv4.NfsArgop4_OP_LOOKUPP:
-			res := state.opLookupp()
+			res := state.opLookupp(ctx)
 			resarray = append(resarray, &nfsv4.NfsResop4_OP_LOOKUPP{
 				Oplookupp: res,
 			})
 			status = res.Status
 		case *nfsv4.NfsArgop4_OP_NVERIFY:
-			res := state.opNverify(&op.Opnverify)
+			res := state.opNverify(ctx, &op.Opnverify)
 			resarray = append(resarray, &nfsv4.NfsResop4_OP_NVERIFY{
 				Opnverify: res,
 			})
 			status = res.Status
 		case *nfsv4.NfsArgop4_OP_OPEN:
-			res := state.opOpen(&op.Opopen)
+			res := state.opOpen(ctx, &op.Opopen)
 			resarray = append(resarray, &nfsv4.NfsResop4_OP_OPEN{
 				Opopen: res,
 			})
@@ -267,19 +267,19 @@ func (p *baseProgram) NfsV4Nfsproc4Compound(ctx context.Context, arguments *nfsv
 			})
 			status = res.Status
 		case *nfsv4.NfsArgop4_OP_READ:
-			res := state.opRead(&op.Opread)
+			res := state.opRead(ctx, &op.Opread)
 			resarray = append(resarray, &nfsv4.NfsResop4_OP_READ{
 				Opread: res,
 			})
 			status = res.GetStatus()
 		case *nfsv4.NfsArgop4_OP_READDIR:
-			res := state.opReaddir(&op.Opreaddir)
+			res := state.opReaddir(ctx, &op.Opreaddir)
 			resarray = append(resarray, &nfsv4.NfsResop4_OP_READDIR{
 				Opreaddir: res,
 			})
 			status = res.GetStatus()
 		case *nfsv4.NfsArgop4_OP_READLINK:
-			res := state.opReadlink()
+			res := state.opReadlink(ctx)
 			resarray = append(resarray, &nfsv4.NfsResop4_OP_READLINK{
 				Opreadlink: res,
 			})
@@ -321,13 +321,13 @@ func (p *baseProgram) NfsV4Nfsproc4Compound(ctx context.Context, arguments *nfsv
 			})
 			status = res.Status
 		case *nfsv4.NfsArgop4_OP_SECINFO:
-			res := state.opSecinfo(&op.Opsecinfo)
+			res := state.opSecinfo(ctx, &op.Opsecinfo)
 			resarray = append(resarray, &nfsv4.NfsResop4_OP_SECINFO{
 				Opsecinfo: res,
 			})
 			status = res.GetStatus()
 		case *nfsv4.NfsArgop4_OP_SETATTR:
-			res := state.opSetattr(&op.Opsetattr)
+			res := state.opSetattr(ctx, &op.Opsetattr)
 			resarray = append(resarray, &nfsv4.NfsResop4_OP_SETATTR{
 				Opsetattr: res,
 			})
@@ -345,13 +345,13 @@ func (p *baseProgram) NfsV4Nfsproc4Compound(ctx context.Context, arguments *nfsv
 			})
 			status = res.Status
 		case *nfsv4.NfsArgop4_OP_VERIFY:
-			res := state.opVerify(&op.Opverify)
+			res := state.opVerify(ctx, &op.Opverify)
 			resarray = append(resarray, &nfsv4.NfsResop4_OP_VERIFY{
 				Opverify: res,
 			})
 			status = res.Status
 		case *nfsv4.NfsArgop4_OP_WRITE:
-			res := state.opWrite(&op.Opwrite)
+			res := state.opWrite(ctx, &op.Opwrite)
 			resarray = append(resarray, &nfsv4.NfsResop4_OP_WRITE{
 				Opwrite: res,
 			})
@@ -718,7 +718,7 @@ func (s *compoundState) getOpenOwnerFileByStateID(stateID regularStateID, allowU
 	if !ok {
 		return nil, nfsv4.NFS4ERR_BAD_STATEID
 	}
-	if s.currentFileHandle.leaf == nil && s.currentFileHandle.directory == nil {
+	if !s.currentFileHandle.node.IsSet() {
 		return nil, nfsv4.NFS4ERR_NOFILEHANDLE
 	}
 	if oofs.useCount == 0 {
@@ -753,7 +753,7 @@ func (s *compoundState) getLockOwnerFileByStateID(stateID regularStateID) (*lock
 	if !ok {
 		return nil, nfsv4.NFS4ERR_BAD_STATEID
 	}
-	if s.currentFileHandle.leaf == nil && s.currentFileHandle.directory == nil {
+	if !s.currentFileHandle.node.IsSet() {
 		return nil, nfsv4.NFS4ERR_NOFILEHANDLE
 	}
 	if !bytes.Equal(s.currentFileHandle.handle, lofs.openOwnerFile.openedFile.handle) {
@@ -772,7 +772,7 @@ func (s *compoundState) getLockOwnerFileByStateID(stateID regularStateID) (*lock
 // temporarily opened for the duration of the operation. When a
 // non-special state ID is provided, it ensures that the file was
 // originally opened with the correct share access mask.
-func (s *compoundState) getOpenedLeaf(stateID *nfsv4.Stateid4, shareAccess virtual.ShareMask) (virtual.Leaf, func(), nfsv4.Nfsstat4) {
+func (s *compoundState) getOpenedLeaf(ctx context.Context, stateID *nfsv4.Stateid4, shareAccess virtual.ShareMask) (virtual.Leaf, func(), nfsv4.Nfsstat4) {
 	p := s.program
 	internalStateID, st := p.internalizeStateID(stateID)
 	if st != nfsv4.NFS4_OK {
@@ -788,6 +788,7 @@ func (s *compoundState) getOpenedLeaf(stateID *nfsv4.Stateid4, shareAccess virtu
 			return nil, nil, st
 		}
 		if vs := currentLeaf.VirtualOpenSelf(
+			ctx,
 			shareAccess,
 			&virtual.OpenExistingOptions{},
 			0,
@@ -846,7 +847,7 @@ func (s *compoundState) getOpenedLeaf(stateID *nfsv4.Stateid4, shareAccess virtu
 
 // verifyAttributes is the common implementation of the VERIFY and
 // NVERIFY operations.
-func (s *compoundState) verifyAttributes(fattr *nfsv4.Fattr4) nfsv4.Nfsstat4 {
+func (s *compoundState) verifyAttributes(ctx context.Context, fattr *nfsv4.Fattr4) nfsv4.Nfsstat4 {
 	currentNode, _, st := s.currentFileHandle.getNode()
 	if st != nfsv4.NFS4_OK {
 		return st
@@ -857,7 +858,7 @@ func (s *compoundState) verifyAttributes(fattr *nfsv4.Fattr4) nfsv4.Nfsstat4 {
 	// generated attributes are equal to the ones provided.
 	attrRequest := fattr.Attrmask
 	var attributes virtual.Attributes
-	currentNode.VirtualGetAttributes(attrRequestToAttributesMask(attrRequest), &attributes)
+	currentNode.VirtualGetAttributes(ctx, attrRequestToAttributesMask(attrRequest), &attributes)
 	w := comparingWriter{
 		reference: fattr.AttrVals,
 		status:    nfsv4.NFS4ERR_SAME,
@@ -884,7 +885,7 @@ func (s *compoundState) verifyAttributes(fattr *nfsv4.Fattr4) nfsv4.Nfsstat4 {
 	return w.status
 }
 
-func (s *compoundState) opAccess(args *nfsv4.Access4args) nfsv4.Access4res {
+func (s *compoundState) opAccess(ctx context.Context, args *nfsv4.Access4args) nfsv4.Access4res {
 	currentNode, isDirectory, st := s.currentFileHandle.getNode()
 	if st != nfsv4.NFS4_OK {
 		return &nfsv4.Access4res_default{Status: st}
@@ -904,7 +905,7 @@ func (s *compoundState) opAccess(args *nfsv4.Access4args) nfsv4.Access4res {
 
 	// Request node permissions and convert them to NFSv4 values.
 	var attributes virtual.Attributes
-	currentNode.VirtualGetAttributes(virtual.AttributesMaskPermissions, &attributes)
+	currentNode.VirtualGetAttributes(ctx, virtual.AttributesMaskPermissions, &attributes)
 	permissions, ok := attributes.GetPermissions()
 	if !ok {
 		panic("Permissions attribute requested, but not returned")
@@ -992,7 +993,7 @@ func (s *compoundState) opCommit(args *nfsv4.Commit4args) nfsv4.Commit4res {
 	}
 }
 
-func (s *compoundState) opCreate(args *nfsv4.Create4args) nfsv4.Create4res {
+func (s *compoundState) opCreate(ctx context.Context, args *nfsv4.Create4args) nfsv4.Create4res {
 	currentDirectory, st := s.currentFileHandle.getDirectory()
 	if st != nfsv4.NFS4_OK {
 		return &nfsv4.Create4res_default{Status: st}
@@ -1016,19 +1017,19 @@ func (s *compoundState) opCreate(args *nfsv4.Create4args) nfsv4.Create4res {
 	case *nfsv4.Createtype4_NF4DIR:
 		var directory virtual.Directory
 		directory, changeInfo, vs = currentDirectory.VirtualMkdir(name, virtual.AttributesMaskFileHandle, &attributes)
-		fileHandle.directory = directory
+		fileHandle.node = virtual.DirectoryChild{}.FromDirectory(directory)
 	case *nfsv4.Createtype4_NF4FIFO:
 		var leaf virtual.Leaf
-		leaf, changeInfo, vs = currentDirectory.VirtualMknod(name, filesystem.FileTypeFIFO, virtual.AttributesMaskFileHandle, &attributes)
-		fileHandle.leaf = leaf
+		leaf, changeInfo, vs = currentDirectory.VirtualMknod(ctx, name, filesystem.FileTypeFIFO, virtual.AttributesMaskFileHandle, &attributes)
+		fileHandle.node = virtual.DirectoryChild{}.FromLeaf(leaf)
 	case *nfsv4.Createtype4_NF4LNK:
 		var leaf virtual.Leaf
-		leaf, changeInfo, vs = currentDirectory.VirtualSymlink(objectType.Linkdata, name, virtual.AttributesMaskFileHandle, &attributes)
-		fileHandle.leaf = leaf
+		leaf, changeInfo, vs = currentDirectory.VirtualSymlink(ctx, objectType.Linkdata, name, virtual.AttributesMaskFileHandle, &attributes)
+		fileHandle.node = virtual.DirectoryChild{}.FromLeaf(leaf)
 	case *nfsv4.Createtype4_NF4SOCK:
 		var leaf virtual.Leaf
-		leaf, changeInfo, vs = currentDirectory.VirtualMknod(name, filesystem.FileTypeSocket, virtual.AttributesMaskFileHandle, &attributes)
-		fileHandle.leaf = leaf
+		leaf, changeInfo, vs = currentDirectory.VirtualMknod(ctx, name, filesystem.FileTypeSocket, virtual.AttributesMaskFileHandle, &attributes)
+		fileHandle.node = virtual.DirectoryChild{}.FromLeaf(leaf)
 	default:
 		return &nfsv4.Create4res_default{Status: nfsv4.NFS4ERR_BADTYPE}
 	}
@@ -1058,13 +1059,13 @@ func (s *compoundState) opDelegreturn(args *nfsv4.Delegreturn4args) nfsv4.Delegr
 	return nfsv4.Delegreturn4res{Status: nfsv4.NFS4ERR_BAD_STATEID}
 }
 
-func (s *compoundState) opGetattr(args *nfsv4.Getattr4args) nfsv4.Getattr4res {
+func (s *compoundState) opGetattr(ctx context.Context, args *nfsv4.Getattr4args) nfsv4.Getattr4res {
 	currentNode, _, st := s.currentFileHandle.getNode()
 	if st != nfsv4.NFS4_OK {
 		return &nfsv4.Getattr4res_default{Status: st}
 	}
 	var attributes virtual.Attributes
-	currentNode.VirtualGetAttributes(attrRequestToAttributesMask(args.AttrRequest), &attributes)
+	currentNode.VirtualGetAttributes(ctx, attrRequestToAttributesMask(args.AttrRequest), &attributes)
 	p := s.program
 	return &nfsv4.Getattr4res_NFS4_OK{
 		Resok4: nfsv4.Getattr4resok{
@@ -1085,7 +1086,7 @@ func (s *compoundState) opGetfh() nfsv4.Getfh4res {
 	}
 }
 
-func (s *compoundState) opLink(args *nfsv4.Link4args) nfsv4.Link4res {
+func (s *compoundState) opLink(ctx context.Context, args *nfsv4.Link4args) nfsv4.Link4res {
 	sourceLeaf, st := s.savedFileHandle.getLeaf()
 	if st != nfsv4.NFS4_OK {
 		return &nfsv4.Link4res_default{Status: st}
@@ -1098,7 +1099,7 @@ func (s *compoundState) opLink(args *nfsv4.Link4args) nfsv4.Link4res {
 	if st != nfsv4.NFS4_OK {
 		return &nfsv4.Link4res_default{Status: st}
 	}
-	changeInfo, vs := targetDirectory.VirtualLink(name, sourceLeaf, 0, &virtual.Attributes{})
+	changeInfo, vs := targetDirectory.VirtualLink(ctx, name, sourceLeaf, 0, &virtual.Attributes{})
 	if vs != virtual.StatusOK {
 		return &nfsv4.Link4res_default{Status: toNFSv4Status(vs)}
 	}
@@ -1405,8 +1406,8 @@ func (s *compoundState) txLocku(args *nfsv4.Locku4args, lockStateID regularState
 	}
 }
 
-func (s *compoundState) opLookup(args *nfsv4.Lookup4args) nfsv4.Lookup4res {
-	currentDirectory, st := s.currentFileHandle.getDirectoryOrSymlink()
+func (s *compoundState) opLookup(ctx context.Context, args *nfsv4.Lookup4args) nfsv4.Lookup4res {
+	currentDirectory, st := s.currentFileHandle.getDirectoryOrSymlink(ctx)
 	if st != nfsv4.NFS4_OK {
 		return nfsv4.Lookup4res{Status: st}
 	}
@@ -1415,20 +1416,19 @@ func (s *compoundState) opLookup(args *nfsv4.Lookup4args) nfsv4.Lookup4res {
 		return nfsv4.Lookup4res{Status: st}
 	}
 	var attributes virtual.Attributes
-	directory, leaf, vs := currentDirectory.VirtualLookup(name, virtual.AttributesMaskFileHandle, &attributes)
+	child, vs := currentDirectory.VirtualLookup(ctx, name, virtual.AttributesMaskFileHandle, &attributes)
 	if vs != virtual.StatusOK {
 		return nfsv4.Lookup4res{Status: toNFSv4Status(vs)}
 	}
 	s.currentFileHandle = fileHandle{
-		handle:    attributes.GetFileHandle(),
-		directory: directory,
-		leaf:      leaf,
+		handle: attributes.GetFileHandle(),
+		node:   child,
 	}
 	return nfsv4.Lookup4res{Status: nfsv4.NFS4_OK}
 }
 
-func (s *compoundState) opLookupp() nfsv4.Lookupp4res {
-	if _, st := s.currentFileHandle.getDirectoryOrSymlink(); st != nfsv4.NFS4_OK {
+func (s *compoundState) opLookupp(ctx context.Context) nfsv4.Lookupp4res {
+	if _, st := s.currentFileHandle.getDirectoryOrSymlink(ctx); st != nfsv4.NFS4_OK {
 		return nfsv4.Lookupp4res{Status: st}
 	}
 
@@ -1439,14 +1439,14 @@ func (s *compoundState) opLookupp() nfsv4.Lookupp4res {
 	return nfsv4.Lookupp4res{Status: nfsv4.NFS4ERR_NOENT}
 }
 
-func (s *compoundState) opNverify(args *nfsv4.Nverify4args) nfsv4.Nverify4res {
-	if st := s.verifyAttributes(&args.ObjAttributes); st != nfsv4.NFS4ERR_NOT_SAME {
+func (s *compoundState) opNverify(ctx context.Context, args *nfsv4.Nverify4args) nfsv4.Nverify4res {
+	if st := s.verifyAttributes(ctx, &args.ObjAttributes); st != nfsv4.NFS4ERR_NOT_SAME {
 		return nfsv4.Nverify4res{Status: st}
 	}
 	return nfsv4.Nverify4res{Status: nfsv4.NFS4_OK}
 }
 
-func (s *compoundState) opOpen(args *nfsv4.Open4args) nfsv4.Open4res {
+func (s *compoundState) opOpen(ctx context.Context, args *nfsv4.Open4args) nfsv4.Open4res {
 	var ll leavesToClose
 	defer ll.closeAll()
 
@@ -1490,14 +1490,14 @@ func (s *compoundState) opOpen(args *nfsv4.Open4args) nfsv4.Open4res {
 		}
 		return &nfsv4.Open4res_default{Status: st}
 	}
-	response := s.txOpen(args, oos)
+	response := s.txOpen(ctx, args, oos)
 	transaction.complete(&openOwnerLastResponse{
 		response: response,
 	})
 	return response
 }
 
-func (s *compoundState) txOpen(args *nfsv4.Open4args, oos *openOwnerState) nfsv4.Open4res {
+func (s *compoundState) txOpen(ctx context.Context, args *nfsv4.Open4args, oos *openOwnerState) nfsv4.Open4res {
 	// Drop the lock, as VirtualOpenChild may block. This is safe to
 	// do within open-owner transactions.
 	p := s.program
@@ -1588,6 +1588,7 @@ func (s *compoundState) txOpen(args *nfsv4.Open4args, oos *openOwnerState) nfsv4
 	// Open the file.
 	var attributes virtual.Attributes
 	leaf, respected, changeInfo, vs := currentDirectory.VirtualOpenChild(
+		ctx,
 		name,
 		shareAccess,
 		createAttributes,
@@ -1603,7 +1604,7 @@ func (s *compoundState) txOpen(args *nfsv4.Open4args, oos *openOwnerState) nfsv4
 
 	s.currentFileHandle = fileHandle{
 		handle: handle,
-		leaf:   leaf,
+		node:   virtual.DirectoryChild{}.FromLeaf(leaf),
 	}
 
 	response := &nfsv4.Open4res_NFS4_OK{
@@ -1807,21 +1808,20 @@ func (s *compoundState) opPutfh(args *nfsv4.Putfh4args) nfsv4.Putfh4res {
 		// been removed from the file system.
 		s.currentFileHandle = fileHandle{
 			handle: openedFile.handle,
-			leaf:   openedFile.leaf,
+			node:   virtual.DirectoryChild{}.FromLeaf(openedFile.leaf),
 		}
 		p.leave()
 	} else {
 		// File is currently not open. Call into the handle
 		// resolver to do a lookup.
 		p.leave()
-		directory, leaf, vs := p.handleResolver(bytes.NewBuffer(args.Object))
+		child, vs := p.handleResolver(bytes.NewBuffer(args.Object))
 		if vs != virtual.StatusOK {
 			return nfsv4.Putfh4res{Status: toNFSv4Status(vs)}
 		}
 		s.currentFileHandle = fileHandle{
-			handle:    args.Object,
-			directory: directory,
-			leaf:      leaf,
+			handle: args.Object,
+			node:   child,
 		}
 	}
 	return nfsv4.Putfh4res{Status: nfsv4.NFS4_OK}
@@ -1839,8 +1839,8 @@ func (s *compoundState) opPutrootfh() nfsv4.Putrootfh4res {
 	return nfsv4.Putrootfh4res{Status: nfsv4.NFS4_OK}
 }
 
-func (s *compoundState) opRead(args *nfsv4.Read4args) nfsv4.Read4res {
-	currentLeaf, cleanup, st := s.getOpenedLeaf(&args.Stateid, virtual.ShareMaskRead)
+func (s *compoundState) opRead(ctx context.Context, args *nfsv4.Read4args) nfsv4.Read4res {
+	currentLeaf, cleanup, st := s.getOpenedLeaf(ctx, &args.Stateid, virtual.ShareMaskRead)
 	if st != nfsv4.NFS4_OK {
 		return &nfsv4.Read4res_default{Status: st}
 	}
@@ -1859,7 +1859,7 @@ func (s *compoundState) opRead(args *nfsv4.Read4args) nfsv4.Read4res {
 	}
 }
 
-func (s *compoundState) opReaddir(args *nfsv4.Readdir4args) nfsv4.Readdir4res {
+func (s *compoundState) opReaddir(ctx context.Context, args *nfsv4.Readdir4args) nfsv4.Readdir4res {
 	currentDirectory, st := s.currentFileHandle.getDirectory()
 	if st != nfsv4.NFS4_OK {
 		return &nfsv4.Readdir4res_default{Status: st}
@@ -1899,6 +1899,7 @@ func (s *compoundState) opReaddir(args *nfsv4.Readdir4args) nfsv4.Readdir4res {
 		endOfFile:       &res.Resok4.Reply.Eof,
 	}
 	if vs := currentDirectory.VirtualReadDir(
+		ctx,
 		firstCookie,
 		attrRequestToAttributesMask(args.AttrRequest),
 		&reporter,
@@ -1912,7 +1913,7 @@ func (s *compoundState) opReaddir(args *nfsv4.Readdir4args) nfsv4.Readdir4res {
 	return &res
 }
 
-func (s *compoundState) opReadlink() nfsv4.Readlink4res {
+func (s *compoundState) opReadlink(ctx context.Context) nfsv4.Readlink4res {
 	currentLeaf, st := s.currentFileHandle.getLeaf()
 	if st != nfsv4.NFS4_OK {
 		if st == nfsv4.NFS4ERR_ISDIR {
@@ -1920,7 +1921,7 @@ func (s *compoundState) opReadlink() nfsv4.Readlink4res {
 		}
 		return &nfsv4.Readlink4res_default{Status: st}
 	}
-	target, vs := currentLeaf.VirtualReadlink()
+	target, vs := currentLeaf.VirtualReadlink(ctx)
 	if vs != virtual.StatusOK {
 		return &nfsv4.Readlink4res_default{Status: toNFSv4Status(vs)}
 	}
@@ -2040,7 +2041,7 @@ func (s *compoundState) opRenew(args *nfsv4.Renew4args) nfsv4.Renew4res {
 }
 
 func (s *compoundState) opRestorefh() nfsv4.Restorefh4res {
-	if s.savedFileHandle.directory == nil && s.savedFileHandle.leaf == nil {
+	if !s.savedFileHandle.node.IsSet() {
 		return nfsv4.Restorefh4res{Status: nfsv4.NFS4ERR_RESTOREFH}
 	}
 	s.currentFileHandle = s.savedFileHandle
@@ -2055,7 +2056,7 @@ func (s *compoundState) opSavefh() nfsv4.Savefh4res {
 	return nfsv4.Savefh4res{Status: st}
 }
 
-func (s *compoundState) opSecinfo(args *nfsv4.Secinfo4args) nfsv4.Secinfo4res {
+func (s *compoundState) opSecinfo(ctx context.Context, args *nfsv4.Secinfo4args) nfsv4.Secinfo4res {
 	// The standard states that the SECINFO operation is expected to
 	// be used by the NFS client when the error value of
 	// NFS4ERR_WRONGSEC is returned from another NFS operation. In
@@ -2072,7 +2073,7 @@ func (s *compoundState) opSecinfo(args *nfsv4.Secinfo4args) nfsv4.Secinfo4res {
 	if st != nfsv4.NFS4_OK {
 		return &nfsv4.Secinfo4res_default{Status: st}
 	}
-	if _, _, vs := currentDirectory.VirtualLookup(name, 0, &virtual.Attributes{}); vs != virtual.StatusOK {
+	if _, vs := currentDirectory.VirtualLookup(ctx, name, 0, &virtual.Attributes{}); vs != virtual.StatusOK {
 		return &nfsv4.Secinfo4res_default{Status: toNFSv4Status(vs)}
 	}
 	return &nfsv4.Secinfo4res_NFS4_OK{
@@ -2084,7 +2085,7 @@ func (s *compoundState) opSecinfo(args *nfsv4.Secinfo4args) nfsv4.Secinfo4res {
 	}
 }
 
-func (s *compoundState) opSetattr(args *nfsv4.Setattr4args) nfsv4.Setattr4res {
+func (s *compoundState) opSetattr(ctx context.Context, args *nfsv4.Setattr4args) nfsv4.Setattr4res {
 	// TODO: Respect the state ID, if provided!
 	currentNode, _, st := s.currentFileHandle.getNode()
 	if st != nfsv4.NFS4_OK {
@@ -2094,7 +2095,7 @@ func (s *compoundState) opSetattr(args *nfsv4.Setattr4args) nfsv4.Setattr4res {
 	if st := fattr4ToAttributes(&args.ObjAttributes, &attributes); st != nfsv4.NFS4_OK {
 		return nfsv4.Setattr4res{Status: st}
 	}
-	if vs := currentNode.VirtualSetAttributes(&attributes, 0, &virtual.Attributes{}); vs != virtual.StatusOK {
+	if vs := currentNode.VirtualSetAttributes(ctx, &attributes, 0, &virtual.Attributes{}); vs != virtual.StatusOK {
 		return nfsv4.Setattr4res{Status: toNFSv4Status(vs)}
 	}
 	return nfsv4.Setattr4res{
@@ -2201,8 +2202,8 @@ func (s *compoundState) opSetclientidConfirm(args *nfsv4.SetclientidConfirm4args
 	return nfsv4.SetclientidConfirm4res{Status: nfsv4.NFS4_OK}
 }
 
-func (s *compoundState) opWrite(args *nfsv4.Write4args) nfsv4.Write4res {
-	currentLeaf, cleanup, st := s.getOpenedLeaf(&args.Stateid, virtual.ShareMaskWrite)
+func (s *compoundState) opWrite(ctx context.Context, args *nfsv4.Write4args) nfsv4.Write4res {
+	currentLeaf, cleanup, st := s.getOpenedLeaf(ctx, &args.Stateid, virtual.ShareMaskWrite)
 	if st != nfsv4.NFS4_OK {
 		return &nfsv4.Write4res_default{Status: st}
 	}
@@ -2221,8 +2222,8 @@ func (s *compoundState) opWrite(args *nfsv4.Write4args) nfsv4.Write4res {
 	}
 }
 
-func (s *compoundState) opVerify(args *nfsv4.Verify4args) nfsv4.Verify4res {
-	if st := s.verifyAttributes(&args.ObjAttributes); st != nfsv4.NFS4ERR_SAME {
+func (s *compoundState) opVerify(ctx context.Context, args *nfsv4.Verify4args) nfsv4.Verify4res {
+	if st := s.verifyAttributes(ctx, &args.ObjAttributes); st != nfsv4.NFS4ERR_SAME {
 		return nfsv4.Verify4res{Status: st}
 	}
 	return nfsv4.Verify4res{Status: nfsv4.NFS4_OK}
@@ -2276,41 +2277,37 @@ func (rc *referenceCount) decrease() bool {
 // fileHandle contains information on the current or saved file handle
 // that is tracked in a COMPOUND procedure.
 type fileHandle struct {
-	handle    nfsv4.NfsFh4
-	directory virtual.Directory
-	leaf      virtual.Leaf
+	handle nfsv4.NfsFh4
+	node   virtual.DirectoryChild
 }
 
 func (fh *fileHandle) getNode() (virtual.Node, bool, nfsv4.Nfsstat4) {
-	if fh.directory != nil {
-		return fh.directory, true, nfsv4.NFS4_OK
-	}
-	if fh.leaf != nil {
-		return fh.leaf, false, nfsv4.NFS4_OK
+	if directory, leaf := fh.node.GetPair(); directory != nil {
+		return directory, true, nfsv4.NFS4_OK
+	} else if leaf != nil {
+		return leaf, false, nfsv4.NFS4_OK
 	}
 	return nil, false, nfsv4.NFS4ERR_NOFILEHANDLE
 }
 
 func (fh *fileHandle) getDirectory() (virtual.Directory, nfsv4.Nfsstat4) {
-	if fh.directory != nil {
-		return fh.directory, nfsv4.NFS4_OK
-	}
-	if fh.leaf != nil {
+	if directory, leaf := fh.node.GetPair(); directory != nil {
+		return directory, nfsv4.NFS4_OK
+	} else if leaf != nil {
 		return nil, nfsv4.NFS4ERR_NOTDIR
 	}
 	return nil, nfsv4.NFS4ERR_NOFILEHANDLE
 }
 
-func (fh *fileHandle) getDirectoryOrSymlink() (virtual.Directory, nfsv4.Nfsstat4) {
-	if fh.directory != nil {
-		return fh.directory, nfsv4.NFS4_OK
-	}
-	if fh.leaf != nil {
+func (fh *fileHandle) getDirectoryOrSymlink(ctx context.Context) (virtual.Directory, nfsv4.Nfsstat4) {
+	if directory, leaf := fh.node.GetPair(); directory != nil {
+		return directory, nfsv4.NFS4_OK
+	} else if leaf != nil {
 		// This call requires that we return NFS4ERR_SYMLINK if
 		// we stumble upon a symlink. That way the client knows
 		// that symlink expansion needs to be performed.
 		var attributes virtual.Attributes
-		fh.leaf.VirtualGetAttributes(virtual.AttributesMaskFileType, &attributes)
+		leaf.VirtualGetAttributes(ctx, virtual.AttributesMaskFileType, &attributes)
 		if attributes.GetFileType() == filesystem.FileTypeSymlink {
 			return nil, nfsv4.NFS4ERR_SYMLINK
 		}
@@ -2320,11 +2317,10 @@ func (fh *fileHandle) getDirectoryOrSymlink() (virtual.Directory, nfsv4.Nfsstat4
 }
 
 func (fh *fileHandle) getLeaf() (virtual.Leaf, nfsv4.Nfsstat4) {
-	if fh.leaf != nil {
-		return fh.leaf, nfsv4.NFS4_OK
-	}
-	if fh.directory != nil {
+	if directory, leaf := fh.node.GetPair(); directory != nil {
 		return nil, nfsv4.NFS4ERR_ISDIR
+	} else if leaf != nil {
+		return leaf, nfsv4.NFS4_OK
 	}
 	return nil, nfsv4.NFS4ERR_NOFILEHANDLE
 }
@@ -3064,7 +3060,7 @@ type readdirReporter struct {
 	endOfFile       *bool
 }
 
-func (r *readdirReporter) report(nextCookie uint64, name path.Component, attributes *virtual.Attributes) bool {
+func (r *readdirReporter) ReportEntry(nextCookie uint64, name path.Component, child virtual.DirectoryChild, attributes *virtual.Attributes) bool {
 	// The dircount field is a hint of the maximum number of bytes
 	// of directory information that should be returned. Only the
 	// size of the XDR encoded filename and cookie should contribute
@@ -3096,14 +3092,6 @@ func (r *readdirReporter) report(nextCookie uint64, name path.Component, attribu
 	*r.nextEntry = &entry
 	r.nextEntry = &entry.Nextentry
 	return true
-}
-
-func (r *readdirReporter) ReportDirectory(nextCookie uint64, name path.Component, directory virtual.Directory, attributes *virtual.Attributes) bool {
-	return r.report(nextCookie, name, attributes)
-}
-
-func (r *readdirReporter) ReportLeaf(nextCookie uint64, name path.Component, leaf virtual.Leaf, attributes *virtual.Attributes) bool {
-	return r.report(nextCookie, name, attributes)
 }
 
 // fattr4ToAttributes converts a client-provided NFSv4 fattr4 to a set

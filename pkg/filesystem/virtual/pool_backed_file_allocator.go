@@ -304,7 +304,7 @@ func (f *fileBackedFile) virtualGetAttributesLocked(attributes *Attributes) {
 	attributes.SetSizeBytes(f.size)
 }
 
-func (f *fileBackedFile) VirtualGetAttributes(requested AttributesMask, attributes *Attributes) {
+func (f *fileBackedFile) VirtualGetAttributes(ctx context.Context, requested AttributesMask, attributes *Attributes) {
 	// Only pick up the file's lock when the caller requests
 	// attributes that require locking.
 	f.virtualGetAttributesUnlocked(attributes)
@@ -337,7 +337,7 @@ func (f *fileBackedFile) VirtualSeek(offset uint64, regionType filesystem.Region
 	return &result, StatusOK
 }
 
-func (f *fileBackedFile) VirtualOpenSelf(shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status {
+func (f *fileBackedFile) VirtualOpenSelf(ctx context.Context, shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status {
 	f.lock.Lock()
 	defer f.lock.Unlock()
 
@@ -372,7 +372,7 @@ func (f *fileBackedFile) VirtualRead(buf []byte, off uint64) (int, bool, Status)
 	return len(buf), eof, StatusOK
 }
 
-func (f *fileBackedFile) VirtualReadlink() ([]byte, Status) {
+func (f *fileBackedFile) VirtualReadlink(ctx context.Context) ([]byte, Status) {
 	return nil, StatusErrInval
 }
 
@@ -391,7 +391,7 @@ func (f *fileBackedFile) virtualTruncate(size uint64) Status {
 	return StatusOK
 }
 
-func (f *fileBackedFile) VirtualSetAttributes(in *Attributes, requested AttributesMask, out *Attributes) Status {
+func (f *fileBackedFile) VirtualSetAttributes(ctx context.Context, in *Attributes, requested AttributesMask, out *Attributes) Status {
 	sizeBytes, hasSizeBytes := in.GetSizeBytes()
 	if hasSizeBytes {
 		f.lockMutatingData()

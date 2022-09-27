@@ -1,0 +1,25 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "bb_virtual_tmp_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/buildbarn/bb-remote-execution/cmd/bb_virtual_tmp",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//pkg/filesystem/virtual",
+        "//pkg/filesystem/virtual/configuration",
+        "//pkg/proto/configuration/bb_virtual_tmp",
+        "//pkg/proto/tmp_installer",
+        "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
+        "@com_github_buildbarn_bb_storage//pkg/global",
+        "@com_github_buildbarn_bb_storage//pkg/grpc",
+        "@com_github_buildbarn_bb_storage//pkg/util",
+        "@org_golang_google_grpc//:go_default_library",
+    ],
+)
+
+go_binary(
+    name = "bb_virtual_tmp",
+    embed = [":bb_virtual_tmp_lib"],
+    visibility = ["//visibility:public"],
+)

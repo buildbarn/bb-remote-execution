@@ -1,6 +1,7 @@
 package virtual_test
 
 import (
+	"context"
 	"os"
 	"regexp"
 	"sort"
@@ -56,7 +57,7 @@ func TestInMemoryPrepopulatedDirectoryLookupChildNonExistent(t *testing.T) {
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
 	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString, clock.SystemClock)
 
-	_, _, err := d.LookupChild(path.MustNewComponent("nonexistent"))
+	_, err := d.LookupChild(path.MustNewComponent("nonexistent"))
 	require.True(t, os.IsNotExist(err))
 }
 
@@ -72,15 +73,12 @@ func TestInMemoryPrepopulatedDirectoryLookupChildFile(t *testing.T) {
 
 	leaf := mock.NewMockNativeLeaf(ctrl)
 	require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
-		path.MustNewComponent("file"): {
-			Leaf: leaf,
-		},
+		path.MustNewComponent("file"): virtual.InitialNode{}.FromLeaf(leaf),
 	}, false))
 
-	childDirectory, childLeaf, err := d.LookupChild(path.MustNewComponent("file"))
+	child, err := d.LookupChild(path.MustNewComponent("file"))
 	require.NoError(t, err)
-	require.Nil(t, childDirectory)
-	require.Equal(t, leaf, childLeaf)
+	require.Equal(t, virtual.PrepopulatedDirectoryChild{}.FromLeaf(leaf), child)
 }
 
 func TestInMemoryPrepopulatedDirectoryLookupChildDirectory(t *testing.T) {
@@ -95,13 +93,13 @@ func TestInMemoryPrepopulatedDirectoryLookupChildDirectory(t *testing.T) {
 
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
 	require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
-		path.MustNewComponent("subdir"): {
-			Directory: virtual.EmptyInitialContentsFetcher,
-		},
+		path.MustNewComponent("subdir"): virtual.InitialNode{}.FromDirectory(virtual.EmptyInitialContentsFetcher),
 	}, false))
 
-	childDirectory, childLeaf, err := d.LookupChild(path.MustNewComponent("subdir"))
+	child, err := d.LookupChild(path.MustNewComponent("subdir"))
 	require.NoError(t, err)
+
+	childDirectory, childLeaf := child.GetPair()
 	require.NotNil(t, childDirectory)
 	require.Nil(t, childLeaf)
 }
@@ -119,13 +117,13 @@ func TestInMemoryPrepopulatedDirectoryLookupAllChildrenFailure(t *testing.T) {
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
 	initialContentsFetcher := mock.NewMockInitialContentsFetcher(ctrl)
 	require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
-		path.MustNewComponent("subdir"): {
-			Directory: initialContentsFetcher,
-		},
+		path.MustNewComponent("subdir"): virtual.InitialNode{}.FromDirectory(initialContentsFetcher),
 	}, false))
 
-	childDirectory, childLeaf, err := d.LookupChild(path.MustNewComponent("subdir"))
+	child, err := d.LookupChild(path.MustNewComponent("subdir"))
 	require.NoError(t, err)
+
+	childDirectory, childLeaf := child.GetPair()
 	require.NotNil(t, childDirectory)
 	require.Nil(t, childLeaf)
 
@@ -152,12 +150,8 @@ func TestInMemoryPrepopulatedDirectoryLookupAllChildrenSuccess(t *testing.T) {
 	leaf1 := mock.NewMockNativeLeaf(ctrl)
 	leaf2 := mock.NewMockNativeLeaf(ctrl)
 	require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
-		path.MustNewComponent("leaf1"): {
-			Leaf: leaf1,
-		},
-		path.MustNewComponent("._leaf2"): {
-			Leaf: leaf2,
-		},
+		path.MustNewComponent("leaf1"):   virtual.InitialNode{}.FromLeaf(leaf1),
+		path.MustNewComponent("._leaf2"): virtual.InitialNode{}.FromLeaf(leaf2),
 	}, false))
 
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
@@ -195,22 +189,17 @@ func TestInMemoryPrepopulatedDirectoryReadDir(t *testing.T) {
 	leaf1 := mock.NewMockNativeLeaf(ctrl)
 	leaf2 := mock.NewMockNativeLeaf(ctrl)
 	require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
-		path.MustNewComponent("directory"): {
-			Directory: virtual.EmptyInitialContentsFetcher,
-		},
-		path.MustNewComponent("file"): {
-			Leaf: leaf1,
-		},
-		path.MustNewComponent("._hidden_file"): {
-			Leaf: leaf2,
-		},
+		path.MustNewComponent("directory"):     virtual.InitialNode{}.FromDirectory(virtual.EmptyInitialContentsFetcher),
+		path.MustNewComponent("file"):          virtual.InitialNode{}.FromLeaf(leaf1),
+		path.MustNewComponent("._hidden_file"): virtual.InitialNode{}.FromLeaf(leaf2),
 	}, false))
 
 	// Validate directory listing.
 	leaf1.EXPECT().VirtualGetAttributes(
+		gomock.Any(),
 		virtual.AttributesMaskFileType|virtual.AttributesMaskPermissions,
 		gomock.Any(),
-	).Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+	).Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 		attributes.SetFileType(filesystem.FileTypeRegularFile)
 		attributes.SetPermissions(virtual.PermissionsRead)
 	})
@@ -248,9 +237,7 @@ func TestInMemoryPrepopulatedDirectoryRemoveDirectory(t *testing.T) {
 
 	subdirHandle := inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
 	require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
-		path.MustNewComponent("directory"): {
-			Directory: virtual.EmptyInitialContentsFetcher,
-		},
+		path.MustNewComponent("directory"): virtual.InitialNode{}.FromDirectory(virtual.EmptyInitialContentsFetcher),
 	}, false))
 
 	// Test that removing a directory through filesystem.Directory
@@ -273,15 +260,11 @@ func TestInMemoryPrepopulatedDirectoryRemoveDirectoryNotEmpty(t *testing.T) {
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
 	initialContentsFetcher := mock.NewMockInitialContentsFetcher(ctrl)
 	require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
-		path.MustNewComponent("directory"): {
-			Directory: initialContentsFetcher,
-		},
+		path.MustNewComponent("directory"): virtual.InitialNode{}.FromDirectory(initialContentsFetcher),
 	}, false))
 	leaf := mock.NewMockNativeLeaf(ctrl)
 	initialContentsFetcher.EXPECT().FetchContents().Return(map[path.Component]virtual.InitialNode{
-		path.MustNewComponent("file"): {
-			Leaf: leaf,
-		},
+		path.MustNewComponent("file"): virtual.InitialNode{}.FromLeaf(leaf),
 	}, nil)
 
 	require.Equal(t, syscall.ENOTEMPTY, d.Remove(path.MustNewComponent("directory")))
@@ -299,9 +282,7 @@ func TestInMemoryPrepopulatedDirectoryRemoveFile(t *testing.T) {
 
 	leaf := mock.NewMockNativeLeaf(ctrl)
 	require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
-		path.MustNewComponent("file"): {
-			Leaf: leaf,
-		},
+		path.MustNewComponent("file"): virtual.InitialNode{}.FromLeaf(leaf),
 	}, false))
 
 	leaf.EXPECT().Unlink()
@@ -327,19 +308,16 @@ func TestInMemoryPrepopulatedDirectoryCreateChildrenSuccess(t *testing.T) {
 	subdirectoryFetcher := mock.NewMockInitialContentsFetcher(ctrl)
 	topLevelFile := mock.NewMockNativeLeaf(ctrl)
 	require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
-		path.MustNewComponent("dir"): {
-			Directory: subdirectoryFetcher,
-		},
-		path.MustNewComponent("file"): {
-			Leaf: topLevelFile,
-		},
+		path.MustNewComponent("dir"):  virtual.InitialNode{}.FromDirectory(subdirectoryFetcher),
+		path.MustNewComponent("file"): virtual.InitialNode{}.FromLeaf(topLevelFile),
 	}, false))
 
 	// Validate top-level directory listing.
 	topLevelFile.EXPECT().VirtualGetAttributes(
+		gomock.Any(),
 		virtual.AttributesMaskFileType|virtual.AttributesMaskPermissions,
 		gomock.Any(),
-	).Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+	).Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 		attributes.SetFileType(filesystem.FileTypeRegularFile)
 		attributes.SetPermissions(virtual.PermissionsRead | virtual.PermissionsWrite)
 	})
@@ -352,21 +330,21 @@ func TestInMemoryPrepopulatedDirectoryCreateChildrenSuccess(t *testing.T) {
 		})
 
 	// Validate subdirectory listing.
-	subdirectory, _, err := d.LookupChild(path.MustNewComponent("dir"))
+	child, err := d.LookupChild(path.MustNewComponent("dir"))
 	require.NoError(t, err)
 	subdirectoryFile := mock.NewMockNativeLeaf(ctrl)
 	subdirectoryFetcher.EXPECT().FetchContents().Return(map[path.Component]virtual.InitialNode{
-		path.MustNewComponent("file"): {
-			Leaf: subdirectoryFile,
-		},
+		path.MustNewComponent("file"): virtual.InitialNode{}.FromLeaf(subdirectoryFile),
 	}, nil)
 	subdirectoryFile.EXPECT().VirtualGetAttributes(
+		gomock.Any(),
 		virtual.AttributesMaskFileType|virtual.AttributesMaskPermissions,
 		gomock.Any(),
-	).Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+	).Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 		attributes.SetFileType(filesystem.FileTypeRegularFile)
 		attributes.SetPermissions(virtual.PermissionsRead | virtual.PermissionsWrite)
 	})
+	subdirectory, _ := child.GetPair()
 	entries, err = subdirectory.ReadDir()
 	require.NoError(t, err)
 	require.Equal(t, entries,
@@ -398,7 +376,7 @@ func TestInMemoryPrepopulatedDirectoryCreateChildrenInRemovedDirectory(t *testin
 }
 
 func TestInMemoryPrepopulatedDirectoryInstallHooks(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	// Initial top-level directory with custom hooks installed.
 	fileAllocator1 := mock.NewMockFileAllocator(ctrl)
@@ -416,6 +394,7 @@ func TestInMemoryPrepopulatedDirectoryInstallHooks(t *testing.T) {
 	fileAllocator2.EXPECT().NewFile(false, uint64(0)).Return(nil, virtual.StatusErrIO)
 	var attr virtual.Attributes
 	_, _, _, s := d.VirtualOpenChild(
+		ctx,
 		path.MustNewComponent("foo"),
 		virtual.ShareMaskWrite,
 		(&virtual.Attributes{}).SetPermissions(virtual.PermissionsRead|virtual.PermissionsWrite),
@@ -431,6 +410,7 @@ func TestInMemoryPrepopulatedDirectoryInstallHooks(t *testing.T) {
 	require.NoError(t, err)
 	fileAllocator2.EXPECT().NewFile(false, uint64(0)).Return(nil, virtual.StatusErrIO)
 	_, _, _, s = child.VirtualOpenChild(
+		ctx,
 		path.MustNewComponent("foo"),
 		virtual.ShareMaskWrite,
 		(&virtual.Attributes{}).SetPermissions(virtual.PermissionsRead|virtual.PermissionsWrite),
@@ -453,7 +433,7 @@ func TestInMemoryPrepopulatedDirectoryFilterChildren(t *testing.T) {
 	// In the initial state, InMemoryPrepopulatedDirectory will have
 	// an EmptyInitialContentsFetcher associated with it.
 	childFilter1 := mock.NewMockChildFilter(ctrl)
-	childFilter1.EXPECT().Call(virtual.InitialNode{Directory: virtual.EmptyInitialContentsFetcher}, gomock.Any()).Return(true)
+	childFilter1.EXPECT().Call(virtual.InitialNode{}.FromDirectory(virtual.EmptyInitialContentsFetcher), gomock.Any()).Return(true)
 	require.NoError(t, d.FilterChildren(childFilter1.Call))
 
 	// After attempting to access the directory's contents, the
@@ -475,39 +455,39 @@ func TestInMemoryPrepopulatedDirectoryFilterChildren(t *testing.T) {
 	leaf1 := mock.NewMockNativeLeaf(ctrl)
 	leaf2 := mock.NewMockNativeLeaf(ctrl)
 	require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
-		path.MustNewComponent("directory1"): {Directory: directory1},
-		path.MustNewComponent("directory2"): {Directory: directory2},
-		path.MustNewComponent("leaf1"):      {Leaf: leaf1},
-		path.MustNewComponent("leaf2"):      {Leaf: leaf2},
+		path.MustNewComponent("directory1"): virtual.InitialNode{}.FromDirectory(directory1),
+		path.MustNewComponent("directory2"): virtual.InitialNode{}.FromDirectory(directory2),
+		path.MustNewComponent("leaf1"):      virtual.InitialNode{}.FromLeaf(leaf1),
+		path.MustNewComponent("leaf2"):      virtual.InitialNode{}.FromLeaf(leaf2),
 	}, false))
 
 	childFilter3 := mock.NewMockChildFilter(ctrl)
-	childFilter3.EXPECT().Call(virtual.InitialNode{Directory: directory1}, gomock.Any()).
+	childFilter3.EXPECT().Call(virtual.InitialNode{}.FromDirectory(directory1), gomock.Any()).
 		DoAndReturn(func(initialNode virtual.InitialNode, remove func() error) bool {
 			require.NoError(t, remove())
 			return true
 		})
-	childFilter3.EXPECT().Call(virtual.InitialNode{Directory: directory2}, gomock.Any()).Return(true)
-	childFilter3.EXPECT().Call(virtual.InitialNode{Leaf: leaf1}, gomock.Any()).
+	childFilter3.EXPECT().Call(virtual.InitialNode{}.FromDirectory(directory2), gomock.Any()).Return(true)
+	childFilter3.EXPECT().Call(virtual.InitialNode{}.FromLeaf(leaf1), gomock.Any()).
 		DoAndReturn(func(initialNode virtual.InitialNode, remove func() error) bool {
 			leaf1.EXPECT().Unlink()
 			dHandle.EXPECT().NotifyRemoval(path.MustNewComponent("leaf1"))
 			require.NoError(t, remove())
 			return true
 		})
-	childFilter3.EXPECT().Call(virtual.InitialNode{Leaf: leaf2}, gomock.Any()).Return(true)
+	childFilter3.EXPECT().Call(virtual.InitialNode{}.FromLeaf(leaf2), gomock.Any()).Return(true)
 	require.NoError(t, d.FilterChildren(childFilter3.Call))
 
 	// Another call to FilterChildren() should only report the
 	// children that were not removed previously.
 	childFilter4 := mock.NewMockChildFilter(ctrl)
-	childFilter4.EXPECT().Call(virtual.InitialNode{Directory: directory2}, gomock.Any()).Return(true)
-	childFilter4.EXPECT().Call(virtual.InitialNode{Leaf: leaf2}, gomock.Any()).Return(true)
+	childFilter4.EXPECT().Call(virtual.InitialNode{}.FromDirectory(directory2), gomock.Any()).Return(true)
+	childFilter4.EXPECT().Call(virtual.InitialNode{}.FromLeaf(leaf2), gomock.Any()).Return(true)
 	require.NoError(t, d.FilterChildren(childFilter4.Call))
 }
 
 func TestInMemoryPrepopulatedDirectoryVirtualOpenChildFileExists(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	fileAllocator := mock.NewMockFileAllocator(ctrl)
 	symlinkFactory := mock.NewMockSymlinkFactory(ctrl)
@@ -519,14 +499,13 @@ func TestInMemoryPrepopulatedDirectoryVirtualOpenChildFileExists(t *testing.T) {
 	// Create a file at the desired target location.
 	leaf := mock.NewMockNativeLeaf(ctrl)
 	require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
-		path.MustNewComponent("target"): {
-			Leaf: leaf,
-		},
+		path.MustNewComponent("target"): virtual.InitialNode{}.FromLeaf(leaf),
 	}, false))
 
 	// Trying to create the file through FUSE should fail.
 	var attr virtual.Attributes
 	_, _, _, s := d.VirtualOpenChild(
+		ctx,
 		path.MustNewComponent("target"),
 		virtual.ShareMaskWrite,
 		(&virtual.Attributes{}).SetPermissions(virtual.PermissionsRead|virtual.PermissionsWrite),
@@ -537,7 +516,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualOpenChildFileExists(t *testing.T) {
 }
 
 func TestInMemoryPrepopulatedDirectoryVirtualOpenChildDirectoryExists(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	fileAllocator := mock.NewMockFileAllocator(ctrl)
 	symlinkFactory := mock.NewMockSymlinkFactory(ctrl)
@@ -549,14 +528,13 @@ func TestInMemoryPrepopulatedDirectoryVirtualOpenChildDirectoryExists(t *testing
 	// Create a directory at the desired target location.
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
 	require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
-		path.MustNewComponent("target"): {
-			Directory: virtual.EmptyInitialContentsFetcher,
-		},
+		path.MustNewComponent("target"): virtual.InitialNode{}.FromDirectory(virtual.EmptyInitialContentsFetcher),
 	}, false))
 
 	// Trying to create the file through FUSE should fail.
 	var attr virtual.Attributes
 	_, _, _, s := d.VirtualOpenChild(
+		ctx,
 		path.MustNewComponent("target"),
 		virtual.ShareMaskWrite,
 		(&virtual.Attributes{}).SetPermissions(virtual.PermissionsRead|virtual.PermissionsWrite),
@@ -567,7 +545,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualOpenChildDirectoryExists(t *testing
 }
 
 func TestInMemoryPrepopulatedDirectoryVirtualOpenChildAllocationFailure(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	fileAllocator := mock.NewMockFileAllocator(ctrl)
 	symlinkFactory := mock.NewMockSymlinkFactory(ctrl)
@@ -581,6 +559,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualOpenChildAllocationFailure(t *testi
 	// error should get forwarded to the error logger.
 	var attr virtual.Attributes
 	_, _, _, s := d.VirtualOpenChild(
+		ctx,
 		path.MustNewComponent("target"),
 		virtual.ShareMaskWrite,
 		(&virtual.Attributes{}).SetPermissions(virtual.PermissionsRead|virtual.PermissionsWrite),
@@ -591,7 +570,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualOpenChildAllocationFailure(t *testi
 }
 
 func TestInMemoryPrepopulatedDirectoryVirtualOpenChildInRemovedDirectory(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	fileAllocator := mock.NewMockFileAllocator(ctrl)
 	symlinkFactory := mock.NewMockSymlinkFactory(ctrl)
@@ -611,6 +590,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualOpenChildInRemovedDirectory(t *test
 	// Trying to create the file through FUSE should return ENOENT.
 	var attr virtual.Attributes
 	_, _, _, s := child.VirtualOpenChild(
+		ctx,
 		path.MustNewComponent("target"),
 		virtual.ShareMaskWrite,
 		(&virtual.Attributes{}).SetPermissions(virtual.PermissionsRead|virtual.PermissionsWrite),
@@ -621,22 +601,24 @@ func TestInMemoryPrepopulatedDirectoryVirtualOpenChildInRemovedDirectory(t *test
 }
 
 func TestInMemoryPrepopulatedDirectoryVirtualOpenChildSuccess(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	fileAllocator := mock.NewMockFileAllocator(ctrl)
 	symlinkFactory := mock.NewMockSymlinkFactory(ctrl)
 	child := mock.NewMockNativeLeaf(ctrl)
 	fileAllocator.EXPECT().NewFile(false, uint64(0)).Return(child, virtual.StatusOK)
 	child.EXPECT().VirtualGetAttributes(
+		ctx,
 		virtual.AttributesMaskInodeNumber,
 		gomock.Any(),
-	).Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+	).Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 		attributes.SetInodeNumber(123)
 	})
 	child.EXPECT().VirtualGetAttributes(
+		gomock.Any(),
 		virtual.AttributesMaskFileType|virtual.AttributesMaskPermissions,
 		gomock.Any(),
-	).Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+	).Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 		attributes.SetFileType(filesystem.FileTypeRegularFile)
 		attributes.SetPermissions(virtual.PermissionsRead)
 	})
@@ -649,6 +631,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualOpenChildSuccess(t *testing.T) {
 	// should be present within the directory afterwards.
 	var attr virtual.Attributes
 	newChild, respected, changeInfo, s := d.VirtualOpenChild(
+		ctx,
 		path.MustNewComponent("target"),
 		virtual.ShareMaskWrite,
 		(&virtual.Attributes{}).SetPermissions(virtual.PermissionsRead|virtual.PermissionsWrite),
@@ -673,7 +656,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualOpenChildSuccess(t *testing.T) {
 }
 
 func TestInMemoryPrepopulatedDirectoryVirtualGetAttributes(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	fileAllocator := mock.NewMockFileAllocator(ctrl)
 	symlinkFactory := mock.NewMockSymlinkFactory(ctrl)
@@ -689,7 +672,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualGetAttributes(t *testing.T) {
 			attributes.SetInodeNumber(100)
 		})
 	var attr1 virtual.Attributes
-	d.VirtualGetAttributes(inMemoryPrepopulatedDirectoryAttributesMask, &attr1)
+	d.VirtualGetAttributes(ctx, inMemoryPrepopulatedDirectoryAttributesMask, &attr1)
 	require.Equal(
 		t,
 		*(&virtual.Attributes{}).
@@ -704,7 +687,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualGetAttributes(t *testing.T) {
 }
 
 func TestInMemoryPrepopulatedDirectoryVirtualLinkExists(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	fileAllocator := mock.NewMockFileAllocator(ctrl)
 	symlinkFactory := mock.NewMockSymlinkFactory(ctrl)
@@ -717,17 +700,15 @@ func TestInMemoryPrepopulatedDirectoryVirtualLinkExists(t *testing.T) {
 	// Attempting to link to a file that already exists should fail.
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
 	require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
-		path.MustNewComponent("dir"): {
-			Directory: virtual.EmptyInitialContentsFetcher,
-		},
+		path.MustNewComponent("dir"): virtual.InitialNode{}.FromDirectory(virtual.EmptyInitialContentsFetcher),
 	}, false))
 	var attr virtual.Attributes
-	_, s := d.VirtualLink(path.MustNewComponent("dir"), child, virtual.AttributesMask(0), &attr)
+	_, s := d.VirtualLink(ctx, path.MustNewComponent("dir"), child, virtual.AttributesMask(0), &attr)
 	require.Equal(t, virtual.StatusErrExist, s)
 }
 
 func TestInMemoryPrepopulatedDirectoryVirtualLinkInRemovedDirectory(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	fileAllocator := mock.NewMockFileAllocator(ctrl)
 	symlinkFactory := mock.NewMockSymlinkFactory(ctrl)
@@ -747,12 +728,12 @@ func TestInMemoryPrepopulatedDirectoryVirtualLinkInRemovedDirectory(t *testing.T
 
 	// Linking a file into it should fail with ENOENT.
 	var attr virtual.Attributes
-	_, s := child.VirtualLink(path.MustNewComponent("target"), target, virtual.AttributesMask(0), &attr)
+	_, s := child.VirtualLink(ctx, path.MustNewComponent("target"), target, virtual.AttributesMask(0), &attr)
 	require.Equal(t, virtual.StatusErrNoEnt, s)
 }
 
 func TestInMemoryPrepopulatedDirectoryVirtualLinkNotNativeLeaf(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	fileAllocator := mock.NewMockFileAllocator(ctrl)
 	symlinkFactory := mock.NewMockSymlinkFactory(ctrl)
@@ -766,12 +747,12 @@ func TestInMemoryPrepopulatedDirectoryVirtualLinkNotNativeLeaf(t *testing.T) {
 	// this interface.
 	child := mock.NewMockVirtualLeaf(ctrl)
 	var attr virtual.Attributes
-	_, s := d.VirtualLink(path.MustNewComponent("target"), child, virtual.AttributesMask(0), &attr)
+	_, s := d.VirtualLink(ctx, path.MustNewComponent("target"), child, virtual.AttributesMask(0), &attr)
 	require.Equal(t, virtual.StatusErrXDev, s)
 }
 
 func TestInMemoryPrepopulatedDirectoryVirtualLinkStale(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	fileAllocator := mock.NewMockFileAllocator(ctrl)
 	symlinkFactory := mock.NewMockSymlinkFactory(ctrl)
@@ -786,21 +767,22 @@ func TestInMemoryPrepopulatedDirectoryVirtualLinkStale(t *testing.T) {
 	child.EXPECT().Link().Return(virtual.StatusErrStale)
 
 	var attr virtual.Attributes
-	_, s := d.VirtualLink(path.MustNewComponent("target"), child, virtual.AttributesMaskInodeNumber, &attr)
+	_, s := d.VirtualLink(ctx, path.MustNewComponent("target"), child, virtual.AttributesMaskInodeNumber, &attr)
 	require.Equal(t, virtual.StatusErrStale, s)
 }
 
 func TestInMemoryPrepopulatedDirectoryVirtualLinkSuccess(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	fileAllocator := mock.NewMockFileAllocator(ctrl)
 	symlinkFactory := mock.NewMockSymlinkFactory(ctrl)
 	child := mock.NewMockNativeLeaf(ctrl)
 	child.EXPECT().Link()
 	child.EXPECT().VirtualGetAttributes(
+		ctx,
 		virtual.AttributesMaskInodeNumber,
 		gomock.Any(),
-	).Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+	).Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 		attributes.SetInodeNumber(123)
 	})
 	errorLogger := mock.NewMockErrorLogger(ctrl)
@@ -810,7 +792,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualLinkSuccess(t *testing.T) {
 
 	// We should return the attributes of the existing leaf.
 	var attr virtual.Attributes
-	changeInfo, s := d.VirtualLink(path.MustNewComponent("target"), child, virtual.AttributesMaskInodeNumber, &attr)
+	changeInfo, s := d.VirtualLink(ctx, path.MustNewComponent("target"), child, virtual.AttributesMaskInodeNumber, &attr)
 	require.Equal(t, virtual.StatusOK, s)
 	require.Equal(t, virtual.ChangeInfo{
 		Before: 0,
@@ -820,7 +802,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualLinkSuccess(t *testing.T) {
 }
 
 func TestInMemoryPrepopulatedDirectoryVirtualLookup(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	fileAllocator := mock.NewMockFileAllocator(ctrl)
 	symlinkFactory := mock.NewMockSymlinkFactory(ctrl)
@@ -836,17 +818,13 @@ func TestInMemoryPrepopulatedDirectoryVirtualLookup(t *testing.T) {
 	file := mock.NewMockNativeLeaf(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(1001, 0)).Times(3)
 	require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
-		path.MustNewComponent("dir"): {
-			Directory: virtual.EmptyInitialContentsFetcher,
-		},
-		path.MustNewComponent("file"): {
-			Leaf: file,
-		},
+		path.MustNewComponent("dir"):  virtual.InitialNode{}.FromDirectory(virtual.EmptyInitialContentsFetcher),
+		path.MustNewComponent("file"): virtual.InitialNode{}.FromLeaf(file),
 	}, false))
 
 	t.Run("NotFound", func(*testing.T) {
 		var attr virtual.Attributes
-		_, _, s := d.VirtualLookup(path.MustNewComponent("missing"), virtual.AttributesMask(0), &attr)
+		_, s := d.VirtualLookup(ctx, path.MustNewComponent("missing"), virtual.AttributesMask(0), &attr)
 		require.Equal(t, virtual.StatusErrNoEnt, s)
 	})
 
@@ -855,11 +833,10 @@ func TestInMemoryPrepopulatedDirectoryVirtualLookup(t *testing.T) {
 			Do(func(attributesMask virtual.AttributesMask, attributes *virtual.Attributes) {
 				attributes.SetInodeNumber(101)
 			})
+
 		var attr virtual.Attributes
-		newDirectory, newLeaf, s := d.VirtualLookup(path.MustNewComponent("dir"), inMemoryPrepopulatedDirectoryAttributesMask, &attr)
+		newChild, s := d.VirtualLookup(ctx, path.MustNewComponent("dir"), inMemoryPrepopulatedDirectoryAttributesMask, &attr)
 		require.Equal(t, virtual.StatusOK, s)
-		require.NotNil(t, newDirectory)
-		require.Nil(t, newLeaf)
 		require.Equal(
 			t,
 			*(&virtual.Attributes{}).
@@ -871,21 +848,25 @@ func TestInMemoryPrepopulatedDirectoryVirtualLookup(t *testing.T) {
 				SetPermissions(virtual.PermissionsRead | virtual.PermissionsWrite | virtual.PermissionsExecute).
 				SetSizeBytes(0),
 			attr)
+
+		newDirectory, newLeaf := newChild.GetPair()
+		require.NotNil(t, newDirectory)
+		require.Nil(t, newLeaf)
 	})
 
 	t.Run("FoundFile", func(*testing.T) {
 		file.EXPECT().VirtualGetAttributes(
+			ctx,
 			virtual.AttributesMaskInodeNumber,
 			gomock.Any(),
-		).Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+		).Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 			attributes.SetInodeNumber(3)
 		})
 
 		var attr virtual.Attributes
-		newDirectory, newLeaf, s := d.VirtualLookup(path.MustNewComponent("file"), virtual.AttributesMaskInodeNumber, &attr)
+		newChild, s := d.VirtualLookup(ctx, path.MustNewComponent("file"), virtual.AttributesMaskInodeNumber, &attr)
 		require.Equal(t, virtual.StatusOK, s)
-		require.Nil(t, newDirectory)
-		require.Equal(t, file, newLeaf)
+		require.Equal(t, virtual.DirectoryChild{}.FromLeaf(file), newChild)
 		require.Equal(t, *(&virtual.Attributes{}).SetInodeNumber(3), attr)
 	})
 }
@@ -908,13 +889,13 @@ func TestInMemoryPrepopulatedDirectoryVirtualMkdir(t *testing.T) {
 		initialContentsFetcher := mock.NewMockInitialContentsFetcher(ctrl)
 		clock.EXPECT().Now().Return(time.Unix(1001, 0)).Times(2)
 		require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
-			path.MustNewComponent("subdir"): {
-				Directory: initialContentsFetcher,
-			},
+			path.MustNewComponent("subdir"): virtual.InitialNode{}.FromDirectory(initialContentsFetcher),
 		}, false))
 
-		childDirectory, childLeaf, err := d.LookupChild(path.MustNewComponent("subdir"))
+		child, err := d.LookupChild(path.MustNewComponent("subdir"))
 		require.NoError(t, err)
+
+		childDirectory, childLeaf := child.GetPair()
 		require.NotNil(t, childDirectory)
 		require.Nil(t, childLeaf)
 
@@ -936,9 +917,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualMkdir(t *testing.T) {
 		existingFile := mock.NewMockNativeLeaf(ctrl)
 		clock.EXPECT().Now().Return(time.Unix(1002, 0))
 		require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
-			path.MustNewComponent("existing_file"): {
-				Leaf: existingFile,
-			},
+			path.MustNewComponent("existing_file"): virtual.InitialNode{}.FromLeaf(existingFile),
 		}, false))
 
 		_, _, s := d.VirtualMkdir(path.MustNewComponent("existing_file"), 0, &virtual.Attributes{})
@@ -976,7 +955,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualMkdir(t *testing.T) {
 }
 
 func TestInMemoryPrepopulatedDirectoryVirtualMknodExists(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	fileAllocator := mock.NewMockFileAllocator(ctrl)
 	symlinkFactory := mock.NewMockSymlinkFactory(ctrl)
@@ -988,17 +967,15 @@ func TestInMemoryPrepopulatedDirectoryVirtualMknodExists(t *testing.T) {
 	// Files may not be overwritten by mknod().
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
 	require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
-		path.MustNewComponent("dir"): {
-			Directory: virtual.EmptyInitialContentsFetcher,
-		},
+		path.MustNewComponent("dir"): virtual.InitialNode{}.FromDirectory(virtual.EmptyInitialContentsFetcher),
 	}, false))
 	var attr virtual.Attributes
-	_, _, s := d.VirtualMknod(path.MustNewComponent("dir"), filesystem.FileTypeFIFO, virtual.AttributesMask(0), &attr)
+	_, _, s := d.VirtualMknod(ctx, path.MustNewComponent("dir"), filesystem.FileTypeFIFO, virtual.AttributesMask(0), &attr)
 	require.Equal(t, virtual.StatusErrExist, s)
 }
 
 func TestInMemoryPrepopulatedDirectoryVirtualMknodSuccess(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	fileAllocator := mock.NewMockFileAllocator(ctrl)
 	symlinkFactory := mock.NewMockSymlinkFactory(ctrl)
@@ -1013,7 +990,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualMknodSuccess(t *testing.T) {
 	fifoHandleAllocation.EXPECT().AsNativeLeaf(gomock.Any()).
 		DoAndReturn(func(leaf virtual.NativeLeaf) virtual.NativeLeaf { return leaf })
 	var fifoAttr virtual.Attributes
-	fifoNode, changeInfo, s := d.VirtualMknod(path.MustNewComponent("fifo"), filesystem.FileTypeFIFO, specialFileAttributesMask, &fifoAttr)
+	fifoNode, changeInfo, s := d.VirtualMknod(ctx, path.MustNewComponent("fifo"), filesystem.FileTypeFIFO, specialFileAttributesMask, &fifoAttr)
 	require.Equal(t, virtual.StatusOK, s)
 	require.NotNil(t, fifoNode)
 	require.Equal(t, virtual.ChangeInfo{
@@ -1026,7 +1003,6 @@ func TestInMemoryPrepopulatedDirectoryVirtualMknodSuccess(t *testing.T) {
 			SetChangeID(0).
 			SetPermissions(virtual.PermissionsRead | virtual.PermissionsWrite).
 			SetFileType(filesystem.FileTypeFIFO).
-			SetLinkCount(virtual.StatelessLeafLinkCount).
 			SetSizeBytes(0),
 		fifoAttr)
 
@@ -1035,7 +1011,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualMknodSuccess(t *testing.T) {
 	socketHandleAllocation.EXPECT().AsNativeLeaf(gomock.Any()).
 		DoAndReturn(func(leaf virtual.NativeLeaf) virtual.NativeLeaf { return leaf })
 	var socketAttr virtual.Attributes
-	socketNode, changeInfo, s := d.VirtualMknod(path.MustNewComponent("socket"), filesystem.FileTypeSocket, specialFileAttributesMask, &socketAttr)
+	socketNode, changeInfo, s := d.VirtualMknod(ctx, path.MustNewComponent("socket"), filesystem.FileTypeSocket, specialFileAttributesMask, &socketAttr)
 	require.Equal(t, virtual.StatusOK, s)
 	require.NotNil(t, socketNode)
 	require.Equal(t, virtual.ChangeInfo{
@@ -1048,7 +1024,6 @@ func TestInMemoryPrepopulatedDirectoryVirtualMknodSuccess(t *testing.T) {
 			SetChangeID(0).
 			SetPermissions(virtual.PermissionsRead | virtual.PermissionsWrite).
 			SetFileType(filesystem.FileTypeSocket).
-			SetLinkCount(virtual.StatelessLeafLinkCount).
 			SetSizeBytes(0),
 		socketAttr)
 
@@ -1065,13 +1040,13 @@ func TestInMemoryPrepopulatedDirectoryVirtualMknodSuccess(t *testing.T) {
 	// Check whether the devices are reported properly using the
 	// VirtualReadDir() method.
 	reporter := mock.NewMockDirectoryEntryReporter(ctrl)
-	reporter.EXPECT().ReportLeaf(uint64(1), path.MustNewComponent("fifo"), fifoNode, &fifoAttr).Return(true)
-	reporter.EXPECT().ReportLeaf(uint64(2), path.MustNewComponent("socket"), socketNode, &socketAttr).Return(true)
-	require.Equal(t, virtual.StatusOK, d.VirtualReadDir(0, specialFileAttributesMask, reporter))
+	reporter.EXPECT().ReportEntry(uint64(1), path.MustNewComponent("fifo"), virtual.DirectoryChild{}.FromLeaf(fifoNode), &fifoAttr).Return(true)
+	reporter.EXPECT().ReportEntry(uint64(2), path.MustNewComponent("socket"), virtual.DirectoryChild{}.FromLeaf(socketNode), &socketAttr).Return(true)
+	require.Equal(t, virtual.StatusOK, d.VirtualReadDir(ctx, 0, specialFileAttributesMask, reporter))
 }
 
 func TestInMemoryPrepopulatedDirectoryVirtualReadDir(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	fileAllocator := mock.NewMockFileAllocator(ctrl)
 	symlinkFactory := mock.NewMockSymlinkFactory(ctrl)
@@ -1090,15 +1065,9 @@ func TestInMemoryPrepopulatedDirectoryVirtualReadDir(t *testing.T) {
 	childFile2 := mock.NewMockNativeLeaf(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(1001, 0)).Times(4)
 	require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
-		path.MustNewComponent("directory"): {
-			Directory: childDirectory,
-		},
-		path.MustNewComponent("file"): {
-			Leaf: childFile1,
-		},
-		path.MustNewComponent("._hidden_file"): {
-			Leaf: childFile2,
-		},
+		path.MustNewComponent("directory"):     virtual.InitialNode{}.FromDirectory(childDirectory),
+		path.MustNewComponent("file"):          virtual.InitialNode{}.FromLeaf(childFile1),
+		path.MustNewComponent("._hidden_file"): virtual.InitialNode{}.FromLeaf(childFile2),
 	}, false))
 
 	// Obtaining the directory listing through VirtualReadDir() should
@@ -1111,14 +1080,15 @@ func TestInMemoryPrepopulatedDirectoryVirtualReadDir(t *testing.T) {
 			attributes.SetInodeNumber(101)
 		})
 	childFile1.EXPECT().VirtualGetAttributes(
+		ctx,
 		inMemoryPrepopulatedDirectoryAttributesMask,
 		gomock.Any(),
-	).Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+	).Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 		attributes.SetFileType(filesystem.FileTypeRegularFile)
 		attributes.SetInodeNumber(123)
 	})
 	reporter := mock.NewMockDirectoryEntryReporter(ctrl)
-	reporter.EXPECT().ReportDirectory(
+	reporter.EXPECT().ReportEntry(
 		uint64(2),
 		path.MustNewComponent("directory"),
 		gomock.Any(),
@@ -1131,16 +1101,16 @@ func TestInMemoryPrepopulatedDirectoryVirtualReadDir(t *testing.T) {
 			SetPermissions(virtual.PermissionsRead|virtual.PermissionsWrite|virtual.PermissionsExecute).
 			SetSizeBytes(0),
 	).Return(true)
-	reporter.EXPECT().ReportLeaf(
+	reporter.EXPECT().ReportEntry(
 		uint64(3),
 		path.MustNewComponent("file"),
-		childFile1,
+		virtual.DirectoryChild{}.FromLeaf(childFile1),
 		(&virtual.Attributes{}).
 			SetFileType(filesystem.FileTypeRegularFile).
 			SetInodeNumber(123),
 	).Return(true)
 
-	require.Equal(t, virtual.StatusOK, d.VirtualReadDir(0, inMemoryPrepopulatedDirectoryAttributesMask, reporter))
+	require.Equal(t, virtual.StatusOK, d.VirtualReadDir(ctx, 0, inMemoryPrepopulatedDirectoryAttributesMask, reporter))
 }
 
 func TestInMemoryPrepopulatedDirectoryVirtualRenameSelfDirectory(t *testing.T) {
@@ -1160,9 +1130,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRenameSelfDirectory(t *testing.T) {
 	require.NoError(t, err)
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
 	require.NoError(t, child.CreateChildren(map[path.Component]virtual.InitialNode{
-		path.MustNewComponent("subdir"): {
-			Directory: virtual.EmptyInitialContentsFetcher,
-		},
+		path.MustNewComponent("subdir"): virtual.InitialNode{}.FromDirectory(virtual.EmptyInitialContentsFetcher),
 	}, false))
 	changeInfo1, changeInfo2, s := d.VirtualRename(path.MustNewComponent("dir"), d, path.MustNewComponent("dir"))
 	require.Equal(t, virtual.StatusOK, s)
@@ -1184,7 +1152,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRenameSelfDirectory(t *testing.T) {
 }
 
 func TestInMemoryPrepopulatedDirectoryVirtualRenameSelfFile(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	fileAllocator := mock.NewMockFileAllocator(ctrl)
 	symlinkFactory := mock.NewMockSymlinkFactory(ctrl)
@@ -1195,20 +1163,19 @@ func TestInMemoryPrepopulatedDirectoryVirtualRenameSelfFile(t *testing.T) {
 
 	leaf := mock.NewMockNativeLeaf(ctrl)
 	require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
-		path.MustNewComponent("a"): {
-			Leaf: leaf,
-		},
+		path.MustNewComponent("a"): virtual.InitialNode{}.FromLeaf(leaf),
 	}, false))
 
 	leaf.EXPECT().VirtualGetAttributes(
+		ctx,
 		virtual.AttributesMaskInodeNumber,
 		gomock.Any(),
-	).Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+	).Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 		attributes.SetInodeNumber(3)
 	})
 	var out virtual.Attributes
 	leaf.EXPECT().Link()
-	changeInfo, s := d.VirtualLink(path.MustNewComponent("b"), leaf, virtual.AttributesMaskInodeNumber, &out)
+	changeInfo, s := d.VirtualLink(ctx, path.MustNewComponent("b"), leaf, virtual.AttributesMaskInodeNumber, &out)
 	require.Equal(t, virtual.StatusOK, s)
 	require.Equal(t, virtual.ChangeInfo{
 		Before: 1,
@@ -1231,9 +1198,10 @@ func TestInMemoryPrepopulatedDirectoryVirtualRenameSelfFile(t *testing.T) {
 	}, changeInfo2)
 
 	leaf.EXPECT().VirtualGetAttributes(
+		gomock.Any(),
 		virtual.AttributesMaskFileType|virtual.AttributesMaskPermissions,
 		gomock.Any(),
-	).Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+	).Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 		attributes.SetFileType(filesystem.FileTypeRegularFile)
 		attributes.SetPermissions(0)
 	}).Times(2)
@@ -1267,9 +1235,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRenameDirectoryInRemovedDirectory(t
 	// Moving a directory into it should fail with ENOENT.
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
 	require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
-		path.MustNewComponent("dir"): {
-			Directory: virtual.EmptyInitialContentsFetcher,
-		},
+		path.MustNewComponent("dir"): virtual.InitialNode{}.FromDirectory(virtual.EmptyInitialContentsFetcher),
 	}, false))
 	_, _, s := d.VirtualRename(path.MustNewComponent("dir"), child, path.MustNewComponent("dir"))
 	require.Equal(t, virtual.StatusErrNoEnt, s)
@@ -1303,17 +1269,16 @@ func TestInMemoryPrepopulatedDirectoryVirtualRenameFileInRemovedDirectory(t *tes
 	// Moving a file into it should fail with ENOENT.
 	leaf := mock.NewMockNativeLeaf(ctrl)
 	require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
-		path.MustNewComponent("file"): {
-			Leaf: leaf,
-		},
+		path.MustNewComponent("file"): virtual.InitialNode{}.FromLeaf(leaf),
 	}, false))
 	_, _, s := d.VirtualRename(path.MustNewComponent("file"), child, path.MustNewComponent("file"))
 	require.Equal(t, virtual.StatusErrNoEnt, s)
 
 	leaf.EXPECT().VirtualGetAttributes(
+		gomock.Any(),
 		virtual.AttributesMaskFileType|virtual.AttributesMaskPermissions,
 		gomock.Any(),
-	).Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+	).Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 		attributes.SetFileType(filesystem.FileTypeRegularFile)
 		attributes.SetPermissions(0)
 	})
@@ -1377,14 +1342,10 @@ func TestInMemoryPrepopulatedDirectoryVirtualRenameDirectoryTwice(t *testing.T) 
 	// former should still be usable. The latter has been deleted.
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
 	require.NoError(t, childA.CreateChildren(map[path.Component]virtual.InitialNode{
-		path.MustNewComponent("subdirectory"): {
-			Directory: virtual.EmptyInitialContentsFetcher,
-		},
+		path.MustNewComponent("subdirectory"): virtual.InitialNode{}.FromDirectory(virtual.EmptyInitialContentsFetcher),
 	}, false))
 	require.Equal(t, syscall.ENOENT, childB.CreateChildren(map[path.Component]virtual.InitialNode{
-		path.MustNewComponent("subdirectory"): {
-			Directory: virtual.EmptyInitialContentsFetcher,
-		},
+		path.MustNewComponent("subdirectory"): virtual.InitialNode{}.FromDirectory(virtual.EmptyInitialContentsFetcher),
 	}, false))
 }
 
@@ -1429,15 +1390,11 @@ func TestInMemoryPrepopulatedDirectoryVirtualRenameCrossDevice2(t *testing.T) {
 	// InMemoryPrepopulatedDirectory's internal bookkeeping.
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator1)
 	require.NoError(t, d1.CreateChildren(map[path.Component]virtual.InitialNode{
-		path.MustNewComponent("src"): {
-			Directory: virtual.EmptyInitialContentsFetcher,
-		},
+		path.MustNewComponent("src"): virtual.InitialNode{}.FromDirectory(virtual.EmptyInitialContentsFetcher),
 	}, false))
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator2)
 	require.NoError(t, d2.CreateChildren(map[path.Component]virtual.InitialNode{
-		path.MustNewComponent("dst"): {
-			Directory: virtual.EmptyInitialContentsFetcher,
-		},
+		path.MustNewComponent("dst"): virtual.InitialNode{}.FromDirectory(virtual.EmptyInitialContentsFetcher),
 	}, false))
 	_, _, s := d1.VirtualRename(path.MustNewComponent("src"), d2, path.MustNewComponent("dst"))
 	require.Equal(t, virtual.StatusErrXDev, s)
@@ -1450,7 +1407,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRenameCrossDevice2(t *testing.T) {
 	// possible to achieve this by hardlinking.
 	leaf := mock.NewMockNativeLeaf(ctrl)
 	require.NoError(t, d1.CreateChildren(map[path.Component]virtual.InitialNode{
-		path.MustNewComponent("leaf"): {Leaf: leaf},
+		path.MustNewComponent("leaf"): virtual.InitialNode{}.FromLeaf(leaf),
 	}, false))
 	changeInfo1, changeInfo2, s := d1.VirtualRename(path.MustNewComponent("leaf"), d2, path.MustNewComponent("leaf"))
 	require.Equal(t, virtual.StatusOK, s)
@@ -1486,9 +1443,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRemove(t *testing.T) {
 		inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
 		initialContentsFetcher := mock.NewMockInitialContentsFetcher(ctrl)
 		require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
-			path.MustNewComponent("no_directory_removal"): {
-				Directory: initialContentsFetcher,
-			},
+			path.MustNewComponent("no_directory_removal"): virtual.InitialNode{}.FromDirectory(initialContentsFetcher),
 		}, false))
 
 		_, s := d.VirtualRemove(path.MustNewComponent("no_directory_removal"), false, true)
@@ -1500,9 +1455,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRemove(t *testing.T) {
 		// should not be performed.
 		leaf := mock.NewMockNativeLeaf(ctrl)
 		require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
-			path.MustNewComponent("no_file_removal"): {
-				Leaf: leaf,
-			},
+			path.MustNewComponent("no_file_removal"): virtual.InitialNode{}.FromLeaf(leaf),
 		}, false))
 
 		_, s := d.VirtualRemove(path.MustNewComponent("no_file_removal"), true, false)
@@ -1516,9 +1469,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRemove(t *testing.T) {
 		inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
 		initialContentsFetcher := mock.NewMockInitialContentsFetcher(ctrl)
 		require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
-			path.MustNewComponent("broken_directory"): {
-				Directory: initialContentsFetcher,
-			},
+			path.MustNewComponent("broken_directory"): virtual.InitialNode{}.FromDirectory(initialContentsFetcher),
 		}, false))
 		initialContentsFetcher.EXPECT().FetchContents().
 			Return(nil, status.Error(codes.Internal, "Network error"))
@@ -1532,15 +1483,11 @@ func TestInMemoryPrepopulatedDirectoryVirtualRemove(t *testing.T) {
 		inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
 		initialContentsFetcher := mock.NewMockInitialContentsFetcher(ctrl)
 		require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
-			path.MustNewComponent("non_empty_directory"): {
-				Directory: initialContentsFetcher,
-			},
+			path.MustNewComponent("non_empty_directory"): virtual.InitialNode{}.FromDirectory(initialContentsFetcher),
 		}, false))
 		leaf := mock.NewMockNativeLeaf(ctrl)
 		initialContentsFetcher.EXPECT().FetchContents().Return(map[path.Component]virtual.InitialNode{
-			path.MustNewComponent("file"): {
-				Leaf: leaf,
-			},
+			path.MustNewComponent("file"): virtual.InitialNode{}.FromLeaf(leaf),
 		}, nil)
 
 		_, s := d.VirtualRemove(path.MustNewComponent("non_empty_directory"), true, false)
@@ -1550,9 +1497,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRemove(t *testing.T) {
 	t.Run("SuccessFile", func(t *testing.T) {
 		leaf := mock.NewMockNativeLeaf(ctrl)
 		require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
-			path.MustNewComponent("success"): {
-				Leaf: leaf,
-			},
+			path.MustNewComponent("success"): virtual.InitialNode{}.FromLeaf(leaf),
 		}, false))
 		leaf.EXPECT().Unlink()
 
@@ -1571,19 +1516,13 @@ func TestInMemoryPrepopulatedDirectoryVirtualRemove(t *testing.T) {
 		dHandle := inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
 		initialContentsFetcher := mock.NewMockInitialContentsFetcher(ctrl)
 		require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
-			path.MustNewComponent("directory_with_hidden_files"): {
-				Directory: initialContentsFetcher,
-			},
+			path.MustNewComponent("directory_with_hidden_files"): virtual.InitialNode{}.FromDirectory(initialContentsFetcher),
 		}, false))
 		leaf1 := mock.NewMockNativeLeaf(ctrl)
 		leaf2 := mock.NewMockNativeLeaf(ctrl)
 		initialContentsFetcher.EXPECT().FetchContents().Return(map[path.Component]virtual.InitialNode{
-			path.MustNewComponent("._hidden_file1"): {
-				Leaf: leaf1,
-			},
-			path.MustNewComponent("._hidden_file2"): {
-				Leaf: leaf2,
-			},
+			path.MustNewComponent("._hidden_file1"): virtual.InitialNode{}.FromLeaf(leaf1),
+			path.MustNewComponent("._hidden_file2"): virtual.InitialNode{}.FromLeaf(leaf2),
 		}, nil)
 		leaf1.EXPECT().Unlink()
 		leaf2.EXPECT().Unlink()
@@ -1599,7 +1538,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRemove(t *testing.T) {
 }
 
 func TestInMemoryPrepopulatedDirectoryVirtualSymlink(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	fileAllocator := mock.NewMockFileAllocator(ctrl)
 	symlinkFactory := mock.NewMockSymlinkFactory(ctrl)
@@ -1613,13 +1552,13 @@ func TestInMemoryPrepopulatedDirectoryVirtualSymlink(t *testing.T) {
 		inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
 		initialContentsFetcher := mock.NewMockInitialContentsFetcher(ctrl)
 		require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
-			path.MustNewComponent("subdir"): {
-				Directory: initialContentsFetcher,
-			},
+			path.MustNewComponent("subdir"): virtual.InitialNode{}.FromDirectory(initialContentsFetcher),
 		}, false))
 
-		childDirectory, childLeaf, err := d.LookupChild(path.MustNewComponent("subdir"))
+		child, err := d.LookupChild(path.MustNewComponent("subdir"))
 		require.NoError(t, err)
+
+		childDirectory, childLeaf := child.GetPair()
 		require.NotNil(t, childDirectory)
 		require.Nil(t, childLeaf)
 
@@ -1631,7 +1570,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualSymlink(t *testing.T) {
 			Return(nil, status.Error(codes.Internal, "Network error"))
 		errorLogger.EXPECT().Log(testutil.EqStatus(t, status.Error(codes.Internal, "Failed to initialize directory: Network error")))
 
-		_, _, s := childDirectory.VirtualSymlink([]byte("target"), path.MustNewComponent("symlink"), 0, &virtual.Attributes{})
+		_, _, s := childDirectory.VirtualSymlink(ctx, []byte("target"), path.MustNewComponent("symlink"), 0, &virtual.Attributes{})
 		require.Equal(t, virtual.StatusErrIO, s)
 	})
 
@@ -1640,12 +1579,10 @@ func TestInMemoryPrepopulatedDirectoryVirtualSymlink(t *testing.T) {
 		// already exists under the provided name.
 		existingFile := mock.NewMockNativeLeaf(ctrl)
 		require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
-			path.MustNewComponent("existing_file"): {
-				Leaf: existingFile,
-			},
+			path.MustNewComponent("existing_file"): virtual.InitialNode{}.FromLeaf(existingFile),
 		}, false))
 
-		_, _, s := d.VirtualSymlink([]byte("target"), path.MustNewComponent("existing_file"), 0, &virtual.Attributes{})
+		_, _, s := d.VirtualSymlink(ctx, []byte("target"), path.MustNewComponent("existing_file"), 0, &virtual.Attributes{})
 		require.Equal(t, virtual.StatusErrExist, s)
 	})
 
@@ -1653,14 +1590,15 @@ func TestInMemoryPrepopulatedDirectoryVirtualSymlink(t *testing.T) {
 		leaf := mock.NewMockNativeLeaf(ctrl)
 		symlinkFactory.EXPECT().LookupSymlink([]byte("target")).Return(leaf)
 		leaf.EXPECT().VirtualGetAttributes(
+			ctx,
 			virtual.AttributesMaskInodeNumber,
 			gomock.Any(),
-		).Do(func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+		).Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 			attributes.SetInodeNumber(3)
 		})
 
 		var out virtual.Attributes
-		actualLeaf, changeInfo, s := d.VirtualSymlink([]byte("target"), path.MustNewComponent("symlink"), virtual.AttributesMaskInodeNumber, &out)
+		actualLeaf, changeInfo, s := d.VirtualSymlink(ctx, []byte("target"), path.MustNewComponent("symlink"), virtual.AttributesMaskInodeNumber, &out)
 		require.Equal(t, virtual.StatusOK, s)
 		require.NotNil(t, actualLeaf)
 		require.Equal(t, virtual.ChangeInfo{

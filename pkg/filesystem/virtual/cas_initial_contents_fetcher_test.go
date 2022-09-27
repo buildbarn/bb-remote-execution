@@ -197,20 +197,12 @@ func TestCASInitialContentsFetcherFetchContents(t *testing.T) {
 
 		children, err := initialContentsFetcher.FetchContents()
 		require.NoError(t, err)
-		childInitialContentsFetcher := children[path.MustNewComponent("directory")].Directory
+		childInitialContentsFetcher, _ := children[path.MustNewComponent("directory")].GetPair()
 		require.Equal(t, map[path.Component]virtual.InitialNode{
-			path.MustNewComponent("directory"): {
-				Directory: childInitialContentsFetcher,
-			},
-			path.MustNewComponent("executable"): {
-				Leaf: executableLeaf,
-			},
-			path.MustNewComponent("file"): {
-				Leaf: fileLeaf,
-			},
-			path.MustNewComponent("symlink"): {
-				Leaf: symlinkLeaf,
-			},
+			path.MustNewComponent("directory"):  virtual.InitialNode{}.FromDirectory(childInitialContentsFetcher),
+			path.MustNewComponent("executable"): virtual.InitialNode{}.FromLeaf(executableLeaf),
+			path.MustNewComponent("file"):       virtual.InitialNode{}.FromLeaf(fileLeaf),
+			path.MustNewComponent("symlink"):    virtual.InitialNode{}.FromLeaf(symlinkLeaf),
 		}, children)
 
 		// Check that the InitialContentsFetcher that is created

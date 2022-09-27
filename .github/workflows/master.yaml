@@ -96,6 +96,18 @@
                }
             },
             {
+               "name": "linux_amd64: copy bb_virtual_tmp",
+               "run": "rm -f bb_virtual_tmp && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //cmd/bb_virtual_tmp $(pwd)/bb_virtual_tmp"
+            },
+            {
+               "name": "linux_amd64: upload bb_virtual_tmp",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "bb_virtual_tmp.linux_amd64",
+                  "path": "bb_virtual_tmp"
+               }
+            },
+            {
                "name": "linux_amd64: copy bb_worker",
                "run": "rm -f bb_worker && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //cmd/bb_worker $(pwd)/bb_worker"
             },
@@ -169,6 +181,18 @@
                "with": {
                   "name": "bb_scheduler.linux_386",
                   "path": "bb_scheduler"
+               }
+            },
+            {
+               "name": "linux_386: copy bb_virtual_tmp",
+               "run": "rm -f bb_virtual_tmp && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_386 //cmd/bb_virtual_tmp $(pwd)/bb_virtual_tmp"
+            },
+            {
+               "name": "linux_386: upload bb_virtual_tmp",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "bb_virtual_tmp.linux_386",
+                  "path": "bb_virtual_tmp"
                }
             },
             {
@@ -248,6 +272,18 @@
                }
             },
             {
+               "name": "linux_arm: copy bb_virtual_tmp",
+               "run": "rm -f bb_virtual_tmp && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_arm //cmd/bb_virtual_tmp $(pwd)/bb_virtual_tmp"
+            },
+            {
+               "name": "linux_arm: upload bb_virtual_tmp",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "bb_virtual_tmp.linux_arm",
+                  "path": "bb_virtual_tmp"
+               }
+            },
+            {
                "name": "linux_arm: copy bb_worker",
                "run": "rm -f bb_worker && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_arm //cmd/bb_worker $(pwd)/bb_worker"
             },
@@ -321,6 +357,18 @@
                "with": {
                   "name": "bb_scheduler.linux_arm64",
                   "path": "bb_scheduler"
+               }
+            },
+            {
+               "name": "linux_arm64: copy bb_virtual_tmp",
+               "run": "rm -f bb_virtual_tmp && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:linux_arm64 //cmd/bb_virtual_tmp $(pwd)/bb_virtual_tmp"
+            },
+            {
+               "name": "linux_arm64: upload bb_virtual_tmp",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "bb_virtual_tmp.linux_arm64",
+                  "path": "bb_virtual_tmp"
                }
             },
             {
@@ -400,6 +448,18 @@
                }
             },
             {
+               "name": "darwin_amd64: copy bb_virtual_tmp",
+               "run": "rm -f bb_virtual_tmp && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:darwin_amd64 //cmd/bb_virtual_tmp $(pwd)/bb_virtual_tmp"
+            },
+            {
+               "name": "darwin_amd64: upload bb_virtual_tmp",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "bb_virtual_tmp.darwin_amd64",
+                  "path": "bb_virtual_tmp"
+               }
+            },
+            {
                "name": "darwin_amd64: copy bb_worker",
                "run": "rm -f bb_worker && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:darwin_amd64 //cmd/bb_worker $(pwd)/bb_worker"
             },
@@ -476,6 +536,18 @@
                }
             },
             {
+               "name": "darwin_arm64: copy bb_virtual_tmp",
+               "run": "rm -f bb_virtual_tmp && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:darwin_arm64 //cmd/bb_virtual_tmp $(pwd)/bb_virtual_tmp"
+            },
+            {
+               "name": "darwin_arm64: upload bb_virtual_tmp",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "bb_virtual_tmp.darwin_arm64",
+                  "path": "bb_virtual_tmp"
+               }
+            },
+            {
                "name": "darwin_arm64: copy bb_worker",
                "run": "rm -f bb_worker && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:darwin_arm64 //cmd/bb_worker $(pwd)/bb_worker"
             },
@@ -513,7 +585,7 @@
             },
             {
                "name": "freebsd_amd64: build and test",
-               "run": "bazel build --platforms=@io_bazel_rules_go//go/toolchain:freebsd_amd64 //cmd/bb_noop_worker //cmd/bb_runner //cmd/bb_scheduler //cmd/bb_worker //cmd/fake_python //cmd/fake_xcrun"
+               "run": "bazel build --platforms=@io_bazel_rules_go//go/toolchain:freebsd_amd64 //cmd/bb_noop_worker //cmd/bb_runner //cmd/bb_scheduler //cmd/bb_virtual_tmp //cmd/bb_worker //cmd/fake_python //cmd/fake_xcrun"
             },
             {
                "name": "freebsd_amd64: copy bb_noop_worker",
@@ -549,6 +621,18 @@
                "with": {
                   "name": "bb_scheduler.freebsd_amd64",
                   "path": "bb_scheduler"
+               }
+            },
+            {
+               "name": "freebsd_amd64: copy bb_virtual_tmp",
+               "run": "rm -f bb_virtual_tmp && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:freebsd_amd64 //cmd/bb_virtual_tmp $(pwd)/bb_virtual_tmp"
+            },
+            {
+               "name": "freebsd_amd64: upload bb_virtual_tmp",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "bb_virtual_tmp.freebsd_amd64",
+                  "path": "bb_virtual_tmp"
                }
             },
             {
@@ -625,6 +709,18 @@
                "with": {
                   "name": "bb_scheduler.windows_amd64",
                   "path": "bb_scheduler.exe"
+               }
+            },
+            {
+               "name": "windows_amd64: copy bb_virtual_tmp",
+               "run": "rm -f bb_virtual_tmp.exe && bazel run --run_under cp --platforms=@io_bazel_rules_go//go/toolchain:windows_amd64 //cmd/bb_virtual_tmp $(pwd)/bb_virtual_tmp.exe"
+            },
+            {
+               "name": "windows_amd64: upload bb_virtual_tmp",
+               "uses": "actions/upload-artifact@v2-preview",
+               "with": {
+                  "name": "bb_virtual_tmp.windows_amd64",
+                  "path": "bb_virtual_tmp.exe"
                }
             },
             {

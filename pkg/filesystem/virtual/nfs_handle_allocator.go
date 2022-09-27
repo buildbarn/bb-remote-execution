@@ -2,6 +2,7 @@ package virtual
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"io"
 	"sync"
@@ -123,14 +124,14 @@ func NewNFSHandleAllocator(randomNumberGenerator random.SingleThreadedGenerator)
 // Only files that are linked into the file system are guaranteed to be
 // resolvable. Files that have been unlinked, but are still opened have
 // to be tracked at a higher level.
-func (hr *NFSStatefulHandleAllocator) ResolveHandle(r io.ByteReader) (Directory, Leaf, Status) {
+func (hr *NFSStatefulHandleAllocator) ResolveHandle(r io.ByteReader) (DirectoryChild, Status) {
 	// The first eight bytes of the handle always correspond to a
 	// base inode number.
 	var inodeNumberBytes [8]byte
 	for i := 0; i < len(inodeNumberBytes); i++ {
 		c, err := r.ReadByte()
 		if err != nil {
-			return nil, nil, StatusErrBadHandle
+			return DirectoryChild{}, StatusErrBadHandle
 		}
 		inodeNumberBytes[i] = c
 	}
@@ -140,22 +141,22 @@ func (hr *NFSStatefulHandleAllocator) ResolveHandle(r io.ByteReader) (Directory,
 	p.lock.RLock()
 	if directory, ok := p.directories[inodeNumber]; ok {
 		p.lock.RUnlock()
-		return directory, nil, StatusOK
+		return DirectoryChild{}.FromDirectory(directory), StatusOK
 	}
 	if leaf, ok := p.statefulLeaves[inodeNumber]; ok {
 		p.lock.RUnlock()
-		return nil, leaf, StatusOK
+		return DirectoryChild{}.FromLeaf(leaf), StatusOK
 	}
 	if leaf, ok := p.statelessLeaves[inodeNumber]; ok {
 		p.lock.RUnlock()
-		return nil, leaf, StatusOK
+		return DirectoryChild{}.FromLeaf(leaf), StatusOK
 	}
 	if resolver, ok := p.resolvers[inodeNumber]; ok {
 		p.lock.RUnlock()
 		return resolver(r)
 	}
 	p.lock.RUnlock()
-	return nil, nil, StatusErrStale
+	return DirectoryChild{}, StatusErrStale
 }
 
 // New creates a new stateful handle allocation.
@@ -405,15 +406,15 @@ type nfsStatelessDirectory struct {
 	fileHandle []byte
 }
 
-func (d *nfsStatelessDirectory) VirtualGetAttributes(requested AttributesMask, attributes *Attributes) {
+func (d *nfsStatelessDirectory) VirtualGetAttributes(ctx context.Context, requested AttributesMask, attributes *Attributes) {
 	if remaining := requested &^ (AttributesMaskFileHandle | AttributesMaskInodeNumber); remaining != 0 {
-		d.Directory.VirtualGetAttributes(remaining, attributes)
+		d.Directory.VirtualGetAttributes(ctx, remaining, attributes)
 	}
 	setAttributesForFileHandle(d.fileHandle, requested, attributes)
 }
 
-func (d *nfsStatelessDirectory) VirtualSetAttributes(in *Attributes, requested AttributesMask, attributes *Attributes) Status {
-	if s := d.Directory.VirtualSetAttributes(in, requested, attributes); s != StatusOK {
+func (d *nfsStatelessDirectory) VirtualSetAttributes(ctx context.Context, in *Attributes, requested AttributesMask, attributes *Attributes) Status {
+	if s := d.Directory.VirtualSetAttributes(ctx, in, requested, attributes); s != StatusOK {
 		return s
 	}
 	setAttributesForFileHandle(d.fileHandle, requested, attributes)
@@ -479,23 +480,23 @@ func (l *nfsStatefulNativeLeaf) injectAttributes(requested AttributesMask, attri
 	}
 }
 
-func (l *nfsStatefulNativeLeaf) VirtualGetAttributes(requested AttributesMask, attributes *Attributes) {
+func (l *nfsStatefulNativeLeaf) VirtualGetAttributes(ctx context.Context, requested AttributesMask, attributes *Attributes) {
 	if remaining := requested &^ (AttributesMaskFileHandle | AttributesMaskInodeNumber | AttributesMaskLinkCount); remaining != 0 {
-		l.NativeLeaf.VirtualGetAttributes(remaining, attributes)
+		l.NativeLeaf.VirtualGetAttributes(ctx, remaining, attributes)
 	}
 	l.injectAttributes(requested, attributes)
 }
 
-func (l *nfsStatefulNativeLeaf) VirtualSetAttributes(in *Attributes, requested AttributesMask, attributes *Attributes) Status {
-	if s := l.NativeLeaf.VirtualSetAttributes(in, requested, attributes); s != StatusOK {
+func (l *nfsStatefulNativeLeaf) VirtualSetAttributes(ctx context.Context, in *Attributes, requested AttributesMask, attributes *Attributes) Status {
+	if s := l.NativeLeaf.VirtualSetAttributes(ctx, in, requested, attributes); s != StatusOK {
 		return s
 	}
 	l.injectAttributes(requested, attributes)
 	return StatusOK
 }
 
-func (l *nfsStatefulNativeLeaf) VirtualOpenSelf(shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status {
-	if s := l.NativeLeaf.VirtualOpenSelf(shareAccess, options, requested, attributes); s != StatusOK {
+func (l *nfsStatefulNativeLeaf) VirtualOpenSelf(ctx context.Context, shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status {
+	if s := l.NativeLeaf.VirtualOpenSelf(ctx, shareAccess, options, requested, attributes); s != StatusOK {
 		return s
 	}
 	l.injectAttributes(requested, attributes)
@@ -555,23 +556,23 @@ func (l *nfsStatelessNativeLeaf) injectAttributes(requested AttributesMask, attr
 	attributes.SetLinkCount(StatelessLeafLinkCount)
 }
 
-func (l *nfsStatelessNativeLeaf) VirtualGetAttributes(requested AttributesMask, attributes *Attributes) {
+func (l *nfsStatelessNativeLeaf) VirtualGetAttributes(ctx context.Context, requested AttributesMask, attributes *Attributes) {
 	if remaining := requested &^ (AttributesMaskFileHandle | AttributesMaskInodeNumber | AttributesMaskLinkCount); remaining != 0 {
-		l.NativeLeaf.VirtualGetAttributes(remaining, attributes)
+		l.NativeLeaf.VirtualGetAttributes(ctx, remaining, attributes)
 	}
 	l.injectAttributes(requested, attributes)
 }
 
-func (l *nfsStatelessNativeLeaf) VirtualSetAttributes(in *Attributes, requested AttributesMask, attributes *Attributes) Status {
-	if s := l.NativeLeaf.VirtualSetAttributes(in, requested, attributes); s != StatusOK {
+func (l *nfsStatelessNativeLeaf) VirtualSetAttributes(ctx context.Context, in *Attributes, requested AttributesMask, attributes *Attributes) Status {
+	if s := l.NativeLeaf.VirtualSetAttributes(ctx, in, requested, attributes); s != StatusOK {
 		return s
 	}
 	l.injectAttributes(requested, attributes)
 	return StatusOK
 }
 
-func (l *nfsStatelessNativeLeaf) VirtualOpenSelf(shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status {
-	if s := l.NativeLeaf.VirtualOpenSelf(shareAccess, options, requested, attributes); s != StatusOK {
+func (l *nfsStatelessNativeLeaf) VirtualOpenSelf(ctx context.Context, shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status {
+	if s := l.NativeLeaf.VirtualOpenSelf(ctx, shareAccess, options, requested, attributes); s != StatusOK {
 		return s
 	}
 	l.injectAttributes(requested, attributes)
@@ -598,23 +599,23 @@ func (l *nfsResolvableNativeLeaf) injectAttributes(requested AttributesMask, att
 	attributes.SetLinkCount(StatelessLeafLinkCount)
 }
 
-func (l *nfsResolvableNativeLeaf) VirtualGetAttributes(requested AttributesMask, attributes *Attributes) {
+func (l *nfsResolvableNativeLeaf) VirtualGetAttributes(ctx context.Context, requested AttributesMask, attributes *Attributes) {
 	if remaining := requested &^ (AttributesMaskFileHandle | AttributesMaskInodeNumber | AttributesMaskLinkCount); remaining != 0 {
-		l.NativeLeaf.VirtualGetAttributes(remaining, attributes)
+		l.NativeLeaf.VirtualGetAttributes(ctx, remaining, attributes)
 	}
 	l.injectAttributes(requested, attributes)
 }
 
-func (l *nfsResolvableNativeLeaf) VirtualSetAttributes(in *Attributes, requested AttributesMask, attributes *Attributes) Status {
-	if s := l.NativeLeaf.VirtualSetAttributes(in, requested, attributes); s != StatusOK {
+func (l *nfsResolvableNativeLeaf) VirtualSetAttributes(ctx context.Context, in *Attributes, requested AttributesMask, attributes *Attributes) Status {
+	if s := l.NativeLeaf.VirtualSetAttributes(ctx, in, requested, attributes); s != StatusOK {
 		return s
 	}
 	l.injectAttributes(requested, attributes)
 	return StatusOK
 }
 
-func (l *nfsResolvableNativeLeaf) VirtualOpenSelf(shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status {
-	if s := l.NativeLeaf.VirtualOpenSelf(shareAccess, options, requested, attributes); s != StatusOK {
+func (l *nfsResolvableNativeLeaf) VirtualOpenSelf(ctx context.Context, shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status {
+	if s := l.NativeLeaf.VirtualOpenSelf(ctx, shareAccess, options, requested, attributes); s != StatusOK {
 		return s
 	}
 	l.injectAttributes(requested, attributes)
@@ -635,23 +636,23 @@ func (l *nfsResolvableLeaf) injectAttributes(requested AttributesMask, attribute
 	attributes.SetLinkCount(StatelessLeafLinkCount)
 }
 
-func (l *nfsResolvableLeaf) VirtualGetAttributes(requested AttributesMask, attributes *Attributes) {
+func (l *nfsResolvableLeaf) VirtualGetAttributes(ctx context.Context, requested AttributesMask, attributes *Attributes) {
 	if remaining := requested &^ (AttributesMaskFileHandle | AttributesMaskInodeNumber | AttributesMaskLinkCount); remaining != 0 {
-		l.Leaf.VirtualGetAttributes(remaining, attributes)
+		l.Leaf.VirtualGetAttributes(ctx, remaining, attributes)
 	}
 	l.injectAttributes(requested, attributes)
 }
 
-func (l *nfsResolvableLeaf) VirtualSetAttributes(in *Attributes, requested AttributesMask, attributes *Attributes) Status {
-	if s := l.Leaf.VirtualSetAttributes(in, requested, attributes); s != StatusOK {
+func (l *nfsResolvableLeaf) VirtualSetAttributes(ctx context.Context, in *Attributes, requested AttributesMask, attributes *Attributes) Status {
+	if s := l.Leaf.VirtualSetAttributes(ctx, in, requested, attributes); s != StatusOK {
 		return s
 	}
 	l.injectAttributes(requested, attributes)
 	return StatusOK
 }
 
-func (l *nfsResolvableLeaf) VirtualOpenSelf(shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status {
-	if s := l.Leaf.VirtualOpenSelf(shareAccess, options, requested, attributes); s != StatusOK {
+func (l *nfsResolvableLeaf) VirtualOpenSelf(ctx context.Context, shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status {
+	if s := l.Leaf.VirtualOpenSelf(ctx, shareAccess, options, requested, attributes); s != StatusOK {
 		return s
 	}
 	l.injectAttributes(requested, attributes)

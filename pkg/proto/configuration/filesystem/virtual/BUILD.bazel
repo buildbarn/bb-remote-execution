@@ -6,7 +6,10 @@ proto_library(
     name = "virtual_proto",
     srcs = ["virtual.proto"],
     visibility = ["//visibility:public"],
-    deps = ["@com_google_protobuf//:duration_proto"],
+    deps = [
+        "@com_github_buildbarn_bb_storage//pkg/proto/configuration/eviction:eviction_proto",
+        "@com_google_protobuf//:duration_proto",
+    ],
 )
 
 go_proto_library(
@@ -14,6 +17,7 @@ go_proto_library(
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem/virtual",
     proto = ":virtual_proto",
     visibility = ["//visibility:public"],
+    deps = ["@com_github_buildbarn_bb_storage//pkg/proto/configuration/eviction"],
 )
 
 go_library(
