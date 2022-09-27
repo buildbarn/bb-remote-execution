@@ -13,7 +13,7 @@ index 94d7f4b..7620f20 100644
  	"reflect"
  	"strings"
  )
-@@ -405,6 +407,136 @@ var errorType = reflect.TypeOf((*error)(nil)).Elem()
+@@ -405,6 +407,138 @@ var errorType = reflect.TypeOf((*error)(nil)).Elem()
  
  var byteType = reflect.TypeOf(byte(0))
  
@@ -28,6 +28,8 @@ index 94d7f4b..7620f20 100644
 +	"uint": {}, "int": {}, "uintptr": {},
 +	// String types.
 +	"string": {},
++	// Any types.
++	"interface {}": {},
 +}
 +
 +func typeFromReflectName(currentPkg string, expr io.RuneScanner) (Type, error) {
