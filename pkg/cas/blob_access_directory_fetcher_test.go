@@ -22,7 +22,7 @@ func TestBlobAccessDirectoryFetcherGetDirectory(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	blobAccess := mock.NewMockBlobAccess(ctrl)
-	directoryFetcher := cas.NewBlobAccessDirectoryFetcher(blobAccess, 1000)
+	directoryFetcher := cas.NewBlobAccessDirectoryFetcher(blobAccess, 1000, 10000)
 
 	t.Run("IOError", func(t *testing.T) {
 		// Failures reading the Directory object should be propagated.
@@ -74,14 +74,19 @@ func TestBlobAccessDirectoryFetcherGetTreeRootDirectory(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	blobAccess := mock.NewMockBlobAccess(ctrl)
-	directoryFetcher := cas.NewBlobAccessDirectoryFetcher(blobAccess, 1000)
+	directoryFetcher := cas.NewBlobAccessDirectoryFetcher(blobAccess, 1000, 10000)
+
+	t.Run("TooBig", func(t *testing.T) {
+		_, err := directoryFetcher.GetTreeRootDirectory(ctx, digest.MustNewDigest("example", "f5f634611dd11ccba54c7b9d9607c3c2", 100000))
+		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Tree exceeds the maximum permitted size of 10000 bytes"), err)
+	})
 
 	t.Run("IOError", func(t *testing.T) {
 		// Failures reading the Tree object should be propagated.
 		treeDigest := digest.MustNewDigest("example", "756b15c8f94b519e96135dcfde0e58c5", 50)
 
 		r := mock.NewMockFileReader(ctrl)
-		r.EXPECT().ReadAt(gomock.Any(), gomock.Any()).Return(0, status.Error(codes.Internal, "I/O error"))
+		r.EXPECT().ReadAt(gomock.Any(), gomock.Any()).Return(0, status.Error(codes.Internal, "I/O error")).AnyTimes()
 		r.EXPECT().Close()
 		blobAccess.EXPECT().Get(ctx, treeDigest).Return(buffer.NewValidatedBufferFromReaderAt(r, 100))
 
@@ -97,7 +102,7 @@ func TestBlobAccessDirectoryFetcherGetTreeRootDirectory(t *testing.T) {
 		blobAccess.EXPECT().Get(ctx, treeDigest).Return(buffer.NewValidatedBufferFromByteSlice([]byte("This is not a Tree object")))
 
 		_, err := directoryFetcher.GetTreeRootDirectory(ctx, treeDigest)
-		testutil.RequirePrefixedStatus(t, status.Error(codes.InvalidArgument, "Failed to unmarshal message: "), err)
+		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Field with number 10 at offset 0 has type 4, while 2 was expected"), err)
 	})
 
 	t.Run("MissingRootDirectory", func(t *testing.T) {
@@ -138,7 +143,15 @@ func TestBlobAccessDirectoryFetcherGetTreeChildDirectory(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	blobAccess := mock.NewMockBlobAccess(ctrl)
-	directoryFetcher := cas.NewBlobAccessDirectoryFetcher(blobAccess, 1000)
+	directoryFetcher := cas.NewBlobAccessDirectoryFetcher(blobAccess, 1000, 10000)
+
+	t.Run("TooBig", func(t *testing.T) {
+		_, err := directoryFetcher.GetTreeChildDirectory(
+			ctx,
+			digest.MustNewDigest("example", "5959bc9570aa7909a09163bb2201f4af", 100000),
+			digest.MustNewDigest("example", "2c09e7b2ad516c4cd9fc5c244ae08794", 100))
+		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Tree exceeds the maximum permitted size of 10000 bytes"), err)
+	})
 
 	t.Run("IOError", func(t *testing.T) {
 		// Failures reading the Tree object should be propagated.
@@ -146,7 +159,7 @@ func TestBlobAccessDirectoryFetcherGetTreeChildDirectory(t *testing.T) {
 		directoryDigest := digest.MustNewDigest("example", "756b15c8f94b519e96135dcfde0e58c5", 50)
 
 		r := mock.NewMockFileReader(ctrl)
-		r.EXPECT().ReadAt(gomock.Any(), gomock.Any()).Return(0, status.Error(codes.Internal, "I/O error"))
+		r.EXPECT().ReadAt(gomock.Any(), gomock.Any()).Return(0, status.Error(codes.Internal, "I/O error")).AnyTimes()
 		r.EXPECT().Close()
 		blobAccess.EXPECT().GetFromComposite(ctx, treeDigest, directoryDigest, gomock.Any()).
 			DoAndReturn(func(ctx context.Context, treeDigest, childDigest digest.Digest, slicer slicing.BlobSlicer) buffer.Buffer {
@@ -181,7 +194,7 @@ func TestBlobAccessDirectoryFetcherGetTreeChildDirectory(t *testing.T) {
 			ctx,
 			treeDigest,
 			directoryDigest)
-		testutil.RequirePrefixedStatus(t, status.Error(codes.InvalidArgument, "Failed to unmarshal message: "), err)
+		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Field with number 10 at offset 0 has type 4, while 2 was expected"), err)
 	})
 
 	t.Run("ValidTree", func(t *testing.T) {

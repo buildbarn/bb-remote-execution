@@ -90,14 +90,16 @@ func main() {
 	}
 	globalContentAddressableStorage = re_blobstore.NewExistencePreconditionBlobAccess(globalContentAddressableStorage)
 
-	// Cached read access for directory objects stored in the
+	// Cached read access for Directory objects stored in the
 	// Content Addressable Storage. All workers make use of the same
-	// cache, to increase the hit rate.
+	// cache, to increase the hit rate. This process does not read
+	// Tree objects.
 	directoryFetcher, err := cas.NewCachingDirectoryFetcherFromConfiguration(
 		configuration.DirectoryCache,
 		cas.NewBlobAccessDirectoryFetcher(
 			globalContentAddressableStorage,
-			int(configuration.MaximumMessageSizeBytes)))
+			/* maximumDirectorySizeBytes = */ int(configuration.MaximumMessageSizeBytes),
+			/* maximumTreeSizeBytes = */ 0))
 	if err != nil {
 		log.Fatal("Failed to create caching directory fetcher: ", err)
 	}

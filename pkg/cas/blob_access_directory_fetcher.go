@@ -1,8 +1,8 @@
 package cas
 
 import (
-	"bytes"
 	"context"
+	"io"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
@@ -13,27 +13,29 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protowire"
 )
 
 type blobAccessDirectoryFetcher struct {
-	blobAccess              blobstore.BlobAccess
-	maximumMessageSizeBytes int
-	slicer                  treeBlobSlicer
+	blobAccess           blobstore.BlobAccess
+	slicer               treeBlobSlicer
+	maximumTreeSizeBytes int64
 }
 
 // NewBlobAccessDirectoryFetcher creates a DirectoryFetcher that reads
 // Directory objects from a BlobAccess based store.
-func NewBlobAccessDirectoryFetcher(blobAccess blobstore.BlobAccess, maximumMessageSizeBytes int) DirectoryFetcher {
+func NewBlobAccessDirectoryFetcher(blobAccess blobstore.BlobAccess, maximumDirectorySizeBytes int, maximumTreeSizeBytes int64) DirectoryFetcher {
 	return &blobAccessDirectoryFetcher{
 		blobAccess: blobAccess,
 		slicer: treeBlobSlicer{
-			maximumMessageSizeBytes: maximumMessageSizeBytes,
+			maximumDirectorySizeBytes: maximumDirectorySizeBytes,
 		},
+		maximumTreeSizeBytes: maximumTreeSizeBytes,
 	}
 }
 
 func (df *blobAccessDirectoryFetcher) GetDirectory(ctx context.Context, directoryDigest digest.Digest) (*remoteexecution.Directory, error) {
-	m, err := df.blobAccess.Get(ctx, directoryDigest).ToProto(&remoteexecution.Directory{}, df.slicer.maximumMessageSizeBytes)
+	m, err := df.blobAccess.Get(ctx, directoryDigest).ToProto(&remoteexecution.Directory{}, df.slicer.maximumDirectorySizeBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -41,19 +43,48 @@ func (df *blobAccessDirectoryFetcher) GetDirectory(ctx context.Context, director
 }
 
 func (df *blobAccessDirectoryFetcher) GetTreeRootDirectory(ctx context.Context, treeDigest digest.Digest) (*remoteexecution.Directory, error) {
-	m, err := df.blobAccess.Get(ctx, treeDigest).ToProto(&remoteexecution.Tree{}, df.slicer.maximumMessageSizeBytes)
-	if err != nil {
+	if treeDigest.GetSizeBytes() > df.maximumTreeSizeBytes {
+		return nil, status.Errorf(codes.InvalidArgument, "Tree exceeds the maximum permitted size of %d bytes", df.maximumTreeSizeBytes)
+	}
+
+	r := df.blobAccess.Get(ctx, treeDigest).ToReader()
+	defer r.Close()
+
+	var rootDirectory *remoteexecution.Directory
+	if err := util.VisitProtoBytesFields(r, func(fieldNumber protowire.Number, offsetBytes, sizeBytes int64, fieldReader io.Reader) error {
+		if fieldNumber == blobstore.TreeRootFieldNumber {
+			if rootDirectory != nil {
+				return status.Error(codes.InvalidArgument, "Tree contains multiple root directories")
+			}
+			m, err := buffer.NewProtoBufferFromReader(
+				&remoteexecution.Directory{},
+				io.NopCloser(fieldReader),
+				buffer.UserProvided,
+			).ToProto(&remoteexecution.Directory{}, df.slicer.maximumDirectorySizeBytes)
+			if err != nil {
+				return err
+			}
+			rootDirectory = m.(*remoteexecution.Directory)
+		}
+		return nil
+	}); err != nil {
+		if _, copyErr := io.Copy(io.Discard, r); copyErr != nil {
+			copyErr = err
+		}
 		return nil, err
 	}
-	tree := m.(*remoteexecution.Tree)
-	if tree.Root == nil {
+	if rootDirectory == nil {
 		return nil, status.Error(codes.InvalidArgument, "Tree does not contain a root directory")
 	}
-	return tree.Root, nil
+	return rootDirectory, nil
 }
 
 func (df *blobAccessDirectoryFetcher) GetTreeChildDirectory(ctx context.Context, treeDigest, childDigest digest.Digest) (*remoteexecution.Directory, error) {
-	m, err := df.blobAccess.GetFromComposite(ctx, treeDigest, childDigest, &df.slicer).ToProto(&remoteexecution.Directory{}, df.slicer.maximumMessageSizeBytes)
+	if treeDigest.GetSizeBytes() > df.maximumTreeSizeBytes {
+		return nil, status.Errorf(codes.InvalidArgument, "Tree exceeds the maximum permitted size of %d bytes", df.maximumTreeSizeBytes)
+	}
+
+	m, err := df.blobAccess.GetFromComposite(ctx, treeDigest, childDigest, &df.slicer).ToProto(&remoteexecution.Directory{}, df.slicer.maximumDirectorySizeBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -66,76 +97,70 @@ func (df *blobAccessDirectoryFetcher) GetTreeChildDirectory(ctx context.Context,
 // contents of the Tree just once, but to create entries in its index
 // that refer to each of the Directories contained within.
 type treeBlobSlicer struct {
-	maximumMessageSizeBytes int
+	maximumDirectorySizeBytes int
 }
 
 func (bs *treeBlobSlicer) Slice(b buffer.Buffer, requestedChildDigest digest.Digest) (buffer.Buffer, []slicing.BlobSlice) {
-	// Fetch the Tree object, both in binary and message form.
-	bData, bMessage := b.CloneCopy(bs.maximumMessageSizeBytes)
-	treeData, err := bData.ToByteSlice(bs.maximumMessageSizeBytes)
-	if err != nil {
-		bMessage.Discard()
-		return buffer.NewBufferFromError(err), nil
-	}
-	treeMessage, err := bMessage.ToProto(&remoteexecution.Tree{}, bs.maximumMessageSizeBytes)
-	if err != nil {
-		return buffer.NewBufferFromError(err), nil
-	}
-	tree := treeMessage.(*remoteexecution.Tree)
+	r := b.ToReader()
+	defer r.Close()
 
+	requestedSizeBytes := requestedChildDigest.GetSizeBytes()
 	digestFunction := requestedChildDigest.GetDigestFunction()
-	slices := make([]slicing.BlobSlice, 0, len(tree.Children))
-	treeDataOffset := 0
+	var slices []slicing.BlobSlice
 	var bRequested buffer.Buffer
-	for childIndex, child := range tree.Children {
-		bData := buffer.NewProtoBufferFromProto(child, buffer.UserProvided)
-		setRequested := bRequested == nil
-		if setRequested {
-			bData, bRequested = bData.CloneCopy(bs.maximumMessageSizeBytes)
-		}
+	if err := util.VisitProtoBytesFields(r, func(fieldNumber protowire.Number, offsetBytes, sizeBytes int64, fieldReader io.Reader) error {
+		if fieldNumber == blobstore.TreeChildrenFieldNumber {
+			var childDigest digest.Digest
+			if bRequested == nil && sizeBytes == requestedSizeBytes {
+				// This directory has the same size as
+				// the one that is requested, so we may
+				// need to return it. Duplicate it.
+				b1, b2 := buffer.NewProtoBufferFromReader(
+					&remoteexecution.Directory{},
+					io.NopCloser(fieldReader),
+					buffer.UserProvided,
+				).CloneCopy(bs.maximumDirectorySizeBytes)
 
-		childData, err := bData.ToByteSlice(bs.maximumMessageSizeBytes)
-		if err != nil {
+				childDigestGenerator := digestFunction.NewGenerator()
+				if err := b1.IntoWriter(childDigestGenerator); err != nil {
+					b2.Discard()
+					return err
+				}
+				childDigest = childDigestGenerator.Sum()
+
+				if childDigest == requestedChildDigest {
+					// Found the directory that was
+					// requested. Return it.
+					bRequested = b2
+				} else {
+					b2.Discard()
+				}
+			} else {
+				// The directory's size doesn't match,
+				// so we can compute its checksum
+				// without unmarshaling it.
+				childDigestGenerator := digestFunction.NewGenerator()
+				if _, err := io.Copy(childDigestGenerator, fieldReader); err != nil {
+					return err
+				}
+				childDigest = childDigestGenerator.Sum()
+			}
+			slices = append(slices, slicing.BlobSlice{
+				Digest:      childDigest,
+				OffsetBytes: offsetBytes,
+				SizeBytes:   sizeBytes,
+			})
+		}
+		return nil
+	}); err != nil {
+		if bRequested != nil {
 			bRequested.Discard()
-			return buffer.NewBufferFromError(util.StatusWrapfWithCode(err, codes.InvalidArgument, "Child directory at index %d", childIndex)), slices
 		}
-
-		// Obtain the region at which the Directory message is
-		// stored within the Tree message.
-		skipBytes := bytes.Index(treeData, childData)
-		if skipBytes < 0 {
-			bRequested.Discard()
-			return buffer.NewBufferFromError(util.StatusWrapfWithCode(err, codes.InvalidArgument, "Child directory at index %d is not in canonical form", childIndex)), slices
+		if _, copyErr := io.Copy(io.Discard, r); copyErr != nil {
+			copyErr = err
 		}
-		childOffsetBytes := treeDataOffset + skipBytes
-
-		// Assume that Directory objects in the marshaled Tree
-		// object are stored in the same order as the
-		// unmarshaled list. This permits bytes.Index() calls to
-		// run in linear amortized time.
-		treeData = treeData[skipBytes+len(childData):]
-		treeDataOffset += skipBytes + len(childData)
-
-		// Create a slice for the Directory.
-		childDigestGenerator := digestFunction.NewGenerator()
-		if _, err := childDigestGenerator.Write(childData); err != nil {
-			panic(err)
-		}
-		childDigest := childDigestGenerator.Sum()
-		slices = append(slices, slicing.BlobSlice{
-			Digest:      childDigestGenerator.Sum(),
-			OffsetBytes: int64(childOffsetBytes),
-			SizeBytes:   int64(len(childData)),
-		})
-
-		if setRequested && childDigest != requestedChildDigest {
-			// Current Directory is not the one that was
-			// requested by the caller.
-			bRequested.Discard()
-			bRequested = nil
-		}
+		return buffer.NewBufferFromError(err), nil
 	}
-
 	if bRequested == nil {
 		bRequested = buffer.NewBufferFromError(status.Error(codes.InvalidArgument, "Requested child directory is not contained in the tree"))
 	}

@@ -28,6 +28,7 @@ go_library(
         "@com_github_buildbarn_bb_storage//pkg/util",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//status",
+        "@org_golang_google_protobuf//encoding/protowire",
         "@org_golang_google_protobuf//proto",
     ],
 )
