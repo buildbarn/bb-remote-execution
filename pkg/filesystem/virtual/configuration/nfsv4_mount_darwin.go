@@ -123,7 +123,7 @@ func (m *nfsv4Mount) mount(rpcServer *rpcserver.Server) error {
 		// TODO: Is it possible to configure this feature
 		// through a mount option?
 		initializeNFSReadlinkNoCache.Do(func() {
-			exec.Command("/usr/sbin/sysctl", "vfs.generic.nfs.client.readlink_nocache=1").Run()
+			exec.Command("/usr/sbin/sysctl", "vfs.generic.nfs.client.readlink_nocache=2").Run()
 		})
 		attrMask |= 1 << nfs_sys_prot.NFS_MATTR_ATTRCACHE_REG_MIN
 		toNfstime32(0).WriteTo(attrVals)
