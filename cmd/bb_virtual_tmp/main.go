@@ -67,15 +67,13 @@ func main() {
 	}
 
 	// Allow users to set the target through gRPC.
-	go func() {
-		log.Fatal(
-			"gRPC server failure: ",
-			bb_grpc.NewServersFromConfigurationAndServe(
-				configuration.GrpcServers,
-				func(s grpc.ServiceRegistrar) {
-					tmp_installer.RegisterTemporaryDirectoryInstallerServer(s, userSettableSymlink)
-				}))
-	}()
+	if err := bb_grpc.NewServersFromConfigurationAndServe(
+		configuration.GrpcServers,
+		func(s grpc.ServiceRegistrar) {
+			tmp_installer.RegisterTemporaryDirectoryInstallerServer(s, userSettableSymlink)
+		}); err != nil {
+		log.Fatal("gRPC server failure: ", err)
+	}
 
 	lifecycleState.MarkReadyAndWait()
 }

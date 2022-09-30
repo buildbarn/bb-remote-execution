@@ -16,7 +16,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.19.10
 	github.com/aws/smithy-go v1.13.3
 	github.com/bazelbuild/remote-apis v0.0.0-20220727181745-aa29b91f336b
-	github.com/buildbarn/bb-storage v0.0.0-20220929042553-11ebd0c33037
+	github.com/buildbarn/bb-storage v0.0.0-20220930063634-c11d87e684d7
 	github.com/buildbarn/go-xdr v0.0.0-20220927161301-4c5a02fc5078
 	github.com/golang/protobuf v1.5.2
 	github.com/google/uuid v1.3.0
@@ -28,9 +28,9 @@ require (
 	github.com/spf13/pflag v1.0.5
 	go.opentelemetry.io/otel v1.10.0
 	go.opentelemetry.io/otel/trace v1.10.0
-	golang.org/x/sync v0.0.0-20220923202941-7f9b1623fab7
+	golang.org/x/sync v0.0.0-20220929204114-8fcdb60fdcc0
 	golang.org/x/sys v0.0.0-20220928140112-f11e5e49a4ec
-	google.golang.org/genproto v0.0.0-20220927151529-dcaddaf36704
+	google.golang.org/genproto v0.0.0-20220929141241-1ce7b20da813
 	google.golang.org/grpc v1.49.0
 	google.golang.org/protobuf v1.28.1
 )

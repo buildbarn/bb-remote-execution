@@ -161,36 +161,30 @@ func main() {
 	}
 
 	// Spawn gRPC servers for client and worker traffic.
-	go func() {
-		log.Fatal(
-			"Client gRPC server failure: ",
-			bb_grpc.NewServersFromConfigurationAndServe(
-				configuration.ClientGrpcServers,
-				func(s grpc.ServiceRegistrar) {
-					remoteexecution.RegisterCapabilitiesServer(
-						s,
-						capabilities.NewServer(buildQueue))
-					remoteexecution.RegisterExecutionServer(s, buildQueue)
-				}))
-	}()
-	go func() {
-		log.Fatal(
-			"Worker gRPC server failure: ",
-			bb_grpc.NewServersFromConfigurationAndServe(
-				configuration.WorkerGrpcServers,
-				func(s grpc.ServiceRegistrar) {
-					remoteworker.RegisterOperationQueueServer(s, buildQueue)
-				}))
-	}()
-	go func() {
-		log.Fatal(
-			"Build queue state gRPC server failure: ",
-			bb_grpc.NewServersFromConfigurationAndServe(
-				configuration.BuildQueueStateGrpcServers,
-				func(s grpc.ServiceRegistrar) {
-					buildqueuestate.RegisterBuildQueueStateServer(s, buildQueue)
-				}))
-	}()
+	if err := bb_grpc.NewServersFromConfigurationAndServe(
+		configuration.ClientGrpcServers,
+		func(s grpc.ServiceRegistrar) {
+			remoteexecution.RegisterCapabilitiesServer(
+				s,
+				capabilities.NewServer(buildQueue))
+			remoteexecution.RegisterExecutionServer(s, buildQueue)
+		}); err != nil {
+		log.Fatal("Client gRPC server failure: ", err)
+	}
+	if err := bb_grpc.NewServersFromConfigurationAndServe(
+		configuration.WorkerGrpcServers,
+		func(s grpc.ServiceRegistrar) {
+			remoteworker.RegisterOperationQueueServer(s, buildQueue)
+		}); err != nil {
+		log.Fatal("Worker gRPC server failure: ", err)
+	}
+	if err := bb_grpc.NewServersFromConfigurationAndServe(
+		configuration.BuildQueueStateGrpcServers,
+		func(s grpc.ServiceRegistrar) {
+			buildqueuestate.RegisterBuildQueueStateServer(s, buildQueue)
+		}); err != nil {
+		log.Fatal("Build queue state gRPC server failure: ", err)
+	}
 
 	// Automatically drain workers based on AWS ASG lifecycle events.
 	if len(configuration.AwsAsgLifecycleHooks) > 0 {
