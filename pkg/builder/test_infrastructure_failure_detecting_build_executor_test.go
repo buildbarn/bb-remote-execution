@@ -87,7 +87,7 @@ func TestTestInfrastructureFailureDetectingBuildExecutor(t *testing.T) {
 	baseBuildExecutor.EXPECT().CheckReadiness(ctx)
 	require.NoError(t, buildExecutor.CheckReadiness(ctx))
 
-	// Runing a fifth failing test should cause the worker to be
+	// Running a fifth failing test should cause the worker to be
 	// marked unhealthy.
 	baseBuildExecutor.EXPECT().Execute(ctx, filePool, instanceName, request, metadata).Return(failedResponse)
 	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{

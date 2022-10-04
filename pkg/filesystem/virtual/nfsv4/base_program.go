@@ -3016,8 +3016,8 @@ func attributesMaskToBitmap4(in virtual.AttributesMask) []uint32 {
 	return out
 }
 
-// nextSeqID increments a sequence ID according to the rules decribed in
-// RFC 7530, section 9.1.3.
+// nextSeqID increments a sequence ID according to the rules described
+// in RFC 7530, section 9.1.3.
 func nextSeqID(seqID nfsv4.Seqid4) nfsv4.Seqid4 {
 	if seqID == math.MaxUint32 {
 		return 1
