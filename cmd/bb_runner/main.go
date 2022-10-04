@@ -122,15 +122,13 @@ func main() {
 		r = runner.NewPathExistenceCheckingRunner(r, configuration.ReadinessCheckingPathnames)
 	}
 
-	go func() {
-		log.Fatal(
-			"gRPC server failure: ",
-			bb_grpc.NewServersFromConfigurationAndServe(
-				configuration.GrpcServers,
-				func(s grpc.ServiceRegistrar) {
-					runner_pb.RegisterRunnerServer(s, r)
-				}))
-	}()
+	if err := bb_grpc.NewServersFromConfigurationAndServe(
+		configuration.GrpcServers,
+		func(s grpc.ServiceRegistrar) {
+			runner_pb.RegisterRunnerServer(s, r)
+		}); err != nil {
+		log.Fatal("gRPC server failure: ", err)
+	}
 
 	lifecycleState.MarkReadyAndWait()
 }
