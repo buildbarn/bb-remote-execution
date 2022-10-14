@@ -276,8 +276,26 @@ func (s *buildQueueStateService) handleGetOperation(w http.ResponseWriter, req *
 }
 
 func (s *buildQueueStateService) handleListOperations(w http.ResponseWriter, req *http.Request) {
+	query := req.URL.Query()
+	var filterInvocationID *anypb.Any
+	if filterInvocationIDString := query.Get("filter_invocation_id"); filterInvocationIDString != "" {
+		var invocationID anypb.Any
+		if err := protojson.Unmarshal([]byte(filterInvocationIDString), &invocationID); err != nil {
+			renderError(w, status.Error(codes.InvalidArgument, "Invalid filter invocation ID"))
+			return
+		}
+		filterInvocationID = &invocationID
+	}
+
+	filterStageString := query.Get("filter_stage")
+	filterStageValue, ok := remoteexecution.ExecutionStage_Value_value[filterStageString]
+	if !ok {
+		renderError(w, status.Error(codes.InvalidArgument, "Invalid filter stage"))
+		return
+	}
+
 	var startAfter *buildqueuestate.ListOperationsRequest_StartAfter
-	if startAfterParameter := req.URL.Query().Get("start_after"); startAfterParameter != "" {
+	if startAfterParameter := query.Get("start_after"); startAfterParameter != "" {
 		var startAfterMessage buildqueuestate.ListOperationsRequest_StartAfter
 		if err := protojson.Unmarshal([]byte(startAfterParameter), &startAfterMessage); err != nil {
 			renderError(w, util.StatusWrapWithCode(err, codes.InvalidArgument, "Failed to parse start after message"))
@@ -288,8 +306,10 @@ func (s *buildQueueStateService) handleListOperations(w http.ResponseWriter, req
 
 	ctx := req.Context()
 	response, err := s.buildQueue.ListOperations(ctx, &buildqueuestate.ListOperationsRequest{
-		PageSize:   pageSize,
-		StartAfter: startAfter,
+		FilterInvocationId: filterInvocationID,
+		FilterStage:        remoteexecution.ExecutionStage_Value(filterStageValue),
+		PageSize:           pageSize,
+		StartAfter:         startAfter,
 	})
 	if err != nil {
 		renderError(w, util.StatusWrap(err, "Failed to list operations"))
@@ -305,19 +325,23 @@ func (s *buildQueueStateService) handleListOperations(w http.ResponseWriter, req
 	}
 
 	if err := templates.ExecuteTemplate(w, "list_operation_state.html", struct {
-		BrowserURL     *url.URL
-		Now            time.Time
-		PaginationInfo *buildqueuestate.PaginationInfo
-		EndIndex       int
-		StartAfter     *buildqueuestate.ListOperationsRequest_StartAfter
-		Operations     []*buildqueuestate.OperationState
+		BrowserURL         *url.URL
+		Now                time.Time
+		PaginationInfo     *buildqueuestate.PaginationInfo
+		EndIndex           int
+		FilterInvocationID *anypb.Any
+		FilterStage        string
+		StartAfter         *buildqueuestate.ListOperationsRequest_StartAfter
+		Operations         []*buildqueuestate.OperationState
 	}{
-		BrowserURL:     s.browserURL,
-		Now:            s.clock.Now(),
-		PaginationInfo: response.PaginationInfo,
-		EndIndex:       int(response.PaginationInfo.StartIndex) + len(response.Operations),
-		StartAfter:     nextStartAfter,
-		Operations:     response.Operations,
+		BrowserURL:         s.browserURL,
+		Now:                s.clock.Now(),
+		PaginationInfo:     response.PaginationInfo,
+		EndIndex:           int(response.PaginationInfo.StartIndex) + len(response.Operations),
+		FilterInvocationID: filterInvocationID,
+		FilterStage:        filterStageString,
+		StartAfter:         nextStartAfter,
+		Operations:         response.Operations,
 	}); err != nil {
 		log.Print(err)
 	}

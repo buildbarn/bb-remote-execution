@@ -56,7 +56,7 @@
 		<td style="width: 75%; word-break: break-all">
 			<ul>
 				{{range $invocationName.Ids}}
-					<li>{{proto_to_json .}}</li>
+					<li><a href="operations?filter_invocation_id={{proto_to_json .}}&amp;filter_stage=UNKNOWN">{{proto_to_json .}}</a></li>
 				{{end}}
 			</ul>
 		</td>

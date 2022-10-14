@@ -366,6 +366,14 @@ message ListOperationsRequest {
   // When set, return the first operations after the provided starting
   // point.
   StartAfter start_after = 2;
+
+  // If set, only return operations having an invocation ID that
+  // matches the provided value.
+  google.protobuf.Any filter_invocation_id = 3;
+
+  // If set, only return operations whose execution stage matches the
+  // provided value.
+  build.bazel.remote.execution.v2.ExecutionStage.Value filter_stage = 4;
 }
 
 message ListOperationsResponse {

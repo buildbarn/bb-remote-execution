@@ -692,13 +692,25 @@ func (bq *InMemoryBuildQueue) KillOperation(ctx context.Context, request *buildq
 // ListOperations returns detailed information about all of the
 // operations tracked by the InMemoryBuildQueue.
 func (bq *InMemoryBuildQueue) ListOperations(ctx context.Context, request *buildqueuestate.ListOperationsRequest) (*buildqueuestate.ListOperationsResponse, error) {
+	var invocationKey *scheduler_invocation.Key
+	if request.FilterInvocationId != nil {
+		key, err := scheduler_invocation.NewKey(request.FilterInvocationId)
+		if err != nil {
+			return nil, util.StatusWrap(err, "Invalid invocation key")
+		}
+		invocationKey = &key
+	}
+
 	bq.enter(bq.clock.Now())
 	defer bq.leave()
 
 	// Obtain operation names in sorted order.
 	nameList := make([]string, 0, len(bq.operationsNameMap))
-	for name := range bq.operationsNameMap {
-		nameList = append(nameList, name)
+	for name, o := range bq.operationsNameMap {
+		if (invocationKey == nil || o.invocation.hasInvocationKey(*invocationKey)) &&
+			(request.FilterStage == remoteexecution.ExecutionStage_UNKNOWN || request.FilterStage == o.task.getStage()) {
+			nameList = append(nameList, name)
+		}
 	}
 	sort.Strings(nameList)
 	paginationInfo, endIndex := getPaginationInfo(len(nameList), request.PageSize, func(i int) bool {
@@ -1692,6 +1704,15 @@ func (i *invocation) incrementExecutingWorkersCount(bq *InMemoryBuildQueue, w *w
 		heapMaybeFix(&i.parent.idleSynchronizingWorkersChildren, i.idleSynchronizingWorkersChildrenIndex)
 		i = i.parent
 	}
+}
+
+func (i *invocation) hasInvocationKey(filter scheduler_invocation.Key) bool {
+	for _, key := range i.invocationKeys {
+		if key == filter {
+			return true
+		}
+	}
+	return false
 }
 
 var priorityExponentiationBase = math.Pow(2.0, 0.01)

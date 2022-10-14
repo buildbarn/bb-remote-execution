@@ -1,34 +1,85 @@
 {{template "header.html" "success"}}
 
-<h1 class="my-4">All operations</h1>
+<h1 class="my-4">Operations</h1>
 
-<nav>
-	<ul class="justify-content-end pagination">
-		{{if eq .PaginationInfo.StartIndex 0}}
-			<li class="disabled page-item">
-				<span class="page-link">◀◀</span>
+{{with .FilterInvocationID}}
+	<table class="table" style="table-layout: fixed">
+		<tr>
+			<th style="width: 25%">Invocation ID:</th>
+			<td style="width: 75%; word-break: break-all">{{proto_to_json .}}</td>
+		</tr>
+	</table>
+{{end}}
+
+<div class="d-flex justify-content-between">
+	<nav>
+		<ul class="pagination">
+			{{if eq .FilterStage "QUEUED"}}
+				<li class="active page-item">
+					<span class="page-link">Queued</span>
+				</li>
+			{{else}}
+				<li class="page-item">
+					<a class="page-link" href="?{{with .FilterInvocationID}}filter_invocation_id={{proto_to_json .}}&amp;{{end}}filter_stage=QUEUED">Queued</a>
+				</li>
+			{{end}}
+			{{if eq .FilterStage "EXECUTING"}}
+				<li class="active page-item">
+					<span class="page-link">Executing</span>
+				</li>
+			{{else}}
+				<li class="page-item">
+					<a class="page-link" href="?{{with .FilterInvocationID}}filter_invocation_id={{proto_to_json .}}&amp;{{end}}filter_stage=EXECUTING">Executing</a>
+				</li>
+			{{end}}
+			{{if eq .FilterStage "COMPLETED"}}
+				<li class="active page-item">
+					<span class="page-link">Completed</span>
+				</li>
+			{{else}}
+				<li class="page-item">
+					<a class="page-link" href="?{{with .FilterInvocationID}}filter_invocation_id={{proto_to_json .}}&amp;{{end}}filter_stage=COMPLETED">Completed</a>
+				</li>
+			{{end}}
+			{{if eq .FilterStage "UNKNOWN"}}
+				<li class="active page-item">
+					<span class="page-link">All</span>
+				</li>
+			{{else}}
+				<li class="page-item">
+					<a class="page-link" href="?{{with .FilterInvocationID}}filter_invocation_id={{proto_to_json .}}&amp;{{end}}filter_stage=UNKNOWN">All</a>
+				</li>
+			{{end}}
+		</ul>
+	</nav>
+	<nav>
+		<ul class="pagination">
+			{{if eq .PaginationInfo.StartIndex 0}}
+				<li class="disabled page-item">
+					<span class="page-link">◀◀</span>
+				</li>
+			{{else}}
+				<li class="page-item">
+					<a class="page-link" href="?{{with .FilterInvocationID}}filter_invocation_id={{proto_to_json .}}&amp;{{end}}filter_stage={{.FilterStage}}">◀◀</a>
+				</li>
+			{{end}}
+			<li class="active page-item">
+				<span class="page-link text-nowrap">
+					Showing operations [{{.PaginationInfo.StartIndex}}, {{.EndIndex}}) of {{.PaginationInfo.TotalEntries}} in total
+				</span>
 			</li>
-		{{else}}
-			<li class="page-item">
-				<a class="page-link" href="?">◀◀</a>
-			</li>
-		{{end}}
-		<li class="active page-item">
-			<span class="page-link text-nowrap">
-				Showing operations [{{.PaginationInfo.StartIndex}}, {{.EndIndex}}) of {{.PaginationInfo.TotalEntries}} in total
-			</span>
-		</li>
-		{{with .StartAfter}}
-			<li class="page-item">
-				<a class="page-link" href="?start_after={{proto_to_json .}}">▶</a>
-			</li>
-		{{else}}
-			<li class="disabled page-item">
-				<span class="page-link">▶</span>
-			</li>
-		{{end}}
-	</ul>
-</nav>
+			{{if .StartAfter}}
+				<li class="page-item">
+					<a class="page-link" href="?{{with .FilterInvocationID}}filter_invocation_id={{proto_to_json .}}&amp;{{end}}filter_stage={{.FilterStage}}&amp;start_after={{proto_to_json .StartAfter}}">▶</a>
+				</li>
+			{{else}}
+				<li class="disabled page-item">
+					<span class="page-link">▶</span>
+				</li>
+			{{end}}
+		</ul>
+	</nav>
+</div>
 
 <div class="table-responsive">
 	<table class="align-middle border-dark table table-bordered table-sm">
