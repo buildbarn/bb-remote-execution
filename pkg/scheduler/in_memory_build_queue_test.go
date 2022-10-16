@@ -262,7 +262,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 	}), nil).Return(platform.MustNewKey("main", &remoteexecution.Platform{}), nil, initialSizeClassSelector, nil)
 	initialSizeClassLearner := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{0}).
-		Return(0, 30*time.Minute, initialSizeClassLearner)
+		Return(0, 15*time.Minute, 30*time.Minute, initialSizeClassLearner)
 	initialSizeClassLearner.EXPECT().Abandoned()
 	clock.EXPECT().Now().Return(time.Unix(1001, 0))
 	timer1 := mock.NewMockTimer(ctrl)
@@ -416,7 +416,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 		}), nil).Return(platform.MustNewKey("main", &remoteexecution.Platform{}), nil, initialSizeClassSelector, nil)
 		initialSizeClassLearner := mock.NewMockLearner(ctrl)
 		initialSizeClassSelector.EXPECT().Select([]uint32{0}).
-			Return(0, 30*time.Minute, initialSizeClassLearner)
+			Return(0, 15*time.Minute, 30*time.Minute, initialSizeClassLearner)
 		initialSizeClassLearner.EXPECT().Abandoned()
 		clock.EXPECT().Now().Return(time.Unix(1961, 999999999))
 		timer := mock.NewMockTimer(ctrl)
@@ -560,7 +560,7 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 		Return(platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector1, nil)
 	initialSizeClassLearner1 := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector1.EXPECT().Select([]uint32{0}).
-		Return(0, 30*time.Minute, initialSizeClassLearner1)
+		Return(0, 15*time.Minute, 30*time.Minute, initialSizeClassLearner1)
 	clock.EXPECT().Now().Return(time.Unix(1070, 0))
 	timer1 := mock.NewMockTimer(ctrl)
 	clock.EXPECT().NewTimer(time.Minute).Return(timer1, nil)
@@ -673,9 +673,10 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 	testutil.RequireEqualProto(t, &buildqueuestate.ListOperationsResponse{
 		Operations: []*buildqueuestate.OperationState{
 			{
-				Name:            "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
-				InvocationName:  invocationName,
-				QueuedTimestamp: &timestamppb.Timestamp{Seconds: 1070},
+				Name:             "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
+				InvocationName:   invocationName,
+				ExpectedDuration: &durationpb.Duration{Seconds: 900},
+				QueuedTimestamp:  &timestamppb.Timestamp{Seconds: 1070},
 				ActionDigest: &remoteexecution.Digest{
 					Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
 					SizeBytes: 123,
@@ -712,9 +713,10 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 	testutil.RequireEqualProto(t, &buildqueuestate.ListOperationsResponse{
 		Operations: []*buildqueuestate.OperationState{
 			{
-				Name:            "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
-				InvocationName:  invocationName,
-				QueuedTimestamp: &timestamppb.Timestamp{Seconds: 1070},
+				Name:             "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
+				InvocationName:   invocationName,
+				ExpectedDuration: &durationpb.Duration{Seconds: 900},
+				QueuedTimestamp:  &timestamppb.Timestamp{Seconds: 1070},
 				ActionDigest: &remoteexecution.Digest{
 					Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
 					SizeBytes: 123,
@@ -809,7 +811,7 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 	}), nil).Return(platform.MustNewKey("main/suffix", platformForTesting), nil, initialSizeClassSelector, nil)
 	initialSizeClassLearner := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{0}).
-		Return(0, 30*time.Minute, initialSizeClassLearner)
+		Return(0, 15*time.Minute, 30*time.Minute, initialSizeClassLearner)
 	clock.EXPECT().Now().Return(time.Unix(1001, 0))
 	timer := mock.NewMockTimer(ctrl)
 	clock.EXPECT().NewTimer(time.Minute).Return(timer, nil)
@@ -1029,7 +1031,7 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 	}), nil).Return(platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
 	initialSizeClassLearner := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{0}).
-		Return(0, 30*time.Minute, initialSizeClassLearner)
+		Return(0, 15*time.Minute, 30*time.Minute, initialSizeClassLearner)
 	clock.EXPECT().Now().Return(time.Unix(1001, 0))
 	timer := mock.NewMockTimer(ctrl)
 	clock.EXPECT().NewTimer(time.Minute).Return(timer, nil)
@@ -1404,7 +1406,7 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 	}), nil).Return(platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
 	initialSizeClassLearner := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{0}).
-		Return(0, 30*time.Minute, initialSizeClassLearner)
+		Return(0, 15*time.Minute, 30*time.Minute, initialSizeClassLearner)
 	clock.EXPECT().Now().Return(time.Unix(1007, 0))
 	timer1 := mock.NewMockTimer(ctrl)
 	clock.EXPECT().NewTimer(time.Minute).Return(timer1, nil)
@@ -1652,7 +1654,7 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 
 		initialSizeClassLearner := mock.NewMockLearner(ctrl)
 		initialSizeClassSelector.EXPECT().Select([]uint32{0}).
-			Return(0, 30*time.Minute, initialSizeClassLearner)
+			Return(0, 15*time.Minute, 30*time.Minute, initialSizeClassLearner)
 		initialSizeClassLearner.EXPECT().Abandoned()
 
 		clock.EXPECT().Now().Return(time.Unix(1010+int64(i), 0))
@@ -2026,7 +2028,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonQueued(t *testing.T) {
 		)
 		if i == 0 {
 			initialSizeClassSelector.EXPECT().Select([]uint32{0}).
-				Return(0, 30*time.Minute, initialSizeClassLearner)
+				Return(0, 15*time.Minute, 30*time.Minute, initialSizeClassLearner)
 		} else {
 			initialSizeClassSelector.EXPECT().Abandoned()
 		}
@@ -2217,7 +2219,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 		)
 		if i == 0 {
 			initialSizeClassSelector.EXPECT().Select([]uint32{0}).
-				Return(0, 30*time.Minute, initialSizeClassLearner)
+				Return(0, 15*time.Minute, 30*time.Minute, initialSizeClassLearner)
 		} else {
 			initialSizeClassSelector.EXPECT().Abandoned()
 		}
@@ -2420,7 +2422,7 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 	}), nil).Return(platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
 	initialSizeClassLearner := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{0}).
-		Return(0, 30*time.Minute, initialSizeClassLearner)
+		Return(0, 15*time.Minute, 30*time.Minute, initialSizeClassLearner)
 	clock.EXPECT().Now().Return(time.Unix(1001, 0))
 	timer := mock.NewMockTimer(ctrl)
 	clock.EXPECT().NewTimer(time.Minute).Return(timer, nil)
@@ -2682,7 +2684,7 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 	}), nil).Return(platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
 	initialSizeClassLearner1 := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{3, 8}).
-		Return(0, 7*time.Minute, initialSizeClassLearner1)
+		Return(0, 3*time.Minute, 7*time.Minute, initialSizeClassLearner1)
 	clock.EXPECT().Now().Return(time.Unix(1003, 0))
 	timer1 := mock.NewMockTimer(ctrl)
 	clock.EXPECT().NewTimer(time.Minute).Return(timer1, nil)
@@ -2772,7 +2774,8 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 	// should be sent back to the client that the operation has
 	// moved back to the QUEUED stage.
 	initialSizeClassLearner2 := mock.NewMockLearner(ctrl)
-	initialSizeClassLearner1.EXPECT().Failed(false).Return(5*time.Minute, initialSizeClassLearner2)
+	initialSizeClassLearner1.EXPECT().Failed(false).
+		Return(2*time.Minute, 5*time.Minute, initialSizeClassLearner2)
 	timer2.EXPECT().Stop().Return(true)
 	clock.EXPECT().Now().Return(time.Unix(1005, 0)).Times(2)
 	timer3 := mock.NewMockTimer(ctrl)
@@ -3033,7 +3036,7 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 	}), nil).Return(platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
 	initialSizeClassLearner1 := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{3, 8}).
-		Return(1, 7*time.Minute, initialSizeClassLearner1)
+		Return(1, 3*time.Minute, 7*time.Minute, initialSizeClassLearner1)
 	clock.EXPECT().Now().Return(time.Unix(1003, 0))
 	timer1 := mock.NewMockTimer(ctrl)
 	clock.EXPECT().NewTimer(time.Minute).Return(timer1, nil)
@@ -3124,7 +3127,8 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 	// blocked on that, this should be done as part of a separate
 	// task.
 	initialSizeClassLearner2 := mock.NewMockLearner(ctrl)
-	initialSizeClassLearner1.EXPECT().Succeeded(3*time.Second, []uint32{3, 8}).Return(0, 1*time.Minute, initialSizeClassLearner2)
+	initialSizeClassLearner1.EXPECT().Succeeded(3*time.Second, []uint32{3, 8}).
+		Return(0, 30*time.Second, time.Minute, initialSizeClassLearner2)
 	uuidGenerator.EXPECT().Call().Return(uuid.Parse("30326ed7-101a-4bf2-93eb-fcb6e7672415"))
 	timer2.EXPECT().Stop().Return(true)
 	clock.EXPECT().Now().Return(time.Unix(1005, 0)).Times(3)
@@ -3384,7 +3388,8 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 		nil,
 	)
 	initialSizeClassLearner1 := mock.NewMockLearner(ctrl)
-	initialSizeClassSelector1.EXPECT().Select([]uint32{0}).Return(0, 7*time.Minute, initialSizeClassLearner1)
+	initialSizeClassSelector1.EXPECT().Select([]uint32{0}).
+		Return(0, 3*time.Minute, 7*time.Minute, initialSizeClassLearner1)
 	mockClock.EXPECT().Now().Return(time.Unix(1001, 0)).Times(2)
 	timer2 := mock.NewMockTimer(ctrl)
 	mockClock.EXPECT().NewTimer(time.Minute).Return(timer2, nil)
@@ -3541,7 +3546,8 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 		nil,
 	)
 	initialSizeClassLearner2 := mock.NewMockLearner(ctrl)
-	initialSizeClassSelector2.EXPECT().Select([]uint32{0}).Return(0, 7*time.Minute, initialSizeClassLearner2)
+	initialSizeClassSelector2.EXPECT().Select([]uint32{0}).
+		Return(0, 3*time.Minute, 7*time.Minute, initialSizeClassLearner2)
 	mockClock.EXPECT().Now().Return(time.Unix(1005, 0)).Times(2)
 	timer5 := mock.NewMockTimer(ctrl)
 	mockClock.EXPECT().NewTimer(time.Minute).Return(timer5, nil)
@@ -3653,7 +3659,8 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 		nil,
 	)
 	initialSizeClassLearner3 := mock.NewMockLearner(ctrl)
-	initialSizeClassSelector3.EXPECT().Select([]uint32{0}).Return(0, 7*time.Minute, initialSizeClassLearner3)
+	initialSizeClassSelector3.EXPECT().Select([]uint32{0}).
+		Return(0, 3*time.Minute, 7*time.Minute, initialSizeClassLearner3)
 	mockClock.EXPECT().Now().Return(time.Unix(1008, 0)).Times(2)
 	timer7 := mock.NewMockTimer(ctrl)
 	mockClock.EXPECT().NewTimer(time.Minute).Return(timer7, nil)
@@ -3759,7 +3766,7 @@ func TestInMemoryBuildQueueWorkerInvocationStickinessLimit(t *testing.T) {
 		)
 		initialSizeClassLearner := mock.NewMockLearner(ctrl)
 		initialSizeClassSelector.EXPECT().Select([]uint32{0}).
-			Return(0, time.Minute, initialSizeClassLearner)
+			Return(0, 30*time.Second, time.Minute, initialSizeClassLearner)
 		clock.EXPECT().Now().Return(time.Unix(1010+int64(i), 0))
 		timer := mock.NewMockTimer(ctrl)
 		clock.EXPECT().NewTimer(time.Minute).Return(timer, nil)
@@ -3980,7 +3987,8 @@ func TestInMemoryBuildQueueAuthorization(t *testing.T) {
 			Return(platform.MustNewKey("beepboop", &remoteexecution.Platform{}), nil, initialSizeClassSelector, nil)
 
 		initialSizeClassLearner := mock.NewMockLearner(ctrl)
-		initialSizeClassSelector.EXPECT().Select([]uint32{0}).Return(0, 30*time.Minute, initialSizeClassLearner)
+		initialSizeClassSelector.EXPECT().Select([]uint32{0}).
+			Return(0, 15*time.Minute, 30*time.Minute, initialSizeClassLearner)
 
 		timer1 := mock.NewMockTimer(ctrl)
 		clock.EXPECT().NewTimer(time.Minute).Return(timer1, nil)
@@ -4093,7 +4101,7 @@ func TestInMemoryBuildQueueNestedInvocationsSynchronization(t *testing.T) {
 		)
 		initialSizeClassLearner := mock.NewMockLearner(ctrl)
 		initialSizeClassSelector.EXPECT().Select([]uint32{0}).
-			Return(0, time.Minute, initialSizeClassLearner)
+			Return(0, 30*time.Second, time.Minute, initialSizeClassLearner)
 		mockClock.EXPECT().Now().Return(time.Unix(1010+int64(i), 0))
 		timer1 := mock.NewMockTimer(ctrl)
 		mockClock.EXPECT().NewTimer(time.Minute).Return(timer1, nil)

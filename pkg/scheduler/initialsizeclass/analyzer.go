@@ -36,7 +36,7 @@ type Selector interface {
 	// A Learner is returned that the scheduler must use to
 	// communicate the outcome of the execution, so that future
 	// executions have a lower probability of making mispredictions.
-	Select(sizeClasses []uint32) (int, time.Duration, Learner)
+	Select(sizeClasses []uint32) (sizeClass int, expectedDuration, timeout time.Duration, learner Learner)
 
 	// Clients have abandoned the action, meaning that no size class
 	// selection decision needs to be made. This may, for example,
@@ -59,7 +59,7 @@ type Learner interface {
 	// valid for the scheduler to already communicate completion to
 	// the client. The scheduler may limit the amount of work it's
 	// willing to run in the background.
-	Succeeded(duration time.Duration, sizeClasses []uint32) (int, time.Duration, Learner)
+	Succeeded(duration time.Duration, sizeClasses []uint32) (sizeClass int, expectedDuration, timeout time.Duration, learner Learner)
 
 	// The action completed with a failure.
 	//
@@ -67,7 +67,7 @@ type Learner interface {
 	// is definitive and should be propagated to the client. If this
 	// method returns a new Learner, execution must be retried on
 	// the largest size class, using the timeout that is returned.
-	Failed(timedOut bool) (time.Duration, Learner)
+	Failed(timedOut bool) (expectedDuration, timeout time.Duration, learner Learner)
 
 	// Clients have abandoned the action, meaning that execution of
 	// the action was terminated. Nothing may be learned from this

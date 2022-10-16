@@ -48,11 +48,12 @@ func TestFallbackAnalyzer(t *testing.T) {
 		selector, err := analyzer.Analyze(ctx, exampleDigestFunction, exampleAction)
 		require.NoError(t, err)
 
-		sizeClassIndex, timeout1, learner1 := selector.Select([]uint32{4})
+		sizeClassIndex, expectedDuration1, timeout1, learner1 := selector.Select([]uint32{4})
 		require.Equal(t, 0, sizeClassIndex)
+		require.Equal(t, 300*time.Second, expectedDuration1)
 		require.Equal(t, 300*time.Second, timeout1)
 
-		_, learner2 := learner1.Failed(true)
+		_, _, learner2 := learner1.Failed(true)
 		require.Nil(t, learner2)
 	})
 
@@ -63,15 +64,17 @@ func TestFallbackAnalyzer(t *testing.T) {
 		selector, err := analyzer.Analyze(ctx, exampleDigestFunction, exampleAction)
 		require.NoError(t, err)
 
-		sizeClassIndex, timeout1, learner1 := selector.Select([]uint32{1, 2, 4, 8})
+		sizeClassIndex, expectedDuration1, timeout1, learner1 := selector.Select([]uint32{1, 2, 4, 8})
 		require.Equal(t, 0, sizeClassIndex)
+		require.Equal(t, 300*time.Second, expectedDuration1)
 		require.Equal(t, 300*time.Second, timeout1)
 
-		timeout2, learner2 := learner1.Failed(true)
+		expectedDuration2, timeout2, learner2 := learner1.Failed(true)
 		require.NotNil(t, learner2)
+		require.Equal(t, 300*time.Second, expectedDuration2)
 		require.Equal(t, 300*time.Second, timeout2)
 
-		_, learner3 := learner2.Failed(false)
+		_, _, learner3 := learner2.Failed(false)
 		require.Nil(t, learner3)
 	})
 
@@ -83,12 +86,13 @@ func TestFallbackAnalyzer(t *testing.T) {
 		selector, err := analyzer.Analyze(ctx, exampleDigestFunction, exampleAction)
 		require.NoError(t, err)
 
-		sizeClassIndex1, timeout1, learner1 := selector.Select([]uint32{1, 2, 4, 8})
+		sizeClassIndex1, expectedDuration1, timeout1, learner1 := selector.Select([]uint32{1, 2, 4, 8})
 		require.NotNil(t, learner1)
 		require.Equal(t, 0, sizeClassIndex1)
+		require.Equal(t, 300*time.Second, expectedDuration1)
 		require.Equal(t, 300*time.Second, timeout1)
 
-		_, _, learner2 := learner1.Succeeded(100*time.Second, []uint32{1, 2, 4, 8})
+		_, _, _, learner2 := learner1.Succeeded(100*time.Second, []uint32{1, 2, 4, 8})
 		require.Nil(t, learner2)
 	})
 }

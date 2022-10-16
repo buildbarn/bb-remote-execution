@@ -66,10 +66,6 @@
 		<td style="width: 75%"><a href="{{action_url .BrowserURL $platformQueueName.InstanceNamePrefix .Operation.InstanceNameSuffix .Operation.ActionDigest}}">{{proto_to_json .Operation.ActionDigest}}</a></td>
 	</tr>
 	<tr>
-		<th style="width: 25%">Age:</th>
-		<td style="width: 75%">{{time_past .Operation.QueuedTimestamp $now}}</td>
-	</tr>
-	<tr>
 		<th style="width: 25%">Timeout:</th>
 		<td style="width: 75%">{{time_future .Operation.Timeout $now}}</td>
 	</tr>
@@ -80,6 +76,14 @@
 	<tr>
 		<th style="width: 25%">Priority:</th>
 		<td style="width: 75%">{{.Operation.Priority}}</td>
+	</tr>
+	<tr>
+		<th style="width: 25%">Expected duration:</th>
+		<td style="width: 75%">{{.Operation.ExpectedDuration.AsDuration}}</td>
+	</tr>
+	<tr>
+		<th style="width: 25%">Age:</th>
+		<td style="width: 75%">{{time_past .Operation.QueuedTimestamp $now}}</td>
 	</tr>
 	<tr>
 		<th style="width: 25%">Stage:</th>

@@ -92,8 +92,9 @@ func TestFeedbackDrivenAnalyzer(t *testing.T) {
 			})
 		randomNumberGenerator.EXPECT().Float64().Return(0.1)
 
-		sizeClassIndex, timeout, learner := selector.Select([]uint32{1, 2, 4, 8})
+		sizeClassIndex, expectedDuration, timeout, learner := selector.Select([]uint32{1, 2, 4, 8})
 		require.Equal(t, 0, sizeClassIndex)
+		require.Equal(t, 15*time.Second, expectedDuration)
 		require.Equal(t, 15*time.Second, timeout)
 
 		// Action didn't get run after all.
@@ -133,15 +134,16 @@ func TestFeedbackDrivenAnalyzer(t *testing.T) {
 			})
 		randomNumberGenerator.EXPECT().Float64().Return(0.4)
 
-		sizeClassIndex, timeout, learner1 := selector.Select([]uint32{1, 2, 4, 8})
+		sizeClassIndex, expectedDuration, timeout, learner1 := selector.Select([]uint32{1, 2, 4, 8})
 		require.Equal(t, 1, sizeClassIndex)
+		require.Equal(t, 15*time.Second, expectedDuration)
 		require.Equal(t, 15*time.Second, timeout)
 
 		// Report that execution succeeded. This should cause
 		// the execution time to be recorded.
 		handle.EXPECT().Release(true)
 
-		_, _, learner2 := learner1.Succeeded(time.Minute, []uint32{1, 2, 4, 8})
+		_, _, _, learner2 := learner1.Succeeded(time.Minute, []uint32{1, 2, 4, 8})
 		require.Nil(t, learner2)
 		testutil.RequireEqualProto(t, &iscc.PreviousExecutionStats{
 			SizeClasses: map[uint32]*iscc.PerSizeClassStats{
@@ -189,22 +191,24 @@ func TestFeedbackDrivenAnalyzer(t *testing.T) {
 			})
 		randomNumberGenerator.EXPECT().Float64().Return(0.55)
 
-		sizeClassIndex, timeout1, learner1 := selector.Select([]uint32{1, 2, 4, 8})
+		sizeClassIndex, expectedDuration1, timeout1, learner1 := selector.Select([]uint32{1, 2, 4, 8})
 		require.Equal(t, 0, sizeClassIndex)
+		require.Equal(t, 40*time.Second, expectedDuration1)
 		require.Equal(t, 40*time.Second, timeout1)
 
 		// Let execution fail on size class 1. Because this is
 		// not the largest size class, a new learner for size
 		// class 8 is returned.
-		timeout2, learner2 := learner1.Failed(false)
+		expectedDuration2, timeout2, learner2 := learner1.Failed(false)
 		require.NotNil(t, learner2)
+		require.Equal(t, 10*time.Second, expectedDuration2)
 		require.Equal(t, 30*time.Minute, timeout2)
 
 		// Report success on size class 8. This should cause the
 		// result of both executions to be stored.
 		handle.EXPECT().Release(true)
 
-		_, _, learner3 := learner2.Succeeded(12*time.Second, []uint32{1, 2, 4, 8})
+		_, _, _, learner3 := learner2.Succeeded(12*time.Second, []uint32{1, 2, 4, 8})
 		require.Nil(t, learner3)
 		testutil.RequireEqualProto(t, &iscc.PreviousExecutionStats{
 			SizeClasses: map[uint32]*iscc.PerSizeClassStats{
@@ -247,8 +251,9 @@ func TestFeedbackDrivenAnalyzer(t *testing.T) {
 		handle.EXPECT().GetMutableProto().Return(&stats).AnyTimes()
 		clock.EXPECT().Now().Return(time.Unix(1620242374, 0))
 
-		sizeClassIndex, timeout, learner := selector.Select([]uint32{1, 2, 4, 8})
+		sizeClassIndex, expectedDuration, timeout, learner := selector.Select([]uint32{1, 2, 4, 8})
 		require.Equal(t, 3, sizeClassIndex)
+		require.Equal(t, 10*time.Second, expectedDuration)
 		require.Equal(t, 30*time.Minute, timeout)
 
 		// Abandoning it should not cause any changes to it.
@@ -291,8 +296,9 @@ func TestFeedbackDrivenAnalyzer(t *testing.T) {
 			})
 		randomNumberGenerator.EXPECT().Float64().Return(0.32)
 
-		sizeClassIndex1, timeout1, learner1 := selector.Select([]uint32{1, 2, 4, 8})
+		sizeClassIndex1, expectedDuration1, timeout1, learner1 := selector.Select([]uint32{1, 2, 4, 8})
 		require.Equal(t, 3, sizeClassIndex1)
+		require.Equal(t, 30*time.Minute, expectedDuration1)
 		require.Equal(t, 30*time.Minute, timeout1)
 
 		// Once execution on the largest size class has
@@ -317,16 +323,17 @@ func TestFeedbackDrivenAnalyzer(t *testing.T) {
 				return 80 * time.Second
 			})
 
-		sizeClassIndex2, timeout2, learner2 := learner1.Succeeded(42*time.Second, []uint32{1, 2, 4, 8})
+		sizeClassIndex2, expectedDuration2, timeout2, learner2 := learner1.Succeeded(42*time.Second, []uint32{1, 2, 4, 8})
 		require.NotNil(t, learner2)
 		require.Equal(t, 0, sizeClassIndex2)
+		require.Equal(t, 80*time.Second, expectedDuration2)
 		require.Equal(t, 80*time.Second, timeout2)
 
 		// Once execution on the smallest size class completes,
 		// both outcomes are stored.
 		handle.EXPECT().Release(true)
 
-		_, _, learner3 := learner2.Succeeded(72*time.Second, []uint32{1, 2, 4, 8})
+		_, _, _, learner3 := learner2.Succeeded(72*time.Second, []uint32{1, 2, 4, 8})
 		require.Nil(t, learner3)
 		testutil.RequireEqualProto(t, &iscc.PreviousExecutionStats{
 			SizeClasses: map[uint32]*iscc.PerSizeClassStats{

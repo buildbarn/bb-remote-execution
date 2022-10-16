@@ -4,6 +4,7 @@ package buildbarn.buildqueuestate;
 
 import "build/bazel/remote/execution/v2/remote_execution.proto";
 import "google/protobuf/any.proto";
+import "google/protobuf/duration.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 
@@ -131,6 +132,9 @@ message OperationState {
   // Was 'invocation_ids'. Merged together with 'size_class_queue_name'
   // into 'invocation_name'.
   reserved 3;
+
+  // The expected amount of time this operation takes to complete.
+  google.protobuf.Duration expected_duration = 14;
 
   // The time at which the client enqueued the operation by calling
   // Execute().
@@ -437,6 +441,10 @@ message ListQueuedOperationsRequest {
   message StartAfter {
     // The priority of the queued operation.
     int32 priority = 1;
+
+    // The expected amount of time that this operation takes to
+    // complete.
+    google.protobuf.Duration expected_duration = 3;
 
     // The timestamp at which the operation was queued.
     google.protobuf.Timestamp queued_timestamp = 2;

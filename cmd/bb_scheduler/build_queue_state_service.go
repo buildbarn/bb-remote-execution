@@ -380,8 +380,9 @@ func (s *buildQueueStateService) handleListQueuedOperations(w http.ResponseWrite
 	if l := response.QueuedOperations; len(l) > 0 {
 		o := l[len(l)-1]
 		nextStartAfter = &buildqueuestate.ListQueuedOperationsRequest_StartAfter{
-			Priority:        o.Priority,
-			QueuedTimestamp: o.QueuedTimestamp,
+			Priority:         o.Priority,
+			ExpectedDuration: o.ExpectedDuration,
+			QueuedTimestamp:  o.QueuedTimestamp,
 		}
 	}
 

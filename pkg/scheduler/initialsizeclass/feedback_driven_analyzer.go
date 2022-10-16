@@ -81,56 +81,73 @@ type feedbackDrivenSelector struct {
 	originalTimeout time.Duration
 }
 
-func (s *feedbackDrivenSelector) Select(sizeClasses []uint32) (int, time.Duration, Learner) {
+func getExpectedExecutionDuration(perSizeClassStatsMap map[uint32]*iscc.PerSizeClassStats, sizeClass uint32, timeout time.Duration) time.Duration {
+	if perSizeClassStats, ok := perSizeClassStatsMap[sizeClass]; ok {
+		if medianExecutionTime := getOutcomesFromPreviousExecutions(perSizeClassStats.PreviousExecutions).GetMedianExecutionTime(); medianExecutionTime != nil && *medianExecutionTime < timeout {
+			return *medianExecutionTime
+		}
+	}
+	return timeout
+}
+
+func (s *feedbackDrivenSelector) Select(sizeClasses []uint32) (int, time.Duration, time.Duration, Learner) {
 	a := s.analyzer
 	stats := s.handle.GetMutableProto()
 	if stats.SizeClasses == nil {
 		stats.SizeClasses = map[uint32]*iscc.PerSizeClassStats{}
 	}
+	perSizeClassStatsMap := stats.SizeClasses
 	largestSizeClass := sizeClasses[len(sizeClasses)-1]
 	if lastSeenFailure := stats.LastSeenFailure; lastSeenFailure.CheckValid() != nil || lastSeenFailure.AsTime().Before(a.clock.Now().Add(-a.failureCacheDuration)) {
-		strategies := a.strategyCalculator.GetStrategies(stats.SizeClasses, sizeClasses, s.originalTimeout)
+		strategies := a.strategyCalculator.GetStrategies(perSizeClassStatsMap, sizeClasses, s.originalTimeout)
 
 		// Randomly pick a size class according to the probabilities
 		// that we computed above.
 		r := a.randomNumberGenerator.Float64()
 		for i, strategy := range strategies {
 			if r < strategy.Probability {
+				smallerSizeClass := sizeClasses[i]
 				if strategy.RunInBackground {
 					// The action is prone to failures. Run
 					// it on the largest size class first.
 					// Upon success, still run it on the
 					// smaller size class for training
 					// purposes.
-					return len(sizeClasses) - 1, s.originalTimeout, &largestBackgroundLearner{
-						cleanLearner: cleanLearner{
-							baseLearner: baseLearner{
-								analyzer: s.analyzer,
-								handle:   s.handle,
+					return len(sizeClasses) - 1,
+						getExpectedExecutionDuration(perSizeClassStatsMap, largestSizeClass, s.originalTimeout),
+						s.originalTimeout,
+						&largestBackgroundLearner{
+							cleanLearner: cleanLearner{
+								baseLearner: baseLearner{
+									analyzer: s.analyzer,
+									handle:   s.handle,
+								},
 							},
-						},
-						largestSizeClass: largestSizeClass,
-						largestTimeout:   s.originalTimeout,
-						smallerSizeClass: sizeClasses[i],
-					}
+							largestSizeClass: largestSizeClass,
+							largestTimeout:   s.originalTimeout,
+							smallerSizeClass: smallerSizeClass,
+						}
 				}
 				// The action doesn't seem prone to
 				// failures. Just run it on the smaller
 				// size class, only falling back to the
 				// largest size class upon failure.
 				smallerTimeout := strategy.ForegroundExecutionTimeout
-				return i, smallerTimeout, &smallerForegroundLearner{
-					cleanLearner: cleanLearner{
-						baseLearner: baseLearner{
-							analyzer: s.analyzer,
-							handle:   s.handle,
+				return i,
+					getExpectedExecutionDuration(perSizeClassStatsMap, smallerSizeClass, smallerTimeout),
+					smallerTimeout,
+					&smallerForegroundLearner{
+						cleanLearner: cleanLearner{
+							baseLearner: baseLearner{
+								analyzer: s.analyzer,
+								handle:   s.handle,
+							},
 						},
-					},
-					smallerSizeClass: sizeClasses[i],
-					smallerTimeout:   smallerTimeout,
-					largestSizeClass: largestSizeClass,
-					largestTimeout:   s.originalTimeout,
-				}
+						smallerSizeClass: smallerSizeClass,
+						smallerTimeout:   smallerTimeout,
+						largestSizeClass: largestSizeClass,
+						largestTimeout:   s.originalTimeout,
+					}
 			}
 			r -= strategy.Probability
 		}
@@ -139,15 +156,18 @@ func (s *feedbackDrivenSelector) Select(sizeClasses []uint32) (int, time.Duratio
 	// Random selection ended up choosing the largest size class. We
 	// can use the original timeout value. There is never any need
 	// to retry.
-	return len(sizeClasses) - 1, s.originalTimeout, &largestLearner{
-		cleanLearner: cleanLearner{
-			baseLearner: baseLearner{
-				analyzer: s.analyzer,
-				handle:   s.handle,
+	return len(sizeClasses) - 1,
+		getExpectedExecutionDuration(perSizeClassStatsMap, largestSizeClass, s.originalTimeout),
+		s.originalTimeout,
+		&largestLearner{
+			cleanLearner: cleanLearner{
+				baseLearner: baseLearner{
+					analyzer: s.analyzer,
+					handle:   s.handle,
+				},
 			},
-		},
-		largestSizeClass: largestSizeClass,
-	}
+			largestSizeClass: largestSizeClass,
+		}
 }
 
 func (s *feedbackDrivenSelector) Abandoned() {
@@ -163,12 +183,12 @@ type baseLearner struct {
 }
 
 func (l *baseLearner) addPreviousExecution(sizeClass uint32, previousExecution *iscc.PreviousExecution) {
-	stats := l.handle.GetMutableProto()
-	perSizeClassStats, ok := stats.SizeClasses[sizeClass]
+	perSizeClassStatsMap := l.handle.GetMutableProto().SizeClasses
+	perSizeClassStats, ok := perSizeClassStatsMap[sizeClass]
 	if !ok {
 		// Size class does not exist yet. Create it.
 		perSizeClassStats = &iscc.PerSizeClassStats{}
-		stats.SizeClasses[sizeClass] = perSizeClassStats
+		perSizeClassStatsMap[sizeClass] = perSizeClassStats
 	}
 
 	// Append new outcome, potentially removing the oldest one present.
@@ -208,7 +228,7 @@ type smallerForegroundLearner struct {
 	largestTimeout   time.Duration
 }
 
-func (l *smallerForegroundLearner) Succeeded(duration time.Duration, sizeClasses []uint32) (int, time.Duration, Learner) {
+func (l *smallerForegroundLearner) Succeeded(duration time.Duration, sizeClasses []uint32) (int, time.Duration, time.Duration, Learner) {
 	l.addPreviousExecution(l.smallerSizeClass, &iscc.PreviousExecution{
 		Outcome: &iscc.PreviousExecution_Succeeded{
 			Succeeded: durationpb.New(duration),
@@ -216,10 +236,10 @@ func (l *smallerForegroundLearner) Succeeded(duration time.Duration, sizeClasses
 	})
 	l.handle.Release(true)
 	l.handle = nil
-	return 0, 0, nil
+	return 0, 0, 0, nil
 }
 
-func (l *smallerForegroundLearner) Failed(timedOut bool) (time.Duration, Learner) {
+func (l *smallerForegroundLearner) Failed(timedOut bool) (time.Duration, time.Duration, Learner) {
 	// Retry execution on the largest size class. Store the outcome
 	// of this invocation, so that we can write it into the ISCC in
 	// case the action does succeed on the largest size class.
@@ -242,7 +262,8 @@ func (l *smallerForegroundLearner) Failed(timedOut bool) (time.Duration, Learner
 			Failed: &emptypb.Empty{},
 		}
 	}
-	return l.largestTimeout, newL
+	perSizeClassStatsMap := l.handle.GetMutableProto().SizeClasses
+	return getExpectedExecutionDuration(perSizeClassStatsMap, l.largestSizeClass, l.largestTimeout), l.largestTimeout, newL
 }
 
 // largestForegroundLearner is the final Learner that is returned by
@@ -256,7 +277,7 @@ type largestForegroundLearner struct {
 	largestSizeClass uint32
 }
 
-func (l *largestForegroundLearner) Succeeded(duration time.Duration, sizeClasses []uint32) (int, time.Duration, Learner) {
+func (l *largestForegroundLearner) Succeeded(duration time.Duration, sizeClasses []uint32) (int, time.Duration, time.Duration, Learner) {
 	l.addPreviousExecution(l.smallerSizeClass, &l.smallerExecution)
 	l.addPreviousExecution(l.largestSizeClass, &iscc.PreviousExecution{
 		Outcome: &iscc.PreviousExecution_Succeeded{
@@ -265,14 +286,14 @@ func (l *largestForegroundLearner) Succeeded(duration time.Duration, sizeClasses
 	})
 	l.handle.Release(true)
 	l.handle = nil
-	return 0, 0, nil
+	return 0, 0, 0, nil
 }
 
-func (l *largestForegroundLearner) Failed(timedOut bool) (time.Duration, Learner) {
+func (l *largestForegroundLearner) Failed(timedOut bool) (time.Duration, time.Duration, Learner) {
 	l.updateLastSeenFailure()
 	l.handle.Release(true)
 	l.handle = nil
-	return 0, nil
+	return 0, 0, nil
 }
 
 // largestBackgroundLearner is the initial Learner that is returned by
@@ -287,7 +308,7 @@ type largestBackgroundLearner struct {
 	smallerSizeClass uint32
 }
 
-func (l *largestBackgroundLearner) Succeeded(duration time.Duration, sizeClasses []uint32) (int, time.Duration, Learner) {
+func (l *largestBackgroundLearner) Succeeded(duration time.Duration, sizeClasses []uint32) (int, time.Duration, time.Duration, Learner) {
 	l.addPreviousExecution(l.largestSizeClass, &iscc.PreviousExecution{
 		Outcome: &iscc.PreviousExecution_Succeeded{
 			Succeeded: durationpb.New(duration),
@@ -299,19 +320,23 @@ func (l *largestBackgroundLearner) Succeeded(duration time.Duration, sizeClasses
 			// wanted to run the action still exists.
 			// Request that it's run on that size class once
 			// again, for training purposes.
+			perSizeClassStatsMap := l.handle.GetMutableProto().SizeClasses
 			smallerTimeout := l.analyzer.strategyCalculator.GetBackgroundExecutionTimeout(
-				l.handle.GetMutableProto().SizeClasses,
+				perSizeClassStatsMap,
 				sizeClasses,
 				i,
 				l.largestTimeout)
-			return i, smallerTimeout, &smallerBackgroundLearner{
-				baseLearner: baseLearner{
-					analyzer: l.analyzer,
-					handle:   l.handle,
-				},
-				smallerSizeClass: l.smallerSizeClass,
-				smallerTimeout:   smallerTimeout,
-			}
+			return i,
+				getExpectedExecutionDuration(perSizeClassStatsMap, l.smallerSizeClass, smallerTimeout),
+				smallerTimeout,
+				&smallerBackgroundLearner{
+					baseLearner: baseLearner{
+						analyzer: l.analyzer,
+						handle:   l.handle,
+					},
+					smallerSizeClass: l.smallerSizeClass,
+					smallerTimeout:   smallerTimeout,
+				}
 		}
 	}
 	// Corner case: the smaller size class disappeared before we got
@@ -319,14 +344,14 @@ func (l *largestBackgroundLearner) Succeeded(duration time.Duration, sizeClasses
 	// background learning.
 	l.handle.Release(true)
 	l.handle = nil
-	return 0, 0, nil
+	return 0, 0, 0, nil
 }
 
-func (l *largestBackgroundLearner) Failed(timedOut bool) (time.Duration, Learner) {
+func (l *largestBackgroundLearner) Failed(timedOut bool) (time.Duration, time.Duration, Learner) {
 	l.updateLastSeenFailure()
 	l.handle.Release(true)
 	l.handle = nil
-	return 0, nil
+	return 0, 0, nil
 }
 
 // smallerBackgroundLearner is the final Learner that is returned by
@@ -347,7 +372,7 @@ func (l *smallerBackgroundLearner) Abandoned() {
 	l.handle = nil
 }
 
-func (l *smallerBackgroundLearner) Failed(timedOut bool) (time.Duration, Learner) {
+func (l *smallerBackgroundLearner) Failed(timedOut bool) (time.Duration, time.Duration, Learner) {
 	if timedOut {
 		l.addPreviousExecution(l.smallerSizeClass, &iscc.PreviousExecution{
 			Outcome: &iscc.PreviousExecution_TimedOut{
@@ -363,10 +388,10 @@ func (l *smallerBackgroundLearner) Failed(timedOut bool) (time.Duration, Learner
 	}
 	l.handle.Release(true)
 	l.handle = nil
-	return 0, nil
+	return 0, 0, nil
 }
 
-func (l *smallerBackgroundLearner) Succeeded(duration time.Duration, sizeClasses []uint32) (int, time.Duration, Learner) {
+func (l *smallerBackgroundLearner) Succeeded(duration time.Duration, sizeClasses []uint32) (int, time.Duration, time.Duration, Learner) {
 	l.addPreviousExecution(l.smallerSizeClass, &iscc.PreviousExecution{
 		Outcome: &iscc.PreviousExecution_Succeeded{
 			Succeeded: durationpb.New(duration),
@@ -374,7 +399,7 @@ func (l *smallerBackgroundLearner) Succeeded(duration time.Duration, sizeClasses
 	})
 	l.handle.Release(true)
 	l.handle = nil
-	return 0, 0, nil
+	return 0, 0, 0, nil
 }
 
 // largestLearner is returned by FeedbackDrivenAnalyzer when executing
@@ -387,7 +412,7 @@ type largestLearner struct {
 	largestSizeClass uint32
 }
 
-func (l *largestLearner) Succeeded(duration time.Duration, sizeClasses []uint32) (int, time.Duration, Learner) {
+func (l *largestLearner) Succeeded(duration time.Duration, sizeClasses []uint32) (int, time.Duration, time.Duration, Learner) {
 	l.addPreviousExecution(l.largestSizeClass, &iscc.PreviousExecution{
 		Outcome: &iscc.PreviousExecution_Succeeded{
 			Succeeded: durationpb.New(duration),
@@ -395,12 +420,12 @@ func (l *largestLearner) Succeeded(duration time.Duration, sizeClasses []uint32)
 	})
 	l.handle.Release(true)
 	l.handle = nil
-	return 0, 0, nil
+	return 0, 0, 0, nil
 }
 
-func (l *largestLearner) Failed(timedOut bool) (time.Duration, Learner) {
+func (l *largestLearner) Failed(timedOut bool) (time.Duration, time.Duration, Learner) {
 	l.updateLastSeenFailure()
 	l.handle.Release(true)
 	l.handle = nil
-	return 0, nil
+	return 0, 0, nil
 }

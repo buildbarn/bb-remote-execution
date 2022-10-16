@@ -40,6 +40,7 @@
 		<thead class="text-center">
 			<tr>
 				<th>Priority</th>
+				<th>Expected duration</th>
 				<th>Age</th>
 				<th>Timeout</th>
 				<th>Operation name</th>
@@ -54,6 +55,7 @@
 			{{range .QueuedOperations}}
 				<tr>
 					<td class="text-end">{{.Priority}}</td>
+					<td class="text-end">{{.ExpectedDuration.AsDuration}}</td>
 					<td class="text-end">{{time_past .QueuedTimestamp $now}}</td>
 					<td class="text-end">{{time_future .Timeout $now}}</td>
 					<td style="background-color: {{to_background_color .Name}}">

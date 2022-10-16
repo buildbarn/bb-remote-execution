@@ -40,25 +40,25 @@ type fallbackSelector struct {
 	timeout time.Duration
 }
 
-func (s fallbackSelector) Select(sizeClasses []uint32) (int, time.Duration, Learner) {
+func (s fallbackSelector) Select(sizeClasses []uint32) (int, time.Duration, time.Duration, Learner) {
 	if len(sizeClasses) > 1 {
 		// Multiple size classes available. Run all actions on
 		// the smallest size class, falling back to the largest.
-		return 0, s.timeout, smallerFallbackLearner{
+		return 0, s.timeout, s.timeout, smallerFallbackLearner{
 			timeout: s.timeout,
 		}
 	}
-	return 0, s.timeout, largestFallbackLearner{}
+	return 0, s.timeout, s.timeout, largestFallbackLearner{}
 }
 
 func (fallbackSelector) Abandoned() {}
 
 type fallbackLearner struct{}
 
-func (fallbackLearner) Succeeded(duration time.Duration, sizeClasses []uint32) (int, time.Duration, Learner) {
+func (fallbackLearner) Succeeded(duration time.Duration, sizeClasses []uint32) (int, time.Duration, time.Duration, Learner) {
 	// There is no learning that needs to be performed in the
 	// background.
-	return 0, 0, nil
+	return 0, 0, 0, nil
 }
 
 func (fallbackLearner) Abandoned() {}
@@ -68,17 +68,17 @@ type smallerFallbackLearner struct {
 	timeout time.Duration
 }
 
-func (l smallerFallbackLearner) Failed(timedOut bool) (time.Duration, Learner) {
+func (l smallerFallbackLearner) Failed(timedOut bool) (time.Duration, time.Duration, Learner) {
 	// Action failed on a smaller size class. Retry on the largest
 	// size class.
-	return l.timeout, largestFallbackLearner{}
+	return l.timeout, l.timeout, largestFallbackLearner{}
 }
 
 type largestFallbackLearner struct {
 	fallbackLearner
 }
 
-func (largestFallbackLearner) Failed(timedOut bool) (time.Duration, Learner) {
+func (largestFallbackLearner) Failed(timedOut bool) (time.Duration, time.Duration, Learner) {
 	// Action failed on the largest size class.
-	return 0, nil
+	return 0, 0, nil
 }

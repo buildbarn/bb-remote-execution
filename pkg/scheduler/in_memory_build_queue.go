@@ -429,7 +429,7 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 		return status.Errorf(code, "No workers exist for instance name prefix %#v platform %s", platformKey.GetInstanceNamePrefix().String(), platformKey.GetPlatformString())
 	}
 	pq := bq.platformQueues[platformQueueIndex]
-	sizeClassIndex, timeout, initialSizeClassLearner := initialSizeClassSelector.Select(pq.sizeClasses)
+	sizeClassIndex, expectedDuration, timeout, initialSizeClassLearner := initialSizeClassSelector.Select(pq.sizeClasses)
 	scq := pq.sizeClassQueues[sizeClassIndex]
 
 	// Create the task.
@@ -448,6 +448,7 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 			W3CTraceContext:    w3cTraceContext,
 		},
 		targetID:                requestMetadata.GetTargetId(),
+		expectedDuration:        expectedDuration,
 		initialSizeClassLearner: initialSizeClassLearner,
 		stageChangeWakeup:       make(chan struct{}),
 	}
@@ -839,8 +840,14 @@ func (bq *InMemoryBuildQueue) ListQueuedOperations(ctx context.Context, request 
 	}
 
 	startAfter := request.StartAfter
+	var startAfterExpectedDuration time.Duration
 	var startAfterQueuedTimestamp time.Time
 	if startAfter != nil {
+		if err := startAfter.ExpectedDuration.CheckValid(); err != nil {
+			return nil, util.StatusWrapWithCode(err, codes.InvalidArgument, "Invalid expected duration")
+		}
+		startAfterExpectedDuration = startAfter.ExpectedDuration.AsDuration()
+
 		if err := startAfter.QueuedTimestamp.CheckValid(); err != nil {
 			return nil, util.StatusWrapWithCode(err, codes.InvalidArgument, "Invalid queued timestamp")
 		}
@@ -858,7 +865,14 @@ func (bq *InMemoryBuildQueue) ListQueuedOperations(ctx context.Context, request 
 		if o.priority < startAfter.Priority {
 			return false
 		}
-		return o.task.desiredState.QueuedTimestamp.AsTime().After(startAfterQueuedTimestamp)
+		t := o.task
+		if t.expectedDuration < startAfterExpectedDuration {
+			return true
+		}
+		if t.expectedDuration > startAfterExpectedDuration {
+			return false
+		}
+		return t.desiredState.QueuedTimestamp.AsTime().After(startAfterQueuedTimestamp)
 	})
 
 	queuedOperationsRegion := i.queuedOperations[paginationInfo.StartIndex:endIndex]
@@ -1791,9 +1805,24 @@ func (h queuedOperationsHeap) Len() int {
 }
 
 func (h queuedOperationsHeap) Less(i, j int) bool {
-	// Lexicographic order on priority and queued timestamp.
-	return h[i].priority < h[j].priority || (h[i].priority == h[j].priority &&
-		h[i].task.desiredState.QueuedTimestamp.AsTime().Before(h[j].task.desiredState.QueuedTimestamp.AsTime()))
+	// Lexicographic order on priority, expected duration and queued
+	// timestamp. By executing operations with a higher expected
+	// duration first, we reduce the probability of having poor
+	// concurrency at the final stages of a build.
+	if h[i].priority < h[j].priority {
+		return true
+	}
+	if h[i].priority > h[j].priority {
+		return false
+	}
+	ti, tj := h[i].task, h[j].task
+	if ti.expectedDuration > tj.expectedDuration {
+		return true
+	}
+	if ti.expectedDuration < tj.expectedDuration {
+		return false
+	}
+	return ti.desiredState.QueuedTimestamp.AsTime().Before(tj.desiredState.QueuedTimestamp.AsTime())
 }
 
 func (h queuedOperationsHeap) Swap(i, j int) {
@@ -2007,6 +2036,7 @@ func (o *operation) getOperationState(bq *InMemoryBuildQueue) *buildqueuestate.O
 			SizeClassQueueName: sizeClassKey.getSizeClassQueueName(),
 			Ids:                invocationIDs,
 		},
+		ExpectedDuration:   durationpb.New(t.expectedDuration),
 		QueuedTimestamp:    t.desiredState.QueuedTimestamp,
 		ActionDigest:       t.desiredState.ActionDigest,
 		TargetId:           t.targetID,
@@ -2067,6 +2097,7 @@ type task struct {
 	currentWorker *worker
 	retryCount    int
 
+	expectedDuration        time.Duration
 	initialSizeClassLearner initialsizeclass.Learner
 	mayExistWithoutWaiters  bool
 
@@ -2237,7 +2268,7 @@ func (t *task) complete(bq *InMemoryBuildQueue, executeResponse *remoteexecution
 	// Communicate the results to the initial size class learner,
 	// which may request that the task is re-executed.
 	pq := currentSCQ.platformQueue
-	var timeout time.Duration
+	var expectedDuration, timeout time.Duration
 	if code, actionResult := status.FromProto(executeResponse.Status).Code(), executeResponse.Result; code == codes.OK && actionResult.GetExitCode() == 0 {
 		// The task succeeded, but we're still getting
 		// instructed to run the task again for training
@@ -2245,7 +2276,7 @@ func (t *task) complete(bq *InMemoryBuildQueue, executeResponse *remoteexecution
 		// runs in the background. The user does not need to be
 		// blocked on this.
 		executionMetadata := actionResult.GetExecutionMetadata()
-		backgroundSizeClassIndex, backgroundTimeout, backgroundInitialSizeClassLearner := t.initialSizeClassLearner.Succeeded(
+		backgroundSizeClassIndex, backgroundExpectedDuration, backgroundTimeout, backgroundInitialSizeClassLearner := t.initialSizeClassLearner.Succeeded(
 			executionMetadata.GetVirtualExecutionDuration().AsDuration(),
 			pq.sizeClasses)
 		t.initialSizeClassLearner = nil
@@ -2269,6 +2300,7 @@ func (t *task) complete(bq *InMemoryBuildQueue, executeResponse *remoteexecution
 						actionDigest:            t.actionDigest,
 						desiredState:            t.desiredState,
 						targetID:                t.targetID,
+						expectedDuration:        backgroundExpectedDuration,
 						initialSizeClassLearner: backgroundInitialSizeClassLearner,
 						stageChangeWakeup:       make(chan struct{}),
 					}
@@ -2281,7 +2313,7 @@ func (t *task) complete(bq *InMemoryBuildQueue, executeResponse *remoteexecution
 	} else if completedByWorker {
 		// The worker communicated that the task failed. Attempt
 		// to run it on another size class.
-		timeout, t.initialSizeClassLearner = t.initialSizeClassLearner.Failed(code == codes.DeadlineExceeded)
+		expectedDuration, timeout, t.initialSizeClassLearner = t.initialSizeClassLearner.Failed(code == codes.DeadlineExceeded)
 	} else {
 		// The task was completed, but this was not done by the
 		// worker. Treat is as a regular failure.
@@ -2294,6 +2326,7 @@ func (t *task) complete(bq *InMemoryBuildQueue, executeResponse *remoteexecution
 		// requested, using the original timeout value.
 		// Transplant all operations to the other size class
 		// queue and reschedule.
+		t.expectedDuration = expectedDuration
 		t.desiredState.Action.Timeout = durationpb.New(timeout)
 		t.registerCompletedStageFinished(bq)
 		largestSCQ := pq.sizeClassQueues[len(pq.sizeClassQueues)-1]
