@@ -1866,8 +1866,11 @@ func (s *compoundState) opReaddir(ctx context.Context, args *nfsv4.Readdir4args)
 	}
 
 	// Validate the cookie verifier.
+	// TODO: The macOS NFSv4 client may sometimes not set the cookie
+	// verifier properly, so we allow it to be zero. Remove this
+	// logic in due time. Issue: rdar://91034875
 	p := s.program
-	if args.Cookie != 0 && args.Cookieverf != p.rebootVerifier {
+	if args.Cookie != 0 && args.Cookieverf != p.rebootVerifier && (args.Cookieverf != nfsv4.Verifier4{}) {
 		return &nfsv4.Readdir4res_default{Status: nfsv4.NFS4ERR_NOT_SAME}
 	}
 
