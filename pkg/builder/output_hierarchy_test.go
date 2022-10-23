@@ -427,6 +427,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 							Hash:      "55aed4acf40a28132fb2d2de2b5962f0",
 							SizeBytes: 184,
 						},
+						IsTopologicallySorted: true,
 					},
 					{
 						Path: "../foo/directory-directory",
@@ -434,6 +435,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 							Hash:      "55aed4acf40a28132fb2d2de2b5962f0",
 							SizeBytes: 184,
 						},
+						IsTopologicallySorted: true,
 					},
 					{
 						Path: "path-directory",
@@ -441,6 +443,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 							Hash:      "9dd94c5a4b02914af42e8e6372e0b709",
 							SizeBytes: 2,
 						},
+						IsTopologicallySorted: true,
 					},
 					{
 						Path: "../foo/path-directory",
@@ -448,6 +451,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 							Hash:      "9dd94c5a4b02914af42e8e6372e0b709",
 							SizeBytes: 2,
 						},
+						IsTopologicallySorted: true,
 					},
 				},
 				OutputDirectorySymlinks: []*remoteexecution.OutputSymlink{
@@ -579,6 +583,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 							Hash:      "55aed4acf40a28132fb2d2de2b5962f0",
 							SizeBytes: 184,
 						},
+						IsTopologicallySorted: true,
 					},
 					{
 						Path: "../foo/directory-directory",
@@ -586,6 +591,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 							Hash:      "55aed4acf40a28132fb2d2de2b5962f0",
 							SizeBytes: 184,
 						},
+						IsTopologicallySorted: true,
 					},
 					{
 						Path: "path-directory",
@@ -593,6 +599,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 							Hash:      "9dd94c5a4b02914af42e8e6372e0b709",
 							SizeBytes: 2,
 						},
+						IsTopologicallySorted: true,
 					},
 					{
 						Path: "../foo/path-directory",
@@ -600,6 +607,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 							Hash:      "9dd94c5a4b02914af42e8e6372e0b709",
 							SizeBytes: 2,
 						},
+						IsTopologicallySorted: true,
 					},
 				},
 				OutputFiles: []*remoteexecution.OutputFile{
@@ -730,6 +738,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 						Hash:      "9dd94c5a4b02914af42e8e6372e0b709",
 						SizeBytes: 2,
 					},
+					IsTopologicallySorted: true,
 				},
 			},
 		}, actionResult)
@@ -767,6 +776,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 						Hash:      "9dd94c5a4b02914af42e8e6372e0b709",
 						SizeBytes: 2,
 					},
+					IsTopologicallySorted: true,
 				},
 			},
 		}, actionResult)

@@ -427,6 +427,7 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 						Hash:      "102b51b9765a56a3e899f7cf0ee38e5251f9c503b357b330a49183eb7b155604",
 						SizeBytes: 2,
 					},
+					IsTopologicallySorted: true,
 				},
 			},
 			StdoutDigest: &remoteexecution.Digest{

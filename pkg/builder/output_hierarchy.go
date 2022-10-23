@@ -245,8 +245,9 @@ func (s *uploadOutputsState) uploadOutputDirectoryEntered(d UploadableDirectory,
 				s.actionResult.OutputDirectories = append(
 					s.actionResult.OutputDirectories,
 					&remoteexecution.OutputDirectory{
-						Path:       path,
-						TreeDigest: treeDigest.GetProto(),
+						Path:                  path,
+						TreeDigest:            treeDigest.GetProto(),
+						IsTopologicallySorted: true,
 					})
 			}
 		} else {
