@@ -87,7 +87,7 @@ message ApplicationConfiguration {
   // at least one action, and vice versa. It is also called periodically
   // whenever the runner is idle.
   //
-  // Caution; since this option executes a command in a separate process
+  // Caution: since this option executes a command in a separate process
   // there is an inherent performance penalty. If possible, use the built-in
   // cleaning options that are handled in-process for optimal performance.
   repeated string run_command_cleaner = 13;
