@@ -95,17 +95,17 @@ http_file(
 
 http_archive(
     name = "com_grail_bazel_toolchain",
-    canonical_id = "0.6.3",
-    sha256 = "da607faed78c4cb5a5637ef74a36fdd2286f85ca5192222c4664efec2d529bb8",
-    strip_prefix = "bazel-toolchain-0.6.3",
-    url = "https://github.com/grailbio/bazel-toolchain/archive/0.6.3.tar.gz",
+    canonical_id = "0.7.2",
+    sha256 = "f7aa8e59c9d3cafde6edb372d9bd25fb4ee7293ab20b916d867cd0baaa642529",
+    strip_prefix = "bazel-toolchain-0.7.2",
+    url = "https://github.com/grailbio/bazel-toolchain/archive/0.7.2.tar.gz",
 )
 
 load("@com_grail_bazel_toolchain//toolchain:rules.bzl", "llvm_toolchain")
 
 llvm_toolchain(
     name = "llvm_toolchain",
-    llvm_version = "13.0.0",
+    llvm_version = "14.0.0",
 )
 
 http_archive(
