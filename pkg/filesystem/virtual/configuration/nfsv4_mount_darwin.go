@@ -5,6 +5,7 @@ package configuration
 
 import (
 	"bytes"
+	"context"
 	"log"
 	"math"
 	"net"
@@ -20,6 +21,7 @@ import (
 	"github.com/buildbarn/go-xdr/pkg/rpcserver"
 	"github.com/buildbarn/go-xdr/pkg/runtime"
 
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/sys/unix"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -38,7 +40,7 @@ func toNfstime32(d time.Duration) *nfs_sys_prot.Nfstime32 {
 	}
 }
 
-func (m *nfsv4Mount) mount(rpcServer *rpcserver.Server) error {
+func (m *nfsv4Mount) mount(terminationContext context.Context, terminationGroup *errgroup.Group, rpcServer *rpcserver.Server) error {
 	// macOS may require us to perform certain initialisation steps
 	// before attempting to create the NFS mount, such as loading
 	// the kernel extension containing the NFS client.
@@ -194,9 +196,19 @@ func (m *nfsv4Mount) mount(rpcServer *rpcserver.Server) error {
 	}
 
 	// Call mount(2) with the serialized nfs_mount_args message.
-	unix.Unmount(m.mountPath, 0)
-	if err := unix.Mount("nfs", m.mountPath, 0, unsafe.Pointer(&mountArgsBuf.Bytes()[0])); err != nil {
+	mountPath := m.mountPath
+	unix.Unmount(mountPath, 0)
+	if err := unix.Mount("nfs", mountPath, 0, unsafe.Pointer(&mountArgsBuf.Bytes()[0])); err != nil {
 		return util.StatusWrap(err, "Mounting NFS volume failed")
 	}
+
+	// Automatically unmount upon shutdown.
+	terminationGroup.Go(func() error {
+		<-terminationContext.Done()
+		if err := unix.Unmount(mountPath, 0); err != nil {
+			return util.StatusWrapf(err, "Failed to unmount %#v", mountPath)
+		}
+		return nil
+	})
 	return nil
 }

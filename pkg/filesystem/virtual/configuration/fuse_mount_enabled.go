@@ -4,6 +4,7 @@
 package configuration
 
 import (
+	"context"
 	"time"
 
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual"
@@ -13,9 +14,11 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/util"
 	go_fuse "github.com/hanwen/go-fuse/v2/fuse"
 	"github.com/jmespath/go-jmespath"
+
+	"golang.org/x/sync/errgroup"
 )
 
-func (m *fuseMount) Expose(rootDirectory virtual.Directory) error {
+func (m *fuseMount) Expose(terminationContext context.Context, terminationGroup *errgroup.Group, rootDirectory virtual.Directory) error {
 	// Parse configuration options.
 	var directoryEntryValidity time.Duration
 	if d := m.configuration.DirectoryEntryValidity; d != nil {

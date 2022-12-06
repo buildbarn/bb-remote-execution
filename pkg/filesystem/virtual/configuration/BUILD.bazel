@@ -24,6 +24,7 @@ go_library(
         "@com_github_jmespath_go_jmespath//:go-jmespath",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//status",
+        "@org_golang_x_sync//errgroup",
     ] + select({
         "@io_bazel_rules_go//go/platform:android": [
             "//pkg/filesystem/virtual/fuse",

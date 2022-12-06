@@ -199,7 +199,7 @@ func main() {
 				hiddenFilesPattern,
 				clock.SystemClock)
 
-			if err := mount.Expose(virtualBuildDirectory); err != nil {
+			if err := mount.Expose(terminationContext, terminationGroup, virtualBuildDirectory); err != nil {
 				log.Fatal("Failed to expose build directory mount: ", err)
 			}
 

@@ -41,6 +41,7 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to apply global configuration options: ", err)
 	}
+	terminationContext, terminationGroup := global.InstallGracefulTerminationHandler()
 
 	// Create symbolic link whose target can be set by users.
 	buildDirectory, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
@@ -58,6 +59,8 @@ func main() {
 		log.Fatal("Failed to create virtual file system mount: ", err)
 	}
 	if err := mount.Expose(
+		terminationContext,
+		terminationGroup,
 		handleAllocator.New().AsStatelessDirectory(
 			virtual.NewStaticDirectory(map[path.Component]virtual.DirectoryChild{
 				path.MustNewComponent("tmp"): virtual.DirectoryChild{}.

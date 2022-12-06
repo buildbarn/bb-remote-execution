@@ -1,6 +1,8 @@
 package configuration
 
 import (
+	"context"
+
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual/nfsv4"
 	pb "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem/virtual"
@@ -12,6 +14,7 @@ import (
 	"github.com/buildbarn/go-xdr/pkg/rpcserver"
 	"github.com/jmespath/go-jmespath"
 
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -21,7 +24,7 @@ import (
 // kernel or network yet. Before calling Expose(), the caller has the
 // possibility to construct a root directory.
 type Mount interface {
-	Expose(rootDirectory virtual.Directory) error
+	Expose(terminationContext context.Context, terminationGroup *errgroup.Group, rootDirectory virtual.Directory) error
 }
 
 type fuseMount struct {
@@ -39,7 +42,7 @@ type nfsv4Mount struct {
 	containsSelfMutatingSymlinks bool
 }
 
-func (m *nfsv4Mount) Expose(rootDirectory virtual.Directory) error {
+func (m *nfsv4Mount) Expose(terminationContext context.Context, terminationGroup *errgroup.Group, rootDirectory virtual.Directory) error {
 	// Random values that the client can use to detect that the
 	// server has been restarted and lost all state.
 	var verifier nfsv4_xdr.Verifier4
@@ -71,7 +74,7 @@ func (m *nfsv4Mount) Expose(rootDirectory virtual.Directory) error {
 					announcedLeaseTime.AsDuration()))),
 	}, m.authenticator)
 
-	return m.mount(rpcServer)
+	return m.mount(terminationContext, terminationGroup, rpcServer)
 }
 
 // NewMountFromConfiguration creates a new FUSE mount based on options
