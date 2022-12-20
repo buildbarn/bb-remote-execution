@@ -5,7 +5,7 @@
          "steps": [
             {
                "name": "Installing Bazel",
-               "run": "curl -L https://github.com/bazelbuild/bazel/releases/download/5.0.0/bazel-5.0.0-linux-x86_64 > ~/bazel && chmod +x ~/bazel && echo ~ >> ${GITHUB_PATH}"
+               "run": "curl -L https://github.com/bazelbuild/bazel/releases/download/6.0.0/bazel-6.0.0-linux-x86_64 > ~/bazel && chmod +x ~/bazel && echo ~ >> ${GITHUB_PATH}"
             },
             {
                "name": "Check out source code",
@@ -29,7 +29,7 @@
             },
             {
                "name": "Gofmt",
-               "run": "bazel run @cc_mvdan_gofumpt//:gofumpt -- -lang 1.18 -w -extra $(pwd)"
+               "run": "bazel run @cc_mvdan_gofumpt//:gofumpt -- -lang 1.19 -w -extra $(pwd)"
             },
             {
                "name": "Clang format",
@@ -768,23 +768,23 @@
             },
             {
                "name": "Push container bb_noop_worker:bb_noop_worker",
-               "run": "bazel run //cmd/bb_noop_worker:bb_noop_worker_container_push"
+               "run": "bazel run --stamp //cmd/bb_noop_worker:bb_noop_worker_container_push"
             },
             {
                "name": "Push container bb_runner:bb_runner_bare",
-               "run": "bazel run //cmd/bb_runner:bb_runner_bare_container_push"
+               "run": "bazel run --stamp //cmd/bb_runner:bb_runner_bare_container_push"
             },
             {
                "name": "Push container bb_runner:bb_runner_installer",
-               "run": "bazel run //cmd/bb_runner:bb_runner_installer_container_push"
+               "run": "bazel run --stamp //cmd/bb_runner:bb_runner_installer_container_push"
             },
             {
                "name": "Push container bb_scheduler:bb_scheduler",
-               "run": "bazel run //cmd/bb_scheduler:bb_scheduler_container_push"
+               "run": "bazel run --stamp //cmd/bb_scheduler:bb_scheduler_container_push"
             },
             {
                "name": "Push container bb_worker:bb_worker",
-               "run": "bazel run //cmd/bb_worker:bb_worker_container_push"
+               "run": "bazel run --stamp //cmd/bb_worker:bb_worker_container_push"
             }
          ]
       }
