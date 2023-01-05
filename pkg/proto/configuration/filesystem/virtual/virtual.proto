@@ -168,11 +168,10 @@ message NFSv4DarwinMountConfiguration {
   // It is therefore strongly advised that socket files are placed
   // inside directories that have access controls set up properly.
   //
-  // TODO: Using UNIX sockets currently causes EIO errors under high
-  // load, caused by EMSGSIZE errors returned to the kernel's NFS client
-  // while writing data into the UNIX socket. As a workaround, this
-  // option can be left empty, causing to use TCP instead. This should
-  // be removed once rdar://82122890 is addressed.
+  // This option is ignored on versions of macOS having a build version
+  // below 22E118. Using UNIX sockets on those versions of macOS causes
+  // EIO errors under high load, caused by EMSGSIZE errors returned to
+  // the kernel's NFS client while writing data into the UNIX socket.
   string socket_path = 1;
 
   // When set, override the minimum amount of time attributes of

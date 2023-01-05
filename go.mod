@@ -18,7 +18,7 @@ require (
 	github.com/aws/smithy-go v1.13.5
 	github.com/bazelbuild/remote-apis v0.0.0-20221109204407-3a21deee813d
 	github.com/buildbarn/bb-storage v0.0.0-20221221163740-08ce6e432da0
-	github.com/buildbarn/go-xdr v0.0.0-20220927161301-4c5a02fc5078
+	github.com/buildbarn/go-xdr v0.0.0-20230105161020-895955dd8771
 	github.com/golang/protobuf v1.5.2
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
@@ -30,8 +30,8 @@ require (
 	go.opentelemetry.io/otel v1.11.2
 	go.opentelemetry.io/otel/trace v1.11.2
 	golang.org/x/sync v0.1.0
-	golang.org/x/sys v0.3.0
-	google.golang.org/genproto v0.0.0-20221207170731-23e4bf6bdc37
+	golang.org/x/sys v0.4.0
+	google.golang.org/genproto v0.0.0-20230104163317-caabf589fcbf
 	google.golang.org/grpc v1.51.0
 	google.golang.org/protobuf v1.28.1
 )
