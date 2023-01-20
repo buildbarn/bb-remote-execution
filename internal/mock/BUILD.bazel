@@ -34,14 +34,6 @@ gomock(
 )
 
 gomock(
-    name = "blobstore_re",
-    out = "blobstore_re.go",
-    interfaces = ["Suspendable"],
-    library = "//pkg/blobstore",
-    package = "mock",
-)
-
-gomock(
     name = "blobstore_slicing",
     out = "blobstore_slicing.go",
     interfaces = ["BlobSlicer"],
@@ -113,6 +105,14 @@ gomock(
         "Timer",
     ],
     library = "@com_github_buildbarn_bb_storage//pkg/clock",
+    package = "mock",
+)
+
+gomock(
+    name = "clock_re",
+    out = "clock_re.go",
+    interfaces = ["Suspendable"],
+    library = "//pkg/clock",
     package = "mock",
 )
 
@@ -346,7 +346,6 @@ go_library(
         ":aliases.go",
         ":auth.go",
         ":blobstore.go",
-        ":blobstore_re.go",
         ":blobstore_slicing.go",
         ":blockdevice.go",
         ":builder.go",
@@ -354,6 +353,7 @@ go_library(
         ":cas.go",
         ":cleaner.go",
         ":clock.go",
+        ":clock_re.go",
         ":cloud_aws.go",
         ":completedactionlogger.go",
         ":filesystem.go",

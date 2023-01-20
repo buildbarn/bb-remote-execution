@@ -8,6 +8,14 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/clock"
 )
 
+// Suspendable is an interface type of the methods of SuspendableClock
+// that are used by NewSuspendingBlobAccess() and
+// NewSuspendingDirectoryFetcher().
+type Suspendable interface {
+	Suspend()
+	Resume()
+}
+
 // UnsuspendedDurationKey instances can be provided to Context.Value()
 // to obtain the total amount of time a SuspendableClock associated with
 // the Context object was not suspended, since the creation of the
@@ -30,7 +38,10 @@ type SuspendableClock struct {
 	totalUnsuspended  time.Duration
 }
 
-var _ clock.Clock = &SuspendableClock{}
+var (
+	_ clock.Clock = (*SuspendableClock)(nil)
+	_ Suspendable = (*SuspendableClock)(nil)
+)
 
 // NewSuspendableClock creates a new SuspendableClock.
 //

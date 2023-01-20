@@ -318,7 +318,9 @@ func main() {
 						executionTimeoutClock = suspendableClock
 						buildDirectory = builder.NewVirtualBuildDirectory(
 							virtualBuildDirectory,
-							directoryFetcher,
+							cas.NewSuspendingDirectoryFetcher(
+								directoryFetcher,
+								suspendableClock),
 							re_blobstore.NewSuspendingBlobAccess(
 								contentAddressableStorageWriter,
 								suspendableClock),

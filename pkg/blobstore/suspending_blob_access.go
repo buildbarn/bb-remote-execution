@@ -4,32 +4,26 @@ import (
 	"context"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	"github.com/buildbarn/bb-remote-execution/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/slicing"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 )
 
-// Suspendable object that is used by NewSuspendingBlobAccess().
-// Examples of suspendable objects include SuspendableClock.
-type Suspendable interface {
-	Suspend()
-	Resume()
-}
-
 type suspendingBlobAccess struct {
 	base        blobstore.BlobAccess
-	suspendable Suspendable
+	suspendable clock.Suspendable
 }
 
 // NewSuspendingBlobAccess is a decorator for BlobAccess that simply
 // forwards all methods. Before and after each call, it suspends and
-// resumes a Suspendable object, respectively.
+// resumes a clock.Suspendable object, respectively.
 //
 // This decorator is used in combination with SuspendableClock, allowing
 // FUSE-based workers to compensate the execution timeout of build
 // actions for any time spent downloading the input root.
-func NewSuspendingBlobAccess(base blobstore.BlobAccess, suspendable Suspendable) blobstore.BlobAccess {
+func NewSuspendingBlobAccess(base blobstore.BlobAccess, suspendable clock.Suspendable) blobstore.BlobAccess {
 	return &suspendingBlobAccess{
 		base:        base,
 		suspendable: suspendable,
@@ -72,7 +66,7 @@ func (ba *suspendingBlobAccess) GetCapabilities(ctx context.Context, instanceNam
 }
 
 type resumingErrorHandler struct {
-	suspendable Suspendable
+	suspendable clock.Suspendable
 }
 
 func (eh *resumingErrorHandler) OnError(err error) (buffer.Buffer, error) {
