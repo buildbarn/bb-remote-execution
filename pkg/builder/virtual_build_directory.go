@@ -7,6 +7,7 @@ import (
 
 	"github.com/buildbarn/bb-remote-execution/pkg/cas"
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
+	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/digest"
@@ -85,7 +86,7 @@ func (d *virtualBuildDirectory) InstallHooks(filePool re_filesystem.FilePool, er
 		errorLogger)
 }
 
-func (d *virtualBuildDirectory) MergeDirectoryContents(ctx context.Context, errorLogger util.ErrorLogger, digest digest.Digest) error {
+func (d *virtualBuildDirectory) MergeDirectoryContents(ctx context.Context, errorLogger util.ErrorLogger, digest digest.Digest, monitor access.UnreadDirectoryMonitor) error {
 	initialContentsFetcher := virtual.NewCASInitialContentsFetcher(
 		ctx,
 		cas.NewDecomposedDirectoryWalker(d.options.directoryFetcher, digest),
@@ -97,6 +98,9 @@ func (d *virtualBuildDirectory) MergeDirectoryContents(ctx context.Context, erro
 			d.options.handleAllocator.New()),
 		d.options.symlinkFactory,
 		digest.GetDigestFunction())
+	if monitor != nil {
+		initialContentsFetcher = virtual.NewAccessMonitoringInitialContentsFetcher(initialContentsFetcher, monitor)
+	}
 	children, err := initialContentsFetcher.FetchContents()
 	if err != nil {
 		return err

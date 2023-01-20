@@ -60,7 +60,7 @@ func (a *feedbackDrivenAnalyzer) Analyze(ctx context.Context, digestFunction dig
 	if err != nil {
 		return nil, err
 	}
-	reducedActionDigest, err := blobstore.ISCCGetReducedActionDigest(digestFunction, action)
+	reducedActionDigest, err := blobstore.GetReducedActionDigest(digestFunction, action)
 	if err != nil {
 		return nil, util.StatusWrapWithCode(err, codes.InvalidArgument, "Failed to obtain reduced action digest")
 	}

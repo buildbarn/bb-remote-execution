@@ -91,6 +91,7 @@ func (bc *BuildClient) startExecution(executionRequest *remoteworker.DesiredStat
 		executeResponse := bc.buildExecutor.Execute(
 			ctx,
 			bc.filePool,
+			nil,
 			digestFunction,
 			executionRequest,
 			updates)

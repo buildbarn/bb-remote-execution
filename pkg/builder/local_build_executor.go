@@ -9,6 +9,7 @@ import (
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	re_clock "github.com/buildbarn/bb-remote-execution/pkg/clock"
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
+	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
@@ -107,7 +108,7 @@ func (be *localBuildExecutor) CheckReadiness(ctx context.Context) error {
 	return err
 }
 
-func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 	// Timeout handling.
 	response := NewDefaultExecuteResponse(request)
 	action := request.Action
@@ -175,7 +176,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 			util.StatusWrap(err, "Failed to extract digest for input root"))
 		return response
 	}
-	if err := inputRootDirectory.MergeDirectoryContents(ctx, &ioErrorCapturer, inputRootDigest); err != nil {
+	if err := inputRootDirectory.MergeDirectoryContents(ctx, &ioErrorCapturer, inputRootDigest, monitor); err != nil {
 		attachErrorToExecuteResponse(response, err)
 		return response
 	}

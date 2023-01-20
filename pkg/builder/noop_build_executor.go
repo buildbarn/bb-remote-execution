@@ -8,6 +8,7 @@ import (
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem"
+	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	re_util "github.com/buildbarn/bb-remote-execution/pkg/util"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
@@ -47,7 +48,7 @@ var defaultNoopErrorMessageTemplate = template.Must(
 	template.New("NoopBuildExecutor").
 		Parse("Action has been uploaded, but will not be executed. Action details: {{ .ActionURL }}"))
 
-func (be *noopBuildExecutor) Execute(ctx context.Context, filePool filesystem.FilePool, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+func (be *noopBuildExecutor) Execute(ctx context.Context, filePool filesystem.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 	// Obtain action digest, which can be embedded in the error message.
 	response := NewDefaultExecuteResponse(request)
 	actionDigest, err := digestFunction.NewDigestFromProto(request.ActionDigest)

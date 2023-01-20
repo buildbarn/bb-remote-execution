@@ -7,6 +7,7 @@ import (
 
 	"github.com/buildbarn/bb-remote-execution/pkg/cas"
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
+	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
@@ -130,7 +131,7 @@ func (d *naiveBuildDirectory) mergeDirectoryContents(ctx context.Context, digest
 	return nil
 }
 
-func (d *naiveBuildDirectory) MergeDirectoryContents(ctx context.Context, errorLogger util.ErrorLogger, digest digest.Digest) error {
+func (d *naiveBuildDirectory) MergeDirectoryContents(ctx context.Context, errorLogger util.ErrorLogger, digest digest.Digest, monitor access.UnreadDirectoryMonitor) error {
 	return d.mergeDirectoryContents(ctx, digest, d.DirectoryCloser, nil)
 }
 

@@ -5,6 +5,7 @@ import (
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
+	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 )
@@ -30,8 +31,8 @@ func NewStorageFlushingBuildExecutor(base BuildExecutor, flush StorageFlusher) B
 	}
 }
 
-func (be *storageFlushingBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
-	response := be.BuildExecutor.Execute(ctx, filePool, digestFunction, request, executionStateUpdates)
+func (be *storageFlushingBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+	response := be.BuildExecutor.Execute(ctx, filePool, monitor, digestFunction, request, executionStateUpdates)
 	if err := be.flush(ctx); err != nil {
 		attachErrorToExecuteResponse(response, err)
 

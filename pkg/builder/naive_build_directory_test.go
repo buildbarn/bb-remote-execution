@@ -101,7 +101,8 @@ func TestNaiveBuildDirectorySuccess(t *testing.T) {
 	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
 		errorLogger,
-		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42))
+		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42),
+		nil)
 	require.NoError(t, err)
 }
 
@@ -122,7 +123,8 @@ func TestNaiveBuildDirectoryInputRootNotInStorage(t *testing.T) {
 	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
 		errorLogger,
-		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42))
+		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42),
+		nil)
 	testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to obtain input directory \".\": Storage is offline"), err)
 }
 
@@ -167,7 +169,8 @@ func TestNaiveBuildDirectoryMissingInputDirectoryDigest(t *testing.T) {
 	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
 		errorLogger,
-		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42))
+		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42),
+		nil)
 	testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Failed to extract digest for input directory \"Hello/World\": No digest provided"), err)
 }
 
@@ -217,7 +220,8 @@ func TestNaiveBuildDirectoryDirectoryCreationFailure(t *testing.T) {
 	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
 		errorLogger,
-		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42))
+		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42),
+		nil)
 	testutil.RequireEqualStatus(t, status.Error(codes.DataLoss, "Failed to create input directory \"Hello/World\": Disk on fire"), err)
 }
 
@@ -268,7 +272,8 @@ func TestNaiveBuildDirectoryDirectoryEnterDirectoryFailure(t *testing.T) {
 	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
 		errorLogger,
-		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42))
+		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42),
+		nil)
 	testutil.RequireEqualStatus(t, status.Error(codes.PermissionDenied, "Failed to enter input directory \"Hello/World\": Thou shalt not pass!"), err)
 }
 
@@ -313,7 +318,8 @@ func TestNaiveBuildDirectoryMissingInputFileDigest(t *testing.T) {
 	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
 		errorLogger,
-		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42))
+		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42),
+		nil)
 	testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Failed to extract digest for input file \"Hello/World\": No digest provided"), err)
 }
 
@@ -368,7 +374,8 @@ func TestNaiveBuildDirectoryFileCreationFailure(t *testing.T) {
 	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
 		errorLogger,
-		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42))
+		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42),
+		nil)
 	testutil.RequireEqualStatus(t, status.Error(codes.DataLoss, "Failed to obtain input file \"Hello/World\": Disk on fire"), err)
 }
 
@@ -415,7 +422,8 @@ func TestNaiveBuildDirectorySymlinkCreationFailure(t *testing.T) {
 	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
 		errorLogger,
-		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42))
+		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42),
+		nil)
 	testutil.RequireEqualStatus(t, status.Error(codes.Unimplemented, "Failed to create input symlink \"Hello/World\": This filesystem does not support symbolic links"), err)
 }
 

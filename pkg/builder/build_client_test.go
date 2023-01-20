@@ -93,6 +93,7 @@ func TestBuildClient(t *testing.T) {
 	buildExecutor.EXPECT().Execute(
 		gomock.Any(),
 		filePool,
+		nil,
 		digestFunction,
 		desiredStateExecuting1,
 		gomock.Any(),
@@ -153,6 +154,7 @@ func TestBuildClient(t *testing.T) {
 	buildExecutor.EXPECT().Execute(
 		gomock.Any(),
 		filePool,
+		nil,
 		digestFunction,
 		desiredStateExecuting2,
 		gomock.Any(),

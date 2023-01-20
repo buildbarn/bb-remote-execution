@@ -5,6 +5,7 @@ import (
 	"os"
 
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
+	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
@@ -42,5 +43,5 @@ type BuildDirectory interface {
 	// process is synchronous, this function can return a
 	// synchronous error. If this process is lazy/asynchronous, the
 	// provided ErrorLogger may be used to return an error.
-	MergeDirectoryContents(ctx context.Context, errorLogger util.ErrorLogger, digest digest.Digest) error
+	MergeDirectoryContents(ctx context.Context, errorLogger util.ErrorLogger, digest digest.Digest, monitor access.UnreadDirectoryMonitor) error
 }

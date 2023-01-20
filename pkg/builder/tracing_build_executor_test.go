@@ -8,6 +8,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
+	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
@@ -60,9 +61,10 @@ func TestTracingBuildExecutor(t *testing.T) {
 	// that contains events for each of the execution state updates.
 	ctxWithTracing := mock.NewMockContext(ctrl)
 	filePool := mock.NewMockFilePool(ctrl)
+	monitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
 	digestFunction := digest.MustNewFunction("hello", remoteexecution.DigestFunction_SHA256)
-	baseBuildExecutor.EXPECT().Execute(ctxWithTracing, filePool, digestFunction, testutil.EqProto(t, request), gomock.Any()).DoAndReturn(
-		func(ctx context.Context, filePool re_filesystem.FilePool, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+	baseBuildExecutor.EXPECT().Execute(ctxWithTracing, filePool, monitor, digestFunction, testutil.EqProto(t, request), gomock.Any()).DoAndReturn(
+		func(ctx context.Context, filePool re_filesystem.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 			executionStateUpdates <- fetchingInputs
 			executionStateUpdates <- running
 			executionStateUpdates <- uploadingOutputs
@@ -84,7 +86,7 @@ func TestTracingBuildExecutor(t *testing.T) {
 	span.EXPECT().End()
 
 	executionStateUpdates := make(chan *remoteworker.CurrentState_Executing, 3)
-	testutil.RequireEqualProto(t, response, buildExecutor.Execute(ctx, filePool, digestFunction, request, executionStateUpdates))
+	testutil.RequireEqualProto(t, response, buildExecutor.Execute(ctx, filePool, monitor, digestFunction, request, executionStateUpdates))
 	testutil.RequireEqualProto(t, fetchingInputs, <-executionStateUpdates)
 	testutil.RequireEqualProto(t, running, <-executionStateUpdates)
 	testutil.RequireEqualProto(t, uploadingOutputs, <-executionStateUpdates)

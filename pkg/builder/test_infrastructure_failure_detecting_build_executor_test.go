@@ -25,6 +25,7 @@ func TestTestInfrastructureFailureDetectingBuildExecutor(t *testing.T) {
 
 	// Common values used by the tests below.
 	filePool := mock.NewMockFilePool(ctrl)
+	monitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
 	digestFunction := digest.MustNewFunction("example", remoteexecution.DigestFunction_MD5)
 	var metadata chan<- *remoteworker.CurrentState_Executing = make(chan *remoteworker.CurrentState_Executing, 10)
 	request := &remoteworker.DesiredState_Executing{
@@ -62,8 +63,8 @@ func TestTestInfrastructureFailureDetectingBuildExecutor(t *testing.T) {
 	// failures. As this is still right below the configured limit,
 	// this shouldn't mark the worker in an unhealthy state.
 	for i := 0; i < 4; i++ {
-		baseBuildExecutor.EXPECT().Execute(ctx, filePool, digestFunction, request, metadata).Return(failedResponse)
-		testutil.RequireEqualProto(t, failedResponse, buildExecutor.Execute(ctx, filePool, digestFunction, request, metadata))
+		baseBuildExecutor.EXPECT().Execute(ctx, filePool, monitor, digestFunction, request, metadata).Return(failedResponse)
+		testutil.RequireEqualProto(t, failedResponse, buildExecutor.Execute(ctx, filePool, monitor, digestFunction, request, metadata))
 	}
 
 	baseBuildExecutor.EXPECT().CheckReadiness(ctx)
@@ -71,8 +72,8 @@ func TestTestInfrastructureFailureDetectingBuildExecutor(t *testing.T) {
 
 	// Now reset the counter of consecutive infrastructure failures by
 	// executing a successful test.
-	baseBuildExecutor.EXPECT().Execute(ctx, filePool, digestFunction, request, metadata).Return(successfulResponse)
-	testutil.RequireEqualProto(t, successfulResponse, buildExecutor.Execute(ctx, filePool, digestFunction, request, metadata))
+	baseBuildExecutor.EXPECT().Execute(ctx, filePool, monitor, digestFunction, request, metadata).Return(successfulResponse)
+	testutil.RequireEqualProto(t, successfulResponse, buildExecutor.Execute(ctx, filePool, monitor, digestFunction, request, metadata))
 
 	baseBuildExecutor.EXPECT().CheckReadiness(ctx)
 	require.NoError(t, buildExecutor.CheckReadiness(ctx))
@@ -80,8 +81,8 @@ func TestTestInfrastructureFailureDetectingBuildExecutor(t *testing.T) {
 	// We may once again trigger a number of tests without marking
 	// the worker unhealthy.
 	for i := 0; i < 4; i++ {
-		baseBuildExecutor.EXPECT().Execute(ctx, filePool, digestFunction, request, metadata).Return(failedResponse)
-		testutil.RequireEqualProto(t, failedResponse, buildExecutor.Execute(ctx, filePool, digestFunction, request, metadata))
+		baseBuildExecutor.EXPECT().Execute(ctx, filePool, monitor, digestFunction, request, metadata).Return(failedResponse)
+		testutil.RequireEqualProto(t, failedResponse, buildExecutor.Execute(ctx, filePool, monitor, digestFunction, request, metadata))
 	}
 
 	baseBuildExecutor.EXPECT().CheckReadiness(ctx)
@@ -89,7 +90,7 @@ func TestTestInfrastructureFailureDetectingBuildExecutor(t *testing.T) {
 
 	// Running a fifth failing test should cause the worker to be
 	// marked unhealthy.
-	baseBuildExecutor.EXPECT().Execute(ctx, filePool, digestFunction, request, metadata).Return(failedResponse)
+	baseBuildExecutor.EXPECT().Execute(ctx, filePool, monitor, digestFunction, request, metadata).Return(failedResponse)
 	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			OutputFiles: []*remoteexecution.OutputFile{
@@ -97,7 +98,7 @@ func TestTestInfrastructureFailureDetectingBuildExecutor(t *testing.T) {
 			},
 		},
 		Status: status.New(codes.Unavailable, "Worker is shutting down, as 5 consecutive tests reported an infrastructure failure").Proto(),
-	}, buildExecutor.Execute(ctx, filePool, digestFunction, request, metadata))
+	}, buildExecutor.Execute(ctx, filePool, monitor, digestFunction, request, metadata))
 
 	testutil.RequireEqualStatus(t, status.Error(codes.Unavailable, "Worker has shut down, as 5 consecutive tests reported an infrastructure failure"), buildExecutor.CheckReadiness(ctx))
 }

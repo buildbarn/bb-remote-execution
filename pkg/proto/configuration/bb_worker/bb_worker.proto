@@ -79,6 +79,26 @@ message ApplicationConfiguration {
   // input roots.
   buildbarn.configuration.cas.CachingDirectoryFetcherConfiguration
       directory_cache = 25;
+
+  // Prefetch files from the Content Addressable Storage (CAS), using
+  // profiling data stored in the File System Access Cache (FSAC).
+  //
+  // When using build directories backed by the virtual file system
+  // (FUSE/NFSv4), files and directories stored in the input root are
+  // fetched on demand (i.e., when listing directory contents, or when
+  // calling read() against files). Even though this approach reduces
+  // reads against the CAS to a minimum, it has the downside that CAS
+  // objects are read at a low concurrency. This may lead to poor
+  // execution times for file system intensive operations (e.g., ones
+  // packaging a large number of files stored in the input root), or
+  // when latency of the CAS is high.
+  //
+  // Enabling this option reduces this overhead, by letting the workers
+  // store profiling data into the FSAC. These profiles are reloaded
+  // during future invocations of similar actions, so that files and
+  // directories that are expected to be used are prefetched. This
+  // process takes place in the background, while the action is running.
+  PrefetchingConfiguration prefetching = 26;
 }
 
 message BuildDirectoryConfiguration {
@@ -286,4 +306,63 @@ message CompletedActionLoggingConfiguration {
   // Prefix to add to the instance name that is set as part of
   // CompletedAction messages that are sent to the logging server.
   string add_instance_name_prefix = 3;
+}
+
+message PrefetchingConfiguration {
+  // The File System Access Cache (FSAC) storage backend from which
+  // profiles are read at the start of the action's execution, and to
+  // which profiles are written after the action completes successfully.
+  buildbarn.configuration.blobstore.BlobAccessConfiguration
+      file_system_access_cache = 1;
+
+  // Profiles stored in the File System Access Cache (FSAC) use a Bloom
+  // filter to track which files and directories in the input root are
+  // accessed. As Bloom filters are a probabilistic data structure, they
+  // may return false positives, causing the worker to prefetch too much
+  // data.
+  //
+  // This option determines how many bits of space should be allocated
+  // for each path in the input root that is accessed. Increasing this
+  // value reduces the probability of false positives, at the cost of
+  // making the Bloom filter larger and requiring more iterations per
+  // lookup. Generally acceptable values include:
+  //
+  // -  5 bits per path:    ~10% false positive rate
+  // - 10 bits per path:     ~1% false positive rate
+  // - 14 bits per path:   ~0.1% false positive rate
+  // - 19 bits per path:  ~0.01% false positive rate
+  // - 24 bits per path: ~0.001% false positive rate
+  //
+  // There are many web pages that provide calculators that can assist
+  // you to pick the right value, such as:
+  //
+  // - https://hur.st/bloomfilter/
+  // - https://krisives.github.io/bloom-calculator/
+  // - https://www.di-mgt.com.au/bloom-calculator.html
+  //
+  // Recommended value: 14
+  uint32 bloom_filter_bits_per_path = 2;
+
+  // The maximum size in bytes of Bloom filters stored in the File
+  // System Access Cache (FSAC).
+  //
+  // The size of the Bloom filter is proportional to the number of paths
+  // in the input root that are accessed. As this may put a lot of
+  // pressure on the FSAC for actions that process a large number of
+  // input files, this option can be used to place a hard limit on the
+  // Bloom filter's size. Though this leads to an elevated false
+  // positive rate, this is generally acceptable. It is unlikely that
+  // such actions only process a small fraction of the input root.
+  //
+  // It is recommended to set this to a power of two, as the current
+  // implementation always generates Bloom filters having the largest
+  // prime below powers of two as a size.
+  //
+  // Recommended value: 65536
+  uint32 bloom_filter_maximum_size_bytes = 3;
+
+  // The maximum number of concurrent files to read from the Content
+  // Addressable Storage (CAS) while prefetching. This limit applied to
+  // the worker process as a whole; not individual worker threads.
+  int64 download_concurrency = 4;
 }

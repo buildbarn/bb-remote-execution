@@ -90,6 +90,24 @@ func main() {
 	}
 	globalContentAddressableStorage = re_blobstore.NewExistencePreconditionBlobAccess(globalContentAddressableStorage)
 
+	var prefetchingDownloadConcurrency *semaphore.Weighted
+	var fileSystemAccessCache blobstore.BlobAccess
+	prefetchingConfiguration := configuration.Prefetching
+	if prefetchingConfiguration != nil {
+		info, err := blobstore_configuration.NewBlobAccessFromConfiguration(
+			terminationContext,
+			terminationGroup,
+			prefetchingConfiguration.FileSystemAccessCache,
+			blobstore_configuration.NewFSACBlobAccessCreator(
+				grpcClientFactory,
+				int(configuration.MaximumMessageSizeBytes)))
+		if err != nil {
+			log.Fatal("Failed to create File System Access Cache: ", err)
+		}
+		fileSystemAccessCache = info.BlobAccess
+		prefetchingDownloadConcurrency = semaphore.NewWeighted(prefetchingConfiguration.DownloadConcurrency)
+	}
+
 	// Cached read access for Directory objects stored in the
 	// Content Addressable Storage. All workers make use of the same
 	// cache, to increase the hit rate. This process does not read
@@ -362,18 +380,32 @@ func main() {
 						log.Fatal("Failed to marshal worker ID: ", err)
 					}
 
-					buildExecutor := builder.NewMetricsBuildExecutor(
+					buildExecutor := builder.NewLocalBuildExecutor(
+						contentAddressableStorageWriter,
+						buildDirectoryCreator,
+						runnerClient,
+						executionTimeoutClock,
+						inputRootCharacterDevices,
+						int(configuration.MaximumMessageSizeBytes),
+						runnerConfiguration.EnvironmentVariables)
+
+					if prefetchingConfiguration != nil {
+						buildExecutor = builder.NewPrefetchingBuildExecutor(
+							buildExecutor,
+							globalContentAddressableStorage,
+							directoryFetcher,
+							prefetchingDownloadConcurrency,
+							fileSystemAccessCache,
+							int(configuration.MaximumMessageSizeBytes),
+							int(prefetchingConfiguration.BloomFilterBitsPerPath),
+							int(prefetchingConfiguration.BloomFilterMaximumSizeBytes))
+					}
+
+					buildExecutor = builder.NewMetricsBuildExecutor(
 						builder.NewFilePoolStatsBuildExecutor(
 							builder.NewTimestampedBuildExecutor(
 								builder.NewStorageFlushingBuildExecutor(
-									builder.NewLocalBuildExecutor(
-										contentAddressableStorageWriter,
-										buildDirectoryCreator,
-										runnerClient,
-										executionTimeoutClock,
-										inputRootCharacterDevices,
-										int(configuration.MaximumMessageSizeBytes),
-										runnerConfiguration.EnvironmentVariables),
+									buildExecutor,
 									contentAddressableStorageFlusher),
 								clock.SystemClock,
 								string(workerName))))

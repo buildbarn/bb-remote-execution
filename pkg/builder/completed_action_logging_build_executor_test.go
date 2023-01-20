@@ -32,6 +32,7 @@ func TestActionLoggingBuildExecutor(t *testing.T) {
 		Action:       action,
 	}
 	filePool := mock.NewMockFilePool(ctrl)
+	monitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
 	digestFunction := digest.MustNewFunction("freebsd12", remoteexecution.DigestFunction_SHA256)
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
 
@@ -45,7 +46,7 @@ func TestActionLoggingBuildExecutor(t *testing.T) {
 		},
 	}
 
-	baseBuildExecutor.EXPECT().Execute(ctx, filePool, digestFunction, request, metadata).Return(executeResponse)
+	baseBuildExecutor.EXPECT().Execute(ctx, filePool, monitor, digestFunction, request, metadata).Return(executeResponse)
 
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	lq := mock.NewMockCompletedActionLogger(ctrl)
@@ -68,7 +69,7 @@ func TestActionLoggingBuildExecutor(t *testing.T) {
 		InstanceName:   "prefix/freebsd12",
 		DigestFunction: remoteexecution.DigestFunction_SHA256,
 	})
-	resp := completedActionLoggingBuildExecutor.Execute(ctx, filePool, digestFunction, request, metadata)
+	resp := completedActionLoggingBuildExecutor.Execute(ctx, filePool, monitor, digestFunction, request, metadata)
 
 	testutil.RequireEqualProto(t, resp, executeResponse)
 }

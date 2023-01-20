@@ -3,6 +3,7 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "virtual",
     srcs = [
+        "access_monitoring_initial_contents_fetcher.go",
         "attributes.go",
         "base_symlink_factory.go",
         "blob_access_cas_file_factory.go",
@@ -44,6 +45,7 @@ go_library(
     deps = [
         "//pkg/cas",
         "//pkg/filesystem",
+        "//pkg/filesystem/access",
         "//pkg/proto/outputpathpersistency",
         "//pkg/proto/remoteoutputservice",
         "//pkg/proto/tmp_installer",
@@ -68,6 +70,7 @@ go_library(
 go_test(
     name = "virtual_test",
     srcs = [
+        "access_monitoring_initial_contents_fetcher_test.go",
         "blob_access_cas_file_factory_test.go",
         "byte_range_lock_set_test.go",
         "cas_initial_contents_fetcher_test.go",

@@ -9,6 +9,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem"
+	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage"
 	"github.com/buildbarn/bb-storage/pkg/digest"
@@ -34,12 +35,14 @@ func TestFilePoolStatsBuildExecutorExample(t *testing.T) {
 	// request, generate some I/O on the file pool to produce
 	// non-zero counters.
 	baseBuildExecutor := mock.NewMockBuildExecutor(ctrl)
+	monitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
 	baseBuildExecutor.EXPECT().Execute(
 		ctx,
 		gomock.Any(),
+		monitor,
 		digest.MustNewFunction("hello", remoteexecution.DigestFunction_MD5),
 		request,
-		gomock.Any()).DoAndReturn(func(ctx context.Context, filePool filesystem.FilePool, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+		gomock.Any()).DoAndReturn(func(ctx context.Context, filePool filesystem.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 		f, err := filePool.NewFile()
 		require.NoError(t, err)
 		require.NoError(t, f.Truncate(5))
@@ -72,6 +75,7 @@ func TestFilePoolStatsBuildExecutorExample(t *testing.T) {
 	executeResponse := buildExecutor.Execute(
 		ctx,
 		filesystem.InMemoryFilePool,
+		monitor,
 		digest.MustNewFunction("hello", remoteexecution.DigestFunction_MD5),
 		request,
 		executionStateUpdates)

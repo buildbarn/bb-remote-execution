@@ -1,0 +1,34 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "access",
+    srcs = [
+        "bloom_filter_computing_monitor.go",
+        "bloom_filter_reader.go",
+        "monitor.go",
+        "path_hashes.go",
+    ],
+    importpath = "github.com/buildbarn/bb-remote-execution/pkg/filesystem/access",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+    ],
+)
+
+go_test(
+    name = "access_test",
+    srcs = [
+        "bloom_filter_computing_monitor_test.go",
+        "bloom_filter_reader_test.go",
+    ],
+    deps = [
+        ":access",
+        "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
+        "@com_github_buildbarn_bb_storage//pkg/testutil",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+    ],
+)

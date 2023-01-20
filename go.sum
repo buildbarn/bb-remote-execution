@@ -93,8 +93,8 @@ github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24
 github.com/beorn7/perks v1.0.0/go.mod h1:KWe93zE9D1o94FZ5RNwFwVgaQK1VOXiVxmqh+CedLV8=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
-github.com/buildbarn/bb-storage v0.0.0-20230119153358-2d0d7ee15967 h1:ECMFWLCNXHqbdUV3ep/tWgrfD7lX5r9L7psPViSG+j4=
-github.com/buildbarn/bb-storage v0.0.0-20230119153358-2d0d7ee15967/go.mod h1:gtxZgDcX4HMgHapbitu4T9zPaDCkB/yHfjiV5N+FM68=
+github.com/buildbarn/bb-storage v0.0.0-20230120132704-98063ef6edfa h1:8lAJzgIi2RZZZ6krt8FHgrwn9onvdvRZd07J20Xk+hQ=
+github.com/buildbarn/bb-storage v0.0.0-20230120132704-98063ef6edfa/go.mod h1:gtxZgDcX4HMgHapbitu4T9zPaDCkB/yHfjiV5N+FM68=
 github.com/buildbarn/go-xdr v0.0.0-20230105161020-895955dd8771 h1:rzRKWaTY4sGlmtAkzU6mw0eeuWgihwwydVVYS89x4Ek=
 github.com/buildbarn/go-xdr v0.0.0-20230105161020-895955dd8771/go.mod h1:VwInghBSUyPtNBhl7o2oCUnxOCTGgySJnRTO1Kh7XuI=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=

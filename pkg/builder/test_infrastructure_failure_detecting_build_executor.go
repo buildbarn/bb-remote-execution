@@ -7,6 +7,7 @@ import (
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem"
+	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 
@@ -51,8 +52,8 @@ func (be *testInfrastructureFailureDetectingBuildExecutor) CheckReadiness(ctx co
 	return be.base.CheckReadiness(ctx)
 }
 
-func (be *testInfrastructureFailureDetectingBuildExecutor) Execute(ctx context.Context, filePool filesystem.FilePool, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
-	response := be.base.Execute(ctx, filePool, digestFunction, request, executionStateUpdates)
+func (be *testInfrastructureFailureDetectingBuildExecutor) Execute(ctx context.Context, filePool filesystem.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+	response := be.base.Execute(ctx, filePool, monitor, digestFunction, request, executionStateUpdates)
 
 	// Check for the existence of TEST_INFRASTRUCTURE_FAILURE_FILE.
 	//

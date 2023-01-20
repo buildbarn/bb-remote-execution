@@ -152,6 +152,17 @@ gomock(
 )
 
 gomock(
+    name = "filesystem_access",
+    out = "filesystem_access.go",
+    interfaces = [
+        "ReadDirectoryMonitor",
+        "UnreadDirectoryMonitor",
+    ],
+    library = "//pkg/filesystem/access",
+    package = "mock",
+)
+
+gomock(
     name = "filesystem_re",
     out = "filesystem_re.go",
     interfaces = [
@@ -357,6 +368,7 @@ go_library(
         ":cloud_aws.go",
         ":completedactionlogger.go",
         ":filesystem.go",
+        ":filesystem_access.go",
         ":filesystem_re.go",
         ":filesystem_virtual.go",
         ":grpc_go.go",
@@ -389,6 +401,7 @@ go_library(
         "//pkg/cas",
         "//pkg/cleaner",
         "//pkg/filesystem",
+        "//pkg/filesystem/access",
         "//pkg/filesystem/virtual",
         "//pkg/proto/buildqueuestate",
         "//pkg/proto/cas",

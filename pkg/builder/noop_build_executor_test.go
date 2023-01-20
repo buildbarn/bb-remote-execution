@@ -35,6 +35,7 @@ func TestNoopBuildExecutor(t *testing.T) {
 		// The client needs to provide an Action digest, so that
 		// this BuildExecutor can generate a link to bb_browser.
 		filePool := mock.NewMockFilePool(ctrl)
+		monitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
 		testutil.RequireEqualProto(
 			t,
 			&remoteexecution.ExecuteResponse{
@@ -46,6 +47,7 @@ func TestNoopBuildExecutor(t *testing.T) {
 			buildExecutor.Execute(
 				ctx,
 				filePool,
+				monitor,
 				digest.MustNewFunction("build", remoteexecution.DigestFunction_MD5),
 				&remoteworker.DesiredState_Executing{},
 				make(chan *remoteworker.CurrentState_Executing, 10)))
@@ -53,6 +55,7 @@ func TestNoopBuildExecutor(t *testing.T) {
 
 	t.Run("InvalidActionDigest", func(t *testing.T) {
 		filePool := mock.NewMockFilePool(ctrl)
+		monitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
 		testutil.RequireEqualProto(
 			t,
 			&remoteexecution.ExecuteResponse{
@@ -64,6 +67,7 @@ func TestNoopBuildExecutor(t *testing.T) {
 			buildExecutor.Execute(
 				ctx,
 				filePool,
+				monitor,
 				digest.MustNewFunction("build", remoteexecution.DigestFunction_MD5),
 				&remoteworker.DesiredState_Executing{
 					ActionDigest: &remoteexecution.Digest{
@@ -93,6 +97,7 @@ func TestNoopBuildExecutor(t *testing.T) {
 				},
 			}, buffer.UserProvided))
 		filePool := mock.NewMockFilePool(ctrl)
+		monitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
 		testutil.RequireEqualProto(
 			t,
 			&remoteexecution.ExecuteResponse{
@@ -104,6 +109,7 @@ func TestNoopBuildExecutor(t *testing.T) {
 			buildExecutor.Execute(
 				ctx,
 				filePool,
+				monitor,
 				digest.MustNewFunction("build", remoteexecution.DigestFunction_SHA256),
 				&remoteworker.DesiredState_Executing{
 					ActionDigest: &remoteexecution.Digest{
@@ -126,6 +132,7 @@ func TestNoopBuildExecutor(t *testing.T) {
 		contentAddressableStorage.EXPECT().Get(ctx, digest.MustNewDigest("build", remoteexecution.DigestFunction_SHA256, "d134371fd7573f7ef77c90e907c8bfaf95f34b82ac8503dbed5e062fb6fe4702", 200)).
 			Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{}, buffer.UserProvided))
 		filePool := mock.NewMockFilePool(ctrl)
+		monitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
 		testutil.RequireEqualProto(
 			t,
 			&remoteexecution.ExecuteResponse{
@@ -137,6 +144,7 @@ func TestNoopBuildExecutor(t *testing.T) {
 			buildExecutor.Execute(
 				ctx,
 				filePool,
+				monitor,
 				digest.MustNewFunction("build", remoteexecution.DigestFunction_SHA256),
 				&remoteworker.DesiredState_Executing{
 					ActionDigest: &remoteexecution.Digest{
@@ -170,6 +178,7 @@ func TestNoopBuildExecutor(t *testing.T) {
 				},
 			}, buffer.UserProvided))
 		filePool := mock.NewMockFilePool(ctrl)
+		monitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
 		testutil.RequireEqualProto(
 			t,
 			&remoteexecution.ExecuteResponse{
@@ -181,6 +190,7 @@ func TestNoopBuildExecutor(t *testing.T) {
 			buildExecutor.Execute(
 				ctx,
 				filePool,
+				monitor,
 				digest.MustNewFunction("build", remoteexecution.DigestFunction_SHA256),
 				&remoteworker.DesiredState_Executing{
 					ActionDigest: &remoteexecution.Digest{

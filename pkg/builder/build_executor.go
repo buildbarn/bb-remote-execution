@@ -5,6 +5,7 @@ import (
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem"
+	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 
@@ -37,6 +38,10 @@ func attachErrorToExecuteResponse(response *remoteexecution.ExecuteResponse, err
 	}
 }
 
+func executeResponseIsSuccessful(response *remoteexecution.ExecuteResponse) bool {
+	return status.ErrorProto(response.Status) == nil && response.Result.ExitCode == 0
+}
+
 // GetResultAndGRPCCodeFromExecuteResponse converts an ExecuteResponse
 // to a pair of strings that describe the execution outcome. These
 // strings can be used as part of metrics labels.
@@ -61,5 +66,5 @@ func GetResultAndGRPCCodeFromExecuteResponse(response *remoteexecution.ExecuteRe
 // requests and yield an execute response.
 type BuildExecutor interface {
 	CheckReadiness(ctx context.Context) error
-	Execute(ctx context.Context, filePool filesystem.FilePool, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse
+	Execute(ctx context.Context, filePool filesystem.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse
 }

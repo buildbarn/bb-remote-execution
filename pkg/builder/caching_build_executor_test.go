@@ -36,9 +36,10 @@ func TestCachingBuildExecutorCachedSuccess(t *testing.T) {
 		Action:       action,
 	}
 	filePool := mock.NewMockFilePool(ctrl)
+	monitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
 	digestFunction := digest.MustNewFunction("freebsd12", remoteexecution.DigestFunction_SHA256)
 	var metadata chan<- *remoteworker.CurrentState_Executing = make(chan *remoteworker.CurrentState_Executing, 10)
-	baseBuildExecutor.EXPECT().Execute(ctx, filePool, digestFunction, request, metadata).Return(&remoteexecution.ExecuteResponse{
+	baseBuildExecutor.EXPECT().Execute(ctx, filePool, monitor, digestFunction, request, metadata).Return(&remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			StdoutRaw: []byte("Hello, world!"),
 		},
@@ -63,7 +64,7 @@ func TestCachingBuildExecutorCachedSuccess(t *testing.T) {
 		Path:   "/some/sub/directory",
 	})
 
-	executeResponse := cachingBuildExecutor.Execute(ctx, filePool, digestFunction, request, metadata)
+	executeResponse := cachingBuildExecutor.Execute(ctx, filePool, monitor, digestFunction, request, metadata)
 	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			StdoutRaw: []byte("Hello, world!"),
@@ -87,9 +88,10 @@ func TestCachingBuildExecutorCachedSuccessExplicitOK(t *testing.T) {
 		Action:       action,
 	}
 	filePool := mock.NewMockFilePool(ctrl)
+	monitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
 	digestFunction := digest.MustNewFunction("freebsd12", remoteexecution.DigestFunction_SHA256)
 	var metadata chan<- *remoteworker.CurrentState_Executing = make(chan *remoteworker.CurrentState_Executing, 10)
-	baseBuildExecutor.EXPECT().Execute(ctx, filePool, digestFunction, request, metadata).Return(&remoteexecution.ExecuteResponse{
+	baseBuildExecutor.EXPECT().Execute(ctx, filePool, monitor, digestFunction, request, metadata).Return(&remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			StdoutRaw: []byte("Hello, world!"),
 		},
@@ -115,7 +117,7 @@ func TestCachingBuildExecutorCachedSuccessExplicitOK(t *testing.T) {
 		Path:   "/some/sub/directory",
 	})
 
-	executeResponse := cachingBuildExecutor.Execute(ctx, filePool, digestFunction, request, metadata)
+	executeResponse := cachingBuildExecutor.Execute(ctx, filePool, monitor, digestFunction, request, metadata)
 	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			StdoutRaw: []byte("Hello, world!"),
@@ -145,9 +147,10 @@ func TestCachingBuildExecutorCachedSuccessNonZeroExitCode(t *testing.T) {
 		Action:       action,
 	}
 	filePool := mock.NewMockFilePool(ctrl)
+	monitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
 	digestFunction := digest.MustNewFunction("freebsd12", remoteexecution.DigestFunction_SHA256)
 	var metadata chan<- *remoteworker.CurrentState_Executing = make(chan *remoteworker.CurrentState_Executing, 10)
-	baseBuildExecutor.EXPECT().Execute(ctx, filePool, digestFunction, request, metadata).Return(&remoteexecution.ExecuteResponse{
+	baseBuildExecutor.EXPECT().Execute(ctx, filePool, monitor, digestFunction, request, metadata).Return(&remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			ExitCode:  127,
 			StderrRaw: []byte("Compiler error!"),
@@ -182,7 +185,7 @@ func TestCachingBuildExecutorCachedSuccessNonZeroExitCode(t *testing.T) {
 		Path:   "/some/sub/directory",
 	})
 
-	executeResponse := cachingBuildExecutor.Execute(ctx, filePool, digestFunction, request, metadata)
+	executeResponse := cachingBuildExecutor.Execute(ctx, filePool, monitor, digestFunction, request, metadata)
 	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			ExitCode:  127,
@@ -207,9 +210,10 @@ func TestCachingBuildExecutorCachedStorageFailure(t *testing.T) {
 		Action:       action,
 	}
 	filePool := mock.NewMockFilePool(ctrl)
+	monitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
 	digestFunction := digest.MustNewFunction("freebsd12", remoteexecution.DigestFunction_SHA256)
 	var metadata chan<- *remoteworker.CurrentState_Executing = make(chan *remoteworker.CurrentState_Executing, 10)
-	baseBuildExecutor.EXPECT().Execute(ctx, filePool, digestFunction, request, metadata).Return(&remoteexecution.ExecuteResponse{
+	baseBuildExecutor.EXPECT().Execute(ctx, filePool, monitor, digestFunction, request, metadata).Return(&remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			StdoutRaw: []byte("Hello, world!"),
 		},
@@ -234,7 +238,7 @@ func TestCachingBuildExecutorCachedStorageFailure(t *testing.T) {
 		Path:   "/",
 	})
 
-	executeResponse := cachingBuildExecutor.Execute(ctx, filePool, digestFunction, request, metadata)
+	executeResponse := cachingBuildExecutor.Execute(ctx, filePool, monitor, digestFunction, request, metadata)
 	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			StdoutRaw: []byte("Hello, world!"),
@@ -258,9 +262,10 @@ func TestCachingBuildExecutorUncachedDoNotCache(t *testing.T) {
 		Action:       action,
 	}
 	filePool := mock.NewMockFilePool(ctrl)
+	monitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
 	digestFunction := digest.MustNewFunction("freebsd12", remoteexecution.DigestFunction_SHA256)
 	var metadata chan<- *remoteworker.CurrentState_Executing = make(chan *remoteworker.CurrentState_Executing, 10)
-	baseBuildExecutor.EXPECT().Execute(ctx, filePool, digestFunction, request, metadata).Return(&remoteexecution.ExecuteResponse{
+	baseBuildExecutor.EXPECT().Execute(ctx, filePool, monitor, digestFunction, request, metadata).Return(&remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			StdoutRaw: []byte("Hello, world!"),
 		},
@@ -293,7 +298,7 @@ func TestCachingBuildExecutorUncachedDoNotCache(t *testing.T) {
 		Path:   "/some/sub/directory/",
 	})
 
-	executeResponse := cachingBuildExecutor.Execute(ctx, filePool, digestFunction, request, metadata)
+	executeResponse := cachingBuildExecutor.Execute(ctx, filePool, monitor, digestFunction, request, metadata)
 	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			StdoutRaw: []byte("Hello, world!"),
@@ -317,9 +322,10 @@ func TestCachingBuildExecutorUncachedError(t *testing.T) {
 		Action:       action,
 	}
 	filePool := mock.NewMockFilePool(ctrl)
+	monitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
 	digestFunction := digest.MustNewFunction("freebsd12", remoteexecution.DigestFunction_SHA256)
 	var metadata chan<- *remoteworker.CurrentState_Executing = make(chan *remoteworker.CurrentState_Executing, 10)
-	baseBuildExecutor.EXPECT().Execute(ctx, filePool, digestFunction, request, metadata).Return(&remoteexecution.ExecuteResponse{
+	baseBuildExecutor.EXPECT().Execute(ctx, filePool, monitor, digestFunction, request, metadata).Return(&remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			StdoutRaw: []byte("Compiling..."),
 		},
@@ -354,7 +360,7 @@ func TestCachingBuildExecutorUncachedError(t *testing.T) {
 		Path:   "/some/sub/directory/",
 	})
 
-	executeResponse := cachingBuildExecutor.Execute(ctx, filePool, digestFunction, request, metadata)
+	executeResponse := cachingBuildExecutor.Execute(ctx, filePool, monitor, digestFunction, request, metadata)
 	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			StdoutRaw: []byte("Compiling..."),
@@ -379,9 +385,10 @@ func TestCachingBuildExecutorUncachedStorageFailure(t *testing.T) {
 		Action:       action,
 	}
 	filePool := mock.NewMockFilePool(ctrl)
+	monitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
 	digestFunction := digest.MustNewFunction("freebsd12", remoteexecution.DigestFunction_SHA256)
 	var metadata chan<- *remoteworker.CurrentState_Executing = make(chan *remoteworker.CurrentState_Executing, 10)
-	baseBuildExecutor.EXPECT().Execute(ctx, filePool, digestFunction, request, metadata).Return(&remoteexecution.ExecuteResponse{
+	baseBuildExecutor.EXPECT().Execute(ctx, filePool, monitor, digestFunction, request, metadata).Return(&remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			StdoutRaw: []byte("Compiling..."),
 		},
@@ -416,7 +423,7 @@ func TestCachingBuildExecutorUncachedStorageFailure(t *testing.T) {
 		Path:   "/some/sub/directory/",
 	})
 
-	executeResponse := cachingBuildExecutor.Execute(ctx, filePool, digestFunction, request, metadata)
+	executeResponse := cachingBuildExecutor.Execute(ctx, filePool, monitor, digestFunction, request, metadata)
 	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			StdoutRaw: []byte("Compiling..."),

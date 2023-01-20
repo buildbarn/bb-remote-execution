@@ -6,6 +6,7 @@ import (
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
+	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage"
 	"github.com/buildbarn/bb-storage/pkg/digest"
@@ -29,9 +30,9 @@ func NewFilePoolStatsBuildExecutor(buildExecutor BuildExecutor) BuildExecutor {
 	}
 }
 
-func (be *filePoolStatsBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+func (be *filePoolStatsBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 	fp := statsCollectingFilePool{base: filePool}
-	response := be.BuildExecutor.Execute(ctx, &fp, digestFunction, request, executionStateUpdates)
+	response := be.BuildExecutor.Execute(ctx, &fp, monitor, digestFunction, request, executionStateUpdates)
 
 	fp.lock.Lock()
 	stats := fp.stats
