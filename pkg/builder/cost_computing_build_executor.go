@@ -30,8 +30,8 @@ func NewCostComputingBuildExecutor(base BuildExecutor, expensesPerSecond map[str
 	}
 }
 
-func (be *costComputingBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, instanceName digest.InstanceName, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
-	response := be.BuildExecutor.Execute(ctx, filePool, instanceName, request, executionStateUpdates)
+func (be *costComputingBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+	response := be.BuildExecutor.Execute(ctx, filePool, digestFunction, request, executionStateUpdates)
 
 	totalTime := response.Result.ExecutionMetadata.WorkerCompletedTimestamp.AsTime().Sub(response.Result.ExecutionMetadata.WorkerStartTimestamp.AsTime()).Seconds()
 	costsPerSecond := resourceusage.MonetaryResourceUsage{

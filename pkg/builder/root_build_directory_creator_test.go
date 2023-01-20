@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
 	"github.com/buildbarn/bb-storage/pkg/digest"
@@ -25,7 +26,7 @@ func TestRootBuildDirectoryCreator(t *testing.T) {
 	mockBuildDirectory.EXPECT().Mkdir(path.MustNewComponent("hello"), os.FileMode(0o700))
 	buildDirectory, buildDirectoryPath, err := buildDirectoryCreator.GetBuildDirectory(
 		ctx,
-		digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
+		digest.MustNewDigest("debian8", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 		true)
 	require.NoError(t, err)
 	require.Nil(t, buildDirectoryPath)
@@ -37,7 +38,7 @@ func TestRootBuildDirectoryCreator(t *testing.T) {
 	mockBuildDirectory.EXPECT().Mkdir(path.MustNewComponent("world"), os.FileMode(0o700))
 	buildDirectory, buildDirectoryPath, err = buildDirectoryCreator.GetBuildDirectory(
 		ctx,
-		digest.MustNewDigest("freebsd", "7609128715518308672067aab169e24944ead24e3d732aab8a8f0b7013a65564", 5),
+		digest.MustNewDigest("freebsd", remoteexecution.DigestFunction_SHA256, "7609128715518308672067aab169e24944ead24e3d732aab8a8f0b7013a65564", 5),
 		true)
 	require.NoError(t, err)
 	require.Nil(t, buildDirectoryPath)

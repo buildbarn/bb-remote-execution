@@ -92,7 +92,7 @@ func (ar *DemultiplexingActionRouter) RegisterActionRouter(instanceNamePrefix di
 // provided to NewDemultiplexingActionRouter() or
 // RegisterActionRouter().
 func (ar *DemultiplexingActionRouter) RouteAction(ctx context.Context, digestFunction digest.Function, action *remoteexecution.Action, requestMetadata *remoteexecution.RequestMetadata) (platform.Key, []invocation.Key, initialsizeclass.Selector, error) {
-	key, err := ar.platformKeyExtractor.ExtractKey(ctx, digestFunction.GetInstanceName(), action)
+	key, err := ar.platformKeyExtractor.ExtractKey(ctx, digestFunction, action)
 	if err != nil {
 		return platform.Key{}, nil, nil, util.StatusWrap(err, "Failed to extract platform key")
 	}

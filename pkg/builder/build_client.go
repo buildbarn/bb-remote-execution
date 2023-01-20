@@ -71,6 +71,11 @@ func (bc *BuildClient) startExecution(executionRequest *remoteworker.DesiredStat
 	if err != nil {
 		return util.StatusWrapf(err, "Invalid instance name suffix %#v", executionRequest.InstanceNameSuffix)
 	}
+	digestFunction, err := bc.instanceNamePatcher.PatchInstanceName(instanceNameSuffix).
+		GetDigestFunction(executionRequest.DigestFunction, len(executionRequest.ActionDigest.GetHash()))
+	if err != nil {
+		return err
+	}
 
 	bc.stopExecution()
 
@@ -86,7 +91,7 @@ func (bc *BuildClient) startExecution(executionRequest *remoteworker.DesiredStat
 		executeResponse := bc.buildExecutor.Execute(
 			ctx,
 			bc.filePool,
-			bc.instanceNamePatcher.PatchInstanceName(instanceNameSuffix),
+			digestFunction,
 			executionRequest,
 			updates)
 		updates <- &remoteworker.CurrentState_Executing{

@@ -22,7 +22,7 @@ func TestSuspendingBlobAccess(t *testing.T) {
 	suspendable := mock.NewMockSuspendable(ctrl)
 	blobAccess := blobstore.NewSuspendingBlobAccess(baseBlobAccess, suspendable)
 
-	exampleDigest := digest.MustNewDigest("hello", "8b1a9953c4611296a827abf8c47804d7", 5)
+	exampleDigest := digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "8b1a9953c4611296a827abf8c47804d7", 5)
 	exampleInstanceName := digest.MustNewInstanceName("hello")
 
 	t.Run("Get", func(t *testing.T) {
@@ -47,7 +47,7 @@ func TestSuspendingBlobAccess(t *testing.T) {
 	})
 
 	t.Run("GetFromComposite", func(t *testing.T) {
-		llDigest := digest.MustNewDigest("hello", "5b54c0a045f179bcbbbc9abcb8b5cd4c", 2)
+		llDigest := digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "5b54c0a045f179bcbbbc9abcb8b5cd4c", 2)
 		blobSlicer := mock.NewMockBlobSlicer(ctrl)
 		r := mock.NewMockReadCloser(ctrl)
 		gomock.InOrder(

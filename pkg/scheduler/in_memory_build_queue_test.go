@@ -102,14 +102,14 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 		})
 		require.NoError(t, err)
 		_, err = stream.Recv()
-		testutil.RequireEqualStatus(t, err, status.Error(codes.InvalidArgument, "Failed to extract digest for action: Unknown digest hash length: 24 characters"))
+		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Unknown digest function"), err)
 	})
 
 	// Action cannot be found in the Content Addressable Storage (CAS).
 	t.Run("MissingAction", func(t *testing.T) {
 		contentAddressableStorage.EXPECT().Get(
 			gomock.Any(),
-			digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+			digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
 		).Return(buffer.NewBufferFromError(status.Error(codes.FailedPrecondition, "Blob not found")))
 
 		stream, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
@@ -131,7 +131,7 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 	t.Run("UnknownPlatformSoft", func(t *testing.T) {
 		contentAddressableStorage.EXPECT().Get(
 			gomock.Any(),
-			digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+			digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
 		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
 			CommandDigest: &remoteexecution.Digest{
 				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
@@ -166,7 +166,7 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 	t.Run("UnknownPlatformHard", func(t *testing.T) {
 		contentAddressableStorage.EXPECT().Get(
 			gomock.Any(),
-			digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+			digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
 		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
 			CommandDigest: &remoteexecution.Digest{
 				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
@@ -204,7 +204,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		contentAddressableStorage.EXPECT().Get(
 			gomock.Any(),
-			digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+			digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
 		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
 			CommandDigest: &remoteexecution.Digest{
 				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
@@ -319,6 +319,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Executing_{
 				Executing: &remoteworker.DesiredState_Executing{
+					DigestFunction: remoteexecution.DigestFunction_SHA1,
 					ActionDigest: &remoteexecution.Digest{
 						Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
 						SizeBytes: 123,
@@ -511,7 +512,7 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		contentAddressableStorage.EXPECT().Get(
 			gomock.Any(),
-			digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+			digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
 		).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
 	}
 	clock := mock.NewMockClock(ctrl)
@@ -677,6 +678,7 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 				InvocationName:   invocationName,
 				ExpectedDuration: &durationpb.Duration{Seconds: 900},
 				QueuedTimestamp:  &timestamppb.Timestamp{Seconds: 1070},
+				DigestFunction:   remoteexecution.DigestFunction_SHA1,
 				ActionDigest: &remoteexecution.Digest{
 					Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
 					SizeBytes: 123,
@@ -717,6 +719,7 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 				InvocationName:   invocationName,
 				ExpectedDuration: &durationpb.Duration{Seconds: 900},
 				QueuedTimestamp:  &timestamppb.Timestamp{Seconds: 1070},
+				DigestFunction:   remoteexecution.DigestFunction_SHA1,
 				ActionDigest: &remoteexecution.Digest{
 					Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
 					SizeBytes: 123,
@@ -754,7 +757,7 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	contentAddressableStorage.EXPECT().Get(
 		gomock.Any(),
-		digest.MustNewDigest("main/suffix", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+		digest.MustNewDigest("main/suffix", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
 	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
 		CommandDigest: &remoteexecution.Digest{
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
@@ -871,6 +874,7 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 			DesiredState: &remoteworker.DesiredState{
 				WorkerState: &remoteworker.DesiredState_Executing_{
 					Executing: &remoteworker.DesiredState_Executing{
+						DigestFunction: remoteexecution.DigestFunction_SHA1,
 						ActionDigest: &remoteexecution.Digest{
 							Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
 							SizeBytes: 123,
@@ -974,7 +978,7 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	contentAddressableStorage.EXPECT().Get(
 		gomock.Any(),
-		digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+		digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
 	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
 		CommandDigest: &remoteexecution.Digest{
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
@@ -1084,6 +1088,7 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Executing_{
 				Executing: &remoteworker.DesiredState_Executing{
+					DigestFunction: remoteexecution.DigestFunction_SHA1,
 					ActionDigest: &remoteexecution.Digest{
 						Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
 						SizeBytes: 123,
@@ -1236,7 +1241,7 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	contentAddressableStorage.EXPECT().Get(
 		gomock.Any(),
-		digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+		digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
 	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
 		CommandDigest: &remoteexecution.Digest{
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
@@ -1508,6 +1513,7 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Executing_{
 				Executing: &remoteworker.DesiredState_Executing{
+					DigestFunction: remoteexecution.DigestFunction_SHA1,
 					ActionDigest: &remoteexecution.Digest{
 						Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
 						SizeBytes: 123,
@@ -1624,7 +1630,7 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 	for i, p := range operationParameters {
 		contentAddressableStorage.EXPECT().Get(
 			gomock.Any(),
-			digest.MustNewDigest("main", p.actionHash, 123),
+			digest.MustNewDigest("main", remoteexecution.DigestFunction_MD5, p.actionHash, 123),
 		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
 			CommandDigest: &remoteexecution.Digest{
 				Hash:      p.commandHash,
@@ -1795,6 +1801,7 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 			DesiredState: &remoteworker.DesiredState{
 				WorkerState: &remoteworker.DesiredState_Executing_{
 					Executing: &remoteworker.DesiredState_Executing{
+						DigestFunction: remoteexecution.DigestFunction_MD5,
 						ActionDigest: &remoteexecution.Digest{
 							Hash:      p.actionHash,
 							SizeBytes: 123,
@@ -2002,7 +2009,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonQueued(t *testing.T) {
 	for i, p := range operationParameters {
 		contentAddressableStorage.EXPECT().Get(
 			gomock.Any(),
-			digest.MustNewDigest("main", "fc96ea0eee854b45950d3a7448332445730886691b992cb7917da0853664f7c2", 123),
+			digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA256, "fc96ea0eee854b45950d3a7448332445730886691b992cb7917da0853664f7c2", 123),
 		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
 			CommandDigest: &remoteexecution.Digest{
 				Hash:      "f7a3ac7c17e535bc9b54ab13dbbb95a52ca1f1edaf9503ce23ccb3eca331a4f5",
@@ -2193,7 +2200,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 	for i, p := range operationParameters {
 		contentAddressableStorage.EXPECT().Get(
 			gomock.Any(),
-			digest.MustNewDigest("main", "fc96ea0eee854b45950d3a7448332445730886691b992cb7917da0853664f7c2", 123),
+			digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA256, "fc96ea0eee854b45950d3a7448332445730886691b992cb7917da0853664f7c2", 123),
 		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
 			CommandDigest: &remoteexecution.Digest{
 				Hash:      "f7a3ac7c17e535bc9b54ab13dbbb95a52ca1f1edaf9503ce23ccb3eca331a4f5",
@@ -2301,6 +2308,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Executing_{
 				Executing: &remoteworker.DesiredState_Executing{
+					DigestFunction: remoteexecution.DigestFunction_SHA256,
 					ActionDigest: &remoteexecution.Digest{
 						Hash:      "fc96ea0eee854b45950d3a7448332445730886691b992cb7917da0853664f7c2",
 						SizeBytes: 123,
@@ -2406,7 +2414,7 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 	// Let a client enqueue an operation.
 	contentAddressableStorage.EXPECT().Get(
 		gomock.Any(),
-		digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+		digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
 	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
 		CommandDigest: &remoteexecution.Digest{
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
@@ -2493,6 +2501,7 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Executing_{
 				Executing: &remoteworker.DesiredState_Executing{
+					DigestFunction: remoteexecution.DigestFunction_SHA1,
 					ActionDigest: &remoteexecution.Digest{
 						Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
 						SizeBytes: 123,
@@ -2668,7 +2677,7 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 	// the smaller size class.
 	contentAddressableStorage.EXPECT().Get(
 		gomock.Any(),
-		digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+		digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
 	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
 		CommandDigest: &remoteexecution.Digest{
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
@@ -2738,6 +2747,7 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Executing_{
 				Executing: &remoteworker.DesiredState_Executing{
+					DigestFunction: remoteexecution.DigestFunction_SHA1,
 					ActionDigest: &remoteexecution.Digest{
 						Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
 						SizeBytes: 123,
@@ -2858,6 +2868,7 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Executing_{
 				Executing: &remoteworker.DesiredState_Executing{
+					DigestFunction: remoteexecution.DigestFunction_SHA1,
 					ActionDigest: &remoteexecution.Digest{
 						Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
 						SizeBytes: 123,
@@ -3020,7 +3031,7 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 	// schedule on the largest size class.
 	contentAddressableStorage.EXPECT().Get(
 		gomock.Any(),
-		digest.MustNewDigest("main", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+		digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
 	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
 		CommandDigest: &remoteexecution.Digest{
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
@@ -3090,6 +3101,7 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Executing_{
 				Executing: &remoteworker.DesiredState_Executing{
+					DigestFunction: remoteexecution.DigestFunction_SHA1,
 					ActionDigest: &remoteexecution.Digest{
 						Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
 						SizeBytes: 123,
@@ -3220,6 +3232,7 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Executing_{
 				Executing: &remoteworker.DesiredState_Executing{
+					DigestFunction: remoteexecution.DigestFunction_SHA1,
 					ActionDigest: &remoteexecution.Digest{
 						Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
 						SizeBytes: 123,
@@ -3348,7 +3361,7 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 
 	contentAddressableStorage.EXPECT().Get(
 		gomock.Any(),
-		digest.MustNewDigest("", "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+		digest.MustNewDigest("", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
 	).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided)).AnyTimes()
 
 	// Create a worker that does a blocking Synchronize() call
@@ -3415,6 +3428,7 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Executing_{
 				Executing: &remoteworker.DesiredState_Executing{
+					DigestFunction:  remoteexecution.DigestFunction_SHA1,
 					ActionDigest:    actionDigest,
 					Action:          action,
 					QueuedTimestamp: &timestamppb.Timestamp{Seconds: 1001},
@@ -3572,6 +3586,7 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Executing_{
 				Executing: &remoteworker.DesiredState_Executing{
+					DigestFunction:  remoteexecution.DigestFunction_SHA1,
 					ActionDigest:    actionDigest,
 					Action:          action,
 					QueuedTimestamp: &timestamppb.Timestamp{Seconds: 1005},
@@ -3685,6 +3700,7 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 		DesiredState: &remoteworker.DesiredState{
 			WorkerState: &remoteworker.DesiredState_Executing_{
 				Executing: &remoteworker.DesiredState_Executing{
+					DigestFunction:  remoteexecution.DigestFunction_SHA1,
 					ActionDigest:    actionDigest,
 					Action:          action,
 					QueuedTimestamp: &timestamppb.Timestamp{Seconds: 1008},
@@ -3750,7 +3766,7 @@ func TestInMemoryBuildQueueWorkerInvocationStickinessLimit(t *testing.T) {
 		}
 		contentAddressableStorage.EXPECT().Get(
 			gomock.Any(),
-			digest.MustNewDigest("", "0474d2f48968a56da4de20718d8ac23aafd80709", 123),
+			digest.MustNewDigest("", remoteexecution.DigestFunction_SHA1, "0474d2f48968a56da4de20718d8ac23aafd80709", 123),
 		).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
 		requestMetadata := &remoteexecution.RequestMetadata{
 			ToolInvocationId: p.toolInvocationID,
@@ -3831,6 +3847,7 @@ func TestInMemoryBuildQueueWorkerInvocationStickinessLimit(t *testing.T) {
 			DesiredState: &remoteworker.DesiredState{
 				WorkerState: &remoteworker.DesiredState_Executing_{
 					Executing: &remoteworker.DesiredState_Executing{
+						DigestFunction: remoteexecution.DigestFunction_SHA1,
 						ActionDigest: &remoteexecution.Digest{
 							Hash:      "0474d2f48968a56da4de20718d8ac23aafd80709",
 							SizeBytes: 123,
@@ -3979,7 +3996,7 @@ func TestInMemoryBuildQueueAuthorization(t *testing.T) {
 
 		contentAddressableStorage.EXPECT().Get(
 			gomock.Any(),
-			digest.MustNewDigest("beepboop", "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
+			digest.MustNewDigest("beepboop", remoteexecution.DigestFunction_SHA1, "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
 		).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
 
 		initialSizeClassSelector := mock.NewMockSelector(ctrl)
@@ -4082,7 +4099,7 @@ func TestInMemoryBuildQueueNestedInvocationsSynchronization(t *testing.T) {
 		}
 		contentAddressableStorage.EXPECT().Get(
 			gomock.Any(),
-			digest.MustNewDigest("", "0474d2f48968a56da4de20718d8ac23aafd80709", 123),
+			digest.MustNewDigest("", remoteexecution.DigestFunction_SHA1, "0474d2f48968a56da4de20718d8ac23aafd80709", 123),
 		).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
 		toolInvocationID := &remoteexecution.RequestMetadata{
 			ToolInvocationId: p.toolInvocationID,
@@ -4150,7 +4167,8 @@ func TestInMemoryBuildQueueNestedInvocationsSynchronization(t *testing.T) {
 			DesiredState: &remoteworker.DesiredState{
 				WorkerState: &remoteworker.DesiredState_Executing_{
 					Executing: &remoteworker.DesiredState_Executing{
-						ActionDigest: actionDigest,
+						DigestFunction: remoteexecution.DigestFunction_SHA1,
+						ActionDigest:   actionDigest,
 						Action: &remoteexecution.Action{
 							DoNotCache: true,
 							CommandDigest: &remoteexecution.Digest{

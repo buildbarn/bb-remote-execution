@@ -31,13 +31,13 @@ func TestCostComputingBuildExecutorSuccess(t *testing.T) {
 		Action:       action,
 	}
 	filePool := mock.NewMockFilePool(ctrl)
-	instanceName := digest.MustNewInstanceName("freebsd12")
+	digestFunction := digest.MustNewFunction("freebsd12", remoteexecution.DigestFunction_SHA256)
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
 
 	startTime := &timestamppb.Timestamp{Nanos: 0}
 	endTime := &timestamppb.Timestamp{Seconds: 1, Nanos: 500000000}
 
-	baseBuildExecutor.EXPECT().Execute(ctx, filePool, instanceName, request, metadata).Return(&remoteexecution.ExecuteResponse{
+	baseBuildExecutor.EXPECT().Execute(ctx, filePool, digestFunction, request, metadata).Return(&remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
 				WorkerStartTimestamp:     startTime,
@@ -63,7 +63,7 @@ func TestCostComputingBuildExecutorSuccess(t *testing.T) {
 		"Maintenance": {Currency: "JPY", Cost: 0.12},
 	})
 
-	executeResponse := costComputingBuildExecutor.Execute(ctx, filePool, instanceName, request, metadata)
+	executeResponse := costComputingBuildExecutor.Execute(ctx, filePool, digestFunction, request, metadata)
 	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{

@@ -23,10 +23,10 @@ func TestActionAndCommandKeyExtractor(t *testing.T) {
 
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	keyExtractor := platform.NewActionAndCommandKeyExtractor(contentAddressableStorage, 1024*1024)
-	instanceName := digest.MustNewInstanceName("hello")
+	digestFunction := digest.MustNewFunction("hello", remoteexecution.DigestFunction_MD5)
 
 	t.Run("ActionInvalidProperties", func(t *testing.T) {
-		_, err := keyExtractor.ExtractKey(ctx, instanceName, &remoteexecution.Action{
+		_, err := keyExtractor.ExtractKey(ctx, digestFunction, &remoteexecution.Action{
 			Platform: &remoteexecution.Platform{
 				Properties: []*remoteexecution.Platform_Property{
 					{Name: "os", Value: "linux"},
@@ -38,7 +38,7 @@ func TestActionAndCommandKeyExtractor(t *testing.T) {
 	})
 
 	t.Run("ActionSuccess", func(t *testing.T) {
-		key, err := keyExtractor.ExtractKey(ctx, instanceName, &remoteexecution.Action{
+		key, err := keyExtractor.ExtractKey(ctx, digestFunction, &remoteexecution.Action{
 			Platform: &remoteexecution.Platform{
 				Properties: []*remoteexecution.Platform_Property{
 					{Name: "arch", Value: "aarch64"},
@@ -59,7 +59,7 @@ func TestActionAndCommandKeyExtractor(t *testing.T) {
 	})
 
 	t.Run("CommandInvalidDigest", func(t *testing.T) {
-		_, err := keyExtractor.ExtractKey(ctx, instanceName, &remoteexecution.Action{
+		_, err := keyExtractor.ExtractKey(ctx, digestFunction, &remoteexecution.Action{
 			CommandDigest: &remoteexecution.Digest{
 				Hash:      "4216455ceebbc3038bd0550c85b6a3bf",
 				SizeBytes: -1,
@@ -69,10 +69,10 @@ func TestActionAndCommandKeyExtractor(t *testing.T) {
 	})
 
 	t.Run("CommandStorageFailure", func(t *testing.T) {
-		contentAddressableStorage.EXPECT().Get(ctx, digest.MustNewDigest("hello", "4216455ceebbc3038bd0550c85b6a3bf", 123)).
+		contentAddressableStorage.EXPECT().Get(ctx, digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "4216455ceebbc3038bd0550c85b6a3bf", 123)).
 			Return(buffer.NewBufferFromError(status.Error(codes.Internal, "Cannot establish network connection")))
 
-		_, err := keyExtractor.ExtractKey(ctx, instanceName, &remoteexecution.Action{
+		_, err := keyExtractor.ExtractKey(ctx, digestFunction, &remoteexecution.Action{
 			CommandDigest: &remoteexecution.Digest{
 				Hash:      "4216455ceebbc3038bd0550c85b6a3bf",
 				SizeBytes: 123,
@@ -82,7 +82,7 @@ func TestActionAndCommandKeyExtractor(t *testing.T) {
 	})
 
 	t.Run("CommandInvalidProperties", func(t *testing.T) {
-		contentAddressableStorage.EXPECT().Get(ctx, digest.MustNewDigest("hello", "4216455ceebbc3038bd0550c85b6a3bf", 123)).
+		contentAddressableStorage.EXPECT().Get(ctx, digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "4216455ceebbc3038bd0550c85b6a3bf", 123)).
 			Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
 				Platform: &remoteexecution.Platform{
 					Properties: []*remoteexecution.Platform_Property{
@@ -92,7 +92,7 @@ func TestActionAndCommandKeyExtractor(t *testing.T) {
 				},
 			}, buffer.UserProvided))
 
-		_, err := keyExtractor.ExtractKey(ctx, instanceName, &remoteexecution.Action{
+		_, err := keyExtractor.ExtractKey(ctx, digestFunction, &remoteexecution.Action{
 			CommandDigest: &remoteexecution.Digest{
 				Hash:      "4216455ceebbc3038bd0550c85b6a3bf",
 				SizeBytes: 123,
@@ -102,7 +102,7 @@ func TestActionAndCommandKeyExtractor(t *testing.T) {
 	})
 
 	t.Run("CommandSuccess", func(t *testing.T) {
-		contentAddressableStorage.EXPECT().Get(ctx, digest.MustNewDigest("hello", "4216455ceebbc3038bd0550c85b6a3bf", 123)).
+		contentAddressableStorage.EXPECT().Get(ctx, digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "4216455ceebbc3038bd0550c85b6a3bf", 123)).
 			Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
 				Platform: &remoteexecution.Platform{
 					Properties: []*remoteexecution.Platform_Property{
@@ -112,7 +112,7 @@ func TestActionAndCommandKeyExtractor(t *testing.T) {
 				},
 			}, buffer.UserProvided))
 
-		key, err := keyExtractor.ExtractKey(ctx, instanceName, &remoteexecution.Action{
+		key, err := keyExtractor.ExtractKey(ctx, digestFunction, &remoteexecution.Action{
 			CommandDigest: &remoteexecution.Digest{
 				Hash:      "4216455ceebbc3038bd0550c85b6a3bf",
 				SizeBytes: 123,
@@ -134,10 +134,10 @@ func TestActionAndCommandKeyExtractor(t *testing.T) {
 		// If no platform object is, assume the empty set of
 		// platform properties. Clients such as BuildStream are
 		// known for not providing them.
-		contentAddressableStorage.EXPECT().Get(ctx, digest.MustNewDigest("hello", "4216455ceebbc3038bd0550c85b6a3bf", 123)).
+		contentAddressableStorage.EXPECT().Get(ctx, digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "4216455ceebbc3038bd0550c85b6a3bf", 123)).
 			Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{}, buffer.UserProvided))
 
-		key, err := keyExtractor.ExtractKey(ctx, instanceName, &remoteexecution.Action{
+		key, err := keyExtractor.ExtractKey(ctx, digestFunction, &remoteexecution.Action{
 			CommandDigest: &remoteexecution.Digest{
 				Hash:      "4216455ceebbc3038bd0550c85b6a3bf",
 				SizeBytes: 123,

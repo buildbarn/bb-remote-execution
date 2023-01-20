@@ -63,9 +63,9 @@ func TestTimestampedBuildExecutorExample(t *testing.T) {
 	baseBuildExecutor.EXPECT().Execute(
 		ctx,
 		filePool,
-		digest.MustNewInstanceName("main"),
+		digest.MustNewFunction("main", remoteexecution.DigestFunction_MD5),
 		request,
-		gomock.Any()).DoAndReturn(func(ctx context.Context, filePool filesystem.FilePool, instanceName digest.InstanceName, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+		gomock.Any()).DoAndReturn(func(ctx context.Context, filePool filesystem.FilePool, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 		clock.EXPECT().Now().Return(time.Unix(1001, 0))
 		executionStateUpdates <- updateFetchingInputs
 		clock.EXPECT().Now().Return(time.Unix(1002, 0))
@@ -89,7 +89,7 @@ func TestTimestampedBuildExecutorExample(t *testing.T) {
 	executeResponse := buildExecutor.Execute(
 		ctx,
 		filePool,
-		digest.MustNewInstanceName("main"),
+		digest.MustNewFunction("main", remoteexecution.DigestFunction_MD5),
 		request,
 		executionStateUpdates)
 

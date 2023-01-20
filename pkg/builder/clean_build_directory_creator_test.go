@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
 	"github.com/buildbarn/bb-remote-execution/pkg/cleaner"
@@ -32,7 +33,7 @@ func TestCleanBuildDirectoryCreator(t *testing.T) {
 
 		_, _, err := buildDirectoryCreator.GetBuildDirectory(
 			ctx,
-			digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
+			digest.MustNewDigest("debian8", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 			false)
 		testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to clean before acquiring build directory: Cannot remove files from build directory"), err)
 	})
@@ -45,14 +46,14 @@ func TestCleanBuildDirectoryCreator(t *testing.T) {
 		baseCleaner.EXPECT().Call(ctx)
 		baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(
 			ctx,
-			digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
+			digest.MustNewDigest("debian8", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 			false,
 		).Return(nil, nil, status.Error(codes.Internal, "No space left on device"))
 		baseCleaner.EXPECT().Call(ctx)
 
 		_, _, err := buildDirectoryCreator.GetBuildDirectory(
 			ctx,
-			digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
+			digest.MustNewDigest("debian8", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 			false)
 		require.Equal(t, status.Error(codes.Internal, "No space left on device"), err)
 	})
@@ -63,13 +64,13 @@ func TestCleanBuildDirectoryCreator(t *testing.T) {
 		baseBuildDirectory := mock.NewMockBuildDirectory(ctrl)
 		baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(
 			ctx,
-			digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
+			digest.MustNewDigest("debian8", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 			false,
 		).Return(baseBuildDirectory, ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory")), nil)
 
 		buildDirectory, buildDirectoryPath, err := buildDirectoryCreator.GetBuildDirectory(
 			ctx,
-			digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
+			digest.MustNewDigest("debian8", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 			false)
 		require.NoError(t, err)
 		require.Equal(t, ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory")), buildDirectoryPath)
@@ -98,13 +99,13 @@ func TestCleanBuildDirectoryCreator(t *testing.T) {
 		baseBuildDirectory := mock.NewMockBuildDirectory(ctrl)
 		baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(
 			ctx,
-			digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
+			digest.MustNewDigest("debian8", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 			false,
 		).Return(baseBuildDirectory, ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory")), nil)
 
 		buildDirectory, buildDirectoryPath, err := buildDirectoryCreator.GetBuildDirectory(
 			ctx,
-			digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
+			digest.MustNewDigest("debian8", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 			false)
 		require.NoError(t, err)
 		require.Equal(t, ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory")), buildDirectoryPath)
@@ -126,13 +127,13 @@ func TestCleanBuildDirectoryCreator(t *testing.T) {
 		baseBuildDirectory := mock.NewMockBuildDirectory(ctrl)
 		baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(
 			ctx,
-			digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
+			digest.MustNewDigest("debian8", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 			false,
 		).Return(baseBuildDirectory, ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory")), nil)
 
 		buildDirectory, buildDirectoryPath, err := buildDirectoryCreator.GetBuildDirectory(
 			ctx,
-			digest.MustNewDigest("debian8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
+			digest.MustNewDigest("debian8", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
 			false)
 		require.NoError(t, err)
 		require.Equal(t, ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory")), buildDirectoryPath)

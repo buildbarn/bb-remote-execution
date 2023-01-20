@@ -48,7 +48,7 @@ var (
 			}
 			return s
 		},
-		"action_url": func(browserURL *url.URL, instanceNamePrefix, instanceNameSuffix string, actionDigest *remoteexecution.Digest) string {
+		"action_url": func(browserURL *url.URL, instanceNamePrefix, instanceNameSuffix string, digestFunctionValue remoteexecution.DigestFunction_Value, actionDigest *remoteexecution.Digest) string {
 			iPrefix, err := digest.NewInstanceName(instanceNamePrefix)
 			if err != nil {
 				return ""
@@ -57,8 +57,13 @@ var (
 			if err != nil {
 				return ""
 			}
-			instanceName := digest.NewInstanceNamePatcher(digest.EmptyInstanceName, iPrefix).PatchInstanceName(iSuffix)
-			d, err := instanceName.NewDigestFromProto(actionDigest)
+			digestFunction, err := digest.NewInstanceNamePatcher(digest.EmptyInstanceName, iPrefix).
+				PatchInstanceName(iSuffix).
+				GetDigestFunction(digestFunctionValue, 0)
+			if err != nil {
+				return ""
+			}
+			d, err := digestFunction.NewDigestFromProto(actionDigest)
 			if err != nil {
 				return ""
 			}

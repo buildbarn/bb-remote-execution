@@ -5,6 +5,7 @@ import (
 	"io"
 	"testing"
 
+	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual"
 	"github.com/buildbarn/bb-storage/pkg/digest"
@@ -22,7 +23,7 @@ func TestStatelessHandleAllocatingCASFileFactory(t *testing.T) {
 	casFileFactory := virtual.NewStatelessHandleAllocatingCASFileFactory(baseCASFileFactory, handleAllocation)
 
 	t.Run("NotExecutable", func(t *testing.T) {
-		blobDigest := digest.MustNewDigest("hello", "bc126902a442931481d7f89552a41b1891cf06dd8d3675062eede66d104d97b4", 123)
+		blobDigest := digest.MustNewDigest("hello", remoteexecution.DigestFunction_SHA256, "bc126902a442931481d7f89552a41b1891cf06dd8d3675062eede66d104d97b4", 123)
 		underlyingLeaf := mock.NewMockNativeLeaf(ctrl)
 		baseCASFileFactory.EXPECT().LookupFile(blobDigest, false).Return(underlyingLeaf)
 		wrappedLeaf := mock.NewMockNativeLeaf(ctrl)
@@ -31,12 +32,12 @@ func TestStatelessHandleAllocatingCASFileFactory(t *testing.T) {
 			idBuf := bytes.NewBuffer(nil)
 			n, err := id.WriteTo(idBuf)
 			require.NoError(t, err)
-			require.Equal(t, int64(76), n)
+			require.Equal(t, int64(78), n)
 			require.Equal(t, []byte(
 				// Length of digest.
-				"\x4a"+
+				"\x4c"+
 					// Digest.
-					"bc126902a442931481d7f89552a41b1891cf06dd8d3675062eede66d104d97b4-123-hello"+
+					"1-bc126902a442931481d7f89552a41b1891cf06dd8d3675062eede66d104d97b4-123-hello"+
 					// Executable flag.
 					"\x00"), idBuf.Bytes())
 			return leafHandleAllocation
@@ -47,7 +48,7 @@ func TestStatelessHandleAllocatingCASFileFactory(t *testing.T) {
 	})
 
 	t.Run("Executable", func(t *testing.T) {
-		blobDigest := digest.MustNewDigest("foobar", "c8a4ddfcd3a5a0caf4cc1d64883df421", 456)
+		blobDigest := digest.MustNewDigest("foobar", remoteexecution.DigestFunction_MD5, "c8a4ddfcd3a5a0caf4cc1d64883df421", 456)
 		underlyingLeaf := mock.NewMockNativeLeaf(ctrl)
 		baseCASFileFactory.EXPECT().LookupFile(blobDigest, true).Return(underlyingLeaf)
 		wrappedLeaf := mock.NewMockNativeLeaf(ctrl)
@@ -56,12 +57,12 @@ func TestStatelessHandleAllocatingCASFileFactory(t *testing.T) {
 			idBuf := bytes.NewBuffer(nil)
 			n, err := id.WriteTo(idBuf)
 			require.NoError(t, err)
-			require.Equal(t, int64(45), n)
+			require.Equal(t, int64(47), n)
 			require.Equal(t, []byte(
 				// Length of digest.
-				"\x2b"+
+				"\x2d"+
 					// Digest.
-					"c8a4ddfcd3a5a0caf4cc1d64883df421-456-foobar"+
+					"3-c8a4ddfcd3a5a0caf4cc1d64883df421-456-foobar"+
 					// Executable flag.
 					"\x01"), idBuf.Bytes())
 			return leafHandleAllocation

@@ -96,7 +96,7 @@ func (d *virtualBuildDirectory) MergeDirectoryContents(ctx context.Context, erro
 				errorLogger),
 			d.options.handleAllocator.New()),
 		d.options.symlinkFactory,
-		digest.GetInstanceName())
+		digest.GetDigestFunction())
 	children, err := initialContentsFetcher.FetchContents()
 	if err != nil {
 		return err

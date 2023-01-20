@@ -187,6 +187,9 @@ message OperationState {
   // ExecuteRequest.instance_name that are not part of the
   // PlatformQueueName's instance_name_prefix.
   string instance_name_suffix = 13;
+
+  // The digest function that was used to compute the action digest.
+  build.bazel.remote.execution.v2.DigestFunction.Value digest_function = 15;
 }
 
 message SizeClassQueueState {

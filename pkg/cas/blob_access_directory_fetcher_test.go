@@ -26,7 +26,7 @@ func TestBlobAccessDirectoryFetcherGetDirectory(t *testing.T) {
 
 	t.Run("IOError", func(t *testing.T) {
 		// Failures reading the Directory object should be propagated.
-		directoryDigest := digest.MustNewDigest("example", "756b15c8f94b519e96135dcfde0e58c5", 50)
+		directoryDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "756b15c8f94b519e96135dcfde0e58c5", 50)
 
 		r := mock.NewMockFileReader(ctrl)
 		r.EXPECT().ReadAt(gomock.Any(), gomock.Any()).Return(0, status.Error(codes.Internal, "I/O error"))
@@ -40,7 +40,7 @@ func TestBlobAccessDirectoryFetcherGetDirectory(t *testing.T) {
 	t.Run("InvalidDirectory", func(t *testing.T) {
 		// It is only valid to call GetDirectory() against an
 		// REv2 Directory object.
-		directoryDigest := digest.MustNewDigest("example", "764b0da73352b970cfbfc488a0f54934", 30)
+		directoryDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "764b0da73352b970cfbfc488a0f54934", 30)
 
 		blobAccess.EXPECT().Get(ctx, directoryDigest).Return(buffer.NewValidatedBufferFromByteSlice([]byte("This is not a Directory object")))
 
@@ -49,7 +49,7 @@ func TestBlobAccessDirectoryFetcherGetDirectory(t *testing.T) {
 	})
 
 	t.Run("Success", func(t *testing.T) {
-		directoryDigest := digest.MustNewDigest("example", "f5f634611dd11ccba54c7b9d9607c3c2", 100)
+		directoryDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "f5f634611dd11ccba54c7b9d9607c3c2", 100)
 		exampleDirectory := &remoteexecution.Directory{
 			Files: []*remoteexecution.FileNode{
 				{
@@ -77,13 +77,13 @@ func TestBlobAccessDirectoryFetcherGetTreeRootDirectory(t *testing.T) {
 	directoryFetcher := cas.NewBlobAccessDirectoryFetcher(blobAccess, 1000, 10000)
 
 	t.Run("TooBig", func(t *testing.T) {
-		_, err := directoryFetcher.GetTreeRootDirectory(ctx, digest.MustNewDigest("example", "f5f634611dd11ccba54c7b9d9607c3c2", 100000))
+		_, err := directoryFetcher.GetTreeRootDirectory(ctx, digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "f5f634611dd11ccba54c7b9d9607c3c2", 100000))
 		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Tree exceeds the maximum permitted size of 10000 bytes"), err)
 	})
 
 	t.Run("IOError", func(t *testing.T) {
 		// Failures reading the Tree object should be propagated.
-		treeDigest := digest.MustNewDigest("example", "756b15c8f94b519e96135dcfde0e58c5", 50)
+		treeDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "756b15c8f94b519e96135dcfde0e58c5", 50)
 
 		r := mock.NewMockFileReader(ctrl)
 		r.EXPECT().ReadAt(gomock.Any(), gomock.Any()).Return(0, status.Error(codes.Internal, "I/O error")).AnyTimes()
@@ -97,7 +97,7 @@ func TestBlobAccessDirectoryFetcherGetTreeRootDirectory(t *testing.T) {
 	t.Run("InvalidDirectory", func(t *testing.T) {
 		// It is only valid to call GetTreeRootDirectory()
 		// against an REv2 Tree object.
-		treeDigest := digest.MustNewDigest("example", "3478477ca0af085e8d676f9a53b095cb", 25)
+		treeDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "3478477ca0af085e8d676f9a53b095cb", 25)
 
 		blobAccess.EXPECT().Get(ctx, treeDigest).Return(buffer.NewValidatedBufferFromByteSlice([]byte("This is not a Tree object")))
 
@@ -107,7 +107,7 @@ func TestBlobAccessDirectoryFetcherGetTreeRootDirectory(t *testing.T) {
 
 	t.Run("MissingRootDirectory", func(t *testing.T) {
 		// Malformed Tree objects may not have a root directory.
-		treeDigest := digest.MustNewDigest("example", "f5f634611dd11ccba54c7b9d9607c3c2", 100)
+		treeDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "f5f634611dd11ccba54c7b9d9607c3c2", 100)
 
 		blobAccess.EXPECT().Get(ctx, treeDigest).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Tree{}, buffer.UserProvided))
 
@@ -116,7 +116,7 @@ func TestBlobAccessDirectoryFetcherGetTreeRootDirectory(t *testing.T) {
 	})
 
 	t.Run("Success", func(t *testing.T) {
-		treeDigest := digest.MustNewDigest("example", "f5f634611dd11ccba54c7b9d9607c3c2", 100)
+		treeDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "f5f634611dd11ccba54c7b9d9607c3c2", 100)
 		exampleDirectory := &remoteexecution.Directory{
 			Files: []*remoteexecution.FileNode{
 				{
@@ -148,15 +148,15 @@ func TestBlobAccessDirectoryFetcherGetTreeChildDirectory(t *testing.T) {
 	t.Run("TooBig", func(t *testing.T) {
 		_, err := directoryFetcher.GetTreeChildDirectory(
 			ctx,
-			digest.MustNewDigest("example", "5959bc9570aa7909a09163bb2201f4af", 100000),
-			digest.MustNewDigest("example", "2c09e7b2ad516c4cd9fc5c244ae08794", 100))
+			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "5959bc9570aa7909a09163bb2201f4af", 100000),
+			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "2c09e7b2ad516c4cd9fc5c244ae08794", 100))
 		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Tree exceeds the maximum permitted size of 10000 bytes"), err)
 	})
 
 	t.Run("IOError", func(t *testing.T) {
 		// Failures reading the Tree object should be propagated.
-		treeDigest := digest.MustNewDigest("example", "40d8f0c70941162ee9dfacf8863d23f5", 100)
-		directoryDigest := digest.MustNewDigest("example", "756b15c8f94b519e96135dcfde0e58c5", 50)
+		treeDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "40d8f0c70941162ee9dfacf8863d23f5", 100)
+		directoryDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "756b15c8f94b519e96135dcfde0e58c5", 50)
 
 		r := mock.NewMockFileReader(ctrl)
 		r.EXPECT().ReadAt(gomock.Any(), gomock.Any()).Return(0, status.Error(codes.Internal, "I/O error")).AnyTimes()
@@ -179,8 +179,8 @@ func TestBlobAccessDirectoryFetcherGetTreeChildDirectory(t *testing.T) {
 	t.Run("InvalidTree", func(t *testing.T) {
 		// It is only valid to call GetTreeChildDirectory()
 		// against an REv2 Tree object.
-		treeDigest := digest.MustNewDigest("example", "3478477ca0af085e8d676f9a53b095cb", 25)
-		directoryDigest := digest.MustNewDigest("example", "f297d724d679d79d577d46c79fd4d712", 10)
+		treeDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "3478477ca0af085e8d676f9a53b095cb", 25)
+		directoryDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "f297d724d679d79d577d46c79fd4d712", 10)
 
 		blobAccess.EXPECT().GetFromComposite(ctx, treeDigest, directoryDigest, gomock.Any()).
 			DoAndReturn(func(ctx context.Context, treeDigest, childDigest digest.Digest, slicer slicing.BlobSlicer) buffer.Buffer {
@@ -240,9 +240,9 @@ func TestBlobAccessDirectoryFetcherGetTreeChildDirectory(t *testing.T) {
 				directory2,
 			},
 		}
-		treeDigest := digest.MustNewDigest("example", "ed56cd683c99acdff14b77db249819fc", 162)
-		directory1Digest := digest.MustNewDigest("example", "5eede3f7e2a1a66c06ffd3906115a55b", 54)
-		directory2Digest := digest.MustNewDigest("example", "a7536a0ebdeefa48280e135ea77755f0", 51)
+		treeDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "ed56cd683c99acdff14b77db249819fc", 162)
+		directory1Digest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "5eede3f7e2a1a66c06ffd3906115a55b", 54)
+		directory2Digest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "a7536a0ebdeefa48280e135ea77755f0", 51)
 
 		blobAccess.EXPECT().GetFromComposite(ctx, treeDigest, gomock.Any(), gomock.Any()).
 			DoAndReturn(func(ctx context.Context, treeDigest, childDigest digest.Digest, slicer slicing.BlobSlicer) buffer.Buffer {
@@ -282,7 +282,7 @@ func TestBlobAccessDirectoryFetcherGetTreeChildDirectory(t *testing.T) {
 		_, err = directoryFetcher.GetTreeChildDirectory(
 			ctx,
 			treeDigest,
-			digest.MustNewDigest("example", "cb572cb90e637d1eb64c5358aa398b5e", 400))
+			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "cb572cb90e637d1eb64c5358aa398b5e", 400))
 		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Requested child directory is not contained in the tree"), err)
 	})
 }

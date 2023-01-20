@@ -46,7 +46,7 @@ func TestNoopBuildExecutor(t *testing.T) {
 			buildExecutor.Execute(
 				ctx,
 				filePool,
-				digest.MustNewInstanceName("build"),
+				digest.MustNewFunction("build", remoteexecution.DigestFunction_MD5),
 				&remoteworker.DesiredState_Executing{},
 				make(chan *remoteworker.CurrentState_Executing, 10)))
 	})
@@ -59,12 +59,12 @@ func TestNoopBuildExecutor(t *testing.T) {
 				Result: &remoteexecution.ActionResult{
 					ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
 				},
-				Status: status.New(codes.InvalidArgument, "Failed to extract digest for action: Unknown digest hash length: 24 characters").Proto(),
+				Status: status.New(codes.InvalidArgument, "Failed to extract digest for action: Hash has length 24, while 32 characters were expected").Proto(),
 			},
 			buildExecutor.Execute(
 				ctx,
 				filePool,
-				digest.MustNewInstanceName("build"),
+				digest.MustNewFunction("build", remoteexecution.DigestFunction_MD5),
 				&remoteworker.DesiredState_Executing{
 					ActionDigest: &remoteexecution.Digest{
 						Hash:      "This is not a valid hash",
@@ -83,7 +83,7 @@ func TestNoopBuildExecutor(t *testing.T) {
 	t.Run("InvalidTemplate", func(t *testing.T) {
 		// If an invalid template is provided in the
 		// environment, parsing it should fail.
-		contentAddressableStorage.EXPECT().Get(ctx, digest.MustNewDigest("build", "7f53aed4b5489c487be514dd88d3314d966e19b84bc766a972d82246ee6f494f", 150)).
+		contentAddressableStorage.EXPECT().Get(ctx, digest.MustNewDigest("build", remoteexecution.DigestFunction_SHA256, "7f53aed4b5489c487be514dd88d3314d966e19b84bc766a972d82246ee6f494f", 150)).
 			Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
 				EnvironmentVariables: []*remoteexecution.Command_EnvironmentVariable{
 					{
@@ -104,7 +104,7 @@ func TestNoopBuildExecutor(t *testing.T) {
 			buildExecutor.Execute(
 				ctx,
 				filePool,
-				digest.MustNewInstanceName("build"),
+				digest.MustNewFunction("build", remoteexecution.DigestFunction_SHA256),
 				&remoteworker.DesiredState_Executing{
 					ActionDigest: &remoteexecution.Digest{
 						Hash:      "4e3fbcd2916efea4cc61d57b4a097df2b467e6b2207f6e242457a8705c5dc689",
@@ -123,7 +123,7 @@ func TestNoopBuildExecutor(t *testing.T) {
 	t.Run("SuccessDefaultTemplate", func(t *testing.T) {
 		// If no template is provided in the environment
 		// variables, then a default template should be used.
-		contentAddressableStorage.EXPECT().Get(ctx, digest.MustNewDigest("build", "d134371fd7573f7ef77c90e907c8bfaf95f34b82ac8503dbed5e062fb6fe4702", 200)).
+		contentAddressableStorage.EXPECT().Get(ctx, digest.MustNewDigest("build", remoteexecution.DigestFunction_SHA256, "d134371fd7573f7ef77c90e907c8bfaf95f34b82ac8503dbed5e062fb6fe4702", 200)).
 			Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{}, buffer.UserProvided))
 		filePool := mock.NewMockFilePool(ctrl)
 		testutil.RequireEqualProto(
@@ -132,12 +132,12 @@ func TestNoopBuildExecutor(t *testing.T) {
 				Result: &remoteexecution.ActionResult{
 					ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
 				},
-				Status: status.New(codes.InvalidArgument, "Action has been uploaded, but will not be executed. Action details: http://example.com/some/sub/directory/build/blobs/action/4b3f66e160293a393a1fe2dd13721368c944d949e11f97985a893a5b76877346-123/").Proto(),
+				Status: status.New(codes.InvalidArgument, "Action has been uploaded, but will not be executed. Action details: http://example.com/some/sub/directory/build/blobs/sha256/action/4b3f66e160293a393a1fe2dd13721368c944d949e11f97985a893a5b76877346-123/").Proto(),
 			},
 			buildExecutor.Execute(
 				ctx,
 				filePool,
-				digest.MustNewInstanceName("build"),
+				digest.MustNewFunction("build", remoteexecution.DigestFunction_SHA256),
 				&remoteworker.DesiredState_Executing{
 					ActionDigest: &remoteexecution.Digest{
 						Hash:      "4b3f66e160293a393a1fe2dd13721368c944d949e11f97985a893a5b76877346",
@@ -156,7 +156,7 @@ func TestNoopBuildExecutor(t *testing.T) {
 	t.Run("SuccessCustomTemplate", func(t *testing.T) {
 		// If a custom template is provided in the environment,
 		// it should be preferred over the default template.
-		contentAddressableStorage.EXPECT().Get(ctx, digest.MustNewDigest("build", "9da17cb226048f5bb3e6a20311b551e73ce8ac0d408e69e737d28a8f3179d0ce", 300)).
+		contentAddressableStorage.EXPECT().Get(ctx, digest.MustNewDigest("build", remoteexecution.DigestFunction_SHA256, "9da17cb226048f5bb3e6a20311b551e73ce8ac0d408e69e737d28a8f3179d0ce", 300)).
 			Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
 				EnvironmentVariables: []*remoteexecution.Command_EnvironmentVariable{
 					{
@@ -176,12 +176,12 @@ func TestNoopBuildExecutor(t *testing.T) {
 				Result: &remoteexecution.ActionResult{
 					ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
 				},
-				Status: status.New(codes.InvalidArgument, "Please visit http://example.com/some/sub/directory/build/blobs/action/e1497d75baa26b50b71b14086d1553586e817385670ac550f36b94cd50b8e25d-456/ to inspect the action").Proto(),
+				Status: status.New(codes.InvalidArgument, "Please visit http://example.com/some/sub/directory/build/blobs/sha256/action/e1497d75baa26b50b71b14086d1553586e817385670ac550f36b94cd50b8e25d-456/ to inspect the action").Proto(),
 			},
 			buildExecutor.Execute(
 				ctx,
 				filePool,
-				digest.MustNewInstanceName("build"),
+				digest.MustNewFunction("build", remoteexecution.DigestFunction_SHA256),
 				&remoteworker.DesiredState_Executing{
 					ActionDigest: &remoteexecution.Digest{
 						Hash:      "e1497d75baa26b50b71b14086d1553586e817385670ac550f36b94cd50b8e25d",

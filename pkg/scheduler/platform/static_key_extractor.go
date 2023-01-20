@@ -22,6 +22,6 @@ func NewStaticKeyExtractor(platform *remoteexecution.Platform) KeyExtractor {
 	}
 }
 
-func (ke *staticKeyExtractor) ExtractKey(ctx context.Context, instanceName digest.InstanceName, action *remoteexecution.Action) (Key, error) {
-	return NewKey(instanceName, ke.platform)
+func (ke *staticKeyExtractor) ExtractKey(ctx context.Context, digestFunction digest.Function, action *remoteexecution.Action) (Key, error) {
+	return NewKey(digestFunction.GetInstanceName(), ke.platform)
 }

@@ -79,14 +79,14 @@ func (d *naiveBuildDirectory) mergeDirectoryContents(ctx context.Context, digest
 	}
 
 	// Create children.
-	instanceName := digest.GetInstanceName()
+	digestFunction := digest.GetDigestFunction()
 	for _, file := range directory.Files {
 		component, ok := path.NewComponent(file.Name)
 		if !ok {
 			return status.Errorf(codes.InvalidArgument, "File %#v has an invalid name", file.Name)
 		}
 		childPathTrace := pathTrace.Append(component)
-		childDigest, err := instanceName.NewDigestFromProto(file.Digest)
+		childDigest, err := digestFunction.NewDigestFromProto(file.Digest)
 		if err != nil {
 			return util.StatusWrapf(err, "Failed to extract digest for input file %#v", childPathTrace.String())
 		}
@@ -100,7 +100,7 @@ func (d *naiveBuildDirectory) mergeDirectoryContents(ctx context.Context, digest
 			return status.Errorf(codes.InvalidArgument, "Directory %#v has an invalid name", directory.Name)
 		}
 		childPathTrace := pathTrace.Append(component)
-		childDigest, err := instanceName.NewDigestFromProto(directory.Digest)
+		childDigest, err := digestFunction.NewDigestFromProto(directory.Digest)
 		if err != nil {
 			return util.StatusWrapf(err, "Failed to extract digest for input directory %#v", childPathTrace.String())
 		}
@@ -141,7 +141,7 @@ func (d *naiveBuildDirectory) UploadFile(ctx context.Context, name path.Componen
 	}
 
 	// Walk through the file to compute the digest.
-	digestGenerator := digestFunction.NewGenerator()
+	digestGenerator := digestFunction.NewGenerator(math.MaxInt64)
 	sizeBytes, err := io.Copy(digestGenerator, io.NewSectionReader(file, 0, math.MaxInt64))
 	if err != nil {
 		file.Close()

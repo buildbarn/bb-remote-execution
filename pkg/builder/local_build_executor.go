@@ -107,7 +107,7 @@ func (be *localBuildExecutor) CheckReadiness(ctx context.Context) error {
 	return err
 }
 
-func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, instanceName digest.InstanceName, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 	// Timeout handling.
 	response := NewDefaultExecuteResponse(request)
 	action := request.Action
@@ -124,7 +124,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	executionTimeout := action.Timeout.AsDuration()
 
 	// Obtain build directory.
-	actionDigest, err := instanceName.NewDigestFromProto(request.ActionDigest)
+	actionDigest, err := digestFunction.NewDigestFromProto(request.ActionDigest)
 	if err != nil {
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to extract digest for action"))
 		return response
@@ -168,7 +168,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	}
 	defer inputRootDirectory.Close()
 
-	inputRootDigest, err := instanceName.NewDigestFromProto(action.InputRootDigest)
+	inputRootDigest, err := digestFunction.NewDigestFromProto(action.InputRootDigest)
 	if err != nil {
 		attachErrorToExecuteResponse(
 			response,
@@ -189,7 +189,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 
 	// Create parent directories of output files and directories.
 	// These are not declared in the input root explicitly.
-	commandDigest, err := instanceName.NewDigestFromProto(action.CommandDigest)
+	commandDigest, err := digestFunction.NewDigestFromProto(action.CommandDigest)
 	if err != nil {
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to extract digest for command"))
 		return response
@@ -282,7 +282,6 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	// Upload command output. In the common case, the stdout and
 	// stderr files are empty. If that's the case, don't bother
 	// setting the digest to keep the ActionResult small.
-	digestFunction := actionDigest.GetDigestFunction()
 	if stdoutDigest, err := buildDirectory.UploadFile(ctx, stdoutComponent, digestFunction); err != nil {
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to store stdout"))
 	} else if stdoutDigest.GetSizeBytes() > 0 {

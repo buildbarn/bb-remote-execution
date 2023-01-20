@@ -41,9 +41,9 @@ func NewCachingBuildExecutor(base BuildExecutor, contentAddressableStorage, acti
 	}
 }
 
-func (be *cachingBuildExecutor) Execute(ctx context.Context, filePool filesystem.FilePool, instanceName digest.InstanceName, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
-	response := be.BuildExecutor.Execute(ctx, filePool, instanceName, request, executionStateUpdates)
-	if actionDigest, err := instanceName.NewDigestFromProto(request.ActionDigest); err != nil {
+func (be *cachingBuildExecutor) Execute(ctx context.Context, filePool filesystem.FilePool, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+	response := be.BuildExecutor.Execute(ctx, filePool, digestFunction, request, executionStateUpdates)
+	if actionDigest, err := digestFunction.NewDigestFromProto(request.ActionDigest); err != nil {
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to extract digest for action"))
 	} else if action := request.Action; action == nil {
 		attachErrorToExecuteResponse(response, status.Error(codes.InvalidArgument, "Request does not contain an action"))

@@ -8,6 +8,7 @@ proto_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/proto/cas:cas_proto",
+        "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:remote_execution_proto",
         "@com_google_protobuf//:empty_proto",
     ],
 )
@@ -18,7 +19,10 @@ go_proto_library(
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/proto/completedactionlogger",
     proto = ":completedactionlogger_proto",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/proto/cas"],
+    deps = [
+        "//pkg/proto/cas",
+        "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:execution",
+    ],
 )
 
 go_library(

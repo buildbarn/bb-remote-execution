@@ -43,7 +43,7 @@ func TestLocalBuildExecutorInvalidActionDigest(t *testing.T) {
 	executeResponse := localBuildExecutor.Execute(
 		ctx,
 		filePool,
-		digest.MustNewInstanceName("netbsd"),
+		digest.MustNewFunction("netbsd", remoteexecution.DigestFunction_SHA256),
 		&remoteworker.DesiredState_Executing{
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      "This is not a valid action digest!",
@@ -62,7 +62,7 @@ func TestLocalBuildExecutorInvalidActionDigest(t *testing.T) {
 		Result: &remoteexecution.ActionResult{
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
 		},
-		Status: status.New(codes.InvalidArgument, "Failed to extract digest for action: Unknown digest hash length: 34 characters").Proto(),
+		Status: status.New(codes.InvalidArgument, "Failed to extract digest for action: Hash has length 34, while 64 characters were expected").Proto(),
 	}, executeResponse)
 }
 
@@ -80,7 +80,7 @@ func TestLocalBuildExecutorMissingAction(t *testing.T) {
 	executeResponse := localBuildExecutor.Execute(
 		ctx,
 		filePool,
-		digest.MustNewInstanceName("netbsd"),
+		digest.MustNewFunction("netbsd", remoteexecution.DigestFunction_SHA256),
 		&remoteworker.DesiredState_Executing{
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      "5555555555555555555555555555555555555555555555555555555555555555",
@@ -103,7 +103,7 @@ func TestLocalBuildExecutorBuildDirectoryCreatorFailedFailed(t *testing.T) {
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(
 		ctx,
-		digest.MustNewDigest("netbsd", "5555555555555555555555555555555555555555555555555555555555555555", 7),
+		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "5555555555555555555555555555555555555555555555555555555555555555", 7),
 		false,
 	).Return(nil, nil, status.Error(codes.InvalidArgument, "Platform requirements not provided"))
 	runner := mock.NewMockRunnerClient(ctrl)
@@ -115,7 +115,7 @@ func TestLocalBuildExecutorBuildDirectoryCreatorFailedFailed(t *testing.T) {
 	executeResponse := localBuildExecutor.Execute(
 		ctx,
 		filePool,
-		digest.MustNewInstanceName("netbsd"),
+		digest.MustNewFunction("netbsd", remoteexecution.DigestFunction_SHA256),
 		&remoteworker.DesiredState_Executing{
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      "5555555555555555555555555555555555555555555555555555555555555555",
@@ -146,7 +146,7 @@ func TestLocalBuildExecutorInputRootPopulationFailed(t *testing.T) {
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(
 		ctx,
-		digest.MustNewDigest("netbsd", "5555555555555555555555555555555555555555555555555555555555555555", 7),
+		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "5555555555555555555555555555555555555555555555555555555555555555", 7),
 		false,
 	).Return(buildDirectory, nil, nil)
 	filePool := mock.NewMockFilePool(ctrl)
@@ -157,7 +157,7 @@ func TestLocalBuildExecutorInputRootPopulationFailed(t *testing.T) {
 	inputRootDirectory.EXPECT().MergeDirectoryContents(
 		ctx,
 		gomock.Any(),
-		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42),
+		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42),
 	).Return(status.Error(codes.FailedPrecondition, "Some input files could not be found"))
 	inputRootDirectory.EXPECT().Close()
 	buildDirectory.EXPECT().Close()
@@ -169,7 +169,7 @@ func TestLocalBuildExecutorInputRootPopulationFailed(t *testing.T) {
 	executeResponse := localBuildExecutor.Execute(
 		ctx,
 		filePool,
-		digest.MustNewInstanceName("netbsd"),
+		digest.MustNewFunction("netbsd", remoteexecution.DigestFunction_SHA256),
 		&remoteworker.DesiredState_Executing{
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      "5555555555555555555555555555555555555555555555555555555555555555",
@@ -198,7 +198,7 @@ func TestLocalBuildExecutorOutputDirectoryCreationFailure(t *testing.T) {
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	contentAddressableStorage.EXPECT().Get(
 		gomock.Any(),
-		digest.MustNewDigest("fedora", "6666666666666666666666666666666666666666666666666666666666666666", 234),
+		digest.MustNewDigest("fedora", remoteexecution.DigestFunction_SHA256, "6666666666666666666666666666666666666666666666666666666666666666", 234),
 	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
 		Arguments: []string{"touch", "foo"},
 		EnvironmentVariables: []*remoteexecution.Command_EnvironmentVariable{
@@ -210,7 +210,7 @@ func TestLocalBuildExecutorOutputDirectoryCreationFailure(t *testing.T) {
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(
 		ctx,
-		digest.MustNewDigest("fedora", "5555555555555555555555555555555555555555555555555555555555555555", 7),
+		digest.MustNewDigest("fedora", remoteexecution.DigestFunction_SHA256, "5555555555555555555555555555555555555555555555555555555555555555", 7),
 		false,
 	).Return(buildDirectory, nil, nil)
 	filePool := mock.NewMockFilePool(ctrl)
@@ -221,7 +221,7 @@ func TestLocalBuildExecutorOutputDirectoryCreationFailure(t *testing.T) {
 	inputRootDirectory.EXPECT().MergeDirectoryContents(
 		ctx,
 		gomock.Any(),
-		digest.MustNewDigest("fedora", "7777777777777777777777777777777777777777777777777777777777777777", 42),
+		digest.MustNewDigest("fedora", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42),
 	).Return(nil)
 	inputRootDirectory.EXPECT().Mkdir(path.MustNewComponent("foo"), os.FileMode(0o777)).Return(status.Error(codes.Internal, "Out of disk space"))
 	inputRootDirectory.EXPECT().Close()
@@ -234,7 +234,7 @@ func TestLocalBuildExecutorOutputDirectoryCreationFailure(t *testing.T) {
 	executeResponse := localBuildExecutor.Execute(
 		ctx,
 		filePool,
-		digest.MustNewInstanceName("fedora"),
+		digest.MustNewFunction("fedora", remoteexecution.DigestFunction_SHA256),
 		&remoteworker.DesiredState_Executing{
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      "5555555555555555555555555555555555555555555555555555555555555555",
@@ -269,7 +269,7 @@ func TestLocalBuildExecutorMissingCommand(t *testing.T) {
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(
 		ctx,
-		digest.MustNewDigest("netbsd", "5555555555555555555555555555555555555555555555555555555555555555", 7),
+		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "5555555555555555555555555555555555555555555555555555555555555555", 7),
 		false,
 	).Return(buildDirectory, nil, nil)
 	filePool := mock.NewMockFilePool(ctrl)
@@ -280,7 +280,7 @@ func TestLocalBuildExecutorMissingCommand(t *testing.T) {
 	inputRootDirectory.EXPECT().MergeDirectoryContents(
 		ctx,
 		gomock.Any(),
-		digest.MustNewDigest("netbsd", "7777777777777777777777777777777777777777777777777777777777777777", 42),
+		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42),
 	).Return(nil)
 	inputRootDirectory.EXPECT().Close()
 	buildDirectory.EXPECT().Close()
@@ -292,7 +292,7 @@ func TestLocalBuildExecutorMissingCommand(t *testing.T) {
 	executeResponse := localBuildExecutor.Execute(
 		ctx,
 		filePool,
-		digest.MustNewInstanceName("netbsd"),
+		digest.MustNewFunction("netbsd", remoteexecution.DigestFunction_SHA256),
 		&remoteworker.DesiredState_Executing{
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      "5555555555555555555555555555555555555555555555555555555555555555",
@@ -321,7 +321,7 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	contentAddressableStorage.EXPECT().Get(
 		gomock.Any(),
-		digest.MustNewDigest("nintendo64", "6666666666666666666666666666666666666666666666666666666666666666", 234),
+		digest.MustNewDigest("nintendo64", remoteexecution.DigestFunction_SHA256, "6666666666666666666666666666666666666666666666666666666666666666", 234),
 	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
 		Arguments: []string{"touch", "foo"},
 		EnvironmentVariables: []*remoteexecution.Command_EnvironmentVariable{
@@ -331,14 +331,14 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 	}, buffer.UserProvided))
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
 	buildDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("stdout"), gomock.Any()).Return(
-		digest.MustNewDigest("nintendo64", "0000000000000000000000000000000000000000000000000000000000000005", 567),
+		digest.MustNewDigest("nintendo64", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000005", 567),
 		nil)
 	buildDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("stderr"), gomock.Any()).Return(
-		digest.MustNewDigest("nintendo64", "0000000000000000000000000000000000000000000000000000000000000006", 678),
+		digest.MustNewDigest("nintendo64", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000006", 678),
 		nil)
 	contentAddressableStorage.EXPECT().Put(
 		ctx,
-		digest.MustNewDigest("nintendo64", "102b51b9765a56a3e899f7cf0ee38e5251f9c503b357b330a49183eb7b155604", 2),
+		digest.MustNewDigest("nintendo64", remoteexecution.DigestFunction_SHA256, "102b51b9765a56a3e899f7cf0ee38e5251f9c503b357b330a49183eb7b155604", 2),
 		gomock.Any()).
 		DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 			m, err := b.ToProto(&remoteexecution.Tree{}, 10000)
@@ -352,7 +352,7 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(
 		ctx,
-		digest.MustNewDigest("nintendo64", "5555555555555555555555555555555555555555555555555555555555555555", 7),
+		digest.MustNewDigest("nintendo64", remoteexecution.DigestFunction_SHA256, "5555555555555555555555555555555555555555555555555555555555555555", 7),
 		false,
 	).Return(buildDirectory, nil, nil)
 	filePool := mock.NewMockFilePool(ctrl)
@@ -363,7 +363,7 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 	inputRootDirectory.EXPECT().MergeDirectoryContents(
 		ctx,
 		gomock.Any(),
-		digest.MustNewDigest("nintendo64", "7777777777777777777777777777777777777777777777777777777777777777", 42),
+		digest.MustNewDigest("nintendo64", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42),
 	).Return(nil)
 	inputRootDirectory.EXPECT().Mkdir(path.MustNewComponent("foo"), os.FileMode(0o777)).Return(nil)
 	buildDirectory.EXPECT().Mkdir(path.MustNewComponent("tmp"), os.FileMode(0o777))
@@ -399,7 +399,7 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 	executeResponse := localBuildExecutor.Execute(
 		ctx,
 		filePool,
-		digest.MustNewInstanceName("nintendo64"),
+		digest.MustNewFunction("nintendo64", remoteexecution.DigestFunction_SHA256),
 		&remoteworker.DesiredState_Executing{
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      "5555555555555555555555555555555555555555555555555555555555555555",
@@ -494,7 +494,7 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	contentAddressableStorage.EXPECT().Get(
 		gomock.Any(),
-		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000002", 234),
+		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000002", 234),
 	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
 		Arguments: []string{
 			"/usr/local/bin/clang",
@@ -528,23 +528,23 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 	// Write operations against the Content Addressable Storage.
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
 	buildDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("stdout"), gomock.Any()).Return(
-		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000005", 567),
+		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000005", 567),
 		nil)
 	buildDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("stderr"), gomock.Any()).Return(
-		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000006", 678),
+		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000006", 678),
 		nil)
 	helloUploadableDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("hello.pic.d"), gomock.Any()).Return(
-		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000007", 789),
+		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000007", 789),
 		nil)
 	helloUploadableDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("hello.pic.o"), gomock.Any()).Return(
-		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000008", 890),
+		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000008", 890),
 		nil)
 
 	// Command execution.
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(
 		ctx,
-		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000001", 123),
+		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000001", 123),
 		false,
 	).Return(buildDirectory, ((*path.Trace)(nil)).Append(path.MustNewComponent("0000000000000000")), nil)
 	filePool := mock.NewMockFilePool(ctrl)
@@ -554,7 +554,7 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 	inputRootDirectory.EXPECT().MergeDirectoryContents(
 		ctx,
 		gomock.Any(),
-		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000003", 345),
+		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000003", 345),
 	).Return(nil)
 	inputRootDirectory.EXPECT().Mkdir(path.MustNewComponent("dev"), os.FileMode(0o777))
 	inputRootDevDirectory := mock.NewMockBuildDirectory(ctrl)
@@ -617,7 +617,7 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 	executeResponse := localBuildExecutor.Execute(
 		ctx,
 		filePool,
-		digest.MustNewInstanceName("ubuntu1804"),
+		digest.MustNewFunction("ubuntu1804", remoteexecution.DigestFunction_SHA256),
 		&remoteworker.DesiredState_Executing{
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      "0000000000000000000000000000000000000000000000000000000000000001",
@@ -688,7 +688,7 @@ func TestLocalBuildExecutorCachingInvalidTimeout(t *testing.T) {
 	executeResponse := localBuildExecutor.Execute(
 		ctx,
 		filePool,
-		digest.MustNewInstanceName("ubuntu1804"),
+		digest.MustNewFunction("ubuntu1804", remoteexecution.DigestFunction_SHA256),
 		&remoteworker.DesiredState_Executing{
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      "0000000000000000000000000000000000000000000000000000000000000001",
@@ -716,22 +716,22 @@ func TestLocalBuildExecutorInputRootIOFailureDuringExecution(t *testing.T) {
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	contentAddressableStorage.EXPECT().Get(
 		gomock.Any(),
-		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000002", 234),
+		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000002", 234),
 	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
 		Arguments: []string{"clang"},
 	}, buffer.UserProvided))
 	buildDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("stdout"), gomock.Any()).Return(
-		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000005", 567),
+		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000005", 567),
 		nil)
 	buildDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("stderr"), gomock.Any()).Return(
-		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000006", 678),
+		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000006", 678),
 		nil)
 
 	// Build environment.
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(
 		ctx,
-		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000001", 123),
+		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000001", 123),
 		false,
 	).Return(buildDirectory, nil, nil)
 	filePool := mock.NewMockFilePool(ctrl)
@@ -747,7 +747,7 @@ func TestLocalBuildExecutorInputRootIOFailureDuringExecution(t *testing.T) {
 	inputRootDirectory.EXPECT().MergeDirectoryContents(
 		ctx,
 		gomock.Any(),
-		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000003", 345),
+		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000003", 345),
 	).DoAndReturn(func(ctx context.Context, providedErrorLogger util.ErrorLogger, digest digest.Digest) error {
 		errorLogger = providedErrorLogger
 		return nil
@@ -783,7 +783,7 @@ func TestLocalBuildExecutorInputRootIOFailureDuringExecution(t *testing.T) {
 	executeResponse := localBuildExecutor.Execute(
 		ctx,
 		filePool,
-		digest.MustNewInstanceName("ubuntu1804"),
+		digest.MustNewFunction("ubuntu1804", remoteexecution.DigestFunction_SHA256),
 		&remoteworker.DesiredState_Executing{
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      "0000000000000000000000000000000000000000000000000000000000000001",
@@ -828,22 +828,22 @@ func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	contentAddressableStorage.EXPECT().Get(
 		gomock.Any(),
-		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000002", 234),
+		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000002", 234),
 	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
 		Arguments: []string{"clang"},
 	}, buffer.UserProvided))
 	buildDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("stdout"), gomock.Any()).Return(
-		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000005", 567),
+		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000005", 567),
 		nil)
 	buildDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("stderr"), gomock.Any()).Return(
-		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000006", 678),
+		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000006", 678),
 		nil)
 
 	// Build environment.
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(
 		ctx,
-		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000001", 123),
+		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000001", 123),
 		false,
 	).Return(buildDirectory, nil, nil)
 	filePool := mock.NewMockFilePool(ctrl)
@@ -856,7 +856,7 @@ func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 	inputRootDirectory.EXPECT().MergeDirectoryContents(
 		ctx,
 		gomock.Any(),
-		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000003", 345),
+		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000003", 345),
 	).Return(nil)
 	buildDirectory.EXPECT().Mkdir(path.MustNewComponent("tmp"), os.FileMode(0o777))
 
@@ -887,7 +887,7 @@ func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 	executeResponse := localBuildExecutor.Execute(
 		ctx,
 		filePool,
-		digest.MustNewInstanceName("ubuntu1804"),
+		digest.MustNewFunction("ubuntu1804", remoteexecution.DigestFunction_SHA256),
 		&remoteworker.DesiredState_Executing{
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      "0000000000000000000000000000000000000000000000000000000000000001",
@@ -933,7 +933,7 @@ func TestLocalBuildExecutorCharacterDeviceNodeCreationFailed(t *testing.T) {
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(
 		ctx,
-		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000001", 123),
+		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000001", 123),
 		false,
 	).Return(buildDirectory, nil, nil)
 	filePool := mock.NewMockFilePool(ctrl)
@@ -946,7 +946,7 @@ func TestLocalBuildExecutorCharacterDeviceNodeCreationFailed(t *testing.T) {
 	inputRootDirectory.EXPECT().MergeDirectoryContents(
 		ctx,
 		gomock.Any(),
-		digest.MustNewDigest("ubuntu1804", "0000000000000000000000000000000000000000000000000000000000000003", 345),
+		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000003", 345),
 	).Return(nil)
 	inputRootDirectory.EXPECT().Mkdir(path.MustNewComponent("dev"), os.FileMode(0o777))
 	inputRootDevDirectory := mock.NewMockBuildDirectory(ctrl)
@@ -970,7 +970,7 @@ func TestLocalBuildExecutorCharacterDeviceNodeCreationFailed(t *testing.T) {
 	executeResponse := localBuildExecutor.Execute(
 		ctx,
 		filePool,
-		digest.MustNewInstanceName("ubuntu1804"),
+		digest.MustNewFunction("ubuntu1804", remoteexecution.DigestFunction_SHA256),
 		&remoteworker.DesiredState_Executing{
 			ActionDigest: &remoteexecution.Digest{
 				Hash:      "0000000000000000000000000000000000000000000000000000000000000001",

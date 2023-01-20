@@ -18,10 +18,10 @@ import (
 func TestActionKeyExtractor(t *testing.T) {
 	keyExtractor := platform.ActionKeyExtractor
 	ctx := context.Background()
-	instanceName := digest.MustNewInstanceName("hello")
+	digestFunction := digest.MustNewFunction("hello", remoteexecution.DigestFunction_SHA256)
 
 	t.Run("InvalidProperties", func(t *testing.T) {
-		_, err := keyExtractor.ExtractKey(ctx, instanceName, &remoteexecution.Action{
+		_, err := keyExtractor.ExtractKey(ctx, digestFunction, &remoteexecution.Action{
 			Platform: &remoteexecution.Platform{
 				Properties: []*remoteexecution.Platform_Property{
 					{Name: "os", Value: "linux"},
@@ -33,7 +33,7 @@ func TestActionKeyExtractor(t *testing.T) {
 	})
 
 	t.Run("Success", func(t *testing.T) {
-		key, err := keyExtractor.ExtractKey(ctx, instanceName, &remoteexecution.Action{
+		key, err := keyExtractor.ExtractKey(ctx, digestFunction, &remoteexecution.Action{
 			Platform: &remoteexecution.Platform{
 				Properties: []*remoteexecution.Platform_Property{
 					{Name: "arch", Value: "aarch64"},
@@ -57,7 +57,7 @@ func TestActionKeyExtractor(t *testing.T) {
 		// If no platform object is, assume the empty set of
 		// platform properties. Clients such as BuildStream are
 		// known for not providing them.
-		key, err := keyExtractor.ExtractKey(ctx, instanceName, &remoteexecution.Action{})
+		key, err := keyExtractor.ExtractKey(ctx, digestFunction, &remoteexecution.Action{})
 		require.NoError(t, err)
 		testutil.RequireEqualProto(t, &buildqueuestate.PlatformQueueName{
 			InstanceNamePrefix: "hello",

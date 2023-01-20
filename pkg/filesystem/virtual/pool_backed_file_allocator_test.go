@@ -417,7 +417,7 @@ func TestPoolBackedFileAllocatorFUSEUploadFile(t *testing.T) {
 	require.Equal(t, virtual.StatusOK, s)
 	require.Equal(t, 5, n)
 
-	fileDigest := digest.MustNewDigest("example", "8b1a9953c4611296a827abf8c47804d7", 5)
+	fileDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "8b1a9953c4611296a827abf8c47804d7", 5)
 	digestFunction := fileDigest.GetDigestFunction()
 
 	t.Run("DigestComputationIOFailure", func(t *testing.T) {

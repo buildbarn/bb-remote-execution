@@ -16,7 +16,7 @@ type casInitialContentsFetcherOptions struct {
 	context        context.Context
 	casFileFactory CASFileFactory
 	symlinkFactory SymlinkFactory
-	instanceName   digest.InstanceName
+	digestFunction digest.Function
 }
 
 type casInitialContentsFetcher struct {
@@ -32,13 +32,13 @@ type casInitialContentsFetcher struct {
 // all of the children to either additional InitialContentFetchers
 // (directories), FileBackedFiles (regular files) or Symlinks (symbolic
 // links).
-func NewCASInitialContentsFetcher(ctx context.Context, directoryWalker cas.DirectoryWalker, casFileFactory CASFileFactory, symlinkFactory SymlinkFactory, instanceName digest.InstanceName) InitialContentsFetcher {
+func NewCASInitialContentsFetcher(ctx context.Context, directoryWalker cas.DirectoryWalker, casFileFactory CASFileFactory, symlinkFactory SymlinkFactory, digestFunction digest.Function) InitialContentsFetcher {
 	return &casInitialContentsFetcher{
 		options: &casInitialContentsFetcherOptions{
 			context:        ctx,
 			casFileFactory: casFileFactory,
 			symlinkFactory: symlinkFactory,
-			instanceName:   instanceName,
+			digestFunction: digestFunction,
 		},
 		directoryWalker: directoryWalker,
 	}
@@ -63,7 +63,7 @@ func (icf *casInitialContentsFetcher) fetchContentsUnwrapped() (map[path.Compone
 			return nil, status.Errorf(codes.InvalidArgument, "Directory contains multiple children named %#v", entry.Name)
 		}
 
-		childDigest, err := icf.options.instanceName.NewDigestFromProto(entry.Digest)
+		childDigest, err := icf.options.digestFunction.NewDigestFromProto(entry.Digest)
 		if err != nil {
 			return nil, util.StatusWrapf(err, "Failed to obtain digest for directory %#v", entry.Name)
 		}
@@ -91,7 +91,7 @@ func (icf *casInitialContentsFetcher) fetchContentsUnwrapped() (map[path.Compone
 			return nil, status.Errorf(codes.InvalidArgument, "Directory contains multiple children named %#v", entry.Name)
 		}
 
-		childDigest, err := icf.options.instanceName.NewDigestFromProto(entry.Digest)
+		childDigest, err := icf.options.digestFunction.NewDigestFromProto(entry.Digest)
 		if err != nil {
 			return nil, util.StatusWrapf(err, "Failed to obtain digest for file %#v", entry.Name)
 		}
@@ -130,7 +130,7 @@ func (icf *casInitialContentsFetcher) FetchContents() (map[path.Component]Initia
 func (icf *casInitialContentsFetcher) GetContainingDigests(ctx context.Context) (digest.Set, error) {
 	gatherer := casContainingDigestsGatherer{
 		context:             ctx,
-		instanceName:        icf.options.instanceName,
+		digestFunction:      icf.options.digestFunction,
 		digests:             digest.NewSetBuilder(),
 		directoriesGathered: map[digest.Digest]struct{}{},
 	}
@@ -146,7 +146,7 @@ func (icf *casInitialContentsFetcher) GetContainingDigests(ctx context.Context) 
 // referenced by a hierarchy of Directory objects.
 type casContainingDigestsGatherer struct {
 	context             context.Context
-	instanceName        digest.InstanceName
+	digestFunction      digest.Function
 	digests             digest.SetBuilder
 	directoriesGathered map[digest.Digest]struct{}
 }
@@ -165,7 +165,7 @@ func (g *casContainingDigestsGatherer) traverse(directoryWalker cas.DirectoryWal
 	// be tricked into performing an exponential number of
 	// traversals against malicious Tree objects.
 	for _, entry := range directory.Directories {
-		childDigest, err := g.instanceName.NewDigestFromProto(entry.Digest)
+		childDigest, err := g.digestFunction.NewDigestFromProto(entry.Digest)
 		if err != nil {
 			return util.StatusWrapf(err, "%s: Failed to obtain digest for directory %#v", directoryWalker.GetDescription(), entry.Name)
 		}
@@ -178,7 +178,7 @@ func (g *casContainingDigestsGatherer) traverse(directoryWalker cas.DirectoryWal
 	}
 
 	for _, entry := range directory.Files {
-		childDigest, err := g.instanceName.NewDigestFromProto(entry.Digest)
+		childDigest, err := g.digestFunction.NewDigestFromProto(entry.Digest)
 		if err != nil {
 			return util.StatusWrapf(err, "%s: Failed to obtain digest for file %#v", directoryWalker.GetDescription(), entry.Name)
 		}

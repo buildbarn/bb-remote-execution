@@ -26,7 +26,7 @@ func TestCachingDirectoryFetcherGetDirectory(t *testing.T) {
 
 	t.Run("IOError", func(t *testing.T) {
 		// Errors from underlying storage should be propagated.
-		directoryDigest := digest.MustNewDigest("example", "756b15c8f94b519e96135dcfde0e58c5", 50)
+		directoryDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "756b15c8f94b519e96135dcfde0e58c5", 50)
 
 		baseDirectoryFetcher.EXPECT().GetDirectory(ctx, directoryDigest).Return(nil, status.Error(codes.Internal, "I/O error"))
 
@@ -36,17 +36,17 @@ func TestCachingDirectoryFetcherGetDirectory(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		directoryDigests := []digest.Digest{
-			digest.MustNewDigest("example", "dae613d971e8649f28bf07b0d8dfefa8", 100),
-			digest.MustNewDigest("example", "7c9a2912bf38c338baa07a6df966eabf", 100),
-			digest.MustNewDigest("example", "7c57a169737a51b43d9853874ef39854", 100),
-			digest.MustNewDigest("example", "bd9c8a8f4618436dad0f3d1164ff54fc", 100),
-			digest.MustNewDigest("example", "2b80e2292d40e6664eb458bb0d906d1e", 100),
-			digest.MustNewDigest("example", "b8168c5e6bcb299c61d46c7163b16216", 100),
-			digest.MustNewDigest("example", "a00535d5f1ce3b1257baa70f4fcac762", 100),
-			digest.MustNewDigest("example", "d66cc130b6436e52a503249a7cf39175", 100),
-			digest.MustNewDigest("example", "557d4a5911854ecd5d1fba42cce80960", 100),
-			digest.MustNewDigest("example", "ca62de38c5058d8f52a2f6f3eed0efdc", 100),
-			digest.MustNewDigest("example", "660cc65d02dc9b676d48f8ac50691a05", 100),
+			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "dae613d971e8649f28bf07b0d8dfefa8", 100),
+			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "7c9a2912bf38c338baa07a6df966eabf", 100),
+			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "7c57a169737a51b43d9853874ef39854", 100),
+			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "bd9c8a8f4618436dad0f3d1164ff54fc", 100),
+			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "2b80e2292d40e6664eb458bb0d906d1e", 100),
+			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "b8168c5e6bcb299c61d46c7163b16216", 100),
+			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "a00535d5f1ce3b1257baa70f4fcac762", 100),
+			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "d66cc130b6436e52a503249a7cf39175", 100),
+			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "557d4a5911854ecd5d1fba42cce80960", 100),
+			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "ca62de38c5058d8f52a2f6f3eed0efdc", 100),
+			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "660cc65d02dc9b676d48f8ac50691a05", 100),
 		}
 
 		// Insert ten directories into the cache.
@@ -138,7 +138,7 @@ func TestCachingDirectoryFetcherGetTreeRootDirectory(t *testing.T) {
 		// key must be made distinct from regular directories
 		// using the IsTreeRoot flag, as the digest refers to
 		// that of the tree; not the directory.
-		treeDigest := digest.MustNewDigest("example", "72e8cc2780afe06ccaf5353ff29e8bf0", 123151)
+		treeDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "72e8cc2780afe06ccaf5353ff29e8bf0", 123151)
 		directoryToInsert := &remoteexecution.Directory{
 			Symlinks: []*remoteexecution.SymlinkNode{
 				{
@@ -149,7 +149,7 @@ func TestCachingDirectoryFetcherGetTreeRootDirectory(t *testing.T) {
 		}
 		baseDirectoryFetcher.EXPECT().GetTreeRootDirectory(ctx, treeDigest).Return(directoryToInsert, nil)
 		evictionSet.EXPECT().Insert(cas.CachingDirectoryFetcherKey{
-			DigestKey:  "72e8cc2780afe06ccaf5353ff29e8bf0-123151",
+			DigestKey:  "3-72e8cc2780afe06ccaf5353ff29e8bf0-123151",
 			IsTreeRoot: true,
 		})
 
@@ -159,7 +159,7 @@ func TestCachingDirectoryFetcherGetTreeRootDirectory(t *testing.T) {
 
 		// Request the cached copy of the directory.
 		evictionSet.EXPECT().Touch(cas.CachingDirectoryFetcherKey{
-			DigestKey:  "72e8cc2780afe06ccaf5353ff29e8bf0-123151",
+			DigestKey:  "3-72e8cc2780afe06ccaf5353ff29e8bf0-123151",
 			IsTreeRoot: true,
 		})
 
@@ -185,8 +185,8 @@ func TestCachingDirectoryFetcherGetTreeChildDirectory(t *testing.T) {
 		// directory and can be of the same format as that of
 		// GetDirectory(), as that one matche the directory's
 		// contents.
-		treeDigest := digest.MustNewDigest("example", "72e8cc2780afe06ccaf5353ff29e8bf0", 123151)
-		childDigest := digest.MustNewDigest("example", "63e6ebccf1fae98faba9c59888991621", 72)
+		treeDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "72e8cc2780afe06ccaf5353ff29e8bf0", 123151)
+		childDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "63e6ebccf1fae98faba9c59888991621", 72)
 		directoryToInsert := &remoteexecution.Directory{
 			Symlinks: []*remoteexecution.SymlinkNode{
 				{
@@ -197,7 +197,7 @@ func TestCachingDirectoryFetcherGetTreeChildDirectory(t *testing.T) {
 		}
 		baseDirectoryFetcher.EXPECT().GetTreeChildDirectory(ctx, treeDigest, childDigest).Return(directoryToInsert, nil)
 		evictionSet.EXPECT().Insert(cas.CachingDirectoryFetcherKey{
-			DigestKey:  "63e6ebccf1fae98faba9c59888991621-72",
+			DigestKey:  "3-63e6ebccf1fae98faba9c59888991621-72",
 			IsTreeRoot: false,
 		})
 
@@ -207,7 +207,7 @@ func TestCachingDirectoryFetcherGetTreeChildDirectory(t *testing.T) {
 
 		// Request the cached copy of the directory.
 		evictionSet.EXPECT().Touch(cas.CachingDirectoryFetcherKey{
-			DigestKey:  "63e6ebccf1fae98faba9c59888991621-72",
+			DigestKey:  "3-63e6ebccf1fae98faba9c59888991621-72",
 			IsTreeRoot: false,
 		})
 

@@ -29,7 +29,7 @@ func TestBuildClient(t *testing.T) {
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(1000, 0))
 	workerID := map[string]string{"hostname": "example.com"}
-	instanceName := digest.MustNewInstanceName("prefix/suffix")
+	digestFunction := digest.MustNewFunction("prefix/suffix", remoteexecution.DigestFunction_SHA1)
 	platform := &remoteexecution.Platform{
 		Properties: []*remoteexecution.Platform_Property{
 			{Name: "os", Value: "linux"},
@@ -93,7 +93,7 @@ func TestBuildClient(t *testing.T) {
 	buildExecutor.EXPECT().Execute(
 		gomock.Any(),
 		filePool,
-		instanceName,
+		digestFunction,
 		desiredStateExecuting1,
 		gomock.Any(),
 	).Return(&remoteexecution.ExecuteResponse{
@@ -153,7 +153,7 @@ func TestBuildClient(t *testing.T) {
 	buildExecutor.EXPECT().Execute(
 		gomock.Any(),
 		filePool,
-		instanceName,
+		digestFunction,
 		desiredStateExecuting2,
 		gomock.Any(),
 	).Return(&remoteexecution.ExecuteResponse{

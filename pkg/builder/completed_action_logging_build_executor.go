@@ -33,16 +33,17 @@ func NewCompletedActionLoggingBuildExecutor(base BuildExecutor, uuidGenerator ut
 	}
 }
 
-func (be *completedActionLoggingBuildExecutor) Execute(ctx context.Context, filePool filesystem.FilePool, instanceName digest.InstanceName, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
-	response := be.BuildExecutor.Execute(ctx, filePool, instanceName, request, executionStateUpdates)
+func (be *completedActionLoggingBuildExecutor) Execute(ctx context.Context, filePool filesystem.FilePool, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+	response := be.BuildExecutor.Execute(ctx, filePool, digestFunction, request, executionStateUpdates)
 
 	completedAction := &cal_proto.CompletedAction{
 		HistoricalExecuteResponse: &cas_proto.HistoricalExecuteResponse{
 			ActionDigest:    request.ActionDigest,
 			ExecuteResponse: response,
 		},
-		Uuid:         uuid.Must(be.uuidGenerator()).String(),
-		InstanceName: be.instanceNamePatcher.PatchInstanceName(instanceName).String(),
+		Uuid:           uuid.Must(be.uuidGenerator()).String(),
+		InstanceName:   be.instanceNamePatcher.PatchInstanceName(digestFunction.GetInstanceName()).String(),
+		DigestFunction: digestFunction.GetEnumValue(),
 	}
 
 	be.logger.LogCompletedAction(completedAction)

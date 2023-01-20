@@ -51,7 +51,7 @@ func TestFeedbackDrivenAnalyzer(t *testing.T) {
 			SizeBytes: 951,
 		},
 	}
-	exampleReducedActionDigest := digest.MustNewDigest("hello", "5057a5db1b97ee73b2466f60e781d607", 39)
+	exampleReducedActionDigest := digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "5057a5db1b97ee73b2466f60e781d607", 39)
 
 	t.Run("StorageFailure", func(t *testing.T) {
 		// Failures reading existing entries from the Initial
@@ -60,7 +60,7 @@ func TestFeedbackDrivenAnalyzer(t *testing.T) {
 			Return(nil, status.Error(codes.Internal, "Network error"))
 
 		_, err := analyzer.Analyze(ctx, exampleDigestFunction, exampleAction)
-		testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to read previous execution stats for reduced action digest \"5057a5db1b97ee73b2466f60e781d607-39-hello\": Network error"), err)
+		testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to read previous execution stats for reduced action digest \"3-5057a5db1b97ee73b2466f60e781d607-39-hello\": Network error"), err)
 	})
 
 	t.Run("InitialAbandoned", func(t *testing.T) {

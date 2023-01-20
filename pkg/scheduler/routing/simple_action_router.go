@@ -33,7 +33,7 @@ func NewSimpleActionRouter(platformKeyExtractor platform.KeyExtractor, invocatio
 }
 
 func (ar *simpleActionRouter) RouteAction(ctx context.Context, digestFunction digest.Function, action *remoteexecution.Action, requestMetadata *remoteexecution.RequestMetadata) (platform.Key, []invocation.Key, initialsizeclass.Selector, error) {
-	platformKey, err := ar.platformKeyExtractor.ExtractKey(ctx, digestFunction.GetInstanceName(), action)
+	platformKey, err := ar.platformKeyExtractor.ExtractKey(ctx, digestFunction, action)
 	if err != nil {
 		return platform.Key{}, nil, nil, util.StatusWrap(err, "Failed to extract platform key")
 	}

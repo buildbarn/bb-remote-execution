@@ -175,7 +175,7 @@ func (f *fileBackedFile) updateCachedDigest(digestFunction digest.Function) (dig
 	}
 
 	// If not, compute a new digest.
-	digestGenerator := digestFunction.NewGenerator()
+	digestGenerator := digestFunction.NewGenerator(math.MaxInt64)
 	if _, err := io.Copy(digestGenerator, io.NewSectionReader(f, 0, math.MaxInt64)); err != nil {
 		return digest.BadDigest, util.StatusWrapWithCode(err, codes.Internal, "Failed to compute file digest")
 	}

@@ -30,15 +30,15 @@ func NewLoggingBuildExecutor(base BuildExecutor, browserURL *url.URL) BuildExecu
 	}
 }
 
-func (be *loggingBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, instanceName digest.InstanceName, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+func (be *loggingBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 	// Print URL to bb_browser prior to execution.
-	if actionDigest, err := instanceName.NewDigestFromProto(request.ActionDigest); err == nil {
+	if actionDigest, err := digestFunction.NewDigestFromProto(request.ActionDigest); err == nil {
 		log.Printf("Action: %s with timeout %s", re_util.GetBrowserURL(be.browserURL, "action", actionDigest), request.Action.GetTimeout().AsDuration())
 	} else {
 		log.Print("Action: Failed to extract digest: ", err)
 	}
 
-	response := be.BuildExecutor.Execute(ctx, filePool, instanceName, request, executionStateUpdates)
+	response := be.BuildExecutor.Execute(ctx, filePool, digestFunction, request, executionStateUpdates)
 
 	// Print execution response to log.
 	if responseJSON, err := protojson.Marshal(response); err == nil {

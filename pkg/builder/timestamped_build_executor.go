@@ -37,7 +37,7 @@ func (be *timestampedBuildExecutor) getCurrentTime() *timestamppb.Timestamp {
 	return timestamppb.New(be.clock.Now())
 }
 
-func (be *timestampedBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, instanceName digest.InstanceName, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+func (be *timestampedBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 	// Initial metadata, using the current time as the start timestamp.
 	metadata := remoteexecution.ExecutedActionMetadata{
 		Worker:               be.workerName,
@@ -49,7 +49,7 @@ func (be *timestampedBuildExecutor) Execute(ctx context.Context, filePool re_fil
 	baseUpdates := make(chan *remoteworker.CurrentState_Executing)
 	baseCompletion := make(chan *remoteexecution.ExecuteResponse)
 	go func() {
-		baseCompletion <- be.BuildExecutor.Execute(ctx, filePool, instanceName, request, baseUpdates)
+		baseCompletion <- be.BuildExecutor.Execute(ctx, filePool, digestFunction, request, baseUpdates)
 	}()
 
 	var completedTimestamp **timestamppb.Timestamp

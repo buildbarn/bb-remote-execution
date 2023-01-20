@@ -95,9 +95,9 @@ func TestStorageFlushingBuildExecutor(t *testing.T) {
 	}
 
 	filePool := mock.NewMockFilePool(ctrl)
-	instanceName := digest.MustNewInstanceName("default")
+	digestFunction := digest.MustNewFunction("default", remoteexecution.DigestFunction_MD5)
 	baseBuildExecutor.EXPECT().Execute(
-		ctx, filePool, instanceName, request, updates,
+		ctx, filePool, digestFunction, request, updates,
 	).Return(proto.Clone(response).(*remoteexecution.ExecuteResponse)).Times(2)
 
 	// When flushing succeeds, we should return the response in
@@ -107,7 +107,7 @@ func TestStorageFlushingBuildExecutor(t *testing.T) {
 		testutil.RequireEqualProto(
 			t,
 			response,
-			buildExecutor.Execute(ctx, filePool, instanceName, request, updates))
+			buildExecutor.Execute(ctx, filePool, digestFunction, request, updates))
 	})
 
 	// When flushing fails, some of the outputs may not have ended
@@ -141,6 +141,6 @@ func TestStorageFlushingBuildExecutor(t *testing.T) {
 				Status:  status.New(codes.Internal, "Failed to flush blobs to storage").Proto(),
 				Message: "Uncached action result: http://....",
 			},
-			buildExecutor.Execute(ctx, filePool, instanceName, request, updates))
+			buildExecutor.Execute(ctx, filePool, digestFunction, request, updates))
 	})
 }

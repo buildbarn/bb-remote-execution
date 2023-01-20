@@ -2,8 +2,8 @@ package blobstore
 
 import (
 	"context"
-	"fmt"
 
+	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/slicing"
@@ -50,8 +50,10 @@ func (eh existencePreconditionErrorHandler) OnError(observedErr error) (buffer.B
 			&errdetails.PreconditionFailure{
 				Violations: []*errdetails.PreconditionFailure_Violation{
 					{
-						Type:    "MISSING",
-						Subject: fmt.Sprintf("blobs/%s/%d", eh.digest.GetHashString(), eh.digest.GetSizeBytes()),
+						Type: "MISSING",
+						Subject: digest.NewInstanceNamePatcher(eh.digest.GetInstanceName(), digest.EmptyInstanceName).
+							PatchDigest(eh.digest).
+							GetByteStreamReadPath(remoteexecution.Compressor_IDENTITY),
 					},
 				},
 			})

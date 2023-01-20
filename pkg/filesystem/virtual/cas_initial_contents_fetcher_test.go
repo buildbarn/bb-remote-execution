@@ -28,7 +28,7 @@ func TestCASInitialContentsFetcherFetchContents(t *testing.T) {
 		directoryWalker,
 		casFileFactory,
 		symlinkFactory,
-		digest.MustNewInstanceName("hello"))
+		digest.MustNewFunction("hello", remoteexecution.DigestFunction_MD5))
 
 	t.Run("DirectoryWalkerFailure", func(t *testing.T) {
 		// Errors from the backend should be propagated.
@@ -75,7 +75,7 @@ func TestCASInitialContentsFetcherFetchContents(t *testing.T) {
 		directoryWalker.EXPECT().GetDescription().Return("Root directory")
 
 		_, err := initialContentsFetcher.FetchContents()
-		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Root directory: Failed to obtain digest for directory \"hello\": Unknown digest hash length: 18 characters"), err)
+		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Root directory: Failed to obtain digest for directory \"hello\": Hash has length 18, while 32 characters were expected"), err)
 	})
 
 	t.Run("ChildFileInvalidDigest", func(t *testing.T) {
@@ -87,7 +87,7 @@ func TestCASInitialContentsFetcherFetchContents(t *testing.T) {
 				{
 					Name: "file1",
 					Digest: &remoteexecution.Digest{
-						Hash:      "b8b624045b898c476cea11f530fef6c1ee4009dd497d9d1dae2517a686e2b92b",
+						Hash:      "ded43ceff96666255cbb89a40cb9d1bd",
 						SizeBytes: 1200,
 					},
 				},
@@ -102,14 +102,14 @@ func TestCASInitialContentsFetcherFetchContents(t *testing.T) {
 		}, nil)
 		file1 := mock.NewMockNativeLeaf(ctrl)
 		casFileFactory.EXPECT().LookupFile(
-			digest.MustNewDigest("hello", "b8b624045b898c476cea11f530fef6c1ee4009dd497d9d1dae2517a686e2b92b", 1200),
+			digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "ded43ceff96666255cbb89a40cb9d1bd", 1200),
 			false,
 		).Return(file1)
 		file1.EXPECT().Unlink()
 		directoryWalker.EXPECT().GetDescription().Return("Root directory")
 
 		_, err := initialContentsFetcher.FetchContents()
-		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Root directory: Failed to obtain digest for file \"file2\": Unknown digest hash length: 18 characters"), err)
+		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Root directory: Failed to obtain digest for file \"file2\": Hash has length 18, while 32 characters were expected"), err)
 	})
 
 	t.Run("DuplicateNames", func(t *testing.T) {
@@ -118,7 +118,7 @@ func TestCASInitialContentsFetcherFetchContents(t *testing.T) {
 				{
 					Name: "hello",
 					Digest: &remoteexecution.Digest{
-						Hash:      "ded86798ba7fd0cb8e04aa875832c46e5552a9a57d8d84d831ebc6cc98bdf311",
+						Hash:      "0970ca3d192dde1268a19b44bbecadcf",
 						SizeBytes: 3000,
 					},
 				},
@@ -132,7 +132,7 @@ func TestCASInitialContentsFetcherFetchContents(t *testing.T) {
 		}, nil)
 		file1 := mock.NewMockNativeLeaf(ctrl)
 		casFileFactory.EXPECT().LookupFile(
-			digest.MustNewDigest("hello", "ded86798ba7fd0cb8e04aa875832c46e5552a9a57d8d84d831ebc6cc98bdf311", 3000),
+			digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "0970ca3d192dde1268a19b44bbecadcf", 3000),
 			false,
 		).Return(file1)
 		file1.EXPECT().Unlink()
@@ -180,16 +180,16 @@ func TestCASInitialContentsFetcherFetchContents(t *testing.T) {
 			},
 		}, nil)
 		childDirectoryWalker := mock.NewMockDirectoryWalker(ctrl)
-		directoryWalker.EXPECT().GetChild(digest.MustNewDigest("hello", "4b3b03436604cb9d831b91c71a8c1952", 123)).
+		directoryWalker.EXPECT().GetChild(digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "4b3b03436604cb9d831b91c71a8c1952", 123)).
 			Return(childDirectoryWalker)
 		executableLeaf := mock.NewMockNativeLeaf(ctrl)
 		casFileFactory.EXPECT().LookupFile(
-			digest.MustNewDigest("hello", "946fbe7108add776d3e3094f512c3483", 456),
+			digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "946fbe7108add776d3e3094f512c3483", 456),
 			true,
 		).Return(executableLeaf)
 		fileLeaf := mock.NewMockNativeLeaf(ctrl)
 		casFileFactory.EXPECT().LookupFile(
-			digest.MustNewDigest("hello", "c0607941dd5b3ca8e175a1bfbfd1c0ea", 789),
+			digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "c0607941dd5b3ca8e175a1bfbfd1c0ea", 789),
 			false,
 		).Return(fileLeaf)
 		symlinkLeaf := mock.NewMockNativeLeaf(ctrl)
@@ -227,12 +227,12 @@ func TestCASInitialContentsFetcherGetContainingDigests(t *testing.T) {
 		directoryWalker,
 		casFileFactory,
 		symlinkFactory,
-		digest.MustNewInstanceName("hello"))
+		digest.MustNewFunction("hello", remoteexecution.DigestFunction_MD5))
 
 	t.Run("DirectoryWalkerFailure", func(t *testing.T) {
 		// Errors from the backend should be propagated.
 		directoryWalker.EXPECT().GetContainingDigest().
-			Return(digest.MustNewDigest("hello", "7f390b0d6fb7831b0172bd7ce3e54256", 12))
+			Return(digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "7f390b0d6fb7831b0172bd7ce3e54256", 12))
 		directoryWalker.EXPECT().GetDirectory(ctx).
 			Return(nil, status.Error(codes.Internal, "Server failure"))
 		directoryWalker.EXPECT().GetDescription().Return("Root directory")
@@ -243,7 +243,7 @@ func TestCASInitialContentsFetcherGetContainingDigests(t *testing.T) {
 
 	t.Run("ChildDirectoryInvalidDigest", func(t *testing.T) {
 		directoryWalker.EXPECT().GetContainingDigest().
-			Return(digest.MustNewDigest("hello", "7f390b0d6fb7831b0172bd7ce3e54256", 12))
+			Return(digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "7f390b0d6fb7831b0172bd7ce3e54256", 12))
 		directoryWalker.EXPECT().GetDirectory(ctx).Return(&remoteexecution.Directory{
 			Directories: []*remoteexecution.DirectoryNode{
 				{
@@ -258,12 +258,12 @@ func TestCASInitialContentsFetcherGetContainingDigests(t *testing.T) {
 		directoryWalker.EXPECT().GetDescription().Return("Root directory")
 
 		_, err := initialContentsFetcher.GetContainingDigests(ctx)
-		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Root directory: Failed to obtain digest for directory \"hello\": Unknown digest hash length: 18 characters"), err)
+		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Root directory: Failed to obtain digest for directory \"hello\": Hash has length 18, while 32 characters were expected"), err)
 	})
 
 	t.Run("ChildFileInvalidDigest", func(t *testing.T) {
 		directoryWalker.EXPECT().GetContainingDigest().
-			Return(digest.MustNewDigest("hello", "7f390b0d6fb7831b0172bd7ce3e54256", 12))
+			Return(digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "7f390b0d6fb7831b0172bd7ce3e54256", 12))
 		directoryWalker.EXPECT().GetDirectory(ctx).Return(&remoteexecution.Directory{
 			Files: []*remoteexecution.FileNode{
 				{
@@ -278,7 +278,7 @@ func TestCASInitialContentsFetcherGetContainingDigests(t *testing.T) {
 		directoryWalker.EXPECT().GetDescription().Return("Root directory")
 
 		_, err := initialContentsFetcher.GetContainingDigests(ctx)
-		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Root directory: Failed to obtain digest for file \"hello\": Unknown digest hash length: 18 characters"), err)
+		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Root directory: Failed to obtain digest for file \"hello\": Hash has length 18, while 32 characters were expected"), err)
 	})
 
 	t.Run("Success", func(t *testing.T) {
@@ -286,7 +286,7 @@ func TestCASInitialContentsFetcherGetContainingDigests(t *testing.T) {
 		// digests referenced by a directory hierarchy. Each
 		// directory should only be processed once to prevent
 		// exponential running times on malicious Tree objects.
-		directoryDigest := digest.MustNewDigest("hello", "7f390b0d6fb7831b0172bd7ce3e54256", 12)
+		directoryDigest := digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "7f390b0d6fb7831b0172bd7ce3e54256", 12)
 		directoryWalker.EXPECT().GetContainingDigest().Return(directoryDigest)
 		directoryWalker.EXPECT().GetDirectory(ctx).Return(&remoteexecution.Directory{
 			Directories: []*remoteexecution.DirectoryNode{
@@ -322,7 +322,7 @@ func TestCASInitialContentsFetcherGetContainingDigests(t *testing.T) {
 			},
 		}, nil)
 		childDirectoryWalker := mock.NewMockDirectoryWalker(ctrl)
-		childDirectoryDigest := digest.MustNewDigest("hello", "4b3b03436604cb9d831b91c71a8c1952", 123)
+		childDirectoryDigest := digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "4b3b03436604cb9d831b91c71a8c1952", 123)
 		directoryWalker.EXPECT().GetChild(childDirectoryDigest).Return(childDirectoryWalker)
 		childDirectoryWalker.EXPECT().GetContainingDigest().Return(childDirectoryDigest)
 		childDirectoryWalker.EXPECT().GetDirectory(ctx).Return(&remoteexecution.Directory{
@@ -344,8 +344,8 @@ func TestCASInitialContentsFetcherGetContainingDigests(t *testing.T) {
 			digest.NewSetBuilder().
 				Add(directoryDigest).
 				Add(childDirectoryDigest).
-				Add(digest.MustNewDigest("hello", "c0607941dd5b3ca8e175a1bfbfd1c0ea", 789)).
-				Add(digest.MustNewDigest("hello", "19dc69325bd8dfcd75cefbb6144ea3bb", 42)).
+				Add(digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "c0607941dd5b3ca8e175a1bfbfd1c0ea", 789)).
+				Add(digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "19dc69325bd8dfcd75cefbb6144ea3bb", 42)).
 				Build(),
 			digests)
 	})

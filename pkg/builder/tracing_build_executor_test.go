@@ -60,9 +60,9 @@ func TestTracingBuildExecutor(t *testing.T) {
 	// that contains events for each of the execution state updates.
 	ctxWithTracing := mock.NewMockContext(ctrl)
 	filePool := mock.NewMockFilePool(ctrl)
-	instanceName := digest.MustNewInstanceName("hello")
-	baseBuildExecutor.EXPECT().Execute(ctxWithTracing, filePool, instanceName, testutil.EqProto(t, request), gomock.Any()).DoAndReturn(
-		func(ctx context.Context, filePool re_filesystem.FilePool, instanceName digest.InstanceName, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+	digestFunction := digest.MustNewFunction("hello", remoteexecution.DigestFunction_SHA256)
+	baseBuildExecutor.EXPECT().Execute(ctxWithTracing, filePool, digestFunction, testutil.EqProto(t, request), gomock.Any()).DoAndReturn(
+		func(ctx context.Context, filePool re_filesystem.FilePool, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 			executionStateUpdates <- fetchingInputs
 			executionStateUpdates <- running
 			executionStateUpdates <- uploadingOutputs
@@ -73,6 +73,7 @@ func TestTracingBuildExecutor(t *testing.T) {
 	tracer.EXPECT().Start(ctx, "BuildExecutor.Execute", trace.WithAttributes(
 		attribute.String("action_digest.hash", "caa9adf60f3b5fd05d7cb6f17bac9201ad9d444d01e7b6964901055e6d6a5c4b"),
 		attribute.Int64("action_digest.size_bytes", 142),
+		attribute.String("digest_function", "SHA256"),
 		attribute.Bool("do_not_cache", true),
 		attribute.String("instance_name", "hello"),
 		attribute.Float64("timeout", 5),
@@ -83,7 +84,7 @@ func TestTracingBuildExecutor(t *testing.T) {
 	span.EXPECT().End()
 
 	executionStateUpdates := make(chan *remoteworker.CurrentState_Executing, 3)
-	testutil.RequireEqualProto(t, response, buildExecutor.Execute(ctx, filePool, instanceName, request, executionStateUpdates))
+	testutil.RequireEqualProto(t, response, buildExecutor.Execute(ctx, filePool, digestFunction, request, executionStateUpdates))
 	testutil.RequireEqualProto(t, fetchingInputs, <-executionStateUpdates)
 	testutil.RequireEqualProto(t, running, <-executionStateUpdates)
 	testutil.RequireEqualProto(t, uploadingOutputs, <-executionStateUpdates)

@@ -2,9 +2,9 @@ syntax = "proto3";
 
 package buildbarn.completedactionlogger;
 
-import "pkg/proto/cas/cas.proto";
-
+import "build/bazel/remote/execution/v2/remote_execution.proto";
 import "google/protobuf/empty.proto";
+import "pkg/proto/cas/cas.proto";
 
 option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/completedactionlogger";
 
@@ -37,4 +37,7 @@ message CompletedAction {
   // The REv2 instance name of the remote cluster that workers are returning
   // the action result from.
   string instance_name = 3;
+
+  // The digest function that was used to compute the action digest.
+  build.bazel.remote.execution.v2.DigestFunction.Value digest_function = 4;
 }

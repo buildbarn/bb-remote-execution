@@ -28,14 +28,15 @@ func NewTracingBuildExecutor(buildExecutor BuildExecutor, tracerProvider trace.T
 	}
 }
 
-func (be *tracingBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, instanceName digest.InstanceName, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+func (be *tracingBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 	actionDigest := request.ActionDigest
 	action := request.Action
 	ctxWithTracing, span := be.tracer.Start(ctx, "BuildExecutor.Execute", trace.WithAttributes(
 		attribute.String("action_digest.hash", actionDigest.GetHash()),
 		attribute.Int64("action_digest.size_bytes", actionDigest.GetSizeBytes()),
+		attribute.String("digest_function", digestFunction.GetEnumValue().String()),
 		attribute.Bool("do_not_cache", action.GetDoNotCache()),
-		attribute.String("instance_name", instanceName.String()),
+		attribute.String("instance_name", digestFunction.GetInstanceName().String()),
 		attribute.Float64("timeout", action.GetTimeout().AsDuration().Seconds()),
 	))
 	defer span.End()
@@ -43,7 +44,7 @@ func (be *tracingBuildExecutor) Execute(ctx context.Context, filePool re_filesys
 	baseUpdates := make(chan *remoteworker.CurrentState_Executing)
 	baseCompletion := make(chan *remoteexecution.ExecuteResponse)
 	go func() {
-		baseCompletion <- be.BuildExecutor.Execute(ctxWithTracing, filePool, instanceName, request, baseUpdates)
+		baseCompletion <- be.BuildExecutor.Execute(ctxWithTracing, filePool, digestFunction, request, baseUpdates)
 	}()
 
 	for {

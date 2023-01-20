@@ -13,11 +13,11 @@ replace mvdan.cc/gofumpt => mvdan.cc/gofumpt v0.2.1
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.17.3
-	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.25.1
-	github.com/aws/aws-sdk-go-v2/service/sqs v1.19.17
+	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.26.0
+	github.com/aws/aws-sdk-go-v2/service/sqs v1.20.0
 	github.com/aws/smithy-go v1.13.5
 	github.com/bazelbuild/remote-apis v0.0.0-20221109204407-3a21deee813d
-	github.com/buildbarn/bb-storage v0.0.0-20221221163740-08ce6e432da0
+	github.com/buildbarn/bb-storage v0.0.0-20230119153358-2d0d7ee15967
 	github.com/buildbarn/go-xdr v0.0.0-20230105161020-895955dd8771
 	github.com/golang/protobuf v1.5.2
 	github.com/google/uuid v1.3.0
@@ -31,8 +31,8 @@ require (
 	go.opentelemetry.io/otel/trace v1.11.2
 	golang.org/x/sync v0.1.0
 	golang.org/x/sys v0.4.0
-	google.golang.org/genproto v0.0.0-20230104163317-caabf589fcbf
-	google.golang.org/grpc v1.51.0
+	google.golang.org/genproto v0.0.0-20230119192704-9d59e20e5cd1
+	google.golang.org/grpc v1.52.0
 	google.golang.org/protobuf v1.28.1
 )
 
@@ -81,9 +81,9 @@ require (
 	go.opentelemetry.io/otel/metric v0.34.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.11.2 // indirect
 	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
-	golang.org/x/net v0.0.0-20221014081412-f15817d10f9b // indirect
+	golang.org/x/net v0.4.0 // indirect
 	golang.org/x/oauth2 v0.0.0-20221014153046-6fdb5e3db783 // indirect
-	golang.org/x/text v0.4.0 // indirect
+	golang.org/x/text v0.5.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	sigs.k8s.io/yaml v1.1.0 // indirect

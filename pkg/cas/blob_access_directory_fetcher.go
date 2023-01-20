@@ -121,7 +121,7 @@ func (bs *treeBlobSlicer) Slice(b buffer.Buffer, requestedChildDigest digest.Dig
 					buffer.UserProvided,
 				).CloneCopy(bs.maximumDirectorySizeBytes)
 
-				childDigestGenerator := digestFunction.NewGenerator()
+				childDigestGenerator := digestFunction.NewGenerator(sizeBytes)
 				if err := b1.IntoWriter(childDigestGenerator); err != nil {
 					b2.Discard()
 					return err
@@ -139,7 +139,7 @@ func (bs *treeBlobSlicer) Slice(b buffer.Buffer, requestedChildDigest digest.Dig
 				// The directory's size doesn't match,
 				// so we can compute its checksum
 				// without unmarshaling it.
-				childDigestGenerator := digestFunction.NewGenerator()
+				childDigestGenerator := digestFunction.NewGenerator(sizeBytes)
 				if _, err := io.Copy(childDigestGenerator, fieldReader); err != nil {
 					return err
 				}

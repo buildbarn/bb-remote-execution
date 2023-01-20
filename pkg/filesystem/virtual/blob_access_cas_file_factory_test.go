@@ -32,7 +32,7 @@ func TestBlobAccessCASFileFactoryVirtualSeek(t *testing.T) {
 		contentAddressableStorage,
 		errorLogger)
 
-	digest := digest.MustNewDigest("example", "8b1a9953c4611296a827abf8c47804d7", 123)
+	digest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "8b1a9953c4611296a827abf8c47804d7", 123)
 	f := casFileFactory.LookupFile(digest, false)
 	var out virtual.Attributes
 	f.VirtualGetAttributes(ctx, blobAccessCASFileFactoryAttributesMask, &out)
@@ -82,7 +82,7 @@ func TestBlobAccessCASFileFactoryGetContainingDigests(t *testing.T) {
 		contentAddressableStorage,
 		errorLogger)
 
-	digest := digest.MustNewDigest("example", "d7ac2672607ba20a44d01d03a6685b24", 400)
+	digest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "d7ac2672607ba20a44d01d03a6685b24", 400)
 	f := casFileFactory.LookupFile(digest, true)
 	var out virtual.Attributes
 	f.VirtualGetAttributes(ctx, blobAccessCASFileFactoryAttributesMask, &out)
@@ -108,7 +108,7 @@ func TestBlobAccessCASFileFactoryGetOutputServiceFileStatus(t *testing.T) {
 		contentAddressableStorage,
 		errorLogger)
 
-	digest := digest.MustNewDigest("example", "8b1a9953c4611296a827abf8c47804d7", 123)
+	digest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "8b1a9953c4611296a827abf8c47804d7", 123)
 	f := casFileFactory.LookupFile(digest, false)
 	var out virtual.Attributes
 	f.VirtualGetAttributes(ctx, blobAccessCASFileFactoryAttributesMask, &out)
@@ -159,7 +159,7 @@ func TestBlobAccessCASFileFactoryAppendOutputPathPersistencyDirectoryNode(t *tes
 		contentAddressableStorage,
 		errorLogger)
 
-	digest1 := digest.MustNewDigest("example", "8b1a9953c4611296a827abf8c47804d7", 123)
+	digest1 := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "8b1a9953c4611296a827abf8c47804d7", 123)
 	f1 := casFileFactory.LookupFile(digest1, false)
 	var out1 virtual.Attributes
 	f1.VirtualGetAttributes(ctx, blobAccessCASFileFactoryAttributesMask, &out1)
@@ -172,7 +172,7 @@ func TestBlobAccessCASFileFactoryAppendOutputPathPersistencyDirectoryNode(t *tes
 			SetSizeBytes(123),
 		&out1)
 
-	digest2 := digest.MustNewDigest("example", "0282d25bf4aefdb9cb50ccc78d974f0a", 456)
+	digest2 := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "0282d25bf4aefdb9cb50ccc78d974f0a", 456)
 	f2 := casFileFactory.LookupFile(digest2, true)
 	var out2 virtual.Attributes
 	f2.VirtualGetAttributes(ctx, blobAccessCASFileFactoryAttributesMask, &out2)

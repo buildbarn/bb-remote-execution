@@ -47,10 +47,10 @@ var defaultNoopErrorMessageTemplate = template.Must(
 	template.New("NoopBuildExecutor").
 		Parse("Action has been uploaded, but will not be executed. Action details: {{ .ActionURL }}"))
 
-func (be *noopBuildExecutor) Execute(ctx context.Context, filePool filesystem.FilePool, instanceName digest.InstanceName, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+func (be *noopBuildExecutor) Execute(ctx context.Context, filePool filesystem.FilePool, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 	// Obtain action digest, which can be embedded in the error message.
 	response := NewDefaultExecuteResponse(request)
-	actionDigest, err := instanceName.NewDigestFromProto(request.ActionDigest)
+	actionDigest, err := digestFunction.NewDigestFromProto(request.ActionDigest)
 	if err != nil {
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to extract digest for action"))
 		return response
@@ -62,7 +62,7 @@ func (be *noopBuildExecutor) Execute(ctx context.Context, filePool filesystem.Fi
 		attachErrorToExecuteResponse(response, status.Error(codes.InvalidArgument, "Request does not contain an action"))
 		return response
 	}
-	commandDigest, err := instanceName.NewDigestFromProto(request.Action.CommandDigest)
+	commandDigest, err := digestFunction.NewDigestFromProto(request.Action.CommandDigest)
 	if err != nil {
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to extract digest for command"))
 		return response

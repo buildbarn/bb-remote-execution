@@ -29,9 +29,9 @@ func NewFilePoolStatsBuildExecutor(buildExecutor BuildExecutor) BuildExecutor {
 	}
 }
 
-func (be *filePoolStatsBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, instanceName digest.InstanceName, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+func (be *filePoolStatsBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 	fp := statsCollectingFilePool{base: filePool}
-	response := be.BuildExecutor.Execute(ctx, &fp, instanceName, request, executionStateUpdates)
+	response := be.BuildExecutor.Execute(ctx, &fp, digestFunction, request, executionStateUpdates)
 
 	fp.lock.Lock()
 	stats := fp.stats

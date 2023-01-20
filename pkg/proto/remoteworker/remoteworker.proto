@@ -181,6 +181,9 @@ message DesiredState {
     // to associate the worker's storage activity back to the trace that
     // started the action.
     map<string, string> w3c_trace_context = 8;
+
+    // The digest function that was used to compute the action digest.
+    build.bazel.remote.execution.v2.DigestFunction.Value digest_function = 9;
   }
 
   oneof worker_state {

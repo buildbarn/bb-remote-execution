@@ -9,8 +9,8 @@ import (
 
 type actionKeyExtractor struct{}
 
-func (ke actionKeyExtractor) ExtractKey(ctx context.Context, instanceName digest.InstanceName, action *remoteexecution.Action) (Key, error) {
-	return NewKey(instanceName, action.Platform)
+func (ke actionKeyExtractor) ExtractKey(ctx context.Context, digestFunction digest.Function, action *remoteexecution.Action) (Key, error) {
+	return NewKey(digestFunction.GetInstanceName(), action.Platform)
 }
 
 // ActionKeyExtractor is capable of extracting a platform key from an

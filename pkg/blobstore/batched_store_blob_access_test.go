@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
@@ -32,6 +33,7 @@ func TestBatchedStoreBlobAccessSuccess(t *testing.T) {
 	// without generating any calls on the storage backend.
 	digestEmpty := digest.MustNewDigest(
 		"default",
+		remoteexecution.DigestFunction_MD5,
 		"d41d8cd98f00b204e9800998ecf8427e",
 		0)
 	for i := 0; i < 10; i++ {
@@ -40,6 +42,7 @@ func TestBatchedStoreBlobAccessSuccess(t *testing.T) {
 
 	digestHello := digest.MustNewDigest(
 		"default",
+		remoteexecution.DigestFunction_MD5,
 		"8b1a9953c4611296a827abf8c47804d7",
 		5)
 	for i := 0; i < 10; i++ {
@@ -62,6 +65,7 @@ func TestBatchedStoreBlobAccessSuccess(t *testing.T) {
 
 	digestGoodbye := digest.MustNewDigest(
 		"default",
+		remoteexecution.DigestFunction_MD5,
 		"6fc422233a40a75a1f028e11c3cd1140",
 		7)
 	require.NoError(t, blobAccess.Put(ctx, digestGoodbye, buffer.NewValidatedBufferFromByteSlice([]byte("Goodbye"))))
@@ -100,6 +104,7 @@ func TestBatchedStoreBlobAccessFailure(t *testing.T) {
 	// without generating any calls on the storage backend.
 	digestEmpty := digest.MustNewDigest(
 		"default",
+		remoteexecution.DigestFunction_MD5,
 		"d41d8cd98f00b204e9800998ecf8427e",
 		0)
 	for i := 0; i < 10; i++ {
@@ -108,6 +113,7 @@ func TestBatchedStoreBlobAccessFailure(t *testing.T) {
 
 	digestHello := digest.MustNewDigest(
 		"default",
+		remoteexecution.DigestFunction_MD5,
 		"8b1a9953c4611296a827abf8c47804d7",
 		5)
 	for i := 0; i < 10; i++ {
@@ -133,18 +139,19 @@ func TestBatchedStoreBlobAccessFailure(t *testing.T) {
 
 	digestGoodbye := digest.MustNewDigest(
 		"default",
+		remoteexecution.DigestFunction_MD5,
 		"6fc422233a40a75a1f028e11c3cd1140",
 		7)
 	testutil.RequireEqualStatus(
 		t,
-		status.Error(codes.Internal, "Failed to store previous blob 8b1a9953c4611296a827abf8c47804d7-5-default: Storage backend on fire"),
+		status.Error(codes.Internal, "Failed to store previous blob 3-8b1a9953c4611296a827abf8c47804d7-5-default: Storage backend on fire"),
 		blobAccess.Put(ctx, digestGoodbye, buffer.NewValidatedBufferFromByteSlice([]byte("Goodbye"))))
 
 	// Future requests to store blobs should be discarded
 	// immediately, returning same error.
 	testutil.RequireEqualStatus(
 		t,
-		status.Error(codes.Internal, "Failed to store previous blob 8b1a9953c4611296a827abf8c47804d7-5-default: Storage backend on fire"),
+		status.Error(codes.Internal, "Failed to store previous blob 3-8b1a9953c4611296a827abf8c47804d7-5-default: Storage backend on fire"),
 		blobAccess.Put(ctx, digestGoodbye, buffer.NewValidatedBufferFromByteSlice([]byte("Goodbye"))))
 
 	// Flushing should not cause any requests on the backend, due to
@@ -152,7 +159,7 @@ func TestBatchedStoreBlobAccessFailure(t *testing.T) {
 	// caused it to go into the error state.
 	testutil.RequireEqualStatus(
 		t,
-		status.Error(codes.Internal, "Failed to store previous blob 8b1a9953c4611296a827abf8c47804d7-5-default: Storage backend on fire"),
+		status.Error(codes.Internal, "Failed to store previous blob 3-8b1a9953c4611296a827abf8c47804d7-5-default: Storage backend on fire"),
 		flush(ctx))
 
 	// Successive stores and flushes should be functional once again.
@@ -169,7 +176,7 @@ func TestBatchedStoreBlobAccessCanceledWhileWaitingOnSemaphore(t *testing.T) {
 	blobAccess, flush := blobstore.NewBatchedStoreBlobAccess(baseBlobAccess, digest.KeyWithoutInstance, 2, putSemaphore)
 
 	// Enqueue a blob for writing.
-	digestHello := digest.MustNewDigest("default", "8b1a9953c4611296a827abf8c47804d7", 5)
+	digestHello := digest.MustNewDigest("default", remoteexecution.DigestFunction_MD5, "8b1a9953c4611296a827abf8c47804d7", 5)
 	reader := mock.NewMockFileReader(ctrl)
 	require.NoError(t, blobAccess.Put(ctx, digestHello, buffer.NewValidatedBufferFromReaderAt(reader, 5)))
 

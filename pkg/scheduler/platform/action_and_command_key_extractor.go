@@ -47,7 +47,8 @@ func NewActionAndCommandKeyExtractor(contentAddressableStorage blobstore.BlobAcc
 	}
 }
 
-func (ke *actionAndCommandKeyExtractor) ExtractKey(ctx context.Context, instanceName digest.InstanceName, action *remoteexecution.Action) (Key, error) {
+func (ke *actionAndCommandKeyExtractor) ExtractKey(ctx context.Context, digestFunction digest.Function, action *remoteexecution.Action) (Key, error) {
+	instanceName := digestFunction.GetInstanceName()
 	if action.Platform != nil {
 		// REv2.2 or newer: platform properties are stored in
 		// the Action message.
@@ -60,7 +61,7 @@ func (ke *actionAndCommandKeyExtractor) ExtractKey(ctx context.Context, instance
 
 	// REv2.1 or older: platform properties are stored in the
 	// Command message.
-	commandDigest, err := instanceName.NewDigestFromProto(action.CommandDigest)
+	commandDigest, err := digestFunction.NewDigestFromProto(action.CommandDigest)
 	if err != nil {
 		return Key{}, util.StatusWrap(err, "Failed to extract digest for command")
 	}

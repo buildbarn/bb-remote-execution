@@ -20,9 +20,9 @@ func TestStaticKeyExtractor(t *testing.T) {
 		},
 	})
 	ctx := context.Background()
-	instanceName := digest.MustNewInstanceName("hello")
+	digestFunction := digest.MustNewFunction("hello", remoteexecution.DigestFunction_SHA256)
 
-	key, err := keyExtractor.ExtractKey(ctx, instanceName, &remoteexecution.Action{
+	key, err := keyExtractor.ExtractKey(ctx, digestFunction, &remoteexecution.Action{
 		Platform: &remoteexecution.Platform{
 			Properties: []*remoteexecution.Platform_Property{
 				{Name: "arch", Value: "x86_64"},

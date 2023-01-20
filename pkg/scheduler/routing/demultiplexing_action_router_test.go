@@ -54,7 +54,8 @@ func TestDemultiplexingActionRouter(t *testing.T) {
 		// the provided REv2 instance name is not a prefix of
 		// "a". This means that the request should be sent to
 		// the default action router.
-		platformKeyExtractor.EXPECT().ExtractKey(ctx, digest.EmptyInstanceName, testutil.EqProto(t, &remoteexecution.Action{})).
+		digestFunction := digest.MustNewFunction("", remoteexecution.DigestFunction_SHA256)
+		platformKeyExtractor.EXPECT().ExtractKey(ctx, digestFunction, testutil.EqProto(t, &remoteexecution.Action{})).
 			Return(platform.MustNewKey("", linuxPlatform), nil)
 		defaultActionRouter.EXPECT().RouteAction(ctx, gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{}), testutil.EqProto(t, &remoteexecution.RequestMetadata{})).
 			Return(platform.Key{}, nil, nil, status.Error(codes.Internal, "Got routed to default"))
@@ -70,7 +71,8 @@ func TestDemultiplexingActionRouter(t *testing.T) {
 	t.Run("LinuxActionRouter", func(t *testing.T) {
 		// By setting the REv2 instance name to "a", we should
 		// get directed to the Linux action router.
-		platformKeyExtractor.EXPECT().ExtractKey(ctx, digest.MustNewInstanceName("a"), testutil.EqProto(t, &remoteexecution.Action{})).
+		digestFunction := digest.MustNewFunction("a", remoteexecution.DigestFunction_SHA256)
+		platformKeyExtractor.EXPECT().ExtractKey(ctx, digestFunction, testutil.EqProto(t, &remoteexecution.Action{})).
 			Return(platform.MustNewKey("a", linuxPlatform), nil)
 		linuxActionRouter.EXPECT().RouteAction(ctx, gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{}), testutil.EqProto(t, &remoteexecution.RequestMetadata{})).
 			Return(platform.Key{}, nil, nil, status.Error(codes.Internal, "Got routed to Linux"))

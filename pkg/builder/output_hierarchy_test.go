@@ -240,7 +240,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 
 	root := mock.NewMockUploadableDirectory(ctrl)
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	digestFunction := digest.MustNewDigest("example", "8b1a9953c4611296a827abf8c47804d7", 5).GetDigestFunction()
+	digestFunction := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "8b1a9953c4611296a827abf8c47804d7", 5).GetDigestFunction()
 
 	t.Run("Noop", func(t *testing.T) {
 		// Uploading of a build action with no declared outputs
@@ -278,14 +278,14 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		// Inspection/uploading of all non-directory outputs.
 		foo.EXPECT().Readlink(path.MustNewComponent("directory-symlink")).Return("directory-symlink-target", nil)
 		foo.EXPECT().UploadFile(ctx, path.MustNewComponent("file-regular"), gomock.Any()).
-			Return(digest.MustNewDigest("example", "a58c2f2281011ca2e631b39baa1ab657", 12), nil)
+			Return(digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "a58c2f2281011ca2e631b39baa1ab657", 12), nil)
 		foo.EXPECT().UploadFile(ctx, path.MustNewComponent("file-executable"), gomock.Any()).
-			Return(digest.MustNewDigest("example", "7590e1b46240ecb5ea65a80db7ee6fae", 15), nil)
+			Return(digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "7590e1b46240ecb5ea65a80db7ee6fae", 15), nil)
 		foo.EXPECT().Readlink(path.MustNewComponent("file-symlink")).Return("file-symlink-target", nil)
 		foo.EXPECT().UploadFile(ctx, path.MustNewComponent("path-regular"), gomock.Any()).
-			Return(digest.MustNewDigest("example", "44206648b7bb2f3b0d2ed0c52ad2e269", 12), nil)
+			Return(digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "44206648b7bb2f3b0d2ed0c52ad2e269", 12), nil)
 		foo.EXPECT().UploadFile(ctx, path.MustNewComponent("path-executable"), gomock.Any()).
-			Return(digest.MustNewDigest("example", "87729325cd08d300fb0e238a3a8da443", 15), nil)
+			Return(digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "87729325cd08d300fb0e238a3a8da443", 15), nil)
 		foo.EXPECT().Readlink(path.MustNewComponent("path-symlink")).Return("path-symlink-target", nil)
 
 		// Uploading of /foo/directory-directory. Files with an
@@ -306,14 +306,14 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		directoryDirectoryDirectory.EXPECT().ReadDir().Return(nil, nil)
 		directoryDirectoryDirectory.EXPECT().Close()
 		directoryDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("executable"), gomock.Any()).
-			Return(digest.MustNewDigest("example", "ee7004c7949d83f130592f15d98ca343", 10), nil)
+			Return(digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "ee7004c7949d83f130592f15d98ca343", 10), nil)
 		directoryDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("regular"), gomock.Any()).
-			Return(digest.MustNewDigest("example", "af37d08ae228a87dc6b265fd1019c97d", 7), nil)
+			Return(digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "af37d08ae228a87dc6b265fd1019c97d", 7), nil)
 		directoryDirectory.EXPECT().Readlink(path.MustNewComponent("symlink")).Return("symlink-target", nil)
 		directoryDirectory.EXPECT().Close()
 		contentAddressableStorage.EXPECT().Put(
 			ctx,
-			digest.MustNewDigest("example", "55aed4acf40a28132fb2d2de2b5962f0", 184),
+			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "55aed4acf40a28132fb2d2de2b5962f0", 184),
 			gomock.Any()).
 			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 				m, err := b.ToProto(&remoteexecution.Tree{}, 10000)
@@ -367,7 +367,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		pathDirectory.EXPECT().Close()
 		contentAddressableStorage.EXPECT().Put(
 			ctx,
-			digest.MustNewDigest("example", "9dd94c5a4b02914af42e8e6372e0b709", 2),
+			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "9dd94c5a4b02914af42e8e6372e0b709", 2),
 			gomock.Any()).
 			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 				m, err := b.ToProto(&remoteexecution.Tree{}, 10000)
@@ -712,7 +712,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		root.EXPECT().ReadDir().Return(nil, nil)
 		contentAddressableStorage.EXPECT().Put(
 			ctx,
-			digest.MustNewDigest("example", "9dd94c5a4b02914af42e8e6372e0b709", 2),
+			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "9dd94c5a4b02914af42e8e6372e0b709", 2),
 			gomock.Any()).
 			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 				m, err := b.ToProto(&remoteexecution.Tree{}, 10000)
@@ -750,7 +750,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		root.EXPECT().ReadDir().Return(nil, nil)
 		contentAddressableStorage.EXPECT().Put(
 			ctx,
-			digest.MustNewDigest("example", "9dd94c5a4b02914af42e8e6372e0b709", 2),
+			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "9dd94c5a4b02914af42e8e6372e0b709", 2),
 			gomock.Any()).
 			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 				m, err := b.ToProto(&remoteexecution.Tree{}, 10000)

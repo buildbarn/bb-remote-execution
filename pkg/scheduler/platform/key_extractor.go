@@ -17,5 +17,5 @@ import (
 // scheduler rewrite/override platform properties provided by the
 // client.
 type KeyExtractor interface {
-	ExtractKey(ctx context.Context, instanceName digest.InstanceName, action *remoteexecution.Action) (Key, error)
+	ExtractKey(ctx context.Context, digestFunction digest.Function, action *remoteexecution.Action) (Key, error)
 }

@@ -20,7 +20,7 @@ func TestDecomposedDirectoryWalker(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	directoryFetcher := mock.NewMockDirectoryFetcher(ctrl)
-	parentDigest := digest.MustNewDigest("example", "6884a9e20905b512d1122a2b1ad8ba16", 123)
+	parentDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "6884a9e20905b512d1122a2b1ad8ba16", 123)
 	parentDirectoryWalker := cas.NewDecomposedDirectoryWalker(directoryFetcher, parentDigest)
 
 	exampleDirectory := &remoteexecution.Directory{
@@ -56,7 +56,7 @@ func TestDecomposedDirectoryWalker(t *testing.T) {
 	t.Run("ParentGetDescription", func(t *testing.T) {
 		require.Equal(
 			t,
-			"Directory \"6884a9e20905b512d1122a2b1ad8ba16-123-example\"",
+			"Directory \"3-6884a9e20905b512d1122a2b1ad8ba16-123-example\"",
 			parentDirectoryWalker.GetDescription())
 	})
 
@@ -67,7 +67,7 @@ func TestDecomposedDirectoryWalker(t *testing.T) {
 			parentDirectoryWalker.GetContainingDigest())
 	})
 
-	childDigest := digest.MustNewDigest("example", "4df5f448a5e6b3c41e6aae7a8a9832aa", 456)
+	childDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "4df5f448a5e6b3c41e6aae7a8a9832aa", 456)
 	childDirectoryWalker := parentDirectoryWalker.GetChild(childDigest)
 
 	// Repeat the tests above against a child directory, to make
@@ -84,7 +84,7 @@ func TestDecomposedDirectoryWalker(t *testing.T) {
 	t.Run("ChildGetDescription", func(t *testing.T) {
 		require.Equal(
 			t,
-			"Directory \"4df5f448a5e6b3c41e6aae7a8a9832aa-456-example\"",
+			"Directory \"3-4df5f448a5e6b3c41e6aae7a8a9832aa-456-example\"",
 			childDirectoryWalker.GetDescription())
 	})
 

@@ -63,7 +63,7 @@
 	</tr>
 	<tr>
 		<th style="width: 25%">Action digest:</th>
-		<td style="width: 75%"><a href="{{action_url .BrowserURL $platformQueueName.InstanceNamePrefix .Operation.InstanceNameSuffix .Operation.ActionDigest}}">{{proto_to_json .Operation.ActionDigest}}</a></td>
+		<td style="width: 75%"><a href="{{action_url .BrowserURL $platformQueueName.InstanceNamePrefix .Operation.InstanceNameSuffix .Operation.DigestFunction .Operation.ActionDigest}}">{{proto_to_json .Operation.ActionDigest}}</a></td>
 	</tr>
 	<tr>
 		<th style="width: 25%">Timeout:</th>

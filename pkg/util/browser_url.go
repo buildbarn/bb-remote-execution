@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/buildbarn/bb-storage/pkg/digest"
 )
@@ -15,6 +16,7 @@ func GetBrowserURL(browserURL *url.URL, objectType string, digest digest.Digest)
 	return browserURL.JoinPath(
 		digest.GetInstanceName().String(),
 		"blobs",
+		strings.ToLower(digest.GetDigestFunction().GetEnumValue().String()),
 		objectType,
 		fmt.Sprintf("%s-%s", digest.GetHashString(), strconv.FormatInt(digest.GetSizeBytes(), 10)),
 		"/",

@@ -61,5 +61,5 @@ func GetResultAndGRPCCodeFromExecuteResponse(response *remoteexecution.ExecuteRe
 // requests and yield an execute response.
 type BuildExecutor interface {
 	CheckReadiness(ctx context.Context) error
-	Execute(ctx context.Context, filePool filesystem.FilePool, instanceName digest.InstanceName, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse
+	Execute(ctx context.Context, filePool filesystem.FilePool, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse
 }

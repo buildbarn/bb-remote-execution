@@ -217,8 +217,9 @@ type InMemoryBuildQueue struct {
 
 var inMemoryBuildQueueCapabilitiesProvider = capabilities.NewStaticProvider(&remoteexecution.ServerCapabilities{
 	ExecutionCapabilities: &remoteexecution.ExecutionCapabilities{
-		DigestFunction: remoteexecution.DigestFunction_SHA256,
-		ExecEnabled:    true,
+		DigestFunction:  remoteexecution.DigestFunction_SHA256,
+		DigestFunctions: digest.SupportedDigestFunctions,
+		ExecEnabled:     true,
 		ExecutionPriorityCapabilities: &remoteexecution.PriorityCapabilities{
 			Priorities: []*remoteexecution.PriorityCapabilities_PriorityRange{
 				{MinPriority: math.MinInt32, MaxPriority: math.MaxInt32},
@@ -333,7 +334,11 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 		return util.StatusWrap(err, "Authorization")
 	}
 
-	actionDigest, err := instanceName.NewDigestFromProto(in.ActionDigest)
+	digestFunction, err := instanceName.GetDigestFunction(in.DigestFunction, len(in.ActionDigest.GetHash()))
+	if err != nil {
+		return err
+	}
+	actionDigest, err := digestFunction.NewDigestFromProto(in.ActionDigest)
 	if err != nil {
 		return util.StatusWrap(err, "Failed to extract digest for action")
 	}
@@ -445,6 +450,7 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 			QueuedTimestamp:    bq.getCurrentTime(),
 			AuxiliaryMetadata:  auxiliaryMetadata,
 			InstanceNameSuffix: pq.instanceNamePatcher.PatchInstanceName(instanceName).String(),
+			DigestFunction:     digestFunction.GetEnumValue(),
 			W3CTraceContext:    w3cTraceContext,
 		},
 		targetID:                requestMetadata.GetTargetId(),
@@ -2043,6 +2049,7 @@ func (o *operation) getOperationState(bq *InMemoryBuildQueue) *buildqueuestate.O
 		Timeout:            bq.cleanupQueue.getTimestamp(o.cleanupKey),
 		Priority:           o.priority,
 		InstanceNameSuffix: t.desiredState.InstanceNameSuffix,
+		DigestFunction:     t.desiredState.DigestFunction,
 	}
 	switch t.getStage() {
 	case remoteexecution.ExecutionStage_QUEUED:

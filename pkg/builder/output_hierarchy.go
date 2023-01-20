@@ -234,7 +234,7 @@ func (s *uploadOutputsState) uploadOutputDirectoryEntered(d UploadableDirectory,
 			tag = byte(blobstore.TreeChildrenFieldNumber<<3) | byte(protowire.BytesType)
 		}
 
-		digestGenerator := s.digestFunction.NewGenerator()
+		digestGenerator := s.digestFunction.NewGenerator(int64(len(treeData)))
 		if _, err := digestGenerator.Write(treeData); err != nil {
 			panic(err)
 		}
@@ -345,7 +345,7 @@ func (s *uploadOutputDirectoryState) uploadDirectory(d UploadableDirectory, dPat
 					// Compute the digest of the child
 					// directory, so that it may be
 					// referenced by the parent.
-					digestGenerator := s.digestFunction.NewGenerator()
+					digestGenerator := s.digestFunction.NewGenerator(int64(len(childData)))
 					if _, err := digestGenerator.Write(childData); err != nil {
 						panic(err)
 					}

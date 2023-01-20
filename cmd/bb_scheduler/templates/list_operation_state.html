@@ -102,7 +102,7 @@
 						<a class="font-monospace" href="operation?name={{.Name}}" style="color: {{to_foreground_color .Name}}">{{abbreviate .Name}}</a>
 					</td>
 					<td style="background-color: {{to_background_color .ActionDigest.Hash}}">
-						<a class="font-monospace" href="{{action_url $browserURL .InvocationName.SizeClassQueueName.PlatformQueueName.InstanceNamePrefix .InstanceNameSuffix .ActionDigest}}" style="color: {{to_foreground_color .ActionDigest.Hash}}">{{abbreviate .ActionDigest.Hash}}</a>
+						<a class="font-monospace" href="{{action_url $browserURL .InvocationName.SizeClassQueueName.PlatformQueueName.InstanceNamePrefix .InstanceNameSuffix .DigestFunction .ActionDigest}}" style="color: {{to_foreground_color .ActionDigest.Hash}}">{{abbreviate .ActionDigest.Hash}}</a>
 					</td>
 					<td><span style="word-break: break-all">{{.TargetId}}</span></td>
 					{{if operation_stage_queued .}}
