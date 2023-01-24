@@ -13,11 +13,11 @@ replace mvdan.cc/gofumpt => mvdan.cc/gofumpt v0.2.1
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.17.3
-	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.26.0
-	github.com/aws/aws-sdk-go-v2/service/sqs v1.20.0
+	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.26.1
+	github.com/aws/aws-sdk-go-v2/service/sqs v1.20.1
 	github.com/aws/smithy-go v1.13.5
 	github.com/bazelbuild/remote-apis v0.0.0-20221109204407-3a21deee813d
-	github.com/buildbarn/bb-storage v0.0.0-20230120132704-98063ef6edfa
+	github.com/buildbarn/bb-storage v0.0.0-20230123181437-ad887f0932f6
 	github.com/buildbarn/go-xdr v0.0.0-20230105161020-895955dd8771
 	github.com/golang/protobuf v1.5.2
 	github.com/google/uuid v1.3.0
@@ -31,7 +31,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.11.2
 	golang.org/x/sync v0.1.0
 	golang.org/x/sys v0.4.0
-	google.golang.org/genproto v0.0.0-20230119192704-9d59e20e5cd1
+	google.golang.org/genproto v0.0.0-20230123190316-2c411cf9d197
 	google.golang.org/grpc v1.52.0
 	google.golang.org/protobuf v1.28.1
 )
