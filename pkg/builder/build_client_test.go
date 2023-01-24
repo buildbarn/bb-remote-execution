@@ -71,6 +71,7 @@ func TestBuildClient(t *testing.T) {
 		},
 		QueuedTimestamp:    &timestamppb.Timestamp{Seconds: 1007},
 		InstanceNameSuffix: "suffix",
+		DigestFunction:     remoteexecution.DigestFunction_SHA1,
 	}
 	operationQueueClient.EXPECT().Synchronize(context.Background(), testutil.EqProto(t, &remoteworker.SynchronizeRequest{
 		WorkerId:           workerID,
@@ -118,6 +119,7 @@ func TestBuildClient(t *testing.T) {
 		},
 		QueuedTimestamp:    &timestamppb.Timestamp{Seconds: 1008},
 		InstanceNameSuffix: "suffix",
+		DigestFunction:     remoteexecution.DigestFunction_SHA1,
 	}
 	clock.EXPECT().Now().Return(time.Unix(1015, 0)).Times(2)
 	timer1 := mock.NewMockTimer(ctrl)

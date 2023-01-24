@@ -72,7 +72,7 @@ func (bc *BuildClient) startExecution(executionRequest *remoteworker.DesiredStat
 		return util.StatusWrapf(err, "Invalid instance name suffix %#v", executionRequest.InstanceNameSuffix)
 	}
 	digestFunction, err := bc.instanceNamePatcher.PatchInstanceName(instanceNameSuffix).
-		GetDigestFunction(executionRequest.DigestFunction, len(executionRequest.ActionDigest.GetHash()))
+		GetDigestFunction(executionRequest.DigestFunction, 0)
 	if err != nil {
 		return err
 	}
