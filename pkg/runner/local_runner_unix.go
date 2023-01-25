@@ -34,7 +34,7 @@ func NewChrootedCommandCreator(sysProcAttr *syscall.SysProcAttr) (CommandCreator
 
 var temporaryDirectoryEnvironmentVariablePrefixes = [...]string{"TMPDIR="}
 
-var invalidArgumentErrs = [...]error{exec.ErrNotFound, os.ErrPermission, syscall.ENOENT, syscall.ENOEXEC}
+var invalidArgumentErrs = []error{exec.ErrNotFound, os.ErrPermission, syscall.ENOENT, syscall.ENOEXEC}
 
 func convertTimeval(t syscall.Timeval) *durationpb.Duration {
 	return &durationpb.Duration{

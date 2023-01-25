@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "clean_runner.go",
         "local_runner.go",
+        "local_runner_darwin.go",
         "local_runner_rss_bytes.go",
         "local_runner_rss_kibibytes.go",
         "local_runner_unix.go",
@@ -12,6 +13,7 @@ go_library(
         "path_existence_checking_runner.go",
         "temporary_directory_installing_runner.go",
         "temporary_directory_symlinking_runner.go",
+        "test_environment_variable_setting_runner.go",
     ],
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/runner",
     visibility = ["//visibility:public"],
@@ -22,6 +24,7 @@ go_library(
         "@com_github_buildbarn_bb_storage//pkg/filesystem",
         "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
         "@com_github_buildbarn_bb_storage//pkg/util",
+        "@com_github_prometheus_client_golang//prometheus",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//status",
         "@org_golang_google_protobuf//types/known/anypb",
