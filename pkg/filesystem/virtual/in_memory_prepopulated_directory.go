@@ -283,7 +283,7 @@ func NewInMemoryPrepopulatedDirectory(fileAllocator FileAllocator, symlinkFactor
 // to gain access to the directory's contents.
 func (i *inMemoryPrepopulatedDirectory) getContents() (*inMemoryDirectoryContents, error) {
 	if i.initialContentsFetcher != nil {
-		children, err := i.initialContentsFetcher.FetchContents()
+		children, err := i.initialContentsFetcher.FetchContents(func(name path.Component) FileReadMonitor { return nil })
 		if err != nil {
 			return nil, err
 		}

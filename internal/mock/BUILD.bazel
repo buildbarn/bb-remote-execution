@@ -184,6 +184,8 @@ gomock(
         "Directory",
         "DirectoryEntryReporter",
         "FileAllocator",
+        "FileReadMonitor",
+        "FileReadMonitorFactory",
         "FUSERemovalNotifier",
         "FUSERemovalNotifierRegistrar",
         "HandleResolver",

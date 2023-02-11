@@ -1,8 +1,6 @@
 package virtual
 
 import (
-	"sync"
-
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 )
@@ -23,15 +21,28 @@ func NewAccessMonitoringInitialContentsFetcher(base InitialContentsFetcher, root
 	}
 }
 
-func (icf *accessMonitoringInitialContentsFetcher) FetchContents() (map[path.Component]InitialNode, error) {
-	// Call into underlying initial contents fetcher.
-	contents, err := icf.InitialContentsFetcher.FetchContents()
+func (icf *accessMonitoringInitialContentsFetcher) FetchContents(fileReadMonitorFactory FileReadMonitorFactory) (map[path.Component]InitialNode, error) {
+	// Call into underlying initial contents fetcher. Wrap the file
+	// read monitors that are installed on the files, so that we can
+	// detect file access.
+	readDirectoryMonitor := icf.unreadDirectoryMonitor.ReadDirectory()
+	contents, err := icf.InitialContentsFetcher.FetchContents(func(name path.Component) FileReadMonitor {
+		if fileReadMonitor := fileReadMonitorFactory(name); fileReadMonitor != nil {
+			return func() {
+				fileReadMonitor()
+				readDirectoryMonitor.ReadFile(name)
+			}
+		}
+		return func() {
+			readDirectoryMonitor.ReadFile(name)
+		}
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	// Wrap all of the child files and directories.
-	readDirectoryMonitor := icf.unreadDirectoryMonitor.ReadDirectory()
+	// Wrap all of the child directories, so that we can detect
+	// directory access.
 	wrappedContents := make(map[path.Component]InitialNode, len(contents))
 	for name, node := range contents {
 		childInitialContentsFetcher, leaf := node.GetPair()
@@ -41,33 +52,8 @@ func (icf *accessMonitoringInitialContentsFetcher) FetchContents() (map[path.Com
 				unreadDirectoryMonitor: readDirectoryMonitor.ResolvedDirectory(name),
 			})
 		} else {
-			wrappedContents[name] = InitialNode{}.FromLeaf(&accessMonitoringNativeLeaf{
-				NativeLeaf:           leaf,
-				readDirectoryMonitor: readDirectoryMonitor,
-				name:                 name,
-			})
+			wrappedContents[name] = InitialNode{}.FromLeaf(leaf)
 		}
 	}
 	return wrappedContents, nil
-}
-
-// accessMonitoringNativeLeaf is a decorator for NativeLeaf that reports
-// read operations against files to a ReadDirectoryMonitor.
-type accessMonitoringNativeLeaf struct {
-	NativeLeaf
-
-	once                 sync.Once
-	readDirectoryMonitor access.ReadDirectoryMonitor
-	name                 path.Component
-}
-
-func (l *accessMonitoringNativeLeaf) reportRead() {
-	l.readDirectoryMonitor.ReadFile(l.name)
-	l.readDirectoryMonitor = nil
-	l.name = path.Component{}
-}
-
-func (l *accessMonitoringNativeLeaf) VirtualRead(buf []byte, off uint64) (int, bool, Status) {
-	l.once.Do(l.reportRead)
-	return l.NativeLeaf.VirtualRead(buf, off)
 }

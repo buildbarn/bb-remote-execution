@@ -130,7 +130,7 @@ func TestInMemoryPrepopulatedDirectoryLookupAllChildrenFailure(t *testing.T) {
 	// When LookupAllChildren() is called in an uninitialized
 	// directory and initialization fails, the error should be
 	// propagated to the caller.
-	initialContentsFetcher.EXPECT().FetchContents().
+	initialContentsFetcher.EXPECT().FetchContents(gomock.Any()).
 		Return(nil, status.Error(codes.Internal, "Network error"))
 	_, _, err = childDirectory.LookupAllChildren()
 	testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Network error"), err)
@@ -263,7 +263,7 @@ func TestInMemoryPrepopulatedDirectoryRemoveDirectoryNotEmpty(t *testing.T) {
 		path.MustNewComponent("directory"): virtual.InitialNode{}.FromDirectory(initialContentsFetcher),
 	}, false))
 	leaf := mock.NewMockNativeLeaf(ctrl)
-	initialContentsFetcher.EXPECT().FetchContents().Return(map[path.Component]virtual.InitialNode{
+	initialContentsFetcher.EXPECT().FetchContents(gomock.Any()).Return(map[path.Component]virtual.InitialNode{
 		path.MustNewComponent("file"): virtual.InitialNode{}.FromLeaf(leaf),
 	}, nil)
 
@@ -333,7 +333,7 @@ func TestInMemoryPrepopulatedDirectoryCreateChildrenSuccess(t *testing.T) {
 	child, err := d.LookupChild(path.MustNewComponent("dir"))
 	require.NoError(t, err)
 	subdirectoryFile := mock.NewMockNativeLeaf(ctrl)
-	subdirectoryFetcher.EXPECT().FetchContents().Return(map[path.Component]virtual.InitialNode{
+	subdirectoryFetcher.EXPECT().FetchContents(gomock.Any()).Return(map[path.Component]virtual.InitialNode{
 		path.MustNewComponent("file"): virtual.InitialNode{}.FromLeaf(subdirectoryFile),
 	}, nil)
 	subdirectoryFile.EXPECT().VirtualGetAttributes(
@@ -903,7 +903,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualMkdir(t *testing.T) {
 		// contents cannot be fetched, should fail. The reason
 		// being that we can't accurately determine whether a
 		// file under that name is already present.
-		initialContentsFetcher.EXPECT().FetchContents().
+		initialContentsFetcher.EXPECT().FetchContents(gomock.Any()).
 			Return(nil, status.Error(codes.Internal, "Network error"))
 		errorLogger.EXPECT().Log(testutil.EqStatus(t, status.Error(codes.Internal, "Failed to initialize directory: Network error")))
 
@@ -1471,7 +1471,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRemove(t *testing.T) {
 		require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialNode{
 			path.MustNewComponent("broken_directory"): virtual.InitialNode{}.FromDirectory(initialContentsFetcher),
 		}, false))
-		initialContentsFetcher.EXPECT().FetchContents().
+		initialContentsFetcher.EXPECT().FetchContents(gomock.Any()).
 			Return(nil, status.Error(codes.Internal, "Network error"))
 		errorLogger.EXPECT().Log(testutil.EqStatus(t, status.Error(codes.Internal, "Failed to initialize directory: Network error")))
 
@@ -1486,7 +1486,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRemove(t *testing.T) {
 			path.MustNewComponent("non_empty_directory"): virtual.InitialNode{}.FromDirectory(initialContentsFetcher),
 		}, false))
 		leaf := mock.NewMockNativeLeaf(ctrl)
-		initialContentsFetcher.EXPECT().FetchContents().Return(map[path.Component]virtual.InitialNode{
+		initialContentsFetcher.EXPECT().FetchContents(gomock.Any()).Return(map[path.Component]virtual.InitialNode{
 			path.MustNewComponent("file"): virtual.InitialNode{}.FromLeaf(leaf),
 		}, nil)
 
@@ -1520,7 +1520,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRemove(t *testing.T) {
 		}, false))
 		leaf1 := mock.NewMockNativeLeaf(ctrl)
 		leaf2 := mock.NewMockNativeLeaf(ctrl)
-		initialContentsFetcher.EXPECT().FetchContents().Return(map[path.Component]virtual.InitialNode{
+		initialContentsFetcher.EXPECT().FetchContents(gomock.Any()).Return(map[path.Component]virtual.InitialNode{
 			path.MustNewComponent("._hidden_file1"): virtual.InitialNode{}.FromLeaf(leaf1),
 			path.MustNewComponent("._hidden_file2"): virtual.InitialNode{}.FromLeaf(leaf2),
 		}, nil)
@@ -1566,7 +1566,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualSymlink(t *testing.T) {
 		// contents cannot be fetched, should fail. The reason
 		// being that we can't accurately determine whether a
 		// file under that name is already present.
-		initialContentsFetcher.EXPECT().FetchContents().
+		initialContentsFetcher.EXPECT().FetchContents(gomock.Any()).
 			Return(nil, status.Error(codes.Internal, "Network error"))
 		errorLogger.EXPECT().Log(testutil.EqStatus(t, status.Error(codes.Internal, "Failed to initialize directory: Network error")))
 

@@ -9,7 +9,7 @@ import (
 
 type emptyInitialContentsFetcher struct{}
 
-func (f emptyInitialContentsFetcher) FetchContents() (map[path.Component]InitialNode, error) {
+func (f emptyInitialContentsFetcher) FetchContents(fileReadMonitorFactory FileReadMonitorFactory) (map[path.Component]InitialNode, error) {
 	return map[path.Component]InitialNode{}, nil
 }
 

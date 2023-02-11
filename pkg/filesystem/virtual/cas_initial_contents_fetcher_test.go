@@ -32,17 +32,19 @@ func TestCASInitialContentsFetcherFetchContents(t *testing.T) {
 
 	t.Run("DirectoryWalkerFailure", func(t *testing.T) {
 		// Errors from the backend should be propagated.
+		fileReadMonitorFactory := mock.NewMockFileReadMonitorFactory(ctrl)
 		directoryWalker.EXPECT().GetDirectory(ctx).
 			Return(nil, status.Error(codes.Internal, "Server failure"))
 		directoryWalker.EXPECT().GetDescription().Return("Root directory")
 
-		_, err := initialContentsFetcher.FetchContents()
+		_, err := initialContentsFetcher.FetchContents(fileReadMonitorFactory.Call)
 		testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Root directory: Server failure"), err)
 	})
 
 	t.Run("ChildDirectoryInvalidName", func(t *testing.T) {
 		// Directories containing entries with invalid names
 		// should be rejected, as they cannot be instantiated.
+		fileReadMonitorFactory := mock.NewMockFileReadMonitorFactory(ctrl)
 		directoryWalker.EXPECT().GetDirectory(ctx).Return(&remoteexecution.Directory{
 			Directories: []*remoteexecution.DirectoryNode{
 				{
@@ -56,11 +58,12 @@ func TestCASInitialContentsFetcherFetchContents(t *testing.T) {
 		}, nil)
 		directoryWalker.EXPECT().GetDescription().Return("Root directory")
 
-		_, err := initialContentsFetcher.FetchContents()
+		_, err := initialContentsFetcher.FetchContents(fileReadMonitorFactory.Call)
 		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Root directory: Directory \"..\" has an invalid name"), err)
 	})
 
 	t.Run("ChildDirectoryInvalidDigest", func(t *testing.T) {
+		fileReadMonitorFactory := mock.NewMockFileReadMonitorFactory(ctrl)
 		directoryWalker.EXPECT().GetDirectory(ctx).Return(&remoteexecution.Directory{
 			Directories: []*remoteexecution.DirectoryNode{
 				{
@@ -74,7 +77,7 @@ func TestCASInitialContentsFetcherFetchContents(t *testing.T) {
 		}, nil)
 		directoryWalker.EXPECT().GetDescription().Return("Root directory")
 
-		_, err := initialContentsFetcher.FetchContents()
+		_, err := initialContentsFetcher.FetchContents(fileReadMonitorFactory.Call)
 		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Root directory: Failed to obtain digest for directory \"hello\": Hash has length 18, while 32 characters were expected"), err)
 	})
 
@@ -82,6 +85,7 @@ func TestCASInitialContentsFetcherFetchContents(t *testing.T) {
 		// If an error occurs after creating the first file, any
 		// previously created files should be unlinked prior to
 		// returning, so that the files don't leak.
+		fileReadMonitorFactory := mock.NewMockFileReadMonitorFactory(ctrl)
 		directoryWalker.EXPECT().GetDirectory(ctx).Return(&remoteexecution.Directory{
 			Files: []*remoteexecution.FileNode{
 				{
@@ -101,18 +105,22 @@ func TestCASInitialContentsFetcherFetchContents(t *testing.T) {
 			},
 		}, nil)
 		file1 := mock.NewMockNativeLeaf(ctrl)
+		fileReadMonitor1 := mock.NewMockFileReadMonitor(ctrl)
+		fileReadMonitorFactory.EXPECT().Call(path.MustNewComponent("file1")).Return(fileReadMonitor1.Call)
 		casFileFactory.EXPECT().LookupFile(
 			digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "ded43ceff96666255cbb89a40cb9d1bd", 1200),
-			false,
+			/* isExecutable = */ false,
+			gomock.Any(),
 		).Return(file1)
 		file1.EXPECT().Unlink()
 		directoryWalker.EXPECT().GetDescription().Return("Root directory")
 
-		_, err := initialContentsFetcher.FetchContents()
+		_, err := initialContentsFetcher.FetchContents(fileReadMonitorFactory.Call)
 		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Root directory: Failed to obtain digest for file \"file2\": Hash has length 18, while 32 characters were expected"), err)
 	})
 
 	t.Run("DuplicateNames", func(t *testing.T) {
+		fileReadMonitorFactory := mock.NewMockFileReadMonitorFactory(ctrl)
 		directoryWalker.EXPECT().GetDirectory(ctx).Return(&remoteexecution.Directory{
 			Files: []*remoteexecution.FileNode{
 				{
@@ -131,20 +139,24 @@ func TestCASInitialContentsFetcherFetchContents(t *testing.T) {
 			},
 		}, nil)
 		file1 := mock.NewMockNativeLeaf(ctrl)
+		fileReadMonitor1 := mock.NewMockFileReadMonitor(ctrl)
+		fileReadMonitorFactory.EXPECT().Call(path.MustNewComponent("hello")).Return(fileReadMonitor1.Call)
 		casFileFactory.EXPECT().LookupFile(
 			digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "0970ca3d192dde1268a19b44bbecadcf", 3000),
-			false,
+			/* isExecutable = */ false,
+			gomock.Any(),
 		).Return(file1)
 		file1.EXPECT().Unlink()
 		directoryWalker.EXPECT().GetDescription().Return("Root directory")
 
-		_, err := initialContentsFetcher.FetchContents()
+		_, err := initialContentsFetcher.FetchContents(fileReadMonitorFactory.Call)
 		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Root directory: Directory contains multiple children named \"hello\""), err)
 	})
 
 	t.Run("Success", func(t *testing.T) {
 		// Let the InitialContentsFetcher successfully parse a
 		// Directory object.
+		fileReadMonitorFactory := mock.NewMockFileReadMonitorFactory(ctrl)
 		directoryWalker.EXPECT().GetDirectory(ctx).Return(&remoteexecution.Directory{
 			Directories: []*remoteexecution.DirectoryNode{
 				{
@@ -183,19 +195,25 @@ func TestCASInitialContentsFetcherFetchContents(t *testing.T) {
 		directoryWalker.EXPECT().GetChild(digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "4b3b03436604cb9d831b91c71a8c1952", 123)).
 			Return(childDirectoryWalker)
 		executableLeaf := mock.NewMockNativeLeaf(ctrl)
+		executableReadMonitor := mock.NewMockFileReadMonitor(ctrl)
+		fileReadMonitorFactory.EXPECT().Call(path.MustNewComponent("executable")).Return(executableReadMonitor.Call)
 		casFileFactory.EXPECT().LookupFile(
 			digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "946fbe7108add776d3e3094f512c3483", 456),
-			true,
+			/* isExecutable = */ true,
+			gomock.Any(),
 		).Return(executableLeaf)
 		fileLeaf := mock.NewMockNativeLeaf(ctrl)
+		fileReadMonitor := mock.NewMockFileReadMonitor(ctrl)
+		fileReadMonitorFactory.EXPECT().Call(path.MustNewComponent("file")).Return(fileReadMonitor.Call)
 		casFileFactory.EXPECT().LookupFile(
 			digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "c0607941dd5b3ca8e175a1bfbfd1c0ea", 789),
-			false,
+			/* isExecutable = */ false,
+			gomock.Any(),
 		).Return(fileLeaf)
 		symlinkLeaf := mock.NewMockNativeLeaf(ctrl)
 		symlinkFactory.EXPECT().LookupSymlink([]byte("target")).Return(symlinkLeaf)
 
-		children, err := initialContentsFetcher.FetchContents()
+		children, err := initialContentsFetcher.FetchContents(fileReadMonitorFactory.Call)
 		require.NoError(t, err)
 		childInitialContentsFetcher, _ := children[path.MustNewComponent("directory")].GetPair()
 		require.Equal(t, map[path.Component]virtual.InitialNode{
@@ -207,10 +225,11 @@ func TestCASInitialContentsFetcherFetchContents(t *testing.T) {
 
 		// Check that the InitialContentsFetcher that is created
 		// for the subdirectory calls into the right DirectoryWalker.
+		childFileReadMonitorFactory := mock.NewMockFileReadMonitorFactory(ctrl)
 		childDirectoryWalker.EXPECT().GetDirectory(ctx).
 			Return(&remoteexecution.Directory{}, nil)
 
-		grandchildren, err := childInitialContentsFetcher.FetchContents()
+		grandchildren, err := childInitialContentsFetcher.FetchContents(childFileReadMonitorFactory.Call)
 		require.NoError(t, err)
 		require.Empty(t, grandchildren)
 	})

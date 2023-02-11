@@ -2,6 +2,7 @@ package virtual
 
 import (
 	"io"
+	"sync"
 
 	"github.com/buildbarn/bb-storage/pkg/digest"
 )
@@ -29,13 +30,20 @@ func NewStatelessHandleAllocatingCASFileFactory(base CASFileFactory, allocation 
 	return cff
 }
 
-func (cff *statelessHandleAllocatingCASFileFactory) LookupFile(blobDigest digest.Digest, isExecutable bool) NativeLeaf {
+func (cff *statelessHandleAllocatingCASFileFactory) LookupFile(blobDigest digest.Digest, isExecutable bool, readMonitor FileReadMonitor) NativeLeaf {
+	leaf := cff.base.LookupFile(blobDigest, isExecutable, nil)
+	if readMonitor != nil {
+		leaf = &readMonitoringNativeLeaf{
+			NativeLeaf: leaf,
+			monitor:    readMonitor,
+		}
+	}
 	return cff.allocator.
 		New(&casFileID{
 			blobDigest:   blobDigest,
 			isExecutable: isExecutable,
 		}).
-		AsNativeLeaf(cff.base.LookupFile(blobDigest, isExecutable))
+		AsNativeLeaf(leaf)
 }
 
 // casFileID is capable of converting the parameters that were used to
@@ -57,4 +65,22 @@ func (id *casFileID) WriteTo(w io.Writer) (nTotal int64, err error) {
 		nTotal += int64(n)
 	}
 	return
+}
+
+// readMonitoringNativeLeaf is a decorator for NativeLeaf that reports
+// read operations against files to a FileReadMonitor.
+type readMonitoringNativeLeaf struct {
+	NativeLeaf
+	once    sync.Once
+	monitor FileReadMonitor
+}
+
+func (l *readMonitoringNativeLeaf) reportRead() {
+	l.monitor()
+	l.monitor = nil
+}
+
+func (l *readMonitoringNativeLeaf) VirtualRead(buf []byte, off uint64) (int, bool, Status) {
+	l.once.Do(l.reportRead)
+	return l.NativeLeaf.VirtualRead(buf, off)
 }

@@ -32,7 +32,10 @@ func NewBlobAccessCASFileFactory(ctx context.Context, contentAddressableStorage 
 	}
 }
 
-func (cff *blobAccessCASFileFactory) LookupFile(blobDigest digest.Digest, isExecutable bool) NativeLeaf {
+func (cff *blobAccessCASFileFactory) LookupFile(blobDigest digest.Digest, isExecutable bool, readMonitor FileReadMonitor) NativeLeaf {
+	if readMonitor != nil {
+		panic("The read monitor should have been set up by StatelessHandleAllocatingCASFileFactory")
+	}
 	baseFile := blobAccessCASFile{
 		factory: cff,
 		digest:  blobDigest,

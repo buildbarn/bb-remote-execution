@@ -44,7 +44,7 @@ func NewCASInitialContentsFetcher(ctx context.Context, directoryWalker cas.Direc
 	}
 }
 
-func (icf *casInitialContentsFetcher) fetchContentsUnwrapped() (map[path.Component]InitialNode, error) {
+func (icf *casInitialContentsFetcher) fetchContentsUnwrapped(fileReadMonitorFactory FileReadMonitorFactory) (map[path.Component]InitialNode, error) {
 	directory, err := icf.directoryWalker.GetDirectory(icf.options.context)
 	if err != nil {
 		return nil, err
@@ -95,7 +95,7 @@ func (icf *casInitialContentsFetcher) fetchContentsUnwrapped() (map[path.Compone
 		if err != nil {
 			return nil, util.StatusWrapf(err, "Failed to obtain digest for file %#v", entry.Name)
 		}
-		leaf := icf.options.casFileFactory.LookupFile(childDigest, entry.IsExecutable)
+		leaf := icf.options.casFileFactory.LookupFile(childDigest, entry.IsExecutable, fileReadMonitorFactory(component))
 		children[component] = InitialNode{}.FromLeaf(leaf)
 		leavesToUnlink = append(leavesToUnlink, leaf)
 	}
@@ -119,8 +119,8 @@ func (icf *casInitialContentsFetcher) fetchContentsUnwrapped() (map[path.Compone
 	return children, nil
 }
 
-func (icf *casInitialContentsFetcher) FetchContents() (map[path.Component]InitialNode, error) {
-	children, err := icf.fetchContentsUnwrapped()
+func (icf *casInitialContentsFetcher) FetchContents(fileReadMonitorFactory FileReadMonitorFactory) (map[path.Component]InitialNode, error) {
+	children, err := icf.fetchContentsUnwrapped(fileReadMonitorFactory)
 	if err != nil {
 		return nil, util.StatusWrap(err, icf.directoryWalker.GetDescription())
 	}

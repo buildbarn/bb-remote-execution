@@ -33,7 +33,7 @@ func TestBlobAccessCASFileFactoryVirtualSeek(t *testing.T) {
 		errorLogger)
 
 	digest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "8b1a9953c4611296a827abf8c47804d7", 123)
-	f := casFileFactory.LookupFile(digest, false)
+	f := casFileFactory.LookupFile(digest, false, nil)
 	var out virtual.Attributes
 	f.VirtualGetAttributes(ctx, blobAccessCASFileFactoryAttributesMask, &out)
 	require.Equal(
@@ -83,7 +83,7 @@ func TestBlobAccessCASFileFactoryGetContainingDigests(t *testing.T) {
 		errorLogger)
 
 	digest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "d7ac2672607ba20a44d01d03a6685b24", 400)
-	f := casFileFactory.LookupFile(digest, true)
+	f := casFileFactory.LookupFile(digest, true, nil)
 	var out virtual.Attributes
 	f.VirtualGetAttributes(ctx, blobAccessCASFileFactoryAttributesMask, &out)
 	require.Equal(
@@ -109,7 +109,7 @@ func TestBlobAccessCASFileFactoryGetOutputServiceFileStatus(t *testing.T) {
 		errorLogger)
 
 	digest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "8b1a9953c4611296a827abf8c47804d7", 123)
-	f := casFileFactory.LookupFile(digest, false)
+	f := casFileFactory.LookupFile(digest, false, nil)
 	var out virtual.Attributes
 	f.VirtualGetAttributes(ctx, blobAccessCASFileFactoryAttributesMask, &out)
 	require.Equal(
@@ -160,7 +160,7 @@ func TestBlobAccessCASFileFactoryAppendOutputPathPersistencyDirectoryNode(t *tes
 		errorLogger)
 
 	digest1 := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "8b1a9953c4611296a827abf8c47804d7", 123)
-	f1 := casFileFactory.LookupFile(digest1, false)
+	f1 := casFileFactory.LookupFile(digest1, false, nil)
 	var out1 virtual.Attributes
 	f1.VirtualGetAttributes(ctx, blobAccessCASFileFactoryAttributesMask, &out1)
 	require.Equal(
@@ -173,7 +173,7 @@ func TestBlobAccessCASFileFactoryAppendOutputPathPersistencyDirectoryNode(t *tes
 		&out1)
 
 	digest2 := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "0282d25bf4aefdb9cb50ccc78d974f0a", 456)
-	f2 := casFileFactory.LookupFile(digest2, true)
+	f2 := casFileFactory.LookupFile(digest2, true, nil)
 	var out2 virtual.Attributes
 	f2.VirtualGetAttributes(ctx, blobAccessCASFileFactoryAttributesMask, &out2)
 	require.Equal(

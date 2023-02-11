@@ -12,6 +12,20 @@ import (
 // or Leaf is set, but not both.
 type InitialNode = Child[InitialContentsFetcher, NativeLeaf, any]
 
+// FileReadMonitor is used by the regular files created through the
+// InitialContentsFetcher to indicate that one or more calls against
+// VirtualRead() have occurred. This is used by
+// AccessMonitoringInitialContentsFetcher to monitor file access.
+type FileReadMonitor func()
+
+// FileReadMonitorFactory is a factory type for FileReadMonitor that is
+// provided to the InitialContentsFetcher, so that the
+// InitialContentsFetcher can attach the resulting monitors to any files
+// that are returned.
+//
+// If this function returns nil, no monitor is attached to the file.
+type FileReadMonitorFactory func(name path.Component) FileReadMonitor
+
 // InitialContentsFetcher is called into by PrepopulatedDirectory when a
 // directory whose contents need to be instantiated lazily is accessed.
 // The results returned by FetchContents() are used to populate the
@@ -21,7 +35,7 @@ type InitialNode = Child[InitialContentsFetcher, NativeLeaf, any]
 // may be possible FetchContents() is never called. This may happen if
 // the directory in question is never accessed.
 type InitialContentsFetcher interface {
-	FetchContents() (map[path.Component]InitialNode, error)
+	FetchContents(fileReadMonitorFactory FileReadMonitorFactory) (map[path.Component]InitialNode, error)
 
 	// GetContainingDigests() returns a set of digests of objects in
 	// the Content Addressable Storage that back the directories and

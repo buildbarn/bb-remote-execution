@@ -101,7 +101,7 @@ func (d *virtualBuildDirectory) MergeDirectoryContents(ctx context.Context, erro
 	if monitor != nil {
 		initialContentsFetcher = virtual.NewAccessMonitoringInitialContentsFetcher(initialContentsFetcher, monitor)
 	}
-	children, err := initialContentsFetcher.FetchContents()
+	children, err := initialContentsFetcher.FetchContents(func(name path.Component) virtual.FileReadMonitor { return nil })
 	if err != nil {
 		return err
 	}
