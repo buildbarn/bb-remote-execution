@@ -596,7 +596,7 @@ func (bq *InMemoryBuildQueue) Synchronize(ctx context.Context, request *remotewo
 	}
 	switch workerState := currentState.WorkerState.(type) {
 	case *remoteworker.CurrentState_Idle:
-		return w.getCurrentOrNextTask(ctx, bq, scq, request.WorkerId, false)
+		return w.getCurrentOrNextTask(ctx, bq, scq, request.WorkerId, request.PreferBeingIdle)
 	case *remoteworker.CurrentState_Executing_:
 		executing := workerState.Executing
 		if executing.ActionDigest == nil {
@@ -604,9 +604,9 @@ func (bq *InMemoryBuildQueue) Synchronize(ctx context.Context, request *remotewo
 		}
 		switch executionState := executing.ExecutionState.(type) {
 		case *remoteworker.CurrentState_Executing_Completed:
-			return w.completeTask(ctx, bq, scq, request.WorkerId, executing.ActionDigest, executionState.Completed, executing.PreferBeingIdle)
+			return w.completeTask(ctx, bq, scq, request.WorkerId, executing.ActionDigest, executionState.Completed, request.PreferBeingIdle)
 		default:
-			return w.updateTask(bq, scq, request.WorkerId, executing.ActionDigest, executing.PreferBeingIdle)
+			return w.updateTask(bq, scq, request.WorkerId, executing.ActionDigest, request.PreferBeingIdle)
 		}
 	default:
 		return nil, status.Error(codes.InvalidArgument, "Worker provided an unknown current state")

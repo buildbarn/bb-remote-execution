@@ -2388,18 +2388,11 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 		InstanceNamePrefix: "main",
 		Platform:           platformForTesting,
 		CurrentState: &remoteworker.CurrentState{
-			WorkerState: &remoteworker.CurrentState_Executing_{
-				Executing: &remoteworker.CurrentState_Executing{
-					ActionDigest: &remoteexecution.Digest{
-						Hash:      "099a3f6dc1e8e91dbcca4ea964cd2237d4b11733",
-						SizeBytes: 123,
-					},
-					ExecutionState: &remoteworker.CurrentState_Executing_FetchingInputs{
-						FetchingInputs: &emptypb.Empty{},
-					},
-				},
+			WorkerState: &remoteworker.CurrentState_Idle{
+				Idle: &emptypb.Empty{},
 			},
 		},
+		PreferBeingIdle: true,
 	})
 	require.NoError(t, err)
 	testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
@@ -2550,10 +2543,10 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 							},
 						},
 					},
-					PreferBeingIdle: true,
 				},
 			},
 		},
+		PreferBeingIdle: true,
 	})
 	require.NoError(t, err)
 	testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
@@ -2812,10 +2805,10 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 							},
 						},
 					},
-					PreferBeingIdle: true,
 				},
 			},
 		},
+		PreferBeingIdle: true,
 	})
 	require.NoError(t, err)
 	testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
@@ -2931,10 +2924,10 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 							},
 						},
 					},
-					PreferBeingIdle: true,
 				},
 			},
 		},
+		PreferBeingIdle: true,
 	})
 	require.NoError(t, err)
 	testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
@@ -3168,10 +3161,10 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 							},
 						},
 					},
-					PreferBeingIdle: true,
 				},
 			},
 		},
+		PreferBeingIdle: true,
 	})
 	require.NoError(t, err)
 	testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
@@ -3279,10 +3272,10 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 							},
 						},
 					},
-					PreferBeingIdle: true,
 				},
 			},
 		},
+		PreferBeingIdle: true,
 	})
 	require.NoError(t, err)
 	testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
@@ -3906,10 +3899,10 @@ func TestInMemoryBuildQueueWorkerInvocationStickinessLimit(t *testing.T) {
 								Result: &remoteexecution.ActionResult{},
 							},
 						},
-						PreferBeingIdle: true,
 					},
 				},
 			},
+			PreferBeingIdle: true,
 		})
 
 		update, err = stream.Recv()
@@ -4210,10 +4203,10 @@ func TestInMemoryBuildQueueNestedInvocationsSynchronization(t *testing.T) {
 								Result: &remoteexecution.ActionResult{},
 							},
 						},
-						PreferBeingIdle: true,
 					},
 				},
 			},
+			PreferBeingIdle: true,
 		})
 		require.NoError(t, err)
 		testutil.RequireEqualProto(t, &remoteworker.SynchronizeResponse{
