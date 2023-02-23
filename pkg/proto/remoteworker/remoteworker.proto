@@ -63,6 +63,15 @@ message SynchronizeRequest {
 
   // The kind of activity the worker is currently performing.
   CurrentState current_state = 4;
+
+  // The worker prefers to be idle. This flag may be set by workers if
+  // they want to terminate gracefully. The scheduler should respond to
+  // such requests without blocking.
+  //
+  // Additionally, workers may set this flag in case they are in a
+  // degraded state (e.g., bb_runner not being up and running). This
+  // allows workers to temporarily suspend until the system recovers.
+  bool prefer_being_idle = 6;
 }
 
 message CurrentState {
@@ -92,14 +101,9 @@ message CurrentState {
       build.bazel.remote.execution.v2.ExecuteResponse completed = 6;
     }
 
-    // The worker is currently executing an action, even though it
-    // prefers to be idle. This flag may be set by workers if they want
-    // to terminate gracefully.
-    //
-    // Additionally, workers may set this flag in case they are in a
-    // degraded state (e.g., bb_runner not being up and running). This
-    // allows workers to temporarily suspend until the system recovers.
-    bool prefer_being_idle = 7;
+    // Was 'prefer_being_idle'. This field has been promoted to
+    // SynchronizeRequest.
+    reserved 7;
   }
 
   oneof worker_state {

@@ -1,20 +1,18 @@
 package configuration
 
 import (
-	"context"
-
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual/nfsv4"
 	pb "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem/virtual"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/eviction"
+	"github.com/buildbarn/bb-storage/pkg/program"
 	"github.com/buildbarn/bb-storage/pkg/random"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	nfsv4_xdr "github.com/buildbarn/go-xdr/pkg/protocols/nfsv4"
 	"github.com/buildbarn/go-xdr/pkg/rpcserver"
 	"github.com/jmespath/go-jmespath"
 
-	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -24,7 +22,7 @@ import (
 // kernel or network yet. Before calling Expose(), the caller has the
 // possibility to construct a root directory.
 type Mount interface {
-	Expose(terminationContext context.Context, terminationGroup *errgroup.Group, rootDirectory virtual.Directory) error
+	Expose(terminationGroup program.Group, rootDirectory virtual.Directory) error
 }
 
 type fuseMount struct {
@@ -42,7 +40,7 @@ type nfsv4Mount struct {
 	containsSelfMutatingSymlinks bool
 }
 
-func (m *nfsv4Mount) Expose(terminationContext context.Context, terminationGroup *errgroup.Group, rootDirectory virtual.Directory) error {
+func (m *nfsv4Mount) Expose(terminationGroup program.Group, rootDirectory virtual.Directory) error {
 	// Random values that the client can use to detect that the
 	// server has been restarted and lost all state.
 	var verifier nfsv4_xdr.Verifier4
@@ -74,7 +72,7 @@ func (m *nfsv4Mount) Expose(terminationContext context.Context, terminationGroup
 					announcedLeaseTime.AsDuration()))),
 	}, m.authenticator)
 
-	return m.mount(terminationContext, terminationGroup, rpcServer)
+	return m.mount(terminationGroup, rpcServer)
 }
 
 // NewMountFromConfiguration creates a new FUSE mount based on options

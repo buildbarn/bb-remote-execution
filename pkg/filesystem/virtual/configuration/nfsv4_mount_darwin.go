@@ -17,11 +17,11 @@ import (
 	"unsafe"
 
 	pb "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem/virtual"
+	"github.com/buildbarn/bb-storage/pkg/program"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	nfs_sys_prot "github.com/buildbarn/go-xdr/pkg/protocols/darwin_nfs_sys_prot"
 	"github.com/buildbarn/go-xdr/pkg/rpcserver"
 
-	"golang.org/x/sync/errgroup"
 	"golang.org/x/sys/unix"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -65,7 +65,7 @@ func getMacOSBuildVersion() (int64, byte, int64, error) {
 	return major, submatches[2][0], daily, nil
 }
 
-func (m *nfsv4Mount) mount(terminationContext context.Context, terminationGroup *errgroup.Group, rpcServer *rpcserver.Server) error {
+func (m *nfsv4Mount) mount(terminationGroup program.Group, rpcServer *rpcserver.Server) error {
 	// Extract the version of macOS used. We need to know this, as
 	// it determines which mount options are supported.
 	osMajor, osMinor, osDaily, err := getMacOSBuildVersion()
@@ -107,6 +107,8 @@ func (m *nfsv4Mount) mount(terminationContext context.Context, terminationGroup 
 	if err != nil {
 		return util.StatusWrap(err, "Failed to create listening socket for NFSv4 server")
 	}
+	// TODO: Run this as part of the program.Group, so that it gets
+	// cleaned up upon shutdown.
 	go func() {
 		for {
 			c, err := sock.Accept()
@@ -251,8 +253,8 @@ func (m *nfsv4Mount) mount(terminationContext context.Context, terminationGroup 
 	}
 
 	// Automatically unmount upon shutdown.
-	terminationGroup.Go(func() error {
-		<-terminationContext.Done()
+	terminationGroup.Go(func(ctx context.Context, siblingsGroup, dependenciesGroup program.Group) error {
+		<-ctx.Done()
 		if err := unix.Unmount(mountPath, 0); err != nil {
 			return util.StatusWrapf(err, "Failed to unmount %#v", mountPath)
 		}
