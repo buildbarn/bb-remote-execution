@@ -4,8 +4,6 @@
 package configuration
 
 import (
-	"context"
-
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual"
 	"github.com/buildbarn/bb-storage/pkg/program"
 
