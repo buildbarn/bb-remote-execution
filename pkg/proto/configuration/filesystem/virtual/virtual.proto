@@ -59,25 +59,9 @@ message FUSEMountConfiguration {
   // Recommended value: 300s
   google.protobuf.Duration inode_attribute_validity = 3;
 
-  // System-wide maximum of dirty pages this FUSE mount may have.
-  // Assigning a non-zero value causes the /sys/class/bdi/${device}/max_ratio
-  // sysfs value on Linux to be set. This option is documented here:
-  // https://www.kernel.org/doc/Documentation/ABI/testing/sysfs-class-bdi
-  //
-  // By default, Linux only allows 1% of vm.dirty_ratio of memory to be
-  // dirty pages belonging to the FUSE mount. This may be insufficient
-  // for workloads that depend on random access writes to large files.
-  // Increasing this value may speed up writes against the FUSE file
-  // system, at the cost of slowing down writes against other volumes.
-  //
-  // If random access writes against the FUSE file system are still
-  // slower than desired, performance may be increased by removing the
-  // use of BDI_CAP_STRICTLIMIT from the Linux kernel's fs/fuse/inode.c.
-  // Make this modification at your own risk. More details:
-  // https://sourceforge.net/p/fuse/mailman/message/36457896/
-  //
-  // Recommended value: unset
-  int32 maximum_dirty_pages_percentage = 4;
+  // Was 'maximum_dirty_pages_percentage'. Use
+  // 'linux_backing_dev_info_tunables' instead.
+  reserved 4;
 
   // Was 'shuffle_directory_listings'. This option has been promoted up to
   // bb_worker's VirtualBuildDirectoryConfiguration.
@@ -116,6 +100,39 @@ message FUSEMountConfiguration {
   //
   // NOTE: This option is only used by bb_virtual_tmp.
   string in_header_authentication_metadata_jmespath_expression = 8;
+
+  // Tunables to apply to the Linux Backing Dev Info (BDI) after the
+  // FUSE mount has been created. Setting this option causes the
+  // tunables at /sys/class/bdi/${device}/${key} to be modified. These
+  // tunables are documented here:
+  //
+  // https://www.kernel.org/doc/Documentation/ABI/testing/sysfs-class-bdi
+  //
+  // By default, Linux only allows 1% of vm.dirty_ratio of memory to be
+  // dirty pages belonging to the FUSE mount. This may be insufficient
+  // for workloads that depend on random access writes to large files.
+  // Increasing this value may speed up writes against the FUSE file
+  // system, at the cost of slowing down writes against other volumes.
+  // For example, increasing the ratio from 1% to 10% can be
+  // accomplished by setting this option as follows:
+  //
+  //     {
+  //       "max_ratio": "10"
+  //     }
+  //
+  // If random access writes against the FUSE file system are still
+  // slower than desired, performance may be increased further by
+  // removing the BDI_CAP_STRICTLIMIT flag from the FUSE mount. On Linux
+  // 6.2 and later, this can be achieved by setting this option as
+  // follows:
+  //
+  //     {
+  //       "max_ratio": "10",
+  //       "strict_limit": "0"
+  //     }
+  //
+  // Recommended value: unset
+  map<string, string> linux_backing_dev_info_tunables = 9;
 }
 
 message NFSv4MountConfiguration {

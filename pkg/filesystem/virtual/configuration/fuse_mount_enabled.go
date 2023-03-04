@@ -82,13 +82,11 @@ func (m *fuseMount) Expose(terminationGroup program.Group, rootDirectory virtual
 
 	// Adjust configuration options that can only be set after the
 	// FUSE server has been launched.
-	if m.configuration.MaximumDirtyPagesPercentage != 0 {
-		if err := fuse.SetMaximumDirtyPagesPercentage(
-			m.mountPath,
-			int(m.configuration.MaximumDirtyPagesPercentage),
-		); err != nil {
-			return util.StatusWrap(err, "Failed to set maximum dirty pages percentage")
-		}
+	if err := fuse.SetLinuxBackingDevInfoTunables(
+		m.mountPath,
+		m.configuration.LinuxBackingDevInfoTunables,
+	); err != nil {
+		return util.StatusWrap(err, "Failed to set Linux Backing Device Info tunables")
 	}
 	return nil
 }

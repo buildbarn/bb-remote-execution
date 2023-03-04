@@ -8,12 +8,16 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// SetMaximumDirtyPagesPercentage adjusts the kernel's limit on the
-// maximum number of dirty pages belonging to a FUSE mount. The limit is
-// specified as a decimal percentage in range [1, 100].
+// SetLinuxBackingDevInfoTunables adjusts tunables of the Backing Dev
+// Info (BDI) belonging to a FUSE mount. These tunables can, for
+// example, be used to increase the maximum number of dirty pages
+// belonging to the mount.
 //
-// This is a placeholder implementation for operating systems that don't
-// allow configuring this attribute.
-func SetMaximumDirtyPagesPercentage(path string, percentage int) error {
-	return status.Error(codes.Unimplemented, "Setting the maximum dirty pages percentage is only supported on Linux")
+// This is a placeholder implementation for operating systems other than
+// Linux.
+func SetLinuxBackingDevInfoTunables(mountPath string, variables map[string]string) error {
+	if len(variables) > 0 {
+		return status.Error(codes.Unimplemented, "Setting Linux Backing Dev Info tunables is only supported on Linux")
+	}
+	return nil
 }
