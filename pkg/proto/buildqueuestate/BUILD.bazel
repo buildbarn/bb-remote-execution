@@ -12,6 +12,7 @@ proto_library(
         "@com_google_protobuf//:duration_proto",
         "@com_google_protobuf//:empty_proto",
         "@com_google_protobuf//:timestamp_proto",
+        "@go_googleapis//google/rpc:status_proto",
     ],
 )
 
@@ -21,7 +22,10 @@ go_proto_library(
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/proto/buildqueuestate",
     proto = ":buildqueuestate_proto",
     visibility = ["//visibility:public"],
-    deps = ["@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:execution"],
+    deps = [
+        "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:execution",
+        "@go_googleapis//google/rpc:status_go_proto",
+    ],
 )
 
 go_library(

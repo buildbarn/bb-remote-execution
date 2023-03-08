@@ -246,8 +246,13 @@ func (s *buildQueueStateService) handleListInvocationChildren(w http.ResponseWri
 func (s *buildQueueStateService) handleKillOperation(w http.ResponseWriter, req *http.Request) {
 	req.ParseForm()
 	ctx := req.Context()
-	if _, err := s.buildQueue.KillOperation(ctx, &buildqueuestate.KillOperationRequest{
-		OperationName: req.FormValue("name"),
+	if _, err := s.buildQueue.KillOperations(ctx, &buildqueuestate.KillOperationsRequest{
+		Filter: &buildqueuestate.KillOperationsRequest_Filter{
+			Type: &buildqueuestate.KillOperationsRequest_Filter_OperationName{
+				OperationName: req.FormValue("name"),
+			},
+		},
+		Status: status.New(codes.Unavailable, "Operation was killed through the web interface").Proto(),
 	}); err != nil {
 		renderError(w, util.StatusWrap(err, "Failed to kill operation"))
 		return

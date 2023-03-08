@@ -7,6 +7,7 @@ import "google/protobuf/any.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
+import "google/rpc/status.proto";
 
 option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/buildqueuestate";
 
@@ -22,9 +23,9 @@ service BuildQueueState {
   // the scheduler.
   rpc ListOperations(ListOperationsRequest) returns (ListOperationsResponse);
 
-  // Forcefully terminate an operation that is either in the QUEUED or
-  // EXECUTING execution stage with an UNAVAILABLE status code.
-  rpc KillOperation(KillOperationRequest) returns (google.protobuf.Empty);
+  // Forcefully terminate one or more operations that are either in the
+  // QUEUED or EXECUTING execution stage with a provided gRPC status.
+  rpc KillOperations(KillOperationsRequest) returns (google.protobuf.Empty);
 
   // List information about all platform queues that are currently
   // registered by the scheduler.
@@ -392,9 +393,27 @@ message ListOperationsResponse {
   PaginationInfo pagination_info = 2;
 }
 
-message KillOperationRequest {
-  // The name of the operation that needs to be killed.
-  string operation_name = 1;
+message KillOperationsRequest {
+  message Filter {
+    oneof type {
+      // Kill one operation, having a given name.
+      string operation_name = 1;
+
+      // Kill all operations within a given size class queue, only if the
+      // size class queue has zero workers.
+      //
+      // This filter can be used by autoscaler processes to report to
+      // clients that they are attempting to use a size class queue for
+      // which no workers can be created.
+      SizeClassQueueName size_class_queue_without_workers = 2;
+    }
+  }
+
+  // Limit the operations to kill according to a filter.
+  Filter filter = 1;
+
+  // The error to return to clients as part of the ExecuteResponse.
+  google.rpc.Status status = 2;
 }
 
 message ListPlatformQueuesResponse {

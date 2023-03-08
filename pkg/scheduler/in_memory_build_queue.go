@@ -31,6 +31,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"google.golang.org/genproto/googleapis/longrunning"
+	status_pb "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -678,21 +679,34 @@ func getPaginationInfo(n int, pageSize uint32, f func(int) bool) (*buildqueuesta
 	}, int(endIndex)
 }
 
-// KillOperation requests that an operation that is currently QUEUED or
-// EXECUTING is moved the COMPLETED stage immediately. The next time any
-// worker associated with the operation contacts the scheduler, it is
-// requested to stop executing the operation.
-func (bq *InMemoryBuildQueue) KillOperation(ctx context.Context, request *buildqueuestate.KillOperationRequest) (*emptypb.Empty, error) {
+// KillOperations requests that one or more operations that are
+// currently QUEUED or EXECUTING are moved the COMPLETED stage
+// immediately. The next time any worker associated with the operation
+// contacts the scheduler, it is requested to stop executing the
+// operation.
+func (bq *InMemoryBuildQueue) KillOperations(ctx context.Context, request *buildqueuestate.KillOperationsRequest) (*emptypb.Empty, error) {
 	bq.enter(bq.clock.Now())
 	defer bq.leave()
 
-	o, ok := bq.operationsNameMap[request.OperationName]
-	if !ok {
-		return nil, status.Errorf(codes.NotFound, "Operation %#v not found", request.OperationName)
+	switch filter := request.Filter.GetType().(type) {
+	case *buildqueuestate.KillOperationsRequest_Filter_OperationName:
+		o, ok := bq.operationsNameMap[filter.OperationName]
+		if !ok {
+			return nil, status.Errorf(codes.NotFound, "Operation %#v not found", filter.OperationName)
+		}
+		o.task.complete(bq, &remoteexecution.ExecuteResponse{Status: request.Status}, false)
+	case *buildqueuestate.KillOperationsRequest_Filter_SizeClassQueueWithoutWorkers:
+		scq, err := bq.getSizeClassQueueByName(filter.SizeClassQueueWithoutWorkers)
+		if err != nil {
+			return nil, err
+		}
+		if len(scq.workers) > 0 {
+			return nil, status.Error(codes.FailedPrecondition, "Cannot kill operations, as size class queue still has workers")
+		}
+		scq.rootInvocation.cancelAllQueuedOperations(bq, request.Status)
+	default:
+		return nil, status.Error(codes.InvalidArgument, "Unknown filter provided")
 	}
-	o.task.complete(bq, &remoteexecution.ExecuteResponse{
-		Status: status.New(codes.Unavailable, "Operation was killed administratively").Proto(),
-	}, false)
 	return &emptypb.Empty{}, nil
 }
 
@@ -744,7 +758,7 @@ func (bq *InMemoryBuildQueue) getSizeClassQueueByName(name *buildqueuestate.Size
 	}
 	scq, ok := bq.sizeClassQueues[sizeClassKey]
 	if !ok {
-		return nil, status.Error(codes.NotFound, "No workers for this instance name, platform and size class exist")
+		return nil, status.Error(codes.NotFound, "Size class queue not found")
 	}
 	return scq, nil
 }
@@ -1367,7 +1381,12 @@ func (scq *sizeClassQueue) getKey() sizeClassKey {
 // queue and all associated queued operations to be removed from the
 // InMemoryBuildQueue.
 func (scq *sizeClassQueue) remove(bq *InMemoryBuildQueue) {
-	scq.rootInvocation.cancelAllQueuedOperations(bq)
+	scq.rootInvocation.cancelAllQueuedOperations(
+		bq,
+		status.New(
+			codes.Unavailable,
+			"Workers for this instance name, platform and size class disappeared while task was queued",
+		).Proto())
 
 	delete(bq.sizeClassQueues, scq.getKey())
 	pq := scq.platformQueue
@@ -1777,17 +1796,18 @@ func (i *invocation) isPreferred(j *invocation, tieBreaker bool) bool {
 	return si < sj || (si == sj && tieBreaker)
 }
 
-func (i *invocation) cancelAllQueuedOperations(bq *InMemoryBuildQueue) {
+func (i *invocation) cancelAllQueuedOperations(bq *InMemoryBuildQueue, status *status_pb.Status) {
 	// Recursively cancel operations belonging to nested invocations.
 	for i.queuedChildren.Len() > 0 {
-		i.queuedChildren[len(i.queuedChildren)-1].cancelAllQueuedOperations(bq)
+		i.queuedChildren[len(i.queuedChildren)-1].cancelAllQueuedOperations(bq, status)
 	}
 
 	// Cancel operations directly belonging to this invocation.
 	for i.queuedOperations.Len() > 0 {
-		i.queuedOperations[i.queuedOperations.Len()-1].task.complete(bq, &remoteexecution.ExecuteResponse{
-			Status: status.New(codes.Unavailable, "Workers for this instance name, platform and size class disappeared while task was queued").Proto(),
-		}, false)
+		i.queuedOperations[i.queuedOperations.Len()-1].task.complete(
+			bq,
+			&remoteexecution.ExecuteResponse{Status: status},
+			/* completedByWorker = */ false)
 	}
 }
 

@@ -751,7 +751,7 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 	}, allOperations))
 }
 
-func TestInMemoryBuildQueueKillOperation(t *testing.T) {
+func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
@@ -972,7 +972,7 @@ func TestInMemoryBuildQueueKillOperation(t *testing.T) {
 	})
 }
 
-func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
+func TestInMemoryBuildQueueKillOperationsOperationName(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
@@ -1124,8 +1124,13 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 	// Kill the operation.
 	initialSizeClassLearner.EXPECT().Abandoned()
 	clock.EXPECT().Now().Return(time.Unix(1007, 0)).Times(3)
-	_, err = buildQueue.KillOperation(ctx, &buildqueuestate.KillOperationRequest{
-		OperationName: "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
+	_, err = buildQueue.KillOperations(ctx, &buildqueuestate.KillOperationsRequest{
+		Filter: &buildqueuestate.KillOperationsRequest_Filter{
+			Type: &buildqueuestate.KillOperationsRequest_Filter_OperationName{
+				OperationName: "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
+			},
+		},
+		Status: status.New(codes.Unavailable, "Operation was killed administratively").Proto(),
 	})
 	require.NoError(t, err)
 
@@ -1183,6 +1188,182 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 				Idle: &emptypb.Empty{},
 			},
 		},
+	})
+}
+
+func TestInMemoryBuildQueueKillOperationsSizeClassQueueWithoutWorkers(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage.EXPECT().Get(
+		gomock.Any(),
+		digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
+		CommandDigest: &remoteexecution.Digest{
+			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
+			SizeBytes: 456,
+		},
+	}, buffer.UserProvided))
+	clock := mock.NewMockClock(ctrl)
+	clock.EXPECT().Now().Return(time.Unix(0, 0))
+	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
+	actionRouter := mock.NewMockActionRouter(ctrl)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer)
+	executionClient := getExecutionClient(t, buildQueue)
+
+	// If the scheduler is in the initial state, the size class
+	// queue won't exist, meaning there are no operations to kill.
+	clock.EXPECT().Now().Return(time.Unix(1000, 0))
+	_, err := buildQueue.KillOperations(ctx, &buildqueuestate.KillOperationsRequest{
+		Filter: &buildqueuestate.KillOperationsRequest_Filter{
+			Type: &buildqueuestate.KillOperationsRequest_Filter_SizeClassQueueWithoutWorkers{
+				SizeClassQueueWithoutWorkers: &buildqueuestate.SizeClassQueueName{
+					PlatformQueueName: &buildqueuestate.PlatformQueueName{
+						InstanceNamePrefix: "main",
+						Platform:           platformForTesting,
+					},
+				},
+			},
+		},
+		Status: status.New(codes.Unavailable, "This should have no effect, as the size class queue does not exist").Proto(),
+	})
+	testutil.RequireEqualStatus(t, status.Error(codes.NotFound, "Size class queue not found"), err)
+
+	// Announce a new worker, which creates a queue for operations.
+	clock.EXPECT().Now().Return(time.Unix(1000, 0))
+	response, err := buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
+		WorkerId: map[string]string{
+			"hostname": "worker123",
+			"thread":   "42",
+		},
+		InstanceNamePrefix: "main",
+		Platform:           platformForTesting,
+		CurrentState: &remoteworker.CurrentState{
+			WorkerState: &remoteworker.CurrentState_Executing_{
+				Executing: &remoteworker.CurrentState_Executing{
+					ActionDigest: &remoteexecution.Digest{
+						Hash:      "099a3f6dc1e8e91dbcca4ea964cd2237d4b11733",
+						SizeBytes: 123,
+					},
+					ExecutionState: &remoteworker.CurrentState_Executing_FetchingInputs{
+						FetchingInputs: &emptypb.Empty{},
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, response, &remoteworker.SynchronizeResponse{
+		NextSynchronizationAt: &timestamppb.Timestamp{Seconds: 1000},
+		DesiredState: &remoteworker.DesiredState{
+			WorkerState: &remoteworker.DesiredState_Idle{
+				Idle: &emptypb.Empty{},
+			},
+		},
+	})
+
+	// Let one client enqueue an operation.
+	initialSizeClassSelector := mock.NewMockSelector(ctrl)
+	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
+		CommandDigest: &remoteexecution.Digest{
+			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
+			SizeBytes: 456,
+		},
+	}), nil).Return(platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
+	initialSizeClassLearner := mock.NewMockLearner(ctrl)
+	initialSizeClassSelector.EXPECT().Select([]uint32{0}).
+		Return(0, 15*time.Minute, 30*time.Minute, initialSizeClassLearner)
+	clock.EXPECT().Now().Return(time.Unix(1001, 0))
+	timer := mock.NewMockTimer(ctrl)
+	clock.EXPECT().NewTimer(time.Minute).Return(timer, nil)
+	timer.EXPECT().Stop().Return(true)
+	uuidGenerator.EXPECT().Call().Return(uuid.Parse("36ebab65-3c4f-4faf-818b-2eabb4cd1b02"))
+	stream1, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
+		InstanceName: "main",
+		ActionDigest: &remoteexecution.Digest{
+			Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+			SizeBytes: 123,
+		},
+	})
+	require.NoError(t, err)
+	update, err := stream1.Recv()
+	require.NoError(t, err)
+	metadata, err := anypb.New(&remoteexecution.ExecuteOperationMetadata{
+		Stage: remoteexecution.ExecutionStage_QUEUED,
+		ActionDigest: &remoteexecution.Digest{
+			Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+			SizeBytes: 123,
+		},
+	})
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, update, &longrunning.Operation{
+		Name:     "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
+		Metadata: metadata,
+	})
+
+	// Immediately killing the operation should fail, as the size
+	// class queue still has one worker at this point.
+	clock.EXPECT().Now().Return(time.Unix(1002, 0))
+	_, err = buildQueue.KillOperations(ctx, &buildqueuestate.KillOperationsRequest{
+		Filter: &buildqueuestate.KillOperationsRequest_Filter{
+			Type: &buildqueuestate.KillOperationsRequest_Filter_SizeClassQueueWithoutWorkers{
+				SizeClassQueueWithoutWorkers: &buildqueuestate.SizeClassQueueName{
+					PlatformQueueName: &buildqueuestate.PlatformQueueName{
+						InstanceNamePrefix: "main",
+						Platform:           platformForTesting,
+					},
+				},
+			},
+		},
+		Status: status.New(codes.Unavailable, "This should have no effect, as the size class queue still has workers").Proto(),
+	})
+	testutil.RequireEqualStatus(t, status.Error(codes.FailedPrecondition, "Cannot kill operations, as size class queue still has workers"), err)
+
+	// If a sufficient amount of time has passed, the worker should
+	// have disappeared. At that point KillOperations() should
+	// succeed.
+	initialSizeClassLearner.EXPECT().Abandoned()
+	clock.EXPECT().Now().Return(time.Unix(1060, 0)).Times(3)
+	_, err = buildQueue.KillOperations(ctx, &buildqueuestate.KillOperationsRequest{
+		Filter: &buildqueuestate.KillOperationsRequest_Filter{
+			Type: &buildqueuestate.KillOperationsRequest_Filter_SizeClassQueueWithoutWorkers{
+				SizeClassQueueWithoutWorkers: &buildqueuestate.SizeClassQueueName{
+					PlatformQueueName: &buildqueuestate.PlatformQueueName{
+						InstanceNamePrefix: "main",
+						Platform: &remoteexecution.Platform{
+							Properties: []*remoteexecution.Platform_Property{
+								{Name: "cpu", Value: "armv6"},
+								{Name: "os", Value: "linux"},
+							},
+						},
+					},
+				},
+			},
+		},
+		Status: status.New(codes.Unavailable, "Operation was killed administratively").Proto(),
+	})
+	require.NoError(t, err)
+
+	// The client should be informed that the operation was killed.
+	update, err = stream1.Recv()
+	require.NoError(t, err)
+	metadata, err = anypb.New(&remoteexecution.ExecuteOperationMetadata{
+		Stage: remoteexecution.ExecutionStage_COMPLETED,
+		ActionDigest: &remoteexecution.Digest{
+			Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+			SizeBytes: 123,
+		},
+	})
+	require.NoError(t, err)
+	executeResponse, err := anypb.New(&remoteexecution.ExecuteResponse{
+		Status: status.New(codes.Unavailable, "Operation was killed administratively").Proto(),
+	})
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, update, &longrunning.Operation{
+		Name:     "36ebab65-3c4f-4faf-818b-2eabb4cd1b02",
+		Metadata: metadata,
+		Done:     true,
+		Result:   &longrunning.Operation_Response{Response: executeResponse},
 	})
 }
 
