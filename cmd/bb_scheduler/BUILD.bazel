@@ -1,6 +1,7 @@
 load("@com_github_buildbarn_bb_storage//tools:container.bzl", "container_push_official")
 load("@io_bazel_rules_docker//go:image.bzl", "go_image")
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+load("@npm//:purgecss/package_json.bzl", purgecss_bin = "bin")
 
 go_library(
     name = "bb_scheduler_lib",
@@ -68,6 +69,11 @@ filegroup(
     srcs = glob(["templates/*.html"]),
 )
 
+purgecss_bin.purgecss_binary(
+    name = "purgecss",
+    tags = ["manual"],
+)
+
 # Create a copy of Bootstrap that only contains the style attributes
 # used by the HTML templates.
 genrule(
@@ -77,8 +83,8 @@ genrule(
         ":templates",
     ],
     outs = ["stylesheet.css"],
-    cmd = "$(location @npm//purgecss/bin:purgecss) --css $(location @com_github_twbs_bootstrap//:css/bootstrap.min.css) --content $(locations templates) --output $@",
-    tools = ["@npm//purgecss/bin:purgecss"],
+    cmd = "BAZEL_BINDIR=$(BINDIR) $(location :purgecss) --css $${PWD}/$(location @com_github_twbs_bootstrap//:css/bootstrap.min.css) --content $${PWD}/$(locations templates) --output $${PWD}/$@",
+    tools = [":purgecss"],
 )
 
 go_binary(
