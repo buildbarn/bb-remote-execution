@@ -83,7 +83,7 @@ genrule(
         ":templates",
     ],
     outs = ["stylesheet.css"],
-    cmd = "BAZEL_BINDIR=$(BINDIR) $(location :purgecss) --css $${PWD}/$(location @com_github_twbs_bootstrap//:css/bootstrap.min.css) --content $${PWD}/$(locations templates) --output $${PWD}/$@",
+    cmd = "BAZEL_BINDIR=$(BINDIR) $(location :purgecss) --css $${PWD}/$(location @com_github_twbs_bootstrap//:css/bootstrap.min.css) --content $$(for i in $(locations templates); do echo $${PWD}/$${i}; done) --output $${PWD}/$@",
     tools = [":purgecss"],
 )
 
