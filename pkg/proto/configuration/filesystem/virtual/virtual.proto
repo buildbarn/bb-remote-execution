@@ -22,7 +22,7 @@ message MountConfiguration {
 
     // Run an in-process NFSv4 server and use the kernel's NFSv4 client
     // to expose the mount. This option is currently only supported on
-    // macOS.
+    // macOS Ventura 13.3 (22E252) or later.
     //
     // The NFS server is expected to conform to NFSv4.0 (RFC 7530).
     // Features provided by newer versions of the protocol, such as
@@ -184,11 +184,6 @@ message NFSv4DarwinMountConfiguration {
   //
   // It is therefore strongly advised that socket files are placed
   // inside directories that have access controls set up properly.
-  //
-  // This option is ignored on versions of macOS having a build version
-  // below 22E118. Using UNIX sockets on those versions of macOS causes
-  // EIO errors under high load, caused by EMSGSIZE errors returned to
-  // the kernel's NFS client while writing data into the UNIX socket.
   string socket_path = 1;
 
   // When set, override the minimum amount of time attributes of

@@ -10,8 +10,6 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"regexp"
-	"strconv"
 	"sync"
 	"time"
 	"unsafe"
@@ -27,12 +25,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-var (
-	initializeNFSOnce            sync.Once
-	initializeNFSReadlinkNoCache sync.Once
-
-	macOSBuildVersionPattern = regexp.MustCompile("^([0-9]+)([A-Z])([0-9]+)")
-)
+var initializeNFSOnce sync.Once
 
 func toNfstime32(d time.Duration) *nfs_sys_prot.Nfstime32 {
 	nanos := d.Nanoseconds()
@@ -42,37 +35,7 @@ func toNfstime32(d time.Duration) *nfs_sys_prot.Nfstime32 {
 	}
 }
 
-// getMacOSBuildVersion returns the build version of the currently
-// running instance of macOS. For example, on macOS 13.0.1, it will
-// return (22, 'A', 400).
-func getMacOSBuildVersion() (int64, byte, int64, error) {
-	osVersion, err := unix.Sysctl("kern.osversion")
-	if err != nil {
-		return 0, 0, 0, util.StatusWrap(err, "Failed to obtain the version of macOS running on the system")
-	}
-	submatches := macOSBuildVersionPattern.FindStringSubmatch(osVersion)
-	if submatches == nil {
-		return 0, 0, 0, status.Errorf(codes.Internal, "Cannot parse macOS version %#v", osVersion)
-	}
-	major, err := strconv.ParseInt(submatches[1], 10, 64)
-	if err != nil {
-		return 0, 0, 0, util.StatusWrapf(err, "Invalid macOS major version %#v", submatches[1])
-	}
-	daily, err := strconv.ParseInt(submatches[3], 10, 64)
-	if err != nil {
-		return 0, 0, 0, util.StatusWrapf(err, "Invalid macOS daily version %#v", submatches[3])
-	}
-	return major, submatches[2][0], daily, nil
-}
-
 func (m *nfsv4Mount) mount(terminationGroup program.Group, rpcServer *rpcserver.Server) error {
-	// Extract the version of macOS used. We need to know this, as
-	// it determines which mount options are supported.
-	osMajor, osMinor, osDaily, err := getMacOSBuildVersion()
-	if err != nil {
-		return err
-	}
-
 	// macOS may require us to perform certain initialisation steps
 	// before attempting to create the NFS mount, such as loading
 	// the kernel extension containing the NFS client.
@@ -89,21 +52,12 @@ func (m *nfsv4Mount) mount(terminationGroup program.Group, rpcServer *rpcserver.
 		return status.Error(codes.InvalidArgument, "Darwin specific NFSv4 server configuration options not provided")
 	}
 
-	// Expose the NFSv4 server on the network.
+	// Expose the NFSv4 server on a UNIX socket.
 	osConfiguration := darwinConfiguration.Darwin
-	useUNIXSocket := osMajor > 22 || (osMajor == 22 && (osMinor > 'E' || (osMinor == 'E' && osDaily >= 118)))
-	var sock net.Listener
-	if useUNIXSocket {
-		// Launch NFSv4 server on a UNIX socket.
-		if err := os.Remove(osConfiguration.SocketPath); err != nil && !os.IsNotExist(err) {
-			return util.StatusWrapf(err, "Could not remove stale socket for NFSv4 server %#v", osConfiguration.SocketPath)
-		}
-		sock, err = net.Listen("unix", osConfiguration.SocketPath)
-	} else {
-		// Launch NFSv4 server on a TCP socket.
-		// TODO: Remove this once UNIX socket support is stable.
-		sock, err = net.Listen("tcp", "localhost:")
+	if err := os.Remove(osConfiguration.SocketPath); err != nil && !os.IsNotExist(err) {
+		return util.StatusWrapf(err, "Could not remove stale socket for NFSv4 server %#v", osConfiguration.SocketPath)
 	}
+	sock, err := net.Listen("unix", osConfiguration.SocketPath)
 	if err != nil {
 		return util.StatusWrap(err, "Failed to create listening socket for NFSv4 server")
 	}
@@ -179,51 +133,27 @@ func (m *nfsv4Mount) mount(terminationGroup program.Group, rpcServer *rpcserver.
 		toNfstime32(d.AsDuration()).WriteTo(&attrVals)
 	}
 
-	if useUNIXSocket {
-		// "ticotsord" is the X/Open Transport Interface (XTI)
-		// equivalent of AF_LOCAL with SOCK_STREAM.
-		attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_SOCKET_TYPE
-		nfs_sys_prot.WriteNfsMattrSocketType(&attrVals, "ticotsord")
-	}
-
-	if !useUNIXSocket {
-		attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_NFS_PORT
-		nfs_sys_prot.WriteNfsMattrNfsPort(&attrVals, nfs_sys_prot.NfsMattrNfsPort(sock.Addr().(*net.TCPAddr).Port))
-	}
+	// "ticotsord" is the X/Open Transport Interface (XTI)
+	// equivalent of AF_LOCAL with SOCK_STREAM.
+	attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_SOCKET_TYPE
+	nfs_sys_prot.WriteNfsMattrSocketType(&attrVals, "ticotsord")
 
 	attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_FS_LOCATIONS
-	var serverAddress string
-	if useUNIXSocket {
-		serverAddress = osConfiguration.SocketPath
-	} else {
-		serverAddress = sock.Addr().(*net.TCPAddr).IP.String()
-	}
 	fsLocations := nfs_sys_prot.NfsFsLocations{
 		NfslLocation: []nfs_sys_prot.NfsFsLocation{{
 			NfslServer: []nfs_sys_prot.NfsFsServer{{
-				NfssAddress: []string{serverAddress},
+				NfssAddress: []string{osConfiguration.SocketPath},
 			}},
 		}},
 	}
 	fsLocations.WriteTo(&attrVals)
 
-	if useUNIXSocket {
-		attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_LOCAL_NFS_PORT
-		nfs_sys_prot.WriteNfsMattrLocalNfsPort(&attrVals, osConfiguration.SocketPath)
-	}
+	attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_LOCAL_NFS_PORT
+	nfs_sys_prot.WriteNfsMattrLocalNfsPort(&attrVals, osConfiguration.SocketPath)
 
 	if m.containsSelfMutatingSymlinks {
-		// Disable caching of symlinks. Depending on the version
-		// of macOS, this can either be controlled by passing in
-		// a mount option, or by changing a system-wide sysctl.
-		if osMajor > 22 || (osMajor == 22 && (osMinor > 'E' || (osMinor == 'E' && osDaily >= 194))) {
-			attrMask[1] |= 1 << (nfs_sys_prot.NFS_MATTR_READLINK_NOCACHE - 32)
-			nfs_sys_prot.NFS_READLINK_CACHE_MODE_FULLY_UNCACHED.WriteTo(&attrVals)
-		} else {
-			initializeNFSReadlinkNoCache.Do(func() {
-				exec.Command("/usr/sbin/sysctl", "vfs.generic.nfs.client.readlink_nocache=2").Run()
-			})
-		}
+		attrMask[1] |= 1 << (nfs_sys_prot.NFS_MATTR_READLINK_NOCACHE - 32)
+		nfs_sys_prot.NFS_READLINK_CACHE_MODE_FULLY_UNCACHED.WriteTo(&attrVals)
 	}
 
 	// Construct the nfs_mount_args message and serialize it.
