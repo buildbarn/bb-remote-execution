@@ -135,6 +135,14 @@ func main() {
 			r = runner.NewPathExistenceCheckingRunner(r, configuration.ReadinessCheckingPathnames)
 		}
 
+		if len(configuration.AppleXcodeDeveloperDirectories) > 0 {
+			r = runner.NewAppleXcodeResolvingRunner(
+				r,
+				configuration.AppleXcodeDeveloperDirectories,
+				runner.NewCachingAppleXcodeSDKRootResolver(
+					runner.LocalAppleXcodeSDKRootResolver))
+		}
+
 		if err := bb_grpc.NewServersFromConfigurationAndServe(
 			configuration.GrpcServers,
 			func(s grpc.ServiceRegistrar) {

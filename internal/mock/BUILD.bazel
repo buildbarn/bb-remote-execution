@@ -298,6 +298,14 @@ gomock(
 gomock(
     name = "runner",
     out = "runner.go",
+    interfaces = ["AppleXcodeSDKRootResolver"],
+    library = "//pkg/runner",
+    package = "mock",
+)
+
+gomock(
+    name = "runner_pb",
+    out = "runner_pb.go",
     interfaces = [
         "RunnerClient",
         "RunnerServer",
@@ -381,6 +389,7 @@ go_library(
         ":remoteworker.go",
         ":routing.go",
         ":runner.go",
+        ":runner_pb.go",
         ":smithy.go",
         ":storage_builder.go",
         ":storage_util.go",

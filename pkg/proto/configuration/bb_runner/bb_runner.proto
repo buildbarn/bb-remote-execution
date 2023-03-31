@@ -91,4 +91,44 @@ message ApplicationConfiguration {
   // there is an inherent performance penalty. If possible, use the built-in
   // cleaning options that are handled in-process for optimal performance.
   repeated string run_command_cleaner = 13;
+
+  // If set, automatically inject DEVELOPER_DIR and SDKROOT environment
+  // variables based on the action's values of the APPLE_SDK_PLATFORM,
+  // APPLE_SDK_VERSION_OVERRIDE, and XCODE_VERSION_OVERRIDE environment
+  // variables.
+  //
+  // Tools such as /usr/bin/cc, /usr/bin/ld, etc. that ship with macOS
+  // are stubs that forward their calls to copies that are part of
+  // Xcode. As it is possible to install multiple versions of Xcode at
+  // different locations on the file system, these stubs will use the
+  // DEVELOPER_DIR and SDKROOT environment variables to determine which
+  // copy of Xcode to use.
+  //
+  // Because the location at which Xcode is installed may differ between
+  // local and remote execution environments, Bazel does not set the
+  // DEVELOPER_DIR and SDKROOT environment variables directly. Instead,
+  // it sets environment variables APPLE_SDK_PLATFORM,
+  // APPLE_SDK_VERSION_OVERRIDE and XCODE_VERSION_OVERRIDE. The remote
+  // worker is responsible for interpreting these environment variables
+  // and resolving those to the location of the intended copy of Xcode
+  // and the desired SDK.
+  //
+  // This option can be used to specify how values of
+  // XCODE_VERSION_OVERRIDE translate to values of DEVELOPER_DIR. The
+  // value of SDKROOT is obtained by invoking the xcrun utility with
+  // DEVELOPER_DIR set.
+  //
+  // Example:
+  //
+  //   {
+  //     "12.5.1.12E507": "/Applications/Xcode12.app/Contents/Developer",
+  //     "13.4.1.13F100": "/Applications/Xcode13.app/Contents/Developer",
+  //     "14.2.0.14C18": "/Applications/Xcode14.app/Contents/Developer"
+  //   }
+  //
+  // More details:
+  // https://blog.bazel.build/2020/02/26/xcode-selection.html
+  // https://github.com/bazelbuild/bazel/blob/master/src/main/java/com/google/devtools/build/lib/exec/local/XcodeLocalEnvProvider.java
+  // https://www.smileykeith.com/2021/03/08/locking-xcode-in-bazel/
+  map<string, string> apple_xcode_developer_directories = 14;
 }

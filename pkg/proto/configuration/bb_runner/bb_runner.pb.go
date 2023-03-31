@@ -28,18 +28,19 @@ type ApplicationConfiguration struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	BuildDirectoryPath           string                                    `protobuf:"bytes,1,opt,name=build_directory_path,json=buildDirectoryPath,proto3" json:"build_directory_path,omitempty"`
-	GrpcServers                  []*grpc.ServerConfiguration               `protobuf:"bytes,2,rep,name=grpc_servers,json=grpcServers,proto3" json:"grpc_servers,omitempty"`
-	CleanTemporaryDirectories    []string                                  `protobuf:"bytes,3,rep,name=clean_temporary_directories,json=cleanTemporaryDirectories,proto3" json:"clean_temporary_directories,omitempty"`
-	Global                       *global.Configuration                     `protobuf:"bytes,4,opt,name=global,proto3" json:"global,omitempty"`
-	SetTmpdirEnvironmentVariable bool                                      `protobuf:"varint,5,opt,name=set_tmpdir_environment_variable,json=setTmpdirEnvironmentVariable,proto3" json:"set_tmpdir_environment_variable,omitempty"`
-	TemporaryDirectoryInstaller  *grpc.ClientConfiguration                 `protobuf:"bytes,6,opt,name=temporary_directory_installer,json=temporaryDirectoryInstaller,proto3" json:"temporary_directory_installer,omitempty"`
-	ChrootIntoInputRoot          bool                                      `protobuf:"varint,7,opt,name=chroot_into_input_root,json=chrootIntoInputRoot,proto3" json:"chroot_into_input_root,omitempty"`
-	CleanProcessTable            bool                                      `protobuf:"varint,8,opt,name=clean_process_table,json=cleanProcessTable,proto3" json:"clean_process_table,omitempty"`
-	ReadinessCheckingPathnames   []string                                  `protobuf:"bytes,10,rep,name=readiness_checking_pathnames,json=readinessCheckingPathnames,proto3" json:"readiness_checking_pathnames,omitempty"`
-	RunCommandsAs                *credentials.UNIXCredentialsConfiguration `protobuf:"bytes,11,opt,name=run_commands_as,json=runCommandsAs,proto3" json:"run_commands_as,omitempty"`
-	SymlinkTemporaryDirectories  []string                                  `protobuf:"bytes,12,rep,name=symlink_temporary_directories,json=symlinkTemporaryDirectories,proto3" json:"symlink_temporary_directories,omitempty"`
-	RunCommandCleaner            []string                                  `protobuf:"bytes,13,rep,name=run_command_cleaner,json=runCommandCleaner,proto3" json:"run_command_cleaner,omitempty"`
+	BuildDirectoryPath             string                                    `protobuf:"bytes,1,opt,name=build_directory_path,json=buildDirectoryPath,proto3" json:"build_directory_path,omitempty"`
+	GrpcServers                    []*grpc.ServerConfiguration               `protobuf:"bytes,2,rep,name=grpc_servers,json=grpcServers,proto3" json:"grpc_servers,omitempty"`
+	CleanTemporaryDirectories      []string                                  `protobuf:"bytes,3,rep,name=clean_temporary_directories,json=cleanTemporaryDirectories,proto3" json:"clean_temporary_directories,omitempty"`
+	Global                         *global.Configuration                     `protobuf:"bytes,4,opt,name=global,proto3" json:"global,omitempty"`
+	SetTmpdirEnvironmentVariable   bool                                      `protobuf:"varint,5,opt,name=set_tmpdir_environment_variable,json=setTmpdirEnvironmentVariable,proto3" json:"set_tmpdir_environment_variable,omitempty"`
+	TemporaryDirectoryInstaller    *grpc.ClientConfiguration                 `protobuf:"bytes,6,opt,name=temporary_directory_installer,json=temporaryDirectoryInstaller,proto3" json:"temporary_directory_installer,omitempty"`
+	ChrootIntoInputRoot            bool                                      `protobuf:"varint,7,opt,name=chroot_into_input_root,json=chrootIntoInputRoot,proto3" json:"chroot_into_input_root,omitempty"`
+	CleanProcessTable              bool                                      `protobuf:"varint,8,opt,name=clean_process_table,json=cleanProcessTable,proto3" json:"clean_process_table,omitempty"`
+	ReadinessCheckingPathnames     []string                                  `protobuf:"bytes,10,rep,name=readiness_checking_pathnames,json=readinessCheckingPathnames,proto3" json:"readiness_checking_pathnames,omitempty"`
+	RunCommandsAs                  *credentials.UNIXCredentialsConfiguration `protobuf:"bytes,11,opt,name=run_commands_as,json=runCommandsAs,proto3" json:"run_commands_as,omitempty"`
+	SymlinkTemporaryDirectories    []string                                  `protobuf:"bytes,12,rep,name=symlink_temporary_directories,json=symlinkTemporaryDirectories,proto3" json:"symlink_temporary_directories,omitempty"`
+	RunCommandCleaner              []string                                  `protobuf:"bytes,13,rep,name=run_command_cleaner,json=runCommandCleaner,proto3" json:"run_command_cleaner,omitempty"`
+	AppleXcodeDeveloperDirectories map[string]string                         `protobuf:"bytes,14,rep,name=apple_xcode_developer_directories,json=appleXcodeDeveloperDirectories,proto3" json:"apple_xcode_developer_directories,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
 func (x *ApplicationConfiguration) Reset() {
@@ -158,6 +159,13 @@ func (x *ApplicationConfiguration) GetRunCommandCleaner() []string {
 	return nil
 }
 
+func (x *ApplicationConfiguration) GetAppleXcodeDeveloperDirectories() map[string]string {
+	if x != nil {
+		return x.AppleXcodeDeveloperDirectories
+	}
+	return nil
+}
+
 var File_pkg_proto_configuration_bb_runner_bb_runner_proto protoreflect.FileDescriptor
 
 var file_pkg_proto_configuration_bb_runner_bb_runner_proto_rawDesc = []byte{
@@ -175,7 +183,7 @@ var file_pkg_proto_configuration_bb_runner_bb_runner_proto_rawDesc = []byte{
 	0x6f, 0x62, 0x61, 0x6c, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x1a, 0x27, 0x70, 0x6b, 0x67, 0x2f,
 	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x75, 0x72, 0x61, 0x74,
 	0x69, 0x6f, 0x6e, 0x2f, 0x67, 0x72, 0x70, 0x63, 0x2f, 0x67, 0x72, 0x70, 0x63, 0x2e, 0x70, 0x72,
-	0x6f, 0x74, 0x6f, 0x22, 0xf3, 0x06, 0x0a, 0x18, 0x41, 0x70, 0x70, 0x6c, 0x69, 0x63, 0x61, 0x74,
+	0x6f, 0x74, 0x6f, 0x22, 0xf3, 0x08, 0x0a, 0x18, 0x41, 0x70, 0x70, 0x6c, 0x69, 0x63, 0x61, 0x74,
 	0x69, 0x6f, 0x6e, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x75, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e,
 	0x12, 0x30, 0x0a, 0x14, 0x62, 0x75, 0x69, 0x6c, 0x64, 0x5f, 0x64, 0x69, 0x72, 0x65, 0x63, 0x74,
 	0x6f, 0x72, 0x79, 0x5f, 0x70, 0x61, 0x74, 0x68, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x12,
@@ -230,7 +238,23 @@ var file_pkg_proto_configuration_bb_runner_bb_runner_proto_rawDesc = []byte{
 	0x69, 0x65, 0x73, 0x12, 0x2e, 0x0a, 0x13, 0x72, 0x75, 0x6e, 0x5f, 0x63, 0x6f, 0x6d, 0x6d, 0x61,
 	0x6e, 0x64, 0x5f, 0x63, 0x6c, 0x65, 0x61, 0x6e, 0x65, 0x72, 0x18, 0x0d, 0x20, 0x03, 0x28, 0x09,
 	0x52, 0x11, 0x72, 0x75, 0x6e, 0x43, 0x6f, 0x6d, 0x6d, 0x61, 0x6e, 0x64, 0x43, 0x6c, 0x65, 0x61,
-	0x6e, 0x65, 0x72, 0x4a, 0x04, 0x08, 0x09, 0x10, 0x0a, 0x42, 0x4c, 0x5a, 0x4a, 0x67, 0x69, 0x74,
+	0x6e, 0x65, 0x72, 0x12, 0xaa, 0x01, 0x0a, 0x21, 0x61, 0x70, 0x70, 0x6c, 0x65, 0x5f, 0x78, 0x63,
+	0x6f, 0x64, 0x65, 0x5f, 0x64, 0x65, 0x76, 0x65, 0x6c, 0x6f, 0x70, 0x65, 0x72, 0x5f, 0x64, 0x69,
+	0x72, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x69, 0x65, 0x73, 0x18, 0x0e, 0x20, 0x03, 0x28, 0x0b, 0x32,
+	0x5f, 0x2e, 0x62, 0x75, 0x69, 0x6c, 0x64, 0x62, 0x61, 0x72, 0x6e, 0x2e, 0x63, 0x6f, 0x6e, 0x66,
+	0x69, 0x67, 0x75, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x2e, 0x62, 0x62, 0x5f, 0x72, 0x75, 0x6e,
+	0x6e, 0x65, 0x72, 0x2e, 0x41, 0x70, 0x70, 0x6c, 0x69, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x43,
+	0x6f, 0x6e, 0x66, 0x69, 0x67, 0x75, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x2e, 0x41, 0x70, 0x70,
+	0x6c, 0x65, 0x58, 0x63, 0x6f, 0x64, 0x65, 0x44, 0x65, 0x76, 0x65, 0x6c, 0x6f, 0x70, 0x65, 0x72,
+	0x44, 0x69, 0x72, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x69, 0x65, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79,
+	0x52, 0x1e, 0x61, 0x70, 0x70, 0x6c, 0x65, 0x58, 0x63, 0x6f, 0x64, 0x65, 0x44, 0x65, 0x76, 0x65,
+	0x6c, 0x6f, 0x70, 0x65, 0x72, 0x44, 0x69, 0x72, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x69, 0x65, 0x73,
+	0x1a, 0x51, 0x0a, 0x23, 0x41, 0x70, 0x70, 0x6c, 0x65, 0x58, 0x63, 0x6f, 0x64, 0x65, 0x44, 0x65,
+	0x76, 0x65, 0x6c, 0x6f, 0x70, 0x65, 0x72, 0x44, 0x69, 0x72, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x69,
+	0x65, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x01,
+	0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x14, 0x0a, 0x05, 0x76, 0x61, 0x6c,
+	0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a,
+	0x02, 0x38, 0x01, 0x4a, 0x04, 0x08, 0x09, 0x10, 0x0a, 0x42, 0x4c, 0x5a, 0x4a, 0x67, 0x69, 0x74,
 	0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x62, 0x75, 0x69, 0x6c, 0x64, 0x62, 0x61, 0x72,
 	0x6e, 0x2f, 0x62, 0x62, 0x2d, 0x72, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x2d, 0x65, 0x78, 0x65, 0x63,
 	0x75, 0x74, 0x69, 0x6f, 0x6e, 0x2f, 0x70, 0x6b, 0x67, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f,
@@ -250,24 +274,26 @@ func file_pkg_proto_configuration_bb_runner_bb_runner_proto_rawDescGZIP() []byte
 	return file_pkg_proto_configuration_bb_runner_bb_runner_proto_rawDescData
 }
 
-var file_pkg_proto_configuration_bb_runner_bb_runner_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_pkg_proto_configuration_bb_runner_bb_runner_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_pkg_proto_configuration_bb_runner_bb_runner_proto_goTypes = []interface{}{
 	(*ApplicationConfiguration)(nil),                 // 0: buildbarn.configuration.bb_runner.ApplicationConfiguration
-	(*grpc.ServerConfiguration)(nil),                 // 1: buildbarn.configuration.grpc.ServerConfiguration
-	(*global.Configuration)(nil),                     // 2: buildbarn.configuration.global.Configuration
-	(*grpc.ClientConfiguration)(nil),                 // 3: buildbarn.configuration.grpc.ClientConfiguration
-	(*credentials.UNIXCredentialsConfiguration)(nil), // 4: buildbarn.configuration.credentials.UNIXCredentialsConfiguration
+	nil,                                              // 1: buildbarn.configuration.bb_runner.ApplicationConfiguration.AppleXcodeDeveloperDirectoriesEntry
+	(*grpc.ServerConfiguration)(nil),                 // 2: buildbarn.configuration.grpc.ServerConfiguration
+	(*global.Configuration)(nil),                     // 3: buildbarn.configuration.global.Configuration
+	(*grpc.ClientConfiguration)(nil),                 // 4: buildbarn.configuration.grpc.ClientConfiguration
+	(*credentials.UNIXCredentialsConfiguration)(nil), // 5: buildbarn.configuration.credentials.UNIXCredentialsConfiguration
 }
 var file_pkg_proto_configuration_bb_runner_bb_runner_proto_depIdxs = []int32{
-	1, // 0: buildbarn.configuration.bb_runner.ApplicationConfiguration.grpc_servers:type_name -> buildbarn.configuration.grpc.ServerConfiguration
-	2, // 1: buildbarn.configuration.bb_runner.ApplicationConfiguration.global:type_name -> buildbarn.configuration.global.Configuration
-	3, // 2: buildbarn.configuration.bb_runner.ApplicationConfiguration.temporary_directory_installer:type_name -> buildbarn.configuration.grpc.ClientConfiguration
-	4, // 3: buildbarn.configuration.bb_runner.ApplicationConfiguration.run_commands_as:type_name -> buildbarn.configuration.credentials.UNIXCredentialsConfiguration
-	4, // [4:4] is the sub-list for method output_type
-	4, // [4:4] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	2, // 0: buildbarn.configuration.bb_runner.ApplicationConfiguration.grpc_servers:type_name -> buildbarn.configuration.grpc.ServerConfiguration
+	3, // 1: buildbarn.configuration.bb_runner.ApplicationConfiguration.global:type_name -> buildbarn.configuration.global.Configuration
+	4, // 2: buildbarn.configuration.bb_runner.ApplicationConfiguration.temporary_directory_installer:type_name -> buildbarn.configuration.grpc.ClientConfiguration
+	5, // 3: buildbarn.configuration.bb_runner.ApplicationConfiguration.run_commands_as:type_name -> buildbarn.configuration.credentials.UNIXCredentialsConfiguration
+	1, // 4: buildbarn.configuration.bb_runner.ApplicationConfiguration.apple_xcode_developer_directories:type_name -> buildbarn.configuration.bb_runner.ApplicationConfiguration.AppleXcodeDeveloperDirectoriesEntry
+	5, // [5:5] is the sub-list for method output_type
+	5, // [5:5] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_pkg_proto_configuration_bb_runner_bb_runner_proto_init() }
@@ -295,7 +321,7 @@ func file_pkg_proto_configuration_bb_runner_bb_runner_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_pkg_proto_configuration_bb_runner_bb_runner_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   1,
+			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
