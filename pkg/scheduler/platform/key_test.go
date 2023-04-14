@@ -57,7 +57,7 @@ func TestKey(t *testing.T) {
 				},
 			},
 		})
-		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Platform properties are not sorted"), err)
+		testutil.RequirePrefixedStatus(t, status.Error(codes.InvalidArgument, "Platform properties are not lexicographically sorted, as property "), err)
 	})
 
 	t.Run("MultipleValues", func(t *testing.T) {

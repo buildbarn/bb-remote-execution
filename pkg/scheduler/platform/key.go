@@ -38,7 +38,8 @@ func NewKey(instanceNamePrefix digest.InstanceName, platform *remoteexecution.Pl
 		if properties[i-1].Name > properties[i].Name ||
 			(properties[i-1].Name == properties[i].Name &&
 				properties[i-1].Value >= properties[i].Value) {
-			return Key{}, status.Error(codes.InvalidArgument, "Platform properties are not sorted")
+			marshaler := protojson.MarshalOptions{}
+			return Key{}, status.Errorf(codes.InvalidArgument, "Platform properties are not lexicographically sorted, as property %s should have been placed before property %s", marshaler.Format(properties[i]), marshaler.Format(properties[i-1]))
 		}
 	}
 

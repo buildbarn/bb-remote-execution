@@ -34,7 +34,7 @@ func TestActionAndCommandKeyExtractor(t *testing.T) {
 				},
 			},
 		})
-		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Failed to extract platform key from action: Platform properties are not sorted"), err)
+		testutil.RequirePrefixedStatus(t, status.Error(codes.InvalidArgument, "Failed to extract platform key from action: Platform properties are not lexicographically sorted, as property "), err)
 	})
 
 	t.Run("ActionSuccess", func(t *testing.T) {
@@ -98,7 +98,7 @@ func TestActionAndCommandKeyExtractor(t *testing.T) {
 				SizeBytes: 123,
 			},
 		})
-		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Failed to extract platform key from command: Platform properties are not sorted"), err)
+		testutil.RequirePrefixedStatus(t, status.Error(codes.InvalidArgument, "Failed to extract platform key from command: Platform properties are not lexicographically sorted, as property "), err)
 	})
 
 	t.Run("CommandSuccess", func(t *testing.T) {
