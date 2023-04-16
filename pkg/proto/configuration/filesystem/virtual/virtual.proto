@@ -133,6 +133,9 @@ message FUSEMountConfiguration {
   //
   // Recommended value: unset
   map<string, string> linux_backing_dev_info_tunables = 9;
+
+  // List of options to pass directly to fusermount.
+  repeated string options = 10;
 }
 
 message NFSv4MountConfiguration {

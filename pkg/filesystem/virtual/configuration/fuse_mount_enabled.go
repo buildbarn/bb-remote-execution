@@ -72,6 +72,7 @@ func (m *fuseMount) Expose(terminationGroup program.Group, rootDirectory virtual
 			FsName:      m.fsName,
 			AllowOther:  m.configuration.AllowOther,
 			DirectMount: m.configuration.DirectMount,
+			Options:     m.configuration.Options,
 		})
 	if err != nil {
 		return util.StatusWrap(err, "Failed to create FUSE server")
