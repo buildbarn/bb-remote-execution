@@ -26,7 +26,7 @@ func (m *fuseMount) Expose(terminationGroup program.Group, rootDirectory virtual
 		directoryEntryValidity = d.AsDuration()
 	}
 	var inodeAttributeValidity time.Duration
-	if d := m.configuration.DirectoryEntryValidity; d != nil {
+	if d := m.configuration.InodeAttributeValidity; d != nil {
 		if err := d.CheckValid(); err != nil {
 			util.StatusWrap(err, "Failed to parse inode attribute validity")
 		}
