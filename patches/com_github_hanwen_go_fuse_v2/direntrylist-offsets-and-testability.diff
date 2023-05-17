@@ -1,8 +1,8 @@
 diff --git fs/bridge.go fs/bridge.go
-index a292067..a747018 100644
+index 78d8fc9..fd60dcf 100644
 --- fs/bridge.go
 +++ fs/bridge.go
-@@ -978,7 +978,7 @@ func (b *rawBridge) getStream(ctx context.Context, inode *Inode) (DirStream, sys
+@@ -996,7 +996,7 @@ func (b *rawBridge) getStream(ctx context.Context, inode *Inode) (DirStream, sys
  	return NewListDirStream(r), 0
  }
  
@@ -11,25 +11,25 @@ index a292067..a747018 100644
  	n, f := b.inode(input.NodeId, input.Fh)
  
  	f.mu.Lock()
-@@ -993,7 +993,7 @@ func (b *rawBridge) ReadDir(cancel <-chan struct{}, input *fuse.ReadIn, out *fus
+@@ -1016,7 +1016,7 @@ func (b *rawBridge) ReadDir(cancel <-chan struct{}, input *fuse.ReadIn, out *fus
  
- 	if f.hasOverflow {
+ 		f.hasOverflow = false
  		// always succeeds.
 -		out.AddDirEntry(f.overflow)
 +		out.AddDirEntry(f.overflow, f.dirOffset+1)
- 		f.hasOverflow = false
  		f.dirOffset++
  	}
-@@ -1004,7 +1004,7 @@ func (b *rawBridge) ReadDir(cancel <-chan struct{}, input *fuse.ReadIn, out *fus
- 		if errno != 0 {
- 			return errnoToStatus(errno)
+ 
+@@ -1035,7 +1035,7 @@ func (b *rawBridge) ReadDir(cancel <-chan struct{}, input *fuse.ReadIn, out *fus
  		}
+ 
+ 		first = false
 -		if !out.AddDirEntry(e) {
 +		if !out.AddDirEntry(e, f.dirOffset+1) {
  			f.overflow = e
  			f.hasOverflow = true
  			return errnoToStatus(errno)
-@@ -1015,7 +1015,7 @@ func (b *rawBridge) ReadDir(cancel <-chan struct{}, input *fuse.ReadIn, out *fus
+@@ -1046,7 +1046,7 @@ func (b *rawBridge) ReadDir(cancel <-chan struct{}, input *fuse.ReadIn, out *fus
  	return fuse.OK
  }
  
@@ -38,9 +38,9 @@ index a292067..a747018 100644
  	n, f := b.inode(input.NodeId, input.Fh)
  
  	f.mu.Lock()
-@@ -1044,7 +1044,7 @@ func (b *rawBridge) ReadDirPlus(cancel <-chan struct{}, input *fuse.ReadIn, out
- 			return errnoToStatus(errno)
+@@ -1085,7 +1085,7 @@ func (b *rawBridge) ReadDirPlus(cancel <-chan struct{}, input *fuse.ReadIn, out
  		}
+ 		first = false
  
 -		entryOut := out.AddDirLookupEntry(e)
 +		entryOut := out.AddDirLookupEntry(e, f.dirOffset+1)
@@ -48,10 +48,10 @@ index a292067..a747018 100644
  			f.overflow = e
  			f.hasOverflow = true
 diff --git fuse/api.go fuse/api.go
-index a73ad21..433e5ff 100644
+index a0ec84f..3522124 100644
 --- fuse/api.go
 +++ fuse/api.go
-@@ -336,8 +336,8 @@ type RawFileSystem interface {
+@@ -381,8 +381,8 @@ type RawFileSystem interface {
  
  	// Directory handling
  	OpenDir(cancel <-chan struct{}, input *OpenIn, out *OpenOut) (status Status)
@@ -238,10 +238,10 @@ index 58b4a5e..f89a74a 100644
  	opened := node.mount.getOpenedFile(input.Fh)
  	return opened.dir.ReadDirPlus(cancel, input, out)
 diff --git fuse/opcode.go fuse/opcode.go
-index 3505761..ba8008a 100644
+index 7b72cb6..b8aba60 100644
 --- fuse/opcode.go
 +++ fuse/opcode.go
-@@ -172,7 +172,7 @@ func doCreate(server *Server, req *request) {
+@@ -186,7 +186,7 @@ func doCreate(server *Server, req *request) {
  func doReadDir(server *Server, req *request) {
  	in := (*ReadIn)(req.inData)
  	buf := server.allocOut(req, in.Size)
@@ -250,7 +250,7 @@ index 3505761..ba8008a 100644
  
  	code := server.fileSystem.ReadDir(req.cancel, in, out)
  	req.flatData = out.bytes()
-@@ -182,7 +182,7 @@ func doReadDir(server *Server, req *request) {
+@@ -196,7 +196,7 @@ func doReadDir(server *Server, req *request) {
  func doReadDirPlus(server *Server, req *request) {
  	in := (*ReadIn)(req.inData)
  	buf := server.allocOut(req, in.Size)
