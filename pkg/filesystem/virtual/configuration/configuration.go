@@ -38,6 +38,7 @@ type nfsv4Mount struct {
 	handleAllocator              *virtual.NFSStatefulHandleAllocator
 	authenticator                rpcserver.Authenticator
 	containsSelfMutatingSymlinks bool
+	fsName                       string
 }
 
 func (m *nfsv4Mount) Expose(terminationGroup program.Group, rootDirectory virtual.Directory) error {
@@ -113,6 +114,7 @@ func NewMountFromConfiguration(configuration *pb.MountConfiguration, fsName stri
 			handleAllocator:              handleAllocator,
 			authenticator:                authenticator,
 			containsSelfMutatingSymlinks: containsSelfMutatingSymlinks,
+			fsName:                       fsName,
 		}, handleAllocator, nil
 	default:
 		return nil, nil, status.Error(codes.InvalidArgument, "No virtual file system backend configuration provided")

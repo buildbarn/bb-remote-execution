@@ -142,6 +142,7 @@ func (m *nfsv4Mount) mount(terminationGroup program.Group, rpcServer *rpcserver.
 	fsLocations := nfs_sys_prot.NfsFsLocations{
 		NfslLocation: []nfs_sys_prot.NfsFsLocation{{
 			NfslServer: []nfs_sys_prot.NfsFsServer{{
+				NfssName:    m.fsName,
 				NfssAddress: []string{osConfiguration.SocketPath},
 			}},
 		}},
