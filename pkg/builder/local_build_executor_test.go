@@ -214,7 +214,7 @@ func TestLocalBuildExecutorOutputDirectoryCreationFailure(t *testing.T) {
 		EnvironmentVariables: []*remoteexecution.Command_EnvironmentVariable{
 			{Name: "PATH", Value: "/bin:/usr/bin"},
 		},
-		OutputFiles: []string{"foo/bar/baz"},
+		OutputPaths: []string{"foo/bar/baz"},
 	}, buffer.UserProvided))
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
@@ -343,7 +343,7 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 		EnvironmentVariables: []*remoteexecution.Command_EnvironmentVariable{
 			{Name: "PATH", Value: "/bin:/usr/bin"},
 		},
-		OutputDirectories: []string{"foo"},
+		OutputPaths: []string{"foo"},
 	}, buffer.UserProvided))
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
 	buildDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("stdout"), gomock.Any()).Return(
@@ -383,7 +383,6 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 		digest.MustNewDigest("nintendo64", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42),
 		monitor,
 	).Return(nil)
-	inputRootDirectory.EXPECT().Mkdir(path.MustNewComponent("foo"), os.FileMode(0o777)).Return(nil)
 	buildDirectory.EXPECT().Mkdir(path.MustNewComponent("tmp"), os.FileMode(0o777))
 	runner := mock.NewMockRunnerClient(ctrl)
 	runner.EXPECT().Run(gomock.Any(), &runner_pb.RunRequest{
@@ -530,7 +529,7 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 			{Name: "PATH", Value: "/bin:/usr/bin"},
 			{Name: "PWD", Value: "/proc/self/cwd"},
 		},
-		OutputFiles: []string{
+		OutputPaths: []string{
 			"bazel-out/k8-fastbuild/bin/_objs/hello/hello.pic.d",
 			"bazel-out/k8-fastbuild/bin/_objs/hello/hello.pic.o",
 		},

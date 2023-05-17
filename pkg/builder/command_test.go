@@ -18,7 +18,7 @@ func TestConvertCommandToShellScript(t *testing.T) {
 			{Name: "PATH", Value: "/bin:/sbin:/usr/bin:/usr/sbin"},
 			{Name: "FUNKY_CHARACTERS", Value: "~Hello$world*"},
 		},
-		OutputFiles:      []string{"../obj/hello world.o", "../obj/notcreated", "other/dir/bar"},
+		OutputPaths:      []string{"../obj/hello world.o", "../obj/notcreated", "other/dir/bar"},
 		WorkingDirectory: "src",
 	}, &b))
 	require.Equal(t, `#!/bin/sh

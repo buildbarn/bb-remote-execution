@@ -46,12 +46,6 @@ func TestStorageFlushingBuildExecutor(t *testing.T) {
 					},
 				},
 			},
-			OutputFileSymlinks: []*remoteexecution.OutputSymlink{
-				{
-					Path:   "output.o.stripped",
-					Target: "output.o",
-				},
-			},
 			OutputDirectories: []*remoteexecution.OutputDirectory{
 				{
 					Path: "some_directory",
@@ -61,7 +55,11 @@ func TestStorageFlushingBuildExecutor(t *testing.T) {
 					},
 				},
 			},
-			OutputDirectorySymlinks: []*remoteexecution.OutputSymlink{
+			OutputSymlinks: []*remoteexecution.OutputSymlink{
+				{
+					Path:   "output.o.stripped",
+					Target: "output.o",
+				},
 				{
 					Path:   "some_other_directory",
 					Target: "some_directory",
@@ -120,13 +118,11 @@ func TestStorageFlushingBuildExecutor(t *testing.T) {
 			t,
 			&remoteexecution.ExecuteResponse{
 				Result: &remoteexecution.ActionResult{
-					OutputFileSymlinks: []*remoteexecution.OutputSymlink{
+					OutputSymlinks: []*remoteexecution.OutputSymlink{
 						{
 							Path:   "output.o.stripped",
 							Target: "output.o",
 						},
-					},
-					OutputDirectorySymlinks: []*remoteexecution.OutputSymlink{
 						{
 							Path:   "some_other_directory",
 							Target: "some_directory",
