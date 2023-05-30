@@ -1,0 +1,32 @@
+diff --git fuse/api.go fuse/api.go
+index a0ec84f..5b7a8ab 100644
+--- fuse/api.go
++++ fuse/api.go
+@@ -249,6 +249,13 @@ type MountOptions struct {
+ 	// for more details.
+ 	SyncRead bool
+ 
++	// Let the kernel use the writeback cache mode, as opposed to
++	// write-through mode.
++	//
++	// See the following page for more details:
++	// https://www.kernel.org/doc/Documentation/filesystems/fuse-io.txt
++	EnableWritebackCache bool
++
+ 	// If set, fuse will first attempt to use syscall.Mount instead of
+ 	// fusermount to mount the filesystem. This will not update /etc/mtab
+ 	// but might be needed if fusermount is not available.
+diff --git fuse/opcode.go fuse/opcode.go
+index 7b72cb6..e1ff6f2 100644
+--- fuse/opcode.go
++++ fuse/opcode.go
+@@ -115,6 +115,9 @@ func doInit(server *Server, req *request) {
+ 		// Clear CAP_READDIRPLUS
+ 		server.kernelSettings.Flags &= ^uint32(CAP_READDIRPLUS)
+ 	}
++	if server.opts.EnableWritebackCache {
++		server.kernelSettings.Flags |= CAP_WRITEBACK_CACHE
++	}
+ 
+ 	dataCacheMode := input.Flags & CAP_AUTO_INVAL_DATA
+ 	if server.opts.ExplicitDataCacheControl {

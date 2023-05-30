@@ -504,8 +504,9 @@ def go_dependencies():
         name = "com_github_hanwen_go_fuse_v2",
         importpath = "github.com/hanwen/go-fuse/v2",
         patches = [
-            "@com_github_buildbarn_bb_remote_execution//:patches/com_github_hanwen_go_fuse_v2/direntrylist-offsets-and-testability.diff",
-            "@com_github_buildbarn_bb_remote_execution//:patches/com_github_hanwen_go_fuse_v2/notify-testability.diff",
+            "//:patches/com_github_hanwen_go_fuse_v2/direntrylist-offsets-and-testability.diff",
+            "//:patches/com_github_hanwen_go_fuse_v2/notify-testability.diff",
+            "//:patches/com_github_hanwen_go_fuse_v2/writeback-cache.diff",
         ],
         sum = "h1:t5ivNIH2PK+zw4OBul/iJjsoG9K6kXo4nMDoBpciC8A=",
         version = "v2.3.0",

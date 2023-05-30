@@ -72,6 +72,11 @@ func (m *fuseMount) Expose(terminationGroup program.Group, rootDirectory virtual
 			FsName:      m.fsName,
 			AllowOther:  m.configuration.AllowOther,
 			DirectMount: m.configuration.DirectMount,
+			// Speed up workloads that perform many tiny
+			// writes. This means data is only guaranteed to
+			// make it into the virtual file system after
+			// calling close()/fsync()/munmap()/msync().
+			EnableWritebackCache: true,
 		})
 	if err != nil {
 		return util.StatusWrap(err, "Failed to create FUSE server")
