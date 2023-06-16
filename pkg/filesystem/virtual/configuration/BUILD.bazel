@@ -8,6 +8,7 @@ go_library(
         "fuse_mount_enabled.go",
         "nfsv4_mount_darwin.go",
         "nfsv4_mount_disabled.go",
+        "remove_stale_mounts.go",
     ],
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual/configuration",
     visibility = ["//visibility:public"],
@@ -30,6 +31,7 @@ go_library(
             "//pkg/filesystem/virtual/fuse",
             "@com_github_buildbarn_bb_storage//pkg/filesystem",
             "@com_github_hanwen_go_fuse_v2//fuse",
+            "@org_golang_x_sys//unix",
         ],
         "@io_bazel_rules_go//go/platform:darwin": [
             "//pkg/filesystem/virtual/fuse",
@@ -49,6 +51,7 @@ go_library(
             "//pkg/filesystem/virtual/fuse",
             "@com_github_buildbarn_bb_storage//pkg/filesystem",
             "@com_github_hanwen_go_fuse_v2//fuse",
+            "@org_golang_x_sys//unix",
         ],
         "//conditions:default": [],
     }),

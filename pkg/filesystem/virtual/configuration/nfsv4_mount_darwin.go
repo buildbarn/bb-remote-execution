@@ -178,7 +178,7 @@ func (m *nfsv4Mount) mount(terminationGroup program.Group, rpcServer *rpcserver.
 
 	// Call mount(2) with the serialized nfs_mount_args message.
 	mountPath := m.mountPath
-	unix.Unmount(mountPath, 0)
+	removeStaleMounts(mountPath)
 	if err := unix.Mount("nfs", mountPath, 0, unsafe.Pointer(&mountArgsBuf.Bytes()[0])); err != nil {
 		return util.StatusWrap(err, "Mounting NFS volume failed")
 	}

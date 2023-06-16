@@ -43,6 +43,7 @@ func (m *fuseMount) Expose(terminationGroup program.Group, rootDirectory virtual
 	}
 
 	// Launch the FUSE server.
+	removeStaleMounts(m.mountPath)
 	deterministicTimestamp := uint64(filesystem.DeterministicFileModificationTimestamp.Unix())
 	server, err := go_fuse.NewServer(
 		fuse.NewMetricsRawFileSystem(
