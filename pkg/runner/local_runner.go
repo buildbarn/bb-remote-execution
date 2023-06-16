@@ -122,7 +122,7 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 
 	cmd, workingDirectoryBase := r.commandCreator(ctx, request.Arguments, inputRootDirectory)
 
-	// Set the environment variable.
+	// Set the environment variables.
 	cmd.Env = make([]string, 0, len(request.EnvironmentVariables)+1)
 	if r.setTmpdirEnvironmentVariable && request.TemporaryDirectory != "" {
 		temporaryDirectory, scopeWalker := r.buildDirectoryPath.Join(path.VoidScopeWalker)
