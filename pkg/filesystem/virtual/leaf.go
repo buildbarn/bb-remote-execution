@@ -47,7 +47,7 @@ type Leaf interface {
 	VirtualOpenSelf(ctx context.Context, shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status
 	VirtualRead(buf []byte, offset uint64) (n int, eof bool, s Status)
 	VirtualReadlink(ctx context.Context) ([]byte, Status)
-	VirtualClose(count uint)
+	VirtualClose()
 	VirtualWrite(buf []byte, offset uint64) (int, Status)
 }
 

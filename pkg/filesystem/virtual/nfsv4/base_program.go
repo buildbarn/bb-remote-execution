@@ -796,7 +796,7 @@ func (s *compoundState) getOpenedLeaf(ctx context.Context, stateID *nfsv4.Statei
 		); vs != virtual.StatusOK {
 			return nil, nil, toNFSv4Status(vs)
 		}
-		return currentLeaf, func() { currentLeaf.VirtualClose(1) }, nfsv4.NFS4_OK
+		return currentLeaf, currentLeaf.VirtualClose, nfsv4.NFS4_OK
 	}
 
 	p.enter()
@@ -1490,14 +1490,14 @@ func (s *compoundState) opOpen(ctx context.Context, args *nfsv4.Open4args) nfsv4
 		}
 		return &nfsv4.Open4res_default{Status: st}
 	}
-	response := s.txOpen(ctx, args, oos)
+	response := s.txOpen(ctx, args, oos, &ll)
 	transaction.complete(&openOwnerLastResponse{
 		response: response,
 	})
 	return response
 }
 
-func (s *compoundState) txOpen(ctx context.Context, args *nfsv4.Open4args, oos *openOwnerState) nfsv4.Open4res {
+func (s *compoundState) txOpen(ctx context.Context, args *nfsv4.Open4args, oos *openOwnerState, ll *leavesToClose) nfsv4.Open4res {
 	// Drop the lock, as VirtualOpenChild may block. This is safe to
 	// do within open-owner transactions.
 	p := s.program
@@ -1622,17 +1622,13 @@ func (s *compoundState) txOpen(ctx context.Context, args *nfsv4.Open4args, oos *
 	oofs, ok := oos.filesByHandle[handleKey]
 	if ok {
 		// This file has already been opened by this open-owner,
-		// meaning we should upgrade the open file. Increase
-		// closeCount, so that the file is released a sufficient
-		// number of times upon last close.
+		// meaning we should upgrade the existing opened file.
+		// The newly opened file can be closed again.
 		//
 		// More details: RFC 7530, section 9.11.
 		oofs.shareAccess |= shareAccess
 		oofs.stateID.seqID = nextSeqID(oofs.stateID.seqID)
-		if oofs.closeCount == 0 {
-			panic("Attempted to use file that has already been closed. It should have been removed before this transaction started.")
-		}
-		oofs.closeCount++
+		ll.leaves = append(ll.leaves, leaf)
 	} else {
 		openedFile, ok := p.openedFilesByHandle[handleKey]
 		if ok {
@@ -1660,7 +1656,6 @@ func (s *compoundState) txOpen(ctx context.Context, args *nfsv4.Open4args, oos *
 			openedFile:     openedFile,
 			shareAccess:    shareAccess,
 			stateID:        p.newRegularStateID(1),
-			closeCount:     1,
 			useCount:       1,
 			lockOwnerFiles: map[*lockOwnerState]*lockOwnerFileState{},
 		}
@@ -1710,14 +1705,14 @@ func (s *compoundState) opOpenConfirm(args *nfsv4.OpenConfirm4args) nfsv4.OpenCo
 		}
 		return &nfsv4.OpenConfirm4res_default{Status: st}
 	}
-	response := s.txOpenConfirm(openStateID, &ll)
+	response := s.txOpenConfirm(openStateID)
 	transaction.complete(&openOwnerLastResponse{
 		response: response,
 	})
 	return response
 }
 
-func (s *compoundState) txOpenConfirm(openStateID regularStateID, ll *leavesToClose) nfsv4.OpenConfirm4res {
+func (s *compoundState) txOpenConfirm(openStateID regularStateID) nfsv4.OpenConfirm4res {
 	oofs, st := s.getOpenOwnerFileByStateID(openStateID, true)
 	if st != nfsv4.NFS4_OK {
 		return &nfsv4.OpenConfirm4res_default{Status: st}
@@ -2733,7 +2728,6 @@ type openOwnerFileState struct {
 	openOwner      *openOwnerState
 	shareAccess    virtual.ShareMask
 	stateID        regularStateID
-	closeCount     uint
 	useCount       referenceCount
 	lockOwnerFiles map[*lockOwnerState]*lockOwnerFileState
 }
@@ -2745,14 +2739,7 @@ type openOwnerFileState struct {
 // READ/WRITE operations are still in progress.
 func (oofs *openOwnerFileState) maybeClose(ll *leavesToClose) {
 	if oofs.useCount.decrease() {
-		ll.leaves = append(ll.leaves, leafToClose{
-			leaf:       oofs.openedFile.leaf,
-			closeCount: oofs.closeCount,
-		})
-		if oofs.closeCount == 0 {
-			panic("Attempted to close file multiple times")
-		}
-		oofs.closeCount = 0
+		ll.leaves = append(ll.leaves, oofs.openedFile.leaf)
 	}
 }
 
@@ -2930,19 +2917,11 @@ func (lofs *lockOwnerFileState) remove(p *baseProgram) {
 	}
 }
 
-// leafToClose contains information on a virtual file system leaf node
-// that needs to be closed at the end of the current operation, after
-// locks have been released.
-type leafToClose struct {
-	leaf       virtual.Leaf
-	closeCount uint
-}
-
 // leavesToClose is a list of virtual file system leaf nodes that need
 // to be closed at the end of the current operation, after locks have
 // been released.
 type leavesToClose struct {
-	leaves []leafToClose
+	leaves []virtual.Leaf
 }
 
 func (ll *leavesToClose) empty() bool {
@@ -2950,8 +2929,8 @@ func (ll *leavesToClose) empty() bool {
 }
 
 func (ll *leavesToClose) closeAll() {
-	for _, l := range ll.leaves {
-		l.leaf.VirtualClose(l.closeCount)
+	for _, leaf := range ll.leaves {
+		leaf.VirtualClose()
 	}
 }
 

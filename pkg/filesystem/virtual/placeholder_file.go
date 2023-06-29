@@ -36,7 +36,7 @@ func (placeholderFile) VirtualAllocate(off, size uint64) Status {
 	return StatusErrWrongType
 }
 
-func (placeholderFile) VirtualClose(count uint) {}
+func (placeholderFile) VirtualClose() {}
 
 func (placeholderFile) VirtualOpenSelf(ctx context.Context, shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status {
 	// Even though this file may not necessarily be a symbolic link,

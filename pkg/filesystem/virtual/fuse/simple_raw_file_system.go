@@ -702,7 +702,7 @@ func (rfs *simpleRawFileSystem) Release(cancel <-chan struct{}, input *fuse.Rele
 	i := rfs.getLeafLocked(input.NodeId)
 	rfs.nodeLock.RUnlock()
 
-	i.VirtualClose(1)
+	i.VirtualClose()
 }
 
 func (rfs *simpleRawFileSystem) Write(cancel <-chan struct{}, input *fuse.WriteIn, data []byte) (uint32, fuse.Status) {

@@ -142,7 +142,7 @@ func (f *blobAccessCASFile) VirtualReadlink(ctx context.Context) ([]byte, Status
 	return nil, StatusErrInval
 }
 
-func (f *blobAccessCASFile) VirtualClose(count uint) {}
+func (f *blobAccessCASFile) VirtualClose() {}
 
 func (f *blobAccessCASFile) virtualSetAttributesCommon(in *Attributes) Status {
 	// TODO: chmod() calls against CAS backed files should not be

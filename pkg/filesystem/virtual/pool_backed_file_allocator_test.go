@@ -152,7 +152,7 @@ func TestPoolBackedFileAllocatorGetOutputServiceFileStatus(t *testing.T) {
 
 	underlyingFile.EXPECT().Close()
 	f.Unlink()
-	f.VirtualClose(1)
+	f.VirtualClose()
 }
 
 // For plain lseek() operations such as SEEK_SET, SEEK_CUR and SEEK_END,
@@ -240,7 +240,7 @@ func TestPoolBackedFileAllocatorVirtualOpenSelfStaleAfterUnlink(t *testing.T) {
 		NewFile(false, 0)
 	require.Equal(t, virtual.StatusOK, s)
 
-	f.VirtualClose(1)
+	f.VirtualClose()
 	f.Unlink()
 
 	require.Equal(
@@ -266,7 +266,7 @@ func TestPoolBackedFileAllocatorVirtualOpenSelfStaleAfterClose(t *testing.T) {
 	require.Equal(t, virtual.StatusOK, s)
 
 	f.Unlink()
-	f.VirtualClose(1)
+	f.VirtualClose()
 
 	require.Equal(
 		t,
@@ -342,7 +342,7 @@ func TestPoolBackedFileAllocatorVirtualRead(t *testing.T) {
 
 	underlyingFile.EXPECT().Close()
 
-	f.VirtualClose(1)
+	f.VirtualClose()
 	f.Unlink()
 }
 
@@ -370,7 +370,7 @@ func TestPoolBackedFileAllocatorFUSETruncateFailure(t *testing.T) {
 		(&virtual.Attributes{}).SetSizeBytes(42),
 		0,
 		&virtual.Attributes{}))
-	f.VirtualClose(1)
+	f.VirtualClose()
 	f.Unlink()
 }
 
@@ -394,7 +394,7 @@ func TestPoolBackedFileAllocatorVirtualWriteFailure(t *testing.T) {
 	require.Equal(t, virtual.StatusOK, s)
 	_, s = f.VirtualWrite(p[:], 42)
 	require.Equal(t, virtual.StatusErrIO, s)
-	f.VirtualClose(1)
+	f.VirtualClose()
 	f.Unlink()
 }
 
@@ -512,7 +512,7 @@ func TestPoolBackedFileAllocatorFUSEUploadFile(t *testing.T) {
 	})
 
 	underlyingFile.EXPECT().Close()
-	f.VirtualClose(1)
+	f.VirtualClose()
 	f.Unlink()
 
 	t.Run("Stale", func(t *testing.T) {
@@ -551,8 +551,9 @@ func TestPoolBackedFileAllocatorVirtualClose(t *testing.T) {
 
 	// The underlying file should be released only when the close
 	// count matches the number of times the file was opened.
-	f.VirtualClose(6)
-	f.VirtualClose(3)
+	for i := 0; i < 10; i++ {
+		f.VirtualClose()
+	}
 	underlyingFile.EXPECT().Close()
-	f.VirtualClose(2)
+	f.VirtualClose()
 }

@@ -110,20 +110,20 @@ func (f *fileBackedFile) acquireFrozen() bool {
 	return true
 }
 
-func (f *fileBackedFile) release(count uint, frozen bool) {
+func (f *fileBackedFile) release(frozen bool) {
 	f.lock.Lock()
 	defer f.lock.Unlock()
 
-	if f.referenceCount < count {
+	if f.referenceCount < 1 {
 		panic("Invalid reference count")
 	}
-	f.referenceCount -= count
+	f.referenceCount--
 
 	if frozen {
-		if f.openFrozenDescriptors < count {
+		if f.openFrozenDescriptors < 1 {
 			panic("Invalid open frozen descriptor count")
 		}
-		f.openFrozenDescriptors -= count
+		f.openFrozenDescriptors--
 		if f.openFrozenDescriptors == 0 {
 			close(f.unfreezeWakeup)
 			f.unfreezeWakeup = make(chan struct{})
@@ -155,7 +155,7 @@ func (f *fileBackedFile) Readlink() (string, error) {
 }
 
 func (f *fileBackedFile) Unlink() {
-	f.release(1, false)
+	f.release(false)
 }
 
 func (f *fileBackedFile) getCachedDigest() digest.Digest {
@@ -223,7 +223,7 @@ func (f *fileBackedFile) GetOutputServiceFileStatus(digestFunction *digest.Funct
 			return nil, status.Error(codes.NotFound, "File was unlinked before digest computation could start")
 		}
 		blobDigest, err := f.updateCachedDigest(*digestFunction)
-		f.release(1, true)
+		f.release(true)
 		if err != nil {
 			return nil, err
 		}
@@ -263,7 +263,7 @@ func (f *fileBackedFile) AppendOutputPathPersistencyDirectoryNode(directory *out
 }
 
 func (f *fileBackedFile) Close() error {
-	f.release(1, true)
+	f.release(true)
 	return nil
 }
 
@@ -376,8 +376,8 @@ func (f *fileBackedFile) VirtualReadlink(ctx context.Context) ([]byte, Status) {
 	return nil, StatusErrInval
 }
 
-func (f *fileBackedFile) VirtualClose(count uint) {
-	f.release(count, false)
+func (f *fileBackedFile) VirtualClose() {
+	f.release(false)
 }
 
 func (f *fileBackedFile) virtualTruncate(size uint64) Status {
