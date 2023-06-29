@@ -1467,7 +1467,7 @@ func (s *compoundState) opOpen(ctx context.Context, args *nfsv4.Open4args) nfsv4
 		oos, ok = confirmedClient.openOwners[openOwnerKey]
 		if !ok {
 			// Open-owner has never been seen before. Create
-			// a new one that is in the unconfirmed tate.
+			// a new one that is in the unconfirmed state.
 			oos = &openOwnerState{
 				confirmedClient: confirmedClient,
 				key:             openOwnerKey,
