@@ -33,7 +33,7 @@ import (
 // different locations based on the user ID.
 
 func main() {
-	program.Run(func(ctx context.Context, siblingsGroup, dependenciesGroup program.Group) error {
+	program.RunMain(func(ctx context.Context, siblingsGroup, dependenciesGroup program.Group) error {
 		if len(os.Args) != 2 {
 			return status.Error(codes.InvalidArgument, "Usage: bb_virtual_tmp bb_virtual_tmp.jsonnet")
 		}

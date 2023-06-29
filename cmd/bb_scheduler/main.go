@@ -41,7 +41,7 @@ import (
 )
 
 func main() {
-	program.Run(func(ctx context.Context, siblingsGroup, dependenciesGroup program.Group) error {
+	program.RunMain(func(ctx context.Context, siblingsGroup, dependenciesGroup program.Group) error {
 		if len(os.Args) != 2 {
 			return status.Error(codes.InvalidArgument, "Usage: bb_scheduler bb_scheduler.jsonnet")
 		}
