@@ -21,7 +21,10 @@ func TestTestInfrastructureFailureDetectingBuildExecutor(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	baseBuildExecutor := mock.NewMockBuildExecutor(ctrl)
-	buildExecutor := builder.NewTestInfrastructureFailureDetectingBuildExecutor(baseBuildExecutor, 5)
+	buildExecutor := builder.NewTestInfrastructureFailureDetectingBuildExecutor(
+		baseBuildExecutor,
+		builder.NewTestInfrastructureFailureShutdownState(),
+		/* maximumConsecutiveFailures = */ 5)
 
 	// Common values used by the tests below.
 	filePool := mock.NewMockFilePool(ctrl)
@@ -37,6 +40,7 @@ func TestTestInfrastructureFailureDetectingBuildExecutor(t *testing.T) {
 	}
 	failedResponse := &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
+			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
 			OutputFiles: []*remoteexecution.OutputFile{
 				{Path: "bazel-out/linux_x86_64/testlogs/my/test/test.infrastructure_failure"},
 			},
@@ -44,6 +48,7 @@ func TestTestInfrastructureFailureDetectingBuildExecutor(t *testing.T) {
 	}
 	successfulResponse := &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
+			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
 			OutputFiles: []*remoteexecution.OutputFile{
 				{Path: "bazel-out/linux_x86_64/testlogs/my/test/test.outputs/outputs.zip"},
 			},
@@ -52,53 +57,61 @@ func TestTestInfrastructureFailureDetectingBuildExecutor(t *testing.T) {
 
 	// By default, calls to CheckReadiness should just be forwarded
 	// to the underlying BuildExecutor.
-	baseBuildExecutor.EXPECT().CheckReadiness(ctx).
+	baseBuildExecutor.EXPECT().CheckReadiness(gomock.Any()).
 		Return(status.Error(codes.Internal, "Runner unavailable"))
 	testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Runner unavailable"), buildExecutor.CheckReadiness(ctx))
 
-	baseBuildExecutor.EXPECT().CheckReadiness(ctx)
+	baseBuildExecutor.EXPECT().CheckReadiness(gomock.Any())
 	require.NoError(t, buildExecutor.CheckReadiness(ctx))
 
 	// Execute a couple of tests that trigger infrastructure
 	// failures. As this is still right below the configured limit,
 	// this shouldn't mark the worker in an unhealthy state.
 	for i := 0; i < 4; i++ {
-		baseBuildExecutor.EXPECT().Execute(ctx, filePool, monitor, digestFunction, request, metadata).Return(failedResponse)
+		baseBuildExecutor.EXPECT().Execute(gomock.Any(), filePool, monitor, digestFunction, request, metadata).Return(failedResponse)
 		testutil.RequireEqualProto(t, failedResponse, buildExecutor.Execute(ctx, filePool, monitor, digestFunction, request, metadata))
 	}
 
-	baseBuildExecutor.EXPECT().CheckReadiness(ctx)
+	baseBuildExecutor.EXPECT().CheckReadiness(gomock.Any())
 	require.NoError(t, buildExecutor.CheckReadiness(ctx))
 
 	// Now reset the counter of consecutive infrastructure failures by
 	// executing a successful test.
-	baseBuildExecutor.EXPECT().Execute(ctx, filePool, monitor, digestFunction, request, metadata).Return(successfulResponse)
+	baseBuildExecutor.EXPECT().Execute(gomock.Any(), filePool, monitor, digestFunction, request, metadata).Return(successfulResponse)
 	testutil.RequireEqualProto(t, successfulResponse, buildExecutor.Execute(ctx, filePool, monitor, digestFunction, request, metadata))
 
-	baseBuildExecutor.EXPECT().CheckReadiness(ctx)
+	baseBuildExecutor.EXPECT().CheckReadiness(gomock.Any())
 	require.NoError(t, buildExecutor.CheckReadiness(ctx))
 
 	// We may once again trigger a number of tests without marking
 	// the worker unhealthy.
 	for i := 0; i < 4; i++ {
-		baseBuildExecutor.EXPECT().Execute(ctx, filePool, monitor, digestFunction, request, metadata).Return(failedResponse)
+		baseBuildExecutor.EXPECT().Execute(gomock.Any(), filePool, monitor, digestFunction, request, metadata).Return(failedResponse)
 		testutil.RequireEqualProto(t, failedResponse, buildExecutor.Execute(ctx, filePool, monitor, digestFunction, request, metadata))
 	}
 
-	baseBuildExecutor.EXPECT().CheckReadiness(ctx)
+	baseBuildExecutor.EXPECT().CheckReadiness(gomock.Any())
 	require.NoError(t, buildExecutor.CheckReadiness(ctx))
 
 	// Running a fifth failing test should cause the worker to be
 	// marked unhealthy.
-	baseBuildExecutor.EXPECT().Execute(ctx, filePool, monitor, digestFunction, request, metadata).Return(failedResponse)
+	baseBuildExecutor.EXPECT().Execute(gomock.Any(), filePool, monitor, digestFunction, request, metadata).Return(failedResponse)
 	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
+			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
 			OutputFiles: []*remoteexecution.OutputFile{
 				{Path: "bazel-out/linux_x86_64/testlogs/my/test/test.infrastructure_failure"},
 			},
 		},
-		Status: status.New(codes.Unavailable, "Worker is shutting down, as 5 consecutive tests reported an infrastructure failure").Proto(),
+		Status: status.New(codes.Unavailable, "Worker has shut down, as too many consecutive tests reported an infrastructure failure").Proto(),
 	}, buildExecutor.Execute(ctx, filePool, monitor, digestFunction, request, metadata))
 
-	testutil.RequireEqualStatus(t, status.Error(codes.Unavailable, "Worker has shut down, as 5 consecutive tests reported an infrastructure failure"), buildExecutor.CheckReadiness(ctx))
+	// Future readiness checks and execution requests should fail.
+	testutil.RequireEqualStatus(t, status.Error(codes.Unavailable, "Worker has shut down, as too many consecutive tests reported an infrastructure failure"), buildExecutor.CheckReadiness(ctx))
+	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
+		Result: &remoteexecution.ActionResult{
+			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
+		},
+		Status: status.New(codes.Unavailable, "Worker has shut down, as too many consecutive tests reported an infrastructure failure").Proto(),
+	}, buildExecutor.Execute(ctx, filePool, monitor, digestFunction, request, metadata))
 }

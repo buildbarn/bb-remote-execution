@@ -166,6 +166,7 @@ func main() {
 		}
 		outputUploadConcurrencySemaphore := semaphore.NewWeighted(outputUploadConcurrency)
 
+		testInfrastructureFailureShutdownState := builder.NewTestInfrastructureFailureShutdownState()
 		for _, buildDirectoryConfiguration := range configuration.BuildDirectories {
 			var virtualBuildDirectory virtual.PrepopulatedDirectory
 			var handleAllocator virtual.StatefulHandleAllocator
@@ -416,7 +417,10 @@ func main() {
 					}
 
 					if maximumConsecutiveFailures := runnerConfiguration.MaximumConsecutiveTestInfrastructureFailures; maximumConsecutiveFailures > 0 {
-						buildExecutor = builder.NewTestInfrastructureFailureDetectingBuildExecutor(buildExecutor, maximumConsecutiveFailures)
+						buildExecutor = builder.NewTestInfrastructureFailureDetectingBuildExecutor(
+							buildExecutor,
+							testInfrastructureFailureShutdownState,
+							maximumConsecutiveFailures)
 					}
 
 					buildExecutor = builder.NewCachingBuildExecutor(

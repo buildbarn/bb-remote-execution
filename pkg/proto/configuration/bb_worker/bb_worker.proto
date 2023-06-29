@@ -275,9 +275,9 @@ message RunnerConfiguration {
   map<string, string> environment_variables = 11;
 
   // If set to a positive value, only allow up to a maximum number of
-  // consecutively executed actions to report an infrastructure failure.
-  // Once reached, the worker will stop synchronizing against the
-  // scheduler.
+  // consecutively executed actions on a single worker thread to report
+  // an infrastructure failure. Once reached, all worker threads will
+  // stop synchronizing against the scheduler.
   //
   // Test actions executed by Bazel may report infrastructure failures
   // by creating the output file referenced by the
