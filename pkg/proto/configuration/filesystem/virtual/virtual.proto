@@ -186,32 +186,10 @@ message NFSv4DarwinMountConfiguration {
   // inside directories that have access controls set up properly.
   string socket_path = 1;
 
-  // When set, override the minimum amount of time attributes of
-  // directories may be cached. This option is equivalent to
-  // mount_nfs(8)'s 'acdirmin'.
-  //
-  // Because the macOS NFS client doesn't support NFSv4.1's CB_NOTIFY
-  // callback operation, there is no way this backend can inform the
-  // kernel of files being removed from directories. Because of this, it
-  // is recommended that attribute caching timeouts for directories is
-  // either reduced or disabled, so that removals are detected more
-  // quickly.
-  //
-  // Recommended value:
-  // - For bb_worker: 1s
-  // - For bb_clientd: 0s
-  // - For bb_virtual_tmp: unset
-  google.protobuf.Duration minimum_directories_attribute_cache_timeout = 2;
-
-  // When set, override the maximum amount of time attributes of
-  // directories may be cached. This option is equivalent to
-  // mount_nfs(8)'s 'acdirmax'.
-  //
-  // Recommended value:
-  // - For bb_worker: 1s
-  // - For bb_clientd: 0s
-  // - For bb_virtual_tmp: unset
-  google.protobuf.Duration maximum_directories_attribute_cache_timeout = 3;
+  // Was 'minimum_directories_attribute_cache_timeout' and
+  // 'maximum_directories_attribute_cache_timeout'. These options are
+  // now set automatically, based on the application that is used.
+  reserved 2, 3;
 }
 
 message RPCv2SystemAuthenticationConfiguration {

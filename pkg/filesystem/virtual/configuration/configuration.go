@@ -33,12 +33,14 @@ type fuseMount struct {
 }
 
 type nfsv4Mount struct {
-	mountPath                    string
-	configuration                *pb.NFSv4MountConfiguration
-	handleAllocator              *virtual.NFSStatefulHandleAllocator
-	authenticator                rpcserver.Authenticator
-	containsSelfMutatingSymlinks bool
-	fsName                       string
+	mountPath                        string
+	configuration                    *pb.NFSv4MountConfiguration
+	handleAllocator                  *virtual.NFSStatefulHandleAllocator
+	authenticator                    rpcserver.Authenticator
+	fsName                           string
+	rootDirectoryAttributeCaching    AttributeCachingDuration
+	childDirectoriesAttributeCaching AttributeCachingDuration
+	leavesAttributeCaching           AttributeCachingDuration
 }
 
 func (m *nfsv4Mount) Expose(terminationGroup program.Group, rootDirectory virtual.Directory) error {
@@ -79,7 +81,7 @@ func (m *nfsv4Mount) Expose(terminationGroup program.Group, rootDirectory virtua
 // NewMountFromConfiguration creates a new FUSE mount based on options
 // specified in a configuration message and starts processing of
 // incoming requests.
-func NewMountFromConfiguration(configuration *pb.MountConfiguration, fsName string, containsSelfMutatingSymlinks bool) (Mount, virtual.StatefulHandleAllocator, error) {
+func NewMountFromConfiguration(configuration *pb.MountConfiguration, fsName string, rootDirectoryAttributeCaching, childDirectoriesAttributeCaching, leavesAttributeCaching AttributeCachingDuration) (Mount, virtual.StatefulHandleAllocator, error) {
 	switch backend := configuration.Backend.(type) {
 	case *pb.MountConfiguration_Fuse:
 		handleAllocator := virtual.NewFUSEHandleAllocator(random.FastThreadSafeGenerator)
@@ -109,12 +111,14 @@ func NewMountFromConfiguration(configuration *pb.MountConfiguration, fsName stri
 		}
 
 		return &nfsv4Mount{
-			mountPath:                    configuration.MountPath,
-			configuration:                backend.Nfsv4,
-			handleAllocator:              handleAllocator,
-			authenticator:                authenticator,
-			containsSelfMutatingSymlinks: containsSelfMutatingSymlinks,
-			fsName:                       fsName,
+			mountPath:                        configuration.MountPath,
+			configuration:                    backend.Nfsv4,
+			handleAllocator:                  handleAllocator,
+			authenticator:                    authenticator,
+			fsName:                           fsName,
+			rootDirectoryAttributeCaching:    rootDirectoryAttributeCaching,
+			childDirectoriesAttributeCaching: childDirectoriesAttributeCaching,
+			leavesAttributeCaching:           leavesAttributeCaching,
 		}, handleAllocator, nil
 	default:
 		return nil, nil, status.Error(codes.InvalidArgument, "No virtual file system backend configuration provided")

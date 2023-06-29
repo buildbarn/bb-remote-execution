@@ -183,7 +183,9 @@ func main() {
 				mount, handleAllocator, err = virtual_configuration.NewMountFromConfiguration(
 					backend.Virtual.Mount,
 					"bb_worker",
-					/* containsSelfMutatingSymlinks = */ false)
+					/* rootDirectory = */ virtual_configuration.ShortAttributeCaching,
+					/* childDirectories = */ virtual_configuration.LongAttributeCaching,
+					/* leaves = */ virtual_configuration.LongAttributeCaching)
 				if err != nil {
 					return util.StatusWrap(err, "Failed to create build directory mount")
 				}

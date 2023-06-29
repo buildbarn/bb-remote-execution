@@ -6,6 +6,7 @@ package configuration
 import (
 	"bytes"
 	"context"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -27,12 +28,18 @@ import (
 
 var initializeNFSOnce sync.Once
 
-func toNfstime32(d time.Duration) *nfs_sys_prot.Nfstime32 {
+func writeNfstime32(d time.Duration, w io.Writer) {
 	nanos := d.Nanoseconds()
-	return &nfs_sys_prot.Nfstime32{
+	t := nfs_sys_prot.Nfstime32{
 		Seconds:  int32(nanos / 1e9),
 		Nseconds: uint32(nanos % 1e9),
 	}
+	t.WriteTo(w)
+}
+
+func writeAttributeCachingDuration(d *AttributeCachingDuration, w io.Writer) {
+	writeNfstime32(d.minimum, w)
+	writeNfstime32(d.maximum, w)
 }
 
 func (m *nfsv4Mount) mount(terminationGroup program.Group, rpcServer *rpcserver.Server) error {
@@ -106,32 +113,14 @@ func (m *nfsv4Mount) mount(terminationGroup program.Group, rpcServer *rpcserver.
 	attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_NFS_MINOR_VERSION
 	nfs_sys_prot.WriteNfsMattrNfsMinorVersion(&attrVals, 0)
 
-	// The bb_virtual_tmp service exposes a symbolic link whose
-	// contents should under no condition be cached by the kernel.
-	// This requires us to both disable attribute caching for
-	// regular files, and to set the readlink cache mode to fully
-	// uncached (see below).
-	if m.containsSelfMutatingSymlinks {
-		attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_ATTRCACHE_REG_MIN
-		toNfstime32(0).WriteTo(&attrVals)
-		attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_ATTRCACHE_REG_MAX
-		toNfstime32(0).WriteTo(&attrVals)
-	}
-
-	if d := osConfiguration.MinimumDirectoriesAttributeCacheTimeout; d != nil {
-		if err := d.CheckValid(); err != nil {
-			return util.StatusWrapWithCode(err, codes.InvalidArgument, "Invalid minimum directories attribute cache timeout")
-		}
-		attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_ATTRCACHE_DIR_MIN
-		toNfstime32(d.AsDuration()).WriteTo(&attrVals)
-	}
-	if d := osConfiguration.MaximumDirectoriesAttributeCacheTimeout; d != nil {
-		if err := d.CheckValid(); err != nil {
-			return util.StatusWrapWithCode(err, codes.InvalidArgument, "Invalid maximum directories attribute cache timeout")
-		}
-		attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_ATTRCACHE_DIR_MAX
-		toNfstime32(d.AsDuration()).WriteTo(&attrVals)
-	}
+	// Set attribute caching durations. This needs to be set at
+	// mount time, as NFSv4 provides no facilities for conveying
+	// this on a per GETATTR response basis.
+	attrMask[0] |= (1 << nfs_sys_prot.NFS_MATTR_ATTRCACHE_REG_MIN) | (1 << nfs_sys_prot.NFS_MATTR_ATTRCACHE_REG_MAX)
+	writeAttributeCachingDuration(&m.leavesAttributeCaching, &attrVals)
+	attrMask[0] |= (1 << nfs_sys_prot.NFS_MATTR_ATTRCACHE_DIR_MIN) | (1 << nfs_sys_prot.NFS_MATTR_ATTRCACHE_DIR_MAX)
+	directoriesAttributeCaching := m.rootDirectoryAttributeCaching.Min(m.childDirectoriesAttributeCaching)
+	writeAttributeCachingDuration(&directoriesAttributeCaching, &attrVals)
 
 	// "ticotsord" is the X/Open Transport Interface (XTI)
 	// equivalent of AF_LOCAL with SOCK_STREAM.
@@ -152,7 +141,7 @@ func (m *nfsv4Mount) mount(terminationGroup program.Group, rpcServer *rpcserver.
 	attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_LOCAL_NFS_PORT
 	nfs_sys_prot.WriteNfsMattrLocalNfsPort(&attrVals, osConfiguration.SocketPath)
 
-	if m.containsSelfMutatingSymlinks {
+	if m.leavesAttributeCaching == NoAttributeCaching {
 		attrMask[1] |= 1 << (nfs_sys_prot.NFS_MATTR_READLINK_NOCACHE - 32)
 		nfs_sys_prot.NFS_READLINK_CACHE_MODE_FULLY_UNCACHED.WriteTo(&attrVals)
 	}
