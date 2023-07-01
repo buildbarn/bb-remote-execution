@@ -6,7 +6,6 @@ import "build/bazel/remote/execution/v2/remote_execution.proto";
 import "google/protobuf/duration.proto";
 import "pkg/proto/configuration/auth/auth.proto";
 import "pkg/proto/configuration/blobstore/blobstore.proto";
-import "pkg/proto/configuration/cloud/aws/aws.proto";
 import "pkg/proto/configuration/global/global.proto";
 import "pkg/proto/configuration/grpc/grpc.proto";
 import "pkg/proto/configuration/scheduler/scheduler.proto";
@@ -43,21 +42,10 @@ message ApplicationConfiguration {
   // Common configuration options that apply to all Buildbarn binaries.
   buildbarn.configuration.global.Configuration global = 8;
 
-  // AWS Auto Scaling Group lifecycle hooks that should be used to
-  // automatically drain EC2 instances that are about to be terminated,
-  // and to delay their termination until all operations running on
-  // those systems have completed.
-  //
-  // More details:
-  // https://docs.aws.amazon.com/autoscaling/ec2/userguide/lifecycle-hooks.html
-  //
-  // TODO: This feature no longer needs to be integrated into
-  // bb_scheduler, as workers can be terminated over gRPC using the
-  // 'build_queue_state_grpc_servers' option.
-  repeated AWSASGLifecycleHookConfiguration aws_asg_lifecycle_hooks = 9;
-
-  // AWS access options and credentials.
-  buildbarn.configuration.cloud.aws.SessionConfiguration aws_session = 10;
+  // Was 'aws_asg_lifecycle_hooks' and 'aws_session'. This functionality
+  // has now moved into bb_asg_lifecycle_hook, which is part of the
+  // bb-autoscaler project.
+  reserved 9, 10;
 
   // gRPC servers to spawn to expose the state of the build queue. This
   // can be used to obtain access to the data shown in the web UI in a
@@ -135,27 +123,6 @@ message ApplicationConfiguration {
   //
   // Recommended value: 900s
   google.protobuf.Duration platform_queue_with_no_workers_timeout = 18;
-}
-
-message AWSASGLifecycleHookConfiguration {
-  // The URL of the Simple Queue Service (SQS) queue where
-  // "autoscaling:EC2_INSTANCE_TERMINATING" events are posted.
-  string sqs_url = 1;
-
-  // Label that should be used to match the instance ID of the EC2
-  // instance (i-*) against workers known by the scheduler. For example,
-  // if your workers are all called {"instance": "i-*", "thread": "*"},
-  // then this configuration option should be set to "instance".
-  //
-  // On systems like Amazon EKS, it is possible to attach an instance ID
-  // label to workers by creating an initContainer that stores the
-  // contents of http://169.254.169.254/latest/meta-data/instance-id in
-  // a file in an emptyDir. This file can then be loaded by bb_worker on
-  // startup using Jsonnet's importstr command.
-  //
-  // Setting this configuration option incorrectly may cause the
-  // scheduler to not drain the right set of workers.
-  string instance_id_label = 2;
 }
 
 message PredeclaredPlatformQueueConfiguration {

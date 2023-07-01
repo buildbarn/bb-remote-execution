@@ -66,14 +66,6 @@ gomock(
 )
 
 gomock(
-    name = "buildqueuestate",
-    out = "buildqueuestate.go",
-    interfaces = ["BuildQueueStateServer"],
-    library = "//pkg/proto/buildqueuestate",
-    package = "mock",
-)
-
-gomock(
     name = "cas",
     out = "cas.go",
     interfaces = [
@@ -113,19 +105,6 @@ gomock(
     out = "clock_re.go",
     interfaces = ["Suspendable"],
     library = "//pkg/clock",
-    package = "mock",
-)
-
-gomock(
-    name = "cloud_aws",
-    out = "cloud_aws.go",
-    interfaces = [
-        "AutoScalingClient",
-        "LifecycleHookHandler",
-        "SQSClient",
-        "SQSMessageHandler",
-    ],
-    library = "//pkg/cloud/aws",
     package = "mock",
 )
 
@@ -315,14 +294,6 @@ gomock(
 )
 
 gomock(
-    name = "smithy",
-    out = "smithy.go",
-    interfaces = ["APIError"],
-    library = "@com_github_aws_smithy_go//:smithy-go",
-    package = "mock",
-)
-
-gomock(
     name = "storage_builder",
     out = "storage_builder.go",
     interfaces = ["BuildQueue"],
@@ -370,12 +341,10 @@ go_library(
         ":blobstore_slicing.go",
         ":blockdevice.go",
         ":builder.go",
-        ":buildqueuestate.go",
         ":cas.go",
         ":cleaner.go",
         ":clock.go",
         ":clock_re.go",
-        ":cloud_aws.go",
         ":completedactionlogger.go",
         ":filesystem.go",
         ":filesystem_access.go",
@@ -390,7 +359,6 @@ go_library(
         ":routing.go",
         ":runner.go",
         ":runner_pb.go",
-        ":smithy.go",
         ":storage_builder.go",
         ":storage_util.go",
         ":sync.go",
@@ -424,9 +392,6 @@ go_library(
         "//pkg/scheduler/initialsizeclass",
         "//pkg/scheduler/invocation",
         "//pkg/scheduler/platform",
-        "@com_github_aws_aws_sdk_go_v2_service_autoscaling//:autoscaling",
-        "@com_github_aws_aws_sdk_go_v2_service_sqs//:sqs",
-        "@com_github_aws_smithy_go//:smithy-go",
         "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:execution",
         "@com_github_buildbarn_bb_storage//pkg/blobstore",
         "@com_github_buildbarn_bb_storage//pkg/blobstore/buffer",

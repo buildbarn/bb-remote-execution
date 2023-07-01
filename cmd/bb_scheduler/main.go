@@ -2,17 +2,13 @@ package main
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/service/autoscaling"
-	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	re_blobstore "github.com/buildbarn/bb-remote-execution/pkg/blobstore"
-	re_aws "github.com/buildbarn/bb-remote-execution/pkg/cloud/aws"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/buildqueuestate"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_scheduler"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
@@ -23,7 +19,6 @@ import (
 	blobstore_configuration "github.com/buildbarn/bb-storage/pkg/blobstore/configuration"
 	"github.com/buildbarn/bb-storage/pkg/capabilities"
 	"github.com/buildbarn/bb-storage/pkg/clock"
-	"github.com/buildbarn/bb-storage/pkg/cloud/aws"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/global"
 	bb_grpc "github.com/buildbarn/bb-storage/pkg/grpc"
@@ -193,38 +188,6 @@ func main() {
 			siblingsGroup,
 		); err != nil {
 			return util.StatusWrap(err, "Build queue state gRPC server failure")
-		}
-
-		// Automatically drain workers based on AWS ASG lifecycle events.
-		if len(configuration.AwsAsgLifecycleHooks) > 0 {
-			cfg, err := aws.NewConfigFromConfiguration(configuration.AwsSession, "LifecycleHookSQSMessageHandler")
-			if err != nil {
-				return util.StatusWrap(err, "Failed to create AWS session")
-			}
-			autoScalingClient := autoscaling.NewFromConfig(cfg)
-			sqsClient := sqs.NewFromConfig(cfg)
-			for _, lifecycleHook := range configuration.AwsAsgLifecycleHooks {
-				r := re_aws.NewSQSReceiver(
-					sqsClient,
-					lifecycleHook.SqsUrl,
-					10*time.Minute,
-					re_aws.NewLifecycleHookSQSMessageHandler(
-						autoScalingClient,
-						re_aws.NewBuildQueueLifecycleHookHandler(
-							buildQueue,
-							lifecycleHook.InstanceIdLabel)),
-					util.DefaultErrorLogger)
-				// TODO: Run this as part of the program.Group,
-				// so that it gets cleaned up upon shutdown.
-				go func() {
-					for {
-						if err := r.PerformSingleRequest(); err != nil {
-							log.Print("Failed to receive messages from SQS: ", err)
-							time.Sleep(10 * time.Second)
-						}
-					}
-				}()
-			}
 		}
 
 		// Web server for metrics and profiling.
