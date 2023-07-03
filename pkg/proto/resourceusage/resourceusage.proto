@@ -82,6 +82,14 @@ message POSIXResourceUsage {
 
   // ru_nivcsw: Involuntary context switches.
   int64 involuntary_context_switches = 16;
+
+  // If abnormal process termination occurred, the name of the signal
+  // that was delivered, without the "SIG" prefix (e.g., "BUS", "KILL",
+  // "SEGV").
+  //
+  // Abnormal process termination can occur by calling abort(), or by
+  // receiving a signal for which no signal handler is installed.
+  string termination_signal = 17;
 }
 
 // A representation of unique factors that may be aggregated to

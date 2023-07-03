@@ -7,11 +7,13 @@ import (
 	"context"
 	"os"
 	"os/exec"
+	"strings"
 	"syscall"
 
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 
+	"golang.org/x/sys/unix"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 
@@ -45,7 +47,7 @@ func convertTimeval(t syscall.Timeval) *durationpb.Duration {
 
 func getPOSIXResourceUsage(cmd *exec.Cmd) *resourceusage.POSIXResourceUsage {
 	rusage := cmd.ProcessState.SysUsage().(*syscall.Rusage)
-	return &resourceusage.POSIXResourceUsage{
+	resourceUsage := &resourceusage.POSIXResourceUsage{
 		UserTime:                   convertTimeval(rusage.Utime),
 		SystemTime:                 convertTimeval(rusage.Stime),
 		MaximumResidentSetSize:     int64(rusage.Maxrss) * maximumResidentSetSizeUnit,
@@ -60,4 +62,10 @@ func getPOSIXResourceUsage(cmd *exec.Cmd) *resourceusage.POSIXResourceUsage {
 		VoluntaryContextSwitches:   int64(rusage.Nvcsw),
 		InvoluntaryContextSwitches: int64(rusage.Nivcsw),
 	}
+	if waitStatus := cmd.ProcessState.Sys().(syscall.WaitStatus); waitStatus.Signaled() {
+		if s, ok := strings.CutPrefix(unix.SignalName(waitStatus.Signal()), "SIG"); ok {
+			resourceUsage.TerminationSignal = s
+		}
+	}
+	return resourceUsage
 }

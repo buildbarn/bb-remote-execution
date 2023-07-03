@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage"
 	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
 	"github.com/buildbarn/bb-remote-execution/pkg/runner"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
@@ -198,6 +199,44 @@ func TestLocalRunner(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, int32(255), response.ExitCode)
+
+		stdout, err := os.ReadFile(filepath.Join(testPath, "stdout"))
+		require.NoError(t, err)
+		require.Empty(t, stdout)
+
+		stderr, err := os.ReadFile(filepath.Join(testPath, "stderr"))
+		require.NoError(t, err)
+		require.Empty(t, stderr)
+	})
+
+	t.Run("SigKill", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			return
+		}
+
+		testPath := filepath.Join(buildDirectoryPath, "SigKill")
+		require.NoError(t, os.Mkdir(testPath, 0o777))
+		require.NoError(t, os.Mkdir(filepath.Join(testPath, "root"), 0o777))
+		require.NoError(t, os.Mkdir(filepath.Join(testPath, "tmp"), 0o777))
+
+		// If the process terminates due to a signal, the name
+		// of the signal should be set as part of the POSIX
+		// resource usage message.
+		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, runner.NewPlainCommandCreator(&syscall.SysProcAttr{}), false)
+		response, err := runner.Run(context.Background(), &runner_pb.RunRequest{
+			Arguments:          []string{"/bin/sh", "-c", "kill -s KILL $$"},
+			StdoutPath:         "SigKill/stdout",
+			StderrPath:         "SigKill/stderr",
+			InputRootDirectory: "SigKill/root",
+			TemporaryDirectory: "SigKill/tmp",
+		})
+		require.NoError(t, err)
+		require.NotEqual(t, int32(0), response.ExitCode)
+
+		require.Len(t, response.ResourceUsage, 1)
+		var posixResourceUsage resourceusage.POSIXResourceUsage
+		require.NoError(t, response.ResourceUsage[0].UnmarshalTo(&posixResourceUsage))
+		require.Equal(t, "KILL", posixResourceUsage.TerminationSignal)
 
 		stdout, err := os.ReadFile(filepath.Join(testPath, "stdout"))
 		require.NoError(t, err)
