@@ -87,6 +87,35 @@ var (
 		},
 		[]string{"result", "grpc_code", "operation"})
 
+	// Metrics for InputRootResourceUsage.
+	buildExecutorInputRootDirectoriesResolved = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: "buildbarn",
+			Subsystem: "builder",
+			Name:      "build_executor_input_root_directories_resolved",
+			Help:      "Number of directories in the input root for which directory nodes in the virtual file system were instantiated.",
+			Buckets:   util.DecimalExponentialBuckets(0, 6, 2),
+		},
+		[]string{"result", "grpc_code"})
+	buildExecutorInputRootDirectoriesRead = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: "buildbarn",
+			Subsystem: "builder",
+			Name:      "build_executor_input_root_directories_read",
+			Help:      "Number of directories in the input root whose contents were read from the Content Addressable Storage (CAS).",
+			Buckets:   util.DecimalExponentialBuckets(0, 6, 2),
+		},
+		[]string{"result", "grpc_code"})
+	buildExecutorInputRootFilesRead = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: "buildbarn",
+			Subsystem: "builder",
+			Name:      "build_executor_input_root_files_read",
+			Help:      "Number of files in the input root whose contents were read from the Content Addressable Storage (CAS).",
+			Buckets:   util.DecimalExponentialBuckets(0, 6, 2),
+		},
+		[]string{"result", "grpc_code"})
+
 	// Metrics for POSIXResourceUsage.
 	buildExecutorPOSIXUserTime = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
@@ -225,6 +254,10 @@ func NewMetricsBuildExecutor(buildExecutor BuildExecutor) BuildExecutor {
 		prometheus.MustRegister(buildExecutorFilePoolFilesOperationsCount)
 		prometheus.MustRegister(buildExecutorFilePoolFilesOperationsSizeBytes)
 
+		prometheus.MustRegister(buildExecutorInputRootDirectoriesResolved)
+		prometheus.MustRegister(buildExecutorInputRootDirectoriesRead)
+		prometheus.MustRegister(buildExecutorInputRootFilesRead)
+
 		prometheus.MustRegister(buildExecutorPOSIXUserTime)
 		prometheus.MustRegister(buildExecutorPOSIXSystemTime)
 		prometheus.MustRegister(buildExecutorPOSIXMaximumResidentSetSize)
@@ -280,6 +313,7 @@ func (be *metricsBuildExecutor) Execute(ctx context.Context, filePool filesystem
 
 	for _, auxiliaryMetadata := range metadata.AuxiliaryMetadata {
 		var filePool resourceusage.FilePoolResourceUsage
+		var inputRoot resourceusage.InputRootResourceUsage
 		var posix resourceusage.POSIXResourceUsage
 		if auxiliaryMetadata.UnmarshalTo(&filePool) == nil {
 			// Expose metrics stored in FilePoolResourceUsage.
@@ -291,6 +325,10 @@ func (be *metricsBuildExecutor) Execute(ctx context.Context, filePool filesystem
 			buildExecutorFilePoolFilesOperationsCount.WithLabelValues(result, grpcCode, "Write").Observe(float64(filePool.WritesCount))
 			buildExecutorFilePoolFilesOperationsSizeBytes.WithLabelValues(result, grpcCode, "Write").Observe(float64(filePool.WritesSizeBytes))
 			buildExecutorFilePoolFilesOperationsCount.WithLabelValues(result, grpcCode, "Truncate").Observe(float64(filePool.TruncatesCount))
+		} else if auxiliaryMetadata.UnmarshalTo(&inputRoot) == nil {
+			buildExecutorInputRootDirectoriesResolved.WithLabelValues(result, grpcCode).Observe(float64(inputRoot.DirectoriesResolved))
+			buildExecutorInputRootDirectoriesRead.WithLabelValues(result, grpcCode).Observe(float64(inputRoot.DirectoriesRead))
+			buildExecutorInputRootFilesRead.WithLabelValues(result, grpcCode).Observe(float64(inputRoot.FilesRead))
 		} else if auxiliaryMetadata.UnmarshalTo(&posix) == nil {
 			// Expose metrics stored in POSIXResourceUsage.
 			observeDuration(buildExecutorPOSIXUserTime.WithLabelValues(result, grpcCode), posix.UserTime)

@@ -3,7 +3,9 @@ package access
 import (
 	"math"
 	"sync"
+	"sync/atomic"
 
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 )
 
@@ -12,15 +14,12 @@ import (
 // bloomFilterComputingReadDirectoryMonitor. It contains all of the
 // hashes that should be encoded in the resulting Bloom filter.
 type bloomFilterComputingState struct {
-	lock      sync.Mutex
-	allHashes map[PathHashes]struct{}
-}
+	directoriesResolved atomic.Uint64
 
-func (s *bloomFilterComputingState) addPath(hashes PathHashes) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	s.allHashes[hashes] = struct{}{}
+	lock            sync.Mutex
+	allHashes       map[PathHashes]struct{}
+	directoriesRead uint64
+	filesRead       uint64
 }
 
 // BloomFilterComputingUnreadDirectoryMonitor is an implementation of
@@ -37,12 +36,15 @@ type BloomFilterComputingUnreadDirectoryMonitor struct {
 // instance that is returned corresponds to the empty path (root
 // directory).
 func NewBloomFilterComputingUnreadDirectoryMonitor() *BloomFilterComputingUnreadDirectoryMonitor {
-	return &BloomFilterComputingUnreadDirectoryMonitor{
+	udm := &BloomFilterComputingUnreadDirectoryMonitor{
 		state: &bloomFilterComputingState{
 			allHashes: map[PathHashes]struct{}{},
 		},
 		hashes: RootPathHashes,
 	}
+	// Assume the root directory is always resolved.
+	udm.state.directoriesResolved.Store(1)
+	return udm
 }
 
 var _ UnreadDirectoryMonitor = (*BloomFilterComputingUnreadDirectoryMonitor)(nil)
@@ -51,9 +53,14 @@ var _ UnreadDirectoryMonitor = (*BloomFilterComputingUnreadDirectoryMonitor)(nil
 // directory have been read. It causes the directory to be added to the
 // resulting Bloom filter.
 func (udm *BloomFilterComputingUnreadDirectoryMonitor) ReadDirectory() ReadDirectoryMonitor {
-	udm.state.addPath(udm.hashes)
+	s := udm.state
+	s.lock.Lock()
+	s.directoriesRead++
+	s.allHashes[udm.hashes] = struct{}{}
+	s.lock.Unlock()
+
 	return &bloomFilterComputingReadDirectoryMonitor{
-		state:  udm.state,
+		state:  s,
 		hashes: udm.hashes,
 	}
 }
@@ -180,18 +187,41 @@ func (udm *BloomFilterComputingUnreadDirectoryMonitor) GetBloomFilter(bitsPerEle
 	return bloomFilter, hashFunctions
 }
 
+// GetInputRootResourceUsage returns statistics on how many files and
+// directories in an input root are being accessed. This message can be
+// attached to the auxiliary metadata of ActionResult.
+func (udm *BloomFilterComputingUnreadDirectoryMonitor) GetInputRootResourceUsage() *resourceusage.InputRootResourceUsage {
+	s := udm.state
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	directoriesResolved := s.directoriesResolved.Load()
+	return &resourceusage.InputRootResourceUsage{
+		DirectoriesResolved: directoriesResolved,
+		DirectoriesRead:     s.directoriesRead,
+		FilesRead:           s.filesRead,
+	}
+}
+
 type bloomFilterComputingReadDirectoryMonitor struct {
 	state  *bloomFilterComputingState
 	hashes PathHashes
 }
 
 func (sdm *bloomFilterComputingReadDirectoryMonitor) ResolvedDirectory(name path.Component) UnreadDirectoryMonitor {
+	s := sdm.state
+	s.directoriesResolved.Add(1)
+
 	return &BloomFilterComputingUnreadDirectoryMonitor{
-		state:  sdm.state,
+		state:  s,
 		hashes: sdm.hashes.AppendComponent(name),
 	}
 }
 
 func (sdm *bloomFilterComputingReadDirectoryMonitor) ReadFile(name path.Component) {
-	sdm.state.addPath(sdm.hashes.AppendComponent(name))
+	s := sdm.state
+	s.lock.Lock()
+	s.filesRead++
+	s.allHashes[sdm.hashes.AppendComponent(name)] = struct{}{}
+	s.lock.Unlock()
 }

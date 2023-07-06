@@ -107,3 +107,22 @@ message MonetaryResourceUsage {
   // A mapping of expense categories to their respective costs.
   map<string, Expense> expenses = 1;
 }
+
+// Input root resource usage statistics. These statistics indicate how
+// many directories and files inside the virtual file system were
+// accessed. These statistics are only reported if prefetching is
+// enabled, as they are computed together with the Bloom filter.
+message InputRootResourceUsage {
+  // The number of directories in the input root that have been
+  // resolved. This equates to the total number of directories that are
+  // present in all directories that have been read.
+  uint64 directories_resolved = 1;
+
+  // The number of directories whose contents have been read from the
+  // Content Addressable Storage (CAS).
+  uint64 directories_read = 2;
+
+  // The number of files whose contents have been read from the Content
+  // Addressable Storage (CAS).
+  uint64 files_read = 3;
+}

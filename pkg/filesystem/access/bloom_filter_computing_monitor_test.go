@@ -4,12 +4,19 @@ import (
 	"testing"
 
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
+	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/stretchr/testify/require"
 )
 
 func TestBloomFilterComputingUnreadDirectoryMonitor(t *testing.T) {
 	rootUnreadDirectoryMonitor := access.NewBloomFilterComputingUnreadDirectoryMonitor()
+	testutil.RequireEqualProto(t, &resourceusage.InputRootResourceUsage{
+		DirectoriesResolved: 1,
+		DirectoriesRead:     0,
+		FilesRead:           0,
+	}, rootUnreadDirectoryMonitor.GetInputRootResourceUsage())
 
 	t.Run("Empty", func(t *testing.T) {
 		// Bloom filters without any paths in them should
@@ -25,6 +32,11 @@ func TestBloomFilterComputingUnreadDirectoryMonitor(t *testing.T) {
 	// Read the contents of the root directory. This should cause us
 	// to return Bloom filters for a single element.
 	rootReadDirectoryMonitor := rootUnreadDirectoryMonitor.ReadDirectory()
+	testutil.RequireEqualProto(t, &resourceusage.InputRootResourceUsage{
+		DirectoriesResolved: 1,
+		DirectoriesRead:     1,
+		FilesRead:           0,
+	}, rootUnreadDirectoryMonitor.GetInputRootResourceUsage())
 
 	t.Run("RootDirectoryRead", func(t *testing.T) {
 		t.Run("SingleByte", func(t *testing.T) {
@@ -66,6 +78,11 @@ func TestBloomFilterComputingUnreadDirectoryMonitor(t *testing.T) {
 	// directory should not cause the Bloom filter to change. Its
 	// contents should be read.
 	childUnreadDirectoryMonitor := rootReadDirectoryMonitor.ResolvedDirectory(path.MustNewComponent("dir"))
+	testutil.RequireEqualProto(t, &resourceusage.InputRootResourceUsage{
+		DirectoriesResolved: 2,
+		DirectoriesRead:     1,
+		FilesRead:           0,
+	}, rootUnreadDirectoryMonitor.GetInputRootResourceUsage())
 
 	t.Run("ChildDirectoryResolved", func(t *testing.T) {
 		bloomFilter, hashFunctions := rootUnreadDirectoryMonitor.GetBloomFilter(40, 1000)
@@ -76,6 +93,11 @@ func TestBloomFilterComputingUnreadDirectoryMonitor(t *testing.T) {
 	// Read the child directory's contents. This should cause the
 	// Bloom filter to get updated.
 	childReadDirectoryMonitor := childUnreadDirectoryMonitor.ReadDirectory()
+	testutil.RequireEqualProto(t, &resourceusage.InputRootResourceUsage{
+		DirectoriesResolved: 2,
+		DirectoriesRead:     2,
+		FilesRead:           0,
+	}, rootUnreadDirectoryMonitor.GetInputRootResourceUsage())
 
 	t.Run("ChildDirectoryRead", func(t *testing.T) {
 		t.Run("SingleByte", func(t *testing.T) {
@@ -105,6 +127,11 @@ func TestBloomFilterComputingUnreadDirectoryMonitor(t *testing.T) {
 
 	// Read a file in the root directory.
 	rootReadDirectoryMonitor.ReadFile(path.MustNewComponent("file"))
+	testutil.RequireEqualProto(t, &resourceusage.InputRootResourceUsage{
+		DirectoriesResolved: 2,
+		DirectoriesRead:     2,
+		FilesRead:           1,
+	}, rootUnreadDirectoryMonitor.GetInputRootResourceUsage())
 
 	t.Run("RootFileRead", func(t *testing.T) {
 		t.Run("SingleByte", func(t *testing.T) {
@@ -136,6 +163,11 @@ func TestBloomFilterComputingUnreadDirectoryMonitor(t *testing.T) {
 	// identical to the file in the root directory, the full path
 	// differs. The resulting Bloom filters should thus differ.
 	childReadDirectoryMonitor.ReadFile(path.MustNewComponent("file"))
+	testutil.RequireEqualProto(t, &resourceusage.InputRootResourceUsage{
+		DirectoriesResolved: 2,
+		DirectoriesRead:     2,
+		FilesRead:           2,
+	}, rootUnreadDirectoryMonitor.GetInputRootResourceUsage())
 
 	t.Run("RootFileRead", func(t *testing.T) {
 		t.Run("SingleByte", func(t *testing.T) {

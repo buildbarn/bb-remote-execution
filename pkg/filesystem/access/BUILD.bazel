@@ -11,6 +11,7 @@ go_library(
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/filesystem/access",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/proto/resourceusage",
         "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//status",
@@ -25,6 +26,7 @@ go_test(
     ],
     deps = [
         ":access",
+        "//pkg/proto/resourceusage",
         "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
         "@com_github_buildbarn_bb_storage//pkg/testutil",
         "@com_github_stretchr_testify//require",

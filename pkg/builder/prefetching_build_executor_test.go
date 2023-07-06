@@ -10,6 +10,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/proto/fsac"
@@ -20,6 +21,7 @@ import (
 	"golang.org/x/sync/semaphore"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 func TestPrefetchingBuildExecutor(t *testing.T) {
@@ -44,6 +46,13 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 	baseMonitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
 	digestFunction := digest.MustNewFunction("hello", remoteexecution.DigestFunction_MD5)
 	executionStateUpdates := make(chan<- *remoteworker.CurrentState_Executing)
+
+	defaultInputRootResourceUsage, err := anypb.New(&resourceusage.InputRootResourceUsage{
+		DirectoriesResolved: 1,
+		DirectoriesRead:     0,
+		FilesRead:           0,
+	})
+	require.NoError(t, err)
 
 	t.Run("ActionMissing", func(t *testing.T) {
 		// If no Action is present, there is no way to compute
@@ -189,7 +198,9 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 			t,
 			&remoteexecution.ExecuteResponse{
 				Result: &remoteexecution.ActionResult{
-					ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
+					ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
+						AuxiliaryMetadata: []*anypb.Any{defaultInputRootResourceUsage},
+					},
 				},
 				Status: status.New(codes.Internal, "Failed to fetch file system access profile: Storage offline").Proto(),
 			},
@@ -234,7 +245,9 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 			t,
 			&remoteexecution.ExecuteResponse{
 				Result: &remoteexecution.ActionResult{
-					ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
+					ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
+						AuxiliaryMetadata: []*anypb.Any{defaultInputRootResourceUsage},
+					},
 				},
 				Status: status.New(codes.Internal, "Failed to prefetch directory \".\": Storage offline").Proto(),
 			},
@@ -291,7 +304,9 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 			t,
 			&remoteexecution.ExecuteResponse{
 				Result: &remoteexecution.ActionResult{
-					ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
+					ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
+						AuxiliaryMetadata: []*anypb.Any{defaultInputRootResourceUsage},
+					},
 				},
 				Status: status.New(codes.Internal, "Failed to prefetch file \"hello.txt\": Storage offline").Proto(),
 			},
@@ -336,7 +351,9 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 			t,
 			&remoteexecution.ExecuteResponse{
 				Result: &remoteexecution.ActionResult{
-					ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
+					ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
+						AuxiliaryMetadata: []*anypb.Any{defaultInputRootResourceUsage},
+					},
 				},
 				Status: status.New(codes.Internal, "Failed to store file system access profile: Storage offline").Proto(),
 			},
@@ -352,11 +369,6 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 	t.Run("FSACPutSkipped", func(t *testing.T) {
 		// If the profile matches was read from the FSAC, then
 		// there is no need to store an updated profile.
-		response := &remoteexecution.ExecuteResponse{
-			Result: &remoteexecution.ActionResult{
-				ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
-			},
-		}
 		baseBuildExecutor.EXPECT().Execute(
 			gomock.Any(),
 			filePool,
@@ -364,7 +376,11 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 			digestFunction,
 			testutil.EqProto(t, exampleRequest),
 			executionStateUpdates,
-		).Return(response)
+		).Return(&remoteexecution.ExecuteResponse{
+			Result: &remoteexecution.ActionResult{
+				ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
+			},
+		})
 		fileSystemAccessCache.EXPECT().Get(gomock.Any(), exampleReducedActionDigest).
 			Return(buffer.NewProtoBufferFromProto(&fsac.FileSystemAccessProfile{
 				BloomFilter:              []byte{0x80},
@@ -373,7 +389,13 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 
 		testutil.RequireEqualProto(
 			t,
-			response,
+			&remoteexecution.ExecuteResponse{
+				Result: &remoteexecution.ActionResult{
+					ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
+						AuxiliaryMetadata: []*anypb.Any{defaultInputRootResourceUsage},
+					},
+				},
+			},
 			buildExecutor.Execute(
 				ctx,
 				filePool,
@@ -386,11 +408,6 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 	t.Run("FSACPutSuccess", func(t *testing.T) {
 		// Successfully overwrite a Bloom filter that was out of
 		// sync with what's observed while executing.
-		response := &remoteexecution.ExecuteResponse{
-			Result: &remoteexecution.ActionResult{
-				ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
-			},
-		}
 		baseBuildExecutor.EXPECT().Execute(
 			gomock.Any(),
 			filePool,
@@ -400,7 +417,11 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 			executionStateUpdates,
 		).DoAndReturn(func(ctx context.Context, filePool filesystem.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 			monitor.ReadDirectory()
-			return response
+			return &remoteexecution.ExecuteResponse{
+				Result: &remoteexecution.ActionResult{
+					ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
+				},
+			}
 		})
 		fileSystemAccessCache.EXPECT().Get(gomock.Any(), exampleReducedActionDigest).
 			Return(buffer.NewProtoBufferFromProto(&fsac.FileSystemAccessProfile{
@@ -418,9 +439,21 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 				return nil
 			})
 
+		inputRootResourceUsage, err := anypb.New(&resourceusage.InputRootResourceUsage{
+			DirectoriesResolved: 1,
+			DirectoriesRead:     1,
+			FilesRead:           0,
+		})
+		require.NoError(t, err)
 		testutil.RequireEqualProto(
 			t,
-			response,
+			&remoteexecution.ExecuteResponse{
+				Result: &remoteexecution.ActionResult{
+					ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
+						AuxiliaryMetadata: []*anypb.Any{inputRootResourceUsage},
+					},
+				},
+			},
 			buildExecutor.Execute(
 				ctx,
 				filePool,

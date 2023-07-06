@@ -22,6 +22,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 type prefetchingBuildExecutor struct {
@@ -162,6 +163,12 @@ func (be *prefetchingBuildExecutor) Execute(ctx context.Context, filePool re_fil
 		}
 	} else if err != (dontReadFromFSACError{}) {
 		response.Status = status.Convert(err).Proto()
+	}
+
+	if resourceUsage, err := anypb.New(bloomFilterMonitor.GetInputRootResourceUsage()); err == nil {
+		response.Result.ExecutionMetadata.AuxiliaryMetadata = append(response.Result.ExecutionMetadata.AuxiliaryMetadata, resourceUsage)
+	} else {
+		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to marshal input root resource usage"))
 	}
 	return response
 }

@@ -322,6 +322,69 @@ func (x *MonetaryResourceUsage) GetExpenses() map[string]*MonetaryResourceUsage_
 	return nil
 }
 
+type InputRootResourceUsage struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	DirectoriesResolved uint64 `protobuf:"varint,1,opt,name=directories_resolved,json=directoriesResolved,proto3" json:"directories_resolved,omitempty"`
+	DirectoriesRead     uint64 `protobuf:"varint,2,opt,name=directories_read,json=directoriesRead,proto3" json:"directories_read,omitempty"`
+	FilesRead           uint64 `protobuf:"varint,3,opt,name=files_read,json=filesRead,proto3" json:"files_read,omitempty"`
+}
+
+func (x *InputRootResourceUsage) Reset() {
+	*x = InputRootResourceUsage{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_pkg_proto_resourceusage_resourceusage_proto_msgTypes[3]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *InputRootResourceUsage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InputRootResourceUsage) ProtoMessage() {}
+
+func (x *InputRootResourceUsage) ProtoReflect() protoreflect.Message {
+	mi := &file_pkg_proto_resourceusage_resourceusage_proto_msgTypes[3]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InputRootResourceUsage.ProtoReflect.Descriptor instead.
+func (*InputRootResourceUsage) Descriptor() ([]byte, []int) {
+	return file_pkg_proto_resourceusage_resourceusage_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *InputRootResourceUsage) GetDirectoriesResolved() uint64 {
+	if x != nil {
+		return x.DirectoriesResolved
+	}
+	return 0
+}
+
+func (x *InputRootResourceUsage) GetDirectoriesRead() uint64 {
+	if x != nil {
+		return x.DirectoriesRead
+	}
+	return 0
+}
+
+func (x *InputRootResourceUsage) GetFilesRead() uint64 {
+	if x != nil {
+		return x.FilesRead
+	}
+	return 0
+}
+
 type MonetaryResourceUsage_Expense struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -334,7 +397,7 @@ type MonetaryResourceUsage_Expense struct {
 func (x *MonetaryResourceUsage_Expense) Reset() {
 	*x = MonetaryResourceUsage_Expense{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_pkg_proto_resourceusage_resourceusage_proto_msgTypes[3]
+		mi := &file_pkg_proto_resourceusage_resourceusage_proto_msgTypes[4]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -347,7 +410,7 @@ func (x *MonetaryResourceUsage_Expense) String() string {
 func (*MonetaryResourceUsage_Expense) ProtoMessage() {}
 
 func (x *MonetaryResourceUsage_Expense) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_proto_resourceusage_resourceusage_proto_msgTypes[3]
+	mi := &file_pkg_proto_resourceusage_resourceusage_proto_msgTypes[4]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -471,12 +534,21 @@ var file_pkg_proto_resourceusage_resourceusage_proto_rawDesc = []byte{
 	0x2e, 0x72, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x75, 0x73, 0x61, 0x67, 0x65, 0x2e, 0x4d,
 	0x6f, 0x6e, 0x65, 0x74, 0x61, 0x72, 0x79, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x55,
 	0x73, 0x61, 0x67, 0x65, 0x2e, 0x45, 0x78, 0x70, 0x65, 0x6e, 0x73, 0x65, 0x52, 0x05, 0x76, 0x61,
-	0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x42, 0x42, 0x5a, 0x40, 0x67, 0x69, 0x74, 0x68, 0x75,
-	0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x62, 0x75, 0x69, 0x6c, 0x64, 0x62, 0x61, 0x72, 0x6e, 0x2f,
-	0x62, 0x62, 0x2d, 0x72, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x2d, 0x65, 0x78, 0x65, 0x63, 0x75, 0x74,
-	0x69, 0x6f, 0x6e, 0x2f, 0x70, 0x6b, 0x67, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x72, 0x65,
-	0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x75, 0x73, 0x61, 0x67, 0x65, 0x62, 0x06, 0x70, 0x72, 0x6f,
-	0x74, 0x6f, 0x33,
+	0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x22, 0x95, 0x01, 0x0a, 0x16, 0x49, 0x6e, 0x70, 0x75,
+	0x74, 0x52, 0x6f, 0x6f, 0x74, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x55, 0x73, 0x61,
+	0x67, 0x65, 0x12, 0x31, 0x0a, 0x14, 0x64, 0x69, 0x72, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x69, 0x65,
+	0x73, 0x5f, 0x72, 0x65, 0x73, 0x6f, 0x6c, 0x76, 0x65, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x04,
+	0x52, 0x13, 0x64, 0x69, 0x72, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x69, 0x65, 0x73, 0x52, 0x65, 0x73,
+	0x6f, 0x6c, 0x76, 0x65, 0x64, 0x12, 0x29, 0x0a, 0x10, 0x64, 0x69, 0x72, 0x65, 0x63, 0x74, 0x6f,
+	0x72, 0x69, 0x65, 0x73, 0x5f, 0x72, 0x65, 0x61, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x04, 0x52,
+	0x0f, 0x64, 0x69, 0x72, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x69, 0x65, 0x73, 0x52, 0x65, 0x61, 0x64,
+	0x12, 0x1d, 0x0a, 0x0a, 0x66, 0x69, 0x6c, 0x65, 0x73, 0x5f, 0x72, 0x65, 0x61, 0x64, 0x18, 0x03,
+	0x20, 0x01, 0x28, 0x04, 0x52, 0x09, 0x66, 0x69, 0x6c, 0x65, 0x73, 0x52, 0x65, 0x61, 0x64, 0x42,
+	0x42, 0x5a, 0x40, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x62, 0x75,
+	0x69, 0x6c, 0x64, 0x62, 0x61, 0x72, 0x6e, 0x2f, 0x62, 0x62, 0x2d, 0x72, 0x65, 0x6d, 0x6f, 0x74,
+	0x65, 0x2d, 0x65, 0x78, 0x65, 0x63, 0x75, 0x74, 0x69, 0x6f, 0x6e, 0x2f, 0x70, 0x6b, 0x67, 0x2f,
+	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x72, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x75, 0x73,
+	0x61, 0x67, 0x65, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -491,20 +563,21 @@ func file_pkg_proto_resourceusage_resourceusage_proto_rawDescGZIP() []byte {
 	return file_pkg_proto_resourceusage_resourceusage_proto_rawDescData
 }
 
-var file_pkg_proto_resourceusage_resourceusage_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_pkg_proto_resourceusage_resourceusage_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_pkg_proto_resourceusage_resourceusage_proto_goTypes = []interface{}{
 	(*FilePoolResourceUsage)(nil),         // 0: buildbarn.resourceusage.FilePoolResourceUsage
 	(*POSIXResourceUsage)(nil),            // 1: buildbarn.resourceusage.POSIXResourceUsage
 	(*MonetaryResourceUsage)(nil),         // 2: buildbarn.resourceusage.MonetaryResourceUsage
-	(*MonetaryResourceUsage_Expense)(nil), // 3: buildbarn.resourceusage.MonetaryResourceUsage.Expense
-	nil,                                   // 4: buildbarn.resourceusage.MonetaryResourceUsage.ExpensesEntry
-	(*durationpb.Duration)(nil),           // 5: google.protobuf.Duration
+	(*InputRootResourceUsage)(nil),        // 3: buildbarn.resourceusage.InputRootResourceUsage
+	(*MonetaryResourceUsage_Expense)(nil), // 4: buildbarn.resourceusage.MonetaryResourceUsage.Expense
+	nil,                                   // 5: buildbarn.resourceusage.MonetaryResourceUsage.ExpensesEntry
+	(*durationpb.Duration)(nil),           // 6: google.protobuf.Duration
 }
 var file_pkg_proto_resourceusage_resourceusage_proto_depIdxs = []int32{
-	5, // 0: buildbarn.resourceusage.POSIXResourceUsage.user_time:type_name -> google.protobuf.Duration
-	5, // 1: buildbarn.resourceusage.POSIXResourceUsage.system_time:type_name -> google.protobuf.Duration
-	4, // 2: buildbarn.resourceusage.MonetaryResourceUsage.expenses:type_name -> buildbarn.resourceusage.MonetaryResourceUsage.ExpensesEntry
-	3, // 3: buildbarn.resourceusage.MonetaryResourceUsage.ExpensesEntry.value:type_name -> buildbarn.resourceusage.MonetaryResourceUsage.Expense
+	6, // 0: buildbarn.resourceusage.POSIXResourceUsage.user_time:type_name -> google.protobuf.Duration
+	6, // 1: buildbarn.resourceusage.POSIXResourceUsage.system_time:type_name -> google.protobuf.Duration
+	5, // 2: buildbarn.resourceusage.MonetaryResourceUsage.expenses:type_name -> buildbarn.resourceusage.MonetaryResourceUsage.ExpensesEntry
+	4, // 3: buildbarn.resourceusage.MonetaryResourceUsage.ExpensesEntry.value:type_name -> buildbarn.resourceusage.MonetaryResourceUsage.Expense
 	4, // [4:4] is the sub-list for method output_type
 	4, // [4:4] is the sub-list for method input_type
 	4, // [4:4] is the sub-list for extension type_name
@@ -555,6 +628,18 @@ func file_pkg_proto_resourceusage_resourceusage_proto_init() {
 			}
 		}
 		file_pkg_proto_resourceusage_resourceusage_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*InputRootResourceUsage); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_pkg_proto_resourceusage_resourceusage_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*MonetaryResourceUsage_Expense); i {
 			case 0:
 				return &v.state
@@ -573,7 +658,7 @@ func file_pkg_proto_resourceusage_resourceusage_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_pkg_proto_resourceusage_resourceusage_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
