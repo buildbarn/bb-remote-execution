@@ -949,7 +949,15 @@ func (s *compoundState) opClose(args *nfsv4.Close4args) nfsv4.Close4res {
 	transaction, lastResponse, st := oos.startTransaction(p, args.Seqid, &ll, unconfirmedOpenOwnerPolicyDeny)
 	if st != nfsv4.NFS4_OK {
 		if r, ok := lastResponse.(nfsv4.Close4res); ok {
-			return r
+			// Only return a cached response if the request
+			// contains the same state ID as provided
+			// originally.
+			//
+			// More details: RFC 7530, section 9.1.9, bullet
+			// point 3.
+			if okResponse, ok := lastResponse.(*nfsv4.Close4res_NFS4_OK); !ok || (okResponse.OpenStateid.Other == args.OpenStateid.Other && okResponse.OpenStateid.Seqid == nextSeqID(args.OpenStateid.Seqid)) {
+				return r
+			}
 		}
 		return &nfsv4.Close4res_default{Status: st}
 	}
@@ -1160,7 +1168,15 @@ func (s *compoundState) opLock(args *nfsv4.Lock4args) nfsv4.Lock4res {
 		transaction, lastResponse, st := los.startTransaction(p, owner.LockSeqid, false)
 		if st != nfsv4.NFS4_OK {
 			if r, ok := lastResponse.(nfsv4.Lock4res); ok {
-				return r
+				// Only return a cached response if the
+				// request contains the same state ID as
+				// provided originally.
+				//
+				// More details: RFC 7530, section
+				// 9.1.9, bullet point 3.
+				if okResponse, ok := lastResponse.(*nfsv4.Lock4res_NFS4_OK); !ok || (okResponse.Resok4.LockStateid.Other == owner.LockStateid.Other && okResponse.Resok4.LockStateid.Seqid != nextSeqID(owner.LockStateid.Seqid)) {
+					return r
+				}
 			}
 			return &nfsv4.Lock4res_default{Status: st}
 		}
@@ -1369,7 +1385,15 @@ func (s *compoundState) opLocku(args *nfsv4.Locku4args) nfsv4.Locku4res {
 	transaction, lastResponse, st := los.startTransaction(p, args.Seqid, false)
 	if st != nfsv4.NFS4_OK {
 		if r, ok := lastResponse.(nfsv4.Locku4res); ok {
-			return r
+			// Only return a cached response if the request
+			// contains the same state ID as provided
+			// originally.
+			//
+			// More details: RFC 7530, section 9.1.9, bullet
+			// point 3.
+			if okResponse, ok := lastResponse.(*nfsv4.Locku4res_NFS4_OK); !ok || (okResponse.LockStateid.Other == args.LockStateid.Other && okResponse.LockStateid.Seqid != nextSeqID(args.LockStateid.Seqid)) {
+				return r
+			}
 		}
 		return &nfsv4.Locku4res_default{Status: st}
 	}
@@ -1701,7 +1725,15 @@ func (s *compoundState) opOpenConfirm(args *nfsv4.OpenConfirm4args) nfsv4.OpenCo
 	transaction, lastResponse, st := oos.startTransaction(p, args.Seqid, &ll, unconfirmedOpenOwnerPolicyAllow)
 	if st != nfsv4.NFS4_OK {
 		if r, ok := lastResponse.(nfsv4.OpenConfirm4res); ok {
-			return r
+			// Only return a cached response if the request
+			// contains the same state ID as provided
+			// originally.
+			//
+			// More details: RFC 7530, section 9.1.9, bullet
+			// point 3.
+			if okResponse, ok := lastResponse.(*nfsv4.OpenConfirm4res_NFS4_OK); !ok && (okResponse.Resok4.OpenStateid.Other == args.OpenStateid.Other && okResponse.Resok4.OpenStateid.Seqid == nextSeqID(args.OpenStateid.Seqid)) {
+				return r
+			}
 		}
 		return &nfsv4.OpenConfirm4res_default{Status: st}
 	}

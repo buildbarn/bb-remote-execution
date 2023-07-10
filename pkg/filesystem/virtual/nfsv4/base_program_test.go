@@ -792,13 +792,67 @@ func TestBaseProgramCompound_OP_CLOSE(t *testing.T) {
 		}
 	})
 
+	t.Run("RetransmissionWithMismatchingStateID", func(t *testing.T) {
+		// At a minimum, the standard states that when returning
+		// a cached response it is sufficient to compare the
+		// original operation type and sequence ID. Let's be a
+		// bit more strict and actually check whether the
+		// provided state ID matches the one that was provided
+		// as part of the original request.
+		//
+		// More details: RFC 7530, section 9.1.9, bullet point 3.
+		clock.EXPECT().Now().Return(time.Unix(1037, 0))
+		clock.EXPECT().Now().Return(time.Unix(1038, 0))
+
+		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+			Tag: "close",
+			Argarray: []nfsv4_xdr.NfsArgop4{
+				&nfsv4_xdr.NfsArgop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4args{
+						Object: nfsv4_xdr.NfsFh4{0x1f, 0x5b, 0x1f, 0x0e, 0x8c, 0xf4, 0xf5, 0x40},
+					},
+				},
+				&nfsv4_xdr.NfsArgop4_OP_CLOSE{
+					Opclose: nfsv4_xdr.Close4args{
+						Seqid: 244,
+						OpenStateid: nfsv4_xdr.Stateid4{
+							Seqid: 3,
+							Other: [...]byte{
+								0xf5, 0x47, 0xa8, 0x88,
+								0x74, 0x62, 0xab, 0x46,
+								0x26, 0x1d, 0x14, 0x7f,
+							},
+						},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, &nfsv4_xdr.Compound4res{
+			Tag: "close",
+			Resarray: []nfsv4_xdr.NfsResop4{
+				&nfsv4_xdr.NfsResop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4res{
+						Status: nfsv4_xdr.NFS4_OK,
+					},
+				},
+				&nfsv4_xdr.NfsResop4_OP_CLOSE{
+					Opclose: &nfsv4_xdr.Close4res_default{
+						Status: nfsv4_xdr.NFS4ERR_BAD_SEQID,
+					},
+				},
+			},
+			Status: nfsv4_xdr.NFS4ERR_BAD_SEQID,
+		}, res)
+	})
+
 	t.Run("CloseAfterClosed", func(t *testing.T) {
 		// We should no longer be able to interact with the
 		// state ID after closing it. Attempting to close a file
 		// that has already been closed should just return
 		// NFS4ERR_BAD_STATEID.
-		clock.EXPECT().Now().Return(time.Unix(1037, 0))
-		clock.EXPECT().Now().Return(time.Unix(1038, 0))
+		clock.EXPECT().Now().Return(time.Unix(1039, 0))
+		clock.EXPECT().Now().Return(time.Unix(1040, 0))
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "close",
