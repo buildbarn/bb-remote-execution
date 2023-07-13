@@ -2764,7 +2764,122 @@ func TestBaseProgramCompound_OP_OPENATTR(t *testing.T) {
 	})
 }
 
-// TODO: OPEN_CONFIRM
+func TestBaseProgramCompound_OP_OPEN_CONFIRM(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+
+	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
+	rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskFileHandle, gomock.Any()).
+		Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
+			attributes.SetFileHandle([]byte{0x2e, 0x8d, 0x48, 0x03, 0xc4, 0xc3, 0x2d, 0x6c})
+		})
+	handleResolver := mock.NewMockHandleResolver(ctrl)
+	randomNumberGenerator := mock.NewMockSingleThreadedGenerator(ctrl)
+	rebootVerifier := nfsv4_xdr.Verifier4{0x42, 0xa8, 0x3f, 0xd1, 0xde, 0x65, 0x74, 0x2a}
+	stateIDOtherPrefix := [...]byte{0xfa, 0xc3, 0xf7, 0x18}
+	clock := mock.NewMockClock(ctrl)
+	program := nfsv4.NewBaseProgram(rootDirectory, handleResolver.Call, randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
+
+	clock.EXPECT().Now().Return(time.Unix(1000, 0))
+	clock.EXPECT().Now().Return(time.Unix(1001, 0))
+	setClientIDForTesting(ctx, t, randomNumberGenerator, program, 0x2e5550c498b2b463)
+
+	t.Run("RetransmissionSuccess", func(t *testing.T) {
+		// It should be valid to send OPEN_CONFIRM repeatedly in
+		// case of connection drops.
+		leaf := mock.NewMockVirtualLeaf(ctrl)
+		clock.EXPECT().Now().Return(time.Unix(1002, 0))
+		clock.EXPECT().Now().Return(time.Unix(1003, 0))
+		openUnconfirmedFileForTesting(
+			ctx,
+			t,
+			randomNumberGenerator,
+			program,
+			rootDirectory,
+			leaf,
+			nfsv4_xdr.NfsFh4{0xff, 0x27, 0xc7, 0x8f, 0xd5, 0x6a, 0xfb, 0xee},
+			/* shortClientID = */ 0x2e5550c498b2b463,
+			/* seqID = */ 1205,
+			/* stateIDOther = */ [...]byte{
+				0xfa, 0xc3, 0xf7, 0x18,
+				0x80, 0x57, 0x5b, 0x95,
+				0x08, 0x16, 0x41, 0x0a,
+			})
+
+		for i := int64(0); i < 10; i++ {
+			clock.EXPECT().Now().Return(time.Unix(1004+i*2, 0))
+			clock.EXPECT().Now().Return(time.Unix(1005+i*2, 0))
+			openConfirmForTesting(
+				ctx,
+				t,
+				randomNumberGenerator,
+				program,
+				nfsv4_xdr.NfsFh4{0xff, 0x27, 0xc7, 0x8f, 0xd5, 0x6a, 0xfb, 0xee},
+				/* seqID = */ 1206,
+				/* stateIDOther = */ [...]byte{
+					0xfa, 0xc3, 0xf7, 0x18,
+					0x80, 0x57, 0x5b, 0x95,
+					0x08, 0x16, 0x41, 0x0a,
+				})
+		}
+	})
+
+	t.Run("RetransmissionWithMismatchingStateID", func(t *testing.T) {
+		// At a minimum, the standard states that when returning
+		// a cached response it is sufficient to compare the
+		// original operation type and sequence ID. Let's be a
+		// bit more strict and actually check whether the
+		// provided state ID matches the one that was provided
+		// as part of the original request.
+		//
+		// More details: RFC 7530, section 9.1.9, bullet point 3.
+		clock.EXPECT().Now().Return(time.Unix(1024, 0))
+		clock.EXPECT().Now().Return(time.Unix(1025, 0))
+
+		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+			Tag: "close",
+			Argarray: []nfsv4_xdr.NfsArgop4{
+				&nfsv4_xdr.NfsArgop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4args{
+						Object: nfsv4_xdr.NfsFh4{0xff, 0x27, 0xc7, 0x8f, 0xd5, 0x6a, 0xfb, 0xee},
+					},
+				},
+				&nfsv4_xdr.NfsArgop4_OP_OPEN_CONFIRM{
+					OpopenConfirm: nfsv4_xdr.OpenConfirm4args{
+						Seqid: 1206,
+						OpenStateid: nfsv4_xdr.Stateid4{
+							Seqid: 3,
+							Other: [...]byte{
+								0xfa, 0xc3, 0xf7, 0x18,
+								0x80, 0x57, 0x5b, 0x95,
+								0x08, 0x16, 0x41, 0x0a,
+							},
+						},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, &nfsv4_xdr.Compound4res{
+			Tag: "close",
+			Resarray: []nfsv4_xdr.NfsResop4{
+				&nfsv4_xdr.NfsResop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4res{
+						Status: nfsv4_xdr.NFS4_OK,
+					},
+				},
+				&nfsv4_xdr.NfsResop4_OP_OPEN_CONFIRM{
+					OpopenConfirm: &nfsv4_xdr.OpenConfirm4res_default{
+						Status: nfsv4_xdr.NFS4ERR_BAD_SEQID,
+					},
+				},
+			},
+			Status: nfsv4_xdr.NFS4ERR_BAD_SEQID,
+		}, res)
+	})
+
+	// TODO: Any more cases we want to test?
+}
+
 // TODO: OPEN_DOWNGRADE
 // TODO: PUTFH
 // TODO: PUTPUBFH

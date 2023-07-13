@@ -949,13 +949,7 @@ func (s *compoundState) opClose(args *nfsv4.Close4args) nfsv4.Close4res {
 	transaction, lastResponse, st := oos.startTransaction(p, args.Seqid, &ll, unconfirmedOpenOwnerPolicyDeny)
 	if st != nfsv4.NFS4_OK {
 		if r, ok := lastResponse.(nfsv4.Close4res); ok {
-			// Only return a cached response if the request
-			// contains the same state ID as provided
-			// originally.
-			//
-			// More details: RFC 7530, section 9.1.9, bullet
-			// point 3.
-			if okResponse, ok := lastResponse.(*nfsv4.Close4res_NFS4_OK); !ok || (okResponse.OpenStateid.Other == args.OpenStateid.Other && okResponse.OpenStateid.Seqid == nextSeqID(args.OpenStateid.Seqid)) {
+			if okResponse, ok := lastResponse.(*nfsv4.Close4res_NFS4_OK); !ok || isNextStateID(&okResponse.OpenStateid, &args.OpenStateid) {
 				return r
 			}
 		}
@@ -1168,13 +1162,7 @@ func (s *compoundState) opLock(args *nfsv4.Lock4args) nfsv4.Lock4res {
 		transaction, lastResponse, st := los.startTransaction(p, owner.LockSeqid, false)
 		if st != nfsv4.NFS4_OK {
 			if r, ok := lastResponse.(nfsv4.Lock4res); ok {
-				// Only return a cached response if the
-				// request contains the same state ID as
-				// provided originally.
-				//
-				// More details: RFC 7530, section
-				// 9.1.9, bullet point 3.
-				if okResponse, ok := lastResponse.(*nfsv4.Lock4res_NFS4_OK); !ok || (okResponse.Resok4.LockStateid.Other == owner.LockStateid.Other && okResponse.Resok4.LockStateid.Seqid != nextSeqID(owner.LockStateid.Seqid)) {
+				if okResponse, ok := lastResponse.(*nfsv4.Lock4res_NFS4_OK); !ok || isNextStateID(&okResponse.Resok4.LockStateid, &owner.LockStateid) {
 					return r
 				}
 			}
@@ -1385,13 +1373,7 @@ func (s *compoundState) opLocku(args *nfsv4.Locku4args) nfsv4.Locku4res {
 	transaction, lastResponse, st := los.startTransaction(p, args.Seqid, false)
 	if st != nfsv4.NFS4_OK {
 		if r, ok := lastResponse.(nfsv4.Locku4res); ok {
-			// Only return a cached response if the request
-			// contains the same state ID as provided
-			// originally.
-			//
-			// More details: RFC 7530, section 9.1.9, bullet
-			// point 3.
-			if okResponse, ok := lastResponse.(*nfsv4.Locku4res_NFS4_OK); !ok || (okResponse.LockStateid.Other == args.LockStateid.Other && okResponse.LockStateid.Seqid != nextSeqID(args.LockStateid.Seqid)) {
+			if okResponse, ok := lastResponse.(*nfsv4.Locku4res_NFS4_OK); !ok || isNextStateID(&okResponse.LockStateid, &args.LockStateid) {
 				return r
 			}
 		}
@@ -1725,13 +1707,7 @@ func (s *compoundState) opOpenConfirm(args *nfsv4.OpenConfirm4args) nfsv4.OpenCo
 	transaction, lastResponse, st := oos.startTransaction(p, args.Seqid, &ll, unconfirmedOpenOwnerPolicyAllow)
 	if st != nfsv4.NFS4_OK {
 		if r, ok := lastResponse.(nfsv4.OpenConfirm4res); ok {
-			// Only return a cached response if the request
-			// contains the same state ID as provided
-			// originally.
-			//
-			// More details: RFC 7530, section 9.1.9, bullet
-			// point 3.
-			if okResponse, ok := lastResponse.(*nfsv4.OpenConfirm4res_NFS4_OK); !ok && (okResponse.Resok4.OpenStateid.Other == args.OpenStateid.Other && okResponse.Resok4.OpenStateid.Seqid == nextSeqID(args.OpenStateid.Seqid)) {
+			if okResponse, ok := lastResponse.(*nfsv4.OpenConfirm4res_NFS4_OK); !ok || isNextStateID(&okResponse.Resok4.OpenStateid, &args.OpenStateid) {
 				return r
 			}
 		}
@@ -1780,7 +1756,9 @@ func (s *compoundState) opOpenDowngrade(args *nfsv4.OpenDowngrade4args) nfsv4.Op
 	transaction, lastResponse, st := oos.startTransaction(p, args.Seqid, &ll, unconfirmedOpenOwnerPolicyDeny)
 	if st != nfsv4.NFS4_OK {
 		if r, ok := lastResponse.(nfsv4.OpenDowngrade4res); ok {
-			return r
+			if okResponse, ok := lastResponse.(*nfsv4.OpenDowngrade4res_NFS4_OK); !ok || isNextStateID(&okResponse.Resok4.OpenStateid, &args.OpenStateid) {
+				return r
+			}
 		}
 		return &nfsv4.OpenDowngrade4res_default{Status: st}
 	}
@@ -1893,8 +1871,11 @@ func (s *compoundState) opReaddir(ctx context.Context, args *nfsv4.Readdir4args)
 	}
 
 	// Validate the cookie verifier.
+	// TODO: The macOS NFSv4 client may sometimes not set the cookie
+	// verifier properly, so we allow it to be zero. Remove this
+	// logic in due time. Issue: rdar://91034875
 	p := s.program
-	if args.Cookie != 0 && args.Cookieverf != p.rebootVerifier {
+	if args.Cookie != 0 && args.Cookieverf != p.rebootVerifier && (args.Cookieverf != nfsv4.Verifier4{}) {
 		return &nfsv4.Readdir4res_default{Status: nfsv4.NFS4ERR_NOT_SAME}
 	}
 
@@ -3034,6 +3015,20 @@ func nextSeqID(seqID nfsv4.Seqid4) nfsv4.Seqid4 {
 		return 1
 	}
 	return seqID + 1
+}
+
+// isNextStateID returns true if state ID a is the successor of state ID b.
+//
+// At a minimum, the standard states that when returning a cached
+// response to operations such as CLOSE, LOCK, LOCKU, OPEN_CONFIRM, and
+// OPEN_DOWNGRADE, it is sufficient to compare the original operation
+// type and the operation's sequence ID. This function can be used to
+// increase strictness by ensuring that the state IDs in the request
+// also match the originally provided values.
+//
+// More details: RFC 7530, section 9.1.9, bullet point 3.
+func isNextStateID(a, b *nfsv4.Stateid4) bool {
+	return a.Other == b.Other && a.Seqid == nextSeqID(b.Seqid)
 }
 
 // toShareMask converts NFSv4 share_access values that are part of OPEN
