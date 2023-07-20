@@ -247,25 +247,80 @@ func TestLocalRunner(t *testing.T) {
 		require.Empty(t, stderr)
 	})
 
-	t.Run("UnknownCommandInPath", func(t *testing.T) {
-		testPath := filepath.Join(buildDirectoryPath, "UnknownCommandInPath")
+	t.Run("UnknownCommandWithEmptyPath", func(t *testing.T) {
+		testPath := filepath.Join(buildDirectoryPath, "UnknownCommandWithEmptyPath")
 		require.NoError(t, os.Mkdir(testPath, 0o777))
 		require.NoError(t, os.Mkdir(filepath.Join(testPath, "root"), 0o777))
 		require.NoError(t, os.Mkdir(filepath.Join(testPath, "tmp"), 0o777))
 
 		// If argv[0] consists of a single filename, lookups
-		// against $PATH need to be performed. If the executable
-		// can't be found in any of the directories, the action
-		// should fail with a non-retriable error.
+		// against $PATH need to be performed. If PATH is not
+		// set, the action should fail with a non-retriable
+		// error.
 		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, runner.NewPlainCommandCreator(&syscall.SysProcAttr{}), false)
 		_, err := runner.Run(context.Background(), &runner_pb.RunRequest{
 			Arguments:          []string{"nonexistent_command"},
-			StdoutPath:         "UnknownCommandInPath/stdout",
-			StderrPath:         "UnknownCommandInPath/stderr",
-			InputRootDirectory: "UnknownCommandInPath/root",
-			TemporaryDirectory: "UnknownCommandInPath/tmp",
+			StdoutPath:         "UnknownCommandWithEmptyPath/stdout",
+			StderrPath:         "UnknownCommandWithEmptyPath/stderr",
+			InputRootDirectory: "UnknownCommandWithEmptyPath/root",
+			TemporaryDirectory: "UnknownCommandWithEmptyPath/tmp",
 		})
-		testutil.RequirePrefixedStatus(t, status.Error(codes.InvalidArgument, "Failed to start process: "), err)
+		testutil.RequirePrefixedStatus(t, status.Error(codes.InvalidArgument, "Cannot find executable \"nonexistent_command\" in search paths \"\""), err)
+	})
+
+	t.Run("UnknownCommandWithBadPath", func(t *testing.T) {
+		testPath := filepath.Join(buildDirectoryPath, "UnknownCommandWithBadPath")
+		require.NoError(t, os.Mkdir(testPath, 0o777))
+		require.NoError(t, os.Mkdir(filepath.Join(testPath, "root"), 0o777))
+		require.NoError(t, os.Mkdir(filepath.Join(testPath, "tmp"), 0o777))
+
+		// Even invoking known shell utilities shouldn't be
+		// permitted if PATH points to a nonexistent location.
+		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, runner.NewPlainCommandCreator(&syscall.SysProcAttr{}), false)
+		_, err := runner.Run(context.Background(), &runner_pb.RunRequest{
+			Arguments:            []string{"sh", "-c", "exit 123"},
+			EnvironmentVariables: map[string]string{"PATH": "/nonexistent"},
+			StdoutPath:           "UnknownCommandWithBadPath/stdout",
+			StderrPath:           "UnknownCommandWithBadPath/stderr",
+			InputRootDirectory:   "UnknownCommandWithBadPath/root",
+			TemporaryDirectory:   "UnknownCommandWithBadPath/tmp",
+		})
+		testutil.RequirePrefixedStatus(t, status.Error(codes.InvalidArgument, "Cannot find executable \"sh\" in search paths \"/nonexistent\""), err)
+	})
+
+	t.Run("RelativeSearchPath", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			return
+		}
+
+		testPath := filepath.Join(buildDirectoryPath, "RelativeSearchPath")
+		require.NoError(t, os.Mkdir(testPath, 0o777))
+		require.NoError(t, os.MkdirAll(filepath.Join(testPath, "root", "subdirectory"), 0o777))
+		require.NoError(t, os.Mkdir(filepath.Join(testPath, "tmp"), 0o777))
+		require.NoError(t, os.WriteFile(filepath.Join(testPath, "root", "subdirectory", "hello.sh"), []byte("#!/bin/sh\nexit 42\n"), 0o777))
+
+		// If the PATH environment variable contains a relative
+		// path, it should be treated as being relative to the
+		// working directory.
+		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, runner.NewPlainCommandCreator(&syscall.SysProcAttr{}), false)
+		response, err := runner.Run(context.Background(), &runner_pb.RunRequest{
+			Arguments:            []string{"hello.sh"},
+			EnvironmentVariables: map[string]string{"PATH": "subdirectory"},
+			StdoutPath:           "RelativeSearchPath/stdout",
+			StderrPath:           "RelativeSearchPath/stderr",
+			InputRootDirectory:   "RelativeSearchPath/root",
+			TemporaryDirectory:   "RelativeSearchPath/tmp",
+		})
+		require.NoError(t, err)
+		require.Equal(t, int32(42), response.ExitCode)
+
+		stdout, err := os.ReadFile(filepath.Join(testPath, "stdout"))
+		require.NoError(t, err)
+		require.Empty(t, stdout)
+
+		stderr, err := os.ReadFile(filepath.Join(testPath, "stderr"))
+		require.NoError(t, err)
+		require.Empty(t, stderr)
 	})
 
 	t.Run("UnknownCommandRelative", func(t *testing.T) {

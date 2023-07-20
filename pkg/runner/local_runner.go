@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os/exec"
 	"path/filepath"
-	"syscall"
 
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
@@ -83,21 +82,11 @@ func (r *localRunner) openLog(logPath string) (filesystem.FileAppender, error) {
 	return logFileResolver.stack.Peek().OpenAppend(*logFileResolver.TerminalName, filesystem.CreateExcl(0o666))
 }
 
-// CommandCreator is a type alias for a function that creates the cmd and
-// the workingDirectoryBase in localRunner.Run(). There is a shared
-// implementation for cases where chroot is not required and platform-specific
-// implementations for cases where it is.
-type CommandCreator func(ctx context.Context, arguments []string, inputRootDirectory *path.Builder) (*exec.Cmd, *path.Builder)
-
-// NewPlainCommandCreator returns a CommandCreator for cases where we don't
-// need to chroot into the input root directory.
-func NewPlainCommandCreator(sysProcAttr *syscall.SysProcAttr) CommandCreator {
-	return func(ctx context.Context, arguments []string, inputRootDirectory *path.Builder) (*exec.Cmd, *path.Builder) {
-		cmd := exec.CommandContext(ctx, arguments[0], arguments[1:]...)
-		cmd.SysProcAttr = sysProcAttr
-		return cmd, inputRootDirectory
-	}
-}
+// CommandCreator is a type alias for a function that creates the
+// exec.Cmd in localRunner.Run(). It may use different strategies for
+// resolving the paths of argv[0] and the working directory, depending
+// on whether the action needs to be run in a chroot() or not.
+type CommandCreator func(ctx context.Context, arguments []string, inputRootDirectory *path.Builder, workingDirectory, pathVariable string) (*exec.Cmd, error)
 
 // NewLocalRunner returns a Runner capable of running commands on the
 // local system directly.
@@ -120,7 +109,10 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 		return nil, util.StatusWrap(err, "Failed to resolve input root directory")
 	}
 
-	cmd, workingDirectoryBase := r.commandCreator(ctx, request.Arguments, inputRootDirectory)
+	cmd, err := r.commandCreator(ctx, request.Arguments, inputRootDirectory, request.WorkingDirectory, request.EnvironmentVariables["PATH"])
+	if err != nil {
+		return nil, err
+	}
 
 	// Set the environment variables.
 	cmd.Env = make([]string, 0, len(request.EnvironmentVariables)+1)
@@ -136,13 +128,6 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 	for name, value := range request.EnvironmentVariables {
 		cmd.Env = append(cmd.Env, name+"="+value)
 	}
-
-	// Set the working directory.
-	workingDirectory, scopeWalker := workingDirectoryBase.Join(path.VoidScopeWalker)
-	if err := path.Resolve(request.WorkingDirectory, scopeWalker); err != nil {
-		return nil, util.StatusWrap(err, "Failed to resolve working directory")
-	}
-	cmd.Dir = filepath.FromSlash(workingDirectory.String())
 
 	// Open output files for logging.
 	stdout, err := r.openLog(request.StdoutPath)
