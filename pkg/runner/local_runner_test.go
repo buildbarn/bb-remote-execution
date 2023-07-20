@@ -297,11 +297,13 @@ func TestLocalRunner(t *testing.T) {
 		require.NoError(t, os.Mkdir(testPath, 0o777))
 		require.NoError(t, os.MkdirAll(filepath.Join(testPath, "root", "subdirectory"), 0o777))
 		require.NoError(t, os.Mkdir(filepath.Join(testPath, "tmp"), 0o777))
-		require.NoError(t, os.WriteFile(filepath.Join(testPath, "root", "subdirectory", "hello.sh"), []byte("#!/bin/sh\nexit 42\n"), 0o777))
+		require.NoError(t, os.WriteFile(filepath.Join(testPath, "root", "subdirectory", "hello.sh"), []byte("#!/bin/sh\necho $0\nexit 42\n"), 0o777))
 
 		// If the PATH environment variable contains a relative
 		// path, it should be treated as being relative to the
-		// working directory.
+		// working directory. Because the search path is
+		// relative, execve() should be called with a relative
+		// path as well.
 		runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, runner.NewPlainCommandCreator(&syscall.SysProcAttr{}), false)
 		response, err := runner.Run(context.Background(), &runner_pb.RunRequest{
 			Arguments:            []string{"hello.sh"},
@@ -316,7 +318,7 @@ func TestLocalRunner(t *testing.T) {
 
 		stdout, err := os.ReadFile(filepath.Join(testPath, "stdout"))
 		require.NoError(t, err)
-		require.Empty(t, stdout)
+		require.Equal(t, "subdirectory/hello.sh\n", string(stdout))
 
 		stderr, err := os.ReadFile(filepath.Join(testPath, "stderr"))
 		require.NoError(t, err)

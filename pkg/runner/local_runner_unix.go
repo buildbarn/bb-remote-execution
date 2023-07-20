@@ -21,18 +21,26 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 
+// getExecutablePath returns the path of an executable within a given
+// search path that is part of the PATH environment variable.
+func getExecutablePath(baseDirectory *path.Builder, searchPathStr, argv0 string) (string, error) {
+	searchPath, scopeWalker := baseDirectory.Join(path.VoidScopeWalker)
+	if err := path.Resolve(searchPathStr, scopeWalker); err != nil {
+		return "", err
+	}
+	executablePath, scopeWalker := searchPath.Join(path.VoidScopeWalker)
+	if err := path.Resolve(argv0, scopeWalker); err != nil {
+		return "", err
+	}
+	return executablePath.String(), nil
+}
+
 // lookupExecutable returns the path of an executable, taking the PATH
 // environment variable into account.
-func lookupExecutable(argv0 string, workingDirectory *path.Builder, pathVariable string) (*path.Builder, error) {
+func lookupExecutable(workingDirectory *path.Builder, pathVariable, argv0 string) (string, error) {
 	if strings.ContainsRune(argv0, os.PathSeparator) {
-		// The path contains one or more slashes. Resolve it to
-		// a location relative to the action's working
-		// directory.
-		executablePath, scopeWalker := workingDirectory.Join(path.VoidScopeWalker)
-		if err := path.Resolve(argv0, scopeWalker); err != nil {
-			return nil, util.StatusWrap(err, "Failed to resolve executable path")
-		}
-		return executablePath, nil
+		// No PATH processing needs to be performed.
+		return argv0, nil
 	}
 
 	// Executable path does not contain any slashes. Perform PATH
@@ -45,19 +53,29 @@ func lookupExecutable(argv0 string, workingDirectory *path.Builder, pathVariable
 	// the action. Do call into this function to validate the
 	// existence of the executable.
 	for _, searchPathStr := range filepath.SplitList(pathVariable) {
-		searchPath, scopeWalker := workingDirectory.Join(path.VoidScopeWalker)
-		if err := path.Resolve(searchPathStr, scopeWalker); err != nil {
-			return nil, util.StatusWrapf(err, "Failed to resolve executable search path %#v", searchPathStr)
+		executablePathAbs, err := getExecutablePath(workingDirectory, searchPathStr, argv0)
+		if err != nil {
+			return "", util.StatusWrapf(err, "Failed to resolve executable %#v in search path %#v", argv0, searchPathStr)
 		}
-		executablePath, scopeWalker := searchPath.Join(path.VoidScopeWalker)
-		if err := path.Resolve(argv0, scopeWalker); err != nil {
-			return nil, util.StatusWrap(err, "Failed to resolve executable path")
-		}
-		if _, err := exec.LookPath(executablePath.String()); err == nil {
-			return executablePath, nil
+		if _, err := exec.LookPath(executablePathAbs); err == nil {
+			// Regular compiled executables will receive the
+			// argv[0] that we provide, but scripts starting
+			// with '#!' will receive the literal executable
+			// path.
+			//
+			// Most shells seem to guarantee that if argv[0]
+			// is relative, the executable path is relative
+			// as well. Prevent these scripts from breaking
+			// by recomputing the executable path once more,
+			// but relative.
+			executablePathRel, err := getExecutablePath(&path.EmptyBuilder, searchPathStr, argv0)
+			if err != nil {
+				return "", util.StatusWrapf(err, "Failed to resolve executable %#v in search path %#v", argv0, searchPathStr)
+			}
+			return executablePathRel, nil
 		}
 	}
-	return nil, status.Errorf(codes.InvalidArgument, "Cannot find executable %#v in search paths %#v", argv0, pathVariable)
+	return "", status.Errorf(codes.InvalidArgument, "Cannot find executable %#v in search paths %#v", argv0, pathVariable)
 }
 
 // NewPlainCommandCreator returns a CommandCreator for cases where we don't
@@ -68,20 +86,21 @@ func NewPlainCommandCreator(sysProcAttr *syscall.SysProcAttr) CommandCreator {
 		if err := path.Resolve(workingDirectoryStr, scopeWalker); err != nil {
 			return nil, util.StatusWrap(err, "Failed to resolve working directory")
 		}
-
-		// Call exec.CommandContext() with an absolute path, so
-		// that it does not try to do PATH lookups for us.
-		// Override the arguments afterwards, so that argv[0]
-		// remains equal to the originally provided value.
-		executablePath, err := lookupExecutable(arguments[0], workingDirectory, pathVariable)
+		executablePath, err := lookupExecutable(workingDirectory, pathVariable, arguments[0])
 		if err != nil {
 			return nil, err
 		}
-		cmd := exec.CommandContext(ctx, executablePath.String())
-		cmd.Args = arguments
-		cmd.SysProcAttr = sysProcAttr
 
+		// exec.CommandContext() has some smartness to call
+		// exec.LookPath() under the hood, which we don't want.
+		// Call it with a placeholder path, followed by setting
+		// cmd.Path and cmd.Args manually. This ensures that our
+		// own values remain respected.
+		cmd := exec.CommandContext(ctx, "/nonexistent")
+		cmd.Args = arguments
 		cmd.Dir = workingDirectory.String()
+		cmd.Path = executablePath
+		cmd.SysProcAttr = sysProcAttr
 		return cmd, nil
 	}
 }
