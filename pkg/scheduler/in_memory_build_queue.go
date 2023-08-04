@@ -30,7 +30,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"google.golang.org/genproto/googleapis/longrunning"
 	status_pb "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -40,6 +39,8 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"cloud.google.com/go/longrunning/autogen/longrunningpb"
 )
 
 var (
@@ -1919,7 +1920,7 @@ type operation struct {
 	cleanupKey             cleanupKey
 }
 
-// waitExecution periodically streams a series of longrunning.Operation
+// waitExecution periodically streams a series of longrunningpb.Operation
 // messages back to the client, containing the state of the current
 // operation. Streaming is stopped after execution of the operation is
 // completed.
@@ -1944,7 +1945,7 @@ func (o *operation) waitExecution(bq *InMemoryBuildQueue, out remoteexecution.Ex
 
 	t := o.task
 	for {
-		// Construct the longrunning.Operation that needs to be
+		// Construct the longrunningpb.Operation that needs to be
 		// sent back to the client.
 		metadata, err := anypb.New(&remoteexecution.ExecuteOperationMetadata{
 			Stage:        t.getStage(),
@@ -1953,7 +1954,7 @@ func (o *operation) waitExecution(bq *InMemoryBuildQueue, out remoteexecution.Ex
 		if err != nil {
 			return util.StatusWrap(err, "Failed to marshal execute operation metadata")
 		}
-		operation := &longrunning.Operation{
+		operation := &longrunningpb.Operation{
 			Name:     o.name,
 			Metadata: metadata,
 		}
@@ -1963,12 +1964,12 @@ func (o *operation) waitExecution(bq *InMemoryBuildQueue, out remoteexecution.Ex
 			if err != nil {
 				return util.StatusWrap(err, "Failed to marshal execute response")
 			}
-			operation.Result = &longrunning.Operation_Response{Response: response}
+			operation.Result = &longrunningpb.Operation_Response{Response: response}
 		}
 		stageChangeWakeup := t.stageChangeWakeup
 		bq.leave()
 
-		// Send the longrunning.Operation back to the client.
+		// Send the longrunningpb.Operation back to the client.
 		if err := out.Send(operation); operation.Done || err != nil {
 			bq.enter(bq.clock.Now())
 			return err
