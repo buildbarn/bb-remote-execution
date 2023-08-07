@@ -2688,7 +2688,433 @@ func TestBaseProgramCompound_OP_NVERIFY(t *testing.T) {
 	})
 }
 
-// TODO: OPEN
+func TestBaseProgramCompound_OP_OPEN(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+
+	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
+	rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskFileHandle, gomock.Any()).
+		Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
+			attributes.SetFileHandle([]byte{0x3d, 0xed, 0x6d, 0xff, 0x3e, 0x69, 0x19, 0xcb})
+		})
+	handleResolver := mock.NewMockHandleResolver(ctrl)
+	randomNumberGenerator := mock.NewMockSingleThreadedGenerator(ctrl)
+	rebootVerifier := nfsv4_xdr.Verifier4{0x18, 0xe4, 0x47, 0xf1, 0x31, 0x1c, 0xe2, 0x94}
+	stateIDOtherPrefix := [...]byte{0x5c, 0x71, 0xa6, 0x0d}
+	clock := mock.NewMockClock(ctrl)
+	program := nfsv4.NewBaseProgram(rootDirectory, handleResolver.Call, randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
+
+	clock.EXPECT().Now().Return(time.Unix(1000, 0))
+	clock.EXPECT().Now().Return(time.Unix(1001, 0))
+	setClientIDForTesting(ctx, t, randomNumberGenerator, program, 0xc9beea1ca8ba0be3)
+
+	t.Run("ClaimPrevious", func(t *testing.T) {
+		t.Run("UnopenedFile", func(t *testing.T) {
+			// Calling CLAIM_PREVIOUS against a file handle
+			// that hasn't been opened before should fail.
+			clock.EXPECT().Now().Return(time.Unix(1002, 0))
+			leaf := mock.NewMockVirtualLeaf(ctrl)
+			handleResolverExpectCall(t, handleResolver, []byte{0x04, 0x72, 0xba, 0x69, 0x15, 0xeb, 0x78, 0x97}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
+			clock.EXPECT().Now().Return(time.Unix(1003, 0))
+
+			res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+				Tag: "open",
+				Argarray: []nfsv4_xdr.NfsArgop4{
+					&nfsv4_xdr.NfsArgop4_OP_PUTFH{
+						Opputfh: nfsv4_xdr.Putfh4args{
+							Object: nfsv4_xdr.NfsFh4{0x04, 0x72, 0xba, 0x69, 0x15, 0xeb, 0x78, 0x97},
+						},
+					},
+					&nfsv4_xdr.NfsArgop4_OP_OPEN{
+						Opopen: nfsv4_xdr.Open4args{
+							Seqid:       342,
+							ShareAccess: nfsv4_xdr.OPEN4_SHARE_ACCESS_WRITE,
+							ShareDeny:   nfsv4_xdr.OPEN4_SHARE_DENY_NONE,
+							Owner: nfsv4_xdr.OpenOwner4{
+								Clientid: 0xc9beea1ca8ba0be3,
+								Owner:    []byte{0xda, 0x95, 0x91, 0x97, 0x45, 0xea, 0xb6, 0x79},
+							},
+							Openhow: &nfsv4_xdr.Openflag4_default{},
+							Claim: &nfsv4_xdr.OpenClaim4_CLAIM_PREVIOUS{
+								DelegateType: nfsv4_xdr.OPEN_DELEGATE_NONE,
+							},
+						},
+					},
+				},
+			})
+			require.NoError(t, err)
+			require.Equal(t, &nfsv4_xdr.Compound4res{
+				Tag: "open",
+				Resarray: []nfsv4_xdr.NfsResop4{
+					&nfsv4_xdr.NfsResop4_OP_PUTFH{
+						Opputfh: nfsv4_xdr.Putfh4res{
+							Status: nfsv4_xdr.NFS4_OK,
+						},
+					},
+					&nfsv4_xdr.NfsResop4_OP_OPEN{
+						Opopen: &nfsv4_xdr.Open4res_default{
+							Status: nfsv4_xdr.NFS4ERR_RECLAIM_BAD,
+						},
+					},
+				},
+				Status: nfsv4_xdr.NFS4ERR_RECLAIM_BAD,
+			}, res)
+		})
+
+		t.Run("ClaimAgainstUnconfirmed", func(t *testing.T) {
+			// We should not be able to use CLAIM_PREVIOUS
+			// against unconfirmed open-owners.
+			//
+			// More details: RFC 7530, section 9.1.11,
+			// bullet point 2.
+			leaf := mock.NewMockVirtualLeaf(ctrl)
+			clock.EXPECT().Now().Return(time.Unix(1004, 0))
+			clock.EXPECT().Now().Return(time.Unix(1005, 0))
+			openUnconfirmedFileForTesting(
+				ctx,
+				t,
+				randomNumberGenerator,
+				program,
+				rootDirectory,
+				leaf,
+				nfsv4_xdr.NfsFh4{0xd7, 0x5a, 0xe0, 0xe7, 0xc3, 0x56, 0x29, 0x78},
+				/* shortClientID = */ 0xc9beea1ca8ba0be3,
+				/* seqID = */ 342,
+				/* stateIDOther = */ [...]byte{
+					0x5c, 0x71, 0xa6, 0x0d,
+					0xe3, 0x12, 0x33, 0xb2,
+					0x43, 0xda, 0x5f, 0xaf,
+				})
+
+			clock.EXPECT().Now().Return(time.Unix(1006, 0))
+			clock.EXPECT().Now().Return(time.Unix(1007, 0))
+			leaf.EXPECT().VirtualClose()
+
+			res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+				Tag: "open",
+				Argarray: []nfsv4_xdr.NfsArgop4{
+					&nfsv4_xdr.NfsArgop4_OP_PUTFH{
+						Opputfh: nfsv4_xdr.Putfh4args{
+							Object: nfsv4_xdr.NfsFh4{0xd7, 0x5a, 0xe0, 0xe7, 0xc3, 0x56, 0x29, 0x78},
+						},
+					},
+					&nfsv4_xdr.NfsArgop4_OP_OPEN{
+						Opopen: nfsv4_xdr.Open4args{
+							Seqid:       343,
+							ShareAccess: nfsv4_xdr.OPEN4_SHARE_ACCESS_READ,
+							ShareDeny:   nfsv4_xdr.OPEN4_SHARE_DENY_NONE,
+							Owner: nfsv4_xdr.OpenOwner4{
+								Clientid: 0xc9beea1ca8ba0be3,
+								Owner:    []byte{0xc4, 0x85, 0x50, 0x6b, 0xa5, 0xec, 0x8e, 0x2c},
+							},
+							Openhow: &nfsv4_xdr.Openflag4_default{},
+							Claim: &nfsv4_xdr.OpenClaim4_CLAIM_PREVIOUS{
+								DelegateType: nfsv4_xdr.OPEN_DELEGATE_NONE,
+							},
+						},
+					},
+				},
+			})
+			require.NoError(t, err)
+			require.Equal(t, &nfsv4_xdr.Compound4res{
+				Tag: "open",
+				Resarray: []nfsv4_xdr.NfsResop4{
+					&nfsv4_xdr.NfsResop4_OP_PUTFH{
+						Opputfh: nfsv4_xdr.Putfh4res{
+							Status: nfsv4_xdr.NFS4_OK,
+						},
+					},
+					&nfsv4_xdr.NfsResop4_OP_OPEN{
+						Opopen: &nfsv4_xdr.Open4res_default{
+							Status: nfsv4_xdr.NFS4ERR_RECLAIM_BAD,
+						},
+					},
+				},
+				Status: nfsv4_xdr.NFS4ERR_RECLAIM_BAD,
+			}, res)
+		})
+
+		// The remainder of the tests for CLAIM_PREVIOUS assume
+		// that a file has been opened properly.
+		leaf := mock.NewMockVirtualLeaf(ctrl)
+		clock.EXPECT().Now().Return(time.Unix(1008, 0))
+		clock.EXPECT().Now().Return(time.Unix(1009, 0))
+		openUnconfirmedFileForTesting(
+			ctx,
+			t,
+			randomNumberGenerator,
+			program,
+			rootDirectory,
+			leaf,
+			nfsv4_xdr.NfsFh4{0x28, 0xef, 0x5d, 0x33, 0xfb, 0x4b, 0x0f, 0x77},
+			/* shortClientID = */ 0xc9beea1ca8ba0be3,
+			/* seqID = */ 344,
+			/* stateIDOther = */ [...]byte{
+				0x5c, 0x71, 0xa6, 0x0d,
+				0xe2, 0x73, 0x1b, 0xe6,
+				0x3b, 0x79, 0x04, 0x81,
+			})
+		clock.EXPECT().Now().Return(time.Unix(1010, 0))
+		clock.EXPECT().Now().Return(time.Unix(1011, 0))
+		openConfirmForTesting(
+			ctx,
+			t,
+			randomNumberGenerator,
+			program,
+			nfsv4_xdr.NfsFh4{0x28, 0xef, 0x5d, 0x33, 0xfb, 0x4b, 0x0f, 0x77},
+			/* seqID = */ 345,
+			/* stateIDOther = */ [...]byte{
+				0x5c, 0x71, 0xa6, 0x0d,
+				0xe2, 0x73, 0x1b, 0xe6,
+				0x3b, 0x79, 0x04, 0x81,
+			})
+
+		t.Run("MismatchingDelegateType", func(t *testing.T) {
+			// When calling CLAIM_PREVIOUS, the client must
+			// provide a delegate type that is compatible
+			// with the state on the server. As we don't
+			// support delegations, the client MUST provide
+			// OPEN_DELEGATE_NONE.
+			clock.EXPECT().Now().Return(time.Unix(1012, 0))
+			clock.EXPECT().Now().Return(time.Unix(1013, 0))
+
+			res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+				Tag: "open",
+				Argarray: []nfsv4_xdr.NfsArgop4{
+					&nfsv4_xdr.NfsArgop4_OP_PUTFH{
+						Opputfh: nfsv4_xdr.Putfh4args{
+							Object: nfsv4_xdr.NfsFh4{0x28, 0xef, 0x5d, 0x33, 0xfb, 0x4b, 0x0f, 0x77},
+						},
+					},
+					&nfsv4_xdr.NfsArgop4_OP_OPEN{
+						Opopen: nfsv4_xdr.Open4args{
+							Seqid:       346,
+							ShareAccess: nfsv4_xdr.OPEN4_SHARE_ACCESS_READ,
+							ShareDeny:   nfsv4_xdr.OPEN4_SHARE_DENY_NONE,
+							Owner: nfsv4_xdr.OpenOwner4{
+								Clientid: 0xc9beea1ca8ba0be3,
+								Owner:    []byte{0xc4, 0x85, 0x50, 0x6b, 0xa5, 0xec, 0x8e, 0x2c},
+							},
+							Openhow: &nfsv4_xdr.Openflag4_default{},
+							Claim: &nfsv4_xdr.OpenClaim4_CLAIM_PREVIOUS{
+								DelegateType: nfsv4_xdr.OPEN_DELEGATE_READ,
+							},
+						},
+					},
+					&nfsv4_xdr.NfsArgop4_OP_GETFH{},
+				},
+			})
+			require.NoError(t, err)
+			require.Equal(t, &nfsv4_xdr.Compound4res{
+				Tag: "open",
+				Resarray: []nfsv4_xdr.NfsResop4{
+					&nfsv4_xdr.NfsResop4_OP_PUTFH{
+						Opputfh: nfsv4_xdr.Putfh4res{
+							Status: nfsv4_xdr.NFS4_OK,
+						},
+					},
+					&nfsv4_xdr.NfsResop4_OP_OPEN{
+						Opopen: &nfsv4_xdr.Open4res_default{
+							Status: nfsv4_xdr.NFS4ERR_RECLAIM_BAD,
+						},
+					},
+				},
+				Status: nfsv4_xdr.NFS4ERR_RECLAIM_BAD,
+			}, res)
+		})
+
+		t.Run("Guarded", func(t *testing.T) {
+			// CLAIM_PREVIOUS should always open a file that
+			// already exists. It should therefore be
+			// impossible to use it in combination with
+			// GUARDED4.
+			clock.EXPECT().Now().Return(time.Unix(1014, 0))
+			clock.EXPECT().Now().Return(time.Unix(1015, 0))
+
+			res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+				Tag: "open",
+				Argarray: []nfsv4_xdr.NfsArgop4{
+					&nfsv4_xdr.NfsArgop4_OP_PUTFH{
+						Opputfh: nfsv4_xdr.Putfh4args{
+							Object: nfsv4_xdr.NfsFh4{0x28, 0xef, 0x5d, 0x33, 0xfb, 0x4b, 0x0f, 0x77},
+						},
+					},
+					&nfsv4_xdr.NfsArgop4_OP_OPEN{
+						Opopen: nfsv4_xdr.Open4args{
+							Seqid:       347,
+							ShareAccess: nfsv4_xdr.OPEN4_SHARE_ACCESS_READ,
+							ShareDeny:   nfsv4_xdr.OPEN4_SHARE_DENY_NONE,
+							Owner: nfsv4_xdr.OpenOwner4{
+								Clientid: 0xc9beea1ca8ba0be3,
+								Owner:    []byte{0xc4, 0x85, 0x50, 0x6b, 0xa5, 0xec, 0x8e, 0x2c},
+							},
+							Openhow: &nfsv4_xdr.Openflag4_OPEN4_CREATE{
+								How: &nfsv4_xdr.Createhow4_GUARDED4{},
+							},
+							Claim: &nfsv4_xdr.OpenClaim4_CLAIM_PREVIOUS{
+								DelegateType: nfsv4_xdr.OPEN_DELEGATE_NONE,
+							},
+						},
+					},
+				},
+			})
+			require.NoError(t, err)
+			require.Equal(t, &nfsv4_xdr.Compound4res{
+				Tag: "open",
+				Resarray: []nfsv4_xdr.NfsResop4{
+					&nfsv4_xdr.NfsResop4_OP_PUTFH{
+						Opputfh: nfsv4_xdr.Putfh4res{
+							Status: nfsv4_xdr.NFS4_OK,
+						},
+					},
+					&nfsv4_xdr.NfsResop4_OP_OPEN{
+						Opopen: &nfsv4_xdr.Open4res_default{
+							Status: nfsv4_xdr.NFS4ERR_EXIST,
+						},
+					},
+				},
+				Status: nfsv4_xdr.NFS4ERR_EXIST,
+			}, res)
+		})
+
+		t.Run("OpenFailure", func(t *testing.T) {
+			// RFC 7530 doesn't explicitly disallow
+			// CLAIM_PREVIOUS to be used to upgrade the
+			// share reservations or truncate the file. This
+			// requires reopening the file, which may fail.
+			clock.EXPECT().Now().Return(time.Unix(1016, 0))
+			clock.EXPECT().Now().Return(time.Unix(1017, 0))
+			leaf.EXPECT().VirtualOpenSelf(
+				ctx,
+				virtual.ShareMaskWrite,
+				&virtual.OpenExistingOptions{Truncate: true},
+				virtual.AttributesMask(0),
+				gomock.Any(),
+			).Return(virtual.StatusErrAccess)
+			clock.EXPECT().Now().Return(time.Unix(1018, 0))
+
+			res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+				Tag: "open",
+				Argarray: []nfsv4_xdr.NfsArgop4{
+					&nfsv4_xdr.NfsArgop4_OP_PUTFH{
+						Opputfh: nfsv4_xdr.Putfh4args{
+							Object: nfsv4_xdr.NfsFh4{0x28, 0xef, 0x5d, 0x33, 0xfb, 0x4b, 0x0f, 0x77},
+						},
+					},
+					&nfsv4_xdr.NfsArgop4_OP_OPEN{
+						Opopen: nfsv4_xdr.Open4args{
+							Seqid:       348,
+							ShareAccess: nfsv4_xdr.OPEN4_SHARE_ACCESS_WRITE,
+							ShareDeny:   nfsv4_xdr.OPEN4_SHARE_DENY_NONE,
+							Owner: nfsv4_xdr.OpenOwner4{
+								Clientid: 0xc9beea1ca8ba0be3,
+								Owner:    []byte{0xc4, 0x85, 0x50, 0x6b, 0xa5, 0xec, 0x8e, 0x2c},
+							},
+							Openhow: &nfsv4_xdr.Openflag4_OPEN4_CREATE{
+								How: &nfsv4_xdr.Createhow4_UNCHECKED4{
+									Createattrs: nfsv4_xdr.Fattr4{
+										Attrmask: nfsv4_xdr.Bitmap4{
+											(1 << nfsv4_xdr.FATTR4_SIZE),
+										},
+										AttrVals: nfsv4_xdr.Attrlist4{
+											// FATTR4_SIZE == 0.
+											0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+										},
+									},
+								},
+							},
+							Claim: &nfsv4_xdr.OpenClaim4_CLAIM_PREVIOUS{
+								DelegateType: nfsv4_xdr.OPEN_DELEGATE_NONE,
+							},
+						},
+					},
+				},
+			})
+			require.NoError(t, err)
+			require.Equal(t, &nfsv4_xdr.Compound4res{
+				Tag: "open",
+				Resarray: []nfsv4_xdr.NfsResop4{
+					&nfsv4_xdr.NfsResop4_OP_PUTFH{
+						Opputfh: nfsv4_xdr.Putfh4res{
+							Status: nfsv4_xdr.NFS4_OK,
+						},
+					},
+					&nfsv4_xdr.NfsResop4_OP_OPEN{
+						Opopen: &nfsv4_xdr.Open4res_default{
+							Status: nfsv4_xdr.NFS4ERR_ACCESS,
+						},
+					},
+				},
+				Status: nfsv4_xdr.NFS4ERR_ACCESS,
+			}, res)
+		})
+
+		t.Run("Success", func(t *testing.T) {
+			clock.EXPECT().Now().Return(time.Unix(1019, 0))
+			clock.EXPECT().Now().Return(time.Unix(1020, 0))
+			leaf.EXPECT().VirtualOpenSelf(ctx, virtual.ShareMaskRead, &virtual.OpenExistingOptions{}, virtual.AttributesMask(0), gomock.Any())
+			clock.EXPECT().Now().Return(time.Unix(1021, 0))
+			leaf.EXPECT().VirtualClose()
+
+			res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+				Tag: "open",
+				Argarray: []nfsv4_xdr.NfsArgop4{
+					&nfsv4_xdr.NfsArgop4_OP_PUTFH{
+						Opputfh: nfsv4_xdr.Putfh4args{
+							Object: nfsv4_xdr.NfsFh4{0x28, 0xef, 0x5d, 0x33, 0xfb, 0x4b, 0x0f, 0x77},
+						},
+					},
+					&nfsv4_xdr.NfsArgop4_OP_OPEN{
+						Opopen: nfsv4_xdr.Open4args{
+							Seqid:       349,
+							ShareAccess: nfsv4_xdr.OPEN4_SHARE_ACCESS_READ,
+							ShareDeny:   nfsv4_xdr.OPEN4_SHARE_DENY_NONE,
+							Owner: nfsv4_xdr.OpenOwner4{
+								Clientid: 0xc9beea1ca8ba0be3,
+								Owner:    []byte{0xc4, 0x85, 0x50, 0x6b, 0xa5, 0xec, 0x8e, 0x2c},
+							},
+							Openhow: &nfsv4_xdr.Openflag4_default{},
+							Claim: &nfsv4_xdr.OpenClaim4_CLAIM_PREVIOUS{
+								DelegateType: nfsv4_xdr.OPEN_DELEGATE_NONE,
+							},
+						},
+					},
+				},
+			})
+			require.NoError(t, err)
+			require.Equal(t, &nfsv4_xdr.Compound4res{
+				Tag: "open",
+				Resarray: []nfsv4_xdr.NfsResop4{
+					&nfsv4_xdr.NfsResop4_OP_PUTFH{
+						Opputfh: nfsv4_xdr.Putfh4res{
+							Status: nfsv4_xdr.NFS4_OK,
+						},
+					},
+					&nfsv4_xdr.NfsResop4_OP_OPEN{
+						Opopen: &nfsv4_xdr.Open4res_NFS4_OK{
+							Resok4: nfsv4_xdr.Open4resok{
+								Stateid: nfsv4_xdr.Stateid4{
+									Seqid: 3,
+									Other: [...]byte{
+										0x5c, 0x71, 0xa6, 0x0d,
+										0xe2, 0x73, 0x1b, 0xe6,
+										0x3b, 0x79, 0x04, 0x81,
+									},
+								},
+								Rflags:     nfsv4_xdr.OPEN4_RESULT_LOCKTYPE_POSIX,
+								Attrset:    nfsv4_xdr.Bitmap4{},
+								Delegation: &nfsv4_xdr.OpenDelegation4_OPEN_DELEGATE_NONE{},
+							},
+						},
+					},
+				},
+				Status: nfsv4_xdr.NFS4_OK,
+			}, res)
+		})
+	})
+
+	// TODO: We're missing testing coverage for CLAIM_NULL,
+	// EXCLUSIVE4, etc.
+}
 
 func TestBaseProgramCompound_OP_OPENATTR(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)

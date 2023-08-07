@@ -1504,21 +1504,16 @@ func (s *compoundState) opOpen(ctx context.Context, args *nfsv4.Open4args) nfsv4
 }
 
 func (s *compoundState) txOpen(ctx context.Context, args *nfsv4.Open4args, oos *openOwnerState, ll *leavesToClose) nfsv4.Open4res {
-	// Drop the lock, as VirtualOpenChild may block. This is safe to
-	// do within open-owner transactions.
+	// This method may need to drop the lock, as VirtualOpenChild may
+	// block. This is safe to do within open-owner transactions.
+	// Provide logic for re-establishing the lock in failure cases.
 	p := s.program
-	p.leave()
-	isLocked := false
+	isLocked := true
 	defer func() {
 		if !isLocked {
 			p.enter()
 		}
 	}()
-
-	currentDirectory, st := s.currentFileHandle.getDirectory()
-	if st != nfsv4.NFS4_OK {
-		return &nfsv4.Open4res_default{Status: st}
-	}
 
 	// Convert share_* fields.
 	shareAccess, st := shareAccessToShareMask(args.ShareAccess)
@@ -1574,109 +1569,173 @@ func (s *compoundState) txOpen(ctx context.Context, args *nfsv4.Open4args, oos *
 	}
 
 	// Convert claim. As we don't support delegations, we can only
-	// meaningfully support CLAIM_NULL.
-	var name path.Component
+	// meaningfully support CLAIM_NULL and CLAIM_PREVIOUS.
 	switch claim := args.Claim.(type) {
 	case *nfsv4.OpenClaim4_CLAIM_NULL:
-		var st nfsv4.Nfsstat4
-		name, st = nfsv4NewComponent(claim.File)
+		p.leave()
+		isLocked = false
+
+		currentDirectory, st := s.currentFileHandle.getDirectory()
 		if st != nfsv4.NFS4_OK {
 			return &nfsv4.Open4res_default{Status: st}
 		}
-	case *nfsv4.OpenClaim4_CLAIM_PREVIOUS, *nfsv4.OpenClaim4_CLAIM_DELEGATE_CUR:
+
+		name, st := nfsv4NewComponent(claim.File)
+		if st != nfsv4.NFS4_OK {
+			return &nfsv4.Open4res_default{Status: st}
+		}
+
+		// Open the file.
+		var attributes virtual.Attributes
+		leaf, respected, changeInfo, vs := currentDirectory.VirtualOpenChild(
+			ctx,
+			name,
+			shareAccess,
+			createAttributes,
+			existingOptions,
+			virtual.AttributesMaskFileHandle,
+			&attributes)
+		if vs != virtual.StatusOK {
+			return &nfsv4.Open4res_default{Status: toNFSv4Status(vs)}
+		}
+
+		handle := attributes.GetFileHandle()
+		handleKey := string(handle)
+
+		s.currentFileHandle = fileHandle{
+			handle: handle,
+			node:   virtual.DirectoryChild{}.FromLeaf(leaf),
+		}
+
+		response := &nfsv4.Open4res_NFS4_OK{
+			Resok4: nfsv4.Open4resok{
+				Cinfo:      toNFSv4ChangeInfo(&changeInfo),
+				Rflags:     nfsv4.OPEN4_RESULT_LOCKTYPE_POSIX,
+				Attrset:    attributesMaskToBitmap4(respected),
+				Delegation: &nfsv4.OpenDelegation4_OPEN_DELEGATE_NONE{},
+			},
+		}
+
+		p.enter()
+		isLocked = true
+
+		oofs, ok := oos.filesByHandle[handleKey]
+		if ok {
+			// This file has already been opened by this open-owner,
+			// meaning we should upgrade the existing opened file.
+			// The newly opened file can be closed again.
+			//
+			// More details: RFC 7530, section 9.11.
+			oofs.shareAccess |= shareAccess
+			oofs.stateID.seqID = nextSeqID(oofs.stateID.seqID)
+			ll.leaves = append(ll.leaves, leaf)
+		} else {
+			openedFile, ok := p.openedFilesByHandle[handleKey]
+			if ok {
+				openedFile.openOwnersCount.increase()
+			} else {
+				// This file has not been opened by any
+				// open-owner. Keep track of it, so that we
+				// don't need to call into HandleResolver. This
+				// ensures that the file remains accessible
+				// while opened, even when unlinked.
+				openedFile = &openedFileState{
+					handle:          handle,
+					handleKey:       handleKey,
+					leaf:            leaf,
+					openOwnersCount: 1,
+				}
+				openedFile.locks.Initialize()
+				p.openedFilesByHandle[handleKey] = openedFile
+			}
+
+			// This file has not been opened by this open-owner.
+			// Create a new state ID.
+			oofs = &openOwnerFileState{
+				openOwner:      oos,
+				openedFile:     openedFile,
+				shareAccess:    shareAccess,
+				stateID:        p.newRegularStateID(1),
+				useCount:       1,
+				lockOwnerFiles: map[*lockOwnerState]*lockOwnerFileState{},
+			}
+			oos.filesByHandle[handleKey] = oofs
+			p.openOwnerFilesByOther[oofs.stateID.other] = oofs
+			baseProgramOpenOwnerFilesCreated.Inc()
+		}
+
+		response.Resok4.Stateid = p.externalizeStateID(oofs.stateID)
+		if !oos.confirmed {
+			// The first time that this open-owner is used. Request
+			// that the caller issues an OPEN_CONFIRM operation.
+			response.Resok4.Rflags |= nfsv4.OPEN4_RESULT_CONFIRM
+		}
+		return response
+	case *nfsv4.OpenClaim4_CLAIM_PREVIOUS:
+		// Check whether the current open-owner has opened the
+		// file before, using the same delegation type.
+		currentLeaf, st := s.currentFileHandle.getLeaf()
+		if st != nfsv4.NFS4_OK {
+			return &nfsv4.Open4res_default{Status: st}
+		}
+		oofs, ok := oos.filesByHandle[string(s.currentFileHandle.handle)]
+		if !ok || claim.DelegateType != nfsv4.OPEN_DELEGATE_NONE {
+			return &nfsv4.Open4res_default{Status: nfsv4.NFS4ERR_RECLAIM_BAD}
+		}
+
+		if !oos.confirmed {
+			// The server MUST NOT require confirmation on a
+			// reclaim-type open. In this implementation
+			// this should be impossible to reach, as
+			// sending OPEN against an unconfirmed
+			// open-owner causes it to be reinitialized.
+			//
+			// More details: RFC 7530, section 9.1.11,
+			// bullet point 2.
+			panic("If the open-owner is unconfirmed, starting the transaction should have reinitialized it")
+		}
+
+		if existingOptions == nil {
+			return &nfsv4.Open4res_default{Status: nfsv4.NFS4ERR_EXIST}
+		}
+
+		p.leave()
+		isLocked = false
+
+		// Reopen the file, as the share reservations may be
+		// upgraded, or truncation may be requested.
+		var attributes virtual.Attributes
+		if vs := currentLeaf.VirtualOpenSelf(
+			ctx,
+			shareAccess,
+			existingOptions,
+			0,
+			&attributes,
+		); vs != virtual.StatusOK {
+			return &nfsv4.Open4res_default{Status: toNFSv4Status(vs)}
+		}
+		ll.leaves = append(ll.leaves, currentLeaf)
+
+		p.enter()
+		isLocked = true
+
+		oofs.shareAccess |= shareAccess
+		oofs.stateID.seqID = nextSeqID(oofs.stateID.seqID)
+		return &nfsv4.Open4res_NFS4_OK{
+			Resok4: nfsv4.Open4resok{
+				Stateid:    p.externalizeStateID(oofs.stateID),
+				Rflags:     nfsv4.OPEN4_RESULT_LOCKTYPE_POSIX,
+				Attrset:    attributesMaskToBitmap4(existingOptions.ToAttributesMask()),
+				Delegation: &nfsv4.OpenDelegation4_OPEN_DELEGATE_NONE{},
+			},
+		}
+	case *nfsv4.OpenClaim4_CLAIM_DELEGATE_CUR:
 		return &nfsv4.Open4res_default{Status: nfsv4.NFS4ERR_RECLAIM_BAD}
 	case *nfsv4.OpenClaim4_CLAIM_DELEGATE_PREV:
 		return &nfsv4.Open4res_default{Status: nfsv4.NFS4ERR_NOTSUPP}
 	default:
 		return &nfsv4.Open4res_default{Status: nfsv4.NFS4ERR_INVAL}
 	}
-
-	// Open the file.
-	var attributes virtual.Attributes
-	leaf, respected, changeInfo, vs := currentDirectory.VirtualOpenChild(
-		ctx,
-		name,
-		shareAccess,
-		createAttributes,
-		existingOptions,
-		virtual.AttributesMaskFileHandle,
-		&attributes)
-	if vs != virtual.StatusOK {
-		return &nfsv4.Open4res_default{Status: toNFSv4Status(vs)}
-	}
-
-	handle := attributes.GetFileHandle()
-	handleKey := string(handle)
-
-	s.currentFileHandle = fileHandle{
-		handle: handle,
-		node:   virtual.DirectoryChild{}.FromLeaf(leaf),
-	}
-
-	response := &nfsv4.Open4res_NFS4_OK{
-		Resok4: nfsv4.Open4resok{
-			Cinfo:      toNFSv4ChangeInfo(&changeInfo),
-			Rflags:     nfsv4.OPEN4_RESULT_LOCKTYPE_POSIX,
-			Attrset:    attributesMaskToBitmap4(respected),
-			Delegation: &nfsv4.OpenDelegation4_OPEN_DELEGATE_NONE{},
-		},
-	}
-
-	p.enter()
-	isLocked = true
-
-	oofs, ok := oos.filesByHandle[handleKey]
-	if ok {
-		// This file has already been opened by this open-owner,
-		// meaning we should upgrade the existing opened file.
-		// The newly opened file can be closed again.
-		//
-		// More details: RFC 7530, section 9.11.
-		oofs.shareAccess |= shareAccess
-		oofs.stateID.seqID = nextSeqID(oofs.stateID.seqID)
-		ll.leaves = append(ll.leaves, leaf)
-	} else {
-		openedFile, ok := p.openedFilesByHandle[handleKey]
-		if ok {
-			openedFile.openOwnersCount.increase()
-		} else {
-			// This file has not been opened by any
-			// open-owner. Keep track of it, so that we
-			// don't need to call into HandleResolver. This
-			// ensures that the file remains accessible
-			// while opened, even when unlinked.
-			openedFile = &openedFileState{
-				handle:          handle,
-				handleKey:       handleKey,
-				leaf:            leaf,
-				openOwnersCount: 1,
-			}
-			openedFile.locks.Initialize()
-			p.openedFilesByHandle[handleKey] = openedFile
-		}
-
-		// This file has not been opened by this open-owner.
-		// Create a new state ID.
-		oofs = &openOwnerFileState{
-			openOwner:      oos,
-			openedFile:     openedFile,
-			shareAccess:    shareAccess,
-			stateID:        p.newRegularStateID(1),
-			useCount:       1,
-			lockOwnerFiles: map[*lockOwnerState]*lockOwnerFileState{},
-		}
-		oos.filesByHandle[handleKey] = oofs
-		p.openOwnerFilesByOther[oofs.stateID.other] = oofs
-		baseProgramOpenOwnerFilesCreated.Inc()
-	}
-
-	response.Resok4.Stateid = p.externalizeStateID(oofs.stateID)
-	if !oos.confirmed {
-		// The first time that this open-owner is used. Request
-		// that the caller issues an OPEN_CONFIRM operation.
-		response.Resok4.Rflags |= nfsv4.OPEN4_RESULT_CONFIRM
-	}
-	return response
 }
 
 func (s *compoundState) opOpenattr(args *nfsv4.Openattr4args) nfsv4.Openattr4res {
