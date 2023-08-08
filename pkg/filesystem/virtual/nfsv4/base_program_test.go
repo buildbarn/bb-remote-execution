@@ -3052,8 +3052,8 @@ func TestBaseProgramCompound_OP_OPEN(t *testing.T) {
 			clock.EXPECT().Now().Return(time.Unix(1019, 0))
 			clock.EXPECT().Now().Return(time.Unix(1020, 0))
 			leaf.EXPECT().VirtualOpenSelf(ctx, virtual.ShareMaskRead, &virtual.OpenExistingOptions{}, virtual.AttributesMask(0), gomock.Any())
-			clock.EXPECT().Now().Return(time.Unix(1021, 0))
 			leaf.EXPECT().VirtualClose()
+			clock.EXPECT().Now().Return(time.Unix(1021, 0))
 
 			res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 				Tag: "open",

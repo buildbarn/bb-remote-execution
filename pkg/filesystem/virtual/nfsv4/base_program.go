@@ -1714,7 +1714,7 @@ func (s *compoundState) txOpen(ctx context.Context, args *nfsv4.Open4args, oos *
 		); vs != virtual.StatusOK {
 			return &nfsv4.Open4res_default{Status: toNFSv4Status(vs)}
 		}
-		ll.leaves = append(ll.leaves, currentLeaf)
+		currentLeaf.VirtualClose()
 
 		p.enter()
 		isLocked = true
