@@ -11,6 +11,8 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"regexp"
+	"strconv"
 	"sync"
 	"time"
 	"unsafe"
@@ -26,7 +28,11 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-var initializeNFSOnce sync.Once
+var (
+	initializeNFSOnce sync.Once
+
+	macOSBuildVersionPattern = regexp.MustCompile("^([0-9]+)([A-Z])([0-9]+)")
+)
 
 func writeNfstime32(d time.Duration, w io.Writer) {
 	nanos := d.Nanoseconds()
@@ -42,7 +48,51 @@ func writeAttributeCachingDuration(d *AttributeCachingDuration, w io.Writer) {
 	writeNfstime32(d.maximum, w)
 }
 
+type macOSBuildVersion struct {
+	major int64
+	minor byte
+	daily int64
+}
+
+// getMacOSBuildVersion returns the build version of the currently
+// running instance of macOS. For example, on macOS 13.0.1, it will
+// return (22, 'A', 400).
+func getMacOSBuildVersion() (macOSBuildVersion, error) {
+	osVersion, err := unix.Sysctl("kern.osversion")
+	if err != nil {
+		return macOSBuildVersion{}, util.StatusWrap(err, "Failed to obtain the version of macOS running on the system")
+	}
+	submatches := macOSBuildVersionPattern.FindStringSubmatch(osVersion)
+	if submatches == nil {
+		return macOSBuildVersion{}, status.Errorf(codes.Internal, "Cannot parse macOS version %#v", osVersion)
+	}
+	major, err := strconv.ParseInt(submatches[1], 10, 64)
+	if err != nil {
+		return macOSBuildVersion{}, util.StatusWrapf(err, "Invalid macOS major version %#v", submatches[1])
+	}
+	daily, err := strconv.ParseInt(submatches[3], 10, 64)
+	if err != nil {
+		return macOSBuildVersion{}, util.StatusWrapf(err, "Invalid macOS daily version %#v", submatches[3])
+	}
+	return macOSBuildVersion{
+		major: major,
+		minor: submatches[2][0],
+		daily: daily,
+	}, nil
+}
+
+func (bv macOSBuildVersion) greaterEqual(major int64, minor byte, daily int64) bool {
+	return bv.major > major || (bv.major == major && (bv.minor > minor || (bv.minor == minor && bv.daily >= daily)))
+}
+
 func (m *nfsv4Mount) mount(terminationGroup program.Group, rpcServer *rpcserver.Server) error {
+	// Extract the version of macOS used. We need to know this, as
+	// it determines which mount options are supported.
+	buildVersion, err := getMacOSBuildVersion()
+	if err != nil {
+		return err
+	}
+
 	// macOS may require us to perform certain initialisation steps
 	// before attempting to create the NFS mount, such as loading
 	// the kernel extension containing the NFS client.
@@ -119,8 +169,18 @@ func (m *nfsv4Mount) mount(terminationGroup program.Group, rpcServer *rpcserver.
 	attrMask[0] |= (1 << nfs_sys_prot.NFS_MATTR_ATTRCACHE_REG_MIN) | (1 << nfs_sys_prot.NFS_MATTR_ATTRCACHE_REG_MAX)
 	writeAttributeCachingDuration(&m.leavesAttributeCaching, &attrVals)
 	attrMask[0] |= (1 << nfs_sys_prot.NFS_MATTR_ATTRCACHE_DIR_MIN) | (1 << nfs_sys_prot.NFS_MATTR_ATTRCACHE_DIR_MAX)
-	directoriesAttributeCaching := m.rootDirectoryAttributeCaching.Min(m.childDirectoriesAttributeCaching)
-	writeAttributeCachingDuration(&directoriesAttributeCaching, &attrVals)
+	supportsRootDirectoryAttributeCachingTimeouts := buildVersion.greaterEqual(23, 'E', 86)
+	if supportsRootDirectoryAttributeCachingTimeouts {
+		writeAttributeCachingDuration(&m.childDirectoriesAttributeCaching, &attrVals)
+	} else {
+		// This version of macOS does not support the
+		// 'acrootdirmin' and 'acrootdirmax' mount options. The
+		// 'acdirmin' and 'acdirmax' option controls the
+		// attribute caching duration for all directories in the
+		// file system.
+		directoriesAttributeCaching := m.rootDirectoryAttributeCaching.Min(m.childDirectoriesAttributeCaching)
+		writeAttributeCachingDuration(&directoriesAttributeCaching, &attrVals)
+	}
 
 	// "ticotsord" is the X/Open Transport Interface (XTI)
 	// equivalent of AF_LOCAL with SOCK_STREAM.
@@ -144,6 +204,11 @@ func (m *nfsv4Mount) mount(terminationGroup program.Group, rpcServer *rpcserver.
 	if m.leavesAttributeCaching == NoAttributeCaching {
 		attrMask[1] |= 1 << (nfs_sys_prot.NFS_MATTR_READLINK_NOCACHE - 32)
 		nfs_sys_prot.NFS_READLINK_CACHE_MODE_FULLY_UNCACHED.WriteTo(&attrVals)
+	}
+
+	if supportsRootDirectoryAttributeCachingTimeouts {
+		attrMask[1] |= (1 << (nfs_sys_prot.NFS_MATTR_ATTRCACHE_ROOTDIR_MIN - 32)) | (1 << (nfs_sys_prot.NFS_MATTR_ATTRCACHE_ROOTDIR_MAX - 32))
+		writeAttributeCachingDuration(&m.rootDirectoryAttributeCaching, &attrVals)
 	}
 
 	// Construct the nfs_mount_args message and serialize it.
