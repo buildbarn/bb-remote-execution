@@ -173,8 +173,8 @@ def go_dependencies():
     go_repository(
         name = "com_github_buildbarn_go_xdr",
         importpath = "github.com/buildbarn/go-xdr",
-        sum = "h1:rzRKWaTY4sGlmtAkzU6mw0eeuWgihwwydVVYS89x4Ek=",
-        version = "v0.0.0-20230105161020-895955dd8771",
+        sum = "h1:X+QNAJ8+ssTjX+xUWtX1hBLO9J2PSzMw81VDXPmsgp0=",
+        version = "v0.0.0-20230822080517-afd84434d1fd",
     )
     go_repository(
         name = "com_github_burntsushi_toml",
@@ -386,8 +386,8 @@ def go_dependencies():
     go_repository(
         name = "com_github_google_uuid",
         importpath = "github.com/google/uuid",
-        sum = "h1:t6JiXgmwXMjEs8VusXIJk2BXHsn+wx8BZdTaoZ5fu7I=",
-        version = "v1.3.0",
+        sum = "h1:KjJaJ9iWZ3jOFZIf1Lqf4laDRCasjl0BCmnEGxkdLb4=",
+        version = "v1.3.1",
     )
     go_repository(
         name = "com_github_googleapis_enterprise_certificate_proxy",
@@ -1548,8 +1548,8 @@ def go_dependencies():
     go_repository(
         name = "org_golang_google_genproto_googleapis_rpc",
         importpath = "google.golang.org/genproto/googleapis/rpc",
-        sum = "h1:eSaPbMR4T7WfH9FvABk36NBMacoTUKdWCvV0dx+KfOg=",
-        version = "v0.0.0-20230803162519-f966b187b2e5",
+        sum = "h1:OpqhBqmDJdwQbcZeN2G+wAjNq6xnmZHrmS+//OOUxT8=",
+        version = "v0.0.0-20230821184602-ccc8af3d0e93",
     )
     go_repository(
         name = "org_golang_google_grpc",
