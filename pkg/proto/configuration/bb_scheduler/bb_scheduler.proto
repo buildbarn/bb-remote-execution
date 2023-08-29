@@ -8,17 +8,23 @@ import "pkg/proto/configuration/auth/auth.proto";
 import "pkg/proto/configuration/blobstore/blobstore.proto";
 import "pkg/proto/configuration/global/global.proto";
 import "pkg/proto/configuration/grpc/grpc.proto";
+import "pkg/proto/configuration/http/http.proto";
 import "pkg/proto/configuration/scheduler/scheduler.proto";
 
 option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_scheduler";
 
 message ApplicationConfiguration {
-  // Address on which to listen to expose the web UI.
+  // Configuration for the HTTP servers that expose the web UI.
   //
   // TODO: This web UI no longer needs to be integrated into
   // bb_scheduler, as the underlying information can be exposed over
   // gRPC using the 'build_queue_state_grpc_servers' option.
-  string admin_http_listen_address = 2;
+  repeated buildbarn.configuration.http.ServerConfiguration admin_http_servers =
+      2;
+
+  // The path under which the administrative web UI needs to be exposed.
+  // When left empty, the web UI will be exposed at "/".
+  string admin_route_prefix = 21;
 
   // gRPC servers to spawn to listen for requests from clients
   // (bb_storage or Bazel).

@@ -7,8 +7,8 @@ replace github.com/grpc-ecosystem/grpc-gateway/v2 => github.com/grpc-ecosystem/g
 
 require (
 	cloud.google.com/go/longrunning v0.5.1
-	github.com/bazelbuild/remote-apis v0.0.0-20230719205137-cb8058798964
-	github.com/buildbarn/bb-storage v0.0.0-20230804153757-d2663dc3d79c
+	github.com/bazelbuild/remote-apis v0.0.0-20230822133051-6c32c3b917cc
+	github.com/buildbarn/bb-storage v0.0.0-20230828131504-e5074525065d
 	github.com/buildbarn/go-xdr v0.0.0-20230822080517-afd84434d1fd
 	github.com/golang/protobuf v1.5.3
 	github.com/google/uuid v1.3.1
@@ -18,11 +18,11 @@ require (
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/prometheus/client_golang v1.16.0
 	github.com/spf13/pflag v1.0.5
-	go.opentelemetry.io/otel v1.16.0
-	go.opentelemetry.io/otel/trace v1.16.0
+	go.opentelemetry.io/otel v1.17.0
+	go.opentelemetry.io/otel/trace v1.17.0
 	golang.org/x/sync v0.3.0
 	golang.org/x/sys v0.11.0
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20230821184602-ccc8af3d0e93
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20230822172742-b8732ec3820d
 	google.golang.org/grpc v1.57.0
 	google.golang.org/protobuf v1.31.0
 )
@@ -80,7 +80,7 @@ require (
 	go.opentelemetry.io/contrib/propagators/b3 v1.17.0 // indirect
 	go.opentelemetry.io/otel/exporters/jaeger v1.16.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.16.0 // indirect
-	go.opentelemetry.io/otel/metric v1.16.0 // indirect
+	go.opentelemetry.io/otel/metric v1.17.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.16.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.0.0 // indirect
 	golang.org/x/crypto v0.11.0 // indirect

@@ -2,9 +2,10 @@ package main
 
 import (
 	"context"
-	"net/http"
 	"net/url"
 	"os"
+	"path"
+	"strings"
 	"time"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
@@ -22,7 +23,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/global"
 	bb_grpc "github.com/buildbarn/bb-storage/pkg/grpc"
-	bb_http "github.com/buildbarn/bb-storage/pkg/http"
+	"github.com/buildbarn/bb-storage/pkg/http"
 	"github.com/buildbarn/bb-storage/pkg/program"
 	"github.com/buildbarn/bb-storage/pkg/proto/iscc"
 	"github.com/buildbarn/bb-storage/pkg/random"
@@ -192,11 +193,15 @@ func main() {
 
 		// Web server for metrics and profiling.
 		router := mux.NewRouter()
-		newBuildQueueStateService(buildQueue, clock.SystemClock, browserURL, router)
-		bb_http.LaunchServer(&http.Server{
-			Addr:    configuration.AdminHttpListenAddress,
-			Handler: router,
-		}, siblingsGroup)
+		routePrefix := path.Join("/", configuration.AdminRoutePrefix)
+		if !strings.HasSuffix(routePrefix, "/") {
+			routePrefix += "/"
+		}
+		subrouter := router.PathPrefix(routePrefix).Subrouter()
+		newBuildQueueStateService(buildQueue, clock.SystemClock, browserURL, subrouter)
+		if err := http.NewServersFromConfigurationAndServe(configuration.AdminHttpServers, router, siblingsGroup); err != nil {
+			return util.StatusWrap(err, "Failed to create admin HTTP servers")
+		}
 
 		lifecycleState.MarkReadyAndWait(siblingsGroup)
 		return nil

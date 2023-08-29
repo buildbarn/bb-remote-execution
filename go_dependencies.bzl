@@ -149,8 +149,8 @@ def go_dependencies():
         name = "com_github_bazelbuild_remote_apis",
         importpath = "github.com/bazelbuild/remote-apis",
         patches = ["@com_github_buildbarn_bb_storage//:patches/com_github_bazelbuild_remote_apis/golang.diff"],
-        sum = "h1:m1T9GuTAN/StD9KsAqLUmo17uyLbzZv/9GSkBMuIZV8=",
-        version = "v0.0.0-20230719205137-cb8058798964",
+        sum = "h1:TPwjNpCdoO7TcTPPMHEkrrlSwd8g2XVf3qflmnivvsU=",
+        version = "v0.0.0-20230822133051-6c32c3b917cc",
     )
     go_repository(
         name = "com_github_benbjohnson_clock",
@@ -167,8 +167,8 @@ def go_dependencies():
     go_repository(
         name = "com_github_buildbarn_bb_storage",
         importpath = "github.com/buildbarn/bb-storage",
-        sum = "h1:FLaQPcRP1pvisB8j4RuJvQ8p7E7VP0rCvFQ7LK8Fegc=",
-        version = "v0.0.0-20230804153757-d2663dc3d79c",
+        sum = "h1:wLOSlHj3UiDPkDiPGdZQOmiJ7M4IC+LKkuXFjIp+KK4=",
+        version = "v0.0.0-20230828131504-e5074525065d",
     )
     go_repository(
         name = "com_github_buildbarn_go_xdr",
@@ -1464,8 +1464,8 @@ def go_dependencies():
         name = "io_opentelemetry_go_otel",
         build_file_proto_mode = "disable",
         importpath = "go.opentelemetry.io/otel",
-        sum = "h1:Z7GVAX/UkAXPKsy94IU+i6thsQS4nb7LviLpnaNeW8s=",
-        version = "v1.16.0",
+        sum = "h1:MW+phZ6WZ5/uk2nd93ANk/6yJ+dVrvNWUjGhnnFU5jM=",
+        version = "v1.17.0",
     )
     go_repository(
         name = "io_opentelemetry_go_otel_exporters_jaeger",
@@ -1488,8 +1488,8 @@ def go_dependencies():
     go_repository(
         name = "io_opentelemetry_go_otel_metric",
         importpath = "go.opentelemetry.io/otel/metric",
-        sum = "h1:RbrpwVG1Hfv85LgnZ7+txXioPDoh6EdbZHo26Q3hqOo=",
-        version = "v1.16.0",
+        sum = "h1:iG6LGVz5Gh+IuO0jmgvpTB6YVrCGngi8QGm+pMd8Pdc=",
+        version = "v1.17.0",
     )
     go_repository(
         name = "io_opentelemetry_go_otel_oteltest",
@@ -1506,8 +1506,8 @@ def go_dependencies():
     go_repository(
         name = "io_opentelemetry_go_otel_trace",
         importpath = "go.opentelemetry.io/otel/trace",
-        sum = "h1:8JRpaObFoW0pxuVPapkgH8UhHQj+bJW8jJsCZEu5MQs=",
-        version = "v1.16.0",
+        sum = "h1:/SWhSRHmDPOImIAetP1QAeMnZYiQXrTy4fMMYOdSKWQ=",
+        version = "v1.17.0",
     )
     go_repository(
         name = "io_opentelemetry_go_proto_otlp",
@@ -1548,8 +1548,8 @@ def go_dependencies():
     go_repository(
         name = "org_golang_google_genproto_googleapis_rpc",
         importpath = "google.golang.org/genproto/googleapis/rpc",
-        sum = "h1:OpqhBqmDJdwQbcZeN2G+wAjNq6xnmZHrmS+//OOUxT8=",
-        version = "v0.0.0-20230821184602-ccc8af3d0e93",
+        sum = "h1:uvYuEyMHKNt+lT4K3bN6fGswmK8qSvcreM3BwjDh+y4=",
+        version = "v0.0.0-20230822172742-b8732ec3820d",
     )
     go_repository(
         name = "org_golang_google_grpc",
