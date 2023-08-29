@@ -79,6 +79,26 @@ message ApplicationConfiguration {
   // requests.
   buildbarn.configuration.auth.AuthorizerConfiguration execute_authorizer = 15;
 
+  // Authorization requirements to be enforced for AddDrain and
+  // RemoveDrain requests issued through the BuildQueueState gRPC
+  // servers and web UI.
+  //
+  // The instance name to be matched is the instance name prefix of the
+  // size class queue to which drains are added, or from which drains
+  // are removed.
+  buildbarn.configuration.auth.AuthorizerConfiguration
+      modify_drains_authorizer = 19;
+
+  // Authorization requirements to be enforced for KillOperations
+  // RemoveDrain requests issued through the BuildQueueState gRPC
+  // servers and web UI.
+  //
+  // The instance name to be matched is the instance name prefix of the
+  // size class queue containing the operation. Not the instance name
+  // used by the operation itself.
+  buildbarn.configuration.auth.AuthorizerConfiguration
+      kill_operations_authorizer = 20;
+
   // The policy for routing actions.
   //
   // Before the scheduler is capable of enqueueing an action, it must

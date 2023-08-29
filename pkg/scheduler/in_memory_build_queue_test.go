@@ -90,7 +90,7 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	actionRouter := mock.NewMockActionRouter(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer, allowAllAuthorizer, allowAllAuthorizer)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// ExecuteRequest contains an invalid action digest.
@@ -217,7 +217,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer, allowAllAuthorizer, allowAllAuthorizer)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -520,7 +520,7 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	actionRouter := mock.NewMockActionRouter(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer, allowAllAuthorizer, allowAllAuthorizer)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -769,7 +769,7 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	actionRouter := mock.NewMockActionRouter(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer, allowAllAuthorizer, allowAllAuthorizer)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -990,7 +990,7 @@ func TestInMemoryBuildQueueKillOperationsOperationName(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	actionRouter := mock.NewMockActionRouter(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer, allowAllAuthorizer, allowAllAuthorizer)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -1124,7 +1124,7 @@ func TestInMemoryBuildQueueKillOperationsOperationName(t *testing.T) {
 
 	// Kill the operation.
 	initialSizeClassLearner.EXPECT().Abandoned()
-	clock.EXPECT().Now().Return(time.Unix(1007, 0)).Times(3)
+	clock.EXPECT().Now().Return(time.Unix(1007, 0)).Times(4)
 	_, err = buildQueue.KillOperations(ctx, &buildqueuestate.KillOperationsRequest{
 		Filter: &buildqueuestate.KillOperationsRequest_Filter{
 			Type: &buildqueuestate.KillOperationsRequest_Filter_OperationName{
@@ -1209,7 +1209,7 @@ func TestInMemoryBuildQueueKillOperationsSizeClassQueueWithoutWorkers(t *testing
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	actionRouter := mock.NewMockActionRouter(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer, allowAllAuthorizer, allowAllAuthorizer)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// If the scheduler is in the initial state, the size class
@@ -1376,7 +1376,7 @@ func TestInMemoryBuildQueueIdleWorkerSynchronizationTimeout(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	actionRouter := mock.NewMockActionRouter(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer, allowAllAuthorizer, allowAllAuthorizer)
 
 	// When no work appears, workers should still be woken up
 	// periodically to resynchronize. This ensures that workers that
@@ -1434,7 +1434,7 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	actionRouter := mock.NewMockActionRouter(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer, allowAllAuthorizer, allowAllAuthorizer)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -1736,7 +1736,7 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	actionRouter := mock.NewMockActionRouter(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer, allowAllAuthorizer, allowAllAuthorizer)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -2131,7 +2131,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonQueued(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	actionRouter := mock.NewMockActionRouter(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer, allowAllAuthorizer, allowAllAuthorizer)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -2322,7 +2322,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	actionRouter := mock.NewMockActionRouter(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer, allowAllAuthorizer, allowAllAuthorizer)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -2557,7 +2557,7 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	actionRouter := mock.NewMockActionRouter(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer, allowAllAuthorizer, allowAllAuthorizer)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Announce a new worker, which creates a queue for operations.
@@ -2779,7 +2779,7 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	actionRouter := mock.NewMockActionRouter(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer, allowAllAuthorizer, allowAllAuthorizer)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Register a platform queue that allows workers up to size
@@ -3154,7 +3154,7 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	actionRouter := mock.NewMockActionRouter(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer, allowAllAuthorizer, allowAllAuthorizer)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Register a platform queue that allows workers up to size
@@ -3478,7 +3478,7 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 	mockClock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	actionRouter := mock.NewMockActionRouter(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, mockClock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, mockClock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer, allowAllAuthorizer, allowAllAuthorizer)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Common values used by steps below.
@@ -3893,7 +3893,7 @@ func TestInMemoryBuildQueueWorkerInvocationStickinessLimit(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	actionRouter := mock.NewMockActionRouter(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer, allowAllAuthorizer, allowAllAuthorizer)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	// Register a platform queue that has a small amount of worker
@@ -4119,7 +4119,7 @@ func TestInMemoryBuildQueueAuthorization(t *testing.T) {
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	actionRouter := mock.NewMockActionRouter(ctrl)
 	authorizer := mock.NewMockAuthorizer(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, authorizer)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, authorizer, authorizer, authorizer)
 	beepboop := digest.MustNewInstanceName("beepboop")
 
 	t.Run("GetCapabilities-NotAuthorized", func(t *testing.T) {
@@ -4230,7 +4230,7 @@ func TestInMemoryBuildQueueNestedInvocationsSynchronization(t *testing.T) {
 	mockClock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
 	actionRouter := mock.NewMockActionRouter(ctrl)
-	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, mockClock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer)
+	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, mockClock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, allowAllAuthorizer, allowAllAuthorizer, allowAllAuthorizer)
 	executionClient := getExecutionClient(t, buildQueue)
 
 	mockClock.EXPECT().Now().Return(time.Unix(1000, 0))

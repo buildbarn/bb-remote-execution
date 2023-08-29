@@ -102,6 +102,14 @@ func main() {
 		if err != nil {
 			return util.StatusWrap(err, "Failed to create execute authorizer")
 		}
+		modifyDrainsAuthorizer, err := authorizerFactory.NewAuthorizerFromConfiguration(configuration.ModifyDrainsAuthorizer)
+		if err != nil {
+			return util.StatusWrap(err, "Failed to create modify drains authorizer")
+		}
+		killOperationsAuthorizer, err := authorizerFactory.NewAuthorizerFromConfiguration(configuration.KillOperationsAuthorizer)
+		if err != nil {
+			return util.StatusWrap(err, "Failed to create kill operaitons authorizer")
+		}
 
 		platformQueueWithNoWorkersTimeout := configuration.PlatformQueueWithNoWorkersTimeout
 		if err := platformQueueWithNoWorkersTimeout.CheckValid(); err != nil {
@@ -131,7 +139,9 @@ func main() {
 			},
 			int(configuration.MaximumMessageSizeBytes),
 			actionRouter,
-			executeAuthorizer)
+			executeAuthorizer,
+			modifyDrainsAuthorizer,
+			killOperationsAuthorizer)
 
 		// Create predeclared platform queues.
 		for _, platformQueue := range configuration.PredeclaredPlatformQueues {

@@ -215,6 +215,14 @@ type InMemoryBuildQueue struct {
 	// Authorizer used to allow/deny access for certain users
 	// to perform Execute and WaitExecution calls.
 	executeAuthorizer auth.Authorizer
+
+	// Authorizer used to allow/deny access for certain users to
+	// perform AddDrain and RemoveDrain calls.
+	modifyDrainsAuthorizer auth.Authorizer
+
+	// Authorizer used to allow/deny access for certain users to
+	// perform KillOperations calls.
+	killOperationsAuthorizer auth.Authorizer
 }
 
 var inMemoryBuildQueueCapabilitiesProvider = capabilities.NewStaticProvider(&remoteexecution.ServerCapabilities{
@@ -233,7 +241,7 @@ var inMemoryBuildQueueCapabilitiesProvider = capabilities.NewStaticProvider(&rem
 // NewInMemoryBuildQueue creates a new InMemoryBuildQueue that is in the
 // initial state. It does not have any queues, workers or queued
 // execution requests. All of these are created by sending it RPCs.
-func NewInMemoryBuildQueue(contentAddressableStorage blobstore.BlobAccess, clock clock.Clock, uuidGenerator util.UUIDGenerator, configuration *InMemoryBuildQueueConfiguration, maximumMessageSizeBytes int, actionRouter routing.ActionRouter, executeAuthorizer auth.Authorizer) *InMemoryBuildQueue {
+func NewInMemoryBuildQueue(contentAddressableStorage blobstore.BlobAccess, clock clock.Clock, uuidGenerator util.UUIDGenerator, configuration *InMemoryBuildQueueConfiguration, maximumMessageSizeBytes int, actionRouter routing.ActionRouter, executeAuthorizer, modifyDrainsAuthorizer, killOperationsAuthorizer auth.Authorizer) *InMemoryBuildQueue {
 	inMemoryBuildQueuePrometheusMetrics.Do(func() {
 		prometheus.MustRegister(inMemoryBuildQueueInFlightDeduplicationsTotal)
 
@@ -264,6 +272,8 @@ func NewInMemoryBuildQueue(contentAddressableStorage blobstore.BlobAccess, clock
 		operationsNameMap:                   map[string]*operation{},
 		inFlightDeduplicationMap:            map[digest.Digest]*task{},
 		executeAuthorizer:                   executeAuthorizer,
+		modifyDrainsAuthorizer:              modifyDrainsAuthorizer,
+		killOperationsAuthorizer:            killOperationsAuthorizer,
 	}
 }
 
@@ -686,29 +696,60 @@ func getPaginationInfo(n int, pageSize uint32, f func(int) bool) (*buildqueuesta
 // contacts the scheduler, it is requested to stop executing the
 // operation.
 func (bq *InMemoryBuildQueue) KillOperations(ctx context.Context, request *buildqueuestate.KillOperationsRequest) (*emptypb.Empty, error) {
-	bq.enter(bq.clock.Now())
-	defer bq.leave()
-
 	switch filter := request.Filter.GetType().(type) {
 	case *buildqueuestate.KillOperationsRequest_Filter_OperationName:
-		o, ok := bq.operationsNameMap[filter.OperationName]
-		if !ok {
-			return nil, status.Errorf(codes.NotFound, "Operation %#v not found", filter.OperationName)
+		for {
+			// Extract the instance name prefix of the size
+			// class queue to which the operation belongs.
+			bq.enter(bq.clock.Now())
+			o, ok := bq.operationsNameMap[filter.OperationName]
+			if !ok {
+				bq.leave()
+				return nil, status.Errorf(codes.NotFound, "Operation %#v not found", filter.OperationName)
+			}
+			instanceNamePrefix := o.task.currentSizeClassQueue.getKey().platformKey.GetInstanceNamePrefix()
+			bq.leave()
+
+			// Perform authorization checks without holding
+			// any locks.
+			if err := auth.AuthorizeSingleInstanceName(ctx, bq.killOperationsAuthorizer, instanceNamePrefix); err != nil {
+				return nil, util.StatusWrap(err, "Authorization")
+			}
+
+			// Kill the operation if it still exists after
+			// reacquiring the lock. Otherwise we retry.
+			bq.enter(bq.clock.Now())
+			if o == bq.operationsNameMap[filter.OperationName] {
+				o.task.complete(bq, &remoteexecution.ExecuteResponse{Status: request.Status}, false)
+				bq.leave()
+				return &emptypb.Empty{}, nil
+			}
+			bq.leave()
 		}
-		o.task.complete(bq, &remoteexecution.ExecuteResponse{Status: request.Status}, false)
 	case *buildqueuestate.KillOperationsRequest_Filter_SizeClassQueueWithoutWorkers:
-		scq, err := bq.getSizeClassQueueByName(filter.SizeClassQueueWithoutWorkers)
+		sizeClassKey, err := newSizeClassKeyFromName(filter.SizeClassQueueWithoutWorkers)
 		if err != nil {
 			return nil, err
+		}
+		if err := auth.AuthorizeSingleInstanceName(ctx, bq.killOperationsAuthorizer, sizeClassKey.platformKey.GetInstanceNamePrefix()); err != nil {
+			return nil, util.StatusWrap(err, "Authorization")
+		}
+
+		bq.enter(bq.clock.Now())
+		defer bq.leave()
+
+		scq, ok := bq.sizeClassQueues[sizeClassKey]
+		if !ok {
+			return nil, status.Error(codes.NotFound, "Size class queue not found")
 		}
 		if len(scq.workers) > 0 {
 			return nil, status.Error(codes.FailedPrecondition, "Cannot kill operations, as size class queue still has workers")
 		}
 		scq.rootInvocation.cancelAllQueuedOperations(bq, request.Status)
+		return &emptypb.Empty{}, nil
 	default:
 		return nil, status.Error(codes.InvalidArgument, "Unknown filter provided")
 	}
-	return &emptypb.Empty{}, nil
 }
 
 // ListOperations returns detailed information about all of the
@@ -1032,7 +1073,15 @@ func (bq *InMemoryBuildQueue) ListDrains(ctx context.Context, request *buildqueu
 	}, nil
 }
 
-func (bq *InMemoryBuildQueue) modifyDrain(request *buildqueuestate.AddOrRemoveDrainRequest, modifyFunc func(scq *sizeClassQueue, drainKey string)) (*emptypb.Empty, error) {
+func (bq *InMemoryBuildQueue) modifyDrain(ctx context.Context, request *buildqueuestate.AddOrRemoveDrainRequest, modifyFunc func(scq *sizeClassQueue, drainKey string)) (*emptypb.Empty, error) {
+	sizeClassKey, err := newSizeClassKeyFromName(request.SizeClassQueueName)
+	if err != nil {
+		return nil, err
+	}
+	if err := auth.AuthorizeSingleInstanceName(ctx, bq.modifyDrainsAuthorizer, sizeClassKey.platformKey.GetInstanceNamePrefix()); err != nil {
+		return nil, util.StatusWrap(err, "Authorization")
+	}
+
 	drainKey, err := json.Marshal(request.WorkerIdPattern)
 	if err != nil {
 		return nil, util.StatusWrapWithCode(err, codes.InvalidArgument, "Failed to marshal worker ID pattern")
@@ -1041,9 +1090,9 @@ func (bq *InMemoryBuildQueue) modifyDrain(request *buildqueuestate.AddOrRemoveDr
 	bq.enter(bq.clock.Now())
 	defer bq.leave()
 
-	scq, err := bq.getSizeClassQueueByName(request.SizeClassQueueName)
-	if err != nil {
-		return nil, err
+	scq, ok := bq.sizeClassQueues[sizeClassKey]
+	if !ok {
+		return nil, status.Error(codes.NotFound, "Size class queue not found")
 	}
 	modifyFunc(scq, string(drainKey))
 	return &emptypb.Empty{}, nil
@@ -1052,7 +1101,7 @@ func (bq *InMemoryBuildQueue) modifyDrain(request *buildqueuestate.AddOrRemoveDr
 // AddDrain inserts a new drain into the list of drains currently
 // tracked by the platform queue.
 func (bq *InMemoryBuildQueue) AddDrain(ctx context.Context, request *buildqueuestate.AddOrRemoveDrainRequest) (*emptypb.Empty, error) {
-	return bq.modifyDrain(request, func(scq *sizeClassQueue, drainKey string) {
+	return bq.modifyDrain(ctx, request, func(scq *sizeClassQueue, drainKey string) {
 		scq.drains[drainKey] = &buildqueuestate.DrainState{
 			WorkerIdPattern:  request.WorkerIdPattern,
 			CreatedTimestamp: bq.getCurrentTime(),
@@ -1072,7 +1121,7 @@ func (bq *InMemoryBuildQueue) AddDrain(ctx context.Context, request *buildqueues
 // RemoveDrain removes a drain from the list of drains currently tracked
 // by the platform queue.
 func (bq *InMemoryBuildQueue) RemoveDrain(ctx context.Context, request *buildqueuestate.AddOrRemoveDrainRequest) (*emptypb.Empty, error) {
-	return bq.modifyDrain(request, func(scq *sizeClassQueue, drainKey string) {
+	return bq.modifyDrain(ctx, request, func(scq *sizeClassQueue, drainKey string) {
 		delete(scq.drains, drainKey)
 
 		// Wake up all synchronizing workers that are drained.
