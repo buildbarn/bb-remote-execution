@@ -14,17 +14,21 @@ import "pkg/proto/configuration/scheduler/scheduler.proto";
 option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_scheduler";
 
 message ApplicationConfiguration {
+  // Was 'admin_http_listen_address'. The listen address of the HTTP
+  // server can now be configured through 'admin_http_servers'.
+  reserved 2;
+
   // Configuration for the HTTP servers that expose the web UI.
   //
   // TODO: This web UI no longer needs to be integrated into
   // bb_scheduler, as the underlying information can be exposed over
   // gRPC using the 'build_queue_state_grpc_servers' option.
   repeated buildbarn.configuration.http.ServerConfiguration admin_http_servers =
-      2;
+      19;
 
   // The path under which the administrative web UI needs to be exposed.
   // When left empty, the web UI will be exposed at "/".
-  string admin_route_prefix = 21;
+  string admin_route_prefix = 22;
 
   // gRPC servers to spawn to listen for requests from clients
   // (bb_storage or Bazel).
@@ -87,7 +91,7 @@ message ApplicationConfiguration {
   // size class queue to which drains are added, or from which drains
   // are removed.
   buildbarn.configuration.auth.AuthorizerConfiguration
-      modify_drains_authorizer = 19;
+      modify_drains_authorizer = 20;
 
   // Authorization requirements to be enforced for KillOperations
   // RemoveDrain requests issued through the BuildQueueState gRPC
@@ -97,7 +101,7 @@ message ApplicationConfiguration {
   // size class queue containing the operation. Not the instance name
   // used by the operation itself.
   buildbarn.configuration.auth.AuthorizerConfiguration
-      kill_operations_authorizer = 20;
+      kill_operations_authorizer = 21;
 
   // The policy for routing actions.
   //
