@@ -167,8 +167,8 @@ def go_dependencies():
     go_repository(
         name = "com_github_buildbarn_bb_storage",
         importpath = "github.com/buildbarn/bb-storage",
-        sum = "h1:GGMBQLZPNHGZBrn9LLoUxk9mCs7i7W9WlhbanCzh44A=",
-        version = "v0.0.0-20230829194228-34e3e8d9c159",
+        sum = "h1:z9yMGmzNNjhC2KnxYGfP8bPk1/l3jpd3+rb+1YkhQg4=",
+        version = "v0.0.0-20230905110346-c04246b462b6",
     )
     go_repository(
         name = "com_github_buildbarn_go_xdr",
@@ -449,8 +449,8 @@ def go_dependencies():
             "//:patches/com_github_hanwen_go_fuse_v2/notify-testability.diff",
             "//:patches/com_github_hanwen_go_fuse_v2/writeback-cache.diff",
         ],
-        sum = "h1:t5ivNIH2PK+zw4OBul/iJjsoG9K6kXo4nMDoBpciC8A=",
-        version = "v2.3.0",
+        sum = "h1:12OhD7CkXXQdvxG2osIdBQLdXh+nmLXY9unkUIe/xaU=",
+        version = "v2.4.0",
     )
     go_repository(
         name = "com_github_hpcloud_tail",
@@ -1613,8 +1613,8 @@ def go_dependencies():
     go_repository(
         name = "org_golang_x_sys",
         importpath = "golang.org/x/sys",
-        sum = "h1:eG7RXZHdqOJ1i+0lgLgCpSXAp6M3LYlAo6osgSi0xOM=",
-        version = "v0.11.0",
+        sum = "h1:CM0HF96J0hcLAwsHPJZjfdNzs0gftsLfgKt57wWHJ0o=",
+        version = "v0.12.0",
     )
     go_repository(
         name = "org_golang_x_term",

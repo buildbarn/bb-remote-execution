@@ -8,12 +8,12 @@ replace github.com/grpc-ecosystem/grpc-gateway/v2 => github.com/grpc-ecosystem/g
 require (
 	cloud.google.com/go/longrunning v0.5.1
 	github.com/bazelbuild/remote-apis v0.0.0-20230822133051-6c32c3b917cc
-	github.com/buildbarn/bb-storage v0.0.0-20230829194228-34e3e8d9c159
+	github.com/buildbarn/bb-storage v0.0.0-20230905110346-c04246b462b6
 	github.com/buildbarn/go-xdr v0.0.0-20230822080517-afd84434d1fd
 	github.com/golang/protobuf v1.5.3
 	github.com/google/uuid v1.3.1
 	github.com/gorilla/mux v1.8.0
-	github.com/hanwen/go-fuse/v2 v2.3.0
+	github.com/hanwen/go-fuse/v2 v2.4.0
 	github.com/jmespath/go-jmespath v0.4.0
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/prometheus/client_golang v1.16.0
@@ -21,7 +21,7 @@ require (
 	go.opentelemetry.io/otel v1.17.0
 	go.opentelemetry.io/otel/trace v1.17.0
 	golang.org/x/sync v0.3.0
-	golang.org/x/sys v0.11.0
+	golang.org/x/sys v0.12.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230822172742-b8732ec3820d
 	google.golang.org/grpc v1.57.0
 	google.golang.org/protobuf v1.31.0
