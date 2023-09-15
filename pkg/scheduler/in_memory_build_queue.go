@@ -55,6 +55,39 @@ var (
 		},
 		[]string{"instance_name_prefix", "platform", "size_class", "outcome"})
 
+	inMemoryBuildQueueInvocationsCreatedTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "buildbarn",
+			Subsystem: "builder",
+			Name:      "in_memory_build_queue_invocations_created_total",
+			Help:      "Number of times an invocation object was created by creating a size class queue or scheduling a task through Execute().",
+		},
+		[]string{"instance_name_prefix", "platform", "size_class", "depth"})
+	inMemoryBuildQueueInvocationsActivatedTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "buildbarn",
+			Subsystem: "builder",
+			Name:      "in_memory_build_queue_invocations_activated_total",
+			Help:      "Number of times an invocation object transitioned from being idle to having queued or executing operations.",
+		},
+		[]string{"instance_name_prefix", "platform", "size_class", "depth"})
+	inMemoryBuildQueueInvocationsDeactivatedTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "buildbarn",
+			Subsystem: "builder",
+			Name:      "in_memory_build_queue_invocations_deactivated_total",
+			Help:      "Number of times an invocation object transitioned from having queued or executing operations to being idle.",
+		},
+		[]string{"instance_name_prefix", "platform", "size_class", "depth"})
+	inMemoryBuildQueueInvocationsRemovedTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "buildbarn",
+			Subsystem: "builder",
+			Name:      "in_memory_build_queue_invocations_removed_total",
+			Help:      "Number of times an invocation object was removed.",
+		},
+		[]string{"instance_name_prefix", "platform", "size_class", "depth"})
+
 	inMemoryBuildQueueTasksScheduledTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "buildbarn",
@@ -245,6 +278,11 @@ func NewInMemoryBuildQueue(contentAddressableStorage blobstore.BlobAccess, clock
 	inMemoryBuildQueuePrometheusMetrics.Do(func() {
 		prometheus.MustRegister(inMemoryBuildQueueInFlightDeduplicationsTotal)
 
+		prometheus.MustRegister(inMemoryBuildQueueInvocationsCreatedTotal)
+		prometheus.MustRegister(inMemoryBuildQueueInvocationsActivatedTotal)
+		prometheus.MustRegister(inMemoryBuildQueueInvocationsDeactivatedTotal)
+		prometheus.MustRegister(inMemoryBuildQueueInvocationsRemovedTotal)
+
 		prometheus.MustRegister(inMemoryBuildQueueTasksScheduledTotal)
 		prometheus.MustRegister(inMemoryBuildQueueTasksQueuedDurationSeconds)
 		prometheus.MustRegister(inMemoryBuildQueueTasksExecutingDurationSeconds)
@@ -397,8 +435,8 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 		// against which we may deduplicate. No need to create a
 		// task.
 		initialSizeClassSelector.Abandoned()
-		scq := t.currentSizeClassQueue
-		i := scq.rootInvocation.getOrCreateChild(bq, invocationKeys)
+		scq := t.getCurrentSizeClassQueue()
+		i := scq.getOrCreateInvocation(bq, invocationKeys)
 		if o, ok := t.operations[i]; ok {
 			// Task is already associated with the current
 			// invocation. Simply wait on the operation that
@@ -453,9 +491,8 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 	actionWithCustomTimeout := *action
 	actionWithCustomTimeout.Timeout = durationpb.New(timeout)
 	t := &task{
-		currentSizeClassQueue: scq,
-		operations:            map[*invocation]*operation{},
-		actionDigest:          actionDigest,
+		operations:   map[*invocation]*operation{},
+		actionDigest: actionDigest,
 		desiredState: remoteworker.DesiredState_Executing{
 			ActionDigest:       in.ActionDigest,
 			Action:             &actionWithCustomTimeout,
@@ -474,7 +511,7 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 		bq.inFlightDeduplicationMap[actionDigest] = t
 		scq.inFlightDeduplicationsNew.Inc()
 	}
-	i := scq.rootInvocation.getOrCreateChild(bq, invocationKeys)
+	i := scq.getOrCreateInvocation(bq, invocationKeys)
 	o := t.newOperation(bq, in.ExecutionPolicy.GetPriority(), i, false)
 	t.schedule(bq)
 	return o.waitExecution(bq, out)
@@ -707,7 +744,7 @@ func (bq *InMemoryBuildQueue) KillOperations(ctx context.Context, request *build
 				bq.leave()
 				return nil, status.Errorf(codes.NotFound, "Operation %#v not found", filter.OperationName)
 			}
-			instanceNamePrefix := o.task.currentSizeClassQueue.getKey().platformKey.GetInstanceNamePrefix()
+			instanceNamePrefix := o.task.getCurrentSizeClassQueue().getKey().platformKey.GetInstanceNamePrefix()
 			bq.leave()
 
 			// Perform authorization checks without holding
@@ -1302,10 +1339,16 @@ type platformQueue struct {
 	sizeClassQueues []*sizeClassQueue
 }
 
+// getSizeClassQueueLabels returns the set of label values to attach to
+// Prometheus metrics that pertain to a size class queue.
+func (pq *platformQueue) getSizeClassQueueLabels(sizeClass uint32) (string, string, string) {
+	return pq.platformKey.GetInstanceNamePrefix().String(),
+		pq.platformKey.GetPlatformString(),
+		strconv.FormatUint(uint64(sizeClass), 10)
+}
+
 func (pq *platformQueue) addSizeClassQueue(bq *InMemoryBuildQueue, sizeClass uint32, mayBeRemoved bool) *sizeClassQueue {
-	instanceNamePrefix := pq.platformKey.GetInstanceNamePrefix().String()
-	platformStr := pq.platformKey.GetPlatformString()
-	sizeClassStr := strconv.FormatUint(uint64(sizeClass), 10)
+	instanceNamePrefix, platformStr, sizeClassStr := pq.getSizeClassQueueLabels(sizeClass)
 	platformLabels := map[string]string{
 		"instance_name_prefix": instanceNamePrefix,
 		"platform":             platformStr,
@@ -1343,6 +1386,8 @@ func (pq *platformQueue) addSizeClassQueue(bq *InMemoryBuildQueue, sizeClass uin
 
 		workerInvocationStickinessRetained: inMemoryBuildQueueWorkerInvocationStickinessRetained.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr),
 	}
+	scq.rootInvocation.sizeClassQueue = scq
+	scq.incrementInvocationsCreatedTotal(0)
 
 	// Force creation of all metrics associated with this platform
 	// queue to make recording rules work.
@@ -1385,6 +1430,15 @@ func newTasksScheduledCounterVec(counterVec *prometheus.CounterVec, assignment s
 	}
 }
 
+// invocationsMetrics contains Prometheus metrics that should be tracked
+// for every depth of the tree of invocations inside a size class queue.
+type invocationsMetrics struct {
+	createdTotal     prometheus.Counter
+	activatedTotal   prometheus.Counter
+	deactivatedTotal prometheus.Counter
+	removedTotal     prometheus.Counter
+}
+
 type sizeClassQueue struct {
 	platformQueue *platformQueue
 	sizeClass     uint32
@@ -1404,6 +1458,8 @@ type sizeClassQueue struct {
 	inFlightDeduplicationsSameInvocation  prometheus.Counter
 	inFlightDeduplicationsOtherInvocation prometheus.Counter
 	inFlightDeduplicationsNew             prometheus.Counter
+
+	invocationsMetrics []invocationsMetrics
 
 	tasksScheduledWorker          tasksScheduledCounterVec
 	tasksScheduledQueue           tasksScheduledCounterVec
@@ -1437,6 +1493,7 @@ func (scq *sizeClassQueue) remove(bq *InMemoryBuildQueue) {
 			codes.Unavailable,
 			"Workers for this instance name, platform and size class disappeared while task was queued",
 		).Proto())
+	scq.invocationsMetrics[0].removedTotal.Inc()
 
 	delete(bq.sizeClassQueues, scq.getKey())
 	pq := scq.platformQueue
@@ -1483,6 +1540,60 @@ func (scq *sizeClassQueue) removeStaleWorker(bq *InMemoryBuildQueue, workerKey w
 			scq.remove(bq)
 		})
 	}
+}
+
+// getOrCreateInvocation looks up the invocation key in the size class
+// queue, returning the corresponding invocation. If no invocation under
+// this key exists, a new invocation is created.
+//
+// As the invocation may be just created, the caller must either queue
+// an operation, increase the executing operations count, place a worker
+// in the invocation or call invocation.removeIfEmpty().
+func (scq *sizeClassQueue) getOrCreateInvocation(bq *InMemoryBuildQueue, invocationKeys []scheduler_invocation.Key) *invocation {
+	i := &scq.rootInvocation
+	for depth, invocationKey := range invocationKeys {
+		iChild, ok := i.children[invocationKey]
+		if !ok {
+			iChild = &invocation{
+				sizeClassQueue:                        scq,
+				invocationKeys:                        invocationKeys[:depth+1],
+				parent:                                i,
+				children:                              map[scheduler_invocation.Key]*invocation{},
+				queuedChildrenIndex:                   -1,
+				executingWorkers:                      map[*worker]int{},
+				lastOperationStarted:                  bq.now,
+				lastOperationCompletion:               bq.now,
+				idleSynchronizingWorkersChildrenIndex: -1,
+			}
+			i.children[invocationKey] = iChild
+			scq.incrementInvocationsCreatedTotal(len(iChild.invocationKeys))
+
+		}
+		i = iChild
+	}
+	return i
+}
+
+// incrementInvocationsCreatedTotal increments the
+// "invocations_created_total" counter for the provided depth. If no
+// counters exist for the given depth, they are created and initialized
+// with zero.
+func (scq *sizeClassQueue) incrementInvocationsCreatedTotal(depth int) {
+	if len(scq.invocationsMetrics) == depth {
+		instanceNamePrefix, platformStr, sizeClassStr := scq.platformQueue.getSizeClassQueueLabels(scq.sizeClass)
+		depthStr := strconv.FormatInt(int64(depth), 10)
+
+		scq.invocationsMetrics = append(
+			scq.invocationsMetrics,
+			invocationsMetrics{
+				createdTotal:     inMemoryBuildQueueInvocationsCreatedTotal.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr, depthStr),
+				activatedTotal:   inMemoryBuildQueueInvocationsActivatedTotal.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr, depthStr),
+				deactivatedTotal: inMemoryBuildQueueInvocationsDeactivatedTotal.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr, depthStr),
+				removedTotal:     inMemoryBuildQueueInvocationsRemovedTotal.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr, depthStr),
+			})
+	}
+
+	scq.invocationsMetrics[depth].createdTotal.Inc()
 }
 
 // workerKey can be used as a key for maps to uniquely identify a worker
@@ -1627,6 +1738,7 @@ func (h *idleSynchronizingWorkersChildrenHeap) Pop() interface{} {
 // operations will be scheduled fairly with respect to other
 // invocations.
 type invocation struct {
+	sizeClassQueue *sizeClassQueue
 	invocationKeys []scheduler_invocation.Key
 	parent         *invocation
 
@@ -1677,34 +1789,6 @@ type invocation struct {
 	idleSynchronizingWorkers idleSynchronizingWorkersList
 }
 
-// getOrCreateChild looks up the invocation key in the size class queue,
-// returning the corresponding invocation. If no invocation under this key
-// exists, a new invocation is created.
-//
-// As the invocation may be just created, the caller must either queue
-// an operation, increase the executing operations count, place a worker
-// in the invocation or call invocation.removeIfEmpty().
-func (i *invocation) getOrCreateChild(bq *InMemoryBuildQueue, invocationKeys []scheduler_invocation.Key) *invocation {
-	for depth, invocationKey := range invocationKeys {
-		iChild, ok := i.children[invocationKey]
-		if !ok {
-			iChild = &invocation{
-				invocationKeys:                        invocationKeys[:depth+1],
-				parent:                                i,
-				children:                              map[scheduler_invocation.Key]*invocation{},
-				queuedChildrenIndex:                   -1,
-				executingWorkers:                      map[*worker]int{},
-				lastOperationStarted:                  bq.now,
-				lastOperationCompletion:               bq.now,
-				idleSynchronizingWorkersChildrenIndex: -1,
-			}
-			i.children[invocationKey] = iChild
-		}
-		i = iChild
-	}
-	return i
-}
-
 // isQueued returns whether an invocation has one or more queued
 // operations, or contains a child invocation that has one or more
 // queued operations.
@@ -1724,11 +1808,13 @@ func (i *invocation) isActive() bool {
 // invocation from the size class queue in which it is contained.
 func (i *invocation) removeIfEmpty() bool {
 	if i.parent != nil && !i.isActive() && i.idleWorkersCount == 0 {
-		invocationKey := i.invocationKeys[len(i.invocationKeys)-1]
+		depth := len(i.invocationKeys)
+		invocationKey := i.invocationKeys[depth-1]
 		if i.parent.children[invocationKey] != i {
 			panic("Attempted to remove an invocation that was already removed")
 		}
 		delete(i.parent.children, invocationKey)
+		i.sizeClassQueue.invocationsMetrics[depth].removedTotal.Inc()
 		return true
 	}
 	return false
@@ -1768,6 +1854,7 @@ func (i *invocation) decrementExecutingWorkersCount(bq *InMemoryBuildQueue, w *w
 		i.executingWorkers[w]--
 		if i.executingWorkers[w] == 0 {
 			delete(i.executingWorkers, w)
+			i.maybeDeactivate()
 		}
 		i.lastOperationCompletion = bq.now
 		if i.parent == nil {
@@ -1784,6 +1871,7 @@ func (i *invocation) decrementExecutingWorkersCount(bq *InMemoryBuildQueue, w *w
 // the EXECUTING stage that are part of this invocation.
 func (i *invocation) incrementExecutingWorkersCount(bq *InMemoryBuildQueue, w *worker) {
 	for {
+		i.maybeActivate()
 		i.executingWorkers[w]++
 		i.lastOperationStarted = bq.now
 		if i.parent == nil {
@@ -1802,6 +1890,24 @@ func (i *invocation) hasInvocationKey(filter scheduler_invocation.Key) bool {
 		}
 	}
 	return false
+}
+
+// maybeActivate should be called before an invocation is transitioning
+// from being possibly idle to having one or more queued or executing
+// operations.
+func (i *invocation) maybeActivate() {
+	if !i.isActive() {
+		i.sizeClassQueue.invocationsMetrics[len(i.invocationKeys)].activatedTotal.Inc()
+	}
+}
+
+// maybeDectivate should be called after an invocation is transitioning
+// from having one or more queued or executing operations to being
+// possibly idle.
+func (i *invocation) maybeDeactivate() {
+	if !i.isActive() {
+		i.sizeClassQueue.invocationsMetrics[len(i.invocationKeys)].deactivatedTotal.Inc()
+	}
 }
 
 var priorityExponentiationBase = math.Pow(2.0, 0.01)
@@ -2049,9 +2155,11 @@ func (o *operation) waitExecution(bq *InMemoryBuildQueue, out remoteexecution.Ex
 func (o *operation) removeQueuedFromInvocation() {
 	i := o.invocation
 	heap.Remove(&i.queuedOperations, o.queueIndex)
+	i.maybeDeactivate()
 	for i.parent != nil {
 		i.updateFirstOperationPriority()
 		heapRemoveOrFix(&i.parent.queuedChildren, i.queuedChildrenIndex, i.queuedChildren.Len()+i.queuedOperations.Len())
+		i.parent.maybeDeactivate()
 		i = i.parent
 	}
 }
@@ -2062,9 +2170,11 @@ func (o *operation) removeQueuedFromInvocation() {
 // workers for this size class queue being available.
 func (o *operation) enqueue() {
 	i := o.invocation
+	i.maybeActivate()
 	heap.Push(&i.queuedOperations, o)
 	for i.parent != nil {
 		i.updateFirstOperationPriority()
+		i.parent.maybeActivate()
 		heapPushOrFix(&i.parent.queuedChildren, i.queuedChildrenIndex, i)
 		i = i.parent
 	}
@@ -2101,7 +2211,7 @@ func (o *operation) remove(bq *InMemoryBuildQueue) {
 func (o *operation) getOperationState(bq *InMemoryBuildQueue) *buildqueuestate.OperationState {
 	i := o.invocation
 	t := o.task
-	sizeClassKey := t.currentSizeClassQueue.getKey()
+	sizeClassKey := t.getCurrentSizeClassQueue().getKey()
 	invocationIDs := make([]*anypb.Any, 0, len(i.invocationKeys))
 	for _, invocationKey := range i.invocationKeys {
 		invocationIDs = append(invocationIDs, invocationKey.GetID())
@@ -2152,10 +2262,9 @@ func (o *operation) maybeStartCleanup(bq *InMemoryBuildQueue) {
 // may be multiple in case multiple clients request that the same action
 // is built and deduplication is performed.
 type task struct {
-	currentSizeClassQueue *sizeClassQueue
-	operations            map[*invocation]*operation
-	actionDigest          digest.Digest
-	desiredState          remoteworker.DesiredState_Executing
+	operations   map[*invocation]*operation
+	actionDigest digest.Digest
+	desiredState remoteworker.DesiredState_Executing
 
 	// The name of the target that triggered this operation. This
 	// field is not strictly necessary to implement the BuildQueue
@@ -2225,7 +2334,7 @@ func (t *task) schedule(bq *InMemoryBuildQueue) {
 	// invocations that have some similarity with those of the task,
 	// so that locality is improved. Scan the tree of invocations
 	// bottom up, breadth first to find an appropriate worker.
-	scq := t.currentSizeClassQueue
+	scq := t.getCurrentSizeClassQueue()
 	invocations := make([]*invocation, 0, len(t.operations))
 	for i := range t.operations {
 		invocations = append(invocations, i)
@@ -2283,7 +2392,7 @@ func (t *task) getStage() remoteexecution.ExecutionStage_Value {
 // complete execution of the task by registering the execution response.
 // This function wakes up any clients waiting on the task to complete.
 func (t *task) complete(bq *InMemoryBuildQueue, executeResponse *remoteexecution.ExecuteResponse, completedByWorker bool) {
-	currentSCQ := t.currentSizeClassQueue
+	currentSCQ := t.getCurrentSizeClassQueue()
 	switch t.getStage() {
 	case remoteexecution.ExecutionStage_QUEUED:
 		// The task isn't executing. Create a temporary worker
@@ -2363,7 +2472,7 @@ func (t *task) complete(bq *InMemoryBuildQueue, executeResponse *remoteexecution
 				backgroundInitialSizeClassLearner.Abandoned()
 			} else {
 				backgroundSCQ := pq.sizeClassQueues[backgroundSizeClassIndex]
-				backgroundInvocation := backgroundSCQ.rootInvocation.getOrCreateChild(bq, scheduler_invocation.BackgroundLearningKeys)
+				backgroundInvocation := backgroundSCQ.getOrCreateInvocation(bq, scheduler_invocation.BackgroundLearningKeys)
 				if backgroundInvocation.queuedOperations.Len() >= pq.maximumQueuedBackgroundLearningOperations {
 					// Already running too many background tasks.
 					backgroundInitialSizeClassLearner.Abandoned()
@@ -2372,7 +2481,6 @@ func (t *task) complete(bq *InMemoryBuildQueue, executeResponse *remoteexecution
 					backgroundAction.DoNotCache = true
 					backgroundAction.Timeout = durationpb.New(backgroundTimeout)
 					backgroundTask := &task{
-						currentSizeClassQueue:   backgroundSCQ,
 						operations:              map[*invocation]*operation{},
 						actionDigest:            t.actionDigest,
 						desiredState:            t.desiredState,
@@ -2407,11 +2515,10 @@ func (t *task) complete(bq *InMemoryBuildQueue, executeResponse *remoteexecution
 		t.desiredState.Action.Timeout = durationpb.New(timeout)
 		t.registerCompletedStageFinished(bq)
 		largestSCQ := pq.sizeClassQueues[len(pq.sizeClassQueues)-1]
-		t.currentSizeClassQueue = largestSCQ
 		operations := t.operations
 		t.operations = make(map[*invocation]*operation, len(operations))
 		for oldI, o := range operations {
-			i := largestSCQ.rootInvocation.getOrCreateChild(bq, oldI.invocationKeys)
+			i := largestSCQ.getOrCreateInvocation(bq, oldI.invocationKeys)
 			t.operations[i] = o
 			o.invocation = i
 		}
@@ -2458,7 +2565,7 @@ func (t *task) registerQueuedStageStarted(bq *InMemoryBuildQueue, tasksScheduled
 // registerQueuedStageFinished updates Prometheus metrics related to the
 // task finishing the QUEUED stage.
 func (t *task) registerQueuedStageFinished(bq *InMemoryBuildQueue) {
-	scq := t.currentSizeClassQueue
+	scq := t.getCurrentSizeClassQueue()
 	scq.tasksQueuedDurationSeconds.Observe(bq.now.Sub(t.currentStageStartTime).Seconds())
 	t.currentStageStartTime = bq.now
 }
@@ -2466,7 +2573,7 @@ func (t *task) registerQueuedStageFinished(bq *InMemoryBuildQueue) {
 // registerExecutingStageFinished updates Prometheus metrics related to
 // the task finishing the EXECUTING stage.
 func (t *task) registerExecutingStageFinished(bq *InMemoryBuildQueue, result, grpcCode string) {
-	scq := t.currentSizeClassQueue
+	scq := t.getCurrentSizeClassQueue()
 	scq.tasksExecutingDurationSeconds.WithLabelValues(result, grpcCode).Observe(bq.now.Sub(t.currentStageStartTime).Seconds())
 	scq.tasksExecutingRetries.WithLabelValues(result, grpcCode).Observe(float64(t.retryCount))
 	t.currentStageStartTime = bq.now
@@ -2475,9 +2582,20 @@ func (t *task) registerExecutingStageFinished(bq *InMemoryBuildQueue, result, gr
 // registerCompletedStageFinished updates Prometheus metrics related to
 // the task finishing the COMPLETED stage, meaning the task got removed.
 func (t *task) registerCompletedStageFinished(bq *InMemoryBuildQueue) {
-	scq := t.currentSizeClassQueue
+	scq := t.getCurrentSizeClassQueue()
 	scq.tasksCompletedDurationSeconds.Observe(bq.now.Sub(t.currentStageStartTime).Seconds())
 	t.currentStageStartTime = bq.now
+}
+
+// getCurrentSizeClassQueue returns the size class queue that is
+// currently associated with the task. The size class queue may change
+// if execution fails, and execution is retried on the largest size
+// class queue.
+func (t *task) getCurrentSizeClassQueue() *sizeClassQueue {
+	for i := range t.operations {
+		return i.sizeClassQueue
+	}
+	panic("Task is not associated with any operations")
 }
 
 // worker state for every node capable of executing operations.
@@ -2717,7 +2835,7 @@ func (w *worker) assignUnqueuedTaskAndWakeUp(bq *InMemoryBuildQueue, t *task, st
 	// Wake up the worker prior to assigning the task. Assigning
 	// clears w.lastInvocations, which cannot be done while the
 	// worker is queued.
-	w.wakeUp(t.currentSizeClassQueue)
+	w.wakeUp(t.getCurrentSizeClassQueue())
 	w.assignUnqueuedTask(bq, t, stickinessRetained)
 }
 
