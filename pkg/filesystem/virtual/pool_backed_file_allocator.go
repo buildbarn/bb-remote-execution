@@ -216,6 +216,10 @@ func (f *fileBackedFile) GetContainingDigests() digest.Set {
 func (f *fileBackedFile) GetOutputServiceFileStatus(digestFunction *digest.Function) (*remoteoutputservice.FileStatus, error) {
 	fileStatus := &remoteoutputservice.FileStatus_File{}
 	if digestFunction != nil {
+		// TODO: Omit the digest if the file is opened for
+		// writing. The kernel may still hold on to data that
+		// needs to be written, meaning that digests computed on
+		// this end are inaccurate.
 		if !f.acquireFrozen() {
 			return nil, status.Error(codes.NotFound, "File was unlinked before digest computation could start")
 		}

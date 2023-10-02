@@ -265,6 +265,12 @@ message FileStatus {
   message File {
     // The hash and size of the file. This field is only set when
     // BatchStatRequest.include_file_digest is set.
+    //
+    // This field may also be omitted if the remote output service is
+    // unable to compute it accurately. For example, when a file is
+    // opened for writing, the kernel may buffer data to be written.
+    // When absent, the caller should fall back to computing the digest
+    // manually.
     build.bazel.remote.execution.v2.Digest digest = 1;
   }
 
