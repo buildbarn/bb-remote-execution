@@ -2,6 +2,7 @@ package virtual
 
 import (
 	"context"
+	"math/bits"
 
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 )
@@ -16,6 +17,11 @@ const (
 	// ShareMaskWrite permits calls to VirtualWrite().
 	ShareMaskWrite
 )
+
+// Count the number of permitted operations.
+func (sm ShareMask) Count() uint {
+	return uint(bits.OnesCount32(uint32(sm)))
+}
 
 // OpenExistingOptions contains options that describe what should happen
 // with a file when opened. The Truncate option corresponds to open()'s
@@ -47,7 +53,7 @@ type Leaf interface {
 	VirtualOpenSelf(ctx context.Context, shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status
 	VirtualRead(buf []byte, offset uint64) (n int, eof bool, s Status)
 	VirtualReadlink(ctx context.Context) ([]byte, Status)
-	VirtualClose()
+	VirtualClose(shareAccess ShareMask)
 	VirtualWrite(buf []byte, offset uint64) (int, Status)
 }
 

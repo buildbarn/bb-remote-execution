@@ -739,7 +739,7 @@ func TestBaseProgramCompound_OP_CLOSE(t *testing.T) {
 		for i := int64(0); i < 2*10; i++ {
 			clock.EXPECT().Now().Return(time.Unix(1017+i, 0))
 		}
-		leaf.EXPECT().VirtualClose()
+		leaf.EXPECT().VirtualClose(virtual.ShareMaskRead)
 
 		for i := uint32(0); i < 10; i++ {
 			res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -2787,7 +2787,7 @@ func TestBaseProgramCompound_OP_OPEN(t *testing.T) {
 
 			clock.EXPECT().Now().Return(time.Unix(1006, 0))
 			clock.EXPECT().Now().Return(time.Unix(1007, 0))
-			leaf.EXPECT().VirtualClose()
+			leaf.EXPECT().VirtualClose(virtual.ShareMaskRead)
 
 			res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 				Tag: "open",
@@ -3052,7 +3052,7 @@ func TestBaseProgramCompound_OP_OPEN(t *testing.T) {
 			clock.EXPECT().Now().Return(time.Unix(1019, 0))
 			clock.EXPECT().Now().Return(time.Unix(1020, 0))
 			leaf.EXPECT().VirtualOpenSelf(ctx, virtual.ShareMaskRead, &virtual.OpenExistingOptions{}, virtual.AttributesMask(0), gomock.Any())
-			leaf.EXPECT().VirtualClose()
+			leaf.EXPECT().VirtualClose(virtual.ShareMaskRead)
 			clock.EXPECT().Now().Return(time.Unix(1021, 0))
 
 			res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -3558,7 +3558,7 @@ func TestBaseProgramCompound_OP_READ(t *testing.T) {
 		gomock.InOrder(
 			leaf.EXPECT().VirtualOpenSelf(ctx, virtual.ShareMaskRead, &virtual.OpenExistingOptions{}, virtual.AttributesMask(0), gomock.Any()),
 			leaf.EXPECT().VirtualRead(gomock.Len(100), uint64(1000)).Return(0, false, virtual.StatusErrIO),
-			leaf.EXPECT().VirtualClose())
+			leaf.EXPECT().VirtualClose(virtual.ShareMaskRead))
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "read",
@@ -3605,7 +3605,7 @@ func TestBaseProgramCompound_OP_READ(t *testing.T) {
 				DoAndReturn(func(buf []byte, offset uint64) (int, bool, virtual.Status) {
 					return copy(buf, "Hello"), true, virtual.StatusOK
 				}),
-			leaf.EXPECT().VirtualClose())
+			leaf.EXPECT().VirtualClose(virtual.ShareMaskRead))
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "read",
@@ -4018,7 +4018,7 @@ func TestBaseProgramCompound_OP_READ(t *testing.T) {
 	// Close the file for the remainder of the test.
 	clock.EXPECT().Now().Return(time.Unix(1027, 0))
 	clock.EXPECT().Now().Return(time.Unix(1028, 0))
-	leaf.EXPECT().VirtualClose()
+	leaf.EXPECT().VirtualClose(virtual.ShareMaskRead)
 
 	res, err = program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 		Tag: "close",
@@ -5881,7 +5881,7 @@ func TestBaseProgramCompound_OP_SETCLIENTID_CONFIRM(t *testing.T) {
 		// to discard all state associated with the previous
 		// one, as it indicated the client rebooted.
 		clock.EXPECT().Now().Return(time.Unix(1306, 0))
-		leaf.EXPECT().VirtualClose()
+		leaf.EXPECT().VirtualClose(virtual.ShareMaskRead)
 
 		res, err = program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "setclientid_confirm",

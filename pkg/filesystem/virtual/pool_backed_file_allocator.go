@@ -43,7 +43,7 @@ func NewPoolBackedFileAllocator(pool re_filesystem.FilePool, errorLogger util.Er
 	}
 }
 
-func (fa *poolBackedFileAllocator) NewFile(isExecutable bool, size uint64) (NativeLeaf, Status) {
+func (fa *poolBackedFileAllocator) NewFile(isExecutable bool, size uint64, shareAccess ShareMask) (NativeLeaf, Status) {
 	file, err := fa.pool.NewFile()
 	if err != nil {
 		fa.errorLogger.Log(util.StatusWrapf(err, "Failed to create new file"))
@@ -59,13 +59,10 @@ func (fa *poolBackedFileAllocator) NewFile(isExecutable bool, size uint64) (Nati
 	return &fileBackedFile{
 		errorLogger: fa.errorLogger,
 
-		file:         file,
-		isExecutable: isExecutable,
-		size:         size,
-		// The initial reference count of newly created files is
-		// always two, as they will be linked into the file
-		// system and opened for writing.
-		referenceCount: 2,
+		file:           file,
+		isExecutable:   isExecutable,
+		size:           size,
+		referenceCount: 1 + shareAccess.Count(),
 		unfreezeWakeup: make(chan struct{}),
 		cachedDigest:   digest.BadDigest,
 	}, StatusOK
@@ -110,20 +107,20 @@ func (f *fileBackedFile) acquireFrozen() bool {
 	return true
 }
 
-func (f *fileBackedFile) release(frozen bool) {
+func (f *fileBackedFile) release(count uint, frozen bool) {
 	f.lock.Lock()
 	defer f.lock.Unlock()
 
-	if f.referenceCount < 1 {
+	if f.referenceCount < count {
 		panic("Invalid reference count")
 	}
-	f.referenceCount--
+	f.referenceCount -= count
 
 	if frozen {
-		if f.openFrozenDescriptors < 1 {
+		if f.openFrozenDescriptors < count {
 			panic("Invalid open frozen descriptor count")
 		}
-		f.openFrozenDescriptors--
+		f.openFrozenDescriptors -= count
 		if f.openFrozenDescriptors == 0 {
 			close(f.unfreezeWakeup)
 			f.unfreezeWakeup = make(chan struct{})
@@ -155,7 +152,7 @@ func (f *fileBackedFile) Readlink() (string, error) {
 }
 
 func (f *fileBackedFile) Unlink() {
-	f.release(false)
+	f.release(1, false)
 }
 
 func (f *fileBackedFile) getCachedDigest() digest.Digest {
@@ -223,7 +220,7 @@ func (f *fileBackedFile) GetOutputServiceFileStatus(digestFunction *digest.Funct
 			return nil, status.Error(codes.NotFound, "File was unlinked before digest computation could start")
 		}
 		blobDigest, err := f.updateCachedDigest(*digestFunction)
-		f.release(true)
+		f.release(1, true)
 		if err != nil {
 			return nil, err
 		}
@@ -263,7 +260,7 @@ func (f *fileBackedFile) AppendOutputPathPersistencyDirectoryNode(directory *out
 }
 
 func (f *fileBackedFile) Close() error {
-	f.release(true)
+	f.release(1, true)
 	return nil
 }
 
@@ -376,8 +373,8 @@ func (f *fileBackedFile) VirtualReadlink(ctx context.Context) ([]byte, Status) {
 	return nil, StatusErrInval
 }
 
-func (f *fileBackedFile) VirtualClose() {
-	f.release(false)
+func (f *fileBackedFile) VirtualClose(shareAccess ShareMask) {
+	f.release(shareAccess.Count(), false)
 }
 
 func (f *fileBackedFile) virtualTruncate(size uint64) Status {

@@ -391,7 +391,8 @@ func TestInMemoryPrepopulatedDirectoryInstallHooks(t *testing.T) {
 
 	// Validate that the top-level directory uses both the new file
 	// allocator and error logger.
-	fileAllocator2.EXPECT().NewFile(false, uint64(0)).Return(nil, virtual.StatusErrIO)
+	fileAllocator2.EXPECT().NewFile(false, uint64(0), virtual.ShareMaskWrite).
+		Return(nil, virtual.StatusErrIO)
 	var attr virtual.Attributes
 	_, _, _, s := d.VirtualOpenChild(
 		ctx,
@@ -408,7 +409,8 @@ func TestInMemoryPrepopulatedDirectoryInstallHooks(t *testing.T) {
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
 	child, err := d.CreateAndEnterPrepopulatedDirectory(path.MustNewComponent("dir"))
 	require.NoError(t, err)
-	fileAllocator2.EXPECT().NewFile(false, uint64(0)).Return(nil, virtual.StatusErrIO)
+	fileAllocator2.EXPECT().NewFile(false, uint64(0), virtual.ShareMaskWrite).
+		Return(nil, virtual.StatusErrIO)
 	_, _, _, s = child.VirtualOpenChild(
 		ctx,
 		path.MustNewComponent("foo"),
@@ -549,7 +551,8 @@ func TestInMemoryPrepopulatedDirectoryVirtualOpenChildAllocationFailure(t *testi
 
 	fileAllocator := mock.NewMockFileAllocator(ctrl)
 	symlinkFactory := mock.NewMockSymlinkFactory(ctrl)
-	fileAllocator.EXPECT().NewFile(false, uint64(0)).Return(nil, virtual.StatusErrIO)
+	fileAllocator.EXPECT().NewFile(false, uint64(0), virtual.ShareMaskWrite).
+		Return(nil, virtual.StatusErrIO)
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
@@ -606,7 +609,8 @@ func TestInMemoryPrepopulatedDirectoryVirtualOpenChildSuccess(t *testing.T) {
 	fileAllocator := mock.NewMockFileAllocator(ctrl)
 	symlinkFactory := mock.NewMockSymlinkFactory(ctrl)
 	child := mock.NewMockNativeLeaf(ctrl)
-	fileAllocator.EXPECT().NewFile(false, uint64(0)).Return(child, virtual.StatusOK)
+	fileAllocator.EXPECT().NewFile(false, uint64(0), virtual.ShareMaskWrite).
+		Return(child, virtual.StatusOK)
 	child.EXPECT().VirtualGetAttributes(
 		ctx,
 		virtual.AttributesMaskInodeNumber,

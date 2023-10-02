@@ -33,7 +33,7 @@ func TestPoolBackedFileAllocatorGetOutputServiceFileStatus(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 
 	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger).
-		NewFile(false, 0)
+		NewFile(false, 0, virtual.ShareMaskRead|virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 
 	underlyingFile.EXPECT().WriteAt([]byte("Hello"), int64(0)).Return(5, nil)
@@ -152,7 +152,7 @@ func TestPoolBackedFileAllocatorGetOutputServiceFileStatus(t *testing.T) {
 
 	underlyingFile.EXPECT().Close()
 	f.Unlink()
-	f.VirtualClose()
+	f.VirtualClose(virtual.ShareMaskRead | virtual.ShareMaskWrite)
 }
 
 // For plain lseek() operations such as SEEK_SET, SEEK_CUR and SEEK_END,
@@ -169,7 +169,7 @@ func TestPoolBackedFileAllocatorVirtualSeek(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 
 	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger).
-		NewFile(false, 0)
+		NewFile(false, 0, virtual.ShareMaskRead|virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 
 	// Grow the file.
@@ -237,10 +237,10 @@ func TestPoolBackedFileAllocatorVirtualOpenSelfStaleAfterUnlink(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 
 	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger).
-		NewFile(false, 0)
+		NewFile(false, 0, virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 
-	f.VirtualClose()
+	f.VirtualClose(virtual.ShareMaskWrite)
 	f.Unlink()
 
 	require.Equal(
@@ -262,11 +262,11 @@ func TestPoolBackedFileAllocatorVirtualOpenSelfStaleAfterClose(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 
 	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger).
-		NewFile(false, 0)
+		NewFile(false, 0, virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 
 	f.Unlink()
-	f.VirtualClose()
+	f.VirtualClose(virtual.ShareMaskWrite)
 
 	require.Equal(
 		t,
@@ -283,7 +283,7 @@ func TestPoolBackedFileAllocatorVirtualRead(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 
 	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger).
-		NewFile(false, 0)
+		NewFile(false, 0, virtual.ShareMaskRead|virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 
 	// Let initial tests assume an empty file.
@@ -342,7 +342,7 @@ func TestPoolBackedFileAllocatorVirtualRead(t *testing.T) {
 
 	underlyingFile.EXPECT().Close()
 
-	f.VirtualClose()
+	f.VirtualClose(virtual.ShareMaskRead | virtual.ShareMaskWrite)
 	f.Unlink()
 }
 
@@ -362,7 +362,7 @@ func TestPoolBackedFileAllocatorFUSETruncateFailure(t *testing.T) {
 	errorLogger.EXPECT().Log(testutil.EqStatus(t, status.Error(codes.Unavailable, "Failed to truncate file to length 42: Storage backends offline")))
 
 	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger).
-		NewFile(false, 0)
+		NewFile(false, 0, virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 
 	require.Equal(t, virtual.StatusErrIO, f.VirtualSetAttributes(
@@ -370,7 +370,7 @@ func TestPoolBackedFileAllocatorFUSETruncateFailure(t *testing.T) {
 		(&virtual.Attributes{}).SetSizeBytes(42),
 		0,
 		&virtual.Attributes{}))
-	f.VirtualClose()
+	f.VirtualClose(virtual.ShareMaskWrite)
 	f.Unlink()
 }
 
@@ -390,11 +390,11 @@ func TestPoolBackedFileAllocatorVirtualWriteFailure(t *testing.T) {
 	errorLogger.EXPECT().Log(testutil.EqStatus(t, status.Error(codes.Unavailable, "Failed to write to file at offset 42: Storage backends offline")))
 
 	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger).
-		NewFile(false, 0)
+		NewFile(false, 0, virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 	_, s = f.VirtualWrite(p[:], 42)
 	require.Equal(t, virtual.StatusErrIO, s)
-	f.VirtualClose()
+	f.VirtualClose(virtual.ShareMaskWrite)
 	f.Unlink()
 }
 
@@ -408,7 +408,7 @@ func TestPoolBackedFileAllocatorFUSEUploadFile(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 
 	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger).
-		NewFile(false, 0)
+		NewFile(false, 0, virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 
 	// Initialize the file with the contents "Hello".
@@ -512,7 +512,7 @@ func TestPoolBackedFileAllocatorFUSEUploadFile(t *testing.T) {
 	})
 
 	underlyingFile.EXPECT().Close()
-	f.VirtualClose()
+	f.VirtualClose(virtual.ShareMaskWrite)
 	f.Unlink()
 
 	t.Run("Stale", func(t *testing.T) {
@@ -536,7 +536,7 @@ func TestPoolBackedFileAllocatorVirtualClose(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 
 	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger).
-		NewFile(false, 0)
+		NewFile(false, 0, virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 
 	// Initially it should be opened exactly once. Open it a couple
@@ -552,8 +552,11 @@ func TestPoolBackedFileAllocatorVirtualClose(t *testing.T) {
 	// The underlying file should be released only when the close
 	// count matches the number of times the file was opened.
 	for i := 0; i < 10; i++ {
-		f.VirtualClose()
+		f.VirtualClose(virtual.ShareMaskRead)
+	}
+	for i := 0; i < 100; i++ {
+		f.VirtualClose(0)
 	}
 	underlyingFile.EXPECT().Close()
-	f.VirtualClose()
+	f.VirtualClose(virtual.ShareMaskWrite)
 }

@@ -796,7 +796,9 @@ func (s *compoundState) getOpenedLeaf(ctx context.Context, stateID *nfsv4.Statei
 		); vs != virtual.StatusOK {
 			return nil, nil, toNFSv4Status(vs)
 		}
-		return currentLeaf, currentLeaf.VirtualClose, nfsv4.NFS4_OK
+		return currentLeaf, func() {
+			currentLeaf.VirtualClose(shareAccess)
+		}, nfsv4.NFS4_OK
 	}
 
 	p.enter()
@@ -1626,9 +1628,7 @@ func (s *compoundState) txOpen(ctx context.Context, args *nfsv4.Open4args, oos *
 			// The newly opened file can be closed again.
 			//
 			// More details: RFC 7530, section 9.11.
-			oofs.shareAccess |= shareAccess
-			oofs.stateID.seqID = nextSeqID(oofs.stateID.seqID)
-			ll.leaves = append(ll.leaves, leaf)
+			oofs.upgrade(shareAccess, leaf, ll)
 		} else {
 			openedFile, ok := p.openedFilesByHandle[handleKey]
 			if ok {
@@ -1714,13 +1714,11 @@ func (s *compoundState) txOpen(ctx context.Context, args *nfsv4.Open4args, oos *
 		); vs != virtual.StatusOK {
 			return &nfsv4.Open4res_default{Status: toNFSv4Status(vs)}
 		}
-		currentLeaf.VirtualClose()
 
 		p.enter()
 		isLocked = true
 
-		oofs.shareAccess |= shareAccess
-		oofs.stateID.seqID = nextSeqID(oofs.stateID.seqID)
+		oofs.upgrade(shareAccess, currentLeaf, ll)
 		return &nfsv4.Open4res_NFS4_OK{
 			Resok4: nfsv4.Open4resok{
 				Stateid:    p.externalizeStateID(oofs.stateID),
@@ -2811,7 +2809,10 @@ type openOwnerFileState struct {
 // READ/WRITE operations are still in progress.
 func (oofs *openOwnerFileState) maybeClose(ll *leavesToClose) {
 	if oofs.useCount.decrease() {
-		ll.leaves = append(ll.leaves, oofs.openedFile.leaf)
+		ll.leaves = append(ll.leaves, leafToClose{
+			leaf:        oofs.openedFile.leaf,
+			shareAccess: oofs.shareAccess,
+		})
 	}
 }
 
@@ -2852,6 +2853,22 @@ func (oofs *openOwnerFileState) removeFinalize(p *baseProgram) {
 	if oofs.openedFile.openOwnersCount.decrease() {
 		delete(p.openedFilesByHandle, handleKey)
 	}
+}
+
+// Upgrade the share access mask of an opened file (e.g., from reading
+// to reading and writing). This needs to be performed if an open-owner
+// attempts to open the same file multiple times.
+func (oofs *openOwnerFileState) upgrade(shareAccess virtual.ShareMask, leaf virtual.Leaf, ll *leavesToClose) {
+	if overlap := oofs.shareAccess & shareAccess; overlap != 0 {
+		// As there is overlap between the share access masks,
+		// the file is opened redundantly. Close it.
+		ll.leaves = append(ll.leaves, leafToClose{
+			leaf:        leaf,
+			shareAccess: overlap,
+		})
+	}
+	oofs.shareAccess |= shareAccess
+	oofs.stateID.seqID = nextSeqID(oofs.stateID.seqID)
 }
 
 // openedFileState stores information on a file that is currently opened
@@ -2989,11 +3006,19 @@ func (lofs *lockOwnerFileState) remove(p *baseProgram) {
 	}
 }
 
+// leafToClose contains information on a virtual file system leaf node
+// that needs to be closed at the end of the current operation, after
+// locks have been released.
+type leafToClose struct {
+	leaf        virtual.Leaf
+	shareAccess virtual.ShareMask
+}
+
 // leavesToClose is a list of virtual file system leaf nodes that need
 // to be closed at the end of the current operation, after locks have
 // been released.
 type leavesToClose struct {
-	leaves []virtual.Leaf
+	leaves []leafToClose
 }
 
 func (ll *leavesToClose) empty() bool {
@@ -3001,8 +3026,8 @@ func (ll *leavesToClose) empty() bool {
 }
 
 func (ll *leavesToClose) closeAll() {
-	for _, leaf := range ll.leaves {
-		leaf.VirtualClose()
+	for _, l := range ll.leaves {
+		l.leaf.VirtualClose(l.shareAccess)
 	}
 }
 
