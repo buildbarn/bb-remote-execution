@@ -542,7 +542,26 @@ func TestPoolBackedFileAllocatorVirtualClose(t *testing.T) {
 	// Initially it should be opened exactly once. Open it a couple
 	// more times.
 	for i := 0; i < 10; i++ {
-		require.Equal(t, virtual.StatusOK, f.VirtualOpenSelf(ctx, virtual.ShareMaskRead, &virtual.OpenExistingOptions{}, 0, &virtual.Attributes{}))
+		require.Equal(
+			t,
+			virtual.StatusOK,
+			f.VirtualOpenSelf(
+				ctx,
+				virtual.ShareMaskRead,
+				&virtual.OpenExistingOptions{},
+				0,
+				&virtual.Attributes{}))
+	}
+	for i := 0; i < 10; i++ {
+		require.Equal(
+			t,
+			virtual.StatusOK,
+			f.VirtualOpenSelf(
+				ctx,
+				virtual.ShareMaskRead|virtual.ShareMaskWrite,
+				&virtual.OpenExistingOptions{},
+				0,
+				&virtual.Attributes{}))
 	}
 
 	// Unlinking the file should not cause the underlying file to be
@@ -553,6 +572,9 @@ func TestPoolBackedFileAllocatorVirtualClose(t *testing.T) {
 	// count matches the number of times the file was opened.
 	for i := 0; i < 10; i++ {
 		f.VirtualClose(virtual.ShareMaskRead)
+	}
+	for i := 0; i < 10; i++ {
+		f.VirtualClose(virtual.ShareMaskRead | virtual.ShareMaskWrite)
 	}
 	for i := 0; i < 100; i++ {
 		f.VirtualClose(0)

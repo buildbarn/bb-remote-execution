@@ -353,7 +353,7 @@ func (f *fileBackedFile) VirtualOpenSelf(ctx context.Context, shareAccess ShareM
 		}
 	}
 
-	f.referenceCount++
+	f.referenceCount += shareAccess.Count()
 	f.virtualGetAttributesUnlocked(attributes)
 	f.virtualGetAttributesLocked(attributes)
 	return StatusOK
