@@ -3306,7 +3306,718 @@ func TestBaseProgramCompound_OP_OPEN_CONFIRM(t *testing.T) {
 	// TODO: Any more cases we want to test?
 }
 
-// TODO: OPEN_DOWNGRADE
+func TestBaseProgramCompound_OP_OPEN_DOWNGRADE(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+
+	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
+	rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskFileHandle, gomock.Any()).
+		Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
+			attributes.SetFileHandle([]byte{0x17, 0x7e, 0x65, 0xc0, 0x10, 0xaf, 0x8c, 0x24})
+		})
+	handleResolver := mock.NewMockHandleResolver(ctrl)
+	randomNumberGenerator := mock.NewMockSingleThreadedGenerator(ctrl)
+	rebootVerifier := nfsv4_xdr.Verifier4{0x4d, 0x0d, 0xc1, 0xca, 0xd9, 0xeb, 0x73, 0xc9}
+	stateIDOtherPrefix := [...]byte{0x2c, 0xa4, 0xce, 0xdc}
+	clock := mock.NewMockClock(ctrl)
+	program := nfsv4.NewBaseProgram(rootDirectory, handleResolver.Call, randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
+
+	t.Run("AnonymousStateID", func(t *testing.T) {
+		// Calling OPEN_DOWNGRADE against the anonymous state ID
+		// is of course not permitted. This operation only works
+		// when called against regular state IDs.
+		leaf := mock.NewMockVirtualLeaf(ctrl)
+		clock.EXPECT().Now().Return(time.Unix(1000, 0))
+		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
+
+		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+			Tag: "open_downgrade",
+			Argarray: []nfsv4_xdr.NfsArgop4{
+				&nfsv4_xdr.NfsArgop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4args{
+						Object: nfsv4_xdr.NfsFh4{1, 2, 3},
+					},
+				},
+				&nfsv4_xdr.NfsArgop4_OP_OPEN_DOWNGRADE{
+					OpopenDowngrade: nfsv4_xdr.OpenDowngrade4args{
+						Seqid:       0x33cfa3a9,
+						ShareAccess: nfsv4_xdr.OPEN4_SHARE_ACCESS_READ,
+						ShareDeny:   nfsv4_xdr.OPEN4_SHARE_DENY_NONE,
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, &nfsv4_xdr.Compound4res{
+			Tag: "open_downgrade",
+			Resarray: []nfsv4_xdr.NfsResop4{
+				&nfsv4_xdr.NfsResop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4res{
+						Status: nfsv4_xdr.NFS4_OK,
+					},
+				},
+				&nfsv4_xdr.NfsResop4_OP_OPEN_DOWNGRADE{
+					OpopenDowngrade: &nfsv4_xdr.OpenDowngrade4res_default{
+						Status: nfsv4_xdr.NFS4ERR_BAD_STATEID,
+					},
+				},
+			},
+			Status: nfsv4_xdr.NFS4ERR_BAD_STATEID,
+		}, res)
+	})
+
+	t.Run("StaleStateID", func(t *testing.T) {
+		// Providing an arbitrary state ID that does not start
+		// with a known prefix should return
+		// NFS4ERR_STALE_STATEID, as it's likely from before a
+		// restart.
+		leaf := mock.NewMockVirtualLeaf(ctrl)
+		clock.EXPECT().Now().Return(time.Unix(1001, 0))
+		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
+
+		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+			Tag: "open_downgrade",
+			Argarray: []nfsv4_xdr.NfsArgop4{
+				&nfsv4_xdr.NfsArgop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4args{
+						Object: nfsv4_xdr.NfsFh4{1, 2, 3},
+					},
+				},
+				&nfsv4_xdr.NfsArgop4_OP_OPEN_DOWNGRADE{
+					OpopenDowngrade: nfsv4_xdr.OpenDowngrade4args{
+						OpenStateid: nfsv4_xdr.Stateid4{
+							Seqid: 0xcc2e292c,
+							Other: [...]byte{
+								0xf1, 0x96, 0x5a, 0xa1,
+								0xb8, 0x8b, 0x1b, 0x27,
+								0xdf, 0x8c, 0xc4, 0x5b,
+							},
+						},
+						Seqid:       0xce84c893,
+						ShareAccess: nfsv4_xdr.OPEN4_SHARE_ACCESS_READ,
+						ShareDeny:   nfsv4_xdr.OPEN4_SHARE_DENY_NONE,
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, &nfsv4_xdr.Compound4res{
+			Tag: "open_downgrade",
+			Resarray: []nfsv4_xdr.NfsResop4{
+				&nfsv4_xdr.NfsResop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4res{
+						Status: nfsv4_xdr.NFS4_OK,
+					},
+				},
+				&nfsv4_xdr.NfsResop4_OP_OPEN_DOWNGRADE{
+					OpopenDowngrade: &nfsv4_xdr.OpenDowngrade4res_default{
+						Status: nfsv4_xdr.NFS4ERR_STALE_STATEID,
+					},
+				},
+			},
+			Status: nfsv4_xdr.NFS4ERR_STALE_STATEID,
+		}, res)
+	})
+
+	// The remainder of the test assumes the availability of a
+	// client ID and an opened file.
+	clock.EXPECT().Now().Return(time.Unix(1002, 0))
+	clock.EXPECT().Now().Return(time.Unix(1003, 0))
+	setClientIDForTesting(ctx, t, randomNumberGenerator, program, 0xc14e56bbe220a24e)
+
+	leaf := mock.NewMockVirtualLeaf(ctrl)
+	clock.EXPECT().Now().Return(time.Unix(1004, 0))
+	clock.EXPECT().Now().Return(time.Unix(1005, 0))
+	openUnconfirmedFileForTesting(
+		ctx,
+		t,
+		randomNumberGenerator,
+		program,
+		rootDirectory,
+		leaf,
+		nfsv4_xdr.NfsFh4{0x3d, 0x11, 0xc3, 0xe7, 0x71, 0x5c, 0xd5, 0x2a},
+		/* shortClientID = */ 0xc14e56bbe220a24e,
+		/* seqID = */ 427,
+		/* stateIDOther = */ [...]byte{
+			0x2c, 0xa4, 0xce, 0xdc,
+			0xfd, 0x2b, 0x5f, 0x18,
+			0xe7, 0x2d, 0xf9, 0x61,
+		})
+
+	clock.EXPECT().Now().Return(time.Unix(1006, 0))
+	clock.EXPECT().Now().Return(time.Unix(1007, 0))
+	openConfirmForTesting(
+		ctx,
+		t,
+		randomNumberGenerator,
+		program,
+		nfsv4_xdr.NfsFh4{0x3d, 0x11, 0xc3, 0xe7, 0x71, 0x5c, 0xd5, 0x2a},
+		/* seqID = */ 428,
+		/* stateIDOther = */ [...]byte{
+			0x2c, 0xa4, 0xce, 0xdc,
+			0xfd, 0x2b, 0x5f, 0x18,
+			0xe7, 0x2d, 0xf9, 0x61,
+		})
+
+	t.Run("Upgrade", func(t *testing.T) {
+		// It's not permitted to use OPEN_DOWNGRADE to upgrade
+		// the share reservations of a file. A file that's been
+		// opened for reading can't be upgraded to reading and
+		// writing.
+		clock.EXPECT().Now().Return(time.Unix(1010, 0))
+		clock.EXPECT().Now().Return(time.Unix(1011, 0))
+
+		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+			Tag: "open_downgrade",
+			Argarray: []nfsv4_xdr.NfsArgop4{
+				&nfsv4_xdr.NfsArgop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4args{
+						Object: nfsv4_xdr.NfsFh4{0x3d, 0x11, 0xc3, 0xe7, 0x71, 0x5c, 0xd5, 0x2a},
+					},
+				},
+				&nfsv4_xdr.NfsArgop4_OP_OPEN_DOWNGRADE{
+					OpopenDowngrade: nfsv4_xdr.OpenDowngrade4args{
+						OpenStateid: nfsv4_xdr.Stateid4{
+							Seqid: 2,
+							Other: [...]byte{
+								0x2c, 0xa4, 0xce, 0xdc,
+								0xfd, 0x2b, 0x5f, 0x18,
+								0xe7, 0x2d, 0xf9, 0x61,
+							},
+						},
+						Seqid:       429,
+						ShareAccess: nfsv4_xdr.OPEN4_SHARE_ACCESS_BOTH,
+						ShareDeny:   nfsv4_xdr.OPEN4_SHARE_DENY_NONE,
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, &nfsv4_xdr.Compound4res{
+			Tag: "open_downgrade",
+			Resarray: []nfsv4_xdr.NfsResop4{
+				&nfsv4_xdr.NfsResop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4res{
+						Status: nfsv4_xdr.NFS4_OK,
+					},
+				},
+				&nfsv4_xdr.NfsResop4_OP_OPEN_DOWNGRADE{
+					OpopenDowngrade: &nfsv4_xdr.OpenDowngrade4res_default{
+						Status: nfsv4_xdr.NFS4ERR_INVAL,
+					},
+				},
+			},
+			Status: nfsv4_xdr.NFS4ERR_INVAL,
+		}, res)
+	})
+
+	t.Run("Noop", func(t *testing.T) {
+		// Though pointless, it is permitted to downgrade a file
+		// to exactly the same set of share reservations.
+		clock.EXPECT().Now().Return(time.Unix(1012, 0))
+		clock.EXPECT().Now().Return(time.Unix(1013, 0))
+
+		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+			Tag: "open_downgrade",
+			Argarray: []nfsv4_xdr.NfsArgop4{
+				&nfsv4_xdr.NfsArgop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4args{
+						Object: nfsv4_xdr.NfsFh4{0x3d, 0x11, 0xc3, 0xe7, 0x71, 0x5c, 0xd5, 0x2a},
+					},
+				},
+				&nfsv4_xdr.NfsArgop4_OP_OPEN_DOWNGRADE{
+					OpopenDowngrade: nfsv4_xdr.OpenDowngrade4args{
+						OpenStateid: nfsv4_xdr.Stateid4{
+							Seqid: 2,
+							Other: [...]byte{
+								0x2c, 0xa4, 0xce, 0xdc,
+								0xfd, 0x2b, 0x5f, 0x18,
+								0xe7, 0x2d, 0xf9, 0x61,
+							},
+						},
+						Seqid:       430,
+						ShareAccess: nfsv4_xdr.OPEN4_SHARE_ACCESS_READ,
+						ShareDeny:   nfsv4_xdr.OPEN4_SHARE_DENY_NONE,
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, &nfsv4_xdr.Compound4res{
+			Tag: "open_downgrade",
+			Resarray: []nfsv4_xdr.NfsResop4{
+				&nfsv4_xdr.NfsResop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4res{
+						Status: nfsv4_xdr.NFS4_OK,
+					},
+				},
+				&nfsv4_xdr.NfsResop4_OP_OPEN_DOWNGRADE{
+					OpopenDowngrade: &nfsv4_xdr.OpenDowngrade4res_NFS4_OK{
+						Resok4: nfsv4_xdr.OpenDowngrade4resok{
+							OpenStateid: nfsv4_xdr.Stateid4{
+								Seqid: 3,
+								Other: [...]byte{
+									0x2c, 0xa4, 0xce, 0xdc,
+									0xfd, 0x2b, 0x5f, 0x18,
+									0xe7, 0x2d, 0xf9, 0x61,
+								},
+							},
+						},
+					},
+				},
+			},
+			Status: nfsv4_xdr.NFS4_OK,
+		}, res)
+	})
+
+	t.Run("SuccessWithImmediateClose", func(t *testing.T) {
+		// When upgrading the file to being both readable and
+		// writable, a subsequent downgrade to read-only should
+		// close the file for writing.
+		clock.EXPECT().Now().Return(time.Unix(1019, 0))
+		clock.EXPECT().Now().Return(time.Unix(1020, 0))
+		leaf.EXPECT().VirtualOpenSelf(ctx, virtual.ShareMaskRead|virtual.ShareMaskWrite, &virtual.OpenExistingOptions{}, virtual.AttributesMask(0), gomock.Any())
+		clock.EXPECT().Now().Return(time.Unix(1021, 0))
+		leaf.EXPECT().VirtualClose(virtual.ShareMaskRead)
+
+		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+			Tag: "open",
+			Argarray: []nfsv4_xdr.NfsArgop4{
+				&nfsv4_xdr.NfsArgop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4args{
+						Object: nfsv4_xdr.NfsFh4{0x3d, 0x11, 0xc3, 0xe7, 0x71, 0x5c, 0xd5, 0x2a},
+					},
+				},
+				&nfsv4_xdr.NfsArgop4_OP_OPEN{
+					Opopen: nfsv4_xdr.Open4args{
+						Seqid:       431,
+						ShareAccess: nfsv4_xdr.OPEN4_SHARE_ACCESS_BOTH,
+						ShareDeny:   nfsv4_xdr.OPEN4_SHARE_DENY_NONE,
+						Owner: nfsv4_xdr.OpenOwner4{
+							Clientid: 0xc14e56bbe220a24e,
+							Owner:    []byte{0xc4, 0x85, 0x50, 0x6b, 0xa5, 0xec, 0x8e, 0x2c},
+						},
+						Openhow: &nfsv4_xdr.Openflag4_default{},
+						Claim: &nfsv4_xdr.OpenClaim4_CLAIM_PREVIOUS{
+							DelegateType: nfsv4_xdr.OPEN_DELEGATE_NONE,
+						},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, &nfsv4_xdr.Compound4res{
+			Tag: "open",
+			Resarray: []nfsv4_xdr.NfsResop4{
+				&nfsv4_xdr.NfsResop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4res{
+						Status: nfsv4_xdr.NFS4_OK,
+					},
+				},
+				&nfsv4_xdr.NfsResop4_OP_OPEN{
+					Opopen: &nfsv4_xdr.Open4res_NFS4_OK{
+						Resok4: nfsv4_xdr.Open4resok{
+							Stateid: nfsv4_xdr.Stateid4{
+								Seqid: 4,
+								Other: [...]byte{
+									0x2c, 0xa4, 0xce, 0xdc,
+									0xfd, 0x2b, 0x5f, 0x18,
+									0xe7, 0x2d, 0xf9, 0x61,
+								},
+							},
+							Rflags:     nfsv4_xdr.OPEN4_RESULT_LOCKTYPE_POSIX,
+							Attrset:    nfsv4_xdr.Bitmap4{},
+							Delegation: &nfsv4_xdr.OpenDelegation4_OPEN_DELEGATE_NONE{},
+						},
+					},
+				},
+			},
+			Status: nfsv4_xdr.NFS4_OK,
+		}, res)
+
+		clock.EXPECT().Now().Return(time.Unix(1022, 0))
+		clock.EXPECT().Now().Return(time.Unix(1023, 0))
+		leaf.EXPECT().VirtualClose(virtual.ShareMaskWrite)
+
+		res, err = program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+			Tag: "open_downgrade",
+			Argarray: []nfsv4_xdr.NfsArgop4{
+				&nfsv4_xdr.NfsArgop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4args{
+						Object: nfsv4_xdr.NfsFh4{0x3d, 0x11, 0xc3, 0xe7, 0x71, 0x5c, 0xd5, 0x2a},
+					},
+				},
+				&nfsv4_xdr.NfsArgop4_OP_OPEN_DOWNGRADE{
+					OpopenDowngrade: nfsv4_xdr.OpenDowngrade4args{
+						OpenStateid: nfsv4_xdr.Stateid4{
+							Seqid: 4,
+							Other: [...]byte{
+								0x2c, 0xa4, 0xce, 0xdc,
+								0xfd, 0x2b, 0x5f, 0x18,
+								0xe7, 0x2d, 0xf9, 0x61,
+							},
+						},
+						Seqid:       432,
+						ShareAccess: nfsv4_xdr.OPEN4_SHARE_ACCESS_READ,
+						ShareDeny:   nfsv4_xdr.OPEN4_SHARE_DENY_NONE,
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, &nfsv4_xdr.Compound4res{
+			Tag: "open_downgrade",
+			Resarray: []nfsv4_xdr.NfsResop4{
+				&nfsv4_xdr.NfsResop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4res{
+						Status: nfsv4_xdr.NFS4_OK,
+					},
+				},
+				&nfsv4_xdr.NfsResop4_OP_OPEN_DOWNGRADE{
+					OpopenDowngrade: &nfsv4_xdr.OpenDowngrade4res_NFS4_OK{
+						Resok4: nfsv4_xdr.OpenDowngrade4resok{
+							OpenStateid: nfsv4_xdr.Stateid4{
+								Seqid: 5,
+								Other: [...]byte{
+									0x2c, 0xa4, 0xce, 0xdc,
+									0xfd, 0x2b, 0x5f, 0x18,
+									0xe7, 0x2d, 0xf9, 0x61,
+								},
+							},
+						},
+					},
+				},
+			},
+			Status: nfsv4_xdr.NFS4_OK,
+		}, res)
+	})
+
+	t.Run("SuccessWithDelayedClose", func(t *testing.T) {
+		// If a lock has been acquired against a file, a call to
+		// OPEN_DOWNGRADE won't have an immediate effect. This
+		// is because the lock-owner state ID can still be used
+		// to access the file using its original share
+		// reservations. Calling RELEASE_LOCKOWNER should cause
+		// the file to be closed partially.
+		clock.EXPECT().Now().Return(time.Unix(1022, 0))
+		clock.EXPECT().Now().Return(time.Unix(1023, 0))
+		leaf.EXPECT().VirtualOpenSelf(ctx, virtual.ShareMaskWrite, &virtual.OpenExistingOptions{}, virtual.AttributesMask(0), gomock.Any())
+		clock.EXPECT().Now().Return(time.Unix(1024, 0))
+
+		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+			Tag: "open",
+			Argarray: []nfsv4_xdr.NfsArgop4{
+				&nfsv4_xdr.NfsArgop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4args{
+						Object: nfsv4_xdr.NfsFh4{0x3d, 0x11, 0xc3, 0xe7, 0x71, 0x5c, 0xd5, 0x2a},
+					},
+				},
+				&nfsv4_xdr.NfsArgop4_OP_OPEN{
+					Opopen: nfsv4_xdr.Open4args{
+						Seqid:       433,
+						ShareAccess: nfsv4_xdr.OPEN4_SHARE_ACCESS_WRITE,
+						ShareDeny:   nfsv4_xdr.OPEN4_SHARE_DENY_NONE,
+						Owner: nfsv4_xdr.OpenOwner4{
+							Clientid: 0xc14e56bbe220a24e,
+							Owner:    []byte{0xc4, 0x85, 0x50, 0x6b, 0xa5, 0xec, 0x8e, 0x2c},
+						},
+						Openhow: &nfsv4_xdr.Openflag4_default{},
+						Claim: &nfsv4_xdr.OpenClaim4_CLAIM_PREVIOUS{
+							DelegateType: nfsv4_xdr.OPEN_DELEGATE_NONE,
+						},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, &nfsv4_xdr.Compound4res{
+			Tag: "open",
+			Resarray: []nfsv4_xdr.NfsResop4{
+				&nfsv4_xdr.NfsResop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4res{
+						Status: nfsv4_xdr.NFS4_OK,
+					},
+				},
+				&nfsv4_xdr.NfsResop4_OP_OPEN{
+					Opopen: &nfsv4_xdr.Open4res_NFS4_OK{
+						Resok4: nfsv4_xdr.Open4resok{
+							Stateid: nfsv4_xdr.Stateid4{
+								Seqid: 6,
+								Other: [...]byte{
+									0x2c, 0xa4, 0xce, 0xdc,
+									0xfd, 0x2b, 0x5f, 0x18,
+									0xe7, 0x2d, 0xf9, 0x61,
+								},
+							},
+							Rflags:     nfsv4_xdr.OPEN4_RESULT_LOCKTYPE_POSIX,
+							Attrset:    nfsv4_xdr.Bitmap4{},
+							Delegation: &nfsv4_xdr.OpenDelegation4_OPEN_DELEGATE_NONE{},
+						},
+					},
+				},
+			},
+			Status: nfsv4_xdr.NFS4_OK,
+		}, res)
+
+		clock.EXPECT().Now().Return(time.Unix(1025, 0))
+		clock.EXPECT().Now().Return(time.Unix(1026, 0))
+		randomNumberGeneratorExpectRead(randomNumberGenerator, []byte{0x38, 0x51, 0x33, 0xcc, 0x1c, 0x67, 0x79, 0xb5})
+
+		resLock, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+			Tag: "lock",
+			Argarray: []nfsv4_xdr.NfsArgop4{
+				&nfsv4_xdr.NfsArgop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4args{
+						Object: nfsv4_xdr.NfsFh4{0x3d, 0x11, 0xc3, 0xe7, 0x71, 0x5c, 0xd5, 0x2a},
+					},
+				},
+				&nfsv4_xdr.NfsArgop4_OP_LOCK{
+					Oplock: nfsv4_xdr.Lock4args{
+						Locktype: nfsv4_xdr.WRITE_LT,
+						Reclaim:  false,
+						Offset:   100,
+						Length:   100,
+						Locker: &nfsv4_xdr.Locker4_TRUE{
+							OpenOwner: nfsv4_xdr.OpenToLockOwner4{
+								OpenSeqid: 434,
+								OpenStateid: nfsv4_xdr.Stateid4{
+									Seqid: 6,
+									Other: [...]byte{
+										0x2c, 0xa4, 0xce, 0xdc,
+										0xfd, 0x2b, 0x5f, 0x18,
+										0xe7, 0x2d, 0xf9, 0x61,
+									},
+								},
+								LockSeqid: 923,
+								LockOwner: nfsv4_xdr.LockOwner4{
+									Clientid: 0xc14e56bbe220a24e,
+									Owner:    []byte{0x33, 0xee, 0xa6, 0xdb, 0xdd, 0xb8, 0x8c, 0xeb},
+								},
+							},
+						},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, &nfsv4_xdr.Compound4res{
+			Tag: "lock",
+			Resarray: []nfsv4_xdr.NfsResop4{
+				&nfsv4_xdr.NfsResop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4res{
+						Status: nfsv4_xdr.NFS4_OK,
+					},
+				},
+				&nfsv4_xdr.NfsResop4_OP_LOCK{
+					Oplock: &nfsv4_xdr.Lock4res_NFS4_OK{
+						Resok4: nfsv4_xdr.Lock4resok{
+							LockStateid: nfsv4_xdr.Stateid4{
+								Seqid: 1,
+								Other: [...]byte{
+									0x2c, 0xa4, 0xce, 0xdc,
+									0x38, 0x51, 0x33, 0xcc,
+									0x1c, 0x67, 0x79, 0xb5,
+								},
+							},
+						},
+					},
+				},
+			},
+			Status: nfsv4_xdr.NFS4_OK,
+		}, resLock)
+
+		clock.EXPECT().Now().Return(time.Unix(1027, 0))
+		clock.EXPECT().Now().Return(time.Unix(1028, 0))
+
+		res, err = program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+			Tag: "open_downgrade",
+			Argarray: []nfsv4_xdr.NfsArgop4{
+				&nfsv4_xdr.NfsArgop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4args{
+						Object: nfsv4_xdr.NfsFh4{0x3d, 0x11, 0xc3, 0xe7, 0x71, 0x5c, 0xd5, 0x2a},
+					},
+				},
+				&nfsv4_xdr.NfsArgop4_OP_OPEN_DOWNGRADE{
+					OpopenDowngrade: nfsv4_xdr.OpenDowngrade4args{
+						OpenStateid: nfsv4_xdr.Stateid4{
+							Seqid: 6,
+							Other: [...]byte{
+								0x2c, 0xa4, 0xce, 0xdc,
+								0xfd, 0x2b, 0x5f, 0x18,
+								0xe7, 0x2d, 0xf9, 0x61,
+							},
+						},
+						Seqid:       435,
+						ShareAccess: nfsv4_xdr.OPEN4_SHARE_ACCESS_READ,
+						ShareDeny:   nfsv4_xdr.OPEN4_SHARE_DENY_NONE,
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, &nfsv4_xdr.Compound4res{
+			Tag: "open_downgrade",
+			Resarray: []nfsv4_xdr.NfsResop4{
+				&nfsv4_xdr.NfsResop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4res{
+						Status: nfsv4_xdr.NFS4_OK,
+					},
+				},
+				&nfsv4_xdr.NfsResop4_OP_OPEN_DOWNGRADE{
+					OpopenDowngrade: &nfsv4_xdr.OpenDowngrade4res_NFS4_OK{
+						Resok4: nfsv4_xdr.OpenDowngrade4resok{
+							OpenStateid: nfsv4_xdr.Stateid4{
+								Seqid: 7,
+								Other: [...]byte{
+									0x2c, 0xa4, 0xce, 0xdc,
+									0xfd, 0x2b, 0x5f, 0x18,
+									0xe7, 0x2d, 0xf9, 0x61,
+								},
+							},
+						},
+					},
+				},
+			},
+			Status: nfsv4_xdr.NFS4_OK,
+		}, res)
+
+		clock.EXPECT().Now().Return(time.Unix(1029, 0))
+		clock.EXPECT().Now().Return(time.Unix(1030, 0))
+
+		res, err = program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+			Tag: "unlock",
+			Argarray: []nfsv4_xdr.NfsArgop4{
+				&nfsv4_xdr.NfsArgop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4args{
+						Object: nfsv4_xdr.NfsFh4{0x3d, 0x11, 0xc3, 0xe7, 0x71, 0x5c, 0xd5, 0x2a},
+					},
+				},
+				&nfsv4_xdr.NfsArgop4_OP_LOCKU{
+					Oplocku: nfsv4_xdr.Locku4args{
+						Locktype: nfsv4_xdr.WRITE_LT,
+						Seqid:    924,
+						LockStateid: nfsv4_xdr.Stateid4{
+							Seqid: 1,
+							Other: [...]byte{
+								0x2c, 0xa4, 0xce, 0xdc,
+								0x38, 0x51, 0x33, 0xcc,
+								0x1c, 0x67, 0x79, 0xb5,
+							},
+						},
+						Offset: 100,
+						Length: 100,
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, &nfsv4_xdr.Compound4res{
+			Tag: "unlock",
+			Resarray: []nfsv4_xdr.NfsResop4{
+				&nfsv4_xdr.NfsResop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4res{
+						Status: nfsv4_xdr.NFS4_OK,
+					},
+				},
+				&nfsv4_xdr.NfsResop4_OP_LOCKU{
+					Oplocku: &nfsv4_xdr.Locku4res_NFS4_OK{
+						LockStateid: nfsv4_xdr.Stateid4{
+							Seqid: 2,
+							Other: [...]byte{
+								0x2c, 0xa4, 0xce, 0xdc,
+								0x38, 0x51, 0x33, 0xcc,
+								0x1c, 0x67, 0x79, 0xb5,
+							},
+						},
+					},
+				},
+			},
+			Status: nfsv4_xdr.NFS4_OK,
+		}, res)
+
+		clock.EXPECT().Now().Return(time.Unix(1031, 0))
+		leaf.EXPECT().VirtualClose(virtual.ShareMaskWrite)
+
+		res, err = program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+			Tag: "release_lockowner",
+			Argarray: []nfsv4_xdr.NfsArgop4{
+				&nfsv4_xdr.NfsArgop4_OP_RELEASE_LOCKOWNER{
+					OpreleaseLockowner: nfsv4_xdr.ReleaseLockowner4args{
+						LockOwner: nfsv4_xdr.LockOwner4{
+							Clientid: 0xc14e56bbe220a24e,
+							Owner:    []byte{0x33, 0xee, 0xa6, 0xdb, 0xdd, 0xb8, 0x8c, 0xeb},
+						},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, &nfsv4_xdr.Compound4res{
+			Tag: "release_lockowner",
+			Resarray: []nfsv4_xdr.NfsResop4{
+				&nfsv4_xdr.NfsResop4_OP_RELEASE_LOCKOWNER{
+					OpreleaseLockowner: nfsv4_xdr.ReleaseLockowner4res{
+						Status: nfsv4_xdr.NFS4_OK,
+					},
+				},
+			},
+			Status: nfsv4_xdr.NFS4_OK,
+		}, res)
+	})
+
+	// Closing the file should release the underlying file.
+	clock.EXPECT().Now().Return(time.Unix(1032, 0))
+	clock.EXPECT().Now().Return(time.Unix(1033, 0))
+	leaf.EXPECT().VirtualClose(virtual.ShareMaskRead)
+
+	res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+		Tag: "close",
+		Argarray: []nfsv4_xdr.NfsArgop4{
+			&nfsv4_xdr.NfsArgop4_OP_PUTFH{
+				Opputfh: nfsv4_xdr.Putfh4args{
+					Object: nfsv4_xdr.NfsFh4{0x3d, 0x11, 0xc3, 0xe7, 0x71, 0x5c, 0xd5, 0x2a},
+				},
+			},
+			&nfsv4_xdr.NfsArgop4_OP_CLOSE{
+				Opclose: nfsv4_xdr.Close4args{
+					Seqid: 436,
+					OpenStateid: nfsv4_xdr.Stateid4{
+						Seqid: 7,
+						Other: [...]byte{
+							0x2c, 0xa4, 0xce, 0xdc,
+							0xfd, 0x2b, 0x5f, 0x18,
+							0xe7, 0x2d, 0xf9, 0x61,
+						},
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, &nfsv4_xdr.Compound4res{
+		Tag: "close",
+		Resarray: []nfsv4_xdr.NfsResop4{
+			&nfsv4_xdr.NfsResop4_OP_PUTFH{
+				Opputfh: nfsv4_xdr.Putfh4res{
+					Status: nfsv4_xdr.NFS4_OK,
+				},
+			},
+			&nfsv4_xdr.NfsResop4_OP_CLOSE{
+				Opclose: &nfsv4_xdr.Close4res_NFS4_OK{
+					OpenStateid: nfsv4_xdr.Stateid4{
+						Seqid: 8,
+						Other: [...]byte{
+							0x2c, 0xa4, 0xce, 0xdc,
+							0xfd, 0x2b, 0x5f, 0x18,
+							0xe7, 0x2d, 0xf9, 0x61,
+						},
+					},
+				},
+			},
+		},
+		Status: nfsv4_xdr.NFS4_OK,
+	}, res)
+}
+
 // TODO: PUTFH
 // TODO: PUTPUBFH
 // TODO: PUTROOTFH

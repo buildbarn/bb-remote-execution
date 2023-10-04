@@ -721,7 +721,7 @@ func (s *compoundState) getOpenOwnerFileByStateID(stateID regularStateID, allowU
 	if !s.currentFileHandle.node.IsSet() {
 		return nil, nfsv4.NFS4ERR_NOFILEHANDLE
 	}
-	if oofs.useCount == 0 {
+	if oofs.shareAccess == 0 {
 		// File has already been closed.
 		return nil, nfsv4.NFS4ERR_BAD_STATEID
 	}
@@ -836,11 +836,11 @@ func (s *compoundState) getOpenedLeaf(ctx context.Context, stateID *nfsv4.Statei
 	// the I/O operation is taking place.
 	clientConfirmation := oofs.openOwner.confirmedClient.confirmation
 	clientConfirmation.hold(p)
-	oofs.useCount.increase()
+	clonedShareAccess := oofs.shareCount.clone(shareAccess)
 	return oofs.openedFile.leaf, func() {
 		var ll leavesToClose
 		p.enter()
-		oofs.maybeClose(&ll)
+		oofs.downgradeShareAccess(&clonedShareAccess, 0, &ll)
 		clientConfirmation.release(p)
 		p.leave()
 		ll.closeAll()
@@ -1234,7 +1234,7 @@ func (s *compoundState) txLockInitial(args *nfsv4.Lock4args, openStateID regular
 	lofs := &lockOwnerFileState{
 		lockOwner:      los,
 		openOwnerFile:  oofs,
-		shareAccess:    oofs.shareAccess,
+		shareAccess:    oofs.shareCount.clone(oofs.shareAccess),
 		lockOwnerIndex: len(los.files),
 		stateID:        p.newRegularStateID(0),
 	}
@@ -1252,7 +1252,7 @@ func (s *compoundState) txLockInitial(args *nfsv4.Lock4args, openStateID regular
 		if lofs.lockCount > 0 {
 			panic("Failed to acquire lock on a newly created lock-owner file, yet its lock count is non-zero")
 		}
-		lofs.remove(p)
+		lofs.remove(p, nil)
 	}
 	return response
 }
@@ -1654,10 +1654,11 @@ func (s *compoundState) txOpen(ctx context.Context, args *nfsv4.Open4args, oos *
 			oofs = &openOwnerFileState{
 				openOwner:      oos,
 				openedFile:     openedFile,
-				shareAccess:    shareAccess,
 				stateID:        p.newRegularStateID(1),
-				useCount:       1,
 				lockOwnerFiles: map[*lockOwnerState]*lockOwnerFileState{},
+			}
+			if oofs.shareCount.upgrade(&oofs.shareAccess, shareAccess) != 0 {
+				panic("Share access reservations can't overlap for newly created files")
 			}
 			oos.filesByHandle[handleKey] = oofs
 			p.openOwnerFilesByOther[oofs.stateID.other] = oofs
@@ -1819,14 +1820,14 @@ func (s *compoundState) opOpenDowngrade(args *nfsv4.OpenDowngrade4args) nfsv4.Op
 		}
 		return &nfsv4.OpenDowngrade4res_default{Status: st}
 	}
-	response := s.txOpenDowngrade(args, openStateID)
+	response := s.txOpenDowngrade(args, openStateID, &ll)
 	transaction.complete(&openOwnerLastResponse{
 		response: response,
 	})
 	return response
 }
 
-func (s *compoundState) txOpenDowngrade(args *nfsv4.OpenDowngrade4args, openStateID regularStateID) nfsv4.OpenDowngrade4res {
+func (s *compoundState) txOpenDowngrade(args *nfsv4.OpenDowngrade4args, openStateID regularStateID, ll *leavesToClose) nfsv4.OpenDowngrade4res {
 	oofs, st := s.getOpenOwnerFileByStateID(openStateID, false)
 	if st != nfsv4.NFS4_OK {
 		return &nfsv4.OpenDowngrade4res_default{Status: st}
@@ -1843,14 +1844,7 @@ func (s *compoundState) txOpenDowngrade(args *nfsv4.OpenDowngrade4args, openStat
 		return &nfsv4.OpenDowngrade4res_default{Status: nfsv4.NFS4ERR_INVAL}
 	}
 
-	// We don't actually reopen/downgrade the underlying virtual
-	// file system object. The original access mode may have been
-	// duplicated into lock state IDs, meaning we may still see
-	// READ, WRITE and SETATTR operations that assume the original
-	// access mode.
-	//
-	// More details: RFC 7530, section 9.1.6, paragraph 7.
-	oofs.shareAccess = shareAccess
+	oofs.downgradeShareAccess(&oofs.shareAccess, shareAccess, ll)
 	oofs.stateID.seqID = nextSeqID(oofs.stateID.seqID)
 
 	p := s.program
@@ -1998,6 +1992,9 @@ func (s *compoundState) opReadlink(ctx context.Context) nfsv4.Readlink4res {
 }
 
 func (s *compoundState) opReleaseLockowner(args *nfsv4.ReleaseLockowner4args) nfsv4.ReleaseLockowner4res {
+	var ll leavesToClose
+	defer ll.closeAll()
+
 	p := s.program
 	p.enter()
 	defer p.leave()
@@ -2026,7 +2023,8 @@ func (s *compoundState) opReleaseLockowner(args *nfsv4.ReleaseLockowner4args) nf
 		// associated with all files. The final call to remove()
 		// will also remove the lock-owner state.
 		for len(los.files) > 0 {
-			los.files[len(los.files)-1].remove(p)
+			lofs := los.files[len(los.files)-1]
+			lofs.remove(p, &ll)
 		}
 		if _, ok := confirmedClient.lockOwners[lockOwnerKey]; ok {
 			panic("Removing all lock-owner files did not remove lock-owner")
@@ -2337,6 +2335,68 @@ func (rc *referenceCount) decrease() bool {
 	}
 	(*rc)--
 	return *rc == 0
+}
+
+// shareCount keeps track of the total number of share reservations
+// belonging to a given open-owner file and all of its associated
+// lock-owner files. This is necessary to ensure that a file remains
+// readable/writable while locks are held or I/O operations take place,
+// even if OPEN_DOWNGRADE is called.
+type shareCount struct {
+	readers referenceCount
+	writers referenceCount
+}
+
+// Upgrade the set of share reservations, for example as a result of an
+// opened file being upgraded from read/write-only to both readable and
+// writable.
+func (sc *shareCount) upgrade(shareAccess *virtual.ShareMask, newShareAccess virtual.ShareMask) virtual.ShareMask {
+	var overlap virtual.ShareMask
+	if newShareAccess&virtual.ShareMaskRead != 0 {
+		if sc.readers > 0 {
+			overlap |= virtual.ShareMaskRead
+		}
+		if *shareAccess&virtual.ShareMaskRead == 0 {
+			sc.readers++
+		}
+	}
+	if newShareAccess&virtual.ShareMaskWrite != 0 {
+		if sc.writers > 0 {
+			overlap |= virtual.ShareMaskWrite
+		}
+		if *shareAccess&virtual.ShareMaskWrite == 0 {
+			sc.writers++
+		}
+	}
+	*shareAccess |= newShareAccess
+	return overlap
+}
+
+// Downgrade the set of share reservations, for example as a result of
+// closing a file, downgrading an opened file, or releasing a lock
+// owner.
+func (sc *shareCount) downgrade(shareAccess *virtual.ShareMask, newShareAccess virtual.ShareMask) virtual.ShareMask {
+	cleared := *shareAccess &^ newShareAccess
+	var becameZero virtual.ShareMask
+	if cleared&virtual.ShareMaskRead != 0 && sc.readers.decrease() {
+		becameZero |= virtual.ShareMaskRead
+	}
+	if cleared&virtual.ShareMaskWrite != 0 && sc.writers.decrease() {
+		becameZero |= virtual.ShareMaskWrite
+	}
+	*shareAccess = newShareAccess
+	return becameZero
+}
+
+// Clone share reservations from an open-owner file into a lock-owner file.
+func (sc *shareCount) clone(shareAccess virtual.ShareMask) virtual.ShareMask {
+	if shareAccess&virtual.ShareMaskRead != 0 {
+		sc.readers.increase()
+	}
+	if shareAccess&virtual.ShareMaskWrite != 0 {
+		sc.writers.increase()
+	}
+	return shareAccess
 }
 
 // fileHandle contains information on the current or saved file handle
@@ -2798,20 +2858,25 @@ type openOwnerFileState struct {
 	openOwner      *openOwnerState
 	shareAccess    virtual.ShareMask
 	stateID        regularStateID
-	useCount       referenceCount
+	shareCount     shareCount
 	lockOwnerFiles map[*lockOwnerState]*lockOwnerFileState
 }
 
-// maybeClose decreases the use count on an opened file. If zero, it
-// schedules closure of the underlying virtual.Leaf object. This method
-// is called at the end of CLOSE, but also at the end of READ or WRITE.
-// A call to CLOSE may not immediately close a file if one or more
-// READ/WRITE operations are still in progress.
-func (oofs *openOwnerFileState) maybeClose(ll *leavesToClose) {
-	if oofs.useCount.decrease() {
+// downgradeShareAccess downgrades the share reservations of an
+// open-owner file or lock-owner-file. If this causes a given share
+// reservation to become unused by the open-owner file and all of its
+// lock-owner files, it schedules (partial) closure of the underlying
+// virtual.Leaf object.
+//
+// This method is called at the end of CLOSE and RELEASE_LOCKOWNER, but
+// also at the end of READ or WRITE. A call to CLOSE/RELEASE_LOCKOWNER
+// may not immediately close a file if one or more READ/WRITE operations
+// are still in progress.
+func (oofs *openOwnerFileState) downgradeShareAccess(shareAccess *virtual.ShareMask, newShareAccess virtual.ShareMask, ll *leavesToClose) {
+	if shareAccessToClose := oofs.shareCount.downgrade(shareAccess, newShareAccess); shareAccessToClose != 0 {
 		ll.leaves = append(ll.leaves, leafToClose{
 			leaf:        oofs.openedFile.leaf,
-			shareAccess: oofs.shareAccess,
+			shareAccess: shareAccessToClose,
 		})
 	}
 }
@@ -2829,10 +2894,10 @@ func (oofs *openOwnerFileState) removeStart(p *baseProgram, ll *leavesToClose) {
 	// - RFC 7530, section 9.10, paragraph 3.
 	// - RFC 7530, section 16.2.4, paragraph 2.
 	for _, lofs := range oofs.lockOwnerFiles {
-		lofs.remove(p)
+		lofs.remove(p, ll)
 	}
 
-	oofs.maybeClose(ll)
+	oofs.downgradeShareAccess(&oofs.shareAccess, 0, ll)
 }
 
 // removeFinalize removes an opened file from the open-owner state. This
@@ -2859,7 +2924,7 @@ func (oofs *openOwnerFileState) removeFinalize(p *baseProgram) {
 // to reading and writing). This needs to be performed if an open-owner
 // attempts to open the same file multiple times.
 func (oofs *openOwnerFileState) upgrade(shareAccess virtual.ShareMask, leaf virtual.Leaf, ll *leavesToClose) {
-	if overlap := oofs.shareAccess & shareAccess; overlap != 0 {
+	if overlap := oofs.shareCount.upgrade(&oofs.shareAccess, shareAccess); overlap != 0 {
 		// As there is overlap between the share access masks,
 		// the file is opened redundantly. Close it.
 		ll.leaves = append(ll.leaves, leafToClose{
@@ -2867,7 +2932,6 @@ func (oofs *openOwnerFileState) upgrade(shareAccess virtual.ShareMask, leaf virt
 			shareAccess: overlap,
 		})
 	}
-	oofs.shareAccess |= shareAccess
 	oofs.stateID.seqID = nextSeqID(oofs.stateID.seqID)
 }
 
@@ -2967,7 +3031,7 @@ type lockOwnerFileState struct {
 	lockCount      int
 }
 
-func (lofs *lockOwnerFileState) remove(p *baseProgram) {
+func (lofs *lockOwnerFileState) remove(p *baseProgram, ll *leavesToClose) {
 	if lofs.lockCount > 0 {
 		// Lock-owner still has one or more locks held on this
 		// file. Issue an unlock operation that spans the full
@@ -2987,7 +3051,9 @@ func (lofs *lockOwnerFileState) remove(p *baseProgram) {
 	// Remove the lock-owner file from maps.
 	delete(p.lockOwnerFilesByOther, lofs.stateID.other)
 	los := lofs.lockOwner
-	delete(lofs.openOwnerFile.lockOwnerFiles, los)
+	oofs := lofs.openOwnerFile
+	delete(oofs.lockOwnerFiles, los)
+	oofs.downgradeShareAccess(&lofs.shareAccess, 0, ll)
 
 	// Remove the lock-owner file from the list in the lock-owner.
 	// We do need to make sure the list remains contiguous.
