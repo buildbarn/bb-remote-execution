@@ -37,21 +37,27 @@ func NewAnalyzerFromConfiguration(configuration *pb.InitialSizeClassAnalyzerConf
 		if err := failureCacheDuration.CheckValid(); err != nil {
 			return nil, util.StatusWrap(err, "Invalid failure cache duration")
 		}
-		minimumExecutionTimeout := fdConfiguration.MinimumExecutionTimeout
-		if err := minimumExecutionTimeout.CheckValid(); err != nil {
-			return nil, util.StatusWrap(err, "Invalid minimum acceptable execution time")
+
+		strategyCalculator := SmallestSizeClassStrategyCalculator
+		if pageRankConfiguration := fdConfiguration.PageRank; pageRankConfiguration != nil {
+			minimumExecutionTimeout := pageRankConfiguration.MinimumExecutionTimeout
+			if err := minimumExecutionTimeout.CheckValid(); err != nil {
+				return nil, util.StatusWrap(err, "Invalid minimum acceptable execution time")
+			}
+			strategyCalculator = NewPageRankStrategyCalculator(
+				minimumExecutionTimeout.AsDuration(),
+				pageRankConfiguration.AcceptableExecutionTimeIncreaseExponent,
+				pageRankConfiguration.SmallerSizeClassExecutionTimeoutMultiplier,
+				pageRankConfiguration.MaximumConvergenceError)
 		}
+
 		return NewFeedbackDrivenAnalyzer(
 			previousExecutionStatsStore,
 			random.NewFastSingleThreadedGenerator(),
 			clock.SystemClock,
 			actionTimeoutExtractor,
 			failureCacheDuration.AsDuration(),
-			NewPageRankStrategyCalculator(
-				minimumExecutionTimeout.AsDuration(),
-				fdConfiguration.AcceptableExecutionTimeIncreaseExponent,
-				fdConfiguration.SmallerSizeClassExecutionTimeoutMultiplier,
-				fdConfiguration.MaximumConvergenceError),
+			strategyCalculator,
 			int(fdConfiguration.HistorySize)), nil
 	}
 	return NewFallbackAnalyzer(actionTimeoutExtractor), nil

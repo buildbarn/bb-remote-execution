@@ -152,23 +152,13 @@ message InitialSizeClassAnalyzerConfiguration {
   // Maximum permitted execution timeout.
   google.protobuf.Duration maximum_execution_timeout = 2;
 
-  // When not set, run all actions on the smallest size class for which
-  // workers exist. Upon failure, retry actions on the largest size
-  // class. This mode is not recommended for setups with more than two
-  // size classes, or workloads where build times matter.
+  // When set, persist statistics on execution times and outcomes into
+  // the Initial Size Class Cache (ISCC), so that future invocations of
+  // similar actions can be scheduled more intelligently.
   //
-  // When set, run all actions on the largest size class if not seen
-  // before. Future invocations of actions with the same command line
-  // arguments and environment variables will run on all size classes,
-  // using probabilities based on how their execution times compare to
-  // those of the largest size class.
-  //
-  // Statistics on execution times are persisted into the Initial Size
-  // Class Cache (ISCC). bb_browser is also capable of reading data from
-  // this data store, making it possible to view these statistics by
-  // visiting the page of an action. Because of this, enabling this
-  // option requires that bb_scheduler's 'initial_size_class_cache'
-  // option is set as well.
+  // bb_browser is also capable of reading data from this data store,
+  // making it possible to view these statistics by visiting the page of
+  // an action.
   InitialSizeClassFeedbackDrivenAnalyzerConfiguration feedback_driven = 3;
 }
 
@@ -191,6 +181,40 @@ message InitialSizeClassFeedbackDrivenAnalyzerConfiguration {
   // Recommended value: 86400s (1 day)
   google.protobuf.Duration failure_cache_duration = 1;
 
+  // Was 'acceptable_execution_time_increase_exponent',
+  // 'smaller_size_class_execution_timeout_multiplier',
+  // 'minimum_execution_timeout', and 'maximum_convergence_error'.
+  //
+  // These options have moved into 'page_rank'.
+  reserved 2, 3, 4, 5;
+
+  // The number of action outcomes to store per size class. Increasing
+  // this improves the accuracy of timing information that is captured,
+  // but has the downside that the system responds to changes in
+  // behavior of actions less quickly.
+  //
+  // To ensure that the system does not end up in a steady state where
+  // actions are always run on the same size class, there is roughly a
+  // 1.0 / history_size probability that actions are run on sizes
+  // classes other than the optimum, regardless of historical outcomes.
+  //
+  // Recommended value: 32
+  int32 history_size = 6;
+
+  // When not set, run all actions on the smallest size class for which
+  // workers exist. Upon failure, retry actions on the largest size
+  // class. This mode is not recommended for setups with more than two
+  // size classes, or workloads where build times matter.
+  //
+  // When set, run all actions on the largest size class if not seen
+  // before. Future invocations of actions with the same command line
+  // arguments and environment variables will run on all size classes,
+  // using probabilities based on how their execution times compare to
+  // those of the largest size class.
+  InitialSizeClassPageRankStrategyCalculatorConfiguration page_rank = 7;
+}
+
+message InitialSizeClassPageRankStrategyCalculatorConfiguration {
   // An exponent to determine whether an increase in execution time when
   // scheduling an action on a smaller size class is considere
   // acceptable.
@@ -220,7 +244,7 @@ message InitialSizeClassFeedbackDrivenAnalyzerConfiguration {
   // may cause actions that are only somewhat parallel to run slower.
   //
   // Recommended value: somewhere between 0.2 and 0.8.
-  double acceptable_execution_time_increase_exponent = 2;
+  double acceptable_execution_time_increase_exponent = 1;
 
   // Actions scheduled on smaller size classes are run with a reduced
   // timeout value that is based on the acceptable execution time of the
@@ -239,7 +263,7 @@ message InitialSizeClassFeedbackDrivenAnalyzerConfiguration {
   //   insert a higher quality data point into the ISCC.
   //
   // Recommended value: 1.5
-  double smaller_size_class_execution_timeout_multiplier = 3;
+  double smaller_size_class_execution_timeout_multiplier = 2;
 
   // The execution timeout value that is used on smaller size classes is
   // proportional to the median execution time observed on the largest
@@ -251,7 +275,7 @@ message InitialSizeClassFeedbackDrivenAnalyzerConfiguration {
   // be used to set an lower bound on the execution timeout.
   //
   // Recommended value: 10s
-  google.protobuf.Duration minimum_execution_timeout = 4;
+  google.protobuf.Duration minimum_execution_timeout = 3;
 
   // This implementation compares previous execution stats between every
   // pair of size classes. The resulting scores are stored in a
@@ -284,18 +308,5 @@ message InitialSizeClassFeedbackDrivenAnalyzerConfiguration {
   // are made to this option to assess the performance impact.
   //
   // Recommended value: 0.002
-  double maximum_convergence_error = 5;
-
-  // The number of action outcomes to store per size class. Increasing
-  // this improves the accuracy of timing information that is captured,
-  // but has the downside that the system responds to changes in
-  // behavior of actions less quickly.
-  //
-  // To ensure that the system does not end up in a steady state where
-  // actions are always run on the same size class, there is roughly a
-  // 1.0 / history_size probability that actions are run on sizes
-  // classes other than the optimum, regardless of historical outcomes.
-  //
-  // Recommended value: 32
-  int32 history_size = 6;
+  double maximum_convergence_error = 4;
 }

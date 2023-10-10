@@ -10,6 +10,7 @@ go_library(
         "feedback_driven_analyzer.go",
         "outcomes.go",
         "page_rank_strategy_calculator.go",
+        "smallest_size_class_strategy_calculator.go",
         "strategy_calculator.go",
     ],
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/scheduler/initialsizeclass",

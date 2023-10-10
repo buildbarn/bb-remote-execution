@@ -492,12 +492,9 @@ type InitialSizeClassFeedbackDrivenAnalyzerConfiguration struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	FailureCacheDuration                       *durationpb.Duration `protobuf:"bytes,1,opt,name=failure_cache_duration,json=failureCacheDuration,proto3" json:"failure_cache_duration,omitempty"`
-	AcceptableExecutionTimeIncreaseExponent    float64              `protobuf:"fixed64,2,opt,name=acceptable_execution_time_increase_exponent,json=acceptableExecutionTimeIncreaseExponent,proto3" json:"acceptable_execution_time_increase_exponent,omitempty"`
-	SmallerSizeClassExecutionTimeoutMultiplier float64              `protobuf:"fixed64,3,opt,name=smaller_size_class_execution_timeout_multiplier,json=smallerSizeClassExecutionTimeoutMultiplier,proto3" json:"smaller_size_class_execution_timeout_multiplier,omitempty"`
-	MinimumExecutionTimeout                    *durationpb.Duration `protobuf:"bytes,4,opt,name=minimum_execution_timeout,json=minimumExecutionTimeout,proto3" json:"minimum_execution_timeout,omitempty"`
-	MaximumConvergenceError                    float64              `protobuf:"fixed64,5,opt,name=maximum_convergence_error,json=maximumConvergenceError,proto3" json:"maximum_convergence_error,omitempty"`
-	HistorySize                                int32                `protobuf:"varint,6,opt,name=history_size,json=historySize,proto3" json:"history_size,omitempty"`
+	FailureCacheDuration *durationpb.Duration                                     `protobuf:"bytes,1,opt,name=failure_cache_duration,json=failureCacheDuration,proto3" json:"failure_cache_duration,omitempty"`
+	HistorySize          int32                                                    `protobuf:"varint,6,opt,name=history_size,json=historySize,proto3" json:"history_size,omitempty"`
+	PageRank             *InitialSizeClassPageRankStrategyCalculatorConfiguration `protobuf:"bytes,7,opt,name=page_rank,json=pageRank,proto3" json:"page_rank,omitempty"`
 }
 
 func (x *InitialSizeClassFeedbackDrivenAnalyzerConfiguration) Reset() {
@@ -539,37 +536,87 @@ func (x *InitialSizeClassFeedbackDrivenAnalyzerConfiguration) GetFailureCacheDur
 	return nil
 }
 
-func (x *InitialSizeClassFeedbackDrivenAnalyzerConfiguration) GetAcceptableExecutionTimeIncreaseExponent() float64 {
+func (x *InitialSizeClassFeedbackDrivenAnalyzerConfiguration) GetHistorySize() int32 {
+	if x != nil {
+		return x.HistorySize
+	}
+	return 0
+}
+
+func (x *InitialSizeClassFeedbackDrivenAnalyzerConfiguration) GetPageRank() *InitialSizeClassPageRankStrategyCalculatorConfiguration {
+	if x != nil {
+		return x.PageRank
+	}
+	return nil
+}
+
+type InitialSizeClassPageRankStrategyCalculatorConfiguration struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	AcceptableExecutionTimeIncreaseExponent    float64              `protobuf:"fixed64,1,opt,name=acceptable_execution_time_increase_exponent,json=acceptableExecutionTimeIncreaseExponent,proto3" json:"acceptable_execution_time_increase_exponent,omitempty"`
+	SmallerSizeClassExecutionTimeoutMultiplier float64              `protobuf:"fixed64,2,opt,name=smaller_size_class_execution_timeout_multiplier,json=smallerSizeClassExecutionTimeoutMultiplier,proto3" json:"smaller_size_class_execution_timeout_multiplier,omitempty"`
+	MinimumExecutionTimeout                    *durationpb.Duration `protobuf:"bytes,3,opt,name=minimum_execution_timeout,json=minimumExecutionTimeout,proto3" json:"minimum_execution_timeout,omitempty"`
+	MaximumConvergenceError                    float64              `protobuf:"fixed64,4,opt,name=maximum_convergence_error,json=maximumConvergenceError,proto3" json:"maximum_convergence_error,omitempty"`
+}
+
+func (x *InitialSizeClassPageRankStrategyCalculatorConfiguration) Reset() {
+	*x = InitialSizeClassPageRankStrategyCalculatorConfiguration{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[7]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *InitialSizeClassPageRankStrategyCalculatorConfiguration) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InitialSizeClassPageRankStrategyCalculatorConfiguration) ProtoMessage() {}
+
+func (x *InitialSizeClassPageRankStrategyCalculatorConfiguration) ProtoReflect() protoreflect.Message {
+	mi := &file_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[7]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InitialSizeClassPageRankStrategyCalculatorConfiguration.ProtoReflect.Descriptor instead.
+func (*InitialSizeClassPageRankStrategyCalculatorConfiguration) Descriptor() ([]byte, []int) {
+	return file_pkg_proto_configuration_scheduler_scheduler_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *InitialSizeClassPageRankStrategyCalculatorConfiguration) GetAcceptableExecutionTimeIncreaseExponent() float64 {
 	if x != nil {
 		return x.AcceptableExecutionTimeIncreaseExponent
 	}
 	return 0
 }
 
-func (x *InitialSizeClassFeedbackDrivenAnalyzerConfiguration) GetSmallerSizeClassExecutionTimeoutMultiplier() float64 {
+func (x *InitialSizeClassPageRankStrategyCalculatorConfiguration) GetSmallerSizeClassExecutionTimeoutMultiplier() float64 {
 	if x != nil {
 		return x.SmallerSizeClassExecutionTimeoutMultiplier
 	}
 	return 0
 }
 
-func (x *InitialSizeClassFeedbackDrivenAnalyzerConfiguration) GetMinimumExecutionTimeout() *durationpb.Duration {
+func (x *InitialSizeClassPageRankStrategyCalculatorConfiguration) GetMinimumExecutionTimeout() *durationpb.Duration {
 	if x != nil {
 		return x.MinimumExecutionTimeout
 	}
 	return nil
 }
 
-func (x *InitialSizeClassFeedbackDrivenAnalyzerConfiguration) GetMaximumConvergenceError() float64 {
+func (x *InitialSizeClassPageRankStrategyCalculatorConfiguration) GetMaximumConvergenceError() float64 {
 	if x != nil {
 		return x.MaximumConvergenceError
-	}
-	return 0
-}
-
-func (x *InitialSizeClassFeedbackDrivenAnalyzerConfiguration) GetHistorySize() int32 {
-	if x != nil {
-		return x.HistorySize
 	}
 	return 0
 }
@@ -587,7 +634,7 @@ type DemultiplexingActionRouterConfiguration_Backend struct {
 func (x *DemultiplexingActionRouterConfiguration_Backend) Reset() {
 	*x = DemultiplexingActionRouterConfiguration_Backend{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[7]
+		mi := &file_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[8]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -600,7 +647,7 @@ func (x *DemultiplexingActionRouterConfiguration_Backend) String() string {
 func (*DemultiplexingActionRouterConfiguration_Backend) ProtoMessage() {}
 
 func (x *DemultiplexingActionRouterConfiguration_Backend) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[7]
+	mi := &file_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[8]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -789,7 +836,7 @@ var file_pkg_proto_configuration_scheduler_scheduler_proto_rawDesc = []byte{
 	0x46, 0x65, 0x65, 0x64, 0x62, 0x61, 0x63, 0x6b, 0x44, 0x72, 0x69, 0x76, 0x65, 0x6e, 0x41, 0x6e,
 	0x61, 0x6c, 0x79, 0x7a, 0x65, 0x72, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x75, 0x72, 0x61, 0x74,
 	0x69, 0x6f, 0x6e, 0x52, 0x0e, 0x66, 0x65, 0x65, 0x64, 0x62, 0x61, 0x63, 0x6b, 0x44, 0x72, 0x69,
-	0x76, 0x65, 0x6e, 0x22, 0xff, 0x03, 0x0a, 0x33, 0x49, 0x6e, 0x69, 0x74, 0x69, 0x61, 0x6c, 0x53,
+	0x76, 0x65, 0x6e, 0x22, 0xba, 0x02, 0x0a, 0x33, 0x49, 0x6e, 0x69, 0x74, 0x69, 0x61, 0x6c, 0x53,
 	0x69, 0x7a, 0x65, 0x43, 0x6c, 0x61, 0x73, 0x73, 0x46, 0x65, 0x65, 0x64, 0x62, 0x61, 0x63, 0x6b,
 	0x44, 0x72, 0x69, 0x76, 0x65, 0x6e, 0x41, 0x6e, 0x61, 0x6c, 0x79, 0x7a, 0x65, 0x72, 0x43, 0x6f,
 	0x6e, 0x66, 0x69, 0x67, 0x75, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x4f, 0x0a, 0x16, 0x66,
@@ -797,36 +844,49 @@ var file_pkg_proto_configuration_scheduler_scheduler_proto_rawDesc = []byte{
 	0x61, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x19, 0x2e, 0x67, 0x6f,
 	0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x44, 0x75,
 	0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x14, 0x66, 0x61, 0x69, 0x6c, 0x75, 0x72, 0x65, 0x43,
-	0x61, 0x63, 0x68, 0x65, 0x44, 0x75, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x5c, 0x0a, 0x2b,
+	0x61, 0x63, 0x68, 0x65, 0x44, 0x75, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x21, 0x0a, 0x0c,
+	0x68, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x5f, 0x73, 0x69, 0x7a, 0x65, 0x18, 0x06, 0x20, 0x01,
+	0x28, 0x05, 0x52, 0x0b, 0x68, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x53, 0x69, 0x7a, 0x65, 0x12,
+	0x77, 0x0a, 0x09, 0x70, 0x61, 0x67, 0x65, 0x5f, 0x72, 0x61, 0x6e, 0x6b, 0x18, 0x07, 0x20, 0x01,
+	0x28, 0x0b, 0x32, 0x5a, 0x2e, 0x62, 0x75, 0x69, 0x6c, 0x64, 0x62, 0x61, 0x72, 0x6e, 0x2e, 0x63,
+	0x6f, 0x6e, 0x66, 0x69, 0x67, 0x75, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x2e, 0x73, 0x63, 0x68,
+	0x65, 0x64, 0x75, 0x6c, 0x65, 0x72, 0x2e, 0x49, 0x6e, 0x69, 0x74, 0x69, 0x61, 0x6c, 0x53, 0x69,
+	0x7a, 0x65, 0x43, 0x6c, 0x61, 0x73, 0x73, 0x50, 0x61, 0x67, 0x65, 0x52, 0x61, 0x6e, 0x6b, 0x53,
+	0x74, 0x72, 0x61, 0x74, 0x65, 0x67, 0x79, 0x43, 0x61, 0x6c, 0x63, 0x75, 0x6c, 0x61, 0x74, 0x6f,
+	0x72, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x75, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x08,
+	0x70, 0x61, 0x67, 0x65, 0x52, 0x61, 0x6e, 0x6b, 0x4a, 0x04, 0x08, 0x02, 0x10, 0x03, 0x4a, 0x04,
+	0x08, 0x03, 0x10, 0x04, 0x4a, 0x04, 0x08, 0x04, 0x10, 0x05, 0x4a, 0x04, 0x08, 0x05, 0x10, 0x06,
+	0x22, 0x8f, 0x03, 0x0a, 0x37, 0x49, 0x6e, 0x69, 0x74, 0x69, 0x61, 0x6c, 0x53, 0x69, 0x7a, 0x65,
+	0x43, 0x6c, 0x61, 0x73, 0x73, 0x50, 0x61, 0x67, 0x65, 0x52, 0x61, 0x6e, 0x6b, 0x53, 0x74, 0x72,
+	0x61, 0x74, 0x65, 0x67, 0x79, 0x43, 0x61, 0x6c, 0x63, 0x75, 0x6c, 0x61, 0x74, 0x6f, 0x72, 0x43,
+	0x6f, 0x6e, 0x66, 0x69, 0x67, 0x75, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x5c, 0x0a, 0x2b,
 	0x61, 0x63, 0x63, 0x65, 0x70, 0x74, 0x61, 0x62, 0x6c, 0x65, 0x5f, 0x65, 0x78, 0x65, 0x63, 0x75,
 	0x74, 0x69, 0x6f, 0x6e, 0x5f, 0x74, 0x69, 0x6d, 0x65, 0x5f, 0x69, 0x6e, 0x63, 0x72, 0x65, 0x61,
-	0x73, 0x65, 0x5f, 0x65, 0x78, 0x70, 0x6f, 0x6e, 0x65, 0x6e, 0x74, 0x18, 0x02, 0x20, 0x01, 0x28,
+	0x73, 0x65, 0x5f, 0x65, 0x78, 0x70, 0x6f, 0x6e, 0x65, 0x6e, 0x74, 0x18, 0x01, 0x20, 0x01, 0x28,
 	0x01, 0x52, 0x27, 0x61, 0x63, 0x63, 0x65, 0x70, 0x74, 0x61, 0x62, 0x6c, 0x65, 0x45, 0x78, 0x65,
 	0x63, 0x75, 0x74, 0x69, 0x6f, 0x6e, 0x54, 0x69, 0x6d, 0x65, 0x49, 0x6e, 0x63, 0x72, 0x65, 0x61,
 	0x73, 0x65, 0x45, 0x78, 0x70, 0x6f, 0x6e, 0x65, 0x6e, 0x74, 0x12, 0x63, 0x0a, 0x2f, 0x73, 0x6d,
 	0x61, 0x6c, 0x6c, 0x65, 0x72, 0x5f, 0x73, 0x69, 0x7a, 0x65, 0x5f, 0x63, 0x6c, 0x61, 0x73, 0x73,
 	0x5f, 0x65, 0x78, 0x65, 0x63, 0x75, 0x74, 0x69, 0x6f, 0x6e, 0x5f, 0x74, 0x69, 0x6d, 0x65, 0x6f,
-	0x75, 0x74, 0x5f, 0x6d, 0x75, 0x6c, 0x74, 0x69, 0x70, 0x6c, 0x69, 0x65, 0x72, 0x18, 0x03, 0x20,
+	0x75, 0x74, 0x5f, 0x6d, 0x75, 0x6c, 0x74, 0x69, 0x70, 0x6c, 0x69, 0x65, 0x72, 0x18, 0x02, 0x20,
 	0x01, 0x28, 0x01, 0x52, 0x2a, 0x73, 0x6d, 0x61, 0x6c, 0x6c, 0x65, 0x72, 0x53, 0x69, 0x7a, 0x65,
 	0x43, 0x6c, 0x61, 0x73, 0x73, 0x45, 0x78, 0x65, 0x63, 0x75, 0x74, 0x69, 0x6f, 0x6e, 0x54, 0x69,
 	0x6d, 0x65, 0x6f, 0x75, 0x74, 0x4d, 0x75, 0x6c, 0x74, 0x69, 0x70, 0x6c, 0x69, 0x65, 0x72, 0x12,
 	0x55, 0x0a, 0x19, 0x6d, 0x69, 0x6e, 0x69, 0x6d, 0x75, 0x6d, 0x5f, 0x65, 0x78, 0x65, 0x63, 0x75,
-	0x74, 0x69, 0x6f, 0x6e, 0x5f, 0x74, 0x69, 0x6d, 0x65, 0x6f, 0x75, 0x74, 0x18, 0x04, 0x20, 0x01,
+	0x74, 0x69, 0x6f, 0x6e, 0x5f, 0x74, 0x69, 0x6d, 0x65, 0x6f, 0x75, 0x74, 0x18, 0x03, 0x20, 0x01,
 	0x28, 0x0b, 0x32, 0x19, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74,
 	0x6f, 0x62, 0x75, 0x66, 0x2e, 0x44, 0x75, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x17, 0x6d,
 	0x69, 0x6e, 0x69, 0x6d, 0x75, 0x6d, 0x45, 0x78, 0x65, 0x63, 0x75, 0x74, 0x69, 0x6f, 0x6e, 0x54,
 	0x69, 0x6d, 0x65, 0x6f, 0x75, 0x74, 0x12, 0x3a, 0x0a, 0x19, 0x6d, 0x61, 0x78, 0x69, 0x6d, 0x75,
 	0x6d, 0x5f, 0x63, 0x6f, 0x6e, 0x76, 0x65, 0x72, 0x67, 0x65, 0x6e, 0x63, 0x65, 0x5f, 0x65, 0x72,
-	0x72, 0x6f, 0x72, 0x18, 0x05, 0x20, 0x01, 0x28, 0x01, 0x52, 0x17, 0x6d, 0x61, 0x78, 0x69, 0x6d,
+	0x72, 0x6f, 0x72, 0x18, 0x04, 0x20, 0x01, 0x28, 0x01, 0x52, 0x17, 0x6d, 0x61, 0x78, 0x69, 0x6d,
 	0x75, 0x6d, 0x43, 0x6f, 0x6e, 0x76, 0x65, 0x72, 0x67, 0x65, 0x6e, 0x63, 0x65, 0x45, 0x72, 0x72,
-	0x6f, 0x72, 0x12, 0x21, 0x0a, 0x0c, 0x68, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x5f, 0x73, 0x69,
-	0x7a, 0x65, 0x18, 0x06, 0x20, 0x01, 0x28, 0x05, 0x52, 0x0b, 0x68, 0x69, 0x73, 0x74, 0x6f, 0x72,
-	0x79, 0x53, 0x69, 0x7a, 0x65, 0x42, 0x4c, 0x5a, 0x4a, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e,
-	0x63, 0x6f, 0x6d, 0x2f, 0x62, 0x75, 0x69, 0x6c, 0x64, 0x62, 0x61, 0x72, 0x6e, 0x2f, 0x62, 0x62,
-	0x2d, 0x72, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x2d, 0x65, 0x78, 0x65, 0x63, 0x75, 0x74, 0x69, 0x6f,
-	0x6e, 0x2f, 0x70, 0x6b, 0x67, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x63, 0x6f, 0x6e, 0x66,
-	0x69, 0x67, 0x75, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x2f, 0x73, 0x63, 0x68, 0x65, 0x64, 0x75,
-	0x6c, 0x65, 0x72, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x6f, 0x72, 0x42, 0x4c, 0x5a, 0x4a, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d,
+	0x2f, 0x62, 0x75, 0x69, 0x6c, 0x64, 0x62, 0x61, 0x72, 0x6e, 0x2f, 0x62, 0x62, 0x2d, 0x72, 0x65,
+	0x6d, 0x6f, 0x74, 0x65, 0x2d, 0x65, 0x78, 0x65, 0x63, 0x75, 0x74, 0x69, 0x6f, 0x6e, 0x2f, 0x70,
+	0x6b, 0x67, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x75,
+	0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x2f, 0x73, 0x63, 0x68, 0x65, 0x64, 0x75, 0x6c, 0x65, 0x72,
+	0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -841,19 +901,20 @@ func file_pkg_proto_configuration_scheduler_scheduler_proto_rawDescGZIP() []byte
 	return file_pkg_proto_configuration_scheduler_scheduler_proto_rawDescData
 }
 
-var file_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_pkg_proto_configuration_scheduler_scheduler_proto_goTypes = []interface{}{
-	(*ActionRouterConfiguration)(nil),                           // 0: buildbarn.configuration.scheduler.ActionRouterConfiguration
-	(*SimpleActionRouterConfiguration)(nil),                     // 1: buildbarn.configuration.scheduler.SimpleActionRouterConfiguration
-	(*DemultiplexingActionRouterConfiguration)(nil),             // 2: buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration
-	(*PlatformKeyExtractorConfiguration)(nil),                   // 3: buildbarn.configuration.scheduler.PlatformKeyExtractorConfiguration
-	(*InvocationKeyExtractorConfiguration)(nil),                 // 4: buildbarn.configuration.scheduler.InvocationKeyExtractorConfiguration
-	(*InitialSizeClassAnalyzerConfiguration)(nil),               // 5: buildbarn.configuration.scheduler.InitialSizeClassAnalyzerConfiguration
-	(*InitialSizeClassFeedbackDrivenAnalyzerConfiguration)(nil), // 6: buildbarn.configuration.scheduler.InitialSizeClassFeedbackDrivenAnalyzerConfiguration
-	(*DemultiplexingActionRouterConfiguration_Backend)(nil),     // 7: buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration.Backend
-	(*emptypb.Empty)(nil),                                       // 8: google.protobuf.Empty
-	(*v2.Platform)(nil),                                         // 9: build.bazel.remote.execution.v2.Platform
-	(*durationpb.Duration)(nil),                                 // 10: google.protobuf.Duration
+	(*ActionRouterConfiguration)(nil),                               // 0: buildbarn.configuration.scheduler.ActionRouterConfiguration
+	(*SimpleActionRouterConfiguration)(nil),                         // 1: buildbarn.configuration.scheduler.SimpleActionRouterConfiguration
+	(*DemultiplexingActionRouterConfiguration)(nil),                 // 2: buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration
+	(*PlatformKeyExtractorConfiguration)(nil),                       // 3: buildbarn.configuration.scheduler.PlatformKeyExtractorConfiguration
+	(*InvocationKeyExtractorConfiguration)(nil),                     // 4: buildbarn.configuration.scheduler.InvocationKeyExtractorConfiguration
+	(*InitialSizeClassAnalyzerConfiguration)(nil),                   // 5: buildbarn.configuration.scheduler.InitialSizeClassAnalyzerConfiguration
+	(*InitialSizeClassFeedbackDrivenAnalyzerConfiguration)(nil),     // 6: buildbarn.configuration.scheduler.InitialSizeClassFeedbackDrivenAnalyzerConfiguration
+	(*InitialSizeClassPageRankStrategyCalculatorConfiguration)(nil), // 7: buildbarn.configuration.scheduler.InitialSizeClassPageRankStrategyCalculatorConfiguration
+	(*DemultiplexingActionRouterConfiguration_Backend)(nil),         // 8: buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration.Backend
+	(*emptypb.Empty)(nil),                                           // 9: google.protobuf.Empty
+	(*v2.Platform)(nil),                                             // 10: build.bazel.remote.execution.v2.Platform
+	(*durationpb.Duration)(nil),                                     // 11: google.protobuf.Duration
 }
 var file_pkg_proto_configuration_scheduler_scheduler_proto_depIdxs = []int32{
 	1,  // 0: buildbarn.configuration.scheduler.ActionRouterConfiguration.simple:type_name -> buildbarn.configuration.scheduler.SimpleActionRouterConfiguration
@@ -862,26 +923,27 @@ var file_pkg_proto_configuration_scheduler_scheduler_proto_depIdxs = []int32{
 	4,  // 3: buildbarn.configuration.scheduler.SimpleActionRouterConfiguration.invocation_key_extractors:type_name -> buildbarn.configuration.scheduler.InvocationKeyExtractorConfiguration
 	5,  // 4: buildbarn.configuration.scheduler.SimpleActionRouterConfiguration.initial_size_class_analyzer:type_name -> buildbarn.configuration.scheduler.InitialSizeClassAnalyzerConfiguration
 	3,  // 5: buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration.platform_key_extractor:type_name -> buildbarn.configuration.scheduler.PlatformKeyExtractorConfiguration
-	7,  // 6: buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration.backends:type_name -> buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration.Backend
+	8,  // 6: buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration.backends:type_name -> buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration.Backend
 	0,  // 7: buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration.default_action_router:type_name -> buildbarn.configuration.scheduler.ActionRouterConfiguration
-	8,  // 8: buildbarn.configuration.scheduler.PlatformKeyExtractorConfiguration.action:type_name -> google.protobuf.Empty
-	8,  // 9: buildbarn.configuration.scheduler.PlatformKeyExtractorConfiguration.action_and_command:type_name -> google.protobuf.Empty
-	9,  // 10: buildbarn.configuration.scheduler.PlatformKeyExtractorConfiguration.static:type_name -> build.bazel.remote.execution.v2.Platform
-	8,  // 11: buildbarn.configuration.scheduler.InvocationKeyExtractorConfiguration.tool_invocation_id:type_name -> google.protobuf.Empty
-	8,  // 12: buildbarn.configuration.scheduler.InvocationKeyExtractorConfiguration.correlated_invocations_id:type_name -> google.protobuf.Empty
-	8,  // 13: buildbarn.configuration.scheduler.InvocationKeyExtractorConfiguration.authentication_metadata:type_name -> google.protobuf.Empty
-	10, // 14: buildbarn.configuration.scheduler.InitialSizeClassAnalyzerConfiguration.default_execution_timeout:type_name -> google.protobuf.Duration
-	10, // 15: buildbarn.configuration.scheduler.InitialSizeClassAnalyzerConfiguration.maximum_execution_timeout:type_name -> google.protobuf.Duration
+	9,  // 8: buildbarn.configuration.scheduler.PlatformKeyExtractorConfiguration.action:type_name -> google.protobuf.Empty
+	9,  // 9: buildbarn.configuration.scheduler.PlatformKeyExtractorConfiguration.action_and_command:type_name -> google.protobuf.Empty
+	10, // 10: buildbarn.configuration.scheduler.PlatformKeyExtractorConfiguration.static:type_name -> build.bazel.remote.execution.v2.Platform
+	9,  // 11: buildbarn.configuration.scheduler.InvocationKeyExtractorConfiguration.tool_invocation_id:type_name -> google.protobuf.Empty
+	9,  // 12: buildbarn.configuration.scheduler.InvocationKeyExtractorConfiguration.correlated_invocations_id:type_name -> google.protobuf.Empty
+	9,  // 13: buildbarn.configuration.scheduler.InvocationKeyExtractorConfiguration.authentication_metadata:type_name -> google.protobuf.Empty
+	11, // 14: buildbarn.configuration.scheduler.InitialSizeClassAnalyzerConfiguration.default_execution_timeout:type_name -> google.protobuf.Duration
+	11, // 15: buildbarn.configuration.scheduler.InitialSizeClassAnalyzerConfiguration.maximum_execution_timeout:type_name -> google.protobuf.Duration
 	6,  // 16: buildbarn.configuration.scheduler.InitialSizeClassAnalyzerConfiguration.feedback_driven:type_name -> buildbarn.configuration.scheduler.InitialSizeClassFeedbackDrivenAnalyzerConfiguration
-	10, // 17: buildbarn.configuration.scheduler.InitialSizeClassFeedbackDrivenAnalyzerConfiguration.failure_cache_duration:type_name -> google.protobuf.Duration
-	10, // 18: buildbarn.configuration.scheduler.InitialSizeClassFeedbackDrivenAnalyzerConfiguration.minimum_execution_timeout:type_name -> google.protobuf.Duration
-	9,  // 19: buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration.Backend.platform:type_name -> build.bazel.remote.execution.v2.Platform
-	0,  // 20: buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration.Backend.action_router:type_name -> buildbarn.configuration.scheduler.ActionRouterConfiguration
-	21, // [21:21] is the sub-list for method output_type
-	21, // [21:21] is the sub-list for method input_type
-	21, // [21:21] is the sub-list for extension type_name
-	21, // [21:21] is the sub-list for extension extendee
-	0,  // [0:21] is the sub-list for field type_name
+	11, // 17: buildbarn.configuration.scheduler.InitialSizeClassFeedbackDrivenAnalyzerConfiguration.failure_cache_duration:type_name -> google.protobuf.Duration
+	7,  // 18: buildbarn.configuration.scheduler.InitialSizeClassFeedbackDrivenAnalyzerConfiguration.page_rank:type_name -> buildbarn.configuration.scheduler.InitialSizeClassPageRankStrategyCalculatorConfiguration
+	11, // 19: buildbarn.configuration.scheduler.InitialSizeClassPageRankStrategyCalculatorConfiguration.minimum_execution_timeout:type_name -> google.protobuf.Duration
+	10, // 20: buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration.Backend.platform:type_name -> build.bazel.remote.execution.v2.Platform
+	0,  // 21: buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration.Backend.action_router:type_name -> buildbarn.configuration.scheduler.ActionRouterConfiguration
+	22, // [22:22] is the sub-list for method output_type
+	22, // [22:22] is the sub-list for method input_type
+	22, // [22:22] is the sub-list for extension type_name
+	22, // [22:22] is the sub-list for extension extendee
+	0,  // [0:22] is the sub-list for field type_name
 }
 
 func init() { file_pkg_proto_configuration_scheduler_scheduler_proto_init() }
@@ -975,6 +1037,18 @@ func file_pkg_proto_configuration_scheduler_scheduler_proto_init() {
 			}
 		}
 		file_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[7].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*InitialSizeClassPageRankStrategyCalculatorConfiguration); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*DemultiplexingActionRouterConfiguration_Backend); i {
 			case 0:
 				return &v.state
@@ -1007,7 +1081,7 @@ func file_pkg_proto_configuration_scheduler_scheduler_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_pkg_proto_configuration_scheduler_scheduler_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   8,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
