@@ -1,7 +1,9 @@
 package cas_test
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"testing"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
@@ -115,6 +117,19 @@ func TestBlobAccessDirectoryFetcherGetTreeRootDirectory(t *testing.T) {
 		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Tree does not contain a root directory"), err)
 	})
 
+	t.Run("ChecksumMismatch", func(t *testing.T) {
+		// If an REv2 Tree object cannot be parsed, it must be
+		// read in its entirety to ensure this isn't caused by a
+		// checksum mismatch.
+		treeDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "ceb78ab91c6d580aceea6618dd6fc5cc", 10000)
+
+		blobAccess.EXPECT().Get(ctx, treeDigest).
+			Return(buffer.NewCASBufferFromReader(treeDigest, io.NopCloser(bytes.NewBuffer(make([]byte, 10000))), buffer.UserProvided))
+
+		_, err := directoryFetcher.GetTreeRootDirectory(ctx, treeDigest)
+		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Buffer has checksum b85d6fb9ef4260dcf1ce0a1b0bff80d3, while ceb78ab91c6d580aceea6618dd6fc5cc was expected"), err)
+	})
+
 	t.Run("Success", func(t *testing.T) {
 		treeDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "f5f634611dd11ccba54c7b9d9607c3c2", 100)
 		exampleDirectory := &remoteexecution.Directory{
@@ -195,6 +210,27 @@ func TestBlobAccessDirectoryFetcherGetTreeChildDirectory(t *testing.T) {
 			treeDigest,
 			directoryDigest)
 		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Field with number 10 at offset 0 has type 4, while 2 was expected"), err)
+	})
+
+	t.Run("ChecksumMismatch", func(t *testing.T) {
+		// If an REv2 Tree object cannot be parsed, it must be
+		// read in its entirety to ensure this isn't caused by a
+		// checksum mismatch.
+		treeDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "ceb78ab91c6d580aceea6618dd6fc5cc", 10000)
+		directoryDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "138f65a6fb46dc6d97618a24b4490c19", 10)
+
+		blobAccess.EXPECT().GetFromComposite(ctx, treeDigest, directoryDigest, gomock.Any()).
+			DoAndReturn(func(ctx context.Context, treeDigest, childDigest digest.Digest, slicer slicing.BlobSlicer) buffer.Buffer {
+				b, slices := slicer.Slice(buffer.NewCASBufferFromReader(treeDigest, io.NopCloser(bytes.NewBuffer(make([]byte, 10000))), buffer.UserProvided), childDigest)
+				require.Empty(t, slices)
+				return b
+			})
+
+		_, err := directoryFetcher.GetTreeChildDirectory(
+			ctx,
+			treeDigest,
+			directoryDigest)
+		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Buffer has checksum b85d6fb9ef4260dcf1ce0a1b0bff80d3, while ceb78ab91c6d580aceea6618dd6fc5cc was expected"), err)
 	})
 
 	t.Run("ValidTree", func(t *testing.T) {

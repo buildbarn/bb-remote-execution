@@ -69,7 +69,7 @@ func (df *blobAccessDirectoryFetcher) GetTreeRootDirectory(ctx context.Context, 
 		return nil
 	}); err != nil {
 		if _, copyErr := io.Copy(io.Discard, r); copyErr != nil {
-			copyErr = err
+			err = copyErr
 		}
 		return nil, err
 	}
@@ -157,7 +157,7 @@ func (bs *treeBlobSlicer) Slice(b buffer.Buffer, requestedChildDigest digest.Dig
 			bRequested.Discard()
 		}
 		if _, copyErr := io.Copy(io.Discard, r); copyErr != nil {
-			copyErr = err
+			err = copyErr
 		}
 		return buffer.NewBufferFromError(err), nil
 	}
