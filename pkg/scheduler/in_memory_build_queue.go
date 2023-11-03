@@ -1224,7 +1224,7 @@ func (bq *InMemoryBuildQueue) getCurrentTime() *timestamppb.Timestamp {
 }
 
 // enter acquires the lock on the InMemoryBuildQueue and runs any
-// cleanup tasks that should be executed prior mutating its state.
+// cleanup tasks that should be executed prior to mutating its state.
 func (bq *InMemoryBuildQueue) enter(t time.Time) {
 	bq.lock.Lock()
 	if t.After(bq.now) {
