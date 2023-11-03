@@ -173,8 +173,8 @@ def go_dependencies():
     go_repository(
         name = "com_github_buildbarn_bb_storage",
         importpath = "github.com/buildbarn/bb-storage",
-        sum = "h1:Nco5Az9+h/7a2KdSxFOPkC4ITLlsow1kYskL2eneKRo=",
-        version = "v0.0.0-20231008111112-ba53c0ad05f2",
+        sum = "h1:BmKkvqdzbMJIgkUclqJJVPLxc6JUmz0LqjKgiqd1RQ0=",
+        version = "v0.0.0-20231030120605-519a8946d90d",
     )
     go_repository(
         name = "com_github_buildbarn_go_xdr",
@@ -664,8 +664,8 @@ def go_dependencies():
     go_repository(
         name = "com_github_yuin_goldmark",
         importpath = "github.com/yuin/goldmark",
-        sum = "h1:ruQGxdhGHe7FWOJPT0mKs5+pD2Xs1Bm/kdGlHO04FmM=",
-        version = "v1.2.1",
+        sum = "h1:dPmz1Snjq0kmkz159iL7S6WzdahUTHnHB5M56WFVifs=",
+        version = "v1.3.5",
     )
     go_repository(
         name = "com_google_cloud_go",
