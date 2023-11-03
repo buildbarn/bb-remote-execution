@@ -209,13 +209,11 @@ func main() {
 		}
 		subrouter := router.PathPrefix(routePrefix).Subrouter()
 		newBuildQueueStateService(buildQueue, clock.SystemClock, browserURL, subrouter)
-		if err := http.NewServersFromConfigurationAndServe(
+		http.NewServersFromConfigurationAndServe(
 			configuration.AdminHttpServers,
 			http.NewMetricsHandler(router, "SchedulerUI"),
 			siblingsGroup,
-		); err != nil {
-			return util.StatusWrap(err, "Failed to create admin HTTP servers")
-		}
+		)
 
 		lifecycleState.MarkReadyAndWait(siblingsGroup)
 		return nil
