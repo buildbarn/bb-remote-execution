@@ -24,7 +24,7 @@ import (
 )
 
 func TestPoolBackedFileAllocatorGetOutputServiceFileStatus(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	// Create a file and initialize it with some contents.
 	pool := mock.NewMockFilePool(ctrl)
@@ -41,9 +41,24 @@ func TestPoolBackedFileAllocatorGetOutputServiceFileStatus(t *testing.T) {
 	require.Equal(t, virtual.StatusOK, s)
 	require.Equal(t, 5, n)
 
+	// When the file is opened for writing, we should not report the
+	// file's digest, even if it is requested. There is no way we
+	// can compute its value properly, as unwritten data may still
+	// be present in the page cache.
+	digestFunction1 := digest.MustNewFunction("Hello", remoteexecution.DigestFunction_MD5)
+	fileStatus, err := f.GetOutputServiceFileStatus(&digestFunction1)
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, &remoteoutputservice.FileStatus{
+		FileType: &remoteoutputservice.FileStatus_File_{
+			File: &remoteoutputservice.FileStatus_File{},
+		},
+	}, fileStatus)
+
+	f.VirtualClose(virtual.ShareMaskWrite)
+
 	// When the provided digest.Function is nil, we should only
 	// report that this is a file.
-	fileStatus, err := f.GetOutputServiceFileStatus(nil)
+	fileStatus, err = f.GetOutputServiceFileStatus(nil)
 	require.NoError(t, err)
 	testutil.RequireEqualProto(t, &remoteoutputservice.FileStatus{
 		FileType: &remoteoutputservice.FileStatus_File_{
@@ -59,7 +74,6 @@ func TestPoolBackedFileAllocatorGetOutputServiceFileStatus(t *testing.T) {
 		func(p []byte, off int64) (int, error) {
 			return copy(p, "Hello"), io.EOF
 		})
-	digestFunction1 := digest.MustNewFunction("Hello", remoteexecution.DigestFunction_MD5)
 	fileStatus, err = f.GetOutputServiceFileStatus(&digestFunction1)
 	require.NoError(t, err)
 	testutil.RequireEqualProto(t, &remoteoutputservice.FileStatus{
@@ -92,10 +106,12 @@ func TestPoolBackedFileAllocatorGetOutputServiceFileStatus(t *testing.T) {
 	// Change the file's contents to invalidate the cached digest. A
 	// successive call to GetOutputServiceFileStatus() should
 	// recompute the digest.
+	require.Equal(t, virtual.StatusOK, f.VirtualOpenSelf(ctx, virtual.ShareMaskWrite, &virtual.OpenExistingOptions{}, 0, &virtual.Attributes{}))
 	underlyingFile.EXPECT().WriteAt([]byte(" world"), int64(5)).Return(6, nil)
 	n, s = f.VirtualWrite([]byte(" world"), 5)
 	require.Equal(t, virtual.StatusOK, s)
 	require.Equal(t, 6, n)
+	f.VirtualClose(virtual.ShareMaskWrite)
 
 	underlyingFile.EXPECT().ReadAt(gomock.Any(), int64(0)).DoAndReturn(
 		func(p []byte, off int64) (int, error) {
@@ -152,7 +168,7 @@ func TestPoolBackedFileAllocatorGetOutputServiceFileStatus(t *testing.T) {
 
 	underlyingFile.EXPECT().Close()
 	f.Unlink()
-	f.VirtualClose(virtual.ShareMaskRead | virtual.ShareMaskWrite)
+	f.VirtualClose(virtual.ShareMaskRead)
 }
 
 // For plain lseek() operations such as SEEK_SET, SEEK_CUR and SEEK_END,
@@ -398,7 +414,7 @@ func TestPoolBackedFileAllocatorVirtualWriteFailure(t *testing.T) {
 	f.Unlink()
 }
 
-func TestPoolBackedFileAllocatorFUSEUploadFile(t *testing.T) {
+func TestPoolBackedFileAllocatorUploadFile(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	// Create a file backed by a FilePool.
@@ -458,7 +474,7 @@ func TestPoolBackedFileAllocatorFUSEUploadFile(t *testing.T) {
 				// Tests for affected operations below.
 				a1 := make(chan struct{})
 				go func() {
-					require.Equal(t, virtual.StatusOK, f.VirtualAllocate(1, 1))
+					require.Equal(t, virtual.StatusOK, f.VirtualAllocate(100, 23))
 					close(a1)
 				}()
 
@@ -474,10 +490,24 @@ func TestPoolBackedFileAllocatorFUSEUploadFile(t *testing.T) {
 
 				a3 := make(chan struct{})
 				go func() {
-					n, s := f.VirtualWrite([]byte("Foo"), 123)
+					require.Equal(t, virtual.StatusOK, f.VirtualOpenSelf(
+						ctx,
+						virtual.ShareMaskWrite,
+						&virtual.OpenExistingOptions{
+							Truncate: true,
+						},
+						0,
+						&virtual.Attributes{}))
+					f.VirtualClose(virtual.ShareMaskWrite)
+					close(a3)
+				}()
+
+				a4 := make(chan struct{})
+				go func() {
+					n, s := f.VirtualWrite([]byte("Foo"), 120)
 					require.Equal(t, virtual.StatusOK, s)
 					require.Equal(t, 3, n)
-					close(a3)
+					close(a4)
 				}()
 
 				// Even though VirtualSetAttributes()
@@ -490,8 +520,9 @@ func TestPoolBackedFileAllocatorFUSEUploadFile(t *testing.T) {
 					0,
 					&virtual.Attributes{}))
 
-				underlyingFile.EXPECT().Truncate(int64(123)).Times(1)
-				underlyingFile.EXPECT().WriteAt([]byte("Foo"), gomock.Any()).Return(3, nil)
+				underlyingFile.EXPECT().Truncate(int64(123)).MinTimes(1).MaxTimes(2)
+				underlyingFile.EXPECT().Truncate(int64(0))
+				underlyingFile.EXPECT().WriteAt([]byte("Foo"), int64(120)).Return(3, nil)
 
 				// Complete reading the file.
 				data, err := b.ToByteSlice(10)
@@ -503,6 +534,7 @@ func TestPoolBackedFileAllocatorFUSEUploadFile(t *testing.T) {
 				<-a1
 				<-a2
 				<-a3
+				<-a4
 				return nil
 			})
 

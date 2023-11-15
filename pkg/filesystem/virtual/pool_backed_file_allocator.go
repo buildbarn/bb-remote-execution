@@ -17,9 +17,22 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+)
+
+var (
+	poolBackedFileAllocatorPrometheusMetrics sync.Once
+
+	poolBackedFileAllocatorUploadsWithWritableDescriptors = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: "buildbarn",
+			Subsystem: "virtual",
+			Name:      "pool_backed_file_allocator_uploads_with_writable_descriptors_total",
+			Help:      "Total number times the contents of a pool-backed file were uploaded into the Content Addressable Storage while one or more writable file descriptors were present.",
+		})
 )
 
 type poolBackedFileAllocator struct {
@@ -37,6 +50,10 @@ type poolBackedFileAllocator struct {
 // underlying backing file descriptor. This may be used to request
 // deletion from underlying storage.
 func NewPoolBackedFileAllocator(pool re_filesystem.FilePool, errorLogger util.ErrorLogger) FileAllocator {
+	poolBackedFileAllocatorPrometheusMetrics.Do(func() {
+		prometheus.MustRegister(poolBackedFileAllocatorUploadsWithWritableDescriptors)
+	})
+
 	return &poolBackedFileAllocator{
 		pool:        pool,
 		errorLogger: errorLogger,
@@ -56,30 +73,33 @@ func (fa *poolBackedFileAllocator) NewFile(isExecutable bool, size uint64, share
 			return nil, StatusErrIO
 		}
 	}
-	return &fileBackedFile{
+	f := &fileBackedFile{
 		errorLogger: fa.errorLogger,
 
 		file:           file,
 		isExecutable:   isExecutable,
 		size:           size,
-		referenceCount: 1 + shareAccess.Count(),
+		referenceCount: 1,
 		unfreezeWakeup: make(chan struct{}),
 		cachedDigest:   digest.BadDigest,
-	}, StatusOK
+	}
+	f.acquireShareAccessLocked(shareAccess)
+	return f, StatusOK
 }
 
 type fileBackedFile struct {
 	errorLogger util.ErrorLogger
 
-	lock                  sync.RWMutex
-	file                  filesystem.FileReadWriter
-	isExecutable          bool
-	size                  uint64
-	referenceCount        uint
-	openFrozenDescriptors uint
-	unfreezeWakeup        chan struct{}
-	cachedDigest          digest.Digest
-	changeID              uint64
+	lock                     sync.RWMutex
+	file                     filesystem.FileReadWriter
+	isExecutable             bool
+	size                     uint64
+	referenceCount           uint
+	writableDescriptorsCount uint
+	frozenDescriptorsCount   uint
+	unfreezeWakeup           chan struct{}
+	cachedDigest             digest.Digest
+	changeID                 uint64
 }
 
 // lockMutatingData picks up the exclusive lock of the file and waits
@@ -87,7 +107,7 @@ type fileBackedFile struct {
 // to be called in operations that mutate f.file and f.size.
 func (f *fileBackedFile) lockMutatingData() {
 	f.lock.Lock()
-	for f.openFrozenDescriptors > 0 {
+	for f.frozenDescriptorsCount > 0 {
 		c := f.unfreezeWakeup
 		f.lock.Unlock()
 		<-c
@@ -95,41 +115,46 @@ func (f *fileBackedFile) lockMutatingData() {
 	}
 }
 
-func (f *fileBackedFile) acquireFrozen() bool {
+func (f *fileBackedFile) acquireFrozenDescriptor() (hasWritableDescriptors, success bool) {
 	f.lock.Lock()
 	defer f.lock.Unlock()
 
 	if f.referenceCount == 0 {
-		return false
+		return false, false
 	}
 	f.referenceCount++
-	f.openFrozenDescriptors++
-	return true
+	f.frozenDescriptorsCount++
+	return f.writableDescriptorsCount > 0, true
 }
 
-func (f *fileBackedFile) release(count uint, frozen bool) {
+func (f *fileBackedFile) releaseFrozenDescriptor() {
 	f.lock.Lock()
 	defer f.lock.Unlock()
 
+	if f.frozenDescriptorsCount == 0 {
+		panic("Invalid open frozen descriptor count")
+	}
+	f.frozenDescriptorsCount--
+	if f.frozenDescriptorsCount == 0 {
+		close(f.unfreezeWakeup)
+		f.unfreezeWakeup = make(chan struct{})
+	}
+
+	f.releaseReferencesLocked(1)
+}
+
+func (f *fileBackedFile) acquireShareAccessLocked(shareAccess ShareMask) {
+	f.referenceCount += shareAccess.Count()
+	if shareAccess&ShareMaskWrite != 0 {
+		f.writableDescriptorsCount++
+	}
+}
+
+func (f *fileBackedFile) releaseReferencesLocked(count uint) {
 	if f.referenceCount < count {
 		panic("Invalid reference count")
 	}
 	f.referenceCount -= count
-
-	if frozen {
-		if f.openFrozenDescriptors < count {
-			panic("Invalid open frozen descriptor count")
-		}
-		f.openFrozenDescriptors -= count
-		if f.openFrozenDescriptors == 0 {
-			close(f.unfreezeWakeup)
-			f.unfreezeWakeup = make(chan struct{})
-		}
-	}
-	f.closeIfNeeded()
-}
-
-func (f *fileBackedFile) closeIfNeeded() {
 	if f.referenceCount == 0 {
 		f.file.Close()
 		f.file = nil
@@ -152,7 +177,10 @@ func (f *fileBackedFile) Readlink() (string, error) {
 }
 
 func (f *fileBackedFile) Unlink() {
-	f.release(1, false)
+	f.lock.Lock()
+	defer f.lock.Unlock()
+
+	f.releaseReferencesLocked(1)
 }
 
 func (f *fileBackedFile) getCachedDigest() digest.Digest {
@@ -164,7 +192,7 @@ func (f *fileBackedFile) getCachedDigest() digest.Digest {
 // updateCachedDigest returns the digest of the file. It either returns
 // a cached value, or computes the digest and caches it. It is only safe
 // to call this function while the file is frozen (i.e., calling
-// f.acquireFrozen()).
+// f.acquireFrozenDescriptor()).
 func (f *fileBackedFile) updateCachedDigest(digestFunction digest.Function) (digest.Digest, error) {
 	// Check whether the cached digest we have is still valid.
 	if cachedDigest := f.getCachedDigest(); cachedDigest != digest.BadDigest && cachedDigest.UsesDigestFunction(digestFunction) {
@@ -190,8 +218,20 @@ func (f *fileBackedFile) UploadFile(ctx context.Context, contentAddressableStora
 	// this file. This ensures that the file's contents don't change
 	// between the digest computation and upload phase. This allows
 	// us to safely use NewValidatedBufferFromFileReader().
-	if !f.acquireFrozen() {
+	hasWritableDescriptors, success := f.acquireFrozenDescriptor()
+	if !success {
 		return digest.BadDigest, status.Error(codes.NotFound, "File was unlinked before uploading could start")
+	}
+	if hasWritableDescriptors {
+		// Process table cleaning should have cleaned up any
+		// file descriptors belonging to files in the input
+		// root. Yet we are still seeing the file being opened
+		// for writing. This is bad, as it means that data may
+		// still be present in the kernel's page cache.
+		//
+		// TODO: Would there be any way for us to force a sync
+		// of the file's contents?
+		poolBackedFileAllocatorUploadsWithWritableDescriptors.Inc()
 	}
 
 	blobDigest, err := f.updateCachedDigest(digestFunction)
@@ -216,19 +256,27 @@ func (f *fileBackedFile) GetContainingDigests() digest.Set {
 func (f *fileBackedFile) GetOutputServiceFileStatus(digestFunction *digest.Function) (*remoteoutputservice.FileStatus, error) {
 	fileStatus := &remoteoutputservice.FileStatus_File{}
 	if digestFunction != nil {
-		// TODO: Omit the digest if the file is opened for
+		hasWritableDescriptors, success := f.acquireFrozenDescriptor()
+		if !success {
+			return nil, status.Error(codes.NotFound, "File was unlinked before digest computation could start")
+		}
+		defer f.releaseFrozenDescriptor()
+
+		// Don't report the digest if the file is opened for
 		// writing. The kernel may still hold on to data that
 		// needs to be written, meaning that digests computed on
 		// this end are inaccurate.
-		if !f.acquireFrozen() {
-			return nil, status.Error(codes.NotFound, "File was unlinked before digest computation could start")
+		//
+		// By not reporting the digest, the client will
+		// recompute it itself. This will be consistent with
+		// what's stored in the kernel's page cache.
+		if !hasWritableDescriptors {
+			blobDigest, err := f.updateCachedDigest(*digestFunction)
+			if err != nil {
+				return nil, err
+			}
+			fileStatus.Digest = blobDigest.GetProto()
 		}
-		blobDigest, err := f.updateCachedDigest(*digestFunction)
-		f.release(1, true)
-		if err != nil {
-			return nil, err
-		}
-		fileStatus.Digest = blobDigest.GetProto()
 	}
 	return &remoteoutputservice.FileStatus{
 		FileType: &remoteoutputservice.FileStatus_File_{
@@ -264,7 +312,7 @@ func (f *fileBackedFile) AppendOutputPathPersistencyDirectoryNode(directory *out
 }
 
 func (f *fileBackedFile) Close() error {
-	f.release(1, true)
+	f.releaseFrozenDescriptor()
 	return nil
 }
 
@@ -339,7 +387,11 @@ func (f *fileBackedFile) VirtualSeek(offset uint64, regionType filesystem.Region
 }
 
 func (f *fileBackedFile) VirtualOpenSelf(ctx context.Context, shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status {
-	f.lock.Lock()
+	if options.Truncate {
+		f.lockMutatingData()
+	} else {
+		f.lock.Lock()
+	}
 	defer f.lock.Unlock()
 
 	if f.referenceCount == 0 {
@@ -353,7 +405,7 @@ func (f *fileBackedFile) VirtualOpenSelf(ctx context.Context, shareAccess ShareM
 		}
 	}
 
-	f.referenceCount += shareAccess.Count()
+	f.acquireShareAccessLocked(shareAccess)
 	f.virtualGetAttributesUnlocked(attributes)
 	f.virtualGetAttributesLocked(attributes)
 	return StatusOK
@@ -378,7 +430,16 @@ func (f *fileBackedFile) VirtualReadlink(ctx context.Context) ([]byte, Status) {
 }
 
 func (f *fileBackedFile) VirtualClose(shareAccess ShareMask) {
-	f.release(shareAccess.Count(), false)
+	f.lock.Lock()
+	defer f.lock.Unlock()
+
+	if shareAccess&ShareMaskWrite != 0 {
+		if f.writableDescriptorsCount == 0 {
+			panic("Invalid writable descriptor count")
+		}
+		f.writableDescriptorsCount--
+	}
+	f.releaseReferencesLocked(shareAccess.Count())
 }
 
 func (f *fileBackedFile) virtualTruncate(size uint64) Status {
