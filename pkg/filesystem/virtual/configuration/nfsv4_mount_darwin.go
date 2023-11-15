@@ -213,6 +213,11 @@ func (m *nfsv4Mount) mount(terminationGroup program.Group, rpcServer *rpcserver.
 		writeAttributeCachingDuration(&m.rootDirectoryAttributeCaching, &attrVals)
 	}
 
+	if osConfiguration.AccessCacheSize > 0 && buildVersion.greaterEqual(24, 'A', 123) {
+		attrMask[1] |= 1 << (nfs_sys_prot.NFS_MATTR_ACCESS_CACHE - 32)
+		nfs_sys_prot.WriteNfsMattrAccessCache(&attrVals, osConfiguration.AccessCacheSize)
+	}
+
 	// Construct the nfs_mount_args message and serialize it.
 	for attrMask[len(attrMask)-1] == 0 {
 		attrMask = attrMask[:len(attrMask)-1]

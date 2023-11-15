@@ -179,8 +179,8 @@ def go_dependencies():
     go_repository(
         name = "com_github_buildbarn_go_xdr",
         importpath = "github.com/buildbarn/go-xdr",
-        sum = "h1:lstSRIB5zQnvkSNjzUW8NS5Ox1u/sjL5gksFQ9VQUzo=",
-        version = "v0.0.0-20231002195348-0d2d95eab08c",
+        sum = "h1:/sKWC0Fs5fXNo/t72BRZRLERg4v2gFoEeg2Mk+a8xak=",
+        version = "v0.0.0-20231115101217-a9e2aa4cf64b",
     )
     go_repository(
         name = "com_github_burntsushi_toml",

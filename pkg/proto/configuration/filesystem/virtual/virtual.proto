@@ -190,6 +190,25 @@ message NFSv4DarwinMountConfiguration {
   // 'maximum_directories_attribute_cache_timeout'. These options are
   // now set automatically, based on the application that is used.
   reserved 2, 3;
+
+  // If set, adjust the size of the cache of ACCESS operation results
+  // that is tracked for each vnode (i.e., kernel file object).
+  //
+  // By default, the kernel will cache the results of ACCESS operations
+  // for up to three different users. This is sufficient for workloads
+  // where all build actions run as the same user. However, when
+  // privilege separation is performed, the cache of the build
+  // directory's root vnode may get exhausted constantly. This leads to
+  // an elevated number of ACCESS operations issued by the client.
+  //
+  // Setting this option to a value that is greater or equal to the
+  // number of distinct user IDs performing builds prevents this from
+  // happening, at the cost of slightly increasing the memory footprint
+  // of each vnode in the file system.
+  //
+  // Please refer to the 'accesscache' option in the mount_nfs(8) manual
+  // page for more details.
+  uint32 access_cache_size = 4;
 }
 
 message RPCv2SystemAuthenticationConfiguration {
