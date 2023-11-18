@@ -5,6 +5,8 @@ go_library(
     srcs = [
         "attribute_caching_duration.go",
         "configuration.go",
+        "drop_capabilities_disabled.go",
+        "drop_capabilities_linux.go",
         "fuse_mount_disabled.go",
         "fuse_mount_enabled.go",
         "nfsv4_mount_darwin.go",
