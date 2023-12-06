@@ -141,6 +141,14 @@ var (
 			Help:      "Number of workers created by Synchronize().",
 		},
 		[]string{"instance_name_prefix", "platform", "size_class"})
+	inMemoryBuildQueueWorkersTerminatingTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "buildbarn",
+			Subsystem: "builder",
+			Name:      "in_memory_build_queue_workers_terminating_total",
+			Help:      "Number of workers that have entered the terminating state.",
+		},
+		[]string{"instance_name_prefix", "platform", "size_class"})
 	inMemoryBuildQueueWorkersRemovedTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "buildbarn",
@@ -290,6 +298,7 @@ func NewInMemoryBuildQueue(contentAddressableStorage blobstore.BlobAccess, clock
 		prometheus.MustRegister(inMemoryBuildQueueTasksCompletedDurationSeconds)
 
 		prometheus.MustRegister(inMemoryBuildQueueWorkersCreatedTotal)
+		prometheus.MustRegister(inMemoryBuildQueueWorkersTerminatingTotal)
 		prometheus.MustRegister(inMemoryBuildQueueWorkersRemovedTotal)
 
 		prometheus.MustRegister(inMemoryBuildQueueWorkerInvocationStickinessRetained)
@@ -1178,7 +1187,7 @@ func (bq *InMemoryBuildQueue) TerminateWorkers(ctx context.Context, request *bui
 	for _, scq := range bq.sizeClassQueues {
 		for workerKey, w := range scq.workers {
 			if workerMatchesPattern(workerKey.getWorkerID(), request.WorkerIdPattern) {
-				w.terminating = true
+				scq.markWorkerTerminating(w)
 				if t := w.currentTask; t != nil {
 					// The task will be at the
 					// EXECUTING stage, so it can
@@ -1381,6 +1390,7 @@ func (pq *platformQueue) addSizeClassQueue(bq *InMemoryBuildQueue, sizeClass uin
 		tasksCompletedDurationSeconds: inMemoryBuildQueueTasksCompletedDurationSeconds.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr),
 
 		workersCreatedTotal:          inMemoryBuildQueueWorkersCreatedTotal.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr),
+		workersTerminatingTotal:      inMemoryBuildQueueWorkersTerminatingTotal.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr),
 		workersRemovedIdleTotal:      inMemoryBuildQueueWorkersRemovedTotal.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr, "Idle"),
 		workersRemovedExecutingTotal: inMemoryBuildQueueWorkersRemovedTotal.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr, "Executing"),
 
@@ -1469,6 +1479,7 @@ type sizeClassQueue struct {
 	tasksCompletedDurationSeconds prometheus.Observer
 
 	workersCreatedTotal          prometheus.Counter
+	workersTerminatingTotal      prometheus.Counter
 	workersRemovedIdleTotal      prometheus.Counter
 	workersRemovedExecutingTotal prometheus.Counter
 
@@ -1523,6 +1534,7 @@ func (scq *sizeClassQueue) remove(bq *InMemoryBuildQueue) {
 // the InMemoryBuildQueue.
 func (scq *sizeClassQueue) removeStaleWorker(bq *InMemoryBuildQueue, workerKey workerKey, removalTime time.Time) {
 	w := scq.workers[workerKey]
+	scq.markWorkerTerminating(w)
 	if t := w.currentTask; t == nil {
 		scq.workersRemovedIdleTotal.Inc()
 	} else {
@@ -1594,6 +1606,13 @@ func (scq *sizeClassQueue) incrementInvocationsCreatedTotal(depth int) {
 	}
 
 	scq.invocationsMetrics[depth].createdTotal.Inc()
+}
+
+func (scq *sizeClassQueue) markWorkerTerminating(w *worker) {
+	if !w.terminating {
+		scq.workersTerminatingTotal.Inc()
+		w.terminating = true
+	}
 }
 
 // workerKey can be used as a key for maps to uniquely identify a worker
