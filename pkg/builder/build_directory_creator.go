@@ -10,5 +10,5 @@ import (
 // BuildDirectoryCreator is used by LocalBuildExecutor to obtain build
 // directories in which build actions are executed.
 type BuildDirectoryCreator interface {
-	GetBuildDirectory(ctx context.Context, actionDigest digest.Digest, mayRunInParallel bool) (BuildDirectory, *path.Trace, error)
+	GetBuildDirectory(ctx context.Context, actionDigestIfNotRunInParallel *digest.Digest) (BuildDirectory, *path.Trace, error)
 }

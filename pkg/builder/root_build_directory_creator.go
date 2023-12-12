@@ -24,7 +24,7 @@ func NewRootBuildDirectoryCreator(buildDirectory BuildDirectory) BuildDirectoryC
 	return dc
 }
 
-func (dc *rootBuildDirectoryCreator) GetBuildDirectory(ctx context.Context, actionDigest digest.Digest, mayRunInParallel bool) (BuildDirectory, *path.Trace, error) {
+func (dc *rootBuildDirectoryCreator) GetBuildDirectory(ctx context.Context, actionDigestIfNotRunInParallel *digest.Digest) (BuildDirectory, *path.Trace, error) {
 	return dc.buildDirectory, nil, nil
 }
 

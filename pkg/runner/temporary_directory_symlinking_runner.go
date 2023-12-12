@@ -71,7 +71,7 @@ func (r *temporaryDirectorySymlinkingRunner) Run(ctx context.Context, request *r
 	return r.base.Run(ctx, request)
 }
 
-func (r *temporaryDirectorySymlinkingRunner) CheckReadiness(ctx context.Context, request *emptypb.Empty) (*emptypb.Empty, error) {
+func (r *temporaryDirectorySymlinkingRunner) CheckReadiness(ctx context.Context, request *runner_pb.CheckReadinessRequest) (*emptypb.Empty, error) {
 	// When idle, test that symlink creation works properly. That
 	// way the worker won't pick up any actions from the scheduler
 	// in case of misconfigurations.

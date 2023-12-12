@@ -37,7 +37,7 @@ func TestPathExistenceCheckingRunner(t *testing.T) {
 	t.Run("NotReadyCheckReadiness", func(t *testing.T) {
 		// When the file used for readiness checking is not
 		// present, CheckReadiness() should fail.
-		_, err := runnerServer.CheckReadiness(ctx, &emptypb.Empty{})
+		_, err := runnerServer.CheckReadiness(ctx, &runner_pb.CheckReadinessRequest{})
 		testutil.RequirePrefixedStatus(
 			t,
 			status.Errorf(codes.Unavailable, "Path %#v: ", readinessCheckingFilename),
@@ -68,7 +68,7 @@ func TestPathExistenceCheckingRunner(t *testing.T) {
 		// Readiness checks should now succeed.
 		mockRunner.EXPECT().CheckReadiness(ctx, gomock.Any()).Return(&emptypb.Empty{}, nil)
 
-		_, err := runnerServer.CheckReadiness(ctx, &emptypb.Empty{})
+		_, err := runnerServer.CheckReadiness(ctx, &runner_pb.CheckReadinessRequest{})
 		require.NoError(t, err)
 	})
 

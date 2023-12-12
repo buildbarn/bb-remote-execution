@@ -39,7 +39,7 @@ func (r *temporaryDirectoryInstallingRunner) Run(ctx context.Context, request *r
 	return r.base.Run(ctx, request)
 }
 
-func (r *temporaryDirectoryInstallingRunner) CheckReadiness(ctx context.Context, request *emptypb.Empty) (*emptypb.Empty, error) {
+func (r *temporaryDirectoryInstallingRunner) CheckReadiness(ctx context.Context, request *runner_pb.CheckReadinessRequest) (*emptypb.Empty, error) {
 	if _, err := r.tmpInstaller.CheckReadiness(ctx, &emptypb.Empty{}); err != nil {
 		return nil, util.StatusWrap(err, "Readiness check of temporary directory installer failed")
 	}

@@ -23,7 +23,64 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func TestLocalRunner(t *testing.T) {
+func TestLocalRunnerCheckReadiness(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+
+	buildDirectory := mock.NewMockDirectory(ctrl)
+	runner := runner.NewLocalRunner(buildDirectory, &path.EmptyBuilder, runner.NewPlainCommandCreator(&syscall.SysProcAttr{}), false)
+
+	t.Run("NoPathSpecified", func(t *testing.T) {
+		_, err := runner.CheckReadiness(ctx, &runner_pb.CheckReadinessRequest{})
+		require.NoError(t, err)
+	})
+
+	t.Run("RootPath", func(t *testing.T) {
+		_, err := runner.CheckReadiness(ctx, &runner_pb.CheckReadinessRequest{
+			Path: ".",
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("NonExistentPath", func(t *testing.T) {
+		buildDirectory.EXPECT().Lstat(path.MustNewComponent("does_not_exist")).
+			Return(filesystem.FileInfo{}, syscall.ENOENT)
+
+		_, err := runner.CheckReadiness(ctx, &runner_pb.CheckReadinessRequest{
+			Path: "does_not_exist",
+		})
+		testutil.RequirePrefixedStatus(t, status.Error(codes.Internal, "Failed to check existence of path \"does_not_exist\" in build directory: no such file or directory"), err)
+	})
+
+	t.Run("NonExistentDirectory", func(t *testing.T) {
+		buildDirectory.EXPECT().EnterDirectory(path.MustNewComponent("does")).
+			Return(nil, syscall.ENOENT)
+
+		_, err := runner.CheckReadiness(ctx, &runner_pb.CheckReadinessRequest{
+			Path: "does/not/exist",
+		})
+		testutil.RequirePrefixedStatus(t, status.Error(codes.Internal, "Failed to resolve path \"does/not/exist\" in build directory: no such file or directory"), err)
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		someDirectory := mock.NewMockDirectoryCloser(ctrl)
+		buildDirectory.EXPECT().EnterDirectory(path.MustNewComponent("some")).
+			Return(someDirectory, nil)
+		nestedDirectory := mock.NewMockDirectoryCloser(ctrl)
+		someDirectory.EXPECT().EnterDirectory(path.MustNewComponent("nested")).
+			Return(nestedDirectory, nil)
+		nestedDirectory.EXPECT().Lstat(path.MustNewComponent("file")).
+			Return(filesystem.NewFileInfo(path.MustNewComponent("file"), filesystem.FileTypeRegularFile, false), nil)
+		nestedDirectory.EXPECT().Close()
+		someDirectory.EXPECT().Close()
+
+		_, err := runner.CheckReadiness(ctx, &runner_pb.CheckReadinessRequest{
+			Path: "some/nested/file",
+		})
+		require.NoError(t, err)
+	})
+}
+
+func TestLocalRunnerRun(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	buildDirectoryPath := t.TempDir()

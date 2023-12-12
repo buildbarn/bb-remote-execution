@@ -26,15 +26,14 @@ func TestCleanBuildDirectoryCreator(t *testing.T) {
 	baseCleaner := mock.NewMockCleaner(ctrl)
 	buildDirectoryCreator := builder.NewCleanBuildDirectoryCreator(baseBuildDirectoryCreator, cleaner.NewIdleInvoker(baseCleaner.Call))
 
+	actionDigest := digest.MustNewDigest("debian8", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0)
+
 	t.Run("CleanerAcquireFailure", func(t *testing.T) {
 		// Failure to clean prior to acquiring a build directory
 		// should be propagated.
 		baseCleaner.EXPECT().Call(ctx).Return(status.Error(codes.Internal, "Cannot remove files from build directory"))
 
-		_, _, err := buildDirectoryCreator.GetBuildDirectory(
-			ctx,
-			digest.MustNewDigest("debian8", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
-			false)
+		_, _, err := buildDirectoryCreator.GetBuildDirectory(ctx, &actionDigest)
 		testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to clean before acquiring build directory: Cannot remove files from build directory"), err)
 	})
 
@@ -44,17 +43,11 @@ func TestCleanBuildDirectoryCreator(t *testing.T) {
 		// invalid afterwards. This should trigger another
 		// clean.
 		baseCleaner.EXPECT().Call(ctx)
-		baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(
-			ctx,
-			digest.MustNewDigest("debian8", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
-			false,
-		).Return(nil, nil, status.Error(codes.Internal, "No space left on device"))
+		baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(ctx, &actionDigest).
+			Return(nil, nil, status.Error(codes.Internal, "No space left on device"))
 		baseCleaner.EXPECT().Call(ctx)
 
-		_, _, err := buildDirectoryCreator.GetBuildDirectory(
-			ctx,
-			digest.MustNewDigest("debian8", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
-			false)
+		_, _, err := buildDirectoryCreator.GetBuildDirectory(ctx, &actionDigest)
 		require.Equal(t, status.Error(codes.Internal, "No space left on device"), err)
 	})
 
@@ -62,16 +55,10 @@ func TestCleanBuildDirectoryCreator(t *testing.T) {
 		// Successfully obtain a build directory.
 		baseCleaner.EXPECT().Call(ctx)
 		baseBuildDirectory := mock.NewMockBuildDirectory(ctrl)
-		baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(
-			ctx,
-			digest.MustNewDigest("debian8", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
-			false,
-		).Return(baseBuildDirectory, ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory")), nil)
+		baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(ctx, &actionDigest).
+			Return(baseBuildDirectory, ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory")), nil)
 
-		buildDirectory, buildDirectoryPath, err := buildDirectoryCreator.GetBuildDirectory(
-			ctx,
-			digest.MustNewDigest("debian8", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
-			false)
+		buildDirectory, buildDirectoryPath, err := buildDirectoryCreator.GetBuildDirectory(ctx, &actionDigest)
 		require.NoError(t, err)
 		require.Equal(t, ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory")), buildDirectoryPath)
 
@@ -97,16 +84,10 @@ func TestCleanBuildDirectoryCreator(t *testing.T) {
 		// Successfully obtain a build directory.
 		baseCleaner.EXPECT().Call(ctx)
 		baseBuildDirectory := mock.NewMockBuildDirectory(ctrl)
-		baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(
-			ctx,
-			digest.MustNewDigest("debian8", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
-			false,
-		).Return(baseBuildDirectory, ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory")), nil)
+		baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(ctx, &actionDigest).
+			Return(baseBuildDirectory, ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory")), nil)
 
-		buildDirectory, buildDirectoryPath, err := buildDirectoryCreator.GetBuildDirectory(
-			ctx,
-			digest.MustNewDigest("debian8", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
-			false)
+		buildDirectory, buildDirectoryPath, err := buildDirectoryCreator.GetBuildDirectory(ctx, &actionDigest)
 		require.NoError(t, err)
 		require.Equal(t, ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory")), buildDirectoryPath)
 
@@ -125,16 +106,10 @@ func TestCleanBuildDirectoryCreator(t *testing.T) {
 		// Successfully obtain a build directory.
 		baseCleaner.EXPECT().Call(ctx)
 		baseBuildDirectory := mock.NewMockBuildDirectory(ctrl)
-		baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(
-			ctx,
-			digest.MustNewDigest("debian8", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
-			false,
-		).Return(baseBuildDirectory, ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory")), nil)
+		baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(ctx, &actionDigest).
+			Return(baseBuildDirectory, ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory")), nil)
 
-		buildDirectory, buildDirectoryPath, err := buildDirectoryCreator.GetBuildDirectory(
-			ctx,
-			digest.MustNewDigest("debian8", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
-			false)
+		buildDirectory, buildDirectoryPath, err := buildDirectoryCreator.GetBuildDirectory(ctx, &actionDigest)
 		require.NoError(t, err)
 		require.Equal(t, ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory")), buildDirectoryPath)
 

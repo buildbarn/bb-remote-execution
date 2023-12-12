@@ -34,7 +34,7 @@ func (r *pathExistenceCheckingRunner) checkPathExistence(ctx context.Context) er
 	return nil
 }
 
-func (r *pathExistenceCheckingRunner) CheckReadiness(ctx context.Context, request *emptypb.Empty) (*emptypb.Empty, error) {
+func (r *pathExistenceCheckingRunner) CheckReadiness(ctx context.Context, request *runner_pb.CheckReadinessRequest) (*emptypb.Empty, error) {
 	if err := r.checkPathExistence(ctx); err != nil {
 		return nil, err
 	}

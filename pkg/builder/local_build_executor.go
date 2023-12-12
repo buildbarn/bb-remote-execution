@@ -32,6 +32,7 @@ var (
 	deviceDirectoryComponent    = path.MustNewComponent("dev")
 	inputRootDirectoryComponent = path.MustNewComponent("root")
 	temporaryDirectoryComponent = path.MustNewComponent("tmp")
+	checkReadinessComponent     = path.MustNewComponent("check_readiness")
 )
 
 // capturingErrorLogger is an error logger that stores up to a single
@@ -104,7 +105,20 @@ func (be *localBuildExecutor) createCharacterDevices(inputRootDirectory BuildDir
 }
 
 func (be *localBuildExecutor) CheckReadiness(ctx context.Context) error {
-	_, err := be.runner.CheckReadiness(ctx, &emptypb.Empty{})
+	buildDirectory, buildDirectoryPath, err := be.buildDirectoryCreator.GetBuildDirectory(ctx, nil)
+	if err != nil {
+		return util.StatusWrap(err, "Failed to get build directory")
+	}
+	defer buildDirectory.Close()
+
+	// Create a useless directory inside the build directory. The
+	// runner will validate that it exists.
+	if err := buildDirectory.Mkdir(checkReadinessComponent, 0o777); err != nil {
+		return util.StatusWrap(err, "Failed to create readiness checking directory")
+	}
+	_, err = be.runner.CheckReadiness(ctx, &runner_pb.CheckReadinessRequest{
+		Path: buildDirectoryPath.Append(checkReadinessComponent).String(),
+	})
 	return err
 }
 
@@ -130,7 +144,11 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to extract digest for action"))
 		return response
 	}
-	buildDirectory, buildDirectoryPath, err := be.buildDirectoryCreator.GetBuildDirectory(ctx, actionDigest, action.DoNotCache)
+	var actionDigestIfNotRunInParallel *digest.Digest
+	if !action.DoNotCache {
+		actionDigestIfNotRunInParallel = &actionDigest
+	}
+	buildDirectory, buildDirectoryPath, err := be.buildDirectoryCreator.GetBuildDirectory(ctx, actionDigestIfNotRunInParallel)
 	if err != nil {
 		attachErrorToExecuteResponse(
 			response,

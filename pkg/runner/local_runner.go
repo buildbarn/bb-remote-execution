@@ -17,18 +17,19 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-// logFileResolver is an implementation of path.ComponentWalker that is
-// used by localRunner.Run() to traverse to the directory of stdout and
-// stderr log files, so that they may be opened.
+// buildDirectoryPathResolver is an implementation of
+// path.ComponentWalker that is used by localRunner.Run() to resolve
+// paths inside the build directory, such as stdout and stderr log files
+// so that they may be opened.
 //
 // TODO: This code seems fairly generic. Should move it to the
 // filesystem package?
-type logFileResolver struct {
+type buildDirectoryPathResolver struct {
 	path.TerminalNameTrackingComponentWalker
 	stack util.NonEmptyStack[filesystem.DirectoryCloser]
 }
 
-func (r *logFileResolver) OnDirectory(name path.Component) (path.GotDirectoryOrSymlink, error) {
+func (r *buildDirectoryPathResolver) OnDirectory(name path.Component) (path.GotDirectoryOrSymlink, error) {
 	child, err := r.stack.Peek().EnterDirectory(name)
 	if err != nil {
 		return nil, err
@@ -40,7 +41,7 @@ func (r *logFileResolver) OnDirectory(name path.Component) (path.GotDirectoryOrS
 	}, nil
 }
 
-func (r *logFileResolver) OnUp() (path.ComponentWalker, error) {
+func (r *buildDirectoryPathResolver) OnUp() (path.ComponentWalker, error) {
 	if d, ok := r.stack.PopSingle(); ok {
 		if err := d.Close(); err != nil {
 			r.stack.Push(d)
@@ -51,7 +52,7 @@ func (r *logFileResolver) OnUp() (path.ComponentWalker, error) {
 	return nil, status.Error(codes.InvalidArgument, "Path resolves to a location outside the build directory")
 }
 
-func (r *logFileResolver) closeAll() {
+func (r *buildDirectoryPathResolver) closeAll() {
 	for {
 		d, ok := r.stack.PopSingle()
 		if !ok {
@@ -69,7 +70,7 @@ type localRunner struct {
 }
 
 func (r *localRunner) openLog(logPath string) (filesystem.FileAppender, error) {
-	logFileResolver := logFileResolver{
+	logFileResolver := buildDirectoryPathResolver{
 		stack: util.NewNonEmptyStack(filesystem.NopDirectoryCloser(r.buildDirectory)),
 	}
 	defer logFileResolver.closeAll()
@@ -177,6 +178,23 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 	}, nil
 }
 
-func (r *localRunner) CheckReadiness(ctx context.Context, request *emptypb.Empty) (*emptypb.Empty, error) {
+func (r *localRunner) CheckReadiness(ctx context.Context, request *runner.CheckReadinessRequest) (*emptypb.Empty, error) {
+	// Check that the path that the worker provided as part of the
+	// request exists in the build directory. This ensures that
+	// trivial misconfigurations of the build directory don't lead
+	// to repeated build failures.
+	pathResolver := buildDirectoryPathResolver{
+		stack: util.NewNonEmptyStack(filesystem.NopDirectoryCloser(r.buildDirectory)),
+	}
+	defer pathResolver.closeAll()
+	if err := path.Resolve(request.Path, path.NewRelativeScopeWalker(&pathResolver)); err != nil {
+		return nil, util.StatusWrapfWithCode(err, codes.Internal, "Failed to resolve path %#v in build directory", request.Path)
+	}
+	if name := pathResolver.TerminalName; name != nil {
+		if _, err := pathResolver.stack.Peek().Lstat(*name); err != nil {
+			return nil, util.StatusWrapfWithCode(err, codes.Internal, "Failed to check existence of path %#v in build directory", request.Path)
+		}
+	}
+
 	return &emptypb.Empty{}, nil
 }

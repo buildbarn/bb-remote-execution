@@ -39,7 +39,7 @@ func (r *cleanRunner) Run(ctx context.Context, request *runner_pb.RunRequest) (*
 	return response, err2
 }
 
-func (r *cleanRunner) CheckReadiness(ctx context.Context, request *emptypb.Empty) (*emptypb.Empty, error) {
+func (r *cleanRunner) CheckReadiness(ctx context.Context, request *runner_pb.CheckReadinessRequest) (*emptypb.Empty, error) {
 	if err := r.idleInvoker.Acquire(ctx); err != nil {
 		return nil, err
 	}

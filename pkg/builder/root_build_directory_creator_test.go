@@ -24,10 +24,8 @@ func TestRootBuildDirectoryCreator(t *testing.T) {
 	// Once terminated, the underlying build directory should not be
 	// closed, as it is reused by the next build action.
 	mockBuildDirectory.EXPECT().Mkdir(path.MustNewComponent("hello"), os.FileMode(0o700))
-	buildDirectory, buildDirectoryPath, err := buildDirectoryCreator.GetBuildDirectory(
-		ctx,
-		digest.MustNewDigest("debian8", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0),
-		true)
+	actionDigest := digest.MustNewDigest("debian8", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0)
+	buildDirectory, buildDirectoryPath, err := buildDirectoryCreator.GetBuildDirectory(ctx, &actionDigest)
 	require.NoError(t, err)
 	require.Nil(t, buildDirectoryPath)
 	require.NoError(t, buildDirectory.Mkdir(path.MustNewComponent("hello"), os.FileMode(0o700)))
@@ -36,10 +34,7 @@ func TestRootBuildDirectoryCreator(t *testing.T) {
 	// Run an action similar to the previous one. It should be
 	// applied against the same underlying build directory.
 	mockBuildDirectory.EXPECT().Mkdir(path.MustNewComponent("world"), os.FileMode(0o700))
-	buildDirectory, buildDirectoryPath, err = buildDirectoryCreator.GetBuildDirectory(
-		ctx,
-		digest.MustNewDigest("freebsd", remoteexecution.DigestFunction_SHA256, "7609128715518308672067aab169e24944ead24e3d732aab8a8f0b7013a65564", 5),
-		true)
+	buildDirectory, buildDirectoryPath, err = buildDirectoryCreator.GetBuildDirectory(ctx, nil)
 	require.NoError(t, err)
 	require.Nil(t, buildDirectoryPath)
 	require.NoError(t, buildDirectory.Mkdir(path.MustNewComponent("world"), os.FileMode(0o700)))

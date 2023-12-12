@@ -104,7 +104,7 @@ func TestTemporaryDirectorySymlinkingRunnerCheckReadiness(t *testing.T) {
 		baseRunner := mock.NewMockRunnerServer(ctrl)
 		runner := runner.NewTemporaryDirectorySymlinkingRunner(baseRunner, "/", buildDirectory)
 
-		_, err := runner.CheckReadiness(ctx, &emptypb.Empty{})
+		_, err := runner.CheckReadiness(ctx, &runner_pb.CheckReadinessRequest{})
 		testutil.RequirePrefixedStatus(t, status.Error(codes.Internal, "Failed to remove symbolic link \"/\": "), err)
 	})
 
@@ -140,9 +140,10 @@ func TestTemporaryDirectorySymlinkingRunnerCheckReadiness(t *testing.T) {
 
 				// Concurrent readiness check calls
 				// should still be forwarded.
-				baseRunner.EXPECT().CheckReadiness(ctx, testutil.EqProto(t, &emptypb.Empty{})).Return(&emptypb.Empty{}, nil)
+				baseRunner.EXPECT().CheckReadiness(ctx, testutil.EqProto(t, &runner_pb.CheckReadinessRequest{})).
+					Return(&emptypb.Empty{}, nil)
 
-				_, err = runner.CheckReadiness(ctx, &emptypb.Empty{})
+				_, err = runner.CheckReadiness(ctx, &runner_pb.CheckReadinessRequest{})
 				require.NoError(t, err)
 
 				// The symlink should not get altered in
@@ -163,11 +164,12 @@ func TestTemporaryDirectorySymlinkingRunnerCheckReadiness(t *testing.T) {
 		// should cause the symbolic link to be created for
 		// testing purposes.
 		baseRunner := mock.NewMockRunnerServer(ctrl)
-		baseRunner.EXPECT().CheckReadiness(ctx, testutil.EqProto(t, &emptypb.Empty{})).Return(&emptypb.Empty{}, nil)
+		baseRunner.EXPECT().CheckReadiness(ctx, testutil.EqProto(t, &runner_pb.CheckReadinessRequest{})).
+			Return(&emptypb.Empty{}, nil)
 		symlinkPath := filepath.Join(t.TempDir(), "symlink")
 		runner := runner.NewTemporaryDirectorySymlinkingRunner(baseRunner, symlinkPath, buildDirectory)
 
-		_, err := runner.CheckReadiness(ctx, &emptypb.Empty{})
+		_, err := runner.CheckReadiness(ctx, &runner_pb.CheckReadinessRequest{})
 		require.NoError(t, err)
 
 		symlinkTarget, err := os.Readlink(symlinkPath)
