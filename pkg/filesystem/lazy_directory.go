@@ -245,3 +245,21 @@ func (d *lazyDirectory) Apply(arg interface{}) error {
 	defer underlying.Close()
 	return underlying.Apply(arg)
 }
+
+func (d *lazyDirectory) Mount(mountpoint path.Component, source, fstype string) error {
+	underlying, err := d.openUnderlying()
+	if err != nil {
+		return err
+	}
+	defer underlying.Close()
+	return underlying.Mount(mountpoint, source, fstype)
+}
+
+func (d *lazyDirectory) Unmount(mountpoint path.Component) error {
+	underlying, err := d.openUnderlying()
+	if err != nil {
+		return err
+	}
+	defer underlying.Close()
+	return underlying.Unmount(mountpoint)
+}
