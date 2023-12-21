@@ -1552,6 +1552,7 @@ def go_dependencies():
     go_repository(
         name = "org_golang_x_sys",
         importpath = "golang.org/x/sys",
+        patches = ["@com_github_buildbarn_bb_storage//:patches/org_golang_x_sys/golang-issue-59357.diff"],
         sum = "h1:h48lPFYpsTvQJZF4EKyI4aLHaev3CxivZmv7yZig9pc=",
         version = "v0.15.0",
     )
