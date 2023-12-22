@@ -237,7 +237,18 @@ func TestBlobAccessDirectoryFetcherGetTreeChildDirectory(t *testing.T) {
 		// Call GetTreeChildDirectory() against a valid Tree
 		// object. The provided BlobSlicer should be capable of
 		// extracting the locations of both children.
-		directory1 := &remoteexecution.Directory{
+		rootDirectory := &remoteexecution.Directory{
+			Directories: []*remoteexecution.DirectoryNode{
+				{
+					Name: "directory",
+					Digest: &remoteexecution.Digest{
+						Hash:      "ed56cd683c99acdff14b77db249819fc",
+						SizeBytes: 54,
+					},
+				},
+			},
+		}
+		childDirectory1 := &remoteexecution.Directory{
 			Directories: []*remoteexecution.DirectoryNode{
 				{
 					Name: "subdirectory",
@@ -248,7 +259,7 @@ func TestBlobAccessDirectoryFetcherGetTreeChildDirectory(t *testing.T) {
 				},
 			},
 		}
-		directory2 := &remoteexecution.Directory{
+		childDirectory2 := &remoteexecution.Directory{
 			Files: []*remoteexecution.FileNode{
 				{
 					Name: "hello.txt",
@@ -260,25 +271,16 @@ func TestBlobAccessDirectoryFetcherGetTreeChildDirectory(t *testing.T) {
 			},
 		}
 		tree := &remoteexecution.Tree{
-			Root: &remoteexecution.Directory{
-				Directories: []*remoteexecution.DirectoryNode{
-					{
-						Name: "directory",
-						Digest: &remoteexecution.Digest{
-							Hash:      "ed56cd683c99acdff14b77db249819fc",
-							SizeBytes: 54,
-						},
-					},
-				},
-			},
+			Root: rootDirectory,
 			Children: []*remoteexecution.Directory{
-				directory1,
-				directory2,
+				childDirectory1,
+				childDirectory2,
 			},
 		}
 		treeDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "ed56cd683c99acdff14b77db249819fc", 162)
-		directory1Digest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "5eede3f7e2a1a66c06ffd3906115a55b", 54)
-		directory2Digest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "a7536a0ebdeefa48280e135ea77755f0", 51)
+		rootDirectoryDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "49aec856854ce5d7626c7153f143030c", 51)
+		childDirectory1Digest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "5eede3f7e2a1a66c06ffd3906115a55b", 54)
+		childDirectory2Digest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "a7536a0ebdeefa48280e135ea77755f0", 51)
 
 		blobAccess.EXPECT().GetFromComposite(ctx, treeDigest, gomock.Any(), gomock.Any()).
 			DoAndReturn(func(ctx context.Context, treeDigest, childDigest digest.Digest, slicer slicing.BlobSlicer) buffer.Buffer {
@@ -287,12 +289,17 @@ func TestBlobAccessDirectoryFetcherGetTreeChildDirectory(t *testing.T) {
 				b, slices := slicer.Slice(buffer.NewProtoBufferFromProto(tree, buffer.UserProvided), childDigest)
 				require.Equal(t, []slicing.BlobSlice{
 					{
-						Digest:      directory1Digest,
+						Digest:      rootDirectoryDigest,
+						OffsetBytes: 2,
+						SizeBytes:   51,
+					},
+					{
+						Digest:      childDirectory1Digest,
 						OffsetBytes: 55,
 						SizeBytes:   54,
 					},
 					{
-						Digest:      directory2Digest,
+						Digest:      childDirectory2Digest,
 						OffsetBytes: 111,
 						SizeBytes:   51,
 					},
@@ -304,16 +311,23 @@ func TestBlobAccessDirectoryFetcherGetTreeChildDirectory(t *testing.T) {
 		fetchedDirectory, err := directoryFetcher.GetTreeChildDirectory(
 			ctx,
 			treeDigest,
-			directory1Digest)
+			rootDirectoryDigest)
 		require.NoError(t, err)
-		testutil.RequireEqualProto(t, directory1, fetchedDirectory)
+		testutil.RequireEqualProto(t, rootDirectory, fetchedDirectory)
 
 		fetchedDirectory, err = directoryFetcher.GetTreeChildDirectory(
 			ctx,
 			treeDigest,
-			directory2Digest)
+			childDirectory1Digest)
 		require.NoError(t, err)
-		testutil.RequireEqualProto(t, directory2, fetchedDirectory)
+		testutil.RequireEqualProto(t, childDirectory1, fetchedDirectory)
+
+		fetchedDirectory, err = directoryFetcher.GetTreeChildDirectory(
+			ctx,
+			treeDigest,
+			childDirectory2Digest)
+		require.NoError(t, err)
+		testutil.RequireEqualProto(t, childDirectory2, fetchedDirectory)
 
 		_, err = directoryFetcher.GetTreeChildDirectory(
 			ctx,

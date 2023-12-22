@@ -109,7 +109,7 @@ func (bs *treeBlobSlicer) Slice(b buffer.Buffer, requestedChildDigest digest.Dig
 	var slices []slicing.BlobSlice
 	var bRequested buffer.Buffer
 	if err := util.VisitProtoBytesFields(r, func(fieldNumber protowire.Number, offsetBytes, sizeBytes int64, fieldReader io.Reader) error {
-		if fieldNumber == blobstore.TreeChildrenFieldNumber {
+		if fieldNumber == blobstore.TreeRootFieldNumber || fieldNumber == blobstore.TreeChildrenFieldNumber {
 			var childDigest digest.Digest
 			if bRequested == nil && sizeBytes == requestedSizeBytes {
 				// This directory has the same size as
