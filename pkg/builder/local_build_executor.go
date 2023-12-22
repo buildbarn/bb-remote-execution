@@ -64,26 +64,28 @@ func (el *capturingErrorLogger) GetError() error {
 }
 
 type localBuildExecutor struct {
-	contentAddressableStorage blobstore.BlobAccess
-	buildDirectoryCreator     BuildDirectoryCreator
-	runner                    runner_pb.RunnerClient
-	clock                     clock.Clock
-	inputRootCharacterDevices map[path.Component]filesystem.DeviceNumber
-	maximumMessageSizeBytes   int
-	environmentVariables      map[string]string
+	contentAddressableStorage      blobstore.BlobAccess
+	buildDirectoryCreator          BuildDirectoryCreator
+	runner                         runner_pb.RunnerClient
+	clock                          clock.Clock
+	inputRootCharacterDevices      map[path.Component]filesystem.DeviceNumber
+	maximumMessageSizeBytes        int
+	environmentVariables           map[string]string
+	forceUploadTreesAndDirectories bool
 }
 
 // NewLocalBuildExecutor returns a BuildExecutor that executes build
 // steps on the local system.
-func NewLocalBuildExecutor(contentAddressableStorage blobstore.BlobAccess, buildDirectoryCreator BuildDirectoryCreator, runner runner_pb.RunnerClient, clock clock.Clock, inputRootCharacterDevices map[path.Component]filesystem.DeviceNumber, maximumMessageSizeBytes int, environmentVariables map[string]string) BuildExecutor {
+func NewLocalBuildExecutor(contentAddressableStorage blobstore.BlobAccess, buildDirectoryCreator BuildDirectoryCreator, runner runner_pb.RunnerClient, clock clock.Clock, inputRootCharacterDevices map[path.Component]filesystem.DeviceNumber, maximumMessageSizeBytes int, environmentVariables map[string]string, forceUploadTreesAndDirectories bool) BuildExecutor {
 	return &localBuildExecutor{
-		contentAddressableStorage: contentAddressableStorage,
-		buildDirectoryCreator:     buildDirectoryCreator,
-		runner:                    runner,
-		clock:                     clock,
-		inputRootCharacterDevices: inputRootCharacterDevices,
-		maximumMessageSizeBytes:   maximumMessageSizeBytes,
-		environmentVariables:      environmentVariables,
+		contentAddressableStorage:      contentAddressableStorage,
+		buildDirectoryCreator:          buildDirectoryCreator,
+		runner:                         runner,
+		clock:                          clock,
+		inputRootCharacterDevices:      inputRootCharacterDevices,
+		maximumMessageSizeBytes:        maximumMessageSizeBytes,
+		environmentVariables:           environmentVariables,
+		forceUploadTreesAndDirectories: forceUploadTreesAndDirectories,
 	}
 }
 
@@ -311,7 +313,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 	} else if stderrDigest.GetSizeBytes() > 0 {
 		response.Result.StderrDigest = stderrDigest.GetProto()
 	}
-	if err := outputHierarchy.UploadOutputs(ctx, inputRootDirectory, be.contentAddressableStorage, digestFunction, response.Result); err != nil {
+	if err := outputHierarchy.UploadOutputs(ctx, inputRootDirectory, be.contentAddressableStorage, digestFunction, response.Result, be.forceUploadTreesAndDirectories); err != nil {
 		attachErrorToExecuteResponse(response, err)
 	}
 

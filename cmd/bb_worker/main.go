@@ -391,7 +391,8 @@ func main() {
 						executionTimeoutClock,
 						inputRootCharacterDevices,
 						int(configuration.MaximumMessageSizeBytes),
-						runnerConfiguration.EnvironmentVariables)
+						runnerConfiguration.EnvironmentVariables,
+						configuration.ForceUploadTreesAndDirectories)
 
 					if prefetchingConfiguration != nil {
 						buildExecutor = builder.NewPrefetchingBuildExecutor(

@@ -250,7 +250,15 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		})
 		require.NoError(t, err)
 		var actionResult remoteexecution.ActionResult
-		require.NoError(t, oh.UploadOutputs(ctx, root, contentAddressableStorage, digestFunction, &actionResult))
+		require.NoError(
+			t,
+			oh.UploadOutputs(
+				ctx,
+				root,
+				contentAddressableStorage,
+				digestFunction,
+				&actionResult,
+				/* forceUploadTreesAndDirectories = */ false))
 		require.Equal(t, remoteexecution.ActionResult{}, actionResult)
 	})
 
@@ -383,7 +391,15 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		oh, err := builder.NewOutputHierarchy(command)
 		require.NoError(t, err)
 		var actionResult remoteexecution.ActionResult
-		require.NoError(t, oh.UploadOutputs(ctx, root, contentAddressableStorage, digestFunction, &actionResult))
+		require.NoError(
+			t,
+			oh.UploadOutputs(
+				ctx,
+				root,
+				contentAddressableStorage,
+				digestFunction,
+				&actionResult,
+				/* forceUploadTreesAndDirectories = */ false))
 		require.Equal(t, expectedResult, actionResult)
 	}
 
@@ -729,7 +745,15 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		})
 		require.NoError(t, err)
 		var actionResult remoteexecution.ActionResult
-		require.NoError(t, oh.UploadOutputs(ctx, root, contentAddressableStorage, digestFunction, &actionResult))
+		require.NoError(
+			t,
+			oh.UploadOutputs(
+				ctx,
+				root,
+				contentAddressableStorage,
+				digestFunction,
+				&actionResult,
+				/* forceUploadTreesAndDirectories = */ false))
 		require.Equal(t, remoteexecution.ActionResult{
 			OutputDirectories: []*remoteexecution.OutputDirectory{
 				{
@@ -767,7 +791,15 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		})
 		require.NoError(t, err)
 		var actionResult remoteexecution.ActionResult
-		require.NoError(t, oh.UploadOutputs(ctx, root, contentAddressableStorage, digestFunction, &actionResult))
+		require.NoError(
+			t,
+			oh.UploadOutputs(
+				ctx,
+				root,
+				contentAddressableStorage,
+				digestFunction,
+				&actionResult,
+				/* forceUploadTreesAndDirectories = */ false))
 		require.Equal(t, remoteexecution.ActionResult{
 			OutputDirectories: []*remoteexecution.OutputDirectory{
 				{
@@ -796,7 +828,13 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		testutil.RequireEqualStatus(
 			t,
 			status.Error(codes.Internal, "Failed to read attributes of output directory \"foo\": I/O error"),
-			oh.UploadOutputs(ctx, root, contentAddressableStorage, digestFunction, &actionResult))
+			oh.UploadOutputs(
+				ctx,
+				root,
+				contentAddressableStorage,
+				digestFunction,
+				&actionResult,
+				/* forceUploadTreesAndDirectories = */ false))
 		require.Equal(t, remoteexecution.ActionResult{}, actionResult)
 	})
 
@@ -814,7 +852,13 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		testutil.RequireEqualStatus(
 			t,
 			status.Error(codes.Internal, "Failed to read attributes of output file \"foo\": I/O error"),
-			oh.UploadOutputs(ctx, root, contentAddressableStorage, digestFunction, &actionResult))
+			oh.UploadOutputs(
+				ctx,
+				root,
+				contentAddressableStorage,
+				digestFunction,
+				&actionResult,
+				/* forceUploadTreesAndDirectories = */ false))
 		require.Equal(t, remoteexecution.ActionResult{}, actionResult)
 	})
 
@@ -832,8 +876,139 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		testutil.RequireEqualStatus(
 			t,
 			status.Error(codes.Internal, "Failed to read attributes of output path \"foo\": I/O error"),
-			oh.UploadOutputs(ctx, root, contentAddressableStorage, digestFunction, &actionResult))
+			oh.UploadOutputs(
+				ctx,
+				root,
+				contentAddressableStorage,
+				digestFunction,
+				&actionResult,
+				/* forceUploadTreesAndDirectories = */ false))
 		require.Equal(t, remoteexecution.ActionResult{}, actionResult)
+	})
+
+	t.Run("OutputDirectoryFormatTreeAndDirectory", func(t *testing.T) {
+		// If the client sets Command's output_directory_format
+		// to TREE_AND_DIRECTORY, we must store both Tree and
+		// Directory messages in the CAS.
+		root.EXPECT().ReadDir().Return([]filesystem.FileInfo{
+			filesystem.NewFileInfo(path.MustNewComponent("directory1"), filesystem.FileTypeDirectory, false),
+			filesystem.NewFileInfo(path.MustNewComponent("file1"), filesystem.FileTypeRegularFile, false),
+			filesystem.NewFileInfo(path.MustNewComponent("symlink1"), filesystem.FileTypeSymlink, false),
+		}, nil)
+		root.EXPECT().UploadFile(ctx, path.MustNewComponent("file1"), gomock.Any()).
+			Return(digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "132d36a32eb9e41afb86d8ba65fe9657", 123), nil)
+		root.EXPECT().Readlink(path.MustNewComponent("symlink1")).Return("target1", nil)
+
+		directory1 := mock.NewMockUploadableDirectory(ctrl)
+		root.EXPECT().EnterUploadableDirectory(path.MustNewComponent("directory1")).Return(directory1, nil)
+		directory1.EXPECT().ReadDir().Return([]filesystem.FileInfo{
+			filesystem.NewFileInfo(path.MustNewComponent("file2"), filesystem.FileTypeRegularFile, false),
+			filesystem.NewFileInfo(path.MustNewComponent("symlink2"), filesystem.FileTypeSymlink, false),
+		}, nil)
+		directory1.EXPECT().UploadFile(ctx, path.MustNewComponent("file2"), gomock.Any()).
+			Return(digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "09ae70542cc258d5c1007d774da5ccb1", 456), nil)
+		directory1.EXPECT().Readlink(path.MustNewComponent("symlink2")).Return("target2", nil)
+		directory1.EXPECT().Close()
+
+		rootDirectory := &remoteexecution.Directory{
+			Directories: []*remoteexecution.DirectoryNode{{
+				Name: "directory1",
+				Digest: &remoteexecution.Digest{
+					Hash:      "460270223db29e8867bad29c658c1395",
+					SizeBytes: 69,
+				},
+			}},
+			Files: []*remoteexecution.FileNode{{
+				Name: "file1",
+				Digest: &remoteexecution.Digest{
+					Hash:      "132d36a32eb9e41afb86d8ba65fe9657",
+					SizeBytes: 123,
+				},
+			}},
+			Symlinks: []*remoteexecution.SymlinkNode{{
+				Name:   "symlink1",
+				Target: "target1",
+			}},
+		}
+		directory1Directory := &remoteexecution.Directory{
+			Files: []*remoteexecution.FileNode{{
+				Name: "file2",
+				Digest: &remoteexecution.Digest{
+					Hash:      "09ae70542cc258d5c1007d774da5ccb1",
+					SizeBytes: 456,
+				},
+			}},
+			Symlinks: []*remoteexecution.SymlinkNode{{
+				Name:   "symlink2",
+				Target: "target2",
+			}},
+		}
+
+		contentAddressableStorage.EXPECT().Put(
+			ctx,
+			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "aa5a55cc8d4d32abd00adf5dd1ed93b5", 193),
+			gomock.Any()).
+			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
+				m, err := b.ToProto(&remoteexecution.Tree{}, 10000)
+				require.NoError(t, err)
+				testutil.RequireEqualProto(t, &remoteexecution.Tree{
+					Root: rootDirectory,
+					Children: []*remoteexecution.Directory{
+						directory1Directory,
+					},
+				}, m)
+				return nil
+			})
+		contentAddressableStorage.EXPECT().Put(
+			ctx,
+			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "f782fc2043b00886534aee47de8c522a", 120),
+			gomock.Any()).
+			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
+				m, err := b.ToProto(&remoteexecution.Directory{}, 10000)
+				require.NoError(t, err)
+				testutil.RequireEqualProto(t, rootDirectory, m)
+				return nil
+			})
+		contentAddressableStorage.EXPECT().Put(
+			ctx,
+			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "460270223db29e8867bad29c658c1395", 69),
+			gomock.Any()).
+			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
+				m, err := b.ToProto(&remoteexecution.Directory{}, 10000)
+				require.NoError(t, err)
+				testutil.RequireEqualProto(t, directory1Directory, m)
+				return nil
+			})
+
+		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
+			OutputPaths:           []string{"."},
+			OutputDirectoryFormat: remoteexecution.Command_TREE_AND_DIRECTORY,
+		})
+		require.NoError(t, err)
+		var actionResult remoteexecution.ActionResult
+		require.NoError(
+			t,
+			oh.UploadOutputs(
+				ctx,
+				root,
+				contentAddressableStorage,
+				digestFunction,
+				&actionResult,
+				/* forceUploadTreesAndDirectories = */ false))
+		testutil.RequireEqualProto(t, &remoteexecution.ActionResult{
+			OutputDirectories: []*remoteexecution.OutputDirectory{{
+				Path: ".",
+				TreeDigest: &remoteexecution.Digest{
+					Hash:      "aa5a55cc8d4d32abd00adf5dd1ed93b5",
+					SizeBytes: 193,
+				},
+				IsTopologicallySorted: true,
+				RootDirectoryDigest: &remoteexecution.Digest{
+					Hash:      "f782fc2043b00886534aee47de8c522a",
+					SizeBytes: 120,
+				},
+			}},
+		}, &actionResult)
 	})
 
 	// TODO: Are there other cases we'd like to unit test?

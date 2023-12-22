@@ -190,8 +190,19 @@ type uploadOutputsState struct {
 	contentAddressableStorage blobstore.BlobAccess
 	digestFunction            digest.Function
 	actionResult              *remoteexecution.ActionResult
+	uploadTreesAndDirectories bool
 
 	firstError error
+}
+
+// computeDigest computes the digest of a byte slice, using the digest
+// function that's also used by the client.
+func (s *uploadOutputsState) computeDigest(data []byte) digest.Digest {
+	digestGenerator := s.digestFunction.NewGenerator(int64(len(data)))
+	if _, err := digestGenerator.Write(data); err != nil {
+		panic(err)
+	}
+	return digestGenerator.Sum()
 }
 
 // SaveError preserves errors that occur during uploading. Even when
@@ -209,12 +220,12 @@ func (s *uploadOutputsState) saveError(err error) {
 func (s *uploadOutputsState) uploadOutputDirectoryEntered(d UploadableDirectory, dPath *path.Trace, paths []string) {
 	dState := uploadOutputDirectoryState{
 		uploadOutputsState: s,
-		directoriesSeen:    map[digest.Digest]struct{}{},
+		directoriesSeen:    map[digest.Digest][]byte{},
 	}
-	if rootDirectory, err := dState.uploadDirectory(d, dPath); err == nil {
+	if rootDirectoryDigest, err := dState.uploadDirectory(d, dPath); err == nil {
 		// Approximate the size of the resulting Tree object, so
 		// that we may allocate all space at once.
-		directories := append(dState.directories, rootDirectory)
+		directories := dState.directories
 		maximumTreeSizeBytes := 0
 		for _, directory := range directories {
 			maximumTreeSizeBytes += len(directory)
@@ -234,13 +245,31 @@ func (s *uploadOutputsState) uploadOutputDirectoryEntered(d UploadableDirectory,
 			tag = byte(blobstore.TreeChildrenFieldNumber<<3) | byte(protowire.BytesType)
 		}
 
-		digestGenerator := s.digestFunction.NewGenerator(int64(len(treeData)))
-		if _, err := digestGenerator.Write(treeData); err != nil {
-			panic(err)
+		// Always upload the directory in Tree form, even if the
+		// client did not request it. CompletenessCheckingBlobAccess
+		// depends on it to work efficiently.
+		successfullyUploaded := true
+		treeDigest := s.computeDigest(treeData)
+		if err := s.contentAddressableStorage.Put(s.context, treeDigest, buffer.NewValidatedBufferFromByteSlice(treeData)); err != nil {
+			s.saveError(util.StatusWrapf(err, "Failed to store output directory %#v", dPath.String()))
+			successfullyUploaded = false
 		}
-		treeDigest := digestGenerator.Sum()
 
-		if err := s.contentAddressableStorage.Put(s.context, treeDigest, buffer.NewValidatedBufferFromByteSlice(treeData)); err == nil {
+		// Upload Directory messages if requested by the client.
+		// Only in this case may we set OutputDirectory's
+		// root_directory_digest.
+		var rootDirectoryDigestProto *remoteexecution.Digest
+		if s.uploadTreesAndDirectories {
+			rootDirectoryDigestProto = rootDirectoryDigest.GetProto()
+			for directoryDigest, directory := range dState.directoriesSeen {
+				if err := s.contentAddressableStorage.Put(s.context, directoryDigest, buffer.NewValidatedBufferFromByteSlice(directory)); err != nil {
+					s.saveError(util.StatusWrapf(err, "Failed to store output directory %#v", dPath.String()))
+					successfullyUploaded = false
+				}
+			}
+		}
+
+		if successfullyUploaded {
 			for _, path := range paths {
 				s.actionResult.OutputDirectories = append(
 					s.actionResult.OutputDirectories,
@@ -248,10 +277,9 @@ func (s *uploadOutputsState) uploadOutputDirectoryEntered(d UploadableDirectory,
 						Path:                  path,
 						TreeDigest:            treeDigest.GetProto(),
 						IsTopologicallySorted: true,
+						RootDirectoryDigest:   rootDirectoryDigestProto,
 					})
 			}
-		} else {
-			s.saveError(util.StatusWrapf(err, "Failed to store output directory %#v", dPath.String()))
 		}
 	} else {
 		s.saveError(err)
@@ -310,16 +338,16 @@ type uploadOutputDirectoryState struct {
 	*uploadOutputsState
 
 	directories     [][]byte
-	directoriesSeen map[digest.Digest]struct{}
+	directoriesSeen map[digest.Digest][]byte
 }
 
 // UploadDirectory is called to upload a single directory. Elements in
 // the directory are stored in a remoteexecution.Directory, so that they
 // can be placed in a remoteexecution.Tree.
-func (s *uploadOutputDirectoryState) uploadDirectory(d UploadableDirectory, dPath *path.Trace) ([]byte, error) {
+func (s *uploadOutputDirectoryState) uploadDirectory(d UploadableDirectory, dPath *path.Trace) (digest.Digest, error) {
 	files, err := d.ReadDir()
 	if err != nil {
-		return nil, util.StatusWrapf(err, "Failed to read output directory %#v", dPath.String())
+		return digest.BadDigest, util.StatusWrapf(err, "Failed to read output directory %#v", dPath.String())
 	}
 
 	var directory remoteexecution.Directory
@@ -339,27 +367,9 @@ func (s *uploadOutputDirectoryState) uploadDirectory(d UploadableDirectory, dPat
 			}
 		case filesystem.FileTypeDirectory:
 			if childDirectory, err := d.EnterUploadableDirectory(name); err == nil {
-				childData, err := s.uploadDirectory(childDirectory, dPath)
+				childDigest, err := s.uploadDirectory(childDirectory, dPath)
 				childDirectory.Close()
 				if err == nil {
-					// Compute the digest of the child
-					// directory, so that it may be
-					// referenced by the parent.
-					digestGenerator := s.digestFunction.NewGenerator(int64(len(childData)))
-					if _, err := digestGenerator.Write(childData); err != nil {
-						panic(err)
-					}
-					childDigest := digestGenerator.Sum()
-
-					// There is no need to make the
-					// directory part of the Tree if we
-					// have seen an identical directory
-					// previously.
-					if _, ok := s.directoriesSeen[childDigest]; !ok {
-						s.directories = append(s.directories, childData)
-						s.directoriesSeen[childDigest] = struct{}{}
-					}
-
 					directory.Directories = append(directory.Directories, &remoteexecution.DirectoryNode{
 						Name:   name.String(),
 						Digest: childDigest.GetProto(),
@@ -384,9 +394,17 @@ func (s *uploadOutputDirectoryState) uploadDirectory(d UploadableDirectory, dPat
 
 	data, err := proto.Marshal(&directory)
 	if err != nil {
-		return nil, util.StatusWrapf(err, "Failed to marshal output directory %#v", dPath.String())
+		return digest.BadDigest, util.StatusWrapf(err, "Failed to marshal output directory %#v", dPath.String())
 	}
-	return data, nil
+
+	// There is no need to make the directory part of the Tree if we
+	// have seen an identical directory previously.
+	digest := s.computeDigest(data)
+	if _, ok := s.directoriesSeen[digest]; !ok {
+		s.directories = append(s.directories, data)
+		s.directoriesSeen[digest] = data
+	}
+	return digest, nil
 }
 
 // outputNodePath is an implementation of path.ComponentWalker that is
@@ -430,8 +448,9 @@ func (onp *outputNodePath) OnUp() (path.ComponentWalker, error) {
 // outputs prior to execution, and to upload outputs into the CAS after
 // execution.
 type OutputHierarchy struct {
-	root          outputNode
-	rootsToUpload []string
+	root                      outputNode
+	rootsToUpload             []string
+	uploadTreesAndDirectories bool
 }
 
 // NewOutputHierarchy creates a new OutputHierarchy that uses the
@@ -445,6 +464,8 @@ func NewOutputHierarchy(command *remoteexecution.Command) (*OutputHierarchy, err
 
 	oh := &OutputHierarchy{
 		root: *newOutputDirectory(),
+		uploadTreesAndDirectories: command.OutputDirectoryFormat == remoteexecution.Command_DIRECTORY_ONLY ||
+			command.OutputDirectoryFormat == remoteexecution.Command_TREE_AND_DIRECTORY,
 	}
 
 	if len(command.OutputPaths) == 0 {
@@ -530,12 +551,13 @@ func (oh *OutputHierarchy) CreateParentDirectories(d ParentPopulatableDirectory)
 
 // UploadOutputs uploads outputs of the build action into the CAS. This
 // function is called after executing the build action.
-func (oh *OutputHierarchy) UploadOutputs(ctx context.Context, d UploadableDirectory, contentAddressableStorage blobstore.BlobAccess, digestFunction digest.Function, actionResult *remoteexecution.ActionResult) error {
+func (oh *OutputHierarchy) UploadOutputs(ctx context.Context, d UploadableDirectory, contentAddressableStorage blobstore.BlobAccess, digestFunction digest.Function, actionResult *remoteexecution.ActionResult, forceUploadTreesAndDirectories bool) error {
 	s := uploadOutputsState{
 		context:                   ctx,
 		contentAddressableStorage: contentAddressableStorage,
 		digestFunction:            digestFunction,
 		actionResult:              actionResult,
+		uploadTreesAndDirectories: oh.uploadTreesAndDirectories || forceUploadTreesAndDirectories,
 	}
 
 	if len(oh.rootsToUpload) > 0 {

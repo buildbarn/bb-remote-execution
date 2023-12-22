@@ -99,6 +99,51 @@ message ApplicationConfiguration {
   // directories that are expected to be used are prefetched. This
   // process takes place in the background, while the action is running.
   PrefetchingConfiguration prefetching = 26;
+
+  // If set, upload output directories to the Content Addressable
+  // Storage (CAS) in the form of a single REv2 Tree object and multiple
+  // REv2 Directory objects, even if the client did not request it. If
+  // unset, this is only done if explicitly requested by the client.
+  //
+  // Traditionally, clients upload input roots of actions to the CAS in
+  // the form of many small Directory objects. This differs from how
+  // workers encode output directories, as these are stored in the form
+  // of a single Tree object.
+  //
+  // Though storing output directories in the form of Tree objects
+  // allows clients to download output directories with fewer round
+  // trips, it does make it impossible for clients that use a "Builds
+  // without the Bytes" strategy to efficiently embed output directories
+  // into input roots of subsequent actions. Clients must download the
+  // Tree object, unpack it, and reupload the containing Directory
+  // objects back into the CAS.
+  //
+  // To solve this, newer versions of REv2 add the ability to let
+  // clients specify the format in which they want receive output
+  // directories: as a single Tree object, multiple Directory objects,
+  // or both. bb_worker respects this, though it will always upload Tree
+  // objects, even if the client only requests Directory objects. The
+  // reason being that bb_storage's CompletenessCheckingBlobAccess can
+  // only operate efficiently if it has access to the Tree object.
+  //
+  // Forcefully uploading Directory messages into the CAS has several
+  // advantages:
+  //
+  // - bb_browser is capable of displaying listings of individual
+  //   directories contained in an output directory without needing to
+  //   load the full Tree object from the CAS.
+  //
+  // - Root directories of output directories created through
+  //   bb_clientd's Remote Output Service feature load slightly faster,
+  //   as they can be validated without processing full Tree objects.
+  //
+  // - Even for clients that only support output directories in the form
+  //   of Tree messages, having Directory messages present means that
+  //   subsequent build actions need to upload fewer objects.
+  //
+  // The disadvantage of enabling this option is that a larger number of
+  // objects are written into the CAS.
+  bool force_upload_trees_and_directories = 27;
 }
 
 message BuildDirectoryConfiguration {
