@@ -43,6 +43,9 @@ func TestHardlinkingFileFetcher(t *testing.T) {
 	baseFileFetcher.EXPECT().GetFile(ctx, blobDigest1, buildDirectory, path.MustNewComponent("hello.txt"), false)
 	buildDirectory.EXPECT().Link(path.MustNewComponent("hello.txt"), cacheDirectory, path.MustNewComponent("3-8b1a9953c4611296a827abf8c47804d7-5-x")).
 		Return(syscall.EIO)
+
+	buildDirectory.EXPECT().Clonefile(path.MustNewComponent("hello.txt"), cacheDirectory, path.MustNewComponent("3-8b1a9953c4611296a827abf8c47804d7-5-x")).
+		Return(syscall.EIO)
 	testutil.RequireEqualStatus(
 		t,
 		status.Error(codes.Internal, "Failed to add cached file \"3-8b1a9953c4611296a827abf8c47804d7-5-x\": input/output error"),
@@ -110,6 +113,7 @@ func TestHardlinkingFileFetcher(t *testing.T) {
 	baseFileFetcher.EXPECT().GetFile(ctx, blobDigest2, buildDirectory, path.MustNewComponent("goodbye.txt"), false)
 	cacheDirectory.EXPECT().Remove(path.MustNewComponent("3-8b1a9953c4611296a827abf8c47804d7-5-x")).
 		Return(syscall.EIO)
+
 	testutil.RequireEqualStatus(
 		t,
 		status.Error(codes.Internal, "Failed to remove cached file \"3-8b1a9953c4611296a827abf8c47804d7-5-x\": input/output error"),
@@ -122,7 +126,19 @@ func TestHardlinkingFileFetcher(t *testing.T) {
 	cacheDirectory.EXPECT().Remove(path.MustNewComponent("3-8b1a9953c4611296a827abf8c47804d7-5-x")).
 		Return(syscall.ENOENT)
 	buildDirectory.EXPECT().Link(path.MustNewComponent("goodbye.txt"), cacheDirectory, path.MustNewComponent("3-6fc422233a40a75a1f028e11c3cd1140-7-x"))
+
 	require.NoError(
 		t,
 		fileFetcher.GetFile(ctx, blobDigest2, buildDirectory, path.MustNewComponent("goodbye.txt"), false))
+
+	// Fallback to copying to the cache directory if hardlinking does not work
+	blobDigest3 := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "237890c259ca066636acc0d6ac9f5a3c", 9)
+
+	baseFileFetcher.EXPECT().GetFile(ctx, blobDigest3, buildDirectory, path.MustNewComponent("PkgInfo"), false)
+	cacheDirectory.EXPECT().Remove(path.MustNewComponent("3-6fc422233a40a75a1f028e11c3cd1140-7-x"))
+	buildDirectory.EXPECT().Link(path.MustNewComponent("PkgInfo"), cacheDirectory, path.MustNewComponent("3-237890c259ca066636acc0d6ac9f5a3c-9-x")).Return(syscall.EIO)
+	buildDirectory.EXPECT().Clonefile(path.MustNewComponent("PkgInfo"), cacheDirectory, path.MustNewComponent("3-237890c259ca066636acc0d6ac9f5a3c-9-x"))
+	require.NoError(
+		t,
+		fileFetcher.GetFile(ctx, blobDigest3, buildDirectory, path.MustNewComponent("PkgInfo"), false))
 }
