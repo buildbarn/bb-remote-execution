@@ -113,7 +113,7 @@ func (ff *hardlinkingFileFetcher) GetFile(ctx context.Context, blobDigest digest
 
 		// Try to hardlink the file into the cache.
 		if err := directory.Link(name, ff.cacheDirectory, path.MustNewComponent(key)); err != nil && !os.IsExist(err) {
-			// Copy PkgInfo files to the cache directory rather than hardlinking them.
+			// Copy files to the cache directory rather than hardlinking them.
 			if err2 := directory.Clonefile(name, ff.cacheDirectory, path.MustNewComponent(key)); err2 != nil && !os.IsExist(err2) {
 				return util.StatusWrapfWithCode(err, codes.Internal, "Failed to add cached file %#v", key)
 			}
