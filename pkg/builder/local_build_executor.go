@@ -27,12 +27,13 @@ import (
 
 // Filenames of objects to be created inside the build directory.
 var (
-	stdoutComponent             = path.MustNewComponent("stdout")
-	stderrComponent             = path.MustNewComponent("stderr")
-	deviceDirectoryComponent    = path.MustNewComponent("dev")
-	inputRootDirectoryComponent = path.MustNewComponent("root")
-	temporaryDirectoryComponent = path.MustNewComponent("tmp")
-	checkReadinessComponent     = path.MustNewComponent("check_readiness")
+	stdoutComponent              = path.MustNewComponent("stdout")
+	stderrComponent              = path.MustNewComponent("stderr")
+	deviceDirectoryComponent     = path.MustNewComponent("dev")
+	inputRootDirectoryComponent  = path.MustNewComponent("root")
+	serverLogsDirectoryComponent = path.MustNewComponent("server_logs")
+	temporaryDirectoryComponent  = path.MustNewComponent("tmp")
+	checkReadinessComponent      = path.MustNewComponent("check_readiness")
 )
 
 // capturingErrorLogger is an error logger that stores up to a single
@@ -243,6 +244,13 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 		return response
 	}
 
+	if err := buildDirectory.Mkdir(serverLogsDirectoryComponent, 0o777); err != nil {
+		attachErrorToExecuteResponse(
+			response,
+			util.StatusWrap(err, "Failed to create server logs directory inside build directory"))
+		return response
+	}
+
 	executionStateUpdates <- &remoteworker.CurrentState_Executing{
 		ActionDigest: request.ActionDigest,
 		ExecutionState: &remoteworker.CurrentState_Executing_Running{
@@ -268,6 +276,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 		StderrPath:           buildDirectoryPath.Append(stderrComponent).String(),
 		InputRootDirectory:   buildDirectoryPath.Append(inputRootDirectoryComponent).String(),
 		TemporaryDirectory:   buildDirectoryPath.Append(temporaryDirectoryComponent).String(),
+		ServerLogsDirectory:  buildDirectoryPath.Append(serverLogsDirectoryComponent).String(),
 	})
 	cancelTimeout()
 	<-ctxWithTimeout.Done()
@@ -317,5 +326,52 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 		attachErrorToExecuteResponse(response, err)
 	}
 
+	// Recursively traverse the server logs directory and attach any
+	// file stored within to the ExecuteResponse.
+	serverLogsDirectoryUploader := serverLogsDirectoryUploader{
+		context:         ctx,
+		executeResponse: response,
+		digestFunction:  digestFunction,
+	}
+	serverLogsDirectoryUploader.uploadDirectory(buildDirectory, serverLogsDirectoryComponent, nil)
+
 	return response
+}
+
+type serverLogsDirectoryUploader struct {
+	context         context.Context
+	executeResponse *remoteexecution.ExecuteResponse
+	digestFunction  digest.Function
+}
+
+func (u *serverLogsDirectoryUploader) uploadDirectory(parentDirectory UploadableDirectory, dName path.Component, dPath *path.Trace) {
+	d, err := parentDirectory.EnterUploadableDirectory(dName)
+	if err != nil {
+		attachErrorToExecuteResponse(u.executeResponse, util.StatusWrapf(err, "Failed to enter server logs directory %#v", dPath.String()))
+		return
+	}
+	defer d.Close()
+
+	files, err := d.ReadDir()
+	if err != nil {
+		attachErrorToExecuteResponse(u.executeResponse, util.StatusWrapf(err, "Failed to read server logs directory %#v", dPath.String()))
+		return
+	}
+
+	for _, file := range files {
+		childName := file.Name()
+		childPath := dPath.Append(childName)
+		switch fileType := file.Type(); fileType {
+		case filesystem.FileTypeRegularFile:
+			if childDigest, err := d.UploadFile(u.context, childName, u.digestFunction); err == nil {
+				u.executeResponse.ServerLogs[childPath.String()] = &remoteexecution.LogFile{
+					Digest: childDigest.GetProto(),
+				}
+			} else {
+				attachErrorToExecuteResponse(u.executeResponse, util.StatusWrapf(err, "Failed to store server log %#v", childPath.String()))
+			}
+		case filesystem.FileTypeDirectory:
+			u.uploadDirectory(d, childName, childPath)
+		}
+	}
 }

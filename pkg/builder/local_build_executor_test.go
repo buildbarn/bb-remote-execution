@@ -374,6 +374,7 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 		monitor,
 	).Return(nil)
 	buildDirectory.EXPECT().Mkdir(path.MustNewComponent("tmp"), os.FileMode(0o777))
+	buildDirectory.EXPECT().Mkdir(path.MustNewComponent("server_logs"), os.FileMode(0o777))
 	runner := mock.NewMockRunnerClient(ctrl)
 	runner.EXPECT().Run(gomock.Any(), &runner_pb.RunRequest{
 		Arguments:            []string{"touch", "foo"},
@@ -383,6 +384,7 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 		StderrPath:           "stderr",
 		InputRootDirectory:   "root",
 		TemporaryDirectory:   "tmp",
+		ServerLogsDirectory:  "server_logs",
 	}).Return(&runner_pb.RunResponse{
 		ExitCode: 0,
 	}, nil)
@@ -395,6 +397,10 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 	fooDirectory.EXPECT().Readlink(path.MustNewComponent("bar")).Return("", status.Error(codes.Internal, "Cosmic rays caused interference"))
 	fooDirectory.EXPECT().Close()
 	inputRootDirectory.EXPECT().Close()
+	serverLogsDirectory := mock.NewMockUploadableDirectory(ctrl)
+	buildDirectory.EXPECT().EnterUploadableDirectory(path.MustNewComponent("server_logs")).Return(serverLogsDirectory, nil)
+	serverLogsDirectory.EXPECT().ReadDir()
+	serverLogsDirectory.EXPECT().Close()
 	buildDirectory.EXPECT().Close()
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().NewContextWithTimeout(gomock.Any(), time.Hour).DoAndReturn(func(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
@@ -573,6 +579,7 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 		filesystem.NewDeviceNumberFromMajorMinor(1, 3))
 	inputRootDevDirectory.EXPECT().Close()
 	buildDirectory.EXPECT().Mkdir(path.MustNewComponent("tmp"), os.FileMode(0o777))
+	buildDirectory.EXPECT().Mkdir(path.MustNewComponent("server_logs"), os.FileMode(0o777))
 	resourceUsage, err := anypb.New(&emptypb.Empty{})
 	require.NoError(t, err)
 	runner := mock.NewMockRunnerClient(ctrl)
@@ -593,16 +600,21 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 			"PWD":                               "/proc/self/cwd",
 			"TEST_VAR":                          "123",
 		},
-		WorkingDirectory:   "",
-		StdoutPath:         "0000000000000000/stdout",
-		StderrPath:         "0000000000000000/stderr",
-		InputRootDirectory: "0000000000000000/root",
-		TemporaryDirectory: "0000000000000000/tmp",
+		WorkingDirectory:    "",
+		StdoutPath:          "0000000000000000/stdout",
+		StderrPath:          "0000000000000000/stderr",
+		InputRootDirectory:  "0000000000000000/root",
+		TemporaryDirectory:  "0000000000000000/tmp",
+		ServerLogsDirectory: "0000000000000000/server_logs",
 	}).Return(&runner_pb.RunResponse{
 		ExitCode:      0,
 		ResourceUsage: []*anypb.Any{resourceUsage},
 	}, nil)
 	inputRootDirectory.EXPECT().Close()
+	serverLogsDirectory := mock.NewMockUploadableDirectory(ctrl)
+	buildDirectory.EXPECT().EnterUploadableDirectory(path.MustNewComponent("server_logs")).Return(serverLogsDirectory, nil)
+	serverLogsDirectory.EXPECT().ReadDir()
+	serverLogsDirectory.EXPECT().Close()
 	buildDirectory.EXPECT().Close()
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().NewContextWithTimeout(gomock.Any(), time.Hour).DoAndReturn(func(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
@@ -764,6 +776,7 @@ func TestLocalBuildExecutorInputRootIOFailureDuringExecution(t *testing.T) {
 		return nil
 	})
 	buildDirectory.EXPECT().Mkdir(path.MustNewComponent("tmp"), os.FileMode(0o777))
+	buildDirectory.EXPECT().Mkdir(path.MustNewComponent("server_logs"), os.FileMode(0o777))
 
 	// Let an I/O error in the input root trigger during the build.
 	// The build should be canceled immediately. The error should be
@@ -777,12 +790,17 @@ func TestLocalBuildExecutorInputRootIOFailureDuringExecution(t *testing.T) {
 		StderrPath:           "stderr",
 		InputRootDirectory:   "root",
 		TemporaryDirectory:   "tmp",
+		ServerLogsDirectory:  "server_logs",
 	}).DoAndReturn(func(ctx context.Context, request *runner_pb.RunRequest, opts ...grpc.CallOption) (*runner_pb.RunResponse, error) {
 		errorLogger.Log(status.Error(codes.FailedPrecondition, "Blob not found"))
 		<-ctx.Done()
 		return nil, util.StatusFromContext(ctx)
 	})
 	inputRootDirectory.EXPECT().Close()
+	serverLogsDirectory := mock.NewMockUploadableDirectory(ctrl)
+	buildDirectory.EXPECT().EnterUploadableDirectory(path.MustNewComponent("server_logs")).Return(serverLogsDirectory, nil)
+	serverLogsDirectory.EXPECT().ReadDir()
+	serverLogsDirectory.EXPECT().Close()
 	buildDirectory.EXPECT().Close()
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().NewContextWithTimeout(gomock.Any(), 15*time.Minute).DoAndReturn(func(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
@@ -871,6 +889,7 @@ func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 		monitor,
 	).Return(nil)
 	buildDirectory.EXPECT().Mkdir(path.MustNewComponent("tmp"), os.FileMode(0o777))
+	buildDirectory.EXPECT().Mkdir(path.MustNewComponent("server_logs"), os.FileMode(0o777))
 
 	// Simulate a timeout by running the command with a timeout of
 	// zero seconds. This should cause an immediate build failure.
@@ -883,11 +902,24 @@ func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 		StderrPath:           "stderr",
 		InputRootDirectory:   "root",
 		TemporaryDirectory:   "tmp",
+		ServerLogsDirectory:  "server_logs",
 	}).DoAndReturn(func(ctx context.Context, request *runner_pb.RunRequest, opts ...grpc.CallOption) (*runner_pb.RunResponse, error) {
 		<-ctx.Done()
 		return nil, util.StatusFromContext(ctx)
 	})
 	inputRootDirectory.EXPECT().Close()
+
+	// Let the server logs directory contain a log file. It should
+	// get attached to the ExecuteResponse.
+	serverLogsDirectory := mock.NewMockUploadableDirectory(ctrl)
+	buildDirectory.EXPECT().EnterUploadableDirectory(path.MustNewComponent("server_logs")).Return(serverLogsDirectory, nil)
+	serverLogsDirectory.EXPECT().ReadDir().Return([]filesystem.FileInfo{
+		filesystem.NewFileInfo(path.MustNewComponent("kernel_log"), filesystem.FileTypeRegularFile, false),
+	}, nil)
+	serverLogsDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("kernel_log"), gomock.Any()).Return(
+		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "53855840865bc43fa60c2e25383165017cfc3c2243541f8e6c648f5fbd374eb5", 1200),
+		nil)
+	serverLogsDirectory.EXPECT().Close()
 	buildDirectory.EXPECT().Close()
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().NewContextWithTimeout(gomock.Any(), time.Hour).DoAndReturn(func(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
@@ -930,6 +962,14 @@ func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 				SizeBytes: 678,
 			},
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
+		},
+		ServerLogs: map[string]*remoteexecution.LogFile{
+			"kernel_log": {
+				Digest: &remoteexecution.Digest{
+					Hash:      "53855840865bc43fa60c2e25383165017cfc3c2243541f8e6c648f5fbd374eb5",
+					SizeBytes: 1200,
+				},
+			},
 		},
 		Status: status.New(codes.DeadlineExceeded, "Failed to run command: context deadline exceeded").Proto(),
 	}, executeResponse)

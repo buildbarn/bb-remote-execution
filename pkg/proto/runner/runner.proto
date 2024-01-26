@@ -54,6 +54,10 @@ message RunRequest {
   // Path of a scratch space directory that may be used by the build
   // action, relative to the build directory.
   string temporary_directory = 7;
+
+  // Path where files may be stored that are attached to the REv2
+  // ExecuteResponse in the form of server logs.
+  string server_logs_directory = 8;
 }
 
 message RunResponse {

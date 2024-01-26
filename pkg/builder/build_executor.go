@@ -23,6 +23,7 @@ func NewDefaultExecuteResponse(request *remoteworker.DesiredState_Executing) *re
 				AuxiliaryMetadata: append([]*anypb.Any(nil), request.AuxiliaryMetadata...),
 			},
 		},
+		ServerLogs: map[string]*remoteexecution.LogFile{},
 	}
 }
 
