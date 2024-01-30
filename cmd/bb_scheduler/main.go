@@ -108,7 +108,7 @@ func main() {
 		}
 		killOperationsAuthorizer, err := authorizerFactory.NewAuthorizerFromConfiguration(configuration.KillOperationsAuthorizer)
 		if err != nil {
-			return util.StatusWrap(err, "Failed to create kill operaitons authorizer")
+			return util.StatusWrap(err, "Failed to create kill operations authorizer")
 		}
 
 		platformQueueWithNoWorkersTimeout := configuration.PlatformQueueWithNoWorkersTimeout
