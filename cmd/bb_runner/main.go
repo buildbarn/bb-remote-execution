@@ -75,6 +75,13 @@ func main() {
 			buildDirectoryPath,
 			commandCreator,
 			configuration.SetTmpdirEnvironmentVariable)
+		for _, mountinfo := range configuration.InputRootMounts {
+			r = runner.NewMountingRunner(
+				r,
+				buildDirectory,
+				mountinfo,
+			)
+		}
 
 		// Let bb_runner replace temporary directories with symbolic
 		// links pointing to the temporary directory set up by
