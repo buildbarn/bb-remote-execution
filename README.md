@@ -42,7 +42,7 @@ following:
 
 This repository provides container images for each of these components.
 For `bb_runner`, it provides two images: `bb_runner_bare` and `bb_runner_installer`.
-`bb_runner_bare` has no userland/linux install, it just has the bb_runner
+`bb_runner_bare` has no userland/linux install, it just has the `bb_runner`
 executable. Typically the actions that will run on a runner do expect some
 userland to be installed.
 
@@ -53,14 +53,14 @@ to take advantage of the fact that bazel project provides [ready-to-use toolchai
 definitions](https://github.com/bazelbuild/bazel-toolchains) for them.
 
 What makes that tricky is that that image will not have `bb_runner` installed.
-This  is where `bb_runner_installer` image comes in. It doesn't actually
+This is where `bb_runner_installer` image comes in. It doesn't actually
 install anything, but it provides the `bb_runner` executable through its
 filesystem. You have to configure your orchestration of choice to mount this
 filesystem from `bb_runner_installer` into the image of your choice that you
 want to run on. This way you can use a vanilla image and just run the bb_runner
-executable from buildbarn's provided container. There's a few tricks to check
+executable from Buildbarn's provided container. There's a few tricks to check
 if the volume is already available, you can see an example of how to do this
-in the [docker-compose example](https://github.com/buildbarn/bb-deployments/blob/e404c1a519355353d0e2cdfd447126fe07095594/docker-compose/docker-compose.yml#L89)
+in the [docker-compose example](https://github.com/buildbarn/bb-deployments/blob/e404c1a519355353d0e2cdfd447126fe07095594/docker-compose/docker-compose.yml#L89).
 
 Please refer to [the Buildbarn Deployments repository](https://github.com/buildbarn/bb-deployments)
 for examples on how to set up these tools.
