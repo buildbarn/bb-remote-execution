@@ -41,14 +41,26 @@ following:
   `bb_worker` writes executables to disk, while `bb_runner` spawns them.
 
 This repository provides container images for each of these components.
-For `bb_runner`, it provides one image without a userland, and one that
-installs the `bb_runner` into another container on startup. The former
-is sufficient for [BuildStream](https://buildstream.build), while the
-latter can, for example, be used in combination with Google RBE's
-[Ubuntu 16.04 image](https://console.cloud.google.com/marketplace/details/google/rbe-ubuntu16-04).
-The advantage of using the Ubuntu 16.04 image is that the Bazel project
-provides [ready-to-use toolchain definitions](https://github.com/bazelbuild/bazel-toolchains)
-for them.
+For `bb_runner`, it provides two images: `bb_runner_bare` and `bb_runner_installer`.
+`bb_runner_bare` has no userland/linux install, it just has the `bb_runner`
+executable. Typically the actions that will run on a runner do expect some
+userland to be installed.
+
+It would be nice if you could just use any image of your choosing as the image
+that your build actions will run on. Like using
+[Ubuntu 16.04 image](https://console.cloud.google.com/marketplace/details/google/rbe-ubuntu16-04),
+to take advantage of the fact that bazel project provides [ready-to-use toolchain 
+definitions](https://github.com/bazelbuild/bazel-toolchains) for them.
+
+What makes that tricky is that that image will not have `bb_runner` installed.
+This is where `bb_runner_installer` image comes in. It doesn't actually
+install anything, but it provides the `bb_runner` executable through its
+filesystem. You have to configure your orchestration of choice to mount this
+filesystem from `bb_runner_installer` into the image of your choice that you
+want to run on. This way you can use a vanilla image and just run the bb_runner
+executable from Buildbarn's provided container. There's a few tricks to check
+if the volume is already available, you can see an example of how to do this
+in the [docker-compose example](https://github.com/buildbarn/bb-deployments/blob/e404c1a519355353d0e2cdfd447126fe07095594/docker-compose/docker-compose.yml#L89).
 
 Please refer to [the Buildbarn Deployments repository](https://github.com/buildbarn/bb-deployments)
 for examples on how to set up these tools.
