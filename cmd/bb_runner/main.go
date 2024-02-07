@@ -62,6 +62,9 @@ func main() {
 		} else {
 			commandCreator = runner.NewPlainCommandCreator(sysProcAttr)
 		}
+		if configuration.RemapExecutables != nil {
+			commandCreator = runner.NewRemappingCommandCreator(configuration.RemapExecutables, commandCreator)
+		}
 
 		r := runner.NewLocalRunner(
 			buildDirectory,
