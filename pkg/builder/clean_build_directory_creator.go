@@ -15,7 +15,7 @@ type cleanBuildDirectoryCreator struct {
 }
 
 // NewCleanBuildDirectoryCreator is an adapter for BuildDirectoryCreator
-// that upon acquistion and release calls into a Cleaner. This Cleaner
+// that upon acquisition and release calls into a Cleaner. This Cleaner
 // may, for example, be set up to empty out the build directory. This
 // guarantees that build actions aren't able to see data left behind by
 // ones that ran previously.
