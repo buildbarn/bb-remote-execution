@@ -3,8 +3,10 @@ package runner
 import (
 	"context"
 	"errors"
+	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
@@ -197,4 +199,69 @@ func (r *localRunner) CheckReadiness(ctx context.Context, request *runner.CheckR
 	}
 
 	return &emptypb.Empty{}, nil
+}
+
+// getExecutablePath returns the path of an executable within a given
+// search path that is part of the PATH environment variable.
+func getExecutablePath(baseDirectory *path.Builder, searchPathStr, argv0 string) (string, error) {
+	searchPath, scopeWalker := baseDirectory.Join(path.VoidScopeWalker)
+	if err := path.Resolve(searchPathStr, scopeWalker); err != nil {
+		return "", err
+	}
+	executablePath, scopeWalker := searchPath.Join(path.VoidScopeWalker)
+	if err := path.Resolve(argv0, scopeWalker); err != nil {
+		return "", err
+	}
+	return executablePath.String(), nil
+}
+
+// lookupExecutable returns the path of an executable, taking the PATH
+// environment variable into account.
+// This operates on platform native paths, or unix-style slash paths.
+// The latter are customarily sent by Bazel in multiplatform builds.
+func lookupExecutable(workingDirectory *path.Builder, pathVariable, argv0 string) (string, error) {
+	// TODO(nils): This smells bad, we should canonicalize the paths somewhere
+	// In general the tests are setup to use correct platform-specific separators,
+	// and this failing unit test could have been fixed by updating the test.
+	// But, to support cross-compilation from a Linux host we need it to work,
+	// and the general point about canonicalization stands.
+	// Should the worker make sure to convert all paths before calling the runner?
+	if strings.ContainsRune(argv0, os.PathSeparator) || strings.ContainsRune(argv0, '/') {
+		// No PATH processing needs to be performed.
+		return argv0, nil
+	}
+
+	// Executable path does not contain any slashes. Perform PATH
+	// lookups.
+	//
+	// We cannot use exec.LookPath() directly, as that function
+	// disregards the working directory of the action. It also uses
+	// the PATH environment variable of the current process, as
+	// opposed to respecting the value that is provided as part of
+	// the action. Do call into this function to validate the
+	// existence of the executable.
+	for _, searchPathStr := range filepath.SplitList(pathVariable) {
+		executablePathAbs, err := getExecutablePath(workingDirectory, searchPathStr, argv0)
+		if err != nil {
+			return "", util.StatusWrapf(err, "Failed to resolve executable %#v in search path %#v", argv0, searchPathStr)
+		}
+		if _, err := exec.LookPath(executablePathAbs); err == nil {
+			// Regular compiled executables will receive the
+			// argv[0] that we provide, but scripts starting
+			// with '#!' will receive the literal executable
+			// path.
+			//
+			// Most shells seem to guarantee that if argv[0]
+			// is relative, the executable path is relative
+			// as well. Prevent these scripts from breaking
+			// by recomputing the executable path once more,
+			// but relative.
+			executablePathRel, err := getExecutablePath(&path.EmptyBuilder, searchPathStr, argv0)
+			if err != nil {
+				return "", util.StatusWrapf(err, "Failed to resolve executable %#v in search path %#v", argv0, searchPathStr)
+			}
+			return executablePathRel, nil
+		}
+	}
+	return "", status.Errorf(codes.InvalidArgument, "Cannot find executable %#v in search paths %#v", argv0, pathVariable)
 }
