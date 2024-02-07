@@ -260,10 +260,10 @@ func main() {
 				// used. This increases cache hit rate.
 				cacheDirectory, err := filesystem.NewLocalDirectory(path.NewLocalParser(nativeConfiguration.CacheDirectoryPath))
 				if err != nil {
-					return util.StatusWrap(err, "Failed to open cache directory")
+					return util.StatusWrapf(err, "Failed to open cache directory %#v", nativeConfiguration.CacheDirectoryPath)
 				}
 				if err := cacheDirectory.RemoveAllChildren(); err != nil {
-					return util.StatusWrap(err, "Failed to clear cache directory")
+					return util.StatusWrapf(err, "Failed to clear cache directory %#v", nativeConfiguration.CacheDirectoryPath)
 				}
 				evictionSet, err := eviction.NewSetFromConfiguration[string](nativeConfiguration.CacheReplacementPolicy)
 				if err != nil {
