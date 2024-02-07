@@ -99,9 +99,9 @@ switched_rules_by_language(
 
 http_archive(
     name = "com_google_protobuf",
-    sha256 = "a700a49470d301f1190a487a923b5095bf60f08f4ae4cac9f5f7c36883d17971",
-    strip_prefix = "protobuf-23.4",
-    urls = ["https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protobuf-23.4.tar.gz"],
+    integrity = "sha256-j/URpk/EbueS0/5JpaG8rW99xQ37uloosOW5ecF/mHE=",
+    strip_prefix = "protobuf-25.2",
+    urls = ["https://github.com/protocolbuffers/protobuf/releases/download/v25.2/protobuf-25.2.tar.gz"],
 )
 
 load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
