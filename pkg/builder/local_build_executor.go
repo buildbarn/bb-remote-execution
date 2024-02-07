@@ -160,7 +160,14 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 			util.StatusWrap(err, "Failed to acquire build environment"))
 		return response
 	}
-	defer buildDirectory.Close()
+	defer func() {
+		err := buildDirectory.Close()
+		if err != nil {
+			attachErrorToExecuteResponse(
+				response,
+				util.StatusWrap(err, "Failed to close build directory"))
+		}
+	}()
 
 	// Install hooks on build directory to capture file creation and
 	// I/O error events.
