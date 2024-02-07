@@ -31,7 +31,7 @@ func main() {
 		}
 		var configuration bb_runner.ApplicationConfiguration
 		if err := util.UnmarshalConfigurationFromFile(os.Args[1], &configuration); err != nil {
-			return util.StatusWrapf(err, "Failed to read configuration from %s", os.Args[1])
+			return util.StatusWrapf(err, "Failed to read configuration from %#v", os.Args[1])
 		}
 		lifecycleState, grpcClientFactory, err := global.ApplyConfiguration(configuration.Global)
 		if err != nil {
@@ -40,7 +40,7 @@ func main() {
 
 		buildDirectoryPath, scopeWalker := path.EmptyBuilder.Join(path.NewAbsoluteScopeWalker(path.VoidComponentWalker))
 		if err := path.Resolve(path.NewLocalParser(configuration.BuildDirectoryPath), scopeWalker); err != nil {
-			return util.StatusWrap(err, "Failed to resolve build directory")
+			return util.StatusWrapf(err, "Failed to resolve build directory %#v", configuration.BuildDirectoryPath)
 		}
 		buildDirectory := re_filesystem.NewLazyDirectory(
 			func() (filesystem.DirectoryCloser, error) {
