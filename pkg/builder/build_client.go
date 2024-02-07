@@ -176,7 +176,7 @@ func (bc *BuildClient) touchSchedulerMayThinkExecuting() {
 	bc.schedulerMayThinkExecutingUntil = &until
 }
 
-// Run a iteration of the Remote Worker client, by performing a single
+// Run an iteration of the Remote Worker client, by performing a single
 // synchronization against the scheduler.
 func (bc *BuildClient) Run(ctx context.Context) (bool, error) {
 	// Allow the worker to terminate if the scheduler doesn't think
