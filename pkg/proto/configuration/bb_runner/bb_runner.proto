@@ -146,13 +146,24 @@ message ApplicationConfiguration {
   // This configuration can be used for a runner to use a different path
   // and remap what Bazel sets through the flag.
   //
-  // Example:
+  // Additionally some actions may use global programs that are not
+  // available in the Action's PATH environment, but will be resolved
+  // when spawning the subprocess. In order to have consistent path
+  // resolution on all platforms it is better to disallow such
+  // resolution and instead specify programs that should be allowed
+  // here. To just execute them as absolute paths. 'cmd.exe' is created
+  // from Bazel's genrule if 'cmd_bat' is specified.
+  //
+  // Examples:
   //
   //   {
   //     // Use a git bash instead of the default msys bash
-  //     "c:/tools/msys64/usr/bin/bash.exe": "C:/Program Files/Git/bin/bash.exe",
+  //     "c:/tools/msys64/usr/bin/bash.exe": "C:/Program
+  //     Files/Git/bin/bash.exe",
   //     // Handle --shell_executable=/bin/bash
   //     "/bin/bash": "C:/Program Files/Git/bin/bash.exe",
+  //     // Avoid Windows' path resolution of programs, this lets the worker resolve paths.
+  //     "cmd.exe": "/c/Windows/system32/cmd.exe",
   //   }
   map<string, string> remap_executables = 15;
 }
