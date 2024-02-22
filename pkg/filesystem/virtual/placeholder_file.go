@@ -24,7 +24,7 @@ func (placeholderFile) Link() Status {
 func (placeholderFile) Unlink() {
 }
 
-func (placeholderFile) UploadFile(ctx context.Context, contentAddressableStorage blobstore.BlobAccess, digestFunction digest.Function) (digest.Digest, error) {
+func (placeholderFile) UploadFile(ctx context.Context, contentAddressableStorage blobstore.BlobAccess, digestFunction digest.Function, writableFileUploadDelay <-chan struct{}) (digest.Digest, error) {
 	return digest.BadDigest, status.Error(codes.InvalidArgument, "This file cannot be uploaded, as it is a placeholder")
 }
 

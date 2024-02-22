@@ -69,6 +69,7 @@ type localBuildExecutor struct {
 	buildDirectoryCreator          BuildDirectoryCreator
 	runner                         runner_pb.RunnerClient
 	clock                          clock.Clock
+	maximumWritableFileUploadDelay time.Duration
 	inputRootCharacterDevices      map[path.Component]filesystem.DeviceNumber
 	maximumMessageSizeBytes        int
 	environmentVariables           map[string]string
@@ -77,12 +78,13 @@ type localBuildExecutor struct {
 
 // NewLocalBuildExecutor returns a BuildExecutor that executes build
 // steps on the local system.
-func NewLocalBuildExecutor(contentAddressableStorage blobstore.BlobAccess, buildDirectoryCreator BuildDirectoryCreator, runner runner_pb.RunnerClient, clock clock.Clock, inputRootCharacterDevices map[path.Component]filesystem.DeviceNumber, maximumMessageSizeBytes int, environmentVariables map[string]string, forceUploadTreesAndDirectories bool) BuildExecutor {
+func NewLocalBuildExecutor(contentAddressableStorage blobstore.BlobAccess, buildDirectoryCreator BuildDirectoryCreator, runner runner_pb.RunnerClient, clock clock.Clock, maximumWritableFileUploadDelay time.Duration, inputRootCharacterDevices map[path.Component]filesystem.DeviceNumber, maximumMessageSizeBytes int, environmentVariables map[string]string, forceUploadTreesAndDirectories bool) BuildExecutor {
 	return &localBuildExecutor{
 		contentAddressableStorage:      contentAddressableStorage,
 		buildDirectoryCreator:          buildDirectoryCreator,
 		runner:                         runner,
 		clock:                          clock,
+		maximumWritableFileUploadDelay: maximumWritableFileUploadDelay,
 		inputRootCharacterDevices:      inputRootCharacterDevices,
 		maximumMessageSizeBytes:        maximumMessageSizeBytes,
 		environmentVariables:           environmentVariables,
@@ -309,29 +311,34 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 		},
 	}
 
+	writableFileUploadDelayCtx, writableFileUploadDelayCancel := be.clock.NewContextWithTimeout(ctx, be.maximumWritableFileUploadDelay)
+	defer writableFileUploadDelayCancel()
+	writableFileUploadDelayChan := writableFileUploadDelayCtx.Done()
+
 	// Upload command output. In the common case, the stdout and
 	// stderr files are empty. If that's the case, don't bother
 	// setting the digest to keep the ActionResult small.
-	if stdoutDigest, err := buildDirectory.UploadFile(ctx, stdoutComponent, digestFunction); err != nil {
+	if stdoutDigest, err := buildDirectory.UploadFile(ctx, stdoutComponent, digestFunction, writableFileUploadDelayChan); err != nil {
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to store stdout"))
 	} else if stdoutDigest.GetSizeBytes() > 0 {
 		response.Result.StdoutDigest = stdoutDigest.GetProto()
 	}
-	if stderrDigest, err := buildDirectory.UploadFile(ctx, stderrComponent, digestFunction); err != nil {
+	if stderrDigest, err := buildDirectory.UploadFile(ctx, stderrComponent, digestFunction, writableFileUploadDelayChan); err != nil {
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to store stderr"))
 	} else if stderrDigest.GetSizeBytes() > 0 {
 		response.Result.StderrDigest = stderrDigest.GetProto()
 	}
-	if err := outputHierarchy.UploadOutputs(ctx, inputRootDirectory, be.contentAddressableStorage, digestFunction, response.Result, be.forceUploadTreesAndDirectories); err != nil {
+	if err := outputHierarchy.UploadOutputs(ctx, inputRootDirectory, be.contentAddressableStorage, digestFunction, writableFileUploadDelayChan, response.Result, be.forceUploadTreesAndDirectories); err != nil {
 		attachErrorToExecuteResponse(response, err)
 	}
 
 	// Recursively traverse the server logs directory and attach any
 	// file stored within to the ExecuteResponse.
 	serverLogsDirectoryUploader := serverLogsDirectoryUploader{
-		context:         ctx,
-		executeResponse: response,
-		digestFunction:  digestFunction,
+		context:                 ctx,
+		executeResponse:         response,
+		digestFunction:          digestFunction,
+		writableFileUploadDelay: writableFileUploadDelayChan,
 	}
 	serverLogsDirectoryUploader.uploadDirectory(buildDirectory, serverLogsDirectoryComponent, nil)
 
@@ -339,9 +346,10 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 }
 
 type serverLogsDirectoryUploader struct {
-	context         context.Context
-	executeResponse *remoteexecution.ExecuteResponse
-	digestFunction  digest.Function
+	context                 context.Context
+	executeResponse         *remoteexecution.ExecuteResponse
+	digestFunction          digest.Function
+	writableFileUploadDelay <-chan struct{}
 }
 
 func (u *serverLogsDirectoryUploader) uploadDirectory(parentDirectory UploadableDirectory, dName path.Component, dPath *path.Trace) {
@@ -363,7 +371,7 @@ func (u *serverLogsDirectoryUploader) uploadDirectory(parentDirectory Uploadable
 		childPath := dPath.Append(childName)
 		switch fileType := file.Type(); fileType {
 		case filesystem.FileTypeRegularFile:
-			if childDigest, err := d.UploadFile(u.context, childName, u.digestFunction); err == nil {
+			if childDigest, err := d.UploadFile(u.context, childName, u.digestFunction, u.writableFileUploadDelay); err == nil {
 				u.executeResponse.ServerLogs[childPath.String()] = &remoteexecution.LogFile{
 					Digest: childDigest.GetProto(),
 				}

@@ -442,11 +442,12 @@ func TestNaiveBuildDirectoryUploadFile(t *testing.T) {
 
 	helloWorldDigest := digest.MustNewDigest("default-scheduler", remoteexecution.DigestFunction_MD5, "3e25960a79dbc69b674cd4ec67a72c62", 11)
 	digestFunction := helloWorldDigest.GetDigestFunction()
+	writableFileUploadDelay := make(chan struct{})
 
 	t.Run("NonexistentFile", func(t *testing.T) {
 		buildDirectory.EXPECT().OpenRead(path.MustNewComponent("hello")).Return(nil, syscall.ENOENT)
 
-		_, err := inputRootPopulator.UploadFile(ctx, path.MustNewComponent("hello"), digestFunction)
+		_, err := inputRootPopulator.UploadFile(ctx, path.MustNewComponent("hello"), digestFunction, writableFileUploadDelay)
 		require.Equal(t, syscall.ENOENT, err)
 	})
 
@@ -460,7 +461,7 @@ func TestNaiveBuildDirectoryUploadFile(t *testing.T) {
 				}),
 			file.EXPECT().Close().Return(nil))
 
-		_, err := inputRootPopulator.UploadFile(ctx, path.MustNewComponent("hello"), digestFunction)
+		_, err := inputRootPopulator.UploadFile(ctx, path.MustNewComponent("hello"), digestFunction, writableFileUploadDelay)
 		testutil.RequireEqualStatus(t, status.Error(codes.Unavailable, "Failed to compute file digest: Disk on fire"), err)
 	})
 
@@ -490,7 +491,7 @@ func TestNaiveBuildDirectoryUploadFile(t *testing.T) {
 				return err
 			})
 
-		_, err := inputRootPopulator.UploadFile(ctx, path.MustNewComponent("hello"), digestFunction)
+		_, err := inputRootPopulator.UploadFile(ctx, path.MustNewComponent("hello"), digestFunction, writableFileUploadDelay)
 		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Failed to upload file: Buffer is 9 bytes in size, while 11 bytes were expected"), err)
 	})
 
@@ -524,7 +525,7 @@ func TestNaiveBuildDirectoryUploadFile(t *testing.T) {
 				return nil
 			})
 
-		digest, err := inputRootPopulator.UploadFile(ctx, path.MustNewComponent("hello"), digestFunction)
+		digest, err := inputRootPopulator.UploadFile(ctx, path.MustNewComponent("hello"), digestFunction, writableFileUploadDelay)
 		require.NoError(t, err)
 		require.Equal(t, digest, helloWorldDigest)
 	})

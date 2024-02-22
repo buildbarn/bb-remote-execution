@@ -108,13 +108,13 @@ func (d *virtualBuildDirectory) MergeDirectoryContents(ctx context.Context, erro
 	return d.CreateChildren(children, false)
 }
 
-func (d *virtualBuildDirectory) UploadFile(ctx context.Context, name path.Component, digestFunction digest.Function) (digest.Digest, error) {
+func (d *virtualBuildDirectory) UploadFile(ctx context.Context, name path.Component, digestFunction digest.Function, writableFileUploadDelay <-chan struct{}) (digest.Digest, error) {
 	child, err := d.LookupChild(name)
 	if err != nil {
 		return digest.BadDigest, err
 	}
 	if _, leaf := child.GetPair(); leaf != nil {
-		return leaf.UploadFile(ctx, d.options.contentAddressableStorage, digestFunction)
+		return leaf.UploadFile(ctx, d.options.contentAddressableStorage, digestFunction, writableFileUploadDelay)
 	}
 	return digest.BadDigest, syscall.EISDIR
 }

@@ -135,7 +135,7 @@ func (d *naiveBuildDirectory) MergeDirectoryContents(ctx context.Context, errorL
 	return d.mergeDirectoryContents(ctx, digest, d.DirectoryCloser, nil)
 }
 
-func (d *naiveBuildDirectory) UploadFile(ctx context.Context, name path.Component, digestFunction digest.Function) (digest.Digest, error) {
+func (d *naiveBuildDirectory) UploadFile(ctx context.Context, name path.Component, digestFunction digest.Function, writableFileUploadDelay <-chan struct{}) (digest.Digest, error) {
 	file, err := d.OpenRead(name)
 	if err != nil {
 		return digest.BadDigest, err

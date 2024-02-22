@@ -256,6 +256,24 @@ message VirtualBuildDirectoryConfiguration {
   // - macOS: ^\._|^\.nfs\.[0-9a-f]{8}\.[0-9a-f]{4}$
   // - Other platforms: unset
   string hidden_files_pattern = 4;
+
+  // The maximum amount of time to delay uploading of output files that
+  // are still opened for writing after the action completes. This can
+  // occur when the kernel closes file descriptors asynchronously. As
+  // files may still have dirty pages associated with them, uploading
+  // them immediately would cause data to get lost.
+  //
+  // This configuration option puts a bound on the maximum amount of
+  // time bb_worker is willing to wait for these files to be closed.
+  // This limit exists to ensure that files that are opened indefinitely
+  // don't cause the worker to also remain blocked indefinitely. This
+  // could happen if the build action daemonizes and bb_runner's
+  // clean_process_table option is disabled, or if file descriptor
+  // passing (SCM_RIGHTS) is used to pass file descriptors to processes
+  // outside the control of the worker.
+  //
+  // Recommended value: 60s.
+  google.protobuf.Duration maximum_writable_file_upload_delay = 5;
 }
 
 message RunnerConfiguration {

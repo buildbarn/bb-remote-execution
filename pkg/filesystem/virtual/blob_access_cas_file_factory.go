@@ -68,7 +68,7 @@ func (f *blobAccessCASFile) Readlink() (string, error) {
 func (f *blobAccessCASFile) Unlink() {
 }
 
-func (f *blobAccessCASFile) UploadFile(ctx context.Context, contentAddressableStorage blobstore.BlobAccess, digestFunction digest.Function) (digest.Digest, error) {
+func (f *blobAccessCASFile) UploadFile(ctx context.Context, contentAddressableStorage blobstore.BlobAccess, digestFunction digest.Function, writableFileUploadDelay <-chan struct{}) (digest.Digest, error) {
 	// This file is already backed by the Content Addressable
 	// Storage. There is thus no need to upload it once again.
 	//

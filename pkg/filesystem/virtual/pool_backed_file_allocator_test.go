@@ -435,12 +435,14 @@ func TestPoolBackedFileAllocatorUploadFile(t *testing.T) {
 
 	fileDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "8b1a9953c4611296a827abf8c47804d7", 5)
 	digestFunction := fileDigest.GetDigestFunction()
+	writableFileUploadDelay := make(chan struct{})
+	close(writableFileUploadDelay)
 
 	t.Run("DigestComputationIOFailure", func(t *testing.T) {
 		underlyingFile.EXPECT().ReadAt(gomock.Any(), int64(0)).Return(0, syscall.EIO)
 		contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 
-		_, err := f.UploadFile(ctx, contentAddressableStorage, digestFunction)
+		_, err := f.UploadFile(ctx, contentAddressableStorage, digestFunction, writableFileUploadDelay)
 		testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to compute file digest: input/output error"), err)
 	})
 
@@ -456,7 +458,7 @@ func TestPoolBackedFileAllocatorUploadFile(t *testing.T) {
 				return status.Error(codes.Internal, "Server on fire")
 			})
 
-		_, err := f.UploadFile(ctx, contentAddressableStorage, digestFunction)
+		_, err := f.UploadFile(ctx, contentAddressableStorage, digestFunction, writableFileUploadDelay)
 		testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to upload file: Server on fire"), err)
 	})
 
@@ -538,7 +540,7 @@ func TestPoolBackedFileAllocatorUploadFile(t *testing.T) {
 				return nil
 			})
 
-		uploadedDigest, err := f.UploadFile(ctx, contentAddressableStorage, digestFunction)
+		uploadedDigest, err := f.UploadFile(ctx, contentAddressableStorage, digestFunction, writableFileUploadDelay)
 		require.NoError(t, err)
 		require.Equal(t, fileDigest, uploadedDigest)
 	})
@@ -553,7 +555,7 @@ func TestPoolBackedFileAllocatorUploadFile(t *testing.T) {
 		// Uploading a file that has already been released
 		// should fail. It should not cause accidental access to
 		// the closed file handle.
-		_, err := f.UploadFile(ctx, contentAddressableStorage, digestFunction)
+		_, err := f.UploadFile(ctx, contentAddressableStorage, digestFunction, writableFileUploadDelay)
 		testutil.RequireEqualStatus(t, status.Error(codes.NotFound, "File was unlinked before uploading could start"), err)
 	})
 }

@@ -177,6 +177,7 @@ func main() {
 			var buildDirectoryCleaner cleaner.Cleaner
 			uploadBatchSize := blobstore.RecommendedFindMissingDigestsCount
 			var maximumExecutionTimeoutCompensation time.Duration
+			var maximumWritableFileUploadDelay time.Duration
 			switch backend := buildDirectoryConfiguration.Backend.(type) {
 			case *bb_worker.BuildDirectoryConfiguration_Virtual:
 				var mount virtual_configuration.Mount
@@ -236,6 +237,10 @@ func main() {
 					return util.StatusWrap(err, "Invalid maximum execution timeout compensation")
 				}
 				maximumExecutionTimeoutCompensation = backend.Virtual.MaximumExecutionTimeoutCompensation.AsDuration()
+				if err := backend.Virtual.MaximumWritableFileUploadDelay.CheckValid(); err != nil {
+					return util.StatusWrap(err, "Invalid maximum writable file upload delay")
+				}
+				maximumWritableFileUploadDelay = backend.Virtual.MaximumWritableFileUploadDelay.AsDuration()
 			case *bb_worker.BuildDirectoryConfiguration_Native:
 				// Directory where actual builds take place.
 				nativeConfiguration := backend.Native
@@ -389,6 +394,7 @@ func main() {
 						buildDirectoryCreator,
 						runnerClient,
 						executionTimeoutClock,
+						maximumWritableFileUploadDelay,
 						inputRootCharacterDevices,
 						int(configuration.MaximumMessageSizeBytes),
 						runnerConfiguration.EnvironmentVariables,

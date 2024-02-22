@@ -189,6 +189,7 @@ type uploadOutputsState struct {
 	context                   context.Context
 	contentAddressableStorage blobstore.BlobAccess
 	digestFunction            digest.Function
+	writableFileUploadDelay   <-chan struct{}
 	actionResult              *remoteexecution.ActionResult
 	uploadTreesAndDirectories bool
 
@@ -300,7 +301,7 @@ func (s *uploadOutputsState) uploadOutputDirectory(d UploadableDirectory, name p
 
 // UploadOutputDirectory is called to upload a single output file.
 func (s *uploadOutputsState) uploadOutputFile(d UploadableDirectory, name path.Component, childPath *path.Trace, isExecutable bool, paths []string) {
-	if digest, err := d.UploadFile(s.context, name, s.digestFunction); err == nil {
+	if digest, err := d.UploadFile(s.context, name, s.digestFunction, s.writableFileUploadDelay); err == nil {
 		for _, path := range paths {
 			s.actionResult.OutputFiles = append(
 				s.actionResult.OutputFiles,
@@ -356,7 +357,7 @@ func (s *uploadOutputDirectoryState) uploadDirectory(d UploadableDirectory, dPat
 		childPath := dPath.Append(name)
 		switch fileType := file.Type(); fileType {
 		case filesystem.FileTypeRegularFile:
-			if childDigest, err := d.UploadFile(s.context, name, s.digestFunction); err == nil {
+			if childDigest, err := d.UploadFile(s.context, name, s.digestFunction, s.writableFileUploadDelay); err == nil {
 				directory.Files = append(directory.Files, &remoteexecution.FileNode{
 					Name:         name.String(),
 					Digest:       childDigest.GetProto(),
@@ -551,11 +552,12 @@ func (oh *OutputHierarchy) CreateParentDirectories(d ParentPopulatableDirectory)
 
 // UploadOutputs uploads outputs of the build action into the CAS. This
 // function is called after executing the build action.
-func (oh *OutputHierarchy) UploadOutputs(ctx context.Context, d UploadableDirectory, contentAddressableStorage blobstore.BlobAccess, digestFunction digest.Function, actionResult *remoteexecution.ActionResult, forceUploadTreesAndDirectories bool) error {
+func (oh *OutputHierarchy) UploadOutputs(ctx context.Context, d UploadableDirectory, contentAddressableStorage blobstore.BlobAccess, digestFunction digest.Function, writableFileUploadDelay <-chan struct{}, actionResult *remoteexecution.ActionResult, forceUploadTreesAndDirectories bool) error {
 	s := uploadOutputsState{
 		context:                   ctx,
 		contentAddressableStorage: contentAddressableStorage,
 		digestFunction:            digestFunction,
+		writableFileUploadDelay:   writableFileUploadDelay,
 		actionResult:              actionResult,
 		uploadTreesAndDirectories: oh.uploadTreesAndDirectories || forceUploadTreesAndDirectories,
 	}
