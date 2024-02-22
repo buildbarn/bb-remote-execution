@@ -78,28 +78,31 @@ func (ba *batchedStoreBlobAccess) flushLocked(ctx context.Context) {
 	}
 
 	// Upload the missing ones.
-	group, groupCtx := errgroup.WithContext(ctx)
-	for _, digest := range missing.Items() {
-		key := digest.GetKey(ba.blobKeyFormat)
-		if pendingPutOperation, ok := ba.pendingPutOperations[key]; ok {
-			if groupCtx.Err() != nil || ba.putSemaphore.Acquire(groupCtx, 1) != nil {
-				break
-			}
-			delete(ba.pendingPutOperations, key)
-			group.Go(func() error {
-				err := ba.BlobAccess.Put(groupCtx, pendingPutOperation.digest, pendingPutOperation.b)
-				ba.putSemaphore.Release(1)
-				if err != nil {
-					return util.StatusWrapf(err, "Failed to store previous blob %s", pendingPutOperation.digest)
+	if !missing.Empty() {
+		group, groupCtx := errgroup.WithContext(ctx)
+		group.Go(func() error {
+			for _, digest := range missing.Items() {
+				key := digest.GetKey(ba.blobKeyFormat)
+				if pendingPutOperation, ok := ba.pendingPutOperations[key]; ok {
+					if err := util.AcquireSemaphore(groupCtx, ba.putSemaphore, 1); err != nil {
+						return err
+					}
+					delete(ba.pendingPutOperations, key)
+					group.Go(func() error {
+						err := ba.BlobAccess.Put(groupCtx, pendingPutOperation.digest, pendingPutOperation.b)
+						ba.putSemaphore.Release(1)
+						if err != nil {
+							return util.StatusWrapf(err, "Failed to store previous blob %s", pendingPutOperation.digest)
+						}
+						return nil
+					})
 				}
-				return nil
-			})
+			}
+			return nil
+		})
+		if err := group.Wait(); err != nil {
+			ba.flushError = err
 		}
-	}
-	if err := group.Wait(); err != nil {
-		ba.flushError = err
-	} else if err := util.StatusFromContext(ctx); err != nil {
-		ba.flushError = err
 	}
 }
 

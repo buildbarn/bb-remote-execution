@@ -240,8 +240,8 @@ func (dp *directoryPrefetcher) prefetchRecursively(pathTrace *path.Trace, direct
 			// carry its weight just yet. We should revisit
 			// this once we support chunking/decomposition,
 			// as in that case it is insufficient.
-			if dp.context.Err() != nil || dp.fileReadSemaphore.Acquire(dp.context, 1) != nil {
-				return util.StatusFromContext(dp.context)
+			if err := util.AcquireSemaphore(dp.context, dp.fileReadSemaphore, 1); err != nil {
+				return err
 			}
 			dp.group.Go(func() error {
 				var b [1]byte
