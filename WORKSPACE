@@ -99,9 +99,9 @@ switched_rules_by_language(
 
 http_archive(
     name = "com_google_protobuf",
-    sha256 = "a700a49470d301f1190a487a923b5095bf60f08f4ae4cac9f5f7c36883d17971",
-    strip_prefix = "protobuf-23.4",
-    urls = ["https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protobuf-23.4.tar.gz"],
+    integrity = "sha256-j/URpk/EbueS0/5JpaG8rW99xQ37uloosOW5ecF/mHE=",
+    strip_prefix = "protobuf-25.2",
+    urls = ["https://github.com/protocolbuffers/protobuf/releases/download/v25.2/protobuf-25.2.tar.gz"],
 )
 
 load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
@@ -175,9 +175,9 @@ http_archive(
 
 http_archive(
     name = "aspect_rules_js",
-    sha256 = "00e7b97b696af63812df0ca9e9dbd18579f3edd3ab9a56f227238b8405e4051c",
-    strip_prefix = "rules_js-1.23.0",
-    url = "https://github.com/aspect-build/rules_js/releases/download/v1.23.0/rules_js-v1.23.0.tar.gz",
+    sha256 = "a949d56fed8fa0a8dd82a0a660acc949253a05b2b0c52a07e4034e27f11218f6",
+    strip_prefix = "rules_js-1.33.1",
+    url = "https://github.com/aspect-build/rules_js/releases/download/v1.33.1/rules_js-v1.33.1.tar.gz",
 )
 
 load("@aspect_rules_js//js:repositories.bzl", "rules_js_dependencies")
