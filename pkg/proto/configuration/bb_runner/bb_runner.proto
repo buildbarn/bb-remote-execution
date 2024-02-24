@@ -131,4 +131,39 @@ message ApplicationConfiguration {
   // https://github.com/bazelbuild/bazel/blob/master/src/main/java/com/google/devtools/build/lib/exec/local/XcodeLocalEnvProvider.java
   // https://www.smileykeith.com/2021/03/08/locking-xcode-in-bazel/
   map<string, string> apple_xcode_developer_directories = 14;
+
+  // Remap executables in the 'CommandCreator'. This can be used to work
+  // around limitations of the build client. Bazel can be configured to
+  // perform multi-platform builds, but some of its options are limited
+  // to a single platform. One notable issue is the path to the shell on
+  // each platform: it has default values that work well if the remote
+  // executors have the paths available, but the flag to change the path
+  // applies for all platforms.
+  // https://bazel.build/reference/command-line-reference#flag--shell_executable
+  //    FreeBSD: /usr/local/bin/bash
+  //    Linux: /bin/bash
+  //    Windows: c:/tools/msys64/usr/bin/bash.exe
+  // This configuration can be used for a runner to use a different path
+  // and remap what Bazel sets through the flag.
+  //
+  // Additionally some actions may use global programs that are not
+  // available in the Action's PATH environment, but will be resolved
+  // when spawning the subprocess. In order to have consistent path
+  // resolution on all platforms it is better to disallow such
+  // resolution and instead specify programs that should be allowed
+  // here. To just execute them as absolute paths. 'cmd.exe' is created
+  // from Bazel's genrule if 'cmd_bat' is specified.
+  //
+  // Examples:
+  //
+  //   {
+  //     // Use a git bash instead of the default msys bash
+  //     "c:/tools/msys64/usr/bin/bash.exe": "C:/Program
+  //     Files/Git/bin/bash.exe",
+  //     // Handle --shell_executable=/bin/bash
+  //     "/bin/bash": "C:/Program Files/Git/bin/bash.exe",
+  //     // Avoid Windows' path resolution of programs, this lets the worker resolve paths.
+  //     "cmd.exe": "/c/Windows/system32/cmd.exe",
+  //   }
+  map<string, string> remap_executables = 15;
 }

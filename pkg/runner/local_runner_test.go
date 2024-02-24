@@ -191,7 +191,9 @@ func TestLocalRunnerRun(t *testing.T) {
 		var envMap map[string]string
 		if runtime.GOOS == "windows" {
 			envMap = map[string]string{
-				"TMP":  "\\somewhere\\else",
+				// The worker should handle both path styles.
+				// TMP is posix-style and TEMP customarily a windows construction.
+				"TMP":  "/somewhere/else",
 				"TEMP": "\\somewhere\\else",
 			}
 		} else {
@@ -218,7 +220,9 @@ func TestLocalRunnerRun(t *testing.T) {
 		require.NoError(t, err)
 		if runtime.GOOS == "windows" {
 			require.Subset(t, strings.Fields(string(stdout)), []string{
-				"TMP=\\somewhere\\else",
+				// The worker should handle both path styles.
+				// TMP is posix-style and TEMP customarily a windows construction.
+				"TMP=/somewhere/else",
 				"TEMP=\\somewhere\\else",
 			})
 		} else {

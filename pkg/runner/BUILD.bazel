@@ -12,6 +12,7 @@ go_library(
         "local_runner_unix.go",
         "local_runner_windows.go",
         "path_existence_checking_runner.go",
+        "remapping_command_creator.go",
         "temporary_directory_installing_runner.go",
         "temporary_directory_symlinking_runner.go",
     ],

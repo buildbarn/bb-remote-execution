@@ -7,7 +7,6 @@ import (
 	"context"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -16,67 +15,8 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/util"
 
 	"golang.org/x/sys/unix"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
-
-// getExecutablePath returns the path of an executable within a given
-// search path that is part of the PATH environment variable.
-func getExecutablePath(baseDirectory *path.Builder, searchPathStr, argv0 string) (string, error) {
-	searchPath, scopeWalker := baseDirectory.Join(path.VoidScopeWalker)
-	if err := path.Resolve(searchPathStr, scopeWalker); err != nil {
-		return "", err
-	}
-	executablePath, scopeWalker := searchPath.Join(path.VoidScopeWalker)
-	if err := path.Resolve(argv0, scopeWalker); err != nil {
-		return "", err
-	}
-	return executablePath.String(), nil
-}
-
-// lookupExecutable returns the path of an executable, taking the PATH
-// environment variable into account.
-func lookupExecutable(workingDirectory *path.Builder, pathVariable, argv0 string) (string, error) {
-	if strings.ContainsRune(argv0, os.PathSeparator) {
-		// No PATH processing needs to be performed.
-		return argv0, nil
-	}
-
-	// Executable path does not contain any slashes. Perform PATH
-	// lookups.
-	//
-	// We cannot use exec.LookPath() directly, as that function
-	// disregards the working directory of the action. It also uses
-	// the PATH environment variable of the current process, as
-	// opposed to respecting the value that is provided as part of
-	// the action. Do call into this function to validate the
-	// existence of the executable.
-	for _, searchPathStr := range filepath.SplitList(pathVariable) {
-		executablePathAbs, err := getExecutablePath(workingDirectory, searchPathStr, argv0)
-		if err != nil {
-			return "", util.StatusWrapf(err, "Failed to resolve executable %#v in search path %#v", argv0, searchPathStr)
-		}
-		if _, err := exec.LookPath(executablePathAbs); err == nil {
-			// Regular compiled executables will receive the
-			// argv[0] that we provide, but scripts starting
-			// with '#!' will receive the literal executable
-			// path.
-			//
-			// Most shells seem to guarantee that if argv[0]
-			// is relative, the executable path is relative
-			// as well. Prevent these scripts from breaking
-			// by recomputing the executable path once more,
-			// but relative.
-			executablePathRel, err := getExecutablePath(&path.EmptyBuilder, searchPathStr, argv0)
-			if err != nil {
-				return "", util.StatusWrapf(err, "Failed to resolve executable %#v in search path %#v", argv0, searchPathStr)
-			}
-			return executablePathRel, nil
-		}
-	}
-	return "", status.Errorf(codes.InvalidArgument, "Cannot find executable %#v in search paths %#v", argv0, pathVariable)
-}
 
 // NewPlainCommandCreator returns a CommandCreator for cases where we don't
 // need to chroot into the input root directory.

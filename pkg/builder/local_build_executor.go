@@ -2,6 +2,7 @@ package builder
 
 import (
 	"context"
+	"log"
 	"os"
 	"sync"
 	"time"
@@ -127,9 +128,9 @@ func (be *localBuildExecutor) CheckReadiness(ctx context.Context) error {
 	return err
 }
 
-func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) (response *remoteexecution.ExecuteResponse) {
 	// Timeout handling.
-	response := NewDefaultExecuteResponse(request)
+	response = NewDefaultExecuteResponse(request)
 	action := request.Action
 	if action == nil {
 		attachErrorToExecuteResponse(response, status.Error(codes.InvalidArgument, "Request does not contain an action"))
@@ -160,7 +161,12 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 			util.StatusWrap(err, "Failed to acquire build environment"))
 		return response
 	}
-	defer buildDirectory.Close()
+	defer func() {
+		err := buildDirectory.Close()
+		if err != nil {
+			log.Printf("Failed to clean up build environment: %v\n", err)
+		}
+	}()
 
 	// Install hooks on build directory to capture file creation and
 	// I/O error events.
