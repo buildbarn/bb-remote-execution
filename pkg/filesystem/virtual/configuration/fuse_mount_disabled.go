@@ -1,5 +1,5 @@
-//go:build freebsd || windows
-// +build freebsd windows
+//go:build darwin || freebsd || windows
+// +build darwin freebsd windows
 
 package configuration
 

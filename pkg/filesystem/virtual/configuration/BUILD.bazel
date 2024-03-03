@@ -35,17 +35,11 @@ go_library(
             "@org_golang_x_sys//unix",
         ],
         "@io_bazel_rules_go//go/platform:darwin": [
-            "//pkg/filesystem/virtual/fuse",
-            "@com_github_buildbarn_bb_storage//pkg/filesystem",
             "@com_github_buildbarn_go_xdr//pkg/protocols/darwin_nfs_sys_prot",
-            "@com_github_hanwen_go_fuse_v2//fuse",
             "@org_golang_x_sys//unix",
         ],
         "@io_bazel_rules_go//go/platform:ios": [
-            "//pkg/filesystem/virtual/fuse",
-            "@com_github_buildbarn_bb_storage//pkg/filesystem",
             "@com_github_buildbarn_go_xdr//pkg/protocols/darwin_nfs_sys_prot",
-            "@com_github_hanwen_go_fuse_v2//fuse",
             "@org_golang_x_sys//unix",
         ],
         "@io_bazel_rules_go//go/platform:linux": [
