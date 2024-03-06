@@ -4,8 +4,8 @@ import (
 	"context"
 	"sync"
 
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/bazeloutputservice"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/outputpathpersistency"
-	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteoutputservice"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/tmp_installer"
 	"github.com/buildbarn/bb-storage/pkg/auth"
 	"github.com/buildbarn/bb-storage/pkg/digest"
@@ -80,12 +80,12 @@ func (f *UserSettableSymlink) Readlink() (string, error) {
 	return "", status.Error(codes.InvalidArgument, "Target of user settable symlinks can only be obtained through the virtual file system")
 }
 
-// GetOutputServiceFileStatus returns the status of the symbolic link,
-// so that it may be reported through the Remote Output Service. This
-// method is a no-op, as this type is not used in combination with the
-// Remote Output Service.
-func (f *UserSettableSymlink) GetOutputServiceFileStatus(digestFunction *digest.Function) (*remoteoutputservice.FileStatus, error) {
-	return &remoteoutputservice.FileStatus{}, nil
+// GetBazelOutputServiceStat returns the status of the symbolic link, so
+// that it may be reported through the Bazel Output Service. This method
+// is a no-op, as this type is not used in combination with the Bazel
+// Output Service.
+func (f *UserSettableSymlink) GetBazelOutputServiceStat(digestFunction *digest.Function) (*bazeloutputservice.BatchStatResponse_Stat, error) {
+	return &bazeloutputservice.BatchStatResponse_Stat{}, nil
 }
 
 // AppendOutputPathPersistencyDirectoryNode returns the status of the

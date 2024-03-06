@@ -10,8 +10,9 @@ import (
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/bazeloutputservice"
+	bazeloutputservicerev2 "github.com/buildbarn/bb-remote-execution/pkg/proto/bazeloutputservice/rev2"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/outputpathpersistency"
-	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteoutputservice"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
@@ -22,6 +23,7 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 var (
@@ -279,38 +281,43 @@ func (f *fileBackedFile) GetContainingDigests() digest.Set {
 	return digest.EmptySet
 }
 
-func (f *fileBackedFile) GetOutputServiceFileStatus(digestFunction *digest.Function) (*remoteoutputservice.FileStatus, error) {
-	fileStatus := &remoteoutputservice.FileStatus_File{}
-	if digestFunction != nil {
-		f.lock.Lock()
-		if f.writableDescriptorsCount == 0 {
-			success := f.acquireFrozenDescriptorLocked()
-			f.lock.Unlock()
-			if !success {
-				return nil, status.Error(codes.NotFound, "File was unlinked before digest computation could start")
-			}
-			defer f.releaseFrozenDescriptor()
-
-			blobDigest, err := f.updateCachedDigest(*digestFunction)
-			if err != nil {
-				return nil, err
-			}
-			fileStatus.Digest = blobDigest.GetProto()
-		} else {
-			// Don't report the digest if the file is opened for
-			// writing. The kernel may still hold on to data that
-			// needs to be written, meaning that digests computed on
-			// this end are inaccurate.
-			//
-			// By not reporting the digest, the client will
-			// recompute it itself. This will be consistent with
-			// what's stored in the kernel's page cache.
-			f.lock.Unlock()
+func (f *fileBackedFile) GetBazelOutputServiceStat(digestFunction *digest.Function) (*bazeloutputservice.BatchStatResponse_Stat, error) {
+	var locator *anypb.Any
+	f.lock.Lock()
+	if f.writableDescriptorsCount == 0 {
+		success := f.acquireFrozenDescriptorLocked()
+		f.lock.Unlock()
+		if !success {
+			return nil, status.Error(codes.NotFound, "File was unlinked before digest computation could start")
 		}
+		defer f.releaseFrozenDescriptor()
+
+		blobDigest, err := f.updateCachedDigest(*digestFunction)
+		if err != nil {
+			return nil, err
+		}
+		locator, err = anypb.New(&bazeloutputservicerev2.FileArtifactLocator{
+			Digest: blobDigest.GetProto(),
+		})
+		if err != nil {
+			return nil, status.Error(codes.Internal, "Failed to marshal locator")
+		}
+	} else {
+		// Don't report the digest if the file is opened for
+		// writing. The kernel may still hold on to data that
+		// needs to be written, meaning that digests computed on
+		// this end are inaccurate.
+		//
+		// By not reporting the digest, the client will
+		// recompute it itself. This will be consistent with
+		// what's stored in the kernel's page cache.
+		f.lock.Unlock()
 	}
-	return &remoteoutputservice.FileStatus{
-		FileType: &remoteoutputservice.FileStatus_File_{
-			File: fileStatus,
+	return &bazeloutputservice.BatchStatResponse_Stat{
+		Type: &bazeloutputservice.BatchStatResponse_Stat_File_{
+			File: &bazeloutputservice.BatchStatResponse_Stat_File{
+				Locator: locator,
+			},
 		},
 	}, nil
 }

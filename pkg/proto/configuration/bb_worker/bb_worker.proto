@@ -134,7 +134,7 @@ message ApplicationConfiguration {
   //   load the full Tree object from the CAS.
   //
   // - Root directories of output directories created through
-  //   bb_clientd's Remote Output Service feature load slightly faster,
+  //   bb_clientd's Bazel Output Service feature load slightly faster,
   //   as they can be validated without processing full Tree objects.
   //
   // - Even for clients that only support output directories in the form

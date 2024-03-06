@@ -5,13 +5,18 @@ import (
 	"syscall"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/bazeloutputservice"
+	bazeloutputservicerev2 "github.com/buildbarn/bb-remote-execution/pkg/proto/bazeloutputservice/rev2"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/outputpathpersistency"
-	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteoutputservice"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 type blobAccessCASFileFactory struct {
@@ -83,17 +88,21 @@ func (f *blobAccessCASFile) GetContainingDigests() digest.Set {
 	return f.digest.ToSingletonSet()
 }
 
-func (f *blobAccessCASFile) GetOutputServiceFileStatus(digestFunction *digest.Function) (*remoteoutputservice.FileStatus, error) {
-	fileStatusFile := remoteoutputservice.FileStatus_File{}
-	if digestFunction != nil {
-		// Assume that the file uses the same hash algorithm as
-		// the provided digest function. Incompatible files are
-		// removed from storage at the start of the build.
-		fileStatusFile.Digest = f.digest.GetProto()
+func (f *blobAccessCASFile) GetBazelOutputServiceStat(digestFunction *digest.Function) (*bazeloutputservice.BatchStatResponse_Stat, error) {
+	// Assume that the file uses the same hash algorithm as
+	// the provided digest function. Incompatible files are
+	// removed from storage at the start of the build.
+	locator, err := anypb.New(&bazeloutputservicerev2.FileArtifactLocator{
+		Digest: f.digest.GetProto(),
+	})
+	if err != nil {
+		return nil, status.Error(codes.Internal, "Failed to marshal locator")
 	}
-	return &remoteoutputservice.FileStatus{
-		FileType: &remoteoutputservice.FileStatus_File_{
-			File: &fileStatusFile,
+	return &bazeloutputservice.BatchStatResponse_Stat{
+		Type: &bazeloutputservice.BatchStatResponse_Stat_File_{
+			File: &bazeloutputservice.BatchStatResponse_Stat_File{
+				Locator: locator,
+			},
 		},
 	}, nil
 }
@@ -147,7 +156,7 @@ func (f *blobAccessCASFile) VirtualClose(shareAccess ShareMask) {}
 func (f *blobAccessCASFile) virtualSetAttributesCommon(in *Attributes) Status {
 	// TODO: chmod() calls against CAS backed files should not be
 	// permitted. Unfortunately, we allowed it in the past. When
-	// using bb_clientd's Remote Output Service, we see Bazel
+	// using bb_clientd's Bazel Output Service, we see Bazel
 	// performing such calls, so we can't forbid it right now.
 	/*
 		if _, ok := in.GetPermissions(); ok {

@@ -4,8 +4,8 @@ import (
 	"context"
 	"syscall"
 
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/bazeloutputservice"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/outputpathpersistency"
-	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteoutputservice"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
@@ -33,8 +33,8 @@ func (f *specialFile) Readlink() (string, error) {
 	return "", syscall.EINVAL
 }
 
-func (f *specialFile) GetOutputServiceFileStatus(digestFunction *digest.Function) (*remoteoutputservice.FileStatus, error) {
-	return &remoteoutputservice.FileStatus{}, nil
+func (f *specialFile) GetBazelOutputServiceStat(digestFunction *digest.Function) (*bazeloutputservice.BatchStatResponse_Stat, error) {
+	return &bazeloutputservice.BatchStatResponse_Stat{}, nil
 }
 
 func (f *specialFile) AppendOutputPathPersistencyDirectoryNode(directory *outputpathpersistency.Directory, name path.Component) {

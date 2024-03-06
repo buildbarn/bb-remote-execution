@@ -9,8 +9,9 @@ import (
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual"
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/bazeloutputservice"
+	bazeloutputservicerev2 "github.com/buildbarn/bb-remote-execution/pkg/proto/bazeloutputservice/rev2"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/outputpathpersistency"
-	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteoutputservice"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
@@ -21,9 +22,10 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
-func TestPoolBackedFileAllocatorGetOutputServiceFileStatus(t *testing.T) {
+func TestPoolBackedFileAllocatorGetBazelOutputServiceStat(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	// Create a file and initialize it with some contents.
@@ -46,43 +48,36 @@ func TestPoolBackedFileAllocatorGetOutputServiceFileStatus(t *testing.T) {
 	// can compute its value properly, as unwritten data may still
 	// be present in the page cache.
 	digestFunction1 := digest.MustNewFunction("Hello", remoteexecution.DigestFunction_MD5)
-	fileStatus, err := f.GetOutputServiceFileStatus(&digestFunction1)
+	fileStatus, err := f.GetBazelOutputServiceStat(&digestFunction1)
 	require.NoError(t, err)
-	testutil.RequireEqualProto(t, &remoteoutputservice.FileStatus{
-		FileType: &remoteoutputservice.FileStatus_File_{
-			File: &remoteoutputservice.FileStatus_File{},
+	testutil.RequireEqualProto(t, &bazeloutputservice.BatchStatResponse_Stat{
+		Type: &bazeloutputservice.BatchStatResponse_Stat_File_{
+			File: &bazeloutputservice.BatchStatResponse_Stat_File{},
 		},
 	}, fileStatus)
 
 	f.VirtualClose(virtual.ShareMaskWrite)
 
-	// When the provided digest.Function is nil, we should only
-	// report that this is a file.
-	fileStatus, err = f.GetOutputServiceFileStatus(nil)
-	require.NoError(t, err)
-	testutil.RequireEqualProto(t, &remoteoutputservice.FileStatus{
-		FileType: &remoteoutputservice.FileStatus_File_{
-			File: &remoteoutputservice.FileStatus_File{},
-		},
-	}, fileStatus)
-
-	// When the provided digest.Function is set, the digest of the
-	// file should be computed on demand. This is more efficient
-	// than letting the build client read the file through the FUSE
-	// file system.
+	// The digest of the file should be computed on demand. This is
+	// more efficient than letting the build client read the file
+	// through the FUSE file system.
 	underlyingFile.EXPECT().ReadAt(gomock.Any(), int64(0)).DoAndReturn(
 		func(p []byte, off int64) (int, error) {
 			return copy(p, "Hello"), io.EOF
 		})
-	fileStatus, err = f.GetOutputServiceFileStatus(&digestFunction1)
+	fileStatus, err = f.GetBazelOutputServiceStat(&digestFunction1)
 	require.NoError(t, err)
-	testutil.RequireEqualProto(t, &remoteoutputservice.FileStatus{
-		FileType: &remoteoutputservice.FileStatus_File_{
-			File: &remoteoutputservice.FileStatus_File{
-				Digest: &remoteexecution.Digest{
-					Hash:      "8b1a9953c4611296a827abf8c47804d7",
-					SizeBytes: 5,
-				},
+	locator, err := anypb.New(&bazeloutputservicerev2.FileArtifactLocator{
+		Digest: &remoteexecution.Digest{
+			Hash:      "8b1a9953c4611296a827abf8c47804d7",
+			SizeBytes: 5,
+		},
+	})
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, &bazeloutputservice.BatchStatResponse_Stat{
+		Type: &bazeloutputservice.BatchStatResponse_Stat_File_{
+			File: &bazeloutputservice.BatchStatResponse_Stat_File{
+				Locator: locator,
 			},
 		},
 	}, fileStatus)
@@ -90,21 +85,18 @@ func TestPoolBackedFileAllocatorGetOutputServiceFileStatus(t *testing.T) {
 	// Calling the function a second time should not generate any
 	// reads against the file, as the contents of the file have not
 	// changed. A cached value should be returned.
-	fileStatus, err = f.GetOutputServiceFileStatus(&digestFunction1)
+	fileStatus, err = f.GetBazelOutputServiceStat(&digestFunction1)
 	require.NoError(t, err)
-	testutil.RequireEqualProto(t, &remoteoutputservice.FileStatus{
-		FileType: &remoteoutputservice.FileStatus_File_{
-			File: &remoteoutputservice.FileStatus_File{
-				Digest: &remoteexecution.Digest{
-					Hash:      "8b1a9953c4611296a827abf8c47804d7",
-					SizeBytes: 5,
-				},
+	testutil.RequireEqualProto(t, &bazeloutputservice.BatchStatResponse_Stat{
+		Type: &bazeloutputservice.BatchStatResponse_Stat_File_{
+			File: &bazeloutputservice.BatchStatResponse_Stat_File{
+				Locator: locator,
 			},
 		},
 	}, fileStatus)
 
 	// Change the file's contents to invalidate the cached digest. A
-	// successive call to GetOutputServiceFileStatus() should
+	// successive call to GetBazelOutputServiceStat() should
 	// recompute the digest.
 	require.Equal(t, virtual.StatusOK, f.VirtualOpenSelf(ctx, virtual.ShareMaskWrite, &virtual.OpenExistingOptions{}, 0, &virtual.Attributes{}))
 	underlyingFile.EXPECT().WriteAt([]byte(" world"), int64(5)).Return(6, nil)
@@ -117,15 +109,19 @@ func TestPoolBackedFileAllocatorGetOutputServiceFileStatus(t *testing.T) {
 		func(p []byte, off int64) (int, error) {
 			return copy(p, "Hello world"), io.EOF
 		})
-	fileStatus, err = f.GetOutputServiceFileStatus(&digestFunction1)
+	fileStatus, err = f.GetBazelOutputServiceStat(&digestFunction1)
 	require.NoError(t, err)
-	testutil.RequireEqualProto(t, &remoteoutputservice.FileStatus{
-		FileType: &remoteoutputservice.FileStatus_File_{
-			File: &remoteoutputservice.FileStatus_File{
-				Digest: &remoteexecution.Digest{
-					Hash:      "3e25960a79dbc69b674cd4ec67a72c62",
-					SizeBytes: 11,
-				},
+	locator, err = anypb.New(&bazeloutputservicerev2.FileArtifactLocator{
+		Digest: &remoteexecution.Digest{
+			Hash:      "3e25960a79dbc69b674cd4ec67a72c62",
+			SizeBytes: 11,
+		},
+	})
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, &bazeloutputservice.BatchStatResponse_Stat{
+		Type: &bazeloutputservice.BatchStatResponse_Stat_File_{
+			File: &bazeloutputservice.BatchStatResponse_Stat_File{
+				Locator: locator,
 			},
 		},
 	}, fileStatus)
@@ -137,15 +133,19 @@ func TestPoolBackedFileAllocatorGetOutputServiceFileStatus(t *testing.T) {
 			return copy(p, "Hello world"), io.EOF
 		})
 	digestFunction2 := digest.MustNewFunction("Hello", remoteexecution.DigestFunction_SHA256)
-	fileStatus, err = f.GetOutputServiceFileStatus(&digestFunction2)
+	fileStatus, err = f.GetBazelOutputServiceStat(&digestFunction2)
 	require.NoError(t, err)
-	testutil.RequireEqualProto(t, &remoteoutputservice.FileStatus{
-		FileType: &remoteoutputservice.FileStatus_File_{
-			File: &remoteoutputservice.FileStatus_File{
-				Digest: &remoteexecution.Digest{
-					Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
-					SizeBytes: 11,
-				},
+	locator, err = anypb.New(&bazeloutputservicerev2.FileArtifactLocator{
+		Digest: &remoteexecution.Digest{
+			Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
+			SizeBytes: 11,
+		},
+	})
+	require.NoError(t, err)
+	testutil.RequireEqualProto(t, &bazeloutputservice.BatchStatResponse_Stat{
+		Type: &bazeloutputservice.BatchStatResponse_Stat_File_{
+			File: &bazeloutputservice.BatchStatResponse_Stat_File{
+				Locator: locator,
 			},
 		},
 	}, fileStatus)

@@ -5,8 +5,8 @@ import (
 	"unicode/utf8"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/bazeloutputservice"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/outputpathpersistency"
-	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteoutputservice"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
@@ -37,14 +37,14 @@ func (f symlink) Readlink() (string, error) {
 	return string(f.target), nil
 }
 
-func (f symlink) GetOutputServiceFileStatus(digestFunction *digest.Function) (*remoteoutputservice.FileStatus, error) {
+func (f symlink) GetBazelOutputServiceStat(digestFunction *digest.Function) (*bazeloutputservice.BatchStatResponse_Stat, error) {
 	target, err := f.Readlink()
 	if err != nil {
 		return nil, err
 	}
-	return &remoteoutputservice.FileStatus{
-		FileType: &remoteoutputservice.FileStatus_Symlink_{
-			Symlink: &remoteoutputservice.FileStatus_Symlink{
+	return &bazeloutputservice.BatchStatResponse_Stat{
+		Type: &bazeloutputservice.BatchStatResponse_Stat_Symlink_{
+			Symlink: &bazeloutputservice.BatchStatResponse_Stat_Symlink{
 				Target: target,
 			},
 		},
