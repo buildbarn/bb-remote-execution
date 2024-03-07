@@ -101,8 +101,12 @@ func ConvertCommandToShellScript(command *remoteexecution.Command, w io.StringWr
 	}
 
 	// Switch to the right working directory.
+	workingDirectoryParser, err := path.NewUNIXParser(command.WorkingDirectory)
+	if err != nil {
+		return util.StatusWrap(err, "Invalid working directory")
+	}
 	workingDirectory, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
-	if err := path.Resolve(command.WorkingDirectory, scopeWalker); err != nil {
+	if err := path.Resolve(workingDirectoryParser, scopeWalker); err != nil {
 		return util.StatusWrap(err, "Failed to resolve working directory")
 	}
 	if _, err := w.WriteString("cd "); err != nil {

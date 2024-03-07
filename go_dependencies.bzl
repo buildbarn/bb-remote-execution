@@ -173,8 +173,8 @@ def go_dependencies():
     go_repository(
         name = "com_github_buildbarn_bb_storage",
         importpath = "github.com/buildbarn/bb-storage",
-        sum = "h1:/39JibX2GcYXr5RS/XQo27GSrjrK6lAC7CR1eeubJEc=",
-        version = "v0.0.0-20240222075657-f52022cbad94",
+        sum = "h1:tBbub4L03HT0PNKToki245kaXjwb+AOzyhfy8oosL6w=",
+        version = "v0.0.0-20240307194821-4d0d7a3d85b5",
     )
     go_repository(
         name = "com_github_buildbarn_go_xdr",
@@ -248,6 +248,12 @@ def go_dependencies():
         importpath = "github.com/felixge/httpsnoop",
         sum = "h1:NFTV2Zj1bL4mc9sqWACXbQFVBBg2W3GPvqp8/ESS2Wg=",
         version = "v1.0.4",
+    )
+    go_repository(
+        name = "com_github_fsnotify_fsnotify",
+        importpath = "github.com/fsnotify/fsnotify",
+        sum = "h1:n+5WquG0fcWoWp6xPWfHdbskMCQaFnG6PfBrh1Ky4HY=",
+        version = "v1.6.0",
     )
     go_repository(
         name = "com_github_fxtlabs_primes",
@@ -606,6 +612,12 @@ def go_dependencies():
         importpath = "github.com/rogpeppe/go-internal",
         sum = "h1:TMyTOH3F/DB16zRVcYyreMH6GnZZrwQVAoYjRBZyWFQ=",
         version = "v1.10.0",
+    )
+    go_repository(
+        name = "com_github_sercand_kuberesolver_v5",
+        importpath = "github.com/sercand/kuberesolver/v5",
+        sum = "h1:CYH+d67G0sGBj7q5wLK61yzqJJ8gLLC8aeprPTHb6yY=",
+        version = "v5.1.1",
     )
     go_repository(
         name = "com_github_sergi_go_diff",
@@ -1546,9 +1558,8 @@ def go_dependencies():
     go_repository(
         name = "org_golang_x_sys",
         importpath = "golang.org/x/sys",
-        patches = ["@com_github_buildbarn_bb_storage//:patches/org_golang_x_sys/golang-issue-59357.diff"],
-        sum = "h1:25cE3gD+tdBA7lp7QfhuV+rJiE9YXTcS3VG1SqssI/Y=",
-        version = "v0.17.0",
+        sum = "h1:DBdB3niSjOA/O0blCZBqDefyWNYveAYMNF1Wum0DYQ4=",
+        version = "v0.18.0",
     )
     go_repository(
         name = "org_golang_x_term",

@@ -70,11 +70,15 @@ type localRunner struct {
 }
 
 func (r *localRunner) openLog(logPath string) (filesystem.FileAppender, error) {
+	logPathParser, err := path.NewUNIXParser(logPath)
+	if err != nil {
+		return nil, err
+	}
 	logFileResolver := buildDirectoryPathResolver{
 		stack: util.NewNonEmptyStack(filesystem.NopDirectoryCloser(r.buildDirectory)),
 	}
 	defer logFileResolver.closeAll()
-	if err := path.Resolve(logPath, path.NewRelativeScopeWalker(&logFileResolver)); err != nil {
+	if err := path.Resolve(logPathParser, path.NewRelativeScopeWalker(&logFileResolver)); err != nil {
 		return nil, err
 	}
 	if logFileResolver.TerminalName == nil {
@@ -105,8 +109,12 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 		return nil, status.Error(codes.InvalidArgument, "Insufficient number of command arguments")
 	}
 
+	inputRootDirectoryParser, err := path.NewUNIXParser(request.InputRootDirectory)
+	if err != nil {
+		return nil, util.StatusWrap(err, "Invalid input root directory")
+	}
 	inputRootDirectory, scopeWalker := r.buildDirectoryPath.Join(path.VoidScopeWalker)
-	if err := path.Resolve(request.InputRootDirectory, scopeWalker); err != nil {
+	if err := path.Resolve(inputRootDirectoryParser, scopeWalker); err != nil {
 		return nil, util.StatusWrap(err, "Failed to resolve input root directory")
 	}
 
@@ -118,8 +126,12 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 	// Set the environment variables.
 	cmd.Env = make([]string, 0, len(request.EnvironmentVariables)+1)
 	if r.setTmpdirEnvironmentVariable && request.TemporaryDirectory != "" {
+		temporaryDirectoryParser, err := path.NewUNIXParser(request.TemporaryDirectory)
+		if err != nil {
+			return nil, util.StatusWrap(err, "Invalid temporary directory")
+		}
 		temporaryDirectory, scopeWalker := r.buildDirectoryPath.Join(path.VoidScopeWalker)
-		if err := path.Resolve(request.TemporaryDirectory, scopeWalker); err != nil {
+		if err := path.Resolve(temporaryDirectoryParser, scopeWalker); err != nil {
 			return nil, util.StatusWrap(err, "Failed to resolve temporary directory")
 		}
 		for _, prefix := range temporaryDirectoryEnvironmentVariablePrefixes {
@@ -183,11 +195,15 @@ func (r *localRunner) CheckReadiness(ctx context.Context, request *runner.CheckR
 	// request exists in the build directory. This ensures that
 	// trivial misconfigurations of the build directory don't lead
 	// to repeated build failures.
+	pathParser, err := path.NewUNIXParser(request.Path)
+	if err != nil {
+		return nil, util.StatusWrapfWithCode(err, codes.Internal, "Invalid path %#v", request.Path)
+	}
 	pathResolver := buildDirectoryPathResolver{
 		stack: util.NewNonEmptyStack(filesystem.NopDirectoryCloser(r.buildDirectory)),
 	}
 	defer pathResolver.closeAll()
-	if err := path.Resolve(request.Path, path.NewRelativeScopeWalker(&pathResolver)); err != nil {
+	if err := path.Resolve(pathParser, path.NewRelativeScopeWalker(&pathResolver)); err != nil {
 		return nil, util.StatusWrapfWithCode(err, codes.Internal, "Failed to resolve path %#v in build directory", request.Path)
 	}
 	if name := pathResolver.TerminalName; name != nil {

@@ -89,7 +89,7 @@ func TestLocalRunnerRun(t *testing.T) {
 	defer buildDirectory.Close()
 
 	buildDirectoryPathBuilder, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
-	require.NoError(t, path.Resolve(buildDirectoryPath, scopeWalker))
+	require.NoError(t, path.Resolve(path.MustNewUNIXParser(buildDirectoryPath), scopeWalker))
 
 	var cmdPath string
 	var getEnvCommand []string

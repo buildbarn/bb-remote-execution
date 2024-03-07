@@ -38,8 +38,12 @@ func main() {
 			return util.StatusWrap(err, "Failed to apply global configuration options")
 		}
 
+		buildDirectoryParser, err := path.NewUNIXParser(configuration.BuildDirectoryPath)
+		if err != nil {
+			return util.StatusWrap(err, "Invalid build directory")
+		}
 		buildDirectoryPath, scopeWalker := path.EmptyBuilder.Join(path.NewAbsoluteScopeWalker(path.VoidComponentWalker))
-		if err := path.Resolve(configuration.BuildDirectoryPath, scopeWalker); err != nil {
+		if err := path.Resolve(buildDirectoryParser, scopeWalker); err != nil {
 			return util.StatusWrap(err, "Failed to resolve build directory")
 		}
 		buildDirectoryPathString := buildDirectoryPath.String()
