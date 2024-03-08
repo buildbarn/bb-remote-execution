@@ -21,8 +21,9 @@ message MountConfiguration {
     FUSEMountConfiguration fuse = 2;
 
     // Run an in-process NFSv4 server and use the kernel's NFSv4 client
-    // to expose the mount. This option is currently only supported on
-    // macOS Ventura 13.3 (22E252) or later.
+    // to expose the mount. This option is supported on macOS starting
+    // with Ventura 13.3 (22E252), though the use of Sonoma 14.4
+    // (23E214) or later is strongly recommended.
     //
     // The NFS server is expected to conform to NFSv4.0 (RFC 7530).
     // Features provided by newer versions of the protocol, such as
