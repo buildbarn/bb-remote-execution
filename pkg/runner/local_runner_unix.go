@@ -90,11 +90,7 @@ func lookupExecutable(workingDirectory *path.Builder, pathVariable, argv0 string
 // NewPlainCommandCreator returns a CommandCreator for cases where we don't
 // need to chroot into the input root directory.
 func NewPlainCommandCreator(sysProcAttr *syscall.SysProcAttr) CommandCreator {
-	return func(ctx context.Context, arguments []string, inputRootDirectory *path.Builder, workingDirectoryStr, pathVariable string) (*exec.Cmd, error) {
-		workingDirectoryParser, err := path.NewUNIXParser(workingDirectoryStr)
-		if err != nil {
-			return nil, util.StatusWrap(err, "Invalid working directory")
-		}
+	return func(ctx context.Context, arguments []string, inputRootDirectory *path.Builder, workingDirectoryParser path.Parser, pathVariable string) (*exec.Cmd, error) {
 		workingDirectory, scopeWalker := inputRootDirectory.Join(path.VoidScopeWalker)
 		if err := path.Resolve(workingDirectoryParser, scopeWalker); err != nil {
 			return nil, util.StatusWrap(err, "Failed to resolve working directory")
@@ -121,7 +117,7 @@ func NewPlainCommandCreator(sysProcAttr *syscall.SysProcAttr) CommandCreator {
 // NewChrootedCommandCreator returns a CommandCreator for cases where we
 // need to chroot into the input root directory.
 func NewChrootedCommandCreator(sysProcAttr *syscall.SysProcAttr) (CommandCreator, error) {
-	return func(ctx context.Context, arguments []string, inputRootDirectory *path.Builder, workingDirectoryStr, pathVariable string) (*exec.Cmd, error) {
+	return func(ctx context.Context, arguments []string, inputRootDirectory *path.Builder, workingDirectoryParser path.Parser, pathVariable string) (*exec.Cmd, error) {
 		// The addition of /usr/bin/env is necessary as the PATH resolution
 		// will take place prior to the chroot, so the executable may not be
 		// found by exec.LookPath() inside exec.CommandContext() and may
@@ -134,10 +130,6 @@ func NewChrootedCommandCreator(sysProcAttr *syscall.SysProcAttr) (CommandCreator
 
 		// Set the working relative to be relative to the root
 		// directory of the chrooted environment.
-		workingDirectoryParser, err := path.NewUNIXParser(workingDirectoryStr)
-		if err != nil {
-			return nil, util.StatusWrap(err, "Invalid working directory")
-		}
 		workingDirectory, scopeWalker := path.RootBuilder.Join(path.VoidScopeWalker)
 		if err := path.Resolve(workingDirectoryParser, scopeWalker); err != nil {
 			return nil, util.StatusWrap(err, "Failed to resolve working directory")

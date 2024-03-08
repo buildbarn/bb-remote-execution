@@ -23,7 +23,7 @@ import (
 // NewPlainCommandCreator returns a CommandCreator for cases where we don't
 // need to chroot into the input root directory.
 func NewPlainCommandCreator(sysProcAttr *syscall.SysProcAttr) CommandCreator {
-	return func(ctx context.Context, arguments []string, inputRootDirectory *path.Builder, workingDirectoryStr, pathVariable string) (*exec.Cmd, error) {
+	return func(ctx context.Context, arguments []string, inputRootDirectory *path.Builder, workingDirectoryParser path.Parser, pathVariable string) (*exec.Cmd, error) {
 		// TODO: This may not work correctly if the action sets
 		// the PATH environment variable explicitly.
 		cmd := exec.CommandContext(ctx, arguments[0], arguments[1:]...)
@@ -32,7 +32,7 @@ func NewPlainCommandCreator(sysProcAttr *syscall.SysProcAttr) CommandCreator {
 		// Set the working relative to be relative to the input
 		// root directory.
 		workingDirectory, scopeWalker := inputRootDirectory.Join(path.VoidScopeWalker)
-		if err := path.Resolve(workingDirectoryStr, scopeWalker); err != nil {
+		if err := path.Resolve(workingDirectoryParser, scopeWalker); err != nil {
 			return nil, util.StatusWrap(err, "Failed to resolve working directory")
 		}
 		cmd.Dir = filepath.FromSlash(workingDirectory.String())

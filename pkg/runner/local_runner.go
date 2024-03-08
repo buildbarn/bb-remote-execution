@@ -91,7 +91,7 @@ func (r *localRunner) openLog(logPath string) (filesystem.FileAppender, error) {
 // exec.Cmd in localRunner.Run(). It may use different strategies for
 // resolving the paths of argv[0] and the working directory, depending
 // on whether the action needs to be run in a chroot() or not.
-type CommandCreator func(ctx context.Context, arguments []string, inputRootDirectory *path.Builder, workingDirectory, pathVariable string) (*exec.Cmd, error)
+type CommandCreator func(ctx context.Context, arguments []string, inputRootDirectory *path.Builder, workingDirectoryParser path.Parser, pathVariable string) (*exec.Cmd, error)
 
 // NewLocalRunner returns a Runner capable of running commands on the
 // local system directly.
@@ -118,7 +118,12 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 		return nil, util.StatusWrap(err, "Failed to resolve input root directory")
 	}
 
-	cmd, err := r.commandCreator(ctx, request.Arguments, inputRootDirectory, request.WorkingDirectory, request.EnvironmentVariables["PATH"])
+	workingDirectoryParser, err := path.NewUNIXParser(request.WorkingDirectory)
+	if err != nil {
+		return nil, util.StatusWrap(err, "Invalid working directory")
+	}
+
+	cmd, err := r.commandCreator(ctx, request.Arguments, inputRootDirectory, workingDirectoryParser, request.EnvironmentVariables["PATH"])
 	if err != nil {
 		return nil, err
 	}
