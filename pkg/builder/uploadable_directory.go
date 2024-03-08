@@ -18,7 +18,7 @@ type UploadableDirectory interface {
 	EnterUploadableDirectory(name path.Component) (UploadableDirectory, error)
 	Lstat(name path.Component) (filesystem.FileInfo, error)
 	ReadDir() ([]filesystem.FileInfo, error)
-	Readlink(name path.Component) (string, error)
+	Readlink(name path.Component) (path.Parser, error)
 
 	// Upload a file into the Content Addressable Storage.
 	//

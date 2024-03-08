@@ -150,13 +150,13 @@ func (d *virtualBuildDirectory) Mknod(name path.Component, perm os.FileMode, dev
 	return nil
 }
 
-func (d *virtualBuildDirectory) Readlink(name path.Component) (string, error) {
+func (d *virtualBuildDirectory) Readlink(name path.Component) (path.Parser, error) {
 	child, err := d.LookupChild(name)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if _, leaf := child.GetPair(); leaf != nil {
 		return leaf.Readlink()
 	}
-	return "", syscall.EISDIR
+	return nil, syscall.EISDIR
 }

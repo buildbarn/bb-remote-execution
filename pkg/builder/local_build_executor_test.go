@@ -448,7 +448,7 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 	fooDirectory.EXPECT().ReadDir().Return([]filesystem.FileInfo{
 		filesystem.NewFileInfo(path.MustNewComponent("bar"), filesystem.FileTypeSymlink, false),
 	}, nil)
-	fooDirectory.EXPECT().Readlink(path.MustNewComponent("bar")).Return("", status.Error(codes.Internal, "Cosmic rays caused interference"))
+	fooDirectory.EXPECT().Readlink(path.MustNewComponent("bar")).Return(nil, status.Error(codes.Internal, "Cosmic rays caused interference"))
 	fooDirectory.EXPECT().Close()
 	inputRootDirectory.EXPECT().Close()
 	serverLogsDirectory := mock.NewMockUploadableDirectory(ctrl)

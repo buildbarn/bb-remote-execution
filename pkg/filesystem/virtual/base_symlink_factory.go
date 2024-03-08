@@ -30,15 +30,27 @@ type symlink struct {
 	target []byte
 }
 
-func (f symlink) Readlink() (string, error) {
+func (f symlink) Readlink() (path.Parser, error) {
 	if !utf8.Valid(f.target) {
-		return "", status.Error(codes.InvalidArgument, "Symbolic link contents are not valid UTF-8")
+		return nil, status.Error(codes.InvalidArgument, "Symbolic link contents are not valid UTF-8")
 	}
-	return string(f.target), nil
+	return path.NewUNIXParser(string(f.target))
+}
+
+func (f symlink) readlinkString() (string, error) {
+	targetParser, err := f.Readlink()
+	if err != nil {
+		return "", err
+	}
+	targetPath, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
+	if err := path.Resolve(targetParser, scopeWalker); err != nil {
+		return "", err
+	}
+	return targetPath.String(), nil
 }
 
 func (f symlink) GetBazelOutputServiceStat(digestFunction *digest.Function) (*bazeloutputservice.BatchStatResponse_Stat, error) {
-	target, err := f.Readlink()
+	target, err := f.readlinkString()
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +64,7 @@ func (f symlink) GetBazelOutputServiceStat(digestFunction *digest.Function) (*ba
 }
 
 func (f symlink) AppendOutputPathPersistencyDirectoryNode(directory *outputpathpersistency.Directory, name path.Component) {
-	if target, err := f.Readlink(); err == nil {
+	if target, err := f.readlinkString(); err == nil {
 		directory.Symlinks = append(directory.Symlinks, &remoteexecution.SymlinkNode{
 			Name:   name.String(),
 			Target: target,

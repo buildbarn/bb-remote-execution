@@ -319,14 +319,20 @@ func (s *uploadOutputsState) uploadOutputFile(d UploadableDirectory, name path.C
 // UploadOutputDirectory is called to read the attributes of a single
 // output symlink.
 func (s *uploadOutputsState) uploadOutputSymlink(d UploadableDirectory, name path.Component, childPath *path.Trace, outputSymlinks *[]*remoteexecution.OutputSymlink, paths []string) {
-	if target, err := d.Readlink(name); err == nil {
-		for _, path := range paths {
-			*outputSymlinks = append(
-				*outputSymlinks,
-				&remoteexecution.OutputSymlink{
-					Path:   path,
-					Target: target,
-				})
+	if targetParser, err := d.Readlink(name); err == nil {
+		targetPath, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
+		if path.Resolve(targetParser, scopeWalker); err == nil {
+			target := targetPath.String()
+			for _, path := range paths {
+				*outputSymlinks = append(
+					*outputSymlinks,
+					&remoteexecution.OutputSymlink{
+						Path:   path,
+						Target: target,
+					})
+			}
+		} else {
+			s.saveError(util.StatusWrapf(err, "Failed to resolve target of output symlink %#v", childPath.String()))
 		}
 	} else {
 		s.saveError(util.StatusWrapf(err, "Failed to read output symlink %#v", childPath.String()))
@@ -382,11 +388,16 @@ func (s *uploadOutputDirectoryState) uploadDirectory(d UploadableDirectory, dPat
 				s.saveError(util.StatusWrapf(err, "Failed to enter output directory %#v", childPath.String()))
 			}
 		case filesystem.FileTypeSymlink:
-			if target, err := d.Readlink(name); err == nil {
-				directory.Symlinks = append(directory.Symlinks, &remoteexecution.SymlinkNode{
-					Name:   name.String(),
-					Target: target,
-				})
+			if targetParser, err := d.Readlink(name); err == nil {
+				targetPath, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
+				if path.Resolve(targetParser, scopeWalker); err == nil {
+					directory.Symlinks = append(directory.Symlinks, &remoteexecution.SymlinkNode{
+						Name:   name.String(),
+						Target: targetPath.String(),
+					})
+				} else {
+					s.saveError(util.StatusWrapf(err, "Failed to resolve target of output symlink %#v", childPath.String()))
+				}
 			} else {
 				s.saveError(util.StatusWrapf(err, "Failed to read output symlink %#v", childPath.String()))
 			}

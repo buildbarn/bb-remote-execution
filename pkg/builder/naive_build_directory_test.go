@@ -78,7 +78,12 @@ func TestNaiveBuildDirectorySuccess(t *testing.T) {
 	buildDirectory.EXPECT().Mkdir(path.MustNewComponent("directory"), os.FileMode(0o777)).Return(nil)
 	nestedDirectory := mock.NewMockDirectoryCloser(ctrl)
 	buildDirectory.EXPECT().EnterDirectory(path.MustNewComponent("directory")).Return(nestedDirectory, nil)
-	nestedDirectory.EXPECT().Symlink("../non-executable", path.MustNewComponent("link-to-non-executable")).Return(nil)
+	nestedDirectory.EXPECT().Symlink(gomock.Any(), path.MustNewComponent("link-to-non-executable")).
+		Do(func(targetParser path.Parser, name path.Component) {
+			targetPath, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
+			require.NoError(t, path.Resolve(targetParser, scopeWalker))
+			require.Equal(t, "../non-executable", targetPath.String())
+		})
 	nestedDirectory.EXPECT().Close()
 	fileFetcher := mock.NewMockFileFetcher(ctrl)
 	fileFetcher.EXPECT().GetFile(
@@ -93,8 +98,12 @@ func TestNaiveBuildDirectorySuccess(t *testing.T) {
 		buildDirectory,
 		path.MustNewComponent("executable"),
 		true).Return(nil)
-	buildDirectory.EXPECT().Symlink("executable",
-		path.MustNewComponent("link-to-executable")).Return(nil)
+	buildDirectory.EXPECT().Symlink(gomock.Any(), path.MustNewComponent("link-to-executable")).
+		Do(func(targetParser path.Parser, name path.Component) {
+			targetPath, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
+			require.NoError(t, path.Resolve(targetParser, scopeWalker))
+			require.Equal(t, "executable", targetPath.String())
+		})
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, contentAddressableStorage)
 
@@ -413,7 +422,13 @@ func TestNaiveBuildDirectorySymlinkCreationFailure(t *testing.T) {
 	buildDirectory.EXPECT().Mkdir(path.MustNewComponent("Hello"), os.FileMode(0o777)).Return(nil)
 	helloDirectory := mock.NewMockDirectoryCloser(ctrl)
 	buildDirectory.EXPECT().EnterDirectory(path.MustNewComponent("Hello")).Return(helloDirectory, nil)
-	helloDirectory.EXPECT().Symlink("/etc/passwd", path.MustNewComponent("World")).Return(status.Error(codes.Unimplemented, "This filesystem does not support symbolic links"))
+	helloDirectory.EXPECT().Symlink(gomock.Any(), path.MustNewComponent("World")).
+		DoAndReturn(func(targetParser path.Parser, name path.Component) error {
+			targetPath, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
+			require.NoError(t, path.Resolve(targetParser, scopeWalker))
+			require.Equal(t, "/etc/passwd", targetPath.String())
+			return status.Error(codes.Unimplemented, "This filesystem does not support symbolic links")
+		})
 	helloDirectory.EXPECT().Close()
 	fileFetcher := mock.NewMockFileFetcher(ctrl)
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)

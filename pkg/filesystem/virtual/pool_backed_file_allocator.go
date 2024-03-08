@@ -184,8 +184,8 @@ func (f *fileBackedFile) Link() Status {
 	return StatusOK
 }
 
-func (f *fileBackedFile) Readlink() (string, error) {
-	return "", syscall.EINVAL
+func (f *fileBackedFile) Readlink() (path.Parser, error) {
+	return nil, syscall.EINVAL
 }
 
 func (f *fileBackedFile) Unlink() {

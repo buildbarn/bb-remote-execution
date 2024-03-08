@@ -147,10 +147,10 @@ func (d *lazyDirectory) ReadDir() ([]filesystem.FileInfo, error) {
 	return underlying.ReadDir()
 }
 
-func (d *lazyDirectory) Readlink(name path.Component) (string, error) {
+func (d *lazyDirectory) Readlink(name path.Component) (path.Parser, error) {
 	underlying, err := d.openUnderlying()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer underlying.Close()
 	return underlying.Readlink(name)
@@ -192,7 +192,7 @@ func (d *lazyDirectory) Rename(oldName path.Component, newDirectory filesystem.D
 	return underlying.Rename(oldName, newDirectory, newName)
 }
 
-func (d *lazyDirectory) Symlink(oldName string, newName path.Component) error {
+func (d *lazyDirectory) Symlink(oldName path.Parser, newName path.Component) error {
 	underlying, err := d.openUnderlying()
 	if err != nil {
 		return err

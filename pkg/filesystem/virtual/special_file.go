@@ -29,8 +29,8 @@ func NewSpecialFile(fileType filesystem.FileType, deviceNumber *filesystem.Devic
 	}
 }
 
-func (f *specialFile) Readlink() (string, error) {
-	return "", syscall.EINVAL
+func (f *specialFile) Readlink() (path.Parser, error) {
+	return nil, syscall.EINVAL
 }
 
 func (f *specialFile) GetBazelOutputServiceStat(digestFunction *digest.Function) (*bazeloutputservice.BatchStatResponse_Stat, error) {

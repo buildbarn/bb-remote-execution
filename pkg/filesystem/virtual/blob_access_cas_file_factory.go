@@ -66,8 +66,8 @@ func (f *blobAccessCASFile) Link() Status {
 	return StatusOK
 }
 
-func (f *blobAccessCASFile) Readlink() (string, error) {
-	return "", syscall.EINVAL
+func (f *blobAccessCASFile) Readlink() (path.Parser, error) {
+	return nil, syscall.EINVAL
 }
 
 func (f *blobAccessCASFile) Unlink() {

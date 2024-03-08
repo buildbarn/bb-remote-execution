@@ -29,7 +29,7 @@ type NativeLeaf interface {
 	// PrepopulatedDirectory and InitialContentsFetcher into
 	// parameterized types, where the leaves could be any type
 	// that's based on NativeLeaf.
-	Readlink() (string, error)
+	Readlink() (path.Parser, error)
 	UploadFile(ctx context.Context, contentAddressableStorage blobstore.BlobAccess, digestFunction digest.Function, writableFileUploadDelay <-chan struct{}) (digest.Digest, error)
 	// GetContainingDigests() returns a set of digests of objects in
 	// the Content Addressable Storage that back the contents of

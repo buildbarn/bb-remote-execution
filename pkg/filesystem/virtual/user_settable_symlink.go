@@ -80,8 +80,8 @@ func (f *UserSettableSymlink) InstallTemporaryDirectory(ctx context.Context, req
 
 // Readlink returns the target of the symbolic link. This method always
 // fails, as it's called in places where no Context is available.
-func (f *UserSettableSymlink) Readlink() (string, error) {
-	return "", status.Error(codes.InvalidArgument, "Target of user settable symlinks can only be obtained through the virtual file system")
+func (f *UserSettableSymlink) Readlink() (path.Parser, error) {
+	return nil, status.Error(codes.InvalidArgument, "Target of user settable symlinks can only be obtained through the virtual file system")
 }
 
 // GetBazelOutputServiceStat returns the status of the symbolic link, so
