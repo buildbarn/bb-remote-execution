@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"os/exec"
-	"path/filepath"
 
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
@@ -139,8 +138,12 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 		if err := path.Resolve(temporaryDirectoryParser, scopeWalker); err != nil {
 			return nil, util.StatusWrap(err, "Failed to resolve temporary directory")
 		}
+		temporaryDirectoryStr, err := path.GetLocalString(temporaryDirectory)
+		if err != nil {
+			return nil, util.StatusWrap(err, "Failed to create local representation of temporary directory")
+		}
 		for _, prefix := range temporaryDirectoryEnvironmentVariablePrefixes {
-			cmd.Env = append(cmd.Env, prefix+filepath.FromSlash(temporaryDirectory.String()))
+			cmd.Env = append(cmd.Env, prefix+temporaryDirectoryStr)
 		}
 	}
 	for name, value := range request.EnvironmentVariables {

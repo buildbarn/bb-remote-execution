@@ -210,11 +210,11 @@ func (dp *directoryPrefetcher) prefetchRecursively(pathTrace *path.Trace, direct
 
 	directoryDigest, err := dp.digestFunction.NewDigestFromProto(rawDirectoryDigest)
 	if err != nil {
-		return util.StatusWrapf(err, "Failed to parse digest for directory %#v", pathTrace.String())
+		return util.StatusWrapf(err, "Failed to parse digest for directory %#v", pathTrace.GetUNIXString())
 	}
 	directory, err := dp.directoryFetcher.GetDirectory(dp.context, directoryDigest)
 	if err != nil {
-		return util.StatusWrapf(err, "Failed to prefetch directory %#v", pathTrace.String())
+		return util.StatusWrapf(err, "Failed to prefetch directory %#v", pathTrace.GetUNIXString())
 	}
 
 	// Directories are traversed sequentially to prevent unbounded
@@ -224,13 +224,13 @@ func (dp *directoryPrefetcher) prefetchRecursively(pathTrace *path.Trace, direct
 	for _, file := range directory.Files {
 		component, ok := path.NewComponent(file.Name)
 		if !ok {
-			return status.Errorf(codes.InvalidArgument, "File %#v in directory %#v has an invalid name", file.Name, pathTrace.String())
+			return status.Errorf(codes.InvalidArgument, "File %#v in directory %#v has an invalid name", file.Name, pathTrace.GetUNIXString())
 		}
 		if dp.shouldPrefetch(directoryPathHashes.AppendComponent(component)) {
 			childPathTrace := pathTrace.Append(component)
 			fileDigest, err := dp.digestFunction.NewDigestFromProto(file.Digest)
 			if err != nil {
-				return util.StatusWrapf(err, "Failed to parse digest for file %#v", childPathTrace.String())
+				return util.StatusWrapf(err, "Failed to parse digest for file %#v", childPathTrace.GetUNIXString())
 			}
 
 			// Download files at a globally bounded concurrency.
@@ -248,7 +248,7 @@ func (dp *directoryPrefetcher) prefetchRecursively(pathTrace *path.Trace, direct
 				_, err := dp.contentAddressableStorage.Get(dp.context, fileDigest).ReadAt(b[:], 0)
 				dp.fileReadSemaphore.Release(1)
 				if err != nil && err != io.EOF && status.Code(err) != codes.Canceled {
-					return util.StatusWrapf(err, "Failed to prefetch file %#v", childPathTrace.String())
+					return util.StatusWrapf(err, "Failed to prefetch file %#v", childPathTrace.GetUNIXString())
 				}
 				return nil
 			})
@@ -257,7 +257,7 @@ func (dp *directoryPrefetcher) prefetchRecursively(pathTrace *path.Trace, direct
 	for _, directory := range directory.Directories {
 		component, ok := path.NewComponent(directory.Name)
 		if !ok {
-			return status.Errorf(codes.InvalidArgument, "Directory %#v in directory %#v has an invalid name", directory.Name, pathTrace.String())
+			return status.Errorf(codes.InvalidArgument, "Directory %#v in directory %#v has an invalid name", directory.Name, pathTrace.GetUNIXString())
 		}
 		if err := dp.prefetchRecursively(pathTrace.Append(component), directoryPathHashes.AppendComponent(component), directory.Digest); err != nil {
 			return err

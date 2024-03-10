@@ -8,7 +8,7 @@ replace github.com/grpc-ecosystem/grpc-gateway/v2 => github.com/grpc-ecosystem/g
 require (
 	cloud.google.com/go/longrunning v0.5.5
 	github.com/bazelbuild/remote-apis v0.0.0-20240215191509-9ff14cecffe5
-	github.com/buildbarn/bb-storage v0.0.0-20240308085957-e8fd6935d2ef
+	github.com/buildbarn/bb-storage v0.0.0-20240310075825-20598f43e294
 	github.com/buildbarn/go-xdr v0.0.0-20231115101217-a9e2aa4cf64b
 	github.com/golang/mock v1.6.0
 	github.com/golang/protobuf v1.5.3

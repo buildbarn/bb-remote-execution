@@ -66,14 +66,14 @@ func (on *outputNode) createParentDirectories(d ParentPopulatableDirectory, dPat
 	for _, name := range on.getSubdirectoryNames() {
 		childPath := dPath.Append(name)
 		if err := d.Mkdir(name, 0o777); err != nil && !os.IsExist(err) {
-			return util.StatusWrapf(err, "Failed to create output parent directory %#v", childPath.String())
+			return util.StatusWrapf(err, "Failed to create output parent directory %#v", childPath.GetUNIXString())
 		}
 
 		// Recurse if we need to create one or more directories within.
 		if child := on.subdirectories[name]; len(child.subdirectories) > 0 || len(child.directoriesToUpload) > 0 {
 			childDirectory, err := d.EnterParentPopulatableDirectory(name)
 			if err != nil {
-				return util.StatusWrapf(err, "Failed to enter output parent directory %#v", childPath.String())
+				return util.StatusWrapf(err, "Failed to enter output parent directory %#v", childPath.GetUNIXString())
 			}
 			err = child.createParentDirectories(childDirectory, childPath)
 			childDirectory.Close()
@@ -100,7 +100,7 @@ func (on *outputNode) createParentDirectories(d ParentPopulatableDirectory, dPat
 		if _, ok := on.subdirectories[name]; !ok {
 			childPath := dPath.Append(name)
 			if err := d.Mkdir(name, 0o777); err != nil && !os.IsExist(err) {
-				return util.StatusWrapf(err, "Failed to create output directory %#v", childPath.String())
+				return util.StatusWrapf(err, "Failed to create output directory %#v", childPath.GetUNIXString())
 			}
 		}
 	}
@@ -123,10 +123,10 @@ func (on *outputNode) uploadOutputs(s *uploadOutputsState, d UploadableDirectory
 			case filesystem.FileTypeSymlink:
 				s.uploadOutputSymlink(d, component, childPath, &s.actionResult.OutputDirectorySymlinks, paths)
 			default:
-				s.saveError(status.Errorf(codes.InvalidArgument, "Output directory %#v is not a directory or symlink", childPath.String()))
+				s.saveError(status.Errorf(codes.InvalidArgument, "Output directory %#v is not a directory or symlink", childPath.GetUNIXString()))
 			}
 		} else if !os.IsNotExist(err) {
-			s.saveError(util.StatusWrapf(err, "Failed to read attributes of output directory %#v", childPath.String()))
+			s.saveError(util.StatusWrapf(err, "Failed to read attributes of output directory %#v", childPath.GetUNIXString()))
 		}
 	}
 
@@ -142,10 +142,10 @@ func (on *outputNode) uploadOutputs(s *uploadOutputsState, d UploadableDirectory
 			case filesystem.FileTypeSymlink:
 				s.uploadOutputSymlink(d, component, childPath, &s.actionResult.OutputFileSymlinks, paths)
 			default:
-				s.saveError(status.Errorf(codes.InvalidArgument, "Output file %#v is not a regular file or symlink", childPath.String()))
+				s.saveError(status.Errorf(codes.InvalidArgument, "Output file %#v is not a regular file or symlink", childPath.GetUNIXString()))
 			}
 		} else if !os.IsNotExist(err) {
-			s.saveError(util.StatusWrapf(err, "Failed to read attributes of output file %#v", childPath.String()))
+			s.saveError(util.StatusWrapf(err, "Failed to read attributes of output file %#v", childPath.GetUNIXString()))
 		}
 	}
 
@@ -163,10 +163,10 @@ func (on *outputNode) uploadOutputs(s *uploadOutputsState, d UploadableDirectory
 			case filesystem.FileTypeSymlink:
 				s.uploadOutputSymlink(d, component, childPath, &s.actionResult.OutputSymlinks, paths)
 			default:
-				s.saveError(status.Errorf(codes.InvalidArgument, "Output path %#v is not a directory, regular file or symlink", childPath.String()))
+				s.saveError(status.Errorf(codes.InvalidArgument, "Output path %#v is not a directory, regular file or symlink", childPath.GetUNIXString()))
 			}
 		} else if !os.IsNotExist(err) {
-			s.saveError(util.StatusWrapf(err, "Failed to read attributes of output path %#v", childPath.String()))
+			s.saveError(util.StatusWrapf(err, "Failed to read attributes of output path %#v", childPath.GetUNIXString()))
 		}
 	}
 
@@ -178,7 +178,7 @@ func (on *outputNode) uploadOutputs(s *uploadOutputsState, d UploadableDirectory
 			childNode.uploadOutputs(s, childDirectory, childPath)
 			childDirectory.Close()
 		} else if !os.IsNotExist(err) {
-			s.saveError(util.StatusWrapf(err, "Failed to enter output parent directory %#v", childPath.String()))
+			s.saveError(util.StatusWrapf(err, "Failed to enter output parent directory %#v", childPath.GetUNIXString()))
 		}
 	}
 }
@@ -252,7 +252,7 @@ func (s *uploadOutputsState) uploadOutputDirectoryEntered(d UploadableDirectory,
 		successfullyUploaded := true
 		treeDigest := s.computeDigest(treeData)
 		if err := s.contentAddressableStorage.Put(s.context, treeDigest, buffer.NewValidatedBufferFromByteSlice(treeData)); err != nil {
-			s.saveError(util.StatusWrapf(err, "Failed to store output directory %#v", dPath.String()))
+			s.saveError(util.StatusWrapf(err, "Failed to store output directory %#v", dPath.GetUNIXString()))
 			successfullyUploaded = false
 		}
 
@@ -264,7 +264,7 @@ func (s *uploadOutputsState) uploadOutputDirectoryEntered(d UploadableDirectory,
 			rootDirectoryDigestProto = rootDirectoryDigest.GetProto()
 			for directoryDigest, directory := range dState.directoriesSeen {
 				if err := s.contentAddressableStorage.Put(s.context, directoryDigest, buffer.NewValidatedBufferFromByteSlice(directory)); err != nil {
-					s.saveError(util.StatusWrapf(err, "Failed to store output directory %#v", dPath.String()))
+					s.saveError(util.StatusWrapf(err, "Failed to store output directory %#v", dPath.GetUNIXString()))
 					successfullyUploaded = false
 				}
 			}
@@ -295,7 +295,7 @@ func (s *uploadOutputsState) uploadOutputDirectory(d UploadableDirectory, name p
 		s.uploadOutputDirectoryEntered(childDirectory, childPath, paths)
 		childDirectory.Close()
 	} else {
-		s.saveError(util.StatusWrapf(err, "Failed to enter output directory %#v", childPath.String()))
+		s.saveError(util.StatusWrapf(err, "Failed to enter output directory %#v", childPath.GetUNIXString()))
 	}
 }
 
@@ -312,7 +312,7 @@ func (s *uploadOutputsState) uploadOutputFile(d UploadableDirectory, name path.C
 				})
 		}
 	} else {
-		s.saveError(util.StatusWrapf(err, "Failed to store output file %#v", childPath.String()))
+		s.saveError(util.StatusWrapf(err, "Failed to store output file %#v", childPath.GetUNIXString()))
 	}
 }
 
@@ -322,7 +322,7 @@ func (s *uploadOutputsState) uploadOutputSymlink(d UploadableDirectory, name pat
 	if targetParser, err := d.Readlink(name); err == nil {
 		targetPath, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
 		if path.Resolve(targetParser, scopeWalker); err == nil {
-			target := targetPath.String()
+			target := targetPath.GetUNIXString()
 			for _, path := range paths {
 				*outputSymlinks = append(
 					*outputSymlinks,
@@ -332,10 +332,10 @@ func (s *uploadOutputsState) uploadOutputSymlink(d UploadableDirectory, name pat
 					})
 			}
 		} else {
-			s.saveError(util.StatusWrapf(err, "Failed to resolve target of output symlink %#v", childPath.String()))
+			s.saveError(util.StatusWrapf(err, "Failed to resolve target of output symlink %#v", childPath.GetUNIXString()))
 		}
 	} else {
-		s.saveError(util.StatusWrapf(err, "Failed to read output symlink %#v", childPath.String()))
+		s.saveError(util.StatusWrapf(err, "Failed to read output symlink %#v", childPath.GetUNIXString()))
 	}
 }
 
@@ -354,7 +354,7 @@ type uploadOutputDirectoryState struct {
 func (s *uploadOutputDirectoryState) uploadDirectory(d UploadableDirectory, dPath *path.Trace) (digest.Digest, error) {
 	files, err := d.ReadDir()
 	if err != nil {
-		return digest.BadDigest, util.StatusWrapf(err, "Failed to read output directory %#v", dPath.String())
+		return digest.BadDigest, util.StatusWrapf(err, "Failed to read output directory %#v", dPath.GetUNIXString())
 	}
 
 	var directory remoteexecution.Directory
@@ -370,7 +370,7 @@ func (s *uploadOutputDirectoryState) uploadDirectory(d UploadableDirectory, dPat
 					IsExecutable: file.IsExecutable(),
 				})
 			} else {
-				s.saveError(util.StatusWrapf(err, "Failed to store output file %#v", childPath.String()))
+				s.saveError(util.StatusWrapf(err, "Failed to store output file %#v", childPath.GetUNIXString()))
 			}
 		case filesystem.FileTypeDirectory:
 			if childDirectory, err := d.EnterUploadableDirectory(name); err == nil {
@@ -385,7 +385,7 @@ func (s *uploadOutputDirectoryState) uploadDirectory(d UploadableDirectory, dPat
 					s.saveError(err)
 				}
 			} else {
-				s.saveError(util.StatusWrapf(err, "Failed to enter output directory %#v", childPath.String()))
+				s.saveError(util.StatusWrapf(err, "Failed to enter output directory %#v", childPath.GetUNIXString()))
 			}
 		case filesystem.FileTypeSymlink:
 			if targetParser, err := d.Readlink(name); err == nil {
@@ -393,20 +393,20 @@ func (s *uploadOutputDirectoryState) uploadDirectory(d UploadableDirectory, dPat
 				if path.Resolve(targetParser, scopeWalker); err == nil {
 					directory.Symlinks = append(directory.Symlinks, &remoteexecution.SymlinkNode{
 						Name:   name.String(),
-						Target: targetPath.String(),
+						Target: targetPath.GetUNIXString(),
 					})
 				} else {
-					s.saveError(util.StatusWrapf(err, "Failed to resolve target of output symlink %#v", childPath.String()))
+					s.saveError(util.StatusWrapf(err, "Failed to resolve target of output symlink %#v", childPath.GetUNIXString()))
 				}
 			} else {
-				s.saveError(util.StatusWrapf(err, "Failed to read output symlink %#v", childPath.String()))
+				s.saveError(util.StatusWrapf(err, "Failed to read output symlink %#v", childPath.GetUNIXString()))
 			}
 		}
 	}
 
 	data, err := proto.Marshal(&directory)
 	if err != nil {
-		return digest.BadDigest, util.StatusWrapf(err, "Failed to marshal output directory %#v", dPath.String())
+		return digest.BadDigest, util.StatusWrapf(err, "Failed to marshal output directory %#v", dPath.GetUNIXString())
 	}
 
 	// There is no need to make the directory part of the Tree if we

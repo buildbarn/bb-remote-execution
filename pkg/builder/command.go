@@ -61,7 +61,7 @@ func (d *mkdirEmittingDirectory) emitCommands(trace *path.Trace, w io.StringWrit
 		if _, err := w.WriteString("mkdir -p "); err != nil {
 			return err
 		}
-		if _, err := w.WriteString(shellquote.Join(trace.String())); err != nil {
+		if _, err := w.WriteString(shellquote.Join(trace.GetUNIXString())); err != nil {
 			return err
 		}
 		if _, err := w.WriteString("\n"); err != nil {
@@ -112,7 +112,7 @@ func ConvertCommandToShellScript(command *remoteexecution.Command, w io.StringWr
 	if _, err := w.WriteString("cd "); err != nil {
 		return err
 	}
-	if _, err := w.WriteString(shellquote.Join(workingDirectory.String())); err != nil {
+	if _, err := w.WriteString(shellquote.Join(workingDirectory.GetUNIXString())); err != nil {
 		return err
 	}
 	if _, err := w.WriteString("\n"); err != nil {

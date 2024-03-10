@@ -69,7 +69,7 @@ func (r *temporaryDirectorySymlinkingRunner) Run(ctx context.Context, request *r
 	}
 
 	// Install a symbolic link pointing to the temporary directory.
-	if err := r.updateSymlink(temporaryDirectoryPath.String()); err != nil {
+	if err := r.updateSymlink(temporaryDirectoryPath.GetUNIXString()); err != nil {
 		return nil, err
 	}
 	return r.base.Run(ctx, request)

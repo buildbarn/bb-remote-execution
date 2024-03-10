@@ -24,7 +24,7 @@ import (
 // getExecutablePath returns the path of an executable within a given
 // search path that is part of the PATH environment variable.
 func getExecutablePath(baseDirectory *path.Builder, searchPathStr, argv0 string) (string, error) {
-	searchPathParser, err := path.NewUNIXParser(searchPathStr)
+	searchPathParser, err := path.NewLocalParser(searchPathStr)
 	if err != nil {
 		return "", err
 	}
@@ -33,7 +33,7 @@ func getExecutablePath(baseDirectory *path.Builder, searchPathStr, argv0 string)
 		return "", err
 	}
 
-	argv0Parser, err := path.NewUNIXParser(argv0)
+	argv0Parser, err := path.NewLocalParser(argv0)
 	if err != nil {
 		return "", err
 	}
@@ -41,7 +41,7 @@ func getExecutablePath(baseDirectory *path.Builder, searchPathStr, argv0 string)
 	if err := path.Resolve(argv0Parser, scopeWalker); err != nil {
 		return "", err
 	}
-	return executablePath.String(), nil
+	return path.GetLocalString(executablePath)
 }
 
 // lookupExecutable returns the path of an executable, taking the PATH
@@ -95,6 +95,10 @@ func NewPlainCommandCreator(sysProcAttr *syscall.SysProcAttr) CommandCreator {
 		if err := path.Resolve(workingDirectoryParser, scopeWalker); err != nil {
 			return nil, util.StatusWrap(err, "Failed to resolve working directory")
 		}
+		workingDirectoryStr, err := path.GetLocalString(workingDirectory)
+		if err != nil {
+			return nil, util.StatusWrap(err, "Failed to create local representation of working directory")
+		}
 		executablePath, err := lookupExecutable(workingDirectory, pathVariable, arguments[0])
 		if err != nil {
 			return nil, err
@@ -107,7 +111,7 @@ func NewPlainCommandCreator(sysProcAttr *syscall.SysProcAttr) CommandCreator {
 		// own values remain respected.
 		cmd := exec.CommandContext(ctx, "/nonexistent")
 		cmd.Args = arguments
-		cmd.Dir = workingDirectory.String()
+		cmd.Dir = workingDirectoryStr
 		cmd.Path = executablePath
 		cmd.SysProcAttr = sysProcAttr
 		return cmd, nil
@@ -124,8 +128,13 @@ func NewChrootedCommandCreator(sysProcAttr *syscall.SysProcAttr) (CommandCreator
 		// cause cmd.Start() to fail when it shouldn't.
 		// https://github.com/golang/go/issues/39341
 		cmd := exec.CommandContext(ctx, "/usr/bin/env", append([]string{"--"}, arguments...)...)
+
+		inputRootDirectoryStr, err := path.GetLocalString(inputRootDirectory)
+		if err != nil {
+			return nil, util.StatusWrap(err, "Failed to create local representation of input root directory")
+		}
 		sysProcAttrCopy := *sysProcAttr
-		sysProcAttrCopy.Chroot = inputRootDirectory.String()
+		sysProcAttrCopy.Chroot = inputRootDirectoryStr
 		cmd.SysProcAttr = &sysProcAttrCopy
 
 		// Set the working relative to be relative to the root
@@ -134,7 +143,11 @@ func NewChrootedCommandCreator(sysProcAttr *syscall.SysProcAttr) (CommandCreator
 		if err := path.Resolve(workingDirectoryParser, scopeWalker); err != nil {
 			return nil, util.StatusWrap(err, "Failed to resolve working directory")
 		}
-		cmd.Dir = workingDirectory.String()
+		workingDirectoryStr, err := path.GetLocalString(workingDirectory)
+		if err != nil {
+			return nil, util.StatusWrap(err, "Failed to create local representation of working directory")
+		}
+		cmd.Dir = workingDirectoryStr
 		return cmd, nil
 	}, nil
 }

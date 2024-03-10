@@ -122,7 +122,7 @@ func (be *localBuildExecutor) CheckReadiness(ctx context.Context) error {
 		return util.StatusWrap(err, "Failed to create readiness checking directory")
 	}
 	_, err = be.runner.CheckReadiness(ctx, &runner_pb.CheckReadinessRequest{
-		Path: buildDirectoryPath.Append(checkReadinessComponent).String(),
+		Path: buildDirectoryPath.Append(checkReadinessComponent).GetUNIXString(),
 	})
 	return err
 }
@@ -274,11 +274,11 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 		Arguments:            command.Arguments,
 		EnvironmentVariables: environmentVariables,
 		WorkingDirectory:     command.WorkingDirectory,
-		StdoutPath:           buildDirectoryPath.Append(stdoutComponent).String(),
-		StderrPath:           buildDirectoryPath.Append(stderrComponent).String(),
-		InputRootDirectory:   buildDirectoryPath.Append(inputRootDirectoryComponent).String(),
-		TemporaryDirectory:   buildDirectoryPath.Append(temporaryDirectoryComponent).String(),
-		ServerLogsDirectory:  buildDirectoryPath.Append(serverLogsDirectoryComponent).String(),
+		StdoutPath:           buildDirectoryPath.Append(stdoutComponent).GetUNIXString(),
+		StderrPath:           buildDirectoryPath.Append(stderrComponent).GetUNIXString(),
+		InputRootDirectory:   buildDirectoryPath.Append(inputRootDirectoryComponent).GetUNIXString(),
+		TemporaryDirectory:   buildDirectoryPath.Append(temporaryDirectoryComponent).GetUNIXString(),
+		ServerLogsDirectory:  buildDirectoryPath.Append(serverLogsDirectoryComponent).GetUNIXString(),
 	})
 	cancelTimeout()
 	<-ctxWithTimeout.Done()
@@ -355,14 +355,14 @@ type serverLogsDirectoryUploader struct {
 func (u *serverLogsDirectoryUploader) uploadDirectory(parentDirectory UploadableDirectory, dName path.Component, dPath *path.Trace) {
 	d, err := parentDirectory.EnterUploadableDirectory(dName)
 	if err != nil {
-		attachErrorToExecuteResponse(u.executeResponse, util.StatusWrapf(err, "Failed to enter server logs directory %#v", dPath.String()))
+		attachErrorToExecuteResponse(u.executeResponse, util.StatusWrapf(err, "Failed to enter server logs directory %#v", dPath.GetUNIXString()))
 		return
 	}
 	defer d.Close()
 
 	files, err := d.ReadDir()
 	if err != nil {
-		attachErrorToExecuteResponse(u.executeResponse, util.StatusWrapf(err, "Failed to read server logs directory %#v", dPath.String()))
+		attachErrorToExecuteResponse(u.executeResponse, util.StatusWrapf(err, "Failed to read server logs directory %#v", dPath.GetUNIXString()))
 		return
 	}
 
@@ -372,11 +372,11 @@ func (u *serverLogsDirectoryUploader) uploadDirectory(parentDirectory Uploadable
 		switch fileType := file.Type(); fileType {
 		case filesystem.FileTypeRegularFile:
 			if childDigest, err := d.UploadFile(u.context, childName, u.digestFunction, u.writableFileUploadDelay); err == nil {
-				u.executeResponse.ServerLogs[childPath.String()] = &remoteexecution.LogFile{
+				u.executeResponse.ServerLogs[childPath.GetUNIXString()] = &remoteexecution.LogFile{
 					Digest: childDigest.GetProto(),
 				}
 			} else {
-				attachErrorToExecuteResponse(u.executeResponse, util.StatusWrapf(err, "Failed to store server log %#v", childPath.String()))
+				attachErrorToExecuteResponse(u.executeResponse, util.StatusWrapf(err, "Failed to store server log %#v", childPath.GetUNIXString()))
 			}
 		case filesystem.FileTypeDirectory:
 			u.uploadDirectory(d, childName, childPath)

@@ -123,7 +123,7 @@ func TestLazyDirectory(t *testing.T) {
 		require.NoError(t, err)
 		targetPath, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
 		require.NoError(t, path.Resolve(targetParser, scopeWalker))
-		require.Equal(t, "target", targetPath.String())
+		require.Equal(t, "target", targetPath.GetUNIXString())
 	})
 
 	t.Run("RemoveSuccess", func(t *testing.T) {
@@ -176,7 +176,7 @@ func TestLazyDirectory(t *testing.T) {
 			Do(func(targetParser path.Parser, name path.Component) {
 				targetPath, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
 				require.NoError(t, path.Resolve(targetParser, scopeWalker))
-				require.Equal(t, "old", targetPath.String())
+				require.Equal(t, "old", targetPath.GetUNIXString())
 			})
 		underlyingDirectory.EXPECT().Close().Return(nil)
 

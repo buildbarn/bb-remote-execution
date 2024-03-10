@@ -7,7 +7,6 @@ import (
 	"context"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"syscall"
 
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage"
@@ -35,7 +34,11 @@ func NewPlainCommandCreator(sysProcAttr *syscall.SysProcAttr) CommandCreator {
 		if err := path.Resolve(workingDirectoryParser, scopeWalker); err != nil {
 			return nil, util.StatusWrap(err, "Failed to resolve working directory")
 		}
-		cmd.Dir = filepath.FromSlash(workingDirectory.String())
+		workingDirectoryStr, err := path.GetLocalString(workingDirectory)
+		if err != nil {
+			return nil, util.StatusWrap(err, "Failed to create local representation of working directory")
+		}
+		cmd.Dir = workingDirectoryStr
 		return cmd, nil
 	}
 }

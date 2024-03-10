@@ -70,7 +70,7 @@ func (f *UserSettableSymlink) InstallTemporaryDirectory(ctx context.Context, req
 	if err := path.Resolve(temporaryDirectoryParser, scopeWalker); err != nil {
 		return nil, err
 	}
-	target := []byte(temporaryDirectory.String())
+	target := []byte(temporaryDirectory.GetUNIXString())
 
 	f.lock.Lock()
 	f.targets[key] = target

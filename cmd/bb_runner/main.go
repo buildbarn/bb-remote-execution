@@ -38,7 +38,7 @@ func main() {
 			return util.StatusWrap(err, "Failed to apply global configuration options")
 		}
 
-		buildDirectoryParser, err := path.NewUNIXParser(configuration.BuildDirectoryPath)
+		buildDirectoryParser, err := path.NewLocalParser(configuration.BuildDirectoryPath)
 		if err != nil {
 			return util.StatusWrap(err, "Invalid build directory")
 		}
@@ -46,7 +46,10 @@ func main() {
 		if err := path.Resolve(buildDirectoryParser, scopeWalker); err != nil {
 			return util.StatusWrap(err, "Failed to resolve build directory")
 		}
-		buildDirectoryPathString := buildDirectoryPath.String()
+		buildDirectoryPathString, err := path.GetLocalString(buildDirectoryPath)
+		if err != nil {
+			return util.StatusWrap(err, "Failed to create local representation of build directory")
+		}
 		buildDirectory := re_filesystem.NewLazyDirectory(
 			func() (filesystem.DirectoryCloser, error) {
 				return filesystem.NewLocalDirectory(buildDirectoryPathString)

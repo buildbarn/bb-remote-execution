@@ -82,7 +82,7 @@ func TestNaiveBuildDirectorySuccess(t *testing.T) {
 		Do(func(targetParser path.Parser, name path.Component) {
 			targetPath, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
 			require.NoError(t, path.Resolve(targetParser, scopeWalker))
-			require.Equal(t, "../non-executable", targetPath.String())
+			require.Equal(t, "../non-executable", targetPath.GetUNIXString())
 		})
 	nestedDirectory.EXPECT().Close()
 	fileFetcher := mock.NewMockFileFetcher(ctrl)
@@ -102,7 +102,7 @@ func TestNaiveBuildDirectorySuccess(t *testing.T) {
 		Do(func(targetParser path.Parser, name path.Component) {
 			targetPath, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
 			require.NoError(t, path.Resolve(targetParser, scopeWalker))
-			require.Equal(t, "executable", targetPath.String())
+			require.Equal(t, "executable", targetPath.GetUNIXString())
 		})
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, contentAddressableStorage)
@@ -426,7 +426,7 @@ func TestNaiveBuildDirectorySymlinkCreationFailure(t *testing.T) {
 		DoAndReturn(func(targetParser path.Parser, name path.Component) error {
 			targetPath, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
 			require.NoError(t, path.Resolve(targetParser, scopeWalker))
-			require.Equal(t, "/etc/passwd", targetPath.String())
+			require.Equal(t, "/etc/passwd", targetPath.GetUNIXString())
 			return status.Error(codes.Unimplemented, "This filesystem does not support symbolic links")
 		})
 	helloDirectory.EXPECT().Close()

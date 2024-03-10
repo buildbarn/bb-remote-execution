@@ -75,22 +75,22 @@ func (dc *sharedBuildDirectoryCreator) GetBuildDirectory(ctx context.Context, ac
 	childDirectoryPath := parentDirectoryPath.Append(childDirectoryName)
 	if err := parentDirectory.Mkdir(childDirectoryName, 0o777); err != nil {
 		parentDirectory.Close()
-		return nil, nil, util.StatusWrapfWithCode(err, codes.Internal, "Failed to create build directory %#v", childDirectoryPath.String())
+		return nil, nil, util.StatusWrapfWithCode(err, codes.Internal, "Failed to create build directory %#v", childDirectoryPath.GetUNIXString())
 	}
 	childDirectory, err := parentDirectory.EnterBuildDirectory(childDirectoryName)
 	if err != nil {
 		if err := parentDirectory.Remove(childDirectoryName); err != nil {
-			log.Printf("Failed to remove action digest build directory %#v upon failure to enter: %s", childDirectoryPath.String(), err)
+			log.Printf("Failed to remove action digest build directory %#v upon failure to enter: %s", childDirectoryPath.GetUNIXString(), err)
 		}
 		parentDirectory.Close()
-		return nil, nil, util.StatusWrapfWithCode(err, codes.Internal, "Failed to enter build directory %#v", childDirectoryPath.String())
+		return nil, nil, util.StatusWrapfWithCode(err, codes.Internal, "Failed to enter build directory %#v", childDirectoryPath.GetUNIXString())
 	}
 
 	return &sharedBuildDirectory{
 		BuildDirectory:     childDirectory,
 		parentDirectory:    parentDirectory,
 		childDirectoryName: childDirectoryName,
-		childDirectoryPath: childDirectoryPath.String(),
+		childDirectoryPath: childDirectoryPath.GetUNIXString(),
 	}, childDirectoryPath, nil
 }
 

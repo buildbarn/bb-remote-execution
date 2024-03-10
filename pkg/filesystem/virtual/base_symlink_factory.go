@@ -46,7 +46,7 @@ func (f symlink) readlinkString() (string, error) {
 	if err := path.Resolve(targetParser, scopeWalker); err != nil {
 		return "", err
 	}
-	return targetPath.String(), nil
+	return targetPath.GetUNIXString(), nil
 }
 
 func (f symlink) GetBazelOutputServiceStat(digestFunction *digest.Function) (*bazeloutputservice.BatchStatResponse_Stat, error) {

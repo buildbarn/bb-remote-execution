@@ -76,7 +76,7 @@ func (d *naiveBuildDirectory) mergeDirectoryContents(ctx context.Context, digest
 	// Obtain directory.
 	directory, err := d.directoryFetcher.GetDirectory(ctx, digest)
 	if err != nil {
-		return util.StatusWrapf(err, "Failed to obtain input directory %#v", pathTrace.String())
+		return util.StatusWrapf(err, "Failed to obtain input directory %#v", pathTrace.GetUNIXString())
 	}
 
 	// Create children.
@@ -89,10 +89,10 @@ func (d *naiveBuildDirectory) mergeDirectoryContents(ctx context.Context, digest
 		childPathTrace := pathTrace.Append(component)
 		childDigest, err := digestFunction.NewDigestFromProto(file.Digest)
 		if err != nil {
-			return util.StatusWrapf(err, "Failed to extract digest for input file %#v", childPathTrace.String())
+			return util.StatusWrapf(err, "Failed to extract digest for input file %#v", childPathTrace.GetUNIXString())
 		}
 		if err := d.fileFetcher.GetFile(ctx, childDigest, inputDirectory, component, file.IsExecutable); err != nil {
-			return util.StatusWrapf(err, "Failed to obtain input file %#v", childPathTrace.String())
+			return util.StatusWrapf(err, "Failed to obtain input file %#v", childPathTrace.GetUNIXString())
 		}
 	}
 	for _, directory := range directory.Directories {
@@ -103,14 +103,14 @@ func (d *naiveBuildDirectory) mergeDirectoryContents(ctx context.Context, digest
 		childPathTrace := pathTrace.Append(component)
 		childDigest, err := digestFunction.NewDigestFromProto(directory.Digest)
 		if err != nil {
-			return util.StatusWrapf(err, "Failed to extract digest for input directory %#v", childPathTrace.String())
+			return util.StatusWrapf(err, "Failed to extract digest for input directory %#v", childPathTrace.GetUNIXString())
 		}
 		if err := inputDirectory.Mkdir(component, 0o777); err != nil {
-			return util.StatusWrapf(err, "Failed to create input directory %#v", childPathTrace.String())
+			return util.StatusWrapf(err, "Failed to create input directory %#v", childPathTrace.GetUNIXString())
 		}
 		childDirectory, err := inputDirectory.EnterDirectory(component)
 		if err != nil {
-			return util.StatusWrapf(err, "Failed to enter input directory %#v", childPathTrace.String())
+			return util.StatusWrapf(err, "Failed to enter input directory %#v", childPathTrace.GetUNIXString())
 		}
 		err = d.mergeDirectoryContents(ctx, childDigest, childDirectory, childPathTrace)
 		childDirectory.Close()
@@ -126,10 +126,10 @@ func (d *naiveBuildDirectory) mergeDirectoryContents(ctx context.Context, digest
 		childPathTrace := pathTrace.Append(component)
 		targetParser, err := path.NewUNIXParser(symlink.Target)
 		if err != nil {
-			return util.StatusWrapf(err, "Symlink %#v has an invalid target", childPathTrace.String())
+			return util.StatusWrapf(err, "Symlink %#v has an invalid target", childPathTrace.GetUNIXString())
 		}
 		if err := inputDirectory.Symlink(targetParser, component); err != nil {
-			return util.StatusWrapf(err, "Failed to create input symlink %#v", childPathTrace.String())
+			return util.StatusWrapf(err, "Failed to create input symlink %#v", childPathTrace.GetUNIXString())
 		}
 	}
 	return nil
