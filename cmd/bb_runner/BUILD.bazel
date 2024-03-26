@@ -1,7 +1,7 @@
-load("@com_github_buildbarn_bb_storage//tools:container.bzl", "container_push_official")
-load("@io_bazel_rules_docker//container:container.bzl", "container_image", "container_layer")
-load("@io_bazel_rules_docker//go:image.bzl", "go_image")
+load("@com_github_buildbarn_bb_storage//tools:container.bzl", "container_push_official", "multiarch_go_image")
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_oci//oci:defs.bzl", "oci_image")
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 
 go_library(
     name = "bb_runner_lib",
@@ -35,28 +35,29 @@ go_binary(
     visibility = ["//visibility:public"],
 )
 
-container_layer(
+pkg_tar(
     name = "bb_runner_layer",
     files = [":bb_runner"],
     visibility = ["//visibility:public"],
 )
 
-container_layer(
+pkg_tar(
     name = "tini_layer",
     files = ["@com_github_krallin_tini_tini_static_amd64//file"],
 )
 
-container_layer(
+pkg_tar(
     name = "install_layer",
     files = ["install"],
 )
 
-container_image(
+# TODO: Provide a multi-arch image for bb_runner_installer.
+oci_image(
     name = "bb_runner_installer",
-    base = "@busybox//image",
+    base = "@busybox",
     cmd = ["/bb"],
     entrypoint = ["/install"],
-    layers = [
+    tars = [
         ":install_layer",
         ":bb_runner_layer",
         ":tini_layer",
@@ -64,11 +65,9 @@ container_image(
     visibility = ["//visibility:public"],
 )
 
-go_image(
+multiarch_go_image(
     name = "bb_runner_bare_container",
-    embed = [":bb_runner_lib"],
-    pure = "on",
-    visibility = ["//visibility:public"],
+    binary = ":bb_runner",
 )
 
 container_push_official(
