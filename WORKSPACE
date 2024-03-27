@@ -99,7 +99,7 @@ oci_pull(
 
 oci_pull(
     name = "busybox",
-    digest = "sha256:a2490cec4484ee6c1068ba3a05f89934010c85242f736280b35343483b2264b6",  # 1.31.1-uclibc
+    digest = "sha256:97e3873d1f61ba651b632e4755fc52e1d90c9f6e4f01d9b720f37af5efed17e5",  # 1.36.1-uclibc
     image = "docker.io/library/busybox",
     platforms = [
         "linux/amd64",
@@ -144,8 +144,16 @@ http_file(
     name = "com_github_krallin_tini_tini_static_amd64",
     downloaded_file_path = "tini",
     executable = True,
-    sha256 = "eadb9d6e2dc960655481d78a92d2c8bc021861045987ccd3e27c7eae5af0cf33",
-    urls = ["https://github.com/krallin/tini/releases/download/v0.18.0/tini-static-amd64"],
+    sha256 = "c5b0666b4cb676901f90dfcb37106783c5fe2077b04590973b885950611b30ee",
+    urls = ["https://github.com/krallin/tini/releases/download/v0.19.0/tini-static-amd64"],
+)
+
+http_file(
+    name = "com_github_krallin_tini_tini_static_arm64",
+    downloaded_file_path = "tini",
+    executable = True,
+    sha256 = "eae1d3aa50c48fb23b8cbdf4e369d0910dfc538566bfd09df89a774aa84a48b9",
+    urls = ["https://github.com/krallin/tini/releases/download/v0.19.0/tini-static-arm64"],
 )
 
 http_archive(
