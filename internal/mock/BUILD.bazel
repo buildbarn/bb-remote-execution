@@ -1,7 +1,7 @@
 # gazelle:ignore
 
-load("@io_bazel_rules_go//extras:gomock.bzl", "gomock")
-load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("@rules_go//extras:gomock.bzl", "gomock")
+load("@rules_go//go:def.bzl", "go_library")
 
 gomock(
     name = "aliases",
@@ -370,10 +370,10 @@ go_library(
         ":trace.go",
         ":trace_wrap.go",
     ] + select({
-        "@io_bazel_rules_go//go/platform:darwin": [
+        "@rules_go//go/platform:darwin": [
             ":fuse.go",
         ],
-        "@io_bazel_rules_go//go/platform:linux": [
+        "@rules_go//go/platform:linux": [
             ":fuse.go",
         ],
         "//conditions:default": [],
@@ -421,10 +421,10 @@ go_library(
         "@org_golang_google_protobuf//types/known/anypb:go_default_library",
         "@org_golang_google_protobuf//types/known/emptypb:go_default_library",
     ] + select({
-        "@io_bazel_rules_go//go/platform:darwin": [
+        "@rules_go//go/platform:darwin": [
             "@com_github_hanwen_go_fuse_v2//fuse",
         ],
-        "@io_bazel_rules_go//go/platform:linux": [
+        "@rules_go//go/platform:linux": [
             "@com_github_hanwen_go_fuse_v2//fuse",
         ],
         "//conditions:default": [],
