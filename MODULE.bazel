@@ -1,0 +1,178 @@
+module(name = "com_github_buildbarn_bb_remote_execution")
+
+bazel_dep(name = "aspect_bazel_lib", version = "2.6.0")
+bazel_dep(name = "aspect_rules_js", version = "1.39.1")
+bazel_dep(name = "com_github_buildbarn_bb_storage")
+bazel_dep(name = "com_github_buildbarn_go_xdr")
+bazel_dep(name = "gazelle", version = "0.35.0")
+bazel_dep(name = "googleapis", version = "0.0.0-20240326-1c8d509c5")
+bazel_dep(name = "jsonnet_go", version = "0.20.0", repo_name = "google_jsonnet_go")
+bazel_dep(name = "protobuf", version = "23.1")
+bazel_dep(name = "rules_go", version = "0.46.0")
+bazel_dep(name = "rules_oci", version = "1.7.5")
+bazel_dep(name = "rules_pkg", version = "0.10.1")
+bazel_dep(name = "rules_proto", version = "6.0.0-rc2")
+bazel_dep(name = "toolchains_llvm", version = "1.0.0")
+
+git_override(
+    module_name = "com_github_buildbarn_bb_storage",
+    commit = "00c3edab9fbee741613670dc3c20404910b9076f",
+    remote = "https://github.com/buildbarn/bb-storage.git",
+)
+
+git_override(
+    module_name = "com_github_buildbarn_go_xdr",
+    commit = "9cb8426d3e09e301c2b12c993e54ef795a665a92",
+    remote = "https://github.com/buildbarn/go-xdr.git",
+)
+
+git_override(
+    module_name = "rules_antlr",
+    commit = "89a29cca479363a5aee53e203719510bdc6be6ff",
+    patches = [
+        "//:patches/rules_antlr/antlr-4.10.diff",
+        "//:patches/rules_antlr/bzlmod.diff",
+    ],
+    remote = "https://github.com/marcohu/rules_antlr.git",
+)
+
+git_override(
+    module_name = "gazelle",
+    commit = "f5a5c5dc90b4d6a39f0f47d770eba27c6c1c1877",
+    patches = [
+        "//:patches/gazelle/dont-flatten-srcs.diff",
+        "//:patches/gazelle/googleapis.diff",
+    ],
+    remote = "https://github.com/bazelbuild/bazel-gazelle.git",
+)
+
+go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
+go_deps.from_file(go_mod = "//:go.mod")
+use_repo(
+    go_deps,
+    "cc_mvdan_gofumpt",
+    "com_github_bazelbuild_buildtools",
+    "com_github_bazelbuild_remote_apis",
+    "com_github_golang_mock",
+    "com_github_golang_protobuf",
+    "com_github_google_uuid",
+    "com_github_gorilla_mux",
+    "com_github_hanwen_go_fuse_v2",
+    "com_github_jmespath_go_jmespath",
+    "com_github_kballard_go_shellquote",
+    "com_github_prometheus_client_golang",
+    "com_github_spf13_pflag",
+    "com_github_stretchr_testify",
+    "com_google_cloud_go_longrunning",
+    "io_opentelemetry_go_otel",
+    "io_opentelemetry_go_otel_trace",
+    "org_golang_google_genproto_googleapis_rpc",
+    "org_golang_google_grpc",
+    "org_golang_google_protobuf",
+    "org_golang_x_lint",
+    "org_golang_x_sync",
+    "org_golang_x_sys",
+)
+
+go_deps_dev = use_extension("@gazelle//:extensions.bzl", "go_deps", dev_dependency = True)
+go_deps_dev.gazelle_override(
+    build_file_generation = "on",
+    directives = [
+        "gazelle:resolve proto go build/bazel/semver/semver.proto //build/bazel/semver",
+        "gazelle:resolve proto go google/api/annotations.proto @org_golang_google_genproto_googleapis_api//annotations",
+        "gazelle:resolve proto go google/longrunning/operations.proto @com_google_cloud_go_longrunning//autogen/longrunningpb",
+        "gazelle:resolve proto go google/rpc/status.proto @org_golang_google_genproto_googleapis_rpc//status",
+        "gazelle:resolve proto google/api/annotations.proto @googleapis//google/api:annotations_proto",
+        "gazelle:resolve proto google/longrunning/operations.proto @googleapis//google/longrunning:operations_proto",
+        "gazelle:resolve proto google/rpc/status.proto @googleapis//google/rpc:status_proto",
+    ],
+    path = "github.com/bazelbuild/remote-apis",
+)
+go_deps_dev.module_override(
+    patches = [
+        "@com_github_buildbarn_bb_storage//:patches/com_github_golang_mock/mocks-for-funcs.diff",
+        "//:patches/com_github_golang_mock/generics.diff",
+    ],
+    path = "github.com/golang/mock",
+)
+go_deps_dev.module_override(
+    patches = ["@com_github_buildbarn_bb_storage//:patches/com_github_golang_protobuf/service-registrar.diff"],
+    path = "github.com/golang/protobuf",
+)
+go_deps_dev.module_override(
+    patches = ["@com_github_buildbarn_bb_storage//:patches/com_github_grpc_ecosystem_go_grpc_prometheus/client-metrics-prevent-handled-twice.diff"],
+    path = "github.com/grpc-ecosystem/go-grpc-prometheus",
+)
+go_deps_dev.module_override(
+    patches = [
+        "//:patches/com_github_hanwen_go_fuse_v2/direntrylist-offsets-and-testability.diff",
+        "//:patches/com_github_hanwen_go_fuse_v2/writeback-cache.diff",
+        "//:patches/com_github_hanwen_go_fuse_v2/notify-testability.diff",
+    ],
+    path = "github.com/hanwen/go-fuse/v2",
+)
+go_deps_dev.module_override(
+    patches = ["@com_github_buildbarn_bb_storage//:patches/org_golang_x_lint/generic.diff"],
+    path = "golang.org/x/lint",
+)
+
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+http_archive(
+    name = "com_github_twbs_bootstrap",
+    build_file_content = """exports_files(["css/bootstrap.min.css", "js/bootstrap.min.js"])""",
+    sha256 = "395342b2974e3350560e65752d36aab6573652b11cc6cb5ef79a2e5e83ad64b1",
+    strip_prefix = "bootstrap-5.1.0-dist",
+    urls = ["https://github.com/twbs/bootstrap/releases/download/v5.1.0/bootstrap-5.1.0-dist.zip"],
+)
+
+http_archive(
+    name = "io_bazel_rules_jsonnet",
+    sha256 = "c51ba0dba41d667fa5c64e56e252ba54be093e5ae764af6470dabca901f373eb",
+    strip_prefix = "rules_jsonnet-0.5.0",
+    urls = ["https://github.com/bazelbuild/rules_jsonnet/archive/0.5.0.tar.gz"],
+)
+
+http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
+
+http_file(
+    name = "com_github_krallin_tini_tini_static_amd64",
+    downloaded_file_path = "tini",
+    executable = True,
+    sha256 = "c5b0666b4cb676901f90dfcb37106783c5fe2077b04590973b885950611b30ee",
+    urls = ["https://github.com/krallin/tini/releases/download/v0.19.0/tini-static-amd64"],
+)
+
+http_file(
+    name = "com_github_krallin_tini_tini_static_arm64",
+    downloaded_file_path = "tini",
+    executable = True,
+    sha256 = "eae1d3aa50c48fb23b8cbdf4e369d0910dfc538566bfd09df89a774aa84a48b9",
+    urls = ["https://github.com/krallin/tini/releases/download/v0.19.0/tini-static-arm64"],
+)
+
+llvm = use_extension("@toolchains_llvm//toolchain/extensions:llvm.bzl", "llvm", dev_dependency = True)
+llvm.toolchain(
+    llvm_version = "14.0.0",
+)
+use_repo(llvm, "llvm_toolchain_llvm")
+
+npm = use_extension("@aspect_rules_js//npm:extensions.bzl", "npm")
+npm.npm_translate_lock(
+    name = "com_github_buildbarn_bb_remote_execution_npm",
+    link_workspace = "com_github_buildbarn_bb_remote_execution",
+    pnpm_lock = "//:pnpm-lock.yaml",
+)
+use_repo(npm, "com_github_buildbarn_bb_remote_execution_npm")
+
+oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
+oci.pull(
+    name = "busybox",
+    digest = "sha256:97e3873d1f61ba651b632e4755fc52e1d90c9f6e4f01d9b720f37af5efed17e5",  # 1.36.1-uclibc
+    image = "docker.io/library/busybox",
+    platforms = [
+        "linux/amd64",
+        "linux/arm64/v8",
+    ],
+)
+use_repo(oci, "busybox")

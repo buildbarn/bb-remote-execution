@@ -1,6 +1,6 @@
 load("@aspect_bazel_lib//lib:transitions.bzl", "platform_transition_filegroup")
 load("@com_github_buildbarn_bb_storage//tools:container.bzl", "container_push_official", "multiarch_go_image")
-load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
 load("@rules_oci//oci:defs.bzl", "oci_image", "oci_image_index")
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 
@@ -49,17 +49,17 @@ container_push_official(
 
 pkg_tar(
     name = "bb_runner_layer",
-    files = [":bb_runner"],
+    srcs = [":bb_runner"],
     visibility = ["//visibility:public"],
 )
 
 pkg_tar(
     name = "tini_layer",
-    files = select({
-        "@io_bazel_rules_go//go/platform:amd64": [
+    srcs = select({
+        "@rules_go//go/platform:amd64": [
             "@com_github_krallin_tini_tini_static_amd64//file",
         ],
-        "@io_bazel_rules_go//go/platform:arm64": [
+        "@rules_go//go/platform:arm64": [
             "@com_github_krallin_tini_tini_static_arm64//file",
         ],
     }),
@@ -68,7 +68,7 @@ pkg_tar(
 
 pkg_tar(
     name = "install_layer",
-    files = ["install"],
+    srcs = ["install"],
 )
 
 oci_image(
@@ -88,7 +88,7 @@ oci_image(
     platform_transition_filegroup(
         name = "bb_runner_installer_image_" + arch,
         srcs = ["bb_runner_installer_image"],
-        target_platform = "@io_bazel_rules_go//go/toolchain:linux_" + arch,
+        target_platform = "@rules_go//go/toolchain:linux_" + arch,
     )
     for arch in [
         "amd64",

@@ -1,0 +1,15 @@
+load("@aspect_bazel_lib//lib:expand_template.bzl", "expand_template")
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "tools",
+    srcs = ["deps.go"],
+    importpath = "github.com/buildbarn/bb-remote-execution/tools",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@cc_mvdan_gofumpt//:gofumpt",
+        "@com_github_bazelbuild_buildtools//buildifier",
+        "@org_golang_x_lint//:lint",
+    ],
+)
