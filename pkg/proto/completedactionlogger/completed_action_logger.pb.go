@@ -7,12 +7,8 @@
 package completedactionlogger
 
 import (
-	context "context"
 	v2 "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	cas "github.com/buildbarn/bb-remote-execution/pkg/proto/cas"
-	grpc "google.golang.org/grpc"
-	codes "google.golang.org/grpc/codes"
-	status "google.golang.org/grpc/status"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
@@ -215,116 +211,4 @@ func file_pkg_proto_completedactionlogger_completed_action_logger_proto_init() {
 	file_pkg_proto_completedactionlogger_completed_action_logger_proto_rawDesc = nil
 	file_pkg_proto_completedactionlogger_completed_action_logger_proto_goTypes = nil
 	file_pkg_proto_completedactionlogger_completed_action_logger_proto_depIdxs = nil
-}
-
-// Reference imports to suppress errors if they are not otherwise used.
-var _ context.Context
-var _ grpc.ClientConnInterface
-
-// This is a compile-time assertion to ensure that this generated file
-// is compatible with the grpc package it is being compiled against.
-const _ = grpc.SupportPackageIsVersion6
-
-// CompletedActionLoggerClient is the client API for CompletedActionLogger service.
-//
-// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
-type CompletedActionLoggerClient interface {
-	LogCompletedActions(ctx context.Context, opts ...grpc.CallOption) (CompletedActionLogger_LogCompletedActionsClient, error)
-}
-
-type completedActionLoggerClient struct {
-	cc grpc.ClientConnInterface
-}
-
-func NewCompletedActionLoggerClient(cc grpc.ClientConnInterface) CompletedActionLoggerClient {
-	return &completedActionLoggerClient{cc}
-}
-
-func (c *completedActionLoggerClient) LogCompletedActions(ctx context.Context, opts ...grpc.CallOption) (CompletedActionLogger_LogCompletedActionsClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_CompletedActionLogger_serviceDesc.Streams[0], "/buildbarn.completedactionlogger.CompletedActionLogger/LogCompletedActions", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &completedActionLoggerLogCompletedActionsClient{stream}
-	return x, nil
-}
-
-type CompletedActionLogger_LogCompletedActionsClient interface {
-	Send(*CompletedAction) error
-	Recv() (*emptypb.Empty, error)
-	grpc.ClientStream
-}
-
-type completedActionLoggerLogCompletedActionsClient struct {
-	grpc.ClientStream
-}
-
-func (x *completedActionLoggerLogCompletedActionsClient) Send(m *CompletedAction) error {
-	return x.ClientStream.SendMsg(m)
-}
-
-func (x *completedActionLoggerLogCompletedActionsClient) Recv() (*emptypb.Empty, error) {
-	m := new(emptypb.Empty)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-// CompletedActionLoggerServer is the server API for CompletedActionLogger service.
-type CompletedActionLoggerServer interface {
-	LogCompletedActions(CompletedActionLogger_LogCompletedActionsServer) error
-}
-
-// UnimplementedCompletedActionLoggerServer can be embedded to have forward compatible implementations.
-type UnimplementedCompletedActionLoggerServer struct {
-}
-
-func (*UnimplementedCompletedActionLoggerServer) LogCompletedActions(CompletedActionLogger_LogCompletedActionsServer) error {
-	return status.Errorf(codes.Unimplemented, "method LogCompletedActions not implemented")
-}
-
-func RegisterCompletedActionLoggerServer(s grpc.ServiceRegistrar, srv CompletedActionLoggerServer) {
-	s.RegisterService(&_CompletedActionLogger_serviceDesc, srv)
-}
-
-func _CompletedActionLogger_LogCompletedActions_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(CompletedActionLoggerServer).LogCompletedActions(&completedActionLoggerLogCompletedActionsServer{stream})
-}
-
-type CompletedActionLogger_LogCompletedActionsServer interface {
-	Send(*emptypb.Empty) error
-	Recv() (*CompletedAction, error)
-	grpc.ServerStream
-}
-
-type completedActionLoggerLogCompletedActionsServer struct {
-	grpc.ServerStream
-}
-
-func (x *completedActionLoggerLogCompletedActionsServer) Send(m *emptypb.Empty) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func (x *completedActionLoggerLogCompletedActionsServer) Recv() (*CompletedAction, error) {
-	m := new(CompletedAction)
-	if err := x.ServerStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-var _CompletedActionLogger_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "buildbarn.completedactionlogger.CompletedActionLogger",
-	HandlerType: (*CompletedActionLoggerServer)(nil),
-	Methods:     []grpc.MethodDesc{},
-	Streams: []grpc.StreamDesc{
-		{
-			StreamName:    "LogCompletedActions",
-			Handler:       _CompletedActionLogger_LogCompletedActions_Handler,
-			ServerStreams: true,
-			ClientStreams: true,
-		},
-	},
-	Metadata: "pkg/proto/completedactionlogger/completed_action_logger.proto",
 }

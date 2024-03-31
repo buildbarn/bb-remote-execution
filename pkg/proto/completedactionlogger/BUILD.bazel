@@ -15,7 +15,10 @@ proto_library(
 
 go_proto_library(
     name = "completedactionlogger_go_proto",
-    compilers = ["@rules_go//proto:go_grpc"],
+    compilers = [
+        "@rules_go//proto:go_proto",
+        "@rules_go//proto:go_grpc_v2",
+    ],
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/proto/completedactionlogger",
     proto = ":completedactionlogger_proto",
     visibility = ["//visibility:public"],

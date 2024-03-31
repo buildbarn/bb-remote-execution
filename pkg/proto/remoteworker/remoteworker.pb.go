@@ -7,11 +7,7 @@
 package remoteworker
 
 import (
-	context "context"
 	v2 "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
-	grpc "google.golang.org/grpc"
-	codes "google.golang.org/grpc/codes"
-	status "google.golang.org/grpc/status"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	anypb "google.golang.org/protobuf/types/known/anypb"
@@ -889,84 +885,4 @@ func file_pkg_proto_remoteworker_remoteworker_proto_init() {
 	file_pkg_proto_remoteworker_remoteworker_proto_rawDesc = nil
 	file_pkg_proto_remoteworker_remoteworker_proto_goTypes = nil
 	file_pkg_proto_remoteworker_remoteworker_proto_depIdxs = nil
-}
-
-// Reference imports to suppress errors if they are not otherwise used.
-var _ context.Context
-var _ grpc.ClientConnInterface
-
-// This is a compile-time assertion to ensure that this generated file
-// is compatible with the grpc package it is being compiled against.
-const _ = grpc.SupportPackageIsVersion6
-
-// OperationQueueClient is the client API for OperationQueue service.
-//
-// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
-type OperationQueueClient interface {
-	Synchronize(ctx context.Context, in *SynchronizeRequest, opts ...grpc.CallOption) (*SynchronizeResponse, error)
-}
-
-type operationQueueClient struct {
-	cc grpc.ClientConnInterface
-}
-
-func NewOperationQueueClient(cc grpc.ClientConnInterface) OperationQueueClient {
-	return &operationQueueClient{cc}
-}
-
-func (c *operationQueueClient) Synchronize(ctx context.Context, in *SynchronizeRequest, opts ...grpc.CallOption) (*SynchronizeResponse, error) {
-	out := new(SynchronizeResponse)
-	err := c.cc.Invoke(ctx, "/buildbarn.remoteworker.OperationQueue/Synchronize", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// OperationQueueServer is the server API for OperationQueue service.
-type OperationQueueServer interface {
-	Synchronize(context.Context, *SynchronizeRequest) (*SynchronizeResponse, error)
-}
-
-// UnimplementedOperationQueueServer can be embedded to have forward compatible implementations.
-type UnimplementedOperationQueueServer struct {
-}
-
-func (*UnimplementedOperationQueueServer) Synchronize(context.Context, *SynchronizeRequest) (*SynchronizeResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Synchronize not implemented")
-}
-
-func RegisterOperationQueueServer(s grpc.ServiceRegistrar, srv OperationQueueServer) {
-	s.RegisterService(&_OperationQueue_serviceDesc, srv)
-}
-
-func _OperationQueue_Synchronize_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SynchronizeRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(OperationQueueServer).Synchronize(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/buildbarn.remoteworker.OperationQueue/Synchronize",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(OperationQueueServer).Synchronize(ctx, req.(*SynchronizeRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-var _OperationQueue_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "buildbarn.remoteworker.OperationQueue",
-	HandlerType: (*OperationQueueServer)(nil),
-	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "Synchronize",
-			Handler:    _OperationQueue_Synchronize_Handler,
-		},
-	},
-	Streams:  []grpc.StreamDesc{},
-	Metadata: "pkg/proto/remoteworker/remoteworker.proto",
 }
