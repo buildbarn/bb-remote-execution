@@ -37,6 +37,13 @@ git_override(
 )
 
 git_override(
+    module_name = "rules_go",
+    commit = "00fe64fb1a420b1b0a959959c0c8a5c717a885a7",
+    patches = ["//:patches/rules_go/tags-manual.diff"],
+    remote = "https://github.com/bazelbuild/rules_go.git",
+)
+
+git_override(
     module_name = "gazelle",
     commit = "f5a5c5dc90b4d6a39f0f47d770eba27c6c1c1877",
     patches = [
