@@ -163,7 +163,7 @@ func main() {
 				workerInvocationStickinessLimits,
 				int(platformQueue.MaximumQueuedBackgroundLearningOperations),
 				platformQueue.BackgroundLearningOperationPriority,
-				platformQueue.MaximumSizeClass,
+				platformQueue.SizeClasses,
 			); err != nil {
 				return util.StatusWrap(err, "Failed to register predeclared platform queue")
 			}

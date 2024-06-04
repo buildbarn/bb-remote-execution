@@ -338,7 +338,16 @@ var (
 // capable of using multiple size classes, as a maximum size class and
 // initialsizeclass.Analyzer can be provided for specifying how
 // operations are assigned to size classes.
-func (bq *InMemoryBuildQueue) RegisterPredeclaredPlatformQueue(instanceNamePrefix digest.InstanceName, platformMessage *remoteexecution.Platform, workerInvocationStickinessLimits []time.Duration, maximumQueuedBackgroundLearningOperations int, backgroundLearningOperationPriority int32, maximumSizeClass uint32) error {
+func (bq *InMemoryBuildQueue) RegisterPredeclaredPlatformQueue(instanceNamePrefix digest.InstanceName, platformMessage *remoteexecution.Platform, workerInvocationStickinessLimits []time.Duration, maximumQueuedBackgroundLearningOperations int, backgroundLearningOperationPriority int32, sizeClasses []uint32) error {
+	if len(sizeClasses) < 1 {
+		return status.Error(codes.InvalidArgument, "No size classes provided")
+	}
+	for i := 1; i < len(sizeClasses); i++ {
+		if sizeClasses[i-1] >= sizeClasses[i] {
+			return status.Error(codes.InvalidArgument, "Size classes must be provided in sorted order")
+		}
+	}
+
 	platformKey, err := platform.NewKey(instanceNamePrefix, platformMessage)
 	if err != nil {
 		return err
@@ -352,7 +361,9 @@ func (bq *InMemoryBuildQueue) RegisterPredeclaredPlatformQueue(instanceNamePrefi
 	}
 
 	pq := bq.addPlatformQueue(platformKey, workerInvocationStickinessLimits, maximumQueuedBackgroundLearningOperations, backgroundLearningOperationPriority)
-	pq.addSizeClassQueue(bq, maximumSizeClass, false)
+	for _, sizeClass := range sizeClasses {
+		pq.addSizeClassQueue(bq, sizeClass, false)
+	}
 	return nil
 }
 

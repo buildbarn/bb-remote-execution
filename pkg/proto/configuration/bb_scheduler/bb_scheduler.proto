@@ -162,10 +162,23 @@ message PredeclaredPlatformQueueConfiguration {
   // The platform properties of the platform queue to create.
   build.bazel.remote.execution.v2.Platform platform = 2;
 
-  // The maximum size class for which workers exist for this platform
-  // queue. All actions that fail on smaller size classes will be
-  // retried on workers of this size class.
-  uint32 maximum_size_class = 3;
+  // Size classes for which predeclared size class queues are created.
+  // These size class queues will continue to exist, even if they have
+  // no workers that synchronize against the scheduler.
+  //
+  // If workers advertise a size class that is not specified here, a
+  // size class queue will be created on demand. However, this queue
+  // will also disappear if such workers stop synchronizing. Size class
+  // queues will only be created on demand if the advertized size class
+  // is lower than the largest size class specified here. The reason
+  // being that the largest size class is responsible for retrying all
+  // actions that fail on smaller size classes. Altering the largest
+  // size class at runtime would be unsound.
+  //
+  // Size classes must be specified in increasing order. If all workers
+  // belonging to this platform are of the same size, it is recommended
+  // to set this field to [0].
+  repeated uint32 size_classes = 3;
 
   // Was 'initial_size_class_feedback_driven_analyzer'. This option has
   // moved into ApplicationConfiguration.action_router.
