@@ -2792,7 +2792,7 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 		/* workerInvocationStickinessLimits = */ nil,
 		/* maximumQueuedBackgroundLearningOperations = */ 0,
 		/* backgroundLearningOperationPriority = */ 0,
-		/* maximumSizeClass = */ 8))
+		/* sizeClasses = */ []uint32{8}))
 
 	// Workers with a higher size class should be rejected, as no
 	// requests will end up getting sent to them.
@@ -3167,7 +3167,7 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 		/* workerInvocationStickinessLimits = */ nil,
 		/* maximumQueuedBackgroundLearningOperations = */ 10,
 		/* backgroundLearningOperationPriority = */ 100,
-		/* maximumSizeClass = */ 8))
+		/* sizeClasses = */ []uint32{8}))
 
 	clock.EXPECT().Now().Return(time.Unix(1002, 0))
 	response, err := buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
@@ -3907,7 +3907,7 @@ func TestInMemoryBuildQueueWorkerInvocationStickinessLimit(t *testing.T) {
 		/* workerInvocationStickinessLimits = */ []time.Duration{3 * time.Second},
 		/* maximumQueuedBackgroundLearningOperations = */ 10,
 		/* backgroundLearningOperationPriority = */ 100,
-		/* maximumSizeClass = */ 0))
+		/* sizeClasses = */ []uint32{0}))
 
 	operationParameters := []struct {
 		operationName    string
@@ -4156,7 +4156,7 @@ func TestInMemoryBuildQueueAuthorization(t *testing.T) {
 			/* workerInvocationStickinessLimits = */ nil,
 			/* maximumQueuedBackgroundLearningOperations = */ 0,
 			/* backgroundLearningOperationPriority = */ 0,
-			/* maximumSizeClass = */ 0)
+			/* sizeClasses = */ []uint32{0})
 
 		// Allow the Execute
 		authorizer.EXPECT().Authorize(gomock.Any(), []digest.InstanceName{beepboop}).Return([]error{nil})
@@ -4240,7 +4240,7 @@ func TestInMemoryBuildQueueNestedInvocationsSynchronization(t *testing.T) {
 		/* workerInvocationStickinessLimits = */ nil,
 		/* maximumQueuedBackgroundLearningOperations = */ 0,
 		/* backgroundLearningOperationPriority = */ 0,
-		/* maximumSizeClass = */ 0))
+		/* sizeClasses = */ []uint32{0}))
 
 	// Create ten workers. Let all of them complete a task that
 	// belonged to the same correlated invocations ID, but a
