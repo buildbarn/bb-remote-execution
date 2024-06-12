@@ -40,19 +40,15 @@ func main() {
 
 		buildDirectoryParser, err := path.NewLocalParser(configuration.BuildDirectoryPath)
 		if err != nil {
-			return util.StatusWrap(err, "Invalid build directory")
+			return util.StatusWrapf(err, "Failed to parse build directory path %#v", configuration.BuildDirectoryPath)
 		}
 		buildDirectoryPath, scopeWalker := path.EmptyBuilder.Join(path.NewAbsoluteScopeWalker(path.VoidComponentWalker))
 		if err := path.Resolve(buildDirectoryParser, scopeWalker); err != nil {
 			return util.StatusWrap(err, "Failed to resolve build directory")
 		}
-		buildDirectoryPathString, err := path.GetLocalString(buildDirectoryPath)
-		if err != nil {
-			return util.StatusWrap(err, "Failed to create local representation of build directory")
-		}
 		buildDirectory := re_filesystem.NewLazyDirectory(
 			func() (filesystem.DirectoryCloser, error) {
-				return filesystem.NewLocalDirectory(buildDirectoryPathString)
+				return filesystem.NewLocalDirectory(buildDirectoryParser)
 			})
 
 		sysProcAttr, processTableCleaningUserID, err := credentials.GetSysProcAttrFromConfiguration(configuration.RunCommandsAs)
@@ -116,7 +112,11 @@ func main() {
 		// build actions aren't visible to successive actions. This also
 		// prevents systems from running out of disk space.
 		for _, d := range configuration.CleanTemporaryDirectories {
-			directory, err := filesystem.NewLocalDirectory(d)
+			parser, err := path.NewLocalParser(d)
+			if err != nil {
+				return util.StatusWrapf(err, "Failed to parse temporary directory path %#v", d)
+			}
+			directory, err := filesystem.NewLocalDirectory(parser)
 			if err != nil {
 				return util.StatusWrapf(err, "Failed to open temporary directory %#v", d)
 			}

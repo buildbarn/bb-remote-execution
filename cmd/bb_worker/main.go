@@ -31,6 +31,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/eviction"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/global"
 	"github.com/buildbarn/bb-storage/pkg/program"
 	"github.com/buildbarn/bb-storage/pkg/random"
@@ -244,7 +245,11 @@ func main() {
 			case *bb_worker.BuildDirectoryConfiguration_Native:
 				// Directory where actual builds take place.
 				nativeConfiguration := backend.Native
-				naiveBuildDirectory, err = filesystem.NewLocalDirectory(nativeConfiguration.BuildDirectoryPath)
+				buildDirectoryParser, err := path.NewLocalParser(nativeConfiguration.BuildDirectoryPath)
+				if err != nil {
+					return util.StatusWrapf(err, "Failed to parse build directory path %#v", nativeConfiguration.BuildDirectoryPath)
+				}
+				naiveBuildDirectory, err = filesystem.NewLocalDirectory(buildDirectoryParser)
 				if err != nil {
 					return util.StatusWrapf(err, "Failed to open build directory %v", nativeConfiguration.BuildDirectoryPath)
 				}
@@ -257,7 +262,11 @@ func main() {
 				// TODO: Have a single process-wide hardlinking
 				// cache even if multiple build directories are
 				// used. This increases cache hit rate.
-				cacheDirectory, err := filesystem.NewLocalDirectory(nativeConfiguration.CacheDirectoryPath)
+				cacheDirectoryParser, err := path.NewLocalParser(nativeConfiguration.CacheDirectoryPath)
+				if err != nil {
+					return util.StatusWrapf(err, "Failed to parse cache directory path %#v", nativeConfiguration.CacheDirectoryPath)
+				}
+				cacheDirectory, err := filesystem.NewLocalDirectory(cacheDirectoryParser)
 				if err != nil {
 					return util.StatusWrap(err, "Failed to open cache directory")
 				}

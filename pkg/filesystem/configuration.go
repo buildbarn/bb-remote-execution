@@ -6,6 +6,7 @@ import (
 	pb "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/blockdevice"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
 
 	"google.golang.org/grpc/codes"
@@ -27,7 +28,11 @@ func NewFilePoolFromConfiguration(configuration *pb.FilePoolConfiguration) (File
 	case *pb.FilePoolConfiguration_InMemory:
 		filePool = InMemoryFilePool
 	case *pb.FilePoolConfiguration_DirectoryPath:
-		directory, err := filesystem.NewLocalDirectory(backend.DirectoryPath)
+		directoryParser, err := path.NewLocalParser(backend.DirectoryPath)
+		if err != nil {
+			return nil, util.StatusWrapf(err, "Failed to parse directory path %#v", backend.DirectoryPath)
+		}
+		directory, err := filesystem.NewLocalDirectory(directoryParser)
 		if err != nil {
 			return nil, util.StatusWrapf(err, "Failed to open directory %#v", backend.DirectoryPath)
 		}

@@ -84,7 +84,9 @@ func TestLocalRunnerRun(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	buildDirectoryPath := t.TempDir()
-	buildDirectory, err := filesystem.NewLocalDirectory(buildDirectoryPath)
+	directoryParser, err := path.NewLocalParser(buildDirectoryPath)
+	require.NoError(t, err)
+	buildDirectory, err := filesystem.NewLocalDirectory(directoryParser)
 	require.NoError(t, err)
 	defer buildDirectory.Close()
 
