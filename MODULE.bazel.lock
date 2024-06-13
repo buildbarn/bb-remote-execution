@@ -10332,14 +10332,14 @@
       "general": {
         "bzlTransitiveDigest": "D1+rhhbwX4ufoTmeUVxDpPg+Sknv3QzVXZnyK2zOjj4=",
         "recordedFileInputs": {
-          "@@//go.mod": "2a33f97abaceb19dd2d1474509921179b57537c2e87f0fea1eaf47317edd665b",
+          "@@//go.mod": "bdf60193402d005c6429f393683c86be5e0a7fe81980c9788efc4b1f2e84c84a",
           "@@rules_go~//go.mod": "de22304b720f7f61350ec1c9739de6c0a1b1103fd22bfeb6e92c6c843ddc6d6e",
           "@@gazelle~//go.sum": "7c4460e8ecb5dd8691a51d4fa2e9e4751108b933636497ce46db499fc2e7a88d",
           "@@com_github_buildbarn_go_xdr~//go.sum": "b1e5f20131cf47d0339d501b0abd80b8851edcd738b88f8694948c4f81f97c85",
           "@@com_github_buildbarn_bb_storage~//go.sum": "c137d9570bae586a7044a9fe6337221b953059039902f0fc33a75e82827a0d10",
           "@@jsonnet_go~//go.mod": "35238699c0cd09f5e79619863a0014f01129615f811c8a30239b80e8e3a58145",
           "@@com_github_buildbarn_go_xdr~//go.mod": "6b49e0ea6c06c8c1cadc3257856c8a8aa9bf04ec62b23ce758488b2ec8568778",
-          "@@//go.sum": "43b537b9108433ea38feb68959c540f38af5c10397f97ca881c0a6a76540f3d2",
+          "@@//go.sum": "913e54466f66e25bbb342e0740a6463562d2100cff16d897cb6d94d88c318bf0",
           "@@rules_go~//go.sum": "d56fdb19b21a5f12bcf625c49432371ac39c2def0f564098fbda107f7c080f40",
           "@@gazelle~//go.mod": "48dc6e771c3028ee1c18b9ffc81e596fd5f6d7e0016c5ef280e30f2821f60473",
           "@@com_github_buildbarn_bb_storage~//go.mod": "2c43bef8396b8ab8e4a83e8c9d3058f90d30d41b0ccd042303cf0333fc7aa7fe",
