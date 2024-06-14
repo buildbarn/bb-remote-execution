@@ -25,7 +25,7 @@ func NewBloomFilterReader(bloomFilter []byte, hashFunctions uint32) (*BloomFilte
 		return nil, status.Error(codes.InvalidArgument, "Bloom filter is empty")
 	}
 	leadingZeros := bits.LeadingZeros8(uint8(bloomFilter[len(bloomFilter)-1]))
-	if leadingZeros == 8 {
+	if leadingZeros >= 7 {
 		return nil, status.Error(codes.InvalidArgument, "Bloom filter's trailing byte is not properly padded")
 	}
 

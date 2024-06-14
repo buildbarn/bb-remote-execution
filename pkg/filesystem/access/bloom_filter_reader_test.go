@@ -17,6 +17,9 @@ func TestBloomFilterReader(t *testing.T) {
 		_, err := access.NewBloomFilterReader(nil, 123)
 		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Bloom filter is empty"), err)
 
+		_, err = access.NewBloomFilterReader([]byte{0x01}, 123)
+		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Bloom filter's trailing byte is not properly padded"), err)
+
 		_, err = access.NewBloomFilterReader([]byte{0x12, 0x00}, 123)
 		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Bloom filter's trailing byte is not properly padded"), err)
 	})
