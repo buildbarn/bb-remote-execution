@@ -72,7 +72,7 @@ func NewPoolBackedFileAllocator(pool re_filesystem.FilePool, errorLogger util.Er
 	}
 }
 
-func (fa *poolBackedFileAllocator) NewFile(isExecutable bool, size uint64, shareAccess ShareMask) (NativeLeaf, Status) {
+func (fa *poolBackedFileAllocator) NewFile(permissions Permissions, size uint64, shareAccess ShareMask) (NativeLeaf, Status) {
 	file, err := fa.pool.NewFile()
 	if err != nil {
 		fa.errorLogger.Log(util.StatusWrapf(err, "Failed to create new file"))
@@ -89,7 +89,7 @@ func (fa *poolBackedFileAllocator) NewFile(isExecutable bool, size uint64, share
 		errorLogger: fa.errorLogger,
 
 		file:           file,
-		isExecutable:   isExecutable,
+		permissions:    permissions,
 		size:           size,
 		referenceCount: 1,
 		cachedDigest:   digest.BadDigest,
@@ -103,7 +103,7 @@ type fileBackedFile struct {
 
 	lock                     sync.RWMutex
 	file                     filesystem.FileReadWriter
-	isExecutable             bool
+	permissions              Permissions
 	size                     uint64
 	referenceCount           uint
 	writableDescriptorsCount uint
@@ -343,7 +343,7 @@ func (f *fileBackedFile) AppendOutputPathPersistencyDirectoryNode(directory *out
 		directory.Files = append(directory.Files, &remoteexecution.FileNode{
 			Name:         name.String(),
 			Digest:       f.cachedDigest.GetProto(),
-			IsExecutable: f.isExecutable,
+			IsExecutable: f.permissions&PermissionsExecute != 0,
 		})
 	}
 }
@@ -382,11 +382,7 @@ func (f *fileBackedFile) virtualGetAttributesUnlocked(attributes *Attributes) {
 // obtained while picking up the file's lock.
 func (f *fileBackedFile) virtualGetAttributesLocked(attributes *Attributes) {
 	attributes.SetChangeID(f.changeID)
-	permissions := PermissionsRead | PermissionsWrite
-	if f.isExecutable {
-		permissions |= PermissionsExecute
-	}
-	attributes.SetPermissions(permissions)
+	attributes.SetPermissions(f.permissions)
 	attributes.SetSizeBytes(f.size)
 }
 
@@ -433,6 +429,12 @@ func (f *fileBackedFile) VirtualOpenSelf(ctx context.Context, shareAccess ShareM
 
 	if f.referenceCount == 0 {
 		return StatusErrStale
+	}
+
+	// Permissions checking.
+	if (shareAccess&^ShareMaskRead != 0 && f.permissions&(PermissionsRead|PermissionsExecute) == 0) ||
+		(shareAccess&^ShareMaskWrite != 0 && f.permissions&PermissionsWrite == 0) {
+		return StatusErrAccess
 	}
 
 	// Handling of O_TRUNC.
@@ -509,7 +511,7 @@ func (f *fileBackedFile) VirtualSetAttributes(ctx context.Context, in *Attribute
 		}
 	}
 	if permissions, ok := in.GetPermissions(); ok {
-		f.isExecutable = (permissions & PermissionsExecute) != 0
+		f.permissions = permissions
 		f.changeID++
 	}
 

@@ -686,17 +686,18 @@ func (i *inMemoryPrepopulatedDirectory) VirtualOpenChild(ctx context.Context, na
 
 	// Create new file with attributes provided.
 	var respected AttributesMask
-	isExecutable := false
-	if permissions, ok := createAttributes.GetPermissions(); ok {
+	permissions, ok := createAttributes.GetPermissions()
+	if ok {
 		respected |= AttributesMaskPermissions
-		isExecutable = permissions&PermissionsExecute != 0
+	} else {
+		permissions = PermissionsRead | PermissionsWrite
 	}
 	size := uint64(0)
 	if sizeBytes, ok := createAttributes.GetSizeBytes(); ok {
 		respected |= AttributesMaskSizeBytes
 		size = sizeBytes
 	}
-	leaf, s := i.subtree.fileAllocator.NewFile(isExecutable, size, shareAccess)
+	leaf, s := i.subtree.fileAllocator.NewFile(permissions, size, shareAccess)
 	if s != StatusOK {
 		return nil, 0, ChangeInfo{}, s
 	}
