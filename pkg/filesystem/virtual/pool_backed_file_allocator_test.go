@@ -35,7 +35,7 @@ func TestPoolBackedFileAllocatorGetBazelOutputServiceStat(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 
 	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger).
-		NewFile(false, 0, virtual.ShareMaskRead|virtual.ShareMaskWrite)
+		NewFile(virtual.PermissionsRead|virtual.PermissionsWrite, 0, virtual.ShareMaskRead|virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 
 	underlyingFile.EXPECT().WriteAt([]byte("Hello"), int64(0)).Return(5, nil)
@@ -185,7 +185,7 @@ func TestPoolBackedFileAllocatorVirtualSeek(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 
 	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger).
-		NewFile(false, 0, virtual.ShareMaskRead|virtual.ShareMaskWrite)
+		NewFile(virtual.PermissionsRead|virtual.PermissionsWrite, 0, virtual.ShareMaskRead|virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 
 	// Grow the file.
@@ -253,7 +253,7 @@ func TestPoolBackedFileAllocatorVirtualOpenSelfStaleAfterUnlink(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 
 	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger).
-		NewFile(false, 0, virtual.ShareMaskWrite)
+		NewFile(virtual.PermissionsRead|virtual.PermissionsWrite, 0, virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 
 	f.VirtualClose(virtual.ShareMaskWrite)
@@ -278,7 +278,7 @@ func TestPoolBackedFileAllocatorVirtualOpenSelfStaleAfterClose(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 
 	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger).
-		NewFile(false, 0, virtual.ShareMaskWrite)
+		NewFile(virtual.PermissionsRead|virtual.PermissionsWrite, 0, virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 
 	f.Unlink()
@@ -299,7 +299,7 @@ func TestPoolBackedFileAllocatorVirtualRead(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 
 	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger).
-		NewFile(false, 0, virtual.ShareMaskRead|virtual.ShareMaskWrite)
+		NewFile(virtual.PermissionsRead|virtual.PermissionsWrite, 0, virtual.ShareMaskRead|virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 
 	// Let initial tests assume an empty file.
@@ -378,7 +378,7 @@ func TestPoolBackedFileAllocatorFUSETruncateFailure(t *testing.T) {
 	errorLogger.EXPECT().Log(testutil.EqStatus(t, status.Error(codes.Unavailable, "Failed to truncate file to length 42: Storage backends offline")))
 
 	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger).
-		NewFile(false, 0, virtual.ShareMaskWrite)
+		NewFile(virtual.PermissionsRead|virtual.PermissionsWrite, 0, virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 
 	require.Equal(t, virtual.StatusErrIO, f.VirtualSetAttributes(
@@ -406,7 +406,7 @@ func TestPoolBackedFileAllocatorVirtualWriteFailure(t *testing.T) {
 	errorLogger.EXPECT().Log(testutil.EqStatus(t, status.Error(codes.Unavailable, "Failed to write to file at offset 42: Storage backends offline")))
 
 	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger).
-		NewFile(false, 0, virtual.ShareMaskWrite)
+		NewFile(virtual.PermissionsRead|virtual.PermissionsWrite, 0, virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 	_, s = f.VirtualWrite(p[:], 42)
 	require.Equal(t, virtual.StatusErrIO, s)
@@ -424,7 +424,7 @@ func TestPoolBackedFileAllocatorUploadFile(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 
 	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger).
-		NewFile(false, 0, virtual.ShareMaskWrite)
+		NewFile(virtual.PermissionsRead|virtual.PermissionsWrite, 0, virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 
 	// Initialize the file with the contents "Hello".
@@ -570,7 +570,7 @@ func TestPoolBackedFileAllocatorVirtualClose(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 
 	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger).
-		NewFile(false, 0, virtual.ShareMaskWrite)
+		NewFile(virtual.PermissionsRead|virtual.PermissionsWrite, 0, virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 
 	// Initially it should be opened exactly once. Open it a couple
