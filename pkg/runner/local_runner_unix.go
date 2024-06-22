@@ -24,21 +24,13 @@ import (
 // getExecutablePath returns the path of an executable within a given
 // search path that is part of the PATH environment variable.
 func getExecutablePath(baseDirectory *path.Builder, searchPathStr, argv0 string) (string, error) {
-	searchPathParser, err := path.NewLocalParser(searchPathStr)
-	if err != nil {
-		return "", err
-	}
 	searchPath, scopeWalker := baseDirectory.Join(path.VoidScopeWalker)
-	if err := path.Resolve(searchPathParser, scopeWalker); err != nil {
+	if err := path.Resolve(path.NewLocalParser(searchPathStr), scopeWalker); err != nil {
 		return "", err
 	}
 
-	argv0Parser, err := path.NewLocalParser(argv0)
-	if err != nil {
-		return "", err
-	}
 	executablePath, scopeWalker := searchPath.Join(path.VoidScopeWalker)
-	if err := path.Resolve(argv0Parser, scopeWalker); err != nil {
+	if err := path.Resolve(path.NewLocalParser(argv0), scopeWalker); err != nil {
 		return "", err
 	}
 	return path.GetLocalString(executablePath)

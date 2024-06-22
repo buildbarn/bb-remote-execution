@@ -1,28 +1,28 @@
 module(name = "com_github_buildbarn_bb_remote_execution")
 
-bazel_dep(name = "aspect_bazel_lib", version = "2.6.0")
-bazel_dep(name = "aspect_rules_js", version = "1.39.1")
+bazel_dep(name = "aspect_bazel_lib", version = "2.7.8")
+bazel_dep(name = "aspect_rules_js", version = "1.42.3")
 bazel_dep(name = "com_github_buildbarn_bb_storage")
 bazel_dep(name = "com_github_buildbarn_go_xdr")
-bazel_dep(name = "gazelle", version = "0.35.0")
+bazel_dep(name = "gazelle", version = "0.37.0")
 bazel_dep(name = "googleapis", version = "0.0.0-20240326-1c8d509c5")
-bazel_dep(name = "protobuf", version = "23.1")
-bazel_dep(name = "rules_go", version = "0.46.0")
-bazel_dep(name = "rules_jsonnet", version = "0.5.0")
-bazel_dep(name = "rules_oci", version = "1.7.5")
+bazel_dep(name = "protobuf", version = "27.1")
+bazel_dep(name = "rules_go", version = "0.48.1")
+bazel_dep(name = "rules_jsonnet", version = "0.6.0")
+bazel_dep(name = "rules_oci", version = "1.7.6")
 bazel_dep(name = "rules_pkg", version = "0.10.1")
-bazel_dep(name = "rules_proto", version = "6.0.0-rc2")
+bazel_dep(name = "rules_proto", version = "6.0.2")
 bazel_dep(name = "toolchains_llvm", version = "1.0.0")
 
 git_override(
     module_name = "com_github_buildbarn_bb_storage",
-    commit = "118cb9ca2a7df1cbac6d51c7f1cc3156cae06446",
+    commit = "e7e069d586433e20c9322d66dc83b403d2b1b6a7",
     remote = "https://github.com/buildbarn/bb-storage.git",
 )
 
 git_override(
     module_name = "com_github_buildbarn_go_xdr",
-    commit = "9cb8426d3e09e301c2b12c993e54ef795a665a92",
+    commit = "db84b3d958968890d3370a7a176a802f564b85e7",
     remote = "https://github.com/buildbarn/go-xdr.git",
 )
 
@@ -38,14 +38,14 @@ git_override(
 
 git_override(
     module_name = "rules_go",
-    commit = "00fe64fb1a420b1b0a959959c0c8a5c717a885a7",
+    commit = "8e2bbc7b59f4727867d2333221102c41ddae8f9f",
     patches = ["//:patches/rules_go/tags-manual.diff"],
     remote = "https://github.com/bazelbuild/rules_go.git",
 )
 
 git_override(
     module_name = "gazelle",
-    commit = "f5a5c5dc90b4d6a39f0f47d770eba27c6c1c1877",
+    commit = "4d0129d7adae33e8e648d3624aff8fa8f93f375b",
     patches = [
         "//:patches/gazelle/dont-flatten-srcs.diff",
         "//:patches/gazelle/googleapis.diff",

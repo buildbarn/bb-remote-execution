@@ -124,11 +124,7 @@ func (d *naiveBuildDirectory) mergeDirectoryContents(ctx context.Context, digest
 			return status.Errorf(codes.InvalidArgument, "Symlink %#v has an invalid name", symlink.Name)
 		}
 		childPathTrace := pathTrace.Append(component)
-		targetParser, err := path.NewUNIXParser(symlink.Target)
-		if err != nil {
-			return util.StatusWrapf(err, "Symlink %#v has an invalid target", childPathTrace.GetUNIXString())
-		}
-		if err := inputDirectory.Symlink(targetParser, component); err != nil {
+		if err := inputDirectory.Symlink(path.NewUNIXParser(symlink.Target), component); err != nil {
 			return util.StatusWrapf(err, "Failed to create input symlink %#v", childPathTrace.GetUNIXString())
 		}
 	}

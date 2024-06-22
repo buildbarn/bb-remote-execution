@@ -286,17 +286,17 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		foo.EXPECT().Lstat(path.MustNewComponent("path-enoent")).Return(filesystem.FileInfo{}, syscall.ENOENT)
 
 		// Inspection/uploading of all non-directory outputs.
-		foo.EXPECT().Readlink(path.MustNewComponent("directory-symlink")).Return(path.MustNewUNIXParser("directory-symlink-target"), nil)
+		foo.EXPECT().Readlink(path.MustNewComponent("directory-symlink")).Return(path.NewUNIXParser("directory-symlink-target"), nil)
 		foo.EXPECT().UploadFile(ctx, path.MustNewComponent("file-regular"), gomock.Any(), writableFileUploadDelay).
 			Return(digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "a58c2f2281011ca2e631b39baa1ab657", 12), nil)
 		foo.EXPECT().UploadFile(ctx, path.MustNewComponent("file-executable"), gomock.Any(), writableFileUploadDelay).
 			Return(digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "7590e1b46240ecb5ea65a80db7ee6fae", 15), nil)
-		foo.EXPECT().Readlink(path.MustNewComponent("file-symlink")).Return(path.MustNewUNIXParser("file-symlink-target"), nil)
+		foo.EXPECT().Readlink(path.MustNewComponent("file-symlink")).Return(path.NewUNIXParser("file-symlink-target"), nil)
 		foo.EXPECT().UploadFile(ctx, path.MustNewComponent("path-regular"), gomock.Any(), writableFileUploadDelay).
 			Return(digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "44206648b7bb2f3b0d2ed0c52ad2e269", 12), nil)
 		foo.EXPECT().UploadFile(ctx, path.MustNewComponent("path-executable"), gomock.Any(), writableFileUploadDelay).
 			Return(digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "87729325cd08d300fb0e238a3a8da443", 15), nil)
-		foo.EXPECT().Readlink(path.MustNewComponent("path-symlink")).Return(path.MustNewUNIXParser("path-symlink-target"), nil)
+		foo.EXPECT().Readlink(path.MustNewComponent("path-symlink")).Return(path.NewUNIXParser("path-symlink-target"), nil)
 
 		// Uploading of /foo/directory-directory. Files with an
 		// unknown type (UNIX sockets, FIFOs) should be ignored.
@@ -319,7 +319,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 			Return(digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "ee7004c7949d83f130592f15d98ca343", 10), nil)
 		directoryDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("regular"), gomock.Any(), writableFileUploadDelay).
 			Return(digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "af37d08ae228a87dc6b265fd1019c97d", 7), nil)
-		directoryDirectory.EXPECT().Readlink(path.MustNewComponent("symlink")).Return(path.MustNewUNIXParser("symlink-target"), nil)
+		directoryDirectory.EXPECT().Readlink(path.MustNewComponent("symlink")).Return(path.NewUNIXParser("symlink-target"), nil)
 		directoryDirectory.EXPECT().Close()
 		contentAddressableStorage.EXPECT().Put(
 			ctx,
@@ -905,7 +905,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		}, nil)
 		root.EXPECT().UploadFile(ctx, path.MustNewComponent("file1"), gomock.Any(), writableFileUploadDelay).
 			Return(digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "132d36a32eb9e41afb86d8ba65fe9657", 123), nil)
-		root.EXPECT().Readlink(path.MustNewComponent("symlink1")).Return(path.MustNewUNIXParser("target1"), nil)
+		root.EXPECT().Readlink(path.MustNewComponent("symlink1")).Return(path.NewUNIXParser("target1"), nil)
 
 		directory1 := mock.NewMockUploadableDirectory(ctrl)
 		root.EXPECT().EnterUploadableDirectory(path.MustNewComponent("directory1")).Return(directory1, nil)
@@ -915,7 +915,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		}, nil)
 		directory1.EXPECT().UploadFile(ctx, path.MustNewComponent("file2"), gomock.Any(), writableFileUploadDelay).
 			Return(digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "09ae70542cc258d5c1007d774da5ccb1", 456), nil)
-		directory1.EXPECT().Readlink(path.MustNewComponent("symlink2")).Return(path.MustNewUNIXParser("target2"), nil)
+		directory1.EXPECT().Readlink(path.MustNewComponent("symlink2")).Return(path.NewUNIXParser("target2"), nil)
 		directory1.EXPECT().Close()
 
 		rootDirectory := &remoteexecution.Directory{

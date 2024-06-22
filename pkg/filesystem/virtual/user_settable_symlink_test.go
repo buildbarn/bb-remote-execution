@@ -20,7 +20,7 @@ import (
 
 func TestUserSettableSymlink(t *testing.T) {
 	buildDirectory, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
-	require.NoError(t, path.Resolve(path.MustNewUNIXParser("/var/build"), scopeWalker))
+	require.NoError(t, path.Resolve(path.NewUNIXParser("/var/build"), scopeWalker))
 	symlink := virtual.NewUserSettableSymlink(buildDirectory)
 
 	ctx1 := auth.NewContextWithAuthenticationMetadata(
