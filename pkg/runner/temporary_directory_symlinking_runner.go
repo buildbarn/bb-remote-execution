@@ -59,12 +59,8 @@ func (r *temporaryDirectorySymlinkingRunner) Run(ctx context.Context, request *r
 
 	// Compute the absolute path of the temporary directory that is
 	// offered by bb_worker.
-	temporaryDirectoryParser, err := path.NewUNIXParser(request.TemporaryDirectory)
-	if err != nil {
-		return nil, util.StatusWrap(err, "Invalid temporary directory")
-	}
 	temporaryDirectoryPath, scopeWalker := r.buildDirectoryPath.Join(path.VoidScopeWalker)
-	if err := path.Resolve(temporaryDirectoryParser, scopeWalker); err != nil {
+	if err := path.Resolve(path.NewUNIXParser(request.TemporaryDirectory), scopeWalker); err != nil {
 		return nil, util.StatusWrap(err, "Failed to resolve temporary directory")
 	}
 

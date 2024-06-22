@@ -34,7 +34,7 @@ func (f symlink) Readlink() (path.Parser, error) {
 	if !utf8.Valid(f.target) {
 		return nil, status.Error(codes.InvalidArgument, "Symbolic link contents are not valid UTF-8")
 	}
-	return path.NewUNIXParser(string(f.target))
+	return path.NewUNIXParser(string(f.target)), nil
 }
 
 func (f symlink) readlinkString() (string, error) {

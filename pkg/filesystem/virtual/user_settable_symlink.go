@@ -62,12 +62,8 @@ func (f *UserSettableSymlink) InstallTemporaryDirectory(ctx context.Context, req
 	publicAuthenticationMetadata, _ := auth.AuthenticationMetadataFromContext(ctx).GetPublicProto()
 	key := protojson.Format(publicAuthenticationMetadata)
 
-	temporaryDirectoryParser, err := path.NewUNIXParser(request.TemporaryDirectory)
-	if err != nil {
-		return nil, err
-	}
 	temporaryDirectory, scopeWalker := f.buildDirectory.Join(path.NewRelativeScopeWalker(path.VoidComponentWalker))
-	if err := path.Resolve(temporaryDirectoryParser, scopeWalker); err != nil {
+	if err := path.Resolve(path.NewUNIXParser(request.TemporaryDirectory), scopeWalker); err != nil {
 		return nil, err
 	}
 	target := []byte(temporaryDirectory.GetUNIXString())

@@ -84,12 +84,12 @@ func TestLocalRunnerRun(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	buildDirectoryPath := t.TempDir()
-	buildDirectory, err := filesystem.NewLocalDirectory(buildDirectoryPath)
+	buildDirectory, err := filesystem.NewLocalDirectory(path.NewLocalParser(buildDirectoryPath))
 	require.NoError(t, err)
 	defer buildDirectory.Close()
 
 	buildDirectoryPathBuilder, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
-	require.NoError(t, path.Resolve(path.MustNewUNIXParser(buildDirectoryPath), scopeWalker))
+	require.NoError(t, path.Resolve(path.NewUNIXParser(buildDirectoryPath), scopeWalker))
 
 	var cmdPath string
 	var getEnvCommand []string

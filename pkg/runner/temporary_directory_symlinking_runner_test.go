@@ -23,7 +23,7 @@ func TestTemporaryDirectorySymlinkingRunnerRun(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	buildDirectory, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
-	require.NoError(t, path.Resolve(path.MustNewUNIXParser("/worker/build"), scopeWalker))
+	require.NoError(t, path.Resolve(path.NewUNIXParser("/worker/build"), scopeWalker))
 
 	t.Run("InvalidTemporaryDirectory", func(t *testing.T) {
 		// The temporary directory path provided by bb_worker is
@@ -40,7 +40,7 @@ func TestTemporaryDirectorySymlinkingRunnerRun(t *testing.T) {
 			InputRootDirectory: "a/root",
 			TemporaryDirectory: "a/\x00tmp",
 		})
-		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Invalid temporary directory: Path contains a null byte"), err)
+		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Failed to resolve temporary directory: Path contains a null byte"), err)
 	})
 
 	t.Run("InvalidSymlinkPath", func(t *testing.T) {
@@ -96,7 +96,7 @@ func TestTemporaryDirectorySymlinkingRunnerCheckReadiness(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	buildDirectory, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
-	require.NoError(t, path.Resolve(path.MustNewUNIXParser("/worker/build"), scopeWalker))
+	require.NoError(t, path.Resolve(path.NewUNIXParser("/worker/build"), scopeWalker))
 
 	t.Run("InvalidSymlinkPath", func(t *testing.T) {
 		// Readiness checks should fail in case the path at

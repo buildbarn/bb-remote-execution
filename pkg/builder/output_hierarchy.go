@@ -469,12 +469,8 @@ type OutputHierarchy struct {
 // working directory and the output paths specified in an REv2 Command
 // message.
 func NewOutputHierarchy(command *remoteexecution.Command) (*OutputHierarchy, error) {
-	workingDirectoryParser, err := path.NewUNIXParser(command.WorkingDirectory)
-	if err != nil {
-		return nil, util.StatusWrap(err, "Invalid working directory")
-	}
 	var workingDirectory outputNodePath
-	if err := path.Resolve(workingDirectoryParser, path.NewRelativeScopeWalker(&workingDirectory)); err != nil {
+	if err := path.Resolve(path.NewUNIXParser(command.WorkingDirectory), path.NewRelativeScopeWalker(&workingDirectory)); err != nil {
 		return nil, util.StatusWrap(err, "Invalid working directory")
 	}
 
@@ -523,14 +519,10 @@ func NewOutputHierarchy(command *remoteexecution.Command) (*OutputHierarchy, err
 
 func (oh *OutputHierarchy) lookup(workingDirectory outputNodePath, targetPath string) (*outputNode, *path.Component, error) {
 	// Resolve the path of the output relative to the working directory.
-	targetParser, err := path.NewUNIXParser(targetPath)
-	if err != nil {
-		return nil, nil, err
-	}
 	outputPath := outputNodePath{
 		components: append([]path.Component(nil), workingDirectory.components...),
 	}
-	if err := path.Resolve(targetParser, path.NewRelativeScopeWalker(&outputPath)); err != nil {
+	if err := path.Resolve(path.NewUNIXParser(targetPath), path.NewRelativeScopeWalker(&outputPath)); err != nil {
 		return nil, nil, err
 	}
 
