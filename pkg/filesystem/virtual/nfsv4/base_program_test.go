@@ -53,8 +53,8 @@ func setClientIDForTesting(ctx context.Context, t *testing.T, randomNumberGenera
 					Callback: nfsv4_xdr.CbClient4{
 						CbProgram: 0x8554a7c7,
 						CbLocation: nfsv4_xdr.Clientaddr4{
-							RNetid: "tcp",
-							RAddr:  "127.0.0.1.196.95",
+							NaRNetid: "tcp",
+							NaRAddr:  "127.0.0.1.196.95",
 						},
 					},
 					CallbackIdent: 0xa2bef9ca,
@@ -6370,8 +6370,8 @@ func TestBaseProgramCompound_OP_SETCLIENTID_CONFIRM(t *testing.T) {
 						Callback: nfsv4_xdr.CbClient4{
 							CbProgram: 0x7b3f75b9,
 							CbLocation: nfsv4_xdr.Clientaddr4{
-								RNetid: "tcp",
-								RAddr:  "127.0.0.1.200.123",
+								NaRNetid: "tcp",
+								NaRAddr:  "127.0.0.1.200.123",
 							},
 						},
 						CallbackIdent: 0x1d004919,
@@ -6440,8 +6440,8 @@ func TestBaseProgramCompound_OP_SETCLIENTID_CONFIRM(t *testing.T) {
 						Callback: nfsv4_xdr.CbClient4{
 							CbProgram: 0xc32f5c62,
 							CbLocation: nfsv4_xdr.Clientaddr4{
-								RNetid: "tcp",
-								RAddr:  "127.0.0.1.200.472",
+								NaRNetid: "tcp",
+								NaRAddr:  "127.0.0.1.200.472",
 							},
 						},
 						CallbackIdent: 0xf5dc603e,
@@ -6563,8 +6563,8 @@ func TestBaseProgramCompound_OP_SETCLIENTID_CONFIRM(t *testing.T) {
 						Callback: nfsv4_xdr.CbClient4{
 							CbProgram: 0xc32f5c62,
 							CbLocation: nfsv4_xdr.Clientaddr4{
-								RNetid: "tcp",
-								RAddr:  "127.0.0.1.200.472",
+								NaRNetid: "tcp",
+								NaRAddr:  "127.0.0.1.200.472",
 							},
 						},
 						CallbackIdent: 0xf5dc603e,
