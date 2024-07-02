@@ -3,8 +3,8 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "nfsv4",
     srcs = [
-        "base_program.go",
         "metrics_program.go",
+        "nfs40_program.go",
         "system_authenticator.go",
     ],
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual/nfsv4",
@@ -29,7 +29,7 @@ go_library(
 go_test(
     name = "nfsv4_test",
     srcs = [
-        "base_program_test.go",
+        "nfs40_program_test.go",
         "system_authenticator_test.go",
     ],
     deps = [
