@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "metrics_program.go",
         "nfs40_program.go",
+        "nfs41_program.go",
         "system_authenticator.go",
     ],
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual/nfsv4",
@@ -30,6 +31,7 @@ go_test(
     name = "nfsv4_test",
     srcs = [
         "nfs40_program_test.go",
+        "nfs41_program_test.go",
         "system_authenticator_test.go",
     ],
     deps = [
