@@ -26,40 +26,40 @@ import (
 const stateIDOtherPrefixLength = 4
 
 var (
-	baseProgramPrometheusMetrics sync.Once
+	nfs40ProgramPrometheusMetrics sync.Once
 
-	baseProgramOpenOwnersCreated = prometheus.NewCounter(
+	nfs40ProgramOpenOwnersCreated = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Namespace: "buildbarn",
 			Subsystem: "nfsv4",
-			Name:      "base_program_open_owners_created_total",
+			Name:      "nfs40_program_open_owners_created_total",
 			Help:      "Number of open-owners created through NFSv4 OPEN operations.",
 		})
-	baseProgramOpenOwnersRemoved = prometheus.NewCounter(
+	nfs40ProgramOpenOwnersRemoved = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Namespace: "buildbarn",
 			Subsystem: "nfsv4",
-			Name:      "base_program_open_owners_removed_total",
+			Name:      "nfs40_program_open_owners_removed_total",
 			Help:      "Number of open-owners removed due to inactivity.",
 		})
 
-	baseProgramOpenOwnerFilesCreated = prometheus.NewCounter(
+	nfs40ProgramOpenOwnerFilesCreated = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Namespace: "buildbarn",
 			Subsystem: "nfsv4",
-			Name:      "base_program_open_owner_files_created_total",
+			Name:      "nfs40_program_open_owner_files_created_total",
 			Help:      "Number of open-owner files created through NFSv4 OPEN operations.",
 		})
-	baseProgramOpenOwnerFilesRemoved = prometheus.NewCounter(
+	nfs40ProgramOpenOwnerFilesRemoved = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Namespace: "buildbarn",
 			Subsystem: "nfsv4",
-			Name:      "base_program_open_owner_files_removed_total",
+			Name:      "nfs40_program_open_owner_files_removed_total",
 			Help:      "Number of open-owner files removed, either through NFSv4 CLOSE operations or due to inactivity on the open-owner.",
 		})
 )
 
-type baseProgram struct {
+type nfs40Program struct {
 	rootFileHandle     fileHandle
 	handleResolver     virtual.HandleResolver
 	rebootVerifier     nfsv4.Verifier4
@@ -81,21 +81,21 @@ type baseProgram struct {
 	unusedOpenOwners             openOwnerState
 }
 
-// NewBaseProgram creates an nfsv4.Nfs4Program that forwards all
+// NewNFS40Program creates an nfsv4.Nfs4Program that forwards all
 // operations to a virtual file system. It implements most of the
 // features of NFSv4.0.
-func NewBaseProgram(rootDirectory virtual.Directory, handleResolver virtual.HandleResolver, randomNumberGenerator random.SingleThreadedGenerator, rebootVerifier nfsv4.Verifier4, stateIDOtherPrefix [stateIDOtherPrefixLength]byte, clock clock.Clock, enforcedLeaseTime, announcedLeaseTime time.Duration) nfsv4.Nfs4Program {
-	baseProgramPrometheusMetrics.Do(func() {
-		prometheus.MustRegister(baseProgramOpenOwnersCreated)
-		prometheus.MustRegister(baseProgramOpenOwnersRemoved)
+func NewNFS40Program(rootDirectory virtual.Directory, handleResolver virtual.HandleResolver, randomNumberGenerator random.SingleThreadedGenerator, rebootVerifier nfsv4.Verifier4, stateIDOtherPrefix [stateIDOtherPrefixLength]byte, clock clock.Clock, enforcedLeaseTime, announcedLeaseTime time.Duration) nfsv4.Nfs4Program {
+	nfs40ProgramPrometheusMetrics.Do(func() {
+		prometheus.MustRegister(nfs40ProgramOpenOwnersCreated)
+		prometheus.MustRegister(nfs40ProgramOpenOwnersRemoved)
 
-		prometheus.MustRegister(baseProgramOpenOwnerFilesCreated)
-		prometheus.MustRegister(baseProgramOpenOwnerFilesRemoved)
+		prometheus.MustRegister(nfs40ProgramOpenOwnerFilesCreated)
+		prometheus.MustRegister(nfs40ProgramOpenOwnerFilesRemoved)
 	})
 
 	var attributes virtual.Attributes
 	rootDirectory.VirtualGetAttributes(context.Background(), virtual.AttributesMaskFileHandle, &attributes)
-	p := &baseProgram{
+	p := &nfs40Program{
 		rootFileHandle: fileHandle{
 			handle: attributes.GetFileHandle(),
 			node:   virtual.DirectoryChild{}.FromDirectory(rootDirectory),
@@ -122,11 +122,11 @@ func NewBaseProgram(rootDirectory virtual.Directory, handleResolver virtual.Hand
 	return p
 }
 
-func (*baseProgram) NfsV4Nfsproc4Null(ctx context.Context) error {
+func (*nfs40Program) NfsV4Nfsproc4Null(ctx context.Context) error {
 	return nil
 }
 
-func (p *baseProgram) NfsV4Nfsproc4Compound(ctx context.Context, arguments *nfsv4.Compound4args) (*nfsv4.Compound4res, error) {
+func (p *nfs40Program) NfsV4Nfsproc4Compound(ctx context.Context, arguments *nfsv4.Compound4args) (*nfsv4.Compound4res, error) {
 	// Create compound state and process all operations sequentially
 	// against it.
 	state := compoundState{program: p}
@@ -379,7 +379,7 @@ func (p *baseProgram) NfsV4Nfsproc4Compound(ctx context.Context, arguments *nfsv
 // enter acquires the lock on the NFSv4 server. After acquiring the
 // lock, it cleans up state belonging to clients and open-owners that
 // have stopped contacting the server.
-func (p *baseProgram) enter() {
+func (p *nfs40Program) enter() {
 	for {
 		now := p.clock.Now()
 		p.lock.Lock()
@@ -416,13 +416,13 @@ func (p *baseProgram) enter() {
 	}
 }
 
-func (p *baseProgram) leave() {
+func (p *nfs40Program) leave() {
 	p.lock.Unlock()
 }
 
 // getConfirmedClientByShortID looks up a confirmed client by short
 // client ID.
-func (p *baseProgram) getConfirmedClientByShortID(shortID nfsv4.Clientid4) (*confirmedClientState, nfsv4.Nfsstat4) {
+func (p *nfs40Program) getConfirmedClientByShortID(shortID nfsv4.Clientid4) (*confirmedClientState, nfsv4.Nfsstat4) {
 	clientConfirmation, ok := p.clientConfirmationsByShortID[shortID]
 	if !ok {
 		return nil, nfsv4.NFS4ERR_STALE_CLIENTID
@@ -437,7 +437,7 @@ func (p *baseProgram) getConfirmedClientByShortID(shortID nfsv4.Clientid4) (*con
 // getOpenOwnerByOtherForTransaction looks up an open-owner by
 // open-owner state ID. It waits for any existing transactions to
 // complete. This makes it possible to start a new transaction.
-func (p *baseProgram) getOpenOwnerByOtherForTransaction(other regularStateIDOther) (*openOwnerState, nfsv4.Nfsstat4) {
+func (p *nfs40Program) getOpenOwnerByOtherForTransaction(other regularStateIDOther) (*openOwnerState, nfsv4.Nfsstat4) {
 	for {
 		oofs, ok := p.openOwnerFilesByOther[other]
 		if !ok {
@@ -455,7 +455,7 @@ func (p *baseProgram) getOpenOwnerByOtherForTransaction(other regularStateIDOthe
 // Unlike getOpenOwnerByOtherForTransaction() it does not need to wait
 // for other transactions to complete, as we don't need to support any
 // blocking operations against locks.
-func (p *baseProgram) getLockOwnerByOtherForTransaction(other regularStateIDOther) (*lockOwnerState, nfsv4.Nfsstat4) {
+func (p *nfs40Program) getLockOwnerByOtherForTransaction(other regularStateIDOther) (*lockOwnerState, nfsv4.Nfsstat4) {
 	lofs, ok := p.lockOwnerFilesByOther[other]
 	if !ok {
 		return nil, nfsv4.NFS4ERR_BAD_STATEID
@@ -464,7 +464,7 @@ func (p *baseProgram) getLockOwnerByOtherForTransaction(other regularStateIDOthe
 }
 
 // newRegularStateID allocates a new open-owner or lock-owner state ID.
-func (p *baseProgram) newRegularStateID(seqID nfsv4.Seqid4) (stateID regularStateID) {
+func (p *nfs40Program) newRegularStateID(seqID nfsv4.Seqid4) (stateID regularStateID) {
 	stateID.seqID = seqID
 	p.randomNumberGenerator.Read(stateID.other[:])
 	return
@@ -475,7 +475,7 @@ func (p *baseProgram) newRegularStateID(seqID nfsv4.Seqid4) (stateID regularStat
 //
 // This method returns a nil state ID when the provided state ID is
 // special (i.e., an anonymous state ID or READ bypass state ID).
-func (p *baseProgram) internalizeStateID(stateID *nfsv4.Stateid4) (*regularStateID, nfsv4.Nfsstat4) {
+func (p *nfs40Program) internalizeStateID(stateID *nfsv4.Stateid4) (*regularStateID, nfsv4.Nfsstat4) {
 	switch stateID.Other {
 	case [nfsv4.NFS4_OTHER_SIZE]byte{}:
 		// Anonymous state ID.
@@ -507,7 +507,7 @@ func (p *baseProgram) internalizeStateID(stateID *nfsv4.Stateid4) (*regularState
 
 // internalizeRegularStateID is identical to internalizeStateID, except
 // that it denies the use of special state IDs.
-func (p *baseProgram) internalizeRegularStateID(stateID *nfsv4.Stateid4) (regularStateID, nfsv4.Nfsstat4) {
+func (p *nfs40Program) internalizeRegularStateID(stateID *nfsv4.Stateid4) (regularStateID, nfsv4.Nfsstat4) {
 	internalStateID, st := p.internalizeStateID(stateID)
 	if st != nfsv4.NFS4_OK {
 		return regularStateID{}, st
@@ -520,7 +520,7 @@ func (p *baseProgram) internalizeRegularStateID(stateID *nfsv4.Stateid4) (regula
 
 // externalizeStateID converts a regular state ID that's encoded in the
 // internal format to the format used by the NFSv4 protocol.
-func (p *baseProgram) externalizeStateID(stateID regularStateID) nfsv4.Stateid4 {
+func (p *nfs40Program) externalizeStateID(stateID regularStateID) nfsv4.Stateid4 {
 	externalStateID := nfsv4.Stateid4{Seqid: stateID.seqID}
 	copy(externalStateID.Other[:], p.stateIDOtherPrefix[:])
 	copy(externalStateID.Other[stateIDOtherPrefixLength:], stateID.other[:])
@@ -530,7 +530,7 @@ func (p *baseProgram) externalizeStateID(stateID regularStateID) nfsv4.Stateid4 
 // writeAttributes converts file attributes returned by the virtual file
 // system into the NFSv4 wire format. It also returns a bitmask
 // indicating which attributes were actually emitted.
-func (p *baseProgram) writeAttributes(attributes *virtual.Attributes, attrRequest nfsv4.Bitmap4, w io.Writer) nfsv4.Bitmap4 {
+func (p *nfs40Program) writeAttributes(attributes *virtual.Attributes, attrRequest nfsv4.Bitmap4, w io.Writer) nfsv4.Bitmap4 {
 	attrMask := make(nfsv4.Bitmap4, len(attrRequest))
 	if len(attrRequest) > 0 {
 		// Attributes 0 to 31.
@@ -677,7 +677,7 @@ func (p *baseProgram) writeAttributes(attributes *virtual.Attributes, attrReques
 // system layer to an NFSv4 fattr4 structure. As required by the
 // protocol, attributes are stored in the order of the FATTR4_*
 // constants.
-func (p *baseProgram) attributesToFattr4(attributes *virtual.Attributes, attrRequest nfsv4.Bitmap4) nfsv4.Fattr4 {
+func (p *nfs40Program) attributesToFattr4(attributes *virtual.Attributes, attrRequest nfsv4.Bitmap4) nfsv4.Fattr4 {
 	w := bytes.NewBuffer(nil)
 	attrMask := p.writeAttributes(attributes, attrRequest, w)
 	return nfsv4.Fattr4{
@@ -702,7 +702,7 @@ type regularStateIDOther [nfsv4.NFS4_OTHER_SIZE - stateIDOtherPrefixLength]byte
 // implementations of each of the operations contained in the COMPOUND
 // procedure.
 type compoundState struct {
-	program *baseProgram
+	program *nfs40Program
 
 	currentFileHandle fileHandle
 	savedFileHandle   fileHandle
@@ -1482,7 +1482,7 @@ func (s *compoundState) opOpen(ctx context.Context, args *nfsv4.Open4args) nfsv4
 				filesByHandle:   map[string]*openOwnerFileState{},
 			}
 			confirmedClient.openOwners[openOwnerKey] = oos
-			baseProgramOpenOwnersCreated.Inc()
+			nfs40ProgramOpenOwnersCreated.Inc()
 		}
 
 		if oos.waitForCurrentTransactionCompletion(p) {
@@ -1662,7 +1662,7 @@ func (s *compoundState) txOpen(ctx context.Context, args *nfsv4.Open4args, oos *
 			}
 			oos.filesByHandle[handleKey] = oofs
 			p.openOwnerFilesByOther[oofs.stateID.other] = oofs
-			baseProgramOpenOwnerFilesCreated.Inc()
+			nfs40ProgramOpenOwnerFilesCreated.Inc()
 		}
 
 		response.Resok4.Stateid = p.externalizeStateID(oofs.stateID)
@@ -2539,7 +2539,7 @@ func (ccs *clientConfirmationState) removeFromIdleList() {
 // insertIntoIdleList inserts the client confirmation into the list of
 // clients that are currently not performing any operations against the
 // server.
-func (ccs *clientConfirmationState) insertIntoIdleList(p *baseProgram) {
+func (ccs *clientConfirmationState) insertIntoIdleList(p *nfs40Program) {
 	ccs.previousIdle = p.idleClientConfirmations.previousIdle
 	ccs.nextIdle = &p.idleClientConfirmations
 	ccs.previousIdle.nextIdle = ccs
@@ -2550,7 +2550,7 @@ func (ccs *clientConfirmationState) insertIntoIdleList(p *baseProgram) {
 // hold the client confirmation in such a way that it's not garbage
 // collected. This needs to be called prior to performing a blocking
 // operation.
-func (ccs *clientConfirmationState) hold(p *baseProgram) {
+func (ccs *clientConfirmationState) hold(p *nfs40Program) {
 	if ccs.holdCount == 0 {
 		ccs.removeFromIdleList()
 	}
@@ -2559,7 +2559,7 @@ func (ccs *clientConfirmationState) hold(p *baseProgram) {
 
 // release the client confirmation in such a way that it may be garbage
 // collected.
-func (ccs *clientConfirmationState) release(p *baseProgram) {
+func (ccs *clientConfirmationState) release(p *nfs40Program) {
 	if ccs.holdCount == 0 {
 		panic("Attempted to decrease zero hold count")
 	}
@@ -2572,7 +2572,7 @@ func (ccs *clientConfirmationState) release(p *baseProgram) {
 // remove the client confirmation. If the client was confirmed through
 // SETCLIENTID_CONFIRM, all open files and acquired locks will be
 // released.
-func (ccs *clientConfirmationState) remove(p *baseProgram, ll *leavesToClose) {
+func (ccs *clientConfirmationState) remove(p *nfs40Program, ll *leavesToClose) {
 	if ccs.holdCount != 0 {
 		panic("Attempted to remove a client confirmation that was running one or more blocking operations")
 	}
@@ -2648,7 +2648,7 @@ type openOwnerState struct {
 // while waiting, this method returns a boolean value indicating whether
 // it's safe to progress. If not, the caller should retry the lookup of
 // the open-owner state.
-func (oos *openOwnerState) waitForCurrentTransactionCompletion(p *baseProgram) bool {
+func (oos *openOwnerState) waitForCurrentTransactionCompletion(p *nfs40Program) bool {
 	if wait := oos.currentTransactionWait; wait != nil {
 		p.leave()
 		<-wait
@@ -2666,7 +2666,7 @@ func (oos *openOwnerState) waitForCurrentTransactionCompletion(p *baseProgram) b
 // This method MUST be called before making any mutations to the
 // open-owner state, as it also removes resources that were released
 // during the previous transaction.
-func (oos *openOwnerState) forgetLastResponse(p *baseProgram) {
+func (oos *openOwnerState) forgetLastResponse(p *nfs40Program) {
 	if oolr := oos.lastResponse; oolr != nil {
 		oos.lastResponse = nil
 		if oofs := oolr.closedFile; oofs != nil {
@@ -2678,7 +2678,7 @@ func (oos *openOwnerState) forgetLastResponse(p *baseProgram) {
 // reinitialize the open-owner state in such a way that no files are
 // opened. This method can be called when an unconfirmed open-owner is
 // repurposed, or prior to forcefully removing an open-owner.
-func (oos *openOwnerState) reinitialize(p *baseProgram, ll *leavesToClose) {
+func (oos *openOwnerState) reinitialize(p *nfs40Program, ll *leavesToClose) {
 	if oos.currentTransactionWait != nil {
 		panic("Attempted to reinitialize an open-owner while a transaction is in progress")
 	}
@@ -2709,13 +2709,13 @@ func (oos *openOwnerState) removeFromUnusedList() {
 }
 
 // remove the open-owner state. All opened files will be closed.
-func (oos *openOwnerState) remove(p *baseProgram, ll *leavesToClose) {
+func (oos *openOwnerState) remove(p *nfs40Program, ll *leavesToClose) {
 	oos.reinitialize(p, ll)
 	if oos.nextUnused != nil {
 		oos.removeFromUnusedList()
 	}
 	delete(oos.confirmedClient.openOwners, oos.key)
-	baseProgramOpenOwnersRemoved.Inc()
+	nfs40ProgramOpenOwnersRemoved.Inc()
 }
 
 // unconfirmedOpenOwnerPolicy is an enumeration that describes how
@@ -2740,7 +2740,7 @@ const (
 	unconfirmedOpenOwnerPolicyReinitialize
 )
 
-func (oos *openOwnerState) startTransaction(p *baseProgram, seqID nfsv4.Seqid4, ll *leavesToClose, policy unconfirmedOpenOwnerPolicy) (*openOwnerTransaction, interface{}, nfsv4.Nfsstat4) {
+func (oos *openOwnerState) startTransaction(p *nfs40Program, seqID nfsv4.Seqid4, ll *leavesToClose, policy unconfirmedOpenOwnerPolicy) (*openOwnerTransaction, interface{}, nfsv4.Nfsstat4) {
 	if oos.currentTransactionWait != nil {
 		panic("Attempted to start a new transaction while another one is in progress")
 	}
@@ -2804,7 +2804,7 @@ func (oos *openOwnerState) startTransaction(p *baseProgram, seqID nfsv4.Seqid4, 
 // openOwnerTransaction is a helper object for completing a transaction
 // that was created using startTransaction().
 type openOwnerTransaction struct {
-	program *baseProgram
+	program *nfs40Program
 	state   *openOwnerState
 	seqID   nfsv4.Seqid4
 	wait    chan<- struct{}
@@ -2881,7 +2881,7 @@ func (oofs *openOwnerFileState) downgradeShareAccess(shareAccess *virtual.ShareM
 	}
 }
 
-func (oofs *openOwnerFileState) removeStart(p *baseProgram, ll *leavesToClose) {
+func (oofs *openOwnerFileState) removeStart(p *nfs40Program, ll *leavesToClose) {
 	// Release lock state IDs associated with the file. This should
 	// be done as part of CLOSE; not LOCKU. If these have one or
 	// more byte ranges locked, we unlock them. It would also be
@@ -2904,13 +2904,13 @@ func (oofs *openOwnerFileState) removeStart(p *baseProgram, ll *leavesToClose) {
 // method is not called during CLOSE, but during the next transaction on
 // an open-owner. This ensures that its state ID remains resolvable,
 // allowing the CLOSE operation to be retried.
-func (oofs *openOwnerFileState) removeFinalize(p *baseProgram) {
+func (oofs *openOwnerFileState) removeFinalize(p *nfs40Program) {
 	// Disconnect the openOwnerFileState.
 	handleKey := oofs.openedFile.handleKey
 	delete(oofs.openOwner.filesByHandle, handleKey)
 	delete(p.openOwnerFilesByOther, oofs.stateID.other)
 	oofs.openOwner = nil
-	baseProgramOpenOwnerFilesRemoved.Inc()
+	nfs40ProgramOpenOwnerFilesRemoved.Inc()
 
 	// Disconnect the openedFileState. Do leave it attached to the
 	// openOwnerFileState, so that in-flight READ and WRITE
@@ -2965,11 +2965,11 @@ type lockOwnerState struct {
 	files        []*lockOwnerFileState
 }
 
-func (los *lockOwnerState) forgetLastResponse(p *baseProgram) {
+func (los *lockOwnerState) forgetLastResponse(p *nfs40Program) {
 	los.lastResponse = nil
 }
 
-func (los *lockOwnerState) startTransaction(p *baseProgram, seqID nfsv4.Seqid4, initialTransaction bool) (*lockOwnerTransaction, interface{}, nfsv4.Nfsstat4) {
+func (los *lockOwnerState) startTransaction(p *nfs40Program, seqID nfsv4.Seqid4, initialTransaction bool) (*lockOwnerTransaction, interface{}, nfsv4.Nfsstat4) {
 	if lastResponse := los.lastResponse; lastResponse != nil && seqID == los.lastSeqID {
 		// Replay of the last request, meaning we should return
 		// a cached response. This can only be done when the
@@ -3002,7 +3002,7 @@ func (los *lockOwnerState) startTransaction(p *baseProgram, seqID nfsv4.Seqid4, 
 }
 
 type lockOwnerTransaction struct {
-	program *baseProgram
+	program *nfs40Program
 	state   *lockOwnerState
 	seqID   nfsv4.Seqid4
 }
@@ -3031,7 +3031,7 @@ type lockOwnerFileState struct {
 	lockCount      int
 }
 
-func (lofs *lockOwnerFileState) remove(p *baseProgram, ll *leavesToClose) {
+func (lofs *lockOwnerFileState) remove(p *nfs40Program, ll *leavesToClose) {
 	if lofs.lockCount > 0 {
 		// Lock-owner still has one or more locks held on this
 		// file. Issue an unlock operation that spans the full
@@ -3205,7 +3205,7 @@ const lastReservedCookie = 2
 // reports the contents of a directory in the NFSv4 directory entry
 // format.
 type readdirReporter struct {
-	program     *baseProgram
+	program     *nfs40Program
 	attrRequest nfsv4.Bitmap4
 	maxCount    nfsv4.Count4
 	dirCount    nfsv4.Count4

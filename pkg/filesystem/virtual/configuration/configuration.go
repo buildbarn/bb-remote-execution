@@ -64,7 +64,7 @@ func (m *nfsv4Mount) Expose(terminationGroup program.Group, rootDirectory virtua
 	rpcServer := rpcserver.NewServer(map[uint32]rpcserver.Service{
 		nfsv4_xdr.NFS4_PROGRAM_PROGRAM_NUMBER: nfsv4_xdr.NewNfs4ProgramService(
 			nfsv4.NewMetricsProgram(
-				nfsv4.NewBaseProgram(
+				nfsv4.NewNFS40Program(
 					rootDirectory,
 					m.handleAllocator.ResolveHandle,
 					random.NewFastSingleThreadedGenerator(),
