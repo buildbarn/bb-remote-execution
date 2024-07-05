@@ -3199,11 +3199,15 @@ func nfs40ShareAccessToShareMask(in uint32) (virtual.ShareMask, nfsv4.Nfsstat4) 
 // Offset all responses by this value.
 const lastReservedCookie = 2
 
+type readdirReporterProgram interface {
+	attributesToFattr4(attributes *virtual.Attributes, attrRequest nfsv4.Bitmap4) nfsv4.Fattr4
+}
+
 // readdirReporter is an implementation of DirectoryEntryReporter that
 // reports the contents of a directory in the NFSv4 directory entry
 // format.
 type readdirReporter struct {
-	program     *nfs40Program
+	program     readdirReporterProgram
 	attrRequest nfsv4.Bitmap4
 	maxCount    nfsv4.Count4
 	dirCount    nfsv4.Count4
