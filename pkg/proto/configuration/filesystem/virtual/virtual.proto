@@ -3,6 +3,7 @@ syntax = "proto3";
 package buildbarn.configuration.filesystem.virtual;
 
 import "google/protobuf/duration.proto";
+import "google/protobuf/wrappers.proto";
 import "pkg/proto/configuration/eviction/eviction.proto";
 
 option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem/virtual";
@@ -24,11 +25,6 @@ message MountConfiguration {
     // to expose the mount. This option is supported on macOS starting
     // with Ventura 13.3 (22E252), though the use of Sonoma 14.5
     // (23F79) or later is strongly recommended.
-    //
-    // The NFS server is expected to conform to NFSv4.0 (RFC 7530).
-    // Features provided by newer versions of the protocol, such as
-    // NFSv4.1 (RFC 8881) and NFSv4.2 (RFC 7862), are not supported at
-    // this time. macOS also does not support the latter.
     NFSv4MountConfiguration nfsv4 = 3;
   }
 }
@@ -170,6 +166,18 @@ message NFSv4MountConfiguration {
   //
   // NOTE: This option is only used by bb_virtual_tmp.
   RPCv2SystemAuthenticationConfiguration system_authentication = 4;
+
+  // The minor version of the protocol to use.
+  //
+  // When set to 0, the NFS server is expected to conform to NFSv4.0
+  // (RFC 7530). When set to 1, the NFS server is expected to conform to
+  // NFSv4.1 (RFC 8881). The use of NFSv4.1 is recommended, because it
+  // provides better parallelism.
+  //
+  // When left unset, the latest protocol version is used that is
+  // supported by the currently running operating system. In the case of
+  // macOS, this is NFSv4.0.
+  google.protobuf.UInt32Value minor_version = 5;
 }
 
 message NFSv4DarwinMountConfiguration {

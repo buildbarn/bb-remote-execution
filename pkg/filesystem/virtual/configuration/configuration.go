@@ -44,10 +44,18 @@ type nfsv4Mount struct {
 }
 
 func (m *nfsv4Mount) Expose(terminationGroup program.Group, rootDirectory virtual.Directory) error {
-	// Random values that the client can use to detect that the
-	// server has been restarted and lost all state.
-	var verifier nfsv4_xdr.Verifier4
-	random.FastThreadSafeGenerator.Read(verifier[:])
+	// Random values that the client can use to identify the server, or
+	// detect that the server has been restarted and lost all state.
+	var soMajorID [8]byte
+	random.FastThreadSafeGenerator.Read(soMajorID[:])
+	serverOwner := nfsv4_xdr.ServerOwner4{
+		SoMinorId: random.FastThreadSafeGenerator.Uint64(),
+		SoMajorId: soMajorID[:],
+	}
+	var serverScope [8]byte
+	random.FastThreadSafeGenerator.Read(serverScope[:])
+	var rebootVerifier nfsv4_xdr.Verifier4
+	random.FastThreadSafeGenerator.Read(rebootVerifier[:])
 	var stateIDOtherPrefix [4]byte
 	random.FastThreadSafeGenerator.Read(stateIDOtherPrefix[:])
 
@@ -60,22 +68,64 @@ func (m *nfsv4Mount) Expose(terminationGroup program.Group, rootDirectory virtua
 		return util.StatusWrap(err, "Invalid announced lease time")
 	}
 
+	var minorVersion uint32
+	if msg := m.configuration.MinorVersion; msg != nil {
+		minorVersion = msg.Value
+	} else {
+		var err error
+		minorVersion, err = getLatestSupportedNFSv4MinorVersion()
+		if err != nil {
+			return util.StatusWrap(err, "Unable to determine the latest minor version of NFSv4 supported by the operating system")
+		}
+	}
+
+	var program nfsv4_xdr.Nfs4Program
+	switch minorVersion {
+	case 0:
+		// Use NFSv4.0 (RFC 7530).
+		program = nfsv4.NewNFS40Program(
+			rootDirectory,
+			m.handleAllocator.ResolveHandle,
+			random.NewFastSingleThreadedGenerator(),
+			rebootVerifier,
+			stateIDOtherPrefix,
+			clock.SystemClock,
+			enforcedLeaseTime.AsDuration(),
+			announcedLeaseTime.AsDuration(),
+		)
+	case 1:
+		// Use NFSv4.1 (RFC 8881).
+		program = nfsv4.NewNFS41Program(
+			rootDirectory,
+			m.handleAllocator.ResolveHandle,
+			serverOwner,
+			serverScope[:],
+			// TODO: Should any of these parameters be configurable?
+			&nfsv4_xdr.ChannelAttrs4{
+				CaMaxrequestsize:        2 * 1024 * 1024,
+				CaMaxresponsesize:       2 * 1024 * 1024,
+				CaMaxresponsesizeCached: 64 * 1024,
+				CaMaxoperations:         1000,
+				CaMaxrequests:           100,
+			},
+			random.NewFastSingleThreadedGenerator(),
+			rebootVerifier,
+			clock.SystemClock,
+			enforcedLeaseTime.AsDuration(),
+			announcedLeaseTime.AsDuration(),
+		)
+	default:
+		return status.Errorf(codes.Unimplemented, "Unsupported NFSv4 minor version: %d", minorVersion)
+	}
+
 	// Create an RPC server that offers the NFSv4 program.
 	rpcServer := rpcserver.NewServer(map[uint32]rpcserver.Service{
 		nfsv4_xdr.NFS4_PROGRAM_PROGRAM_NUMBER: nfsv4_xdr.NewNfs4ProgramService(
-			nfsv4.NewMetricsProgram(
-				nfsv4.NewNFS40Program(
-					rootDirectory,
-					m.handleAllocator.ResolveHandle,
-					random.NewFastSingleThreadedGenerator(),
-					verifier,
-					stateIDOtherPrefix,
-					clock.SystemClock,
-					enforcedLeaseTime.AsDuration(),
-					announcedLeaseTime.AsDuration()))),
+			nfsv4.NewMetricsProgram(program),
+		),
 	}, m.authenticator)
 
-	return m.mount(terminationGroup, rpcServer)
+	return m.mount(terminationGroup, rpcServer, minorVersion)
 }
 
 // NewMountFromConfiguration creates a new FUSE mount based on options
