@@ -1198,7 +1198,7 @@ type nfs41ClientState struct {
 }
 
 // clientIncarnationState keeps track of all state corresponding to a
-// single incnarnation of a client created through EXCHANGE_ID.
+// single incarnation of a client created through EXCHANGE_ID.
 type clientIncarnationState struct {
 	// Constant fields.
 	client         *nfs41ClientState
