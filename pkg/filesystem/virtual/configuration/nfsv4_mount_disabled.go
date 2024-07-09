@@ -11,6 +11,10 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func (m *nfsv4Mount) mount(terminationGroup program.Group, rpcServer *rpcserver.Server) error {
+func getLatestSupportedNFSv4MinorVersion() (uint32, error) {
+	return 0, nil
+}
+
+func (m *nfsv4Mount) mount(terminationGroup program.Group, rpcServer *rpcserver.Server, minorVersion uint32) error {
 	return status.Error(codes.Unimplemented, "NFSv4 is not supported on this platform")
 }

@@ -9,6 +9,7 @@ proto_library(
     deps = [
         "@com_github_buildbarn_bb_storage//pkg/proto/configuration/eviction:eviction_proto",
         "@protobuf//:duration_proto",
+        "@protobuf//:wrappers_proto",
     ],
 )
 
