@@ -1236,6 +1236,142 @@ func TestNFS41ProgramCompound_OP_CREATE_SESSION(t *testing.T) {
 	})
 }
 
+func TestNFS41ProgramCompound_OP_DESTROY_CLIENTID(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+
+	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
+	rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskFileHandle, gomock.Any()).
+		Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
+			attributes.SetFileHandle([]byte{0x3a, 0x76, 0x6c, 0x6c, 0x27, 0x72, 0x19, 0x62})
+		})
+	handleResolver := mock.NewMockHandleResolver(ctrl)
+	serverOwner := nfsv4_xdr.ServerOwner4{
+		SoMinorId: 0xaa948cec30357b88,
+		SoMajorId: []byte{0x4c, 0xf9, 0x86, 0x0b, 0x5c, 0x08, 0x52, 0x13},
+	}
+	serverScope := []byte{0xb1, 0x2c, 0xcd, 0xf9, 0x70, 0x3e, 0x37, 0x59}
+	randomNumberGenerator := mock.NewMockSingleThreadedGenerator(ctrl)
+	rebootVerifier := nfsv4_xdr.Verifier4{0xfa, 0xd6, 0x5c, 0xd6, 0xb2, 0x4b, 0x0b, 0x51}
+	clock := mock.NewMockClock(ctrl)
+	program := nfsv4.NewNFS41Program(
+		rootDirectory,
+		handleResolver.Call,
+		serverOwner,
+		serverScope,
+		&nfsv4_xdr.ChannelAttrs4{
+			CaHeaderpadsize:         0,
+			CaMaxrequestsize:        1 * 1024 * 1024,
+			CaMaxresponsesize:       2 * 1024 * 1024,
+			CaMaxresponsesizeCached: 64 * 1024,
+			CaMaxoperations:         100,
+			CaMaxrequests:           100,
+		},
+		randomNumberGenerator,
+		rebootVerifier,
+		clock,
+		/* enforcedLeaseTime = */ 2*time.Minute,
+		/* announcedLeaseTime = */ time.Minute,
+	)
+
+	t.Run("StaleClientID", func(t *testing.T) {
+		clock.EXPECT().Now().Return(time.Unix(1000, 0))
+
+		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+			Tag:          "destroy_clientid",
+			Minorversion: 1,
+			Argarray: []nfsv4_xdr.NfsArgop4{
+				&nfsv4_xdr.NfsArgop4_OP_DESTROY_CLIENTID{
+					OpdestroyClientid: nfsv4_xdr.DestroyClientid4args{
+						DcaClientid: 0xd2653b56bc82b37a,
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, &nfsv4_xdr.Compound4res{
+			Tag: "destroy_clientid",
+			Resarray: []nfsv4_xdr.NfsResop4{
+				&nfsv4_xdr.NfsResop4_OP_DESTROY_CLIENTID{
+					OpdestroyClientid: nfsv4_xdr.DestroyClientid4res{
+						DcrStatus: nfsv4_xdr.NFS4ERR_STALE_CLIENTID,
+					},
+				},
+			},
+			Status: nfsv4_xdr.NFS4ERR_STALE_CLIENTID,
+		}, res)
+	})
+
+	t.Run("DestroyUnconfirmed", func(t *testing.T) {
+		clock.EXPECT().Now().Return(time.Unix(1001, 0))
+		randomNumberGenerator.EXPECT().Uint64().Return(uint64(0x1c985fa22cd237d3))
+		randomNumberGenerator.EXPECT().Uint32().Return(uint32(0x909bf041))
+
+		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+			Tag:          "exchange_id",
+			Minorversion: 1,
+			Argarray: []nfsv4_xdr.NfsArgop4{
+				&nfsv4_xdr.NfsArgop4_OP_EXCHANGE_ID{
+					OpexchangeId: nfsv4_xdr.ExchangeId4args{
+						EiaClientowner: nfsv4_xdr.ClientOwner4{
+							CoVerifier: nfsv4_xdr.Verifier4{0x1f, 0xad, 0xe3, 0x67, 0x5d, 0xb6, 0xeb, 0xd8},
+							CoOwnerid:  []byte{0x61, 0x42, 0xa0, 0x99, 0xc0, 0xf6, 0xf3, 0x2a},
+						},
+						EiaStateProtect: &nfsv4_xdr.StateProtect4A_SP4_NONE{},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, &nfsv4_xdr.Compound4res{
+			Tag: "exchange_id",
+			Resarray: []nfsv4_xdr.NfsResop4{
+				&nfsv4_xdr.NfsResop4_OP_EXCHANGE_ID{
+					OpexchangeId: &nfsv4_xdr.ExchangeId4res_NFS4_OK{
+						EirResok4: nfsv4_xdr.ExchangeId4resok{
+							EirClientid:     0x1c985fa22cd237d3,
+							EirSequenceid:   0x909bf042,
+							EirFlags:        0,
+							EirStateProtect: &nfsv4_xdr.StateProtect4R_SP4_NONE{},
+							EirServerOwner:  serverOwner,
+							EirServerScope:  serverScope,
+							EirServerImplId: []nfsv4_xdr.NfsImplId4{{
+								NiiDomain: "buildbarn.github.io",
+							}},
+						},
+					},
+				},
+			},
+			Status: nfsv4_xdr.NFS4_OK,
+		}, res)
+
+		clock.EXPECT().Now().Return(time.Unix(1002, 0))
+
+		res, err = program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+			Tag:          "destroy_clientid",
+			Minorversion: 1,
+			Argarray: []nfsv4_xdr.NfsArgop4{
+				&nfsv4_xdr.NfsArgop4_OP_DESTROY_CLIENTID{
+					OpdestroyClientid: nfsv4_xdr.DestroyClientid4args{
+						DcaClientid: 0x1c985fa22cd237d3,
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, &nfsv4_xdr.Compound4res{
+			Tag: "destroy_clientid",
+			Resarray: []nfsv4_xdr.NfsResop4{
+				&nfsv4_xdr.NfsResop4_OP_DESTROY_CLIENTID{
+					OpdestroyClientid: nfsv4_xdr.DestroyClientid4res{
+						DcrStatus: nfsv4_xdr.NFS4_OK,
+					},
+				},
+			},
+			Status: nfsv4_xdr.NFS4_OK,
+		}, res)
+	})
+}
+
 func TestNFS41ProgramCompound_OP_DESTROY_SESSION(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
