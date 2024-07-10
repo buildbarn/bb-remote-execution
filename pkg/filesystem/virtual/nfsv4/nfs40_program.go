@@ -127,6 +127,13 @@ func (*nfs40Program) NfsV4Nfsproc4Null(ctx context.Context) error {
 }
 
 func (p *nfs40Program) NfsV4Nfsproc4Compound(ctx context.Context, arguments *nfsv4.Compound4args) (*nfsv4.Compound4res, error) {
+	if arguments.Minorversion != 0 {
+		return &nfsv4.Compound4res{
+			Status: nfsv4.NFS4ERR_MINOR_VERS_MISMATCH,
+			Tag:    arguments.Tag,
+		}, nil
+	}
+
 	// Create compound state and process all operations sequentially
 	// against it.
 	state := compoundState{program: p}

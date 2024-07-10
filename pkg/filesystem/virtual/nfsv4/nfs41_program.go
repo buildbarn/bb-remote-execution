@@ -128,6 +128,13 @@ func (*nfs41Program) NfsV4Nfsproc4Null(ctx context.Context) error {
 }
 
 func (p *nfs41Program) NfsV4Nfsproc4Compound(ctx context.Context, arguments *nfsv4.Compound4args) (*nfsv4.Compound4res, error) {
+	if arguments.Minorversion != 1 {
+		return &nfsv4.Compound4res{
+			Status: nfsv4.NFS4ERR_MINOR_VERS_MISMATCH,
+			Tag:    arguments.Tag,
+		}, nil
+	}
+
 	var resArray []nfsv4.NfsResop4
 	status := nfsv4.NFS4_OK
 	if len(arguments.Argarray) >= 1 {

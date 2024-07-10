@@ -19,7 +19,8 @@ func exchangeIDAndCreateSessionForTesting(ctx context.Context, t *testing.T, ser
 	randomNumberGenerator.EXPECT().Uint32().Return(uint32(0x501590ad))
 
 	res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-		Tag: "exchange_id",
+		Tag:          "exchange_id",
+		Minorversion: 1,
 		Argarray: []nfsv4_xdr.NfsArgop4{
 			&nfsv4_xdr.NfsArgop4_OP_EXCHANGE_ID{
 				OpexchangeId: nfsv4_xdr.ExchangeId4args{
@@ -62,7 +63,8 @@ func exchangeIDAndCreateSessionForTesting(ctx context.Context, t *testing.T, ser
 		})
 
 	res, err = program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-		Tag: "create_session",
+		Tag:          "create_session",
+		Minorversion: 1,
 		Argarray: []nfsv4_xdr.NfsArgop4{
 			&nfsv4_xdr.NfsArgop4_OP_CREATE_SESSION{
 				OpcreateSession: nfsv4_xdr.CreateSession4args{
@@ -167,7 +169,8 @@ func TestNFS41ProgramCompound_OP_CLOSE(t *testing.T) {
 		handleResolverExpectCall(t, handleResolver, []byte{0xc1, 0xe2, 0x37, 0xfb, 0xd0, 0xab, 0xe8, 0x7d}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "close",
+			Tag:          "close",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 					Opsequence: nfsv4_xdr.Sequence4args{
@@ -252,7 +255,8 @@ func TestNFS41ProgramCompound_OP_CLOSE(t *testing.T) {
 
 		clock.EXPECT().Now().Return(time.Unix(1002, 0)).Times(2)
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "open",
+			Tag:          "open",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 					Opsequence: nfsv4_xdr.Sequence4args{
@@ -337,7 +341,8 @@ func TestNFS41ProgramCompound_OP_CLOSE(t *testing.T) {
 		clock.EXPECT().Now().Return(time.Unix(1003, 0)).Times(2)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "close",
+			Tag:          "close",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 					Opsequence: nfsv4_xdr.Sequence4args{
@@ -398,7 +403,8 @@ func TestNFS41ProgramCompound_OP_CLOSE(t *testing.T) {
 		clock.EXPECT().Now().Return(time.Unix(1004, 0)).Times(2)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "close",
+			Tag:          "close",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 					Opsequence: nfsv4_xdr.Sequence4args{
@@ -470,7 +476,8 @@ func TestNFS41ProgramCompound_OP_CLOSE(t *testing.T) {
 		leaf.EXPECT().VirtualClose(virtual.ShareMaskRead | virtual.ShareMaskWrite)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "close",
+			Tag:          "close",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 					Opsequence: nfsv4_xdr.Sequence4args{
@@ -584,7 +591,8 @@ func TestNFS41ProgramCompound_OP_CLOSE(t *testing.T) {
 		leaf.EXPECT().VirtualClose(virtual.ShareMaskRead)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "openopenclose",
+			Tag:          "openopenclose",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 					Opsequence: nfsv4_xdr.Sequence4args{
@@ -757,7 +765,8 @@ func TestNFS41ProgramCompound_OP_CLOSE(t *testing.T) {
 		leaf.EXPECT().VirtualClose(virtual.ShareMaskRead)
 
 		res, err = program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "close",
+			Tag:          "close",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 					Opsequence: nfsv4_xdr.Sequence4args{
@@ -836,7 +845,8 @@ func TestNFS41ProgramCompound_OP_CLOSE(t *testing.T) {
 	clock.EXPECT().Now().Return(time.Unix(10000, 0))
 
 	res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-		Tag: "sequence",
+		Tag:          "sequence",
+		Minorversion: 1,
 		Argarray: []nfsv4_xdr.NfsArgop4{
 			&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 				Opsequence: nfsv4_xdr.Sequence4args{
@@ -908,7 +918,8 @@ func TestNFS41ProgramCompound_OP_CREATE_SESSION(t *testing.T) {
 		// COMPOUND procedure's request. If it is not, the
 		// server MUST return NFS4ERR_NOT_ONLY_OP.
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "create_session",
+			Tag:          "create_session",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_CREATE_SESSION{
 					OpcreateSession: nfsv4_xdr.CreateSession4args{
@@ -957,7 +968,8 @@ func TestNFS41ProgramCompound_OP_CREATE_SESSION(t *testing.T) {
 		clock.EXPECT().Now().Return(time.Unix(1000, 0))
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "create_session",
+			Tag:          "create_session",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_CREATE_SESSION{
 					OpcreateSession: nfsv4_xdr.CreateSession4args{
@@ -1004,7 +1016,8 @@ func TestNFS41ProgramCompound_OP_CREATE_SESSION(t *testing.T) {
 	randomNumberGenerator.EXPECT().Uint32().Return(uint32(0x1e0423a9))
 
 	res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-		Tag: "exchange_id",
+		Tag:          "exchange_id",
+		Minorversion: 1,
 		Argarray: []nfsv4_xdr.NfsArgop4{
 			&nfsv4_xdr.NfsArgop4_OP_EXCHANGE_ID{
 				OpexchangeId: nfsv4_xdr.ExchangeId4args{
@@ -1051,7 +1064,8 @@ func TestNFS41ProgramCompound_OP_CREATE_SESSION(t *testing.T) {
 				clock.EXPECT().Now().Return(time.Unix(1002, 0))
 
 				res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-					Tag: "create_session",
+					Tag:          "create_session",
+					Minorversion: 1,
 					Argarray: []nfsv4_xdr.NfsArgop4{
 						&nfsv4_xdr.NfsArgop4_OP_CREATE_SESSION{
 							OpcreateSession: nfsv4_xdr.CreateSession4args{
@@ -1109,7 +1123,8 @@ func TestNFS41ProgramCompound_OP_CREATE_SESSION(t *testing.T) {
 				clock.EXPECT().Now().Return(time.Unix(1003, 0))
 
 				res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-					Tag: "create_session",
+					Tag:          "create_session",
+					Minorversion: 1,
 					Argarray: []nfsv4_xdr.NfsArgop4{
 						&nfsv4_xdr.NfsArgop4_OP_CREATE_SESSION{
 							OpcreateSession: nfsv4_xdr.CreateSession4args{
@@ -1178,7 +1193,8 @@ func TestNFS41ProgramCompound_OP_CREATE_SESSION(t *testing.T) {
 		clock.EXPECT().Now().Return(time.Unix(1124, 0))
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "create_session",
+			Tag:          "create_session",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_CREATE_SESSION{
 					OpcreateSession: nfsv4_xdr.CreateSession4args{
@@ -1263,7 +1279,8 @@ func TestNFS41ProgramCompound_OP_DESTROY_SESSION(t *testing.T) {
 		clock.EXPECT().Now().Return(time.Unix(1000, 0))
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "destroy_session",
+			Tag:          "destroy_session",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_DESTROY_SESSION{
 					OpdestroySession: nfsv4_xdr.DestroySession4args{
@@ -1307,7 +1324,8 @@ func TestNFS41ProgramCompound_OP_DESTROY_SESSION(t *testing.T) {
 		// When not part of a sequence, DESTROY_SESSION needs to
 		// be the only operation.
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "destroy_session",
+			Tag:          "destroy_session",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_DESTROY_SESSION{
 					OpdestroySession: nfsv4_xdr.DestroySession4args{
@@ -1347,7 +1365,8 @@ func TestNFS41ProgramCompound_OP_DESTROY_SESSION(t *testing.T) {
 		clock.EXPECT().Now().Return(time.Unix(1002, 0))
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "destroy_session",
+			Tag:          "destroy_session",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_DESTROY_SESSION{
 					OpdestroySession: nfsv4_xdr.DestroySession4args{
@@ -1394,7 +1413,8 @@ func TestNFS41ProgramCompound_OP_DESTROY_SESSION(t *testing.T) {
 		clock.EXPECT().Now().Return(time.Unix(2001, 0)).Times(3)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "destroy_session",
+			Tag:          "destroy_session",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 					Opsequence: nfsv4_xdr.Sequence4args{
@@ -1496,7 +1516,8 @@ func TestNFS41ProgramCompound_OP_EXCHANGE_ID(t *testing.T) {
 		// procedure's request. If it is not, the server MUST
 		// return NFS4ERR_NOT_ONLY_OP.
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "exchange_id",
+			Tag:          "exchange_id",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_EXCHANGE_ID{
 					OpexchangeId: nfsv4_xdr.ExchangeId4args{
@@ -1541,7 +1562,8 @@ func TestNFS41ProgramCompound_OP_EXCHANGE_ID(t *testing.T) {
 			clock.EXPECT().Now().Return(time.Unix(1000, 0))
 
 			res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-				Tag: "exchange_id",
+				Tag:          "exchange_id",
+				Minorversion: 1,
 				Argarray: []nfsv4_xdr.NfsArgop4{
 					&nfsv4_xdr.NfsArgop4_OP_EXCHANGE_ID{
 						OpexchangeId: nfsv4_xdr.ExchangeId4args{
@@ -1591,7 +1613,8 @@ func TestNFS41ProgramCompound_OP_EXCHANGE_ID(t *testing.T) {
 		randomNumberGenerator.EXPECT().Uint32().Return(uint32(0x1e260002))
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "exchange_id",
+			Tag:          "exchange_id",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_EXCHANGE_ID{
 					OpexchangeId: nfsv4_xdr.ExchangeId4args{
@@ -1637,7 +1660,8 @@ func TestNFS41ProgramCompound_OP_EXCHANGE_ID(t *testing.T) {
 			})
 
 		res, err = program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "create_session",
+			Tag:          "create_session",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_CREATE_SESSION{
 					OpcreateSession: nfsv4_xdr.CreateSession4args{
@@ -1704,7 +1728,8 @@ func TestNFS41ProgramCompound_OP_EXCHANGE_ID(t *testing.T) {
 			clock.EXPECT().Now().Return(time.Unix(1003, 0))
 
 			res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-				Tag: "exchange_id",
+				Tag:          "exchange_id",
+				Minorversion: 1,
 				Argarray: []nfsv4_xdr.NfsArgop4{
 					&nfsv4_xdr.NfsArgop4_OP_EXCHANGE_ID{
 						OpexchangeId: nfsv4_xdr.ExchangeId4args{
@@ -1799,7 +1824,8 @@ func TestNFS41ProgramCompound_OP_OPEN(t *testing.T) {
 		clock.EXPECT().Now().Return(time.Unix(1003, 0)).Times(2)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "open",
+			Tag:          "open",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 					Opsequence: nfsv4_xdr.Sequence4args{
@@ -1870,7 +1896,8 @@ func TestNFS41ProgramCompound_OP_OPEN(t *testing.T) {
 		clock.EXPECT().Now().Return(time.Unix(1004, 0)).Times(2)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "open",
+			Tag:          "open",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 					Opsequence: nfsv4_xdr.Sequence4args{
@@ -1937,7 +1964,8 @@ func TestNFS41ProgramCompound_OP_OPEN(t *testing.T) {
 		handleResolverExpectCall(t, handleResolver, []byte{0xc4, 0xfc, 0xae, 0xdc, 0xc8, 0x64, 0x87, 0x78}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "open",
+			Tag:          "open",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 					Opsequence: nfsv4_xdr.Sequence4args{
@@ -2020,7 +2048,8 @@ func TestNFS41ProgramCompound_OP_OPEN(t *testing.T) {
 		).Return(nil, virtual.AttributesMask(0), virtual.ChangeInfo{}, virtual.StatusErrNoEnt)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "open",
+			Tag:          "open",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 					Opsequence: nfsv4_xdr.Sequence4args{
@@ -2107,7 +2136,8 @@ func TestNFS41ProgramCompound_OP_OPEN(t *testing.T) {
 		})
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "open",
+			Tag:          "open",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 					Opsequence: nfsv4_xdr.Sequence4args{
@@ -2213,7 +2243,8 @@ func TestNFS41ProgramCompound_OP_OPEN(t *testing.T) {
 		leaf.EXPECT().VirtualClose(virtual.ShareMaskRead)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "open",
+			Tag:          "open",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 					Opsequence: nfsv4_xdr.Sequence4args{
@@ -2300,7 +2331,8 @@ func TestNFS41ProgramCompound_OP_OPEN(t *testing.T) {
 	leaf.EXPECT().VirtualClose(virtual.ShareMaskRead | virtual.ShareMaskWrite)
 
 	res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-		Tag: "sequence",
+		Tag:          "sequence",
+		Minorversion: 1,
 		Argarray: []nfsv4_xdr.NfsArgop4{
 			&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 				Opsequence: nfsv4_xdr.Sequence4args{
@@ -2389,7 +2421,8 @@ func TestNFS41ProgramCompound_OP_OPEN_DOWNGRADE(t *testing.T) {
 		handleResolverExpectCall(t, handleResolver, []byte{0x2c, 0x64, 0xd4, 0x7b, 0x00, 0xe2, 0xf0, 0x98}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "open_downgrade",
+			Tag:          "open_downgrade",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 					Opsequence: nfsv4_xdr.Sequence4args{
@@ -2463,7 +2496,8 @@ func TestNFS41ProgramCompound_OP_OPEN_DOWNGRADE(t *testing.T) {
 
 	clock.EXPECT().Now().Return(time.Unix(1002, 0)).Times(2)
 	res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-		Tag: "open",
+		Tag:          "open",
+		Minorversion: 1,
 		Argarray: []nfsv4_xdr.NfsArgop4{
 			&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 				Opsequence: nfsv4_xdr.Sequence4args{
@@ -2550,7 +2584,8 @@ func TestNFS41ProgramCompound_OP_OPEN_DOWNGRADE(t *testing.T) {
 		clock.EXPECT().Now().Return(time.Unix(1003, 0)).Times(2)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "open_downgrade",
+			Tag:          "open_downgrade",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 					Opsequence: nfsv4_xdr.Sequence4args{
@@ -2624,7 +2659,8 @@ func TestNFS41ProgramCompound_OP_OPEN_DOWNGRADE(t *testing.T) {
 		clock.EXPECT().Now().Return(time.Unix(1004, 0)).Times(2)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "open_downgrade",
+			Tag:          "open_downgrade",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 					Opsequence: nfsv4_xdr.Sequence4args{
@@ -2706,7 +2742,8 @@ func TestNFS41ProgramCompound_OP_OPEN_DOWNGRADE(t *testing.T) {
 		clock.EXPECT().Now().Return(time.Unix(1005, 0)).Times(2)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "open_downgrade",
+			Tag:          "open_downgrade",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 					Opsequence: nfsv4_xdr.Sequence4args{
@@ -2783,7 +2820,8 @@ func TestNFS41ProgramCompound_OP_OPEN_DOWNGRADE(t *testing.T) {
 		leaf.EXPECT().VirtualClose(virtual.ShareMaskRead)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "open",
+			Tag:          "open",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 					Opsequence: nfsv4_xdr.Sequence4args{
@@ -2864,7 +2902,8 @@ func TestNFS41ProgramCompound_OP_OPEN_DOWNGRADE(t *testing.T) {
 		leaf.EXPECT().VirtualClose(virtual.ShareMaskWrite)
 
 		res, err = program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "open_downgrade",
+			Tag:          "open_downgrade",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 					Opsequence: nfsv4_xdr.Sequence4args{
@@ -2952,7 +2991,8 @@ func TestNFS41ProgramCompound_OP_OPEN_DOWNGRADE(t *testing.T) {
 		leaf.EXPECT().VirtualOpenSelf(ctx, virtual.ShareMaskWrite, &virtual.OpenExistingOptions{}, virtual.AttributesMask(0), gomock.Any())
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "open",
+			Tag:          "open",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 					Opsequence: nfsv4_xdr.Sequence4args{
@@ -3034,7 +3074,8 @@ func TestNFS41ProgramCompound_OP_OPEN_DOWNGRADE(t *testing.T) {
 		clock.EXPECT().Now().Return(time.Unix(1009, 0)).Times(2)
 
 		resLock, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "lock",
+			Tag:          "lock",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 					Opsequence: nfsv4_xdr.Sequence4args{
@@ -3122,7 +3163,8 @@ func TestNFS41ProgramCompound_OP_OPEN_DOWNGRADE(t *testing.T) {
 		clock.EXPECT().Now().Return(time.Unix(1010, 0)).Times(2)
 
 		res, err = program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "open_downgrade",
+			Tag:          "open_downgrade",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 					Opsequence: nfsv4_xdr.Sequence4args{
@@ -3201,7 +3243,8 @@ func TestNFS41ProgramCompound_OP_OPEN_DOWNGRADE(t *testing.T) {
 		clock.EXPECT().Now().Return(time.Unix(1011, 0)).Times(2)
 
 		res, err = program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "unlock",
+			Tag:          "unlock",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 					Opsequence: nfsv4_xdr.Sequence4args{
@@ -3280,7 +3323,8 @@ func TestNFS41ProgramCompound_OP_OPEN_DOWNGRADE(t *testing.T) {
 		leaf.EXPECT().VirtualClose(virtual.ShareMaskWrite)
 
 		res, err = program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "free_stateid",
+			Tag:          "free_stateid",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 					Opsequence: nfsv4_xdr.Sequence4args{
@@ -3345,7 +3389,8 @@ func TestNFS41ProgramCompound_OP_OPEN_DOWNGRADE(t *testing.T) {
 		leaf.EXPECT().VirtualClose(virtual.ShareMaskRead)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "all_in_one",
+			Tag:          "all_in_one",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 					Opsequence: nfsv4_xdr.Sequence4args{
@@ -3519,7 +3564,8 @@ func TestNFS41ProgramCompound_OP_SEQUENCE(t *testing.T) {
 		clock.EXPECT().Now().Return(time.Unix(1000, 0))
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "sequence",
+			Tag:          "sequence",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 					Opsequence: nfsv4_xdr.Sequence4args{
@@ -3573,7 +3619,8 @@ func TestNFS41ProgramCompound_OP_SEQUENCE(t *testing.T) {
 				clock.EXPECT().Now().Return(time.Unix(1003, 0))
 
 				res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-					Tag: "sequence",
+					Tag:          "sequence",
+					Minorversion: 1,
 					Argarray: []nfsv4_xdr.NfsArgop4{
 						&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 							Opsequence: nfsv4_xdr.Sequence4args{
@@ -3613,7 +3660,8 @@ func TestNFS41ProgramCompound_OP_SEQUENCE(t *testing.T) {
 				clock.EXPECT().Now().Return(time.Unix(1004, 0))
 
 				res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-					Tag: "sequence",
+					Tag:          "sequence",
+					Minorversion: 1,
 					Argarray: []nfsv4_xdr.NfsArgop4{
 						&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 							Opsequence: nfsv4_xdr.Sequence4args{
@@ -3654,7 +3702,8 @@ func TestNFS41ProgramCompound_OP_SEQUENCE(t *testing.T) {
 
 			for i := 0; i < 10; i++ {
 				res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-					Tag: "sequence",
+					Tag:          "sequence",
+					Minorversion: 1,
 					Argarray: []nfsv4_xdr.NfsArgop4{
 						&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 							Opsequence: nfsv4_xdr.Sequence4args{
@@ -3706,7 +3755,8 @@ func TestNFS41ProgramCompound_OP_SEQUENCE(t *testing.T) {
 
 			for i := 0; i < 10; i++ {
 				res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-					Tag: "sequence",
+					Tag:          "sequence",
+					Minorversion: 1,
 					Argarray: []nfsv4_xdr.NfsArgop4{
 						&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 							Opsequence: nfsv4_xdr.Sequence4args{
@@ -3755,7 +3805,8 @@ func TestNFS41ProgramCompound_OP_SEQUENCE(t *testing.T) {
 
 			for i := 0; i < 10; i++ {
 				res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-					Tag: "setclientid",
+					Tag:          "setclientid",
+					Minorversion: 1,
 					Argarray: []nfsv4_xdr.NfsArgop4{
 						&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 							Opsequence: nfsv4_xdr.Sequence4args{
@@ -3833,7 +3884,8 @@ func TestNFS41ProgramCompound_OP_SEQUENCE(t *testing.T) {
 		})
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "mkdir",
+			Tag:          "mkdir",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 					Opsequence: nfsv4_xdr.Sequence4args{
@@ -3908,7 +3960,8 @@ func TestNFS41ProgramCompound_OP_SEQUENCE(t *testing.T) {
 			clock.EXPECT().Now().Return(time.Unix(1009, 0))
 
 			res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-				Tag: "mkdir",
+				Tag:          "mkdir",
+				Minorversion: 1,
 				Argarray: []nfsv4_xdr.NfsArgop4{
 					&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 						Opsequence: nfsv4_xdr.Sequence4args{
@@ -3967,7 +4020,8 @@ func TestNFS41ProgramCompound_OP_SEQUENCE(t *testing.T) {
 		clock.EXPECT().Now().Return(time.Unix(1010, 0)).Times(2)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "sequence",
+			Tag:          "sequence",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 					Opsequence: nfsv4_xdr.Sequence4args{
@@ -4033,7 +4087,8 @@ func TestNFS41ProgramCompound_OP_SEQUENCE(t *testing.T) {
 				clock.EXPECT().Now().Return(time.Unix(1011, 0))
 			}
 			res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-				Tag: "sequence",
+				Tag:          "sequence",
+				Minorversion: 1,
 				Argarray: []nfsv4_xdr.NfsArgop4{
 					&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 						Opsequence: nfsv4_xdr.Sequence4args{
@@ -4092,7 +4147,8 @@ func TestNFS41ProgramCompound_OP_SEQUENCE(t *testing.T) {
 			clock.EXPECT().Now().Return(time.Unix(1012, 0))
 
 			res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-				Tag: "sequence",
+				Tag:          "sequence",
+				Minorversion: 1,
 				Argarray: []nfsv4_xdr.NfsArgop4{
 					&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 						Opsequence: nfsv4_xdr.Sequence4args{
@@ -4131,7 +4187,8 @@ func TestNFS41ProgramCompound_OP_SEQUENCE(t *testing.T) {
 			clock.EXPECT().Now().Return(time.Unix(1013, 0))
 
 			res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-				Tag: "sequence",
+				Tag:          "sequence",
+				Minorversion: 1,
 				Argarray: []nfsv4_xdr.NfsArgop4{
 					&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 						Opsequence: nfsv4_xdr.Sequence4args{
@@ -4171,7 +4228,8 @@ func TestNFS41ProgramCompound_OP_SEQUENCE(t *testing.T) {
 			clock.EXPECT().Now().Return(time.Unix(1014, 0))
 
 			res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-				Tag: "sequence",
+				Tag:          "sequence",
+				Minorversion: 1,
 				Argarray: []nfsv4_xdr.NfsArgop4{
 					&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 						Opsequence: nfsv4_xdr.Sequence4args{
@@ -4286,7 +4344,8 @@ func TestNFS41ProgramCompound_OP_TEST_STATEID(t *testing.T) {
 	leaf.EXPECT().VirtualClose(virtual.ShareMaskWrite)
 
 	res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-		Tag: "open_and_lock",
+		Tag:          "open_and_lock",
+		Minorversion: 1,
 		Argarray: []nfsv4_xdr.NfsArgop4{
 			&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 				Opsequence: nfsv4_xdr.Sequence4args{
@@ -4461,7 +4520,8 @@ func TestNFS41ProgramCompound_OP_TEST_STATEID(t *testing.T) {
 		clock.EXPECT().Now().Return(time.Unix(1001, 0)).Times(2)
 
 		res, err = program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-			Tag: "test_stateid",
+			Tag:          "test_stateid",
+			Minorversion: 1,
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 					Opsequence: nfsv4_xdr.Sequence4args{
@@ -4599,7 +4659,8 @@ func TestNFS41ProgramCompound_OP_TEST_STATEID(t *testing.T) {
 	leaf.EXPECT().VirtualClose(virtual.ShareMaskRead)
 
 	res, err = program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
-		Tag: "sequence",
+		Tag:          "sequence",
+		Minorversion: 1,
 		Argarray: []nfsv4_xdr.NfsArgop4{
 			&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
 				Opsequence: nfsv4_xdr.Sequence4args{
