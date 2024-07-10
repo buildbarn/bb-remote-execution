@@ -4021,6 +4021,202 @@ func TestNFS41ProgramCompound_OP_SEQUENCE(t *testing.T) {
 			Status: nfsv4_xdr.NFS4ERR_SEQUENCE_POS,
 		}, res)
 	})
+
+	t.Run("FalseRetries", func(t *testing.T) {
+		// The server should perform some basic checks to ensure
+		// that a client gets its sequencing right. When it
+		// retransmits a response, it should ensure that the
+		// shape of the response matches the provided request.
+		for i := 0; i < 10; i++ {
+			clock.EXPECT().Now().Return(time.Unix(1011, 0))
+			if i == 0 {
+				clock.EXPECT().Now().Return(time.Unix(1011, 0))
+			}
+			res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+				Tag: "sequence",
+				Argarray: []nfsv4_xdr.NfsArgop4{
+					&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
+						Opsequence: nfsv4_xdr.Sequence4args{
+							SaSessionid: [...]byte{
+								0x0c, 0x7a, 0x3c, 0x7a, 0xa2, 0xd4, 0x2d, 0x9e,
+								0xd3, 0x00, 0x96, 0x80, 0x6d, 0x93, 0xd1, 0x1c,
+							},
+							SaSequenceid:    33,
+							SaSlotid:        0,
+							SaHighestSlotid: 0,
+							SaCachethis:     true,
+						},
+					},
+					&nfsv4_xdr.NfsArgop4_OP_PUTROOTFH{},
+					&nfsv4_xdr.NfsArgop4_OP_PUTROOTFH{},
+				},
+			})
+			require.NoError(t, err)
+			require.Equal(t, &nfsv4_xdr.Compound4res{
+				Tag: "sequence",
+				Resarray: []nfsv4_xdr.NfsResop4{
+					&nfsv4_xdr.NfsResop4_OP_SEQUENCE{
+						Opsequence: &nfsv4_xdr.Sequence4res_NFS4_OK{
+							SrResok4: nfsv4_xdr.Sequence4resok{
+								SrSessionid: [...]byte{
+									0x0c, 0x7a, 0x3c, 0x7a, 0xa2, 0xd4, 0x2d, 0x9e,
+									0xd3, 0x00, 0x96, 0x80, 0x6d, 0x93, 0xd1, 0x1c,
+								},
+								SrSequenceid:          33,
+								SrSlotid:              0,
+								SrHighestSlotid:       99,
+								SrTargetHighestSlotid: 99,
+								SrStatusFlags:         0,
+							},
+						},
+					},
+					&nfsv4_xdr.NfsResop4_OP_PUTROOTFH{
+						Opputrootfh: nfsv4_xdr.Putrootfh4res{
+							Status: nfsv4_xdr.NFS4_OK,
+						},
+					},
+					&nfsv4_xdr.NfsResop4_OP_PUTROOTFH{
+						Opputrootfh: nfsv4_xdr.Putrootfh4res{
+							Status: nfsv4_xdr.NFS4_OK,
+						},
+					},
+				},
+				Status: nfsv4_xdr.NFS4_OK,
+			}, res)
+		}
+
+		t.Run("NotEnoughOperations", func(t *testing.T) {
+			// The cached response contains results for
+			// three operations, whereas the retransmitted
+			// requests contains only contains two.
+			clock.EXPECT().Now().Return(time.Unix(1012, 0))
+
+			res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+				Tag: "sequence",
+				Argarray: []nfsv4_xdr.NfsArgop4{
+					&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
+						Opsequence: nfsv4_xdr.Sequence4args{
+							SaSessionid: [...]byte{
+								0x0c, 0x7a, 0x3c, 0x7a, 0xa2, 0xd4, 0x2d, 0x9e,
+								0xd3, 0x00, 0x96, 0x80, 0x6d, 0x93, 0xd1, 0x1c,
+							},
+							SaSequenceid:    33,
+							SaSlotid:        0,
+							SaHighestSlotid: 0,
+							SaCachethis:     true,
+						},
+					},
+					&nfsv4_xdr.NfsArgop4_OP_PUTROOTFH{},
+				},
+			})
+			require.NoError(t, err)
+			require.Equal(t, &nfsv4_xdr.Compound4res{
+				Tag: "sequence",
+				Resarray: []nfsv4_xdr.NfsResop4{
+					&nfsv4_xdr.NfsResop4_OP_SEQUENCE{
+						Opsequence: &nfsv4_xdr.Sequence4res_default{
+							SrStatus: nfsv4_xdr.NFS4ERR_SEQ_FALSE_RETRY,
+						},
+					},
+				},
+				Status: nfsv4_xdr.NFS4ERR_SEQ_FALSE_RETRY,
+			}, res)
+		})
+
+		t.Run("TooManyOperations", func(t *testing.T) {
+			// The cached response contains results for
+			// three operations, whereas the retransmitted
+			// requests contains four. This is impossible,
+			// as the cached response is successful.
+			clock.EXPECT().Now().Return(time.Unix(1013, 0))
+
+			res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+				Tag: "sequence",
+				Argarray: []nfsv4_xdr.NfsArgop4{
+					&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
+						Opsequence: nfsv4_xdr.Sequence4args{
+							SaSessionid: [...]byte{
+								0x0c, 0x7a, 0x3c, 0x7a, 0xa2, 0xd4, 0x2d, 0x9e,
+								0xd3, 0x00, 0x96, 0x80, 0x6d, 0x93, 0xd1, 0x1c,
+							},
+							SaSequenceid:    33,
+							SaSlotid:        0,
+							SaHighestSlotid: 0,
+							SaCachethis:     true,
+						},
+					},
+					&nfsv4_xdr.NfsArgop4_OP_PUTROOTFH{},
+					&nfsv4_xdr.NfsArgop4_OP_PUTROOTFH{},
+					&nfsv4_xdr.NfsArgop4_OP_PUTROOTFH{},
+				},
+			})
+			require.NoError(t, err)
+			require.Equal(t, &nfsv4_xdr.Compound4res{
+				Tag: "sequence",
+				Resarray: []nfsv4_xdr.NfsResop4{
+					&nfsv4_xdr.NfsResop4_OP_SEQUENCE{
+						Opsequence: &nfsv4_xdr.Sequence4res_default{
+							SrStatus: nfsv4_xdr.NFS4ERR_SEQ_FALSE_RETRY,
+						},
+					},
+				},
+				Status: nfsv4_xdr.NFS4ERR_SEQ_FALSE_RETRY,
+			}, res)
+		})
+
+		t.Run("MismatchingOperationType", func(t *testing.T) {
+			// The number of operations in the cached
+			// response is the same as in the request, but
+			// the operation types don't match.
+			clock.EXPECT().Now().Return(time.Unix(1014, 0))
+
+			res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+				Tag: "sequence",
+				Argarray: []nfsv4_xdr.NfsArgop4{
+					&nfsv4_xdr.NfsArgop4_OP_SEQUENCE{
+						Opsequence: nfsv4_xdr.Sequence4args{
+							SaSessionid: [...]byte{
+								0x0c, 0x7a, 0x3c, 0x7a, 0xa2, 0xd4, 0x2d, 0x9e,
+								0xd3, 0x00, 0x96, 0x80, 0x6d, 0x93, 0xd1, 0x1c,
+							},
+							SaSequenceid:    33,
+							SaSlotid:        0,
+							SaHighestSlotid: 0,
+							SaCachethis:     true,
+						},
+					},
+					&nfsv4_xdr.NfsArgop4_OP_PUTROOTFH{},
+					&nfsv4_xdr.NfsArgop4_OP_OPEN{
+						Opopen: nfsv4_xdr.Open4args{
+							ShareAccess: nfsv4_xdr.OPEN4_SHARE_ACCESS_BOTH,
+							ShareDeny:   nfsv4_xdr.OPEN4_SHARE_DENY_NONE,
+							Owner: nfsv4_xdr.OpenOwner4{
+								Owner: []byte{0x8c, 0x2b, 0x0d, 0xca, 0xa2, 0x9c, 0x49, 0x08},
+							},
+							Openhow: &nfsv4_xdr.Openflag4_default{
+								Opentype: nfsv4_xdr.OPEN4_NOCREATE,
+							},
+							Claim: &nfsv4_xdr.OpenClaim4_CLAIM_NULL{
+								File: "Hello",
+							},
+						},
+					},
+				},
+			})
+			require.NoError(t, err)
+			require.Equal(t, &nfsv4_xdr.Compound4res{
+				Tag: "sequence",
+				Resarray: []nfsv4_xdr.NfsResop4{
+					&nfsv4_xdr.NfsResop4_OP_SEQUENCE{
+						Opsequence: &nfsv4_xdr.Sequence4res_default{
+							SrStatus: nfsv4_xdr.NFS4ERR_SEQ_FALSE_RETRY,
+						},
+					},
+				},
+				Status: nfsv4_xdr.NFS4ERR_SEQ_FALSE_RETRY,
+			}, res)
+		})
+	})
 }
 
 func TestNFS41ProgramCompound_OP_TEST_STATEID(t *testing.T) {

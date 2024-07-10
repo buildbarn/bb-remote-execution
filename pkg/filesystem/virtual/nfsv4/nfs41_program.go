@@ -652,10 +652,17 @@ func (p *nfs41Program) opSequence(ctx context.Context, args *nfsv4.Sequence4args
 	switch args.SaSequenceid {
 	case slot.lastSequenceID:
 		// Replay of the previous SEQUENCE. Return the results
-		// of the previous call.
+		// of the previous call, only after making sure that the
+		// cached response has the same shape as the request.
 		defer p.leave()
-		if len(slot.lastResult.resArray) > 1+len(argArray) {
+		cachedResults := slot.lastResult.resArray[1:]
+		if len(cachedResults) > len(argArray) || (slot.lastResult.status == nfsv4.NFS4_OK && len(cachedResults) != len(argArray)) {
 			return sequenceCompoundResultSeqFalseRetry
+		}
+		for i, res := range cachedResults {
+			if opNum := res.GetResop(); opNum != argArray[i].GetArgop() && opNum != nfsv4.OP_ILLEGAL {
+				return sequenceCompoundResultSeqFalseRetry
+			}
 		}
 		return slot.lastResult
 	case slot.lastSequenceID + 1:
