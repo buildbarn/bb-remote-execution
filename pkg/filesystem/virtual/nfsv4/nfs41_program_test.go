@@ -43,7 +43,7 @@ func exchangeIDAndCreateSessionForTesting(ctx context.Context, t *testing.T, ser
 					EirResok4: nfsv4_xdr.ExchangeId4resok{
 						EirClientid:     0xa103edeb4dd51d2a,
 						EirSequenceid:   0x501590ae,
-						EirFlags:        0,
+						EirFlags:        nfsv4_xdr.EXCHGID4_FLAG_USE_NON_PNFS,
 						EirStateProtect: &nfsv4_xdr.StateProtect4R_SP4_NONE{},
 						EirServerOwner:  serverOwner,
 						EirServerScope:  serverScope,
@@ -1040,7 +1040,7 @@ func TestNFS41ProgramCompound_OP_CREATE_SESSION(t *testing.T) {
 					EirResok4: nfsv4_xdr.ExchangeId4resok{
 						EirClientid:     0x3d07dee448db2e68,
 						EirSequenceid:   0x1e0423aa,
-						EirFlags:        0,
+						EirFlags:        nfsv4_xdr.EXCHGID4_FLAG_USE_NON_PNFS,
 						EirStateProtect: &nfsv4_xdr.StateProtect4R_SP4_NONE{},
 						EirServerOwner:  serverOwner,
 						EirServerScope:  serverScope,
@@ -1330,7 +1330,7 @@ func TestNFS41ProgramCompound_OP_DESTROY_CLIENTID(t *testing.T) {
 						EirResok4: nfsv4_xdr.ExchangeId4resok{
 							EirClientid:     0x1c985fa22cd237d3,
 							EirSequenceid:   0x909bf042,
-							EirFlags:        0,
+							EirFlags:        nfsv4_xdr.EXCHGID4_FLAG_USE_NON_PNFS,
 							EirStateProtect: &nfsv4_xdr.StateProtect4R_SP4_NONE{},
 							EirServerOwner:  serverOwner,
 							EirServerScope:  serverScope,
@@ -1722,7 +1722,7 @@ func TestNFS41ProgramCompound_OP_EXCHANGE_ID(t *testing.T) {
 							EirResok4: nfsv4_xdr.ExchangeId4resok{
 								EirClientid:     0x346a1abf4a4d9caa,
 								EirSequenceid:   0x041fd848,
-								EirFlags:        0,
+								EirFlags:        nfsv4_xdr.EXCHGID4_FLAG_USE_NON_PNFS,
 								EirStateProtect: &nfsv4_xdr.StateProtect4R_SP4_NONE{},
 								EirServerOwner:  serverOwner,
 								EirServerScope:  serverScope,
@@ -1772,7 +1772,7 @@ func TestNFS41ProgramCompound_OP_EXCHANGE_ID(t *testing.T) {
 						EirResok4: nfsv4_xdr.ExchangeId4resok{
 							EirClientid:     0x353974981fdd3329,
 							EirSequenceid:   0x1e260003,
-							EirFlags:        0,
+							EirFlags:        nfsv4_xdr.EXCHGID4_FLAG_USE_NON_PNFS,
 							EirStateProtect: &nfsv4_xdr.StateProtect4R_SP4_NONE{},
 							EirServerOwner:  serverOwner,
 							EirServerScope:  serverScope,
@@ -1886,7 +1886,7 @@ func TestNFS41ProgramCompound_OP_EXCHANGE_ID(t *testing.T) {
 						OpexchangeId: &nfsv4_xdr.ExchangeId4res_NFS4_OK{
 							EirResok4: nfsv4_xdr.ExchangeId4resok{
 								EirClientid:     0x353974981fdd3329,
-								EirFlags:        nfsv4_xdr.EXCHGID4_FLAG_CONFIRMED_R,
+								EirFlags:        nfsv4_xdr.EXCHGID4_FLAG_USE_NON_PNFS | nfsv4_xdr.EXCHGID4_FLAG_CONFIRMED_R,
 								EirStateProtect: &nfsv4_xdr.StateProtect4R_SP4_NONE{},
 								EirServerOwner:  serverOwner,
 								EirServerScope:  serverScope,

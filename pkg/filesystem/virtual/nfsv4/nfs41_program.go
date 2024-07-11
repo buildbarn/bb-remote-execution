@@ -597,6 +597,7 @@ func (p *nfs41Program) opExchangeID(args *nfsv4.ExchangeId4args) nfsv4.ExchangeI
 	res := &nfsv4.ExchangeId4res_NFS4_OK{
 		EirResok4: nfsv4.ExchangeId4resok{
 			EirClientid:     cis.clientID,
+			EirFlags:        nfsv4.EXCHGID4_FLAG_USE_NON_PNFS,
 			EirStateProtect: &nfsv4.StateProtect4R_SP4_NONE{},
 			EirServerOwner:  p.serverOwner,
 			EirServerScope:  p.serverScope,
