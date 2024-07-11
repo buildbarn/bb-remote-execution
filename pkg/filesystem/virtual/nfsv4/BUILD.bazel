@@ -4,6 +4,7 @@ go_library(
     name = "nfsv4",
     srcs = [
         "metrics_program.go",
+        "minor_version_fallback_program.go",
         "nfs40_program.go",
         "nfs41_program.go",
         "opened_files_pool.go",
