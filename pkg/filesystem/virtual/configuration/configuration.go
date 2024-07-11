@@ -79,13 +79,14 @@ func (m *nfsv4Mount) Expose(terminationGroup program.Group, rootDirectory virtua
 		}
 	}
 
+	openedFilesPool := nfsv4.NewOpenedFilesPool(m.handleAllocator.ResolveHandle)
 	var program nfsv4_xdr.Nfs4Program
 	switch minorVersion {
 	case 0:
 		// Use NFSv4.0 (RFC 7530).
 		program = nfsv4.NewNFS40Program(
 			rootDirectory,
-			m.handleAllocator.ResolveHandle,
+			openedFilesPool,
 			random.NewFastSingleThreadedGenerator(),
 			rebootVerifier,
 			stateIDOtherPrefix,
@@ -97,7 +98,7 @@ func (m *nfsv4Mount) Expose(terminationGroup program.Group, rootDirectory virtua
 		// Use NFSv4.1 (RFC 8881).
 		program = nfsv4.NewNFS41Program(
 			rootDirectory,
-			m.handleAllocator.ResolveHandle,
+			openedFilesPool,
 			serverOwner,
 			serverScope[:],
 			// TODO: Should any of these parameters be configurable?

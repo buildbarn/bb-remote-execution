@@ -6,6 +6,7 @@ go_library(
         "metrics_program.go",
         "nfs40_program.go",
         "nfs41_program.go",
+        "opened_files_pool.go",
         "system_authenticator.go",
     ],
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual/nfsv4",
