@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/binary"
 	"io"
-	"math"
 	"sync"
 	"time"
 
@@ -39,7 +38,7 @@ var (
 
 type nfs41Program struct {
 	rootFileHandle     nfs41FileHandle
-	handleResolver     virtual.HandleResolver
+	openedFilesPool    *OpenedFilesPool
 	serverOwner        nfsv4.ServerOwner4
 	serverScope        []byte
 	maxForeChanAttrs   *nfsv4.ChannelAttrs4
@@ -55,15 +54,12 @@ type nfs41Program struct {
 	clientIncarnationsByClientID map[nfsv4.Clientid4]*clientIncarnationState
 	sessionsBySessionID          map[nfsv4.Sessionid4]*sessionState
 	idleClientIncarnations       clientIncarnationState
-
-	openedFilesLock     sync.RWMutex
-	openedFilesByHandle map[string]*nfs41OpenedFileState
 }
 
 // NewNFS41Program creates an nfsv4.Nfs4Program that forwards all
 // operations to a virtual file system. It implements most of the
 // features of NFSv4.1.
-func NewNFS41Program(rootDirectory virtual.Directory, handleResolver virtual.HandleResolver, serverOwner nfsv4.ServerOwner4, serverScope []byte, maxForeChanAttrs *nfsv4.ChannelAttrs4, randomNumberGenerator random.SingleThreadedGenerator, rebootVerifier nfsv4.Verifier4, clock clock.Clock, enforcedLeaseTime, announcedLeaseTime time.Duration) nfsv4.Nfs4Program {
+func NewNFS41Program(rootDirectory virtual.Directory, openedFilesPool *OpenedFilesPool, serverOwner nfsv4.ServerOwner4, serverScope []byte, maxForeChanAttrs *nfsv4.ChannelAttrs4, randomNumberGenerator random.SingleThreadedGenerator, rebootVerifier nfsv4.Verifier4, clock clock.Clock, enforcedLeaseTime, announcedLeaseTime time.Duration) nfsv4.Nfs4Program {
 	var attributes virtual.Attributes
 	rootDirectory.VirtualGetAttributes(context.Background(), virtual.AttributesMaskFileHandle, &attributes)
 	p := &nfs41Program{
@@ -71,7 +67,7 @@ func NewNFS41Program(rootDirectory virtual.Directory, handleResolver virtual.Han
 			handle: attributes.GetFileHandle(),
 			node:   virtual.DirectoryChild{}.FromDirectory(rootDirectory),
 		},
-		handleResolver:     handleResolver,
+		openedFilesPool:    openedFilesPool,
 		serverOwner:        serverOwner,
 		serverScope:        serverScope,
 		maxForeChanAttrs:   maxForeChanAttrs,
@@ -84,8 +80,6 @@ func NewNFS41Program(rootDirectory virtual.Directory, handleResolver virtual.Han
 		clientsByOwnerID:             map[string]*nfs41ClientState{},
 		clientIncarnationsByClientID: map[nfsv4.Clientid4]*clientIncarnationState{},
 		sessionsBySessionID:          map[nfsv4.Sessionid4]*sessionState{},
-
-		openedFilesByHandle: map[string]*nfs41OpenedFileState{},
 	}
 	p.idleClientIncarnations.previousIdle = &p.idleClientIncarnations
 	p.idleClientIncarnations.nextIdle = &p.idleClientIncarnations
@@ -1402,7 +1396,7 @@ type nfs41OpenOwnerState struct {
 type nfs41OpenOwnerFileState struct {
 	// Constant fields.
 	openOwner  *nfs41OpenOwnerState
-	openedFile *nfs41OpenedFileState
+	openedFile *OpenedFile
 
 	// Fields that are protected by nfs41ProgramState.clientsLock if
 	// clientIncarnationState.holdCount == 0, and
@@ -1426,7 +1420,7 @@ type nfs41OpenOwnerFileState struct {
 func (oofs *nfs41OpenOwnerFileState) downgradeShareAccess(shareAccess *virtual.ShareMask, newShareAccess virtual.ShareMask, ll *leavesToClose) {
 	if shareAccessToClose := oofs.shareCount.downgrade(shareAccess, newShareAccess); shareAccessToClose != 0 {
 		ll.leaves = append(ll.leaves, leafToClose{
-			leaf:        oofs.openedFile.leaf,
+			leaf:        oofs.openedFile.GetLeaf(),
 			shareAccess: shareAccessToClose,
 		})
 	}
@@ -1449,23 +1443,20 @@ func (oofs *nfs41OpenOwnerFileState) remove(p *nfs41Program, cis *clientIncarnat
 	}
 	oofs.downgradeShareAccess(&oofs.shareAccess, 0, ll)
 
+	// We no longer need to guarantee that the filehandle remains
+	// resolvable via PUTFH, and also don't need to track byte-range
+	// locks.
+	oofs.openedFile.Close()
+
 	// Remove the nfs41OpenOwnerFileState.
 	oos := oofs.openOwner
-	handleKey := oofs.openedFile.handleKey
-	delete(oos.filesByHandle, handleKey)
+	delete(oos.filesByHandle, string(oofs.openedFile.GetHandle()))
 	delete(cis.openOwnerFilesByOther, oofs.stateID.other)
 
 	// Remove the nfs41OpenOwnerState if it has become empty.
 	if len(oos.filesByHandle) == 0 {
 		delete(cis.openOwnersByOwner, oos.key)
 	}
-
-	// Remove the nfs41OpenedFileState if it has become unreferenced.
-	p.openedFilesLock.Lock()
-	if openedFile := oofs.openedFile; openedFile.openOwnersCount.decrease() {
-		delete(p.openedFilesByHandle, handleKey)
-	}
-	p.openedFilesLock.Unlock()
 }
 
 // upgrade the share access mask of an opened file (e.g., from reading
@@ -1483,31 +1474,13 @@ func (oofs *nfs41OpenOwnerFileState) upgrade(shareAccess virtual.ShareMask, leaf
 	oofs.stateID.incrementSeqID()
 }
 
-// nfs41OpenedFileState stores information on a file that is currently
-// opened at least once. It is stored in the openedFilesByHandle map.
-// This allows these files to be resolvable through PUTFH, even if they
-// are no longer linked in the file system.
-type nfs41OpenedFileState struct {
-	// Constant fields.
-	handle    nfsv4.NfsFh4
-	handleKey string
-	leaf      virtual.Leaf
-
-	// Fields protected by nfs41Program.openedFilesLock.
-	openOwnersCount referenceCount
-
-	// Fields protected by locksLock.
-	locksLock sync.RWMutex
-	locks     virtual.ByteRangeLockSet[*nfs41LockOwnerState]
-}
-
 // nfs41OpenOwnerState stores information on a single lock-owner, which
 // is a single process running on the client that acquires locks against
 // files through the mount.
 type nfs41LockOwnerState struct {
 	// Constant fields.
 	clientIncarnation *clientIncarnationState
-	owner             []byte
+	owner             nfsv4.LockOwner4
 
 	// Fields that are protected by nfs41ProgramState.clientsLock if
 	// clientIncarnationState.holdCount == 0, and
@@ -1517,7 +1490,7 @@ type nfs41LockOwnerState struct {
 
 func (los *nfs41LockOwnerState) decreaseFileCount() {
 	if los.fileCount.decrease() {
-		delete(los.clientIncarnation.lockOwnersByOwner, string(los.owner))
+		delete(los.clientIncarnation.lockOwnersByOwner, string(los.owner.Owner))
 	}
 }
 
@@ -1545,16 +1518,7 @@ func (lofs *nfs41LockOwnerFileState) unlockAndRemove(cis *clientIncarnationState
 		// Lock-owner still has one or more locks held on this
 		// file. Issue an unlock operation that spans the full
 		// range of the file to release all locks at once.
-		lock := &virtual.ByteRangeLock[*nfs41LockOwnerState]{
-			Owner: lofs.lockOwner,
-			Start: 0,
-			End:   math.MaxUint64,
-			Type:  virtual.ByteRangeLockTypeUnlocked,
-		}
-		openedFile := lofs.openOwnerFile.openedFile
-		openedFile.locksLock.Lock()
-		lofs.lockCount += openedFile.locks.Set(lock)
-		openedFile.locksLock.Unlock()
+		lofs.lockCount += lofs.openOwnerFile.openedFile.UnlockAll(&lofs.lockOwner.owner)
 	}
 	lofs.remove(cis, ll)
 }
@@ -1622,7 +1586,7 @@ func (s *sequenceState) getOpenOwnerFileByStateID(rawStateID *nfsv4.Stateid4, wi
 	if !ok {
 		return nil, nfsv4.NFS4ERR_BAD_STATEID
 	}
-	if !bytes.Equal(s.currentFileHandle.handle, oofs.openedFile.handle) {
+	if !bytes.Equal(s.currentFileHandle.handle, oofs.openedFile.GetHandle()) {
 		return nil, nfsv4.NFS4ERR_BAD_STATEID
 	}
 	return oofs, nfs41CompareStateSeqID(stateID.seqID, oofs.stateID.seqID)
@@ -1654,7 +1618,7 @@ func (s *sequenceState) getLockOwnerFileByStateID(rawStateID *nfsv4.Stateid4) (*
 	if !ok {
 		return nil, nfsv4.NFS4ERR_BAD_STATEID
 	}
-	if !bytes.Equal(s.currentFileHandle.handle, lofs.openOwnerFile.openedFile.handle) {
+	if !bytes.Equal(s.currentFileHandle.handle, lofs.openOwnerFile.openedFile.GetHandle()) {
 		return nil, nfsv4.NFS4ERR_BAD_STATEID
 	}
 	return lofs, nfs41CompareStateSeqID(stateID.seqID, lofs.stateID.seqID)
@@ -1725,7 +1689,7 @@ func (s *sequenceState) getOpenedLeaf(ctx context.Context, stateID *nfsv4.Statei
 	// Ensure that the file is not released while the I/O operation
 	// is taking place.
 	clonedShareAccess := oofs.shareCount.clone(shareAccess)
-	return oofs.openedFile.leaf, func() {
+	return oofs.openedFile.GetLeaf(), func() {
 		var ll leavesToClose
 		cis.lock.Lock()
 		oofs.downgradeShareAccess(&clonedShareAccess, 0, &ll)
@@ -2023,15 +1987,6 @@ func (s *sequenceState) opLink(ctx context.Context, args *nfsv4.Link4args) nfsv4
 }
 
 func (s *sequenceState) opLock(args *nfsv4.Lock4args) nfsv4.Lock4res {
-	start, end, st := offsetLengthToStartEnd(args.Offset, args.Length)
-	if st != nfsv4.NFS4_OK {
-		return &nfsv4.Lock4res_default{Status: st}
-	}
-	lockType, st := nfsLockType4ToByteRangeLockType(args.Locktype)
-	if st != nfsv4.NFS4_OK {
-		return &nfsv4.Lock4res_default{Status: st}
-	}
-
 	cis := s.session.clientIncarnation
 	cis.lock.Lock()
 	defer cis.lock.Unlock()
@@ -2042,6 +1997,7 @@ func (s *sequenceState) opLock(args *nfsv4.Lock4args) nfsv4.Lock4res {
 	switch locker := args.Locker.(type) {
 	case *nfsv4.Locker4_TRUE:
 		// Create a new lock-owner file if needed.
+		var st nfsv4.Nfsstat4
 		oofs, st = s.getOpenOwnerFileByStateID(&locker.OpenOwner.OpenStateid, false)
 		if st != nfsv4.NFS4_OK {
 			return &nfsv4.Lock4res_default{Status: st}
@@ -2054,14 +2010,18 @@ func (s *sequenceState) opLock(args *nfsv4.Lock4args) nfsv4.Lock4res {
 		if !ok {
 			los = &nfs41LockOwnerState{
 				clientIncarnation: cis,
-				owner:             lockOwner,
-				fileCount:         1,
+				owner: nfsv4.LockOwner4{
+					Clientid: cis.clientID,
+					Owner:    lockOwner,
+				},
+				fileCount: 1,
 			}
 			defer los.decreaseFileCount()
 		}
 		lofs = oofs.lockOwnerFiles[los]
 	case *nfsv4.Locker4_FALSE:
 		// Add additional lock to existing lock-owner file.
+		var st nfsv4.Nfsstat4
 		lofs, st = s.getLockOwnerFileByStateID(&locker.LockOwner.LockStateid)
 		if st != nfsv4.NFS4_OK {
 			return &nfsv4.Lock4res_default{Status: st}
@@ -2073,22 +2033,9 @@ func (s *sequenceState) opLock(args *nfsv4.Lock4args) nfsv4.Lock4res {
 		return &nfsv4.Lock4res_default{Status: nfsv4.NFS4ERR_BADXDR}
 	}
 
-	lock := &virtual.ByteRangeLock[*nfs41LockOwnerState]{
-		Owner: los,
-		Start: start,
-		End:   end,
-		Type:  lockType,
-	}
-
-	openedFile := oofs.openedFile
-	openedFile.locksLock.Lock()
-	defer openedFile.locksLock.Unlock()
-
-	// Test whether the new lock conflicts with an existing one.
-	if conflictingLock := openedFile.locks.Test(lock); conflictingLock != nil {
-		return &nfsv4.Lock4res_NFS4ERR_DENIED{
-			Denied: nfs41ByteRangeLockToLock4Denied(conflictingLock),
-		}
+	lockCountDelta, res := oofs.openedFile.Lock(&los.owner, args.Offset, args.Length, args.Locktype)
+	if res != nil {
+		return res
 	}
 
 	if lofs == nil {
@@ -2103,7 +2050,7 @@ func (s *sequenceState) opLock(args *nfsv4.Lock4args) nfsv4.Lock4res {
 		cis.lockOwnerFilesByOther[lofs.stateID.other] = lofs
 	}
 
-	lofs.lockCount += openedFile.locks.Set(lock)
+	lofs.lockCount += lockCountDelta
 	if lofs.lockCount < 0 {
 		panic("Negative lock count")
 	}
@@ -2122,61 +2069,29 @@ func (s *sequenceState) opLockT(args *nfsv4.Lockt4args) nfsv4.Lockt4res {
 	if st != nfsv4.NFS4_OK {
 		return &nfsv4.Lockt4res_default{Status: st}
 	}
-	handleKey := string(s.currentFileHandle.handle)
-
-	start, end, st := offsetLengthToStartEnd(args.Offset, args.Length)
-	if st != nfsv4.NFS4_OK {
-		return &nfsv4.Lockt4res_default{Status: st}
-	}
-	lockType, st := nfsLockType4ToByteRangeLockType(args.Locktype)
-	if st != nfsv4.NFS4_OK {
-		return &nfsv4.Lockt4res_default{Status: st}
-	}
 
 	cis := s.session.clientIncarnation
 	cis.lock.RLock()
 	defer cis.lock.RUnlock()
 
-	p := s.program
-	p.openedFilesLock.RLock()
-	defer p.openedFilesLock.RUnlock()
-
-	openedFile, ok := p.openedFilesByHandle[handleKey]
-	if !ok {
-		// File isn't opened by anyone, meaning no locks may
-		// cause a conflict. Just return success.
-		return &nfsv4.Lockt4res_NFS4_OK{}
-	}
-
 	// Attempt to obtain the lock owner that is provided in the
 	// arguments. It may be the case that none exists, in which case
-	// we just pass a nil value to ByteRangeLockSet.Test(),
-	// indicating a lock-owner that differs from any existing one.
-	los := cis.lockOwnersByOwner[string(args.Owner.Owner)]
-	lock := &virtual.ByteRangeLock[*nfs41LockOwnerState]{
-		Owner: los,
-		Start: start,
-		End:   end,
-		Type:  lockType,
+	// we just use a nil value, which happens to be at an address
+	// differs from any existing one.
+	var owner *nfsv4.LockOwner4
+	if los, ok := cis.lockOwnersByOwner[string(args.Owner.Owner)]; ok {
+		owner = &los.owner
 	}
-
-	openedFile.locksLock.RLock()
-	defer openedFile.locksLock.RUnlock()
-
-	if conflictingLock := openedFile.locks.Test(lock); conflictingLock != nil {
-		return &nfsv4.Lockt4res_NFS4ERR_DENIED{
-			Denied: nfs41ByteRangeLockToLock4Denied(conflictingLock),
-		}
-	}
-	return &nfsv4.Lockt4res_NFS4_OK{}
+	return s.program.openedFilesPool.TestLock(
+		s.currentFileHandle.handle,
+		owner,
+		args.Offset,
+		args.Length,
+		args.Locktype,
+	)
 }
 
 func (s *sequenceState) opLockU(args *nfsv4.Locku4args) nfsv4.Locku4res {
-	start, end, st := offsetLengthToStartEnd(args.Offset, args.Length)
-	if st != nfsv4.NFS4_OK {
-		return &nfsv4.Locku4res_default{Status: st}
-	}
-
 	cis := s.session.clientIncarnation
 	cis.lock.Lock()
 	defer cis.lock.Unlock()
@@ -2185,18 +2100,11 @@ func (s *sequenceState) opLockU(args *nfsv4.Locku4args) nfsv4.Locku4res {
 	if st != nfsv4.NFS4_OK {
 		return &nfsv4.Locku4res_default{Status: st}
 	}
-
-	lock := &virtual.ByteRangeLock[*nfs41LockOwnerState]{
-		Owner: lofs.lockOwner,
-		Start: start,
-		End:   end,
-		Type:  virtual.ByteRangeLockTypeUnlocked,
+	lockCountDelta, st := lofs.openOwnerFile.openedFile.Unlock(&lofs.lockOwner.owner, args.Offset, args.Length)
+	if st != nfsv4.NFS4_OK {
+		return &nfsv4.Locku4res_default{Status: st}
 	}
-
-	openedFile := lofs.openOwnerFile.openedFile
-	openedFile.locksLock.Lock()
-	lofs.lockCount += openedFile.locks.Set(lock)
-	openedFile.locksLock.Unlock()
+	lofs.lockCount += lockCountDelta
 	if lofs.lockCount < 0 {
 		panic("Negative lock count")
 	}
@@ -2385,31 +2293,9 @@ func (s *sequenceState) opOpen(ctx context.Context, args *nfsv4.Open4args) nfsv4
 		}
 		oofs, ok = oos.filesByHandle[handleKey]
 		if !ok {
-			p := s.program
-			p.openedFilesLock.Lock()
-			openedFile, ok := p.openedFilesByHandle[handleKey]
-			if ok {
-				openedFile.openOwnersCount.increase()
-			} else {
-				// This file has not been opened by any
-				// open-owner. Keep track of it, so that we
-				// don't need to call into HandleResolver. This
-				// ensures that the file remains accessible
-				// while opened, even when unlinked.
-				openedFile = &nfs41OpenedFileState{
-					handle:          handle,
-					handleKey:       handleKey,
-					leaf:            leaf,
-					openOwnersCount: 1,
-				}
-				openedFile.locks.Initialize()
-				p.openedFilesByHandle[handleKey] = openedFile
-			}
-			p.openedFilesLock.Unlock()
-
 			oofs = &nfs41OpenOwnerFileState{
 				openOwner:      oos,
-				openedFile:     openedFile,
+				openedFile:     s.program.openedFilesPool.Open(handle, leaf),
 				stateID:        cis.newRegularStateID(),
 				lockOwnerFiles: map[*nfs41LockOwnerState]*nfs41LockOwnerFileState{},
 			}
@@ -2493,29 +2379,13 @@ func (s *sequenceState) opOpenDowngrade(args *nfsv4.OpenDowngrade4args) nfsv4.Op
 }
 
 func (s *sequenceState) opPutFH(args *nfsv4.Putfh4args) nfsv4.Putfh4res {
-	p := s.program
-	p.openedFilesLock.RLock()
-	if openedFile, ok := p.openedFilesByHandle[string(args.Object)]; ok {
-		// File is opened at least once. Return this copy, so
-		// that we're guaranteed to work, even if the file has
-		// been removed from the file system.
-		s.currentFileHandle = nfs41FileHandle{
-			handle: openedFile.handle,
-			node:   virtual.DirectoryChild{}.FromLeaf(openedFile.leaf),
-		}
-		p.openedFilesLock.RUnlock()
-	} else {
-		// File is currently not open. Call into the handle
-		// resolver to do a lookup.
-		p.openedFilesLock.RUnlock()
-		child, vs := s.program.handleResolver(bytes.NewBuffer(args.Object))
-		if vs != virtual.StatusOK {
-			return nfsv4.Putfh4res{Status: toNFSv4Status(vs)}
-		}
-		s.currentFileHandle = nfs41FileHandle{
-			handle: args.Object,
-			node:   child,
-		}
+	child, st := s.program.openedFilesPool.Resolve(args.Object)
+	if st != nfsv4.NFS4_OK {
+		return nfsv4.Putfh4res{Status: st}
+	}
+	s.currentFileHandle = nfs41FileHandle{
+		handle: args.Object,
+		node:   child,
 	}
 	return nfsv4.Putfh4res{Status: nfsv4.NFS4_OK}
 }
@@ -2865,32 +2735,4 @@ func nfs41CompareStateSeqID(clientValue, serverValue uint32) nfsv4.Nfsstat4 {
 		return nfsv4.NFS4ERR_BAD_STATEID
 	}
 	return nfsv4.NFS4ERR_OLD_STATEID
-}
-
-// nfs41ByteRangeLockToLock4Denied converts information on a conflicting
-// byte range lock into a LOCK4denied response.
-func nfs41ByteRangeLockToLock4Denied(lock *virtual.ByteRangeLock[*nfs41LockOwnerState]) nfsv4.Lock4denied {
-	length := uint64(math.MaxUint64)
-	if lock.End != math.MaxUint64 {
-		length = lock.End - lock.Start
-	}
-	var lockType nfsv4.NfsLockType4
-	switch lock.Type {
-	case virtual.ByteRangeLockTypeLockedShared:
-		lockType = nfsv4.READ_LT
-	case virtual.ByteRangeLockTypeLockedExclusive:
-		lockType = nfsv4.WRITE_LT
-	default:
-		panic("Unexpected lock type")
-	}
-	los := lock.Owner
-	return nfsv4.Lock4denied{
-		Offset:   lock.Start,
-		Length:   length,
-		Locktype: lockType,
-		Owner: nfsv4.LockOwner4{
-			Clientid: los.clientIncarnation.clientID,
-			Owner:    los.owner,
-		},
-	}
 }

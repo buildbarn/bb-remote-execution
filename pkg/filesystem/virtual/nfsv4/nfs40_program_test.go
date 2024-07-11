@@ -239,7 +239,7 @@ func TestNFS40ProgramCompound_OP_ACCESS(t *testing.T) {
 	rebootVerifier := nfsv4_xdr.Verifier4{0x96, 0x63, 0x54, 0xf1, 0xa2, 0x6b, 0x8c, 0x61}
 	stateIDOtherPrefix := [...]byte{0x68, 0x78, 0x20, 0xb7}
 	clock := mock.NewMockClock(ctrl)
-	program := nfsv4.NewNFS40Program(rootDirectory, handleResolver.Call, randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
+	program := nfsv4.NewNFS40Program(rootDirectory, nfsv4.NewOpenedFilesPool(handleResolver.Call), randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
 
 	t.Run("NoFileHandle", func(t *testing.T) {
 		// Calling ACCESS without a file handle should fail.
@@ -310,7 +310,6 @@ func TestNFS40ProgramCompound_OP_ACCESS(t *testing.T) {
 	t.Run("File", func(t *testing.T) {
 		// Access checks against a file.
 		leaf := mock.NewMockVirtualLeaf(ctrl)
-		clock.EXPECT().Now().Return(time.Unix(1000, 0))
 		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 		leaf.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskPermissions, gomock.Any()).
 			Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
@@ -368,14 +367,13 @@ func TestNFS40ProgramCompound_OP_CLOSE(t *testing.T) {
 	rebootVerifier := nfsv4_xdr.Verifier4{0x9f, 0xa8, 0x23, 0x40, 0x68, 0x9f, 0x3e, 0xac}
 	stateIDOtherPrefix := [...]byte{0xf5, 0x47, 0xa8, 0x88}
 	clock := mock.NewMockClock(ctrl)
-	program := nfsv4.NewNFS40Program(rootDirectory, handleResolver.Call, randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
+	program := nfsv4.NewNFS40Program(rootDirectory, nfsv4.NewOpenedFilesPool(handleResolver.Call), randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
 
 	t.Run("AnonymousStateID", func(t *testing.T) {
 		// Calling CLOSE against the anonymous state ID is of
 		// course not permitted. This operation only works when
 		// called against regular state IDs.
 		leaf := mock.NewMockVirtualLeaf(ctrl)
-		clock.EXPECT().Now().Return(time.Unix(1000, 0))
 		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -418,7 +416,6 @@ func TestNFS40ProgramCompound_OP_CLOSE(t *testing.T) {
 		// NFS4ERR_STALE_STATEID, as it's likely from before a
 		// restart.
 		leaf := mock.NewMockVirtualLeaf(ctrl)
-		clock.EXPECT().Now().Return(time.Unix(1001, 0))
 		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -468,7 +465,6 @@ func TestNFS40ProgramCompound_OP_CLOSE(t *testing.T) {
 		// the known prefix should return NFS4ERR_BAD_STATEID.
 		leaf := mock.NewMockVirtualLeaf(ctrl)
 		clock.EXPECT().Now().Return(time.Unix(1002, 0))
-		clock.EXPECT().Now().Return(time.Unix(1003, 0))
 		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -542,7 +538,6 @@ func TestNFS40ProgramCompound_OP_CLOSE(t *testing.T) {
 		// CLOSE can't be called against an open-owner that
 		// hasn't been confirmed yet.
 		clock.EXPECT().Now().Return(time.Unix(1008, 0))
-		clock.EXPECT().Now().Return(time.Unix(1009, 0))
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "close",
@@ -605,7 +600,6 @@ func TestNFS40ProgramCompound_OP_CLOSE(t *testing.T) {
 	t.Run("OldStateID", func(t *testing.T) {
 		// Can't call CLOSE on a state ID from the past.
 		clock.EXPECT().Now().Return(time.Unix(1012, 0))
-		clock.EXPECT().Now().Return(time.Unix(1013, 0))
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "close",
@@ -652,7 +646,6 @@ func TestNFS40ProgramCompound_OP_CLOSE(t *testing.T) {
 	t.Run("FuturisticStateID", func(t *testing.T) {
 		// Can't call CLOSE on a state ID from the future.
 		clock.EXPECT().Now().Return(time.Unix(1014, 0))
-		clock.EXPECT().Now().Return(time.Unix(1015, 0))
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "close",
@@ -698,8 +691,6 @@ func TestNFS40ProgramCompound_OP_CLOSE(t *testing.T) {
 
 	t.Run("NoFileHandle", func(t *testing.T) {
 		// Calling CLOSE without a file handle should fail.
-		clock.EXPECT().Now().Return(time.Unix(1016, 0))
-
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "close",
 			Argarray: []nfsv4_xdr.NfsArgop4{
@@ -736,7 +727,7 @@ func TestNFS40ProgramCompound_OP_CLOSE(t *testing.T) {
 		// Actually close the file. It should be safe to call
 		// this multiple times, as it should just return a
 		// cached response.
-		for i := int64(0); i < 2*10; i++ {
+		for i := int64(0); i < 10; i++ {
 			clock.EXPECT().Now().Return(time.Unix(1017+i, 0))
 		}
 		leaf.EXPECT().VirtualClose(virtual.ShareMaskRead)
@@ -802,7 +793,6 @@ func TestNFS40ProgramCompound_OP_CLOSE(t *testing.T) {
 		//
 		// More details: RFC 7530, section 9.1.9, bullet point 3.
 		clock.EXPECT().Now().Return(time.Unix(1037, 0))
-		clock.EXPECT().Now().Return(time.Unix(1038, 0))
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "close",
@@ -852,7 +842,6 @@ func TestNFS40ProgramCompound_OP_CLOSE(t *testing.T) {
 		// that has already been closed should just return
 		// NFS4ERR_BAD_STATEID.
 		clock.EXPECT().Now().Return(time.Unix(1039, 0))
-		clock.EXPECT().Now().Return(time.Unix(1040, 0))
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "close",
@@ -910,7 +899,7 @@ func TestNFS40ProgramCompound_OP_COMMIT(t *testing.T) {
 	rebootVerifier := nfsv4_xdr.Verifier4{0x1a, 0xa6, 0x7e, 0x3b, 0xf7, 0x29, 0xa4, 0x7b}
 	stateIDOtherPrefix := [...]byte{0x24, 0xa7, 0x48, 0xbc}
 	clock := mock.NewMockClock(ctrl)
-	program := nfsv4.NewNFS40Program(rootDirectory, handleResolver.Call, randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
+	program := nfsv4.NewNFS40Program(rootDirectory, nfsv4.NewOpenedFilesPool(handleResolver.Call), randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
 
 	t.Run("NoFileHandle", func(t *testing.T) {
 		// Calling COMMIT without a file handle should fail.
@@ -973,7 +962,6 @@ func TestNFS40ProgramCompound_OP_COMMIT(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		leaf := mock.NewMockVirtualLeaf(ctrl)
-		clock.EXPECT().Now().Return(time.Unix(1000, 0))
 		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -1027,7 +1015,7 @@ func TestNFS40ProgramCompound_OP_CREATE(t *testing.T) {
 	rebootVerifier := nfsv4_xdr.Verifier4{0x8d, 0x3d, 0xe8, 0x2e, 0xee, 0x3b, 0xca, 0x60}
 	stateIDOtherPrefix := [...]byte{0x60, 0xf5, 0x56, 0x97}
 	clock := mock.NewMockClock(ctrl)
-	program := nfsv4.NewNFS40Program(rootDirectory, handleResolver.Call, randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
+	program := nfsv4.NewNFS40Program(rootDirectory, nfsv4.NewOpenedFilesPool(handleResolver.Call), randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
 
 	t.Run("NoFileHandle", func(t *testing.T) {
 		// Calling CREATE without a file handle should fail.
@@ -1058,7 +1046,6 @@ func TestNFS40ProgramCompound_OP_CREATE(t *testing.T) {
 
 	t.Run("NotDirectory", func(t *testing.T) {
 		leaf := mock.NewMockVirtualLeaf(ctrl)
-		clock.EXPECT().Now().Return(time.Unix(1000, 0))
 		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -1579,7 +1566,7 @@ func TestNFS40ProgramCompound_OP_DELEGPURGE(t *testing.T) {
 	rebootVerifier := nfsv4_xdr.Verifier4{0x0b, 0xb3, 0x0d, 0xa3, 0x50, 0x11, 0x6b, 0x38}
 	stateIDOtherPrefix := [...]byte{0x17, 0x18, 0x71, 0xc6}
 	clock := mock.NewMockClock(ctrl)
-	program := nfsv4.NewNFS40Program(rootDirectory, handleResolver.Call, randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
+	program := nfsv4.NewNFS40Program(rootDirectory, nfsv4.NewOpenedFilesPool(handleResolver.Call), randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
 
 	t.Run("NotSupported", func(t *testing.T) {
 		// As we don't support CLAIM_DELEGATE_PREV, this method
@@ -1624,7 +1611,7 @@ func TestNFS40ProgramCompound_OP_GETATTR(t *testing.T) {
 	rebootVerifier := nfsv4_xdr.Verifier4{0x5e, 0x5f, 0xfe, 0x34, 0x05, 0x98, 0x9d, 0xf1}
 	stateIDOtherPrefix := [...]byte{0x3d, 0xc0, 0x5d, 0xd2}
 	clock := mock.NewMockClock(ctrl)
-	program := nfsv4.NewNFS40Program(rootDirectory, handleResolver.Call, randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
+	program := nfsv4.NewNFS40Program(rootDirectory, nfsv4.NewOpenedFilesPool(handleResolver.Call), randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
 
 	t.Run("NoFileHandle", func(t *testing.T) {
 		// Calling GETATTR without a file handle should fail.
@@ -1837,7 +1824,7 @@ func TestNFS40ProgramCompound_OP_GETFH(t *testing.T) {
 	rebootVerifier := nfsv4_xdr.Verifier4{0x3c, 0x79, 0xba, 0xfe, 0xd6, 0x87, 0x1e, 0x32}
 	stateIDOtherPrefix := [...]byte{0x95, 0xce, 0xb4, 0x96}
 	clock := mock.NewMockClock(ctrl)
-	program := nfsv4.NewNFS40Program(rootDirectory, handleResolver.Call, randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
+	program := nfsv4.NewNFS40Program(rootDirectory, nfsv4.NewOpenedFilesPool(handleResolver.Call), randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
 
 	t.Run("NoFileHandle", func(t *testing.T) {
 		// Calling GETFH without a file handle should fail.
@@ -1906,7 +1893,7 @@ func TestNFS40ProgramCompound_OP_ILLEGAL(t *testing.T) {
 	rebootVerifier := nfsv4_xdr.Verifier4{0x42, 0x51, 0x65, 0x8b, 0xd2, 0x27, 0xc4, 0x13}
 	stateIDOtherPrefix := [...]byte{0x01, 0x22, 0xe2, 0xaa}
 	clock := mock.NewMockClock(ctrl)
-	program := nfsv4.NewNFS40Program(rootDirectory, handleResolver.Call, randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
+	program := nfsv4.NewNFS40Program(rootDirectory, nfsv4.NewOpenedFilesPool(handleResolver.Call), randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
 
 	t.Run("Failure", func(t *testing.T) {
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -1943,7 +1930,7 @@ func TestNFS40ProgramCompound_OP_LINK(t *testing.T) {
 	rebootVerifier := nfsv4_xdr.Verifier4{0x8d, 0x94, 0x96, 0x9c, 0xe9, 0x4b, 0xcf, 0xf5}
 	stateIDOtherPrefix := [...]byte{0xdf, 0xdb, 0x0d, 0x38}
 	clock := mock.NewMockClock(ctrl)
-	program := nfsv4.NewNFS40Program(rootDirectory, handleResolver.Call, randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
+	program := nfsv4.NewNFS40Program(rootDirectory, nfsv4.NewOpenedFilesPool(handleResolver.Call), randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
 
 	t.Run("NoFileHandle1", func(t *testing.T) {
 		// Calling LINK without any file handles should fail.
@@ -2006,7 +1993,6 @@ func TestNFS40ProgramCompound_OP_LINK(t *testing.T) {
 	t.Run("BadName", func(t *testing.T) {
 		// Calling LINK with a bad filename should fail.
 		leaf := mock.NewMockVirtualLeaf(ctrl)
-		clock.EXPECT().Now().Return(time.Unix(1000, 0))
 		handleResolverExpectCall(t, handleResolver, []byte{0x62, 0xfc, 0x0c, 0x8c, 0x94, 0x86, 0x8d, 0xc7}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -2061,7 +2047,6 @@ func TestNFS40ProgramCompound_OP_LINK(t *testing.T) {
 		// Calling LINK with a name of length zero should fail
 		// with NFS4ERR_INVAL.
 		leaf := mock.NewMockVirtualLeaf(ctrl)
-		clock.EXPECT().Now().Return(time.Unix(1001, 0))
 		handleResolverExpectCall(t, handleResolver, []byte{0x62, 0xfc, 0x0c, 0x8c, 0x94, 0x86, 0x8d, 0xc7}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -2111,7 +2096,6 @@ func TestNFS40ProgramCompound_OP_LINK(t *testing.T) {
 	t.Run("SourceIsDirectory", func(t *testing.T) {
 		// Calling LINK with a directory as a source object should fail.
 		directory := mock.NewMockVirtualDirectory(ctrl)
-		clock.EXPECT().Now().Return(time.Unix(1002, 0))
 		handleResolverExpectCall(t, handleResolver, []byte{0x92, 0xcc, 0xd9, 0x59, 0xef, 0xf3, 0xef, 0x0a}, virtual.DirectoryChild{}.FromDirectory(directory), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -2166,7 +2150,6 @@ func TestNFS40ProgramCompound_OP_LINK(t *testing.T) {
 		// All arguments are correct, but the underlying
 		// directory does not allow the link to be created.
 		leaf := mock.NewMockVirtualLeaf(ctrl)
-		clock.EXPECT().Now().Return(time.Unix(1003, 0))
 		handleResolverExpectCall(t, handleResolver, []byte{0x98, 0x55, 0x2f, 0xf4, 0x06, 0xa1, 0xea, 0xbd}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 		rootDirectory.EXPECT().VirtualLink(
 			ctx,
@@ -2226,7 +2209,6 @@ func TestNFS40ProgramCompound_OP_LINK(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		leaf := mock.NewMockVirtualLeaf(ctrl)
-		clock.EXPECT().Now().Return(time.Unix(1004, 0))
 		handleResolverExpectCall(t, handleResolver, []byte{0x98, 0x55, 0x2f, 0xf4, 0x06, 0xa1, 0xea, 0xbd}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 		rootDirectory.EXPECT().VirtualLink(
 			ctx,
@@ -2307,7 +2289,7 @@ func TestNFS40ProgramCompound_OP_LOOKUP(t *testing.T) {
 	rebootVerifier := nfsv4_xdr.Verifier4{0xf5, 0x66, 0xea, 0xae, 0x76, 0x70, 0xd1, 0x5b}
 	stateIDOtherPrefix := [...]byte{0x2d, 0x48, 0xd3, 0x9b}
 	clock := mock.NewMockClock(ctrl)
-	program := nfsv4.NewNFS40Program(rootDirectory, handleResolver.Call, randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
+	program := nfsv4.NewNFS40Program(rootDirectory, nfsv4.NewOpenedFilesPool(handleResolver.Call), randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
 
 	t.Run("NoFileHandle", func(t *testing.T) {
 		// Calling LOOKUP without a file handle should fail.
@@ -2397,7 +2379,6 @@ func TestNFS40ProgramCompound_OP_LOOKUP(t *testing.T) {
 		// When called against files other than symbolic links,
 		// LOOKUP should return NFS4ERR_NOTDIR.
 		leaf := mock.NewMockVirtualLeaf(ctrl)
-		clock.EXPECT().Now().Return(time.Unix(1000, 0))
 		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 		leaf.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskFileType, gomock.Any()).
 			Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
@@ -2443,7 +2424,6 @@ func TestNFS40ProgramCompound_OP_LOOKUP(t *testing.T) {
 		// return NFS4ERR_SYMLINK. That way the client knows it
 		// may need to do symlink expansion.
 		leaf := mock.NewMockVirtualLeaf(ctrl)
-		clock.EXPECT().Now().Return(time.Unix(1001, 0))
 		handleResolverExpectCall(t, handleResolver, []byte{4, 5, 6}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 		leaf.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskFileType, gomock.Any()).
 			Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
@@ -2590,7 +2570,7 @@ func TestNFS40ProgramCompound_OP_NVERIFY(t *testing.T) {
 	rebootVerifier := nfsv4_xdr.Verifier4{0xab, 0x23, 0xe8, 0x04, 0x79, 0x23, 0x0a, 0x27}
 	stateIDOtherPrefix := [...]byte{0x41, 0x40, 0x91, 0x69}
 	clock := mock.NewMockClock(ctrl)
-	program := nfsv4.NewNFS40Program(rootDirectory, handleResolver.Call, randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
+	program := nfsv4.NewNFS40Program(rootDirectory, nfsv4.NewOpenedFilesPool(handleResolver.Call), randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
 
 	// Only basic testing coverage for NVERIFY is provided, as it is
 	// assumed most of the logic is shared with VERIFY.
@@ -2701,7 +2681,7 @@ func TestNFS40ProgramCompound_OP_OPEN(t *testing.T) {
 	rebootVerifier := nfsv4_xdr.Verifier4{0x18, 0xe4, 0x47, 0xf1, 0x31, 0x1c, 0xe2, 0x94}
 	stateIDOtherPrefix := [...]byte{0x5c, 0x71, 0xa6, 0x0d}
 	clock := mock.NewMockClock(ctrl)
-	program := nfsv4.NewNFS40Program(rootDirectory, handleResolver.Call, randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
+	program := nfsv4.NewNFS40Program(rootDirectory, nfsv4.NewOpenedFilesPool(handleResolver.Call), randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
 
 	clock.EXPECT().Now().Return(time.Unix(1000, 0))
 	clock.EXPECT().Now().Return(time.Unix(1001, 0))
@@ -2711,7 +2691,6 @@ func TestNFS40ProgramCompound_OP_OPEN(t *testing.T) {
 		t.Run("UnopenedFile", func(t *testing.T) {
 			// Calling CLAIM_PREVIOUS against a file handle
 			// that hasn't been opened before should fail.
-			clock.EXPECT().Now().Return(time.Unix(1002, 0))
 			leaf := mock.NewMockVirtualLeaf(ctrl)
 			handleResolverExpectCall(t, handleResolver, []byte{0x04, 0x72, 0xba, 0x69, 0x15, 0xeb, 0x78, 0x97}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 			clock.EXPECT().Now().Return(time.Unix(1003, 0))
@@ -2786,7 +2765,6 @@ func TestNFS40ProgramCompound_OP_OPEN(t *testing.T) {
 				})
 
 			clock.EXPECT().Now().Return(time.Unix(1006, 0))
-			clock.EXPECT().Now().Return(time.Unix(1007, 0))
 			leaf.EXPECT().VirtualClose(virtual.ShareMaskRead)
 
 			res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -2854,7 +2832,6 @@ func TestNFS40ProgramCompound_OP_OPEN(t *testing.T) {
 				0x3b, 0x79, 0x04, 0x81,
 			})
 		clock.EXPECT().Now().Return(time.Unix(1010, 0))
-		clock.EXPECT().Now().Return(time.Unix(1011, 0))
 		openConfirmForTesting(
 			ctx,
 			t,
@@ -2875,7 +2852,6 @@ func TestNFS40ProgramCompound_OP_OPEN(t *testing.T) {
 			// support delegations, the client MUST provide
 			// OPEN_DELEGATE_NONE.
 			clock.EXPECT().Now().Return(time.Unix(1012, 0))
-			clock.EXPECT().Now().Return(time.Unix(1013, 0))
 
 			res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 				Tag: "open",
@@ -2928,7 +2904,6 @@ func TestNFS40ProgramCompound_OP_OPEN(t *testing.T) {
 			// impossible to use it in combination with
 			// GUARDED4.
 			clock.EXPECT().Now().Return(time.Unix(1014, 0))
-			clock.EXPECT().Now().Return(time.Unix(1015, 0))
 
 			res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 				Tag: "open",
@@ -2982,7 +2957,6 @@ func TestNFS40ProgramCompound_OP_OPEN(t *testing.T) {
 			// share reservations or truncate the file. This
 			// requires reopening the file, which may fail.
 			clock.EXPECT().Now().Return(time.Unix(1016, 0))
-			clock.EXPECT().Now().Return(time.Unix(1017, 0))
 			leaf.EXPECT().VirtualOpenSelf(
 				ctx,
 				virtual.ShareMaskWrite,
@@ -3050,7 +3024,6 @@ func TestNFS40ProgramCompound_OP_OPEN(t *testing.T) {
 
 		t.Run("Success", func(t *testing.T) {
 			clock.EXPECT().Now().Return(time.Unix(1019, 0))
-			clock.EXPECT().Now().Return(time.Unix(1020, 0))
 			leaf.EXPECT().VirtualOpenSelf(ctx, virtual.ShareMaskRead, &virtual.OpenExistingOptions{}, virtual.AttributesMask(0), gomock.Any())
 			leaf.EXPECT().VirtualClose(virtual.ShareMaskRead)
 			clock.EXPECT().Now().Return(time.Unix(1021, 0))
@@ -3129,7 +3102,7 @@ func TestNFS40ProgramCompound_OP_OPENATTR(t *testing.T) {
 	rebootVerifier := nfsv4_xdr.Verifier4{0xe6, 0x7e, 0xb7, 0xdb, 0x52, 0x9c, 0x7c, 0x86}
 	stateIDOtherPrefix := [...]byte{0x06, 0x00, 0x7c, 0x9d}
 	clock := mock.NewMockClock(ctrl)
-	program := nfsv4.NewNFS40Program(rootDirectory, handleResolver.Call, randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
+	program := nfsv4.NewNFS40Program(rootDirectory, nfsv4.NewOpenedFilesPool(handleResolver.Call), randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
 
 	t.Run("NoFileHandle", func(t *testing.T) {
 		// Calling OPENATTR without a file handle should fail.
@@ -3203,7 +3176,7 @@ func TestNFS40ProgramCompound_OP_OPEN_CONFIRM(t *testing.T) {
 	rebootVerifier := nfsv4_xdr.Verifier4{0x42, 0xa8, 0x3f, 0xd1, 0xde, 0x65, 0x74, 0x2a}
 	stateIDOtherPrefix := [...]byte{0xfa, 0xc3, 0xf7, 0x18}
 	clock := mock.NewMockClock(ctrl)
-	program := nfsv4.NewNFS40Program(rootDirectory, handleResolver.Call, randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
+	program := nfsv4.NewNFS40Program(rootDirectory, nfsv4.NewOpenedFilesPool(handleResolver.Call), randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
 
 	clock.EXPECT().Now().Return(time.Unix(1000, 0))
 	clock.EXPECT().Now().Return(time.Unix(1001, 0))
@@ -3232,8 +3205,7 @@ func TestNFS40ProgramCompound_OP_OPEN_CONFIRM(t *testing.T) {
 			})
 
 		for i := int64(0); i < 10; i++ {
-			clock.EXPECT().Now().Return(time.Unix(1004+i*2, 0))
-			clock.EXPECT().Now().Return(time.Unix(1005+i*2, 0))
+			clock.EXPECT().Now().Return(time.Unix(1004+i, 0))
 			openConfirmForTesting(
 				ctx,
 				t,
@@ -3259,7 +3231,6 @@ func TestNFS40ProgramCompound_OP_OPEN_CONFIRM(t *testing.T) {
 		//
 		// More details: RFC 7530, section 9.1.9, bullet point 3.
 		clock.EXPECT().Now().Return(time.Unix(1024, 0))
-		clock.EXPECT().Now().Return(time.Unix(1025, 0))
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "close",
@@ -3319,14 +3290,13 @@ func TestNFS40ProgramCompound_OP_OPEN_DOWNGRADE(t *testing.T) {
 	rebootVerifier := nfsv4_xdr.Verifier4{0x4d, 0x0d, 0xc1, 0xca, 0xd9, 0xeb, 0x73, 0xc9}
 	stateIDOtherPrefix := [...]byte{0x2c, 0xa4, 0xce, 0xdc}
 	clock := mock.NewMockClock(ctrl)
-	program := nfsv4.NewNFS40Program(rootDirectory, handleResolver.Call, randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
+	program := nfsv4.NewNFS40Program(rootDirectory, nfsv4.NewOpenedFilesPool(handleResolver.Call), randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
 
 	t.Run("AnonymousStateID", func(t *testing.T) {
 		// Calling OPEN_DOWNGRADE against the anonymous state ID
 		// is of course not permitted. This operation only works
 		// when called against regular state IDs.
 		leaf := mock.NewMockVirtualLeaf(ctrl)
-		clock.EXPECT().Now().Return(time.Unix(1000, 0))
 		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -3371,7 +3341,6 @@ func TestNFS40ProgramCompound_OP_OPEN_DOWNGRADE(t *testing.T) {
 		// NFS4ERR_STALE_STATEID, as it's likely from before a
 		// restart.
 		leaf := mock.NewMockVirtualLeaf(ctrl)
-		clock.EXPECT().Now().Return(time.Unix(1001, 0))
 		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -3444,7 +3413,6 @@ func TestNFS40ProgramCompound_OP_OPEN_DOWNGRADE(t *testing.T) {
 		})
 
 	clock.EXPECT().Now().Return(time.Unix(1006, 0))
-	clock.EXPECT().Now().Return(time.Unix(1007, 0))
 	openConfirmForTesting(
 		ctx,
 		t,
@@ -3464,7 +3432,6 @@ func TestNFS40ProgramCompound_OP_OPEN_DOWNGRADE(t *testing.T) {
 		// opened for reading can't be upgraded to reading and
 		// writing.
 		clock.EXPECT().Now().Return(time.Unix(1010, 0))
-		clock.EXPECT().Now().Return(time.Unix(1011, 0))
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "open_downgrade",
@@ -3514,7 +3481,6 @@ func TestNFS40ProgramCompound_OP_OPEN_DOWNGRADE(t *testing.T) {
 		// Though pointless, it is permitted to downgrade a file
 		// to exactly the same set of share reservations.
 		clock.EXPECT().Now().Return(time.Unix(1012, 0))
-		clock.EXPECT().Now().Return(time.Unix(1013, 0))
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "open_downgrade",
@@ -3574,7 +3540,6 @@ func TestNFS40ProgramCompound_OP_OPEN_DOWNGRADE(t *testing.T) {
 		// writable, a subsequent downgrade to read-only should
 		// close the file for writing.
 		clock.EXPECT().Now().Return(time.Unix(1019, 0))
-		clock.EXPECT().Now().Return(time.Unix(1020, 0))
 		leaf.EXPECT().VirtualOpenSelf(ctx, virtual.ShareMaskRead|virtual.ShareMaskWrite, &virtual.OpenExistingOptions{}, virtual.AttributesMask(0), gomock.Any())
 		clock.EXPECT().Now().Return(time.Unix(1021, 0))
 		leaf.EXPECT().VirtualClose(virtual.ShareMaskRead)
@@ -3635,7 +3600,6 @@ func TestNFS40ProgramCompound_OP_OPEN_DOWNGRADE(t *testing.T) {
 		}, res)
 
 		clock.EXPECT().Now().Return(time.Unix(1022, 0))
-		clock.EXPECT().Now().Return(time.Unix(1023, 0))
 		leaf.EXPECT().VirtualClose(virtual.ShareMaskWrite)
 
 		res, err = program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -3698,7 +3662,6 @@ func TestNFS40ProgramCompound_OP_OPEN_DOWNGRADE(t *testing.T) {
 		// to access the file using its original share
 		// reservations. Calling RELEASE_LOCKOWNER should cause
 		// the file to be closed partially.
-		clock.EXPECT().Now().Return(time.Unix(1022, 0))
 		clock.EXPECT().Now().Return(time.Unix(1023, 0))
 		leaf.EXPECT().VirtualOpenSelf(ctx, virtual.ShareMaskWrite, &virtual.OpenExistingOptions{}, virtual.AttributesMask(0), gomock.Any())
 		clock.EXPECT().Now().Return(time.Unix(1024, 0))
@@ -3759,7 +3722,6 @@ func TestNFS40ProgramCompound_OP_OPEN_DOWNGRADE(t *testing.T) {
 		}, res)
 
 		clock.EXPECT().Now().Return(time.Unix(1025, 0))
-		clock.EXPECT().Now().Return(time.Unix(1026, 0))
 		randomNumberGeneratorExpectRead(randomNumberGenerator, []byte{0x38, 0x51, 0x33, 0xcc, 0x1c, 0x67, 0x79, 0xb5})
 
 		resLock, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -3826,7 +3788,6 @@ func TestNFS40ProgramCompound_OP_OPEN_DOWNGRADE(t *testing.T) {
 		}, resLock)
 
 		clock.EXPECT().Now().Return(time.Unix(1027, 0))
-		clock.EXPECT().Now().Return(time.Unix(1028, 0))
 
 		res, err = program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "open_downgrade",
@@ -3881,7 +3842,6 @@ func TestNFS40ProgramCompound_OP_OPEN_DOWNGRADE(t *testing.T) {
 		}, res)
 
 		clock.EXPECT().Now().Return(time.Unix(1029, 0))
-		clock.EXPECT().Now().Return(time.Unix(1030, 0))
 
 		res, err = program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "unlock",
@@ -3966,7 +3926,6 @@ func TestNFS40ProgramCompound_OP_OPEN_DOWNGRADE(t *testing.T) {
 
 	// Closing the file should release the underlying file.
 	clock.EXPECT().Now().Return(time.Unix(1032, 0))
-	clock.EXPECT().Now().Return(time.Unix(1033, 0))
 	leaf.EXPECT().VirtualClose(virtual.ShareMaskRead)
 
 	res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -4035,7 +3994,7 @@ func TestNFS40ProgramCompound_OP_READ(t *testing.T) {
 	rebootVerifier := nfsv4_xdr.Verifier4{0x58, 0x61, 0xb4, 0xff, 0x82, 0x40, 0x8f, 0x1a}
 	stateIDOtherPrefix := [...]byte{0x55, 0xc7, 0xc6, 0xa0}
 	clock := mock.NewMockClock(ctrl)
-	program := nfsv4.NewNFS40Program(rootDirectory, handleResolver.Call, randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
+	program := nfsv4.NewNFS40Program(rootDirectory, nfsv4.NewOpenedFilesPool(handleResolver.Call), randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
 
 	t.Run("StaleStateID", func(t *testing.T) {
 		// Providing a state ID that uses an unknown prefix
@@ -4043,7 +4002,6 @@ func TestNFS40ProgramCompound_OP_READ(t *testing.T) {
 		// as it likely refers to a state ID from before a
 		// restart.
 		leaf := mock.NewMockVirtualLeaf(ctrl)
-		clock.EXPECT().Now().Return(time.Unix(1000, 0))
 		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -4094,7 +4052,6 @@ func TestNFS40ProgramCompound_OP_READ(t *testing.T) {
 		// correspond to a known value.
 		leaf := mock.NewMockVirtualLeaf(ctrl)
 		clock.EXPECT().Now().Return(time.Unix(1001, 0))
-		clock.EXPECT().Now().Return(time.Unix(1002, 0))
 		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -4145,7 +4102,6 @@ func TestNFS40ProgramCompound_OP_READ(t *testing.T) {
 		// the state ID is all zeroes or all ones, the "seqid"
 		// field must match.
 		leaf := mock.NewMockVirtualLeaf(ctrl)
-		clock.EXPECT().Now().Return(time.Unix(1003, 0))
 		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -4223,7 +4179,6 @@ func TestNFS40ProgramCompound_OP_READ(t *testing.T) {
 		// cause the underlying file to be opened temporarily.
 		// Failures when doing so should propagate.
 		leaf := mock.NewMockVirtualLeaf(ctrl)
-		clock.EXPECT().Now().Return(time.Unix(1004, 0))
 		handleResolverExpectCall(t, handleResolver, []byte{4, 5, 6}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 		leaf.EXPECT().VirtualOpenSelf(ctx, virtual.ShareMaskRead, &virtual.OpenExistingOptions{}, virtual.AttributesMask(0), gomock.Any()).Return(virtual.StatusErrIO)
 
@@ -4264,7 +4219,6 @@ func TestNFS40ProgramCompound_OP_READ(t *testing.T) {
 
 	t.Run("AnonymousStateIDReadFailure", func(t *testing.T) {
 		leaf := mock.NewMockVirtualLeaf(ctrl)
-		clock.EXPECT().Now().Return(time.Unix(1005, 0))
 		handleResolverExpectCall(t, handleResolver, []byte{4, 5, 6}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 		gomock.InOrder(
 			leaf.EXPECT().VirtualOpenSelf(ctx, virtual.ShareMaskRead, &virtual.OpenExistingOptions{}, virtual.AttributesMask(0), gomock.Any()),
@@ -4308,7 +4262,6 @@ func TestNFS40ProgramCompound_OP_READ(t *testing.T) {
 
 	t.Run("AnonymousStateIDSuccess", func(t *testing.T) {
 		leaf := mock.NewMockVirtualLeaf(ctrl)
-		clock.EXPECT().Now().Return(time.Unix(1006, 0))
 		handleResolverExpectCall(t, handleResolver, []byte{4, 5, 6}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 		gomock.InOrder(
 			leaf.EXPECT().VirtualOpenSelf(ctx, virtual.ShareMaskRead, &virtual.OpenExistingOptions{}, virtual.AttributesMask(0), gomock.Any()),
@@ -4386,7 +4339,6 @@ func TestNFS40ProgramCompound_OP_READ(t *testing.T) {
 		// been confirmed using OPEN_CONFIRM yet. The READ
 		// operation should not be permitted.
 		clock.EXPECT().Now().Return(time.Unix(1011, 0))
-		clock.EXPECT().Now().Return(time.Unix(1012, 0))
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "read",
@@ -4433,7 +4385,6 @@ func TestNFS40ProgramCompound_OP_READ(t *testing.T) {
 
 	// Confirm the open-owner for the remainder of the test.
 	clock.EXPECT().Now().Return(time.Unix(1013, 0))
-	clock.EXPECT().Now().Return(time.Unix(1014, 0))
 	openConfirmForTesting(
 		ctx,
 		t,
@@ -4452,7 +4403,6 @@ func TestNFS40ProgramCompound_OP_READ(t *testing.T) {
 		// of the state ID to 2. Calling READ with a lower value
 		// should cause us to return NFS4ERR_OLD_STATEID.
 		clock.EXPECT().Now().Return(time.Unix(1015, 0))
-		clock.EXPECT().Now().Return(time.Unix(1016, 0))
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "read",
@@ -4501,7 +4451,6 @@ func TestNFS40ProgramCompound_OP_READ(t *testing.T) {
 		// Similarly, using sequence ID 3 is too new, as it's
 		// never been handed out by the server.
 		clock.EXPECT().Now().Return(time.Unix(1017, 0))
-		clock.EXPECT().Now().Return(time.Unix(1018, 0))
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "read",
@@ -4549,7 +4498,6 @@ func TestNFS40ProgramCompound_OP_READ(t *testing.T) {
 	t.Run("OpenStateIDSuccess", func(t *testing.T) {
 		clock.EXPECT().Now().Return(time.Unix(1019, 0))
 		clock.EXPECT().Now().Return(time.Unix(1020, 0))
-		clock.EXPECT().Now().Return(time.Unix(1021, 0))
 		leaf.EXPECT().VirtualRead(gomock.Len(100), uint64(1000)).
 			DoAndReturn(func(buf []byte, offset uint64) (int, bool, virtual.Status) {
 				return copy(buf, "Hello"), true, virtual.StatusOK
@@ -4604,7 +4552,6 @@ func TestNFS40ProgramCompound_OP_READ(t *testing.T) {
 	// Acquire a lock on the file to test the behaviour of READ when
 	// called with a lock state ID.
 	clock.EXPECT().Now().Return(time.Unix(1022, 0))
-	clock.EXPECT().Now().Return(time.Unix(1023, 0))
 	randomNumberGeneratorExpectRead(randomNumberGenerator, []byte{0xe8, 0xf2, 0xf2, 0x43, 0xc1, 0x91, 0x76, 0x91})
 
 	res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -4674,7 +4621,6 @@ func TestNFS40ProgramCompound_OP_READ(t *testing.T) {
 		// It's also permitted to call READ using a lock state ID.
 		clock.EXPECT().Now().Return(time.Unix(1024, 0))
 		clock.EXPECT().Now().Return(time.Unix(1025, 0))
-		clock.EXPECT().Now().Return(time.Unix(1026, 0))
 		leaf.EXPECT().VirtualRead(gomock.Len(100), uint64(1000)).
 			DoAndReturn(func(buf []byte, offset uint64) (int, bool, virtual.Status) {
 				return copy(buf, "Hello"), true, virtual.StatusOK
@@ -4728,7 +4674,6 @@ func TestNFS40ProgramCompound_OP_READ(t *testing.T) {
 
 	// Close the file for the remainder of the test.
 	clock.EXPECT().Now().Return(time.Unix(1027, 0))
-	clock.EXPECT().Now().Return(time.Unix(1028, 0))
 	leaf.EXPECT().VirtualClose(virtual.ShareMaskRead)
 
 	res, err = program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -4786,7 +4731,6 @@ func TestNFS40ProgramCompound_OP_READ(t *testing.T) {
 		// closed altogether, we should see NFS4ERR_BAD_STATEID
 		// instead.
 		clock.EXPECT().Now().Return(time.Unix(1029, 0))
-		clock.EXPECT().Now().Return(time.Unix(1030, 0))
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "read",
@@ -4835,7 +4779,6 @@ func TestNFS40ProgramCompound_OP_READ(t *testing.T) {
 		// Similar to the above, using the file with the exact
 		// state ID should also return NFS4ERR_BAD_STATEID.
 		clock.EXPECT().Now().Return(time.Unix(1030, 0))
-		clock.EXPECT().Now().Return(time.Unix(1031, 0))
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "read",
@@ -4894,7 +4837,7 @@ func TestNFS40ProgramCompound_OP_READDIR(t *testing.T) {
 	rebootVerifier := nfsv4_xdr.Verifier4{0x80, 0x29, 0x6e, 0xe3, 0x1a, 0xf1, 0xec, 0x41}
 	stateIDOtherPrefix := [...]byte{0xce, 0x11, 0x76, 0xe8}
 	clock := mock.NewMockClock(ctrl)
-	program := nfsv4.NewNFS40Program(rootDirectory, handleResolver.Call, randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
+	program := nfsv4.NewNFS40Program(rootDirectory, nfsv4.NewOpenedFilesPool(handleResolver.Call), randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
 
 	t.Run("NoFileHandle", func(t *testing.T) {
 		// Calling READDIR without a file handle should fail.
@@ -5218,7 +5161,7 @@ func TestNFS40ProgramCompound_OP_READLINK(t *testing.T) {
 	rebootVerifier := nfsv4_xdr.Verifier4{0xa8, 0x90, 0x8c, 0x43, 0xb7, 0xd6, 0x0f, 0x74}
 	stateIDOtherPrefix := [...]byte{0x46, 0x64, 0x44, 0x31}
 	clock := mock.NewMockClock(ctrl)
-	program := nfsv4.NewNFS40Program(rootDirectory, handleResolver.Call, randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
+	program := nfsv4.NewNFS40Program(rootDirectory, nfsv4.NewOpenedFilesPool(handleResolver.Call), randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
 
 	t.Run("NoFileHandle", func(t *testing.T) {
 		// Calling READLINK without a file handle should fail.
@@ -5274,7 +5217,6 @@ func TestNFS40ProgramCompound_OP_READLINK(t *testing.T) {
 
 	t.Run("Failure", func(t *testing.T) {
 		leaf := mock.NewMockVirtualLeaf(ctrl)
-		clock.EXPECT().Now().Return(time.Unix(1000, 0))
 		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 		leaf.EXPECT().VirtualReadlink(ctx).Return(nil, virtual.StatusErrIO)
 
@@ -5310,7 +5252,6 @@ func TestNFS40ProgramCompound_OP_READLINK(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		leaf := mock.NewMockVirtualLeaf(ctrl)
-		clock.EXPECT().Now().Return(time.Unix(1001, 0))
 		handleResolverExpectCall(t, handleResolver, []byte{4, 5, 6}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 		leaf.EXPECT().VirtualReadlink(ctx).Return([]byte("target"), virtual.StatusOK)
 
@@ -5360,7 +5301,7 @@ func TestNFS40ProgramCompound_OP_RELEASE_LOCKOWNER(t *testing.T) {
 	rebootVerifier := nfsv4_xdr.Verifier4{0x27, 0xe1, 0xcd, 0x6a, 0x3f, 0xf8, 0xb7, 0xb2}
 	stateIDOtherPrefix := [...]byte{0xab, 0x4f, 0xf6, 0x1c}
 	clock := mock.NewMockClock(ctrl)
-	program := nfsv4.NewNFS40Program(rootDirectory, handleResolver.Call, randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
+	program := nfsv4.NewNFS40Program(rootDirectory, nfsv4.NewOpenedFilesPool(handleResolver.Call), randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
 
 	t.Run("StaleClientID", func(t *testing.T) {
 		// Calling RELEASE_LOCKOWNER against a non-existent
@@ -5454,7 +5395,6 @@ func TestNFS40ProgramCompound_OP_RELEASE_LOCKOWNER(t *testing.T) {
 			0x85, 0x8e, 0x31, 0x01,
 		})
 	clock.EXPECT().Now().Return(time.Unix(1006, 0))
-	clock.EXPECT().Now().Return(time.Unix(1007, 0))
 	openConfirmForTesting(
 		ctx,
 		t,
@@ -5469,7 +5409,6 @@ func TestNFS40ProgramCompound_OP_RELEASE_LOCKOWNER(t *testing.T) {
 		})
 
 	clock.EXPECT().Now().Return(time.Unix(1008, 0))
-	clock.EXPECT().Now().Return(time.Unix(1009, 0))
 	randomNumberGeneratorExpectRead(randomNumberGenerator, []byte{0xe8, 0xef, 0xf4, 0x3d, 0x9b, 0x99, 0x0e, 0xf1})
 
 	res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -5569,7 +5508,6 @@ func TestNFS40ProgramCompound_OP_RELEASE_LOCKOWNER(t *testing.T) {
 
 	// Drop the lock.
 	clock.EXPECT().Now().Return(time.Unix(1011, 0))
-	clock.EXPECT().Now().Return(time.Unix(1012, 0))
 
 	res, err = program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 		Tag: "unlock",
@@ -5657,7 +5595,6 @@ func TestNFS40ProgramCompound_OP_RELEASE_LOCKOWNER(t *testing.T) {
 		// lock-owner should fail, as long as no
 		// open_to_lock_owner4 is provided.
 		clock.EXPECT().Now().Return(time.Unix(1014, 0))
-		clock.EXPECT().Now().Return(time.Unix(1015, 0))
 
 		res, err = program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "lock",
@@ -5723,7 +5660,7 @@ func TestNFS40ProgramCompound_OP_REMOVE(t *testing.T) {
 	rebootVerifier := nfsv4_xdr.Verifier4{0xe7, 0x77, 0x33, 0xf4, 0x21, 0xad, 0x7a, 0x1b}
 	stateIDOtherPrefix := [...]byte{0x4b, 0x46, 0x62, 0x3c}
 	clock := mock.NewMockClock(ctrl)
-	program := nfsv4.NewNFS40Program(rootDirectory, handleResolver.Call, randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
+	program := nfsv4.NewNFS40Program(rootDirectory, nfsv4.NewOpenedFilesPool(handleResolver.Call), randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
 
 	t.Run("NoFileHandle", func(t *testing.T) {
 		// Calling REMOVE without a file handle should fail.
@@ -5753,7 +5690,6 @@ func TestNFS40ProgramCompound_OP_REMOVE(t *testing.T) {
 
 	t.Run("NotDirectory", func(t *testing.T) {
 		leaf := mock.NewMockVirtualLeaf(ctrl)
-		clock.EXPECT().Now().Return(time.Unix(1000, 0))
 		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -5948,7 +5884,7 @@ func TestNFS40ProgramCompound_OP_RESTOREFH(t *testing.T) {
 	rebootVerifier := nfsv4_xdr.Verifier4{0x5f, 0x98, 0x5c, 0xdf, 0x8a, 0xac, 0x4d, 0x97}
 	stateIDOtherPrefix := [...]byte{0xd4, 0x7c, 0xd1, 0x8f}
 	clock := mock.NewMockClock(ctrl)
-	program := nfsv4.NewNFS40Program(rootDirectory, handleResolver.Call, randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
+	program := nfsv4.NewNFS40Program(rootDirectory, nfsv4.NewOpenedFilesPool(handleResolver.Call), randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
 
 	t.Run("NoSavedFileHandle", func(t *testing.T) {
 		// Calling RESTOREFH without a saved file handle should fail.
@@ -5977,7 +5913,6 @@ func TestNFS40ProgramCompound_OP_RESTOREFH(t *testing.T) {
 		// previously. The current file handle for successive
 		// operations should apply to that file instead.
 		leaf := mock.NewMockVirtualLeaf(ctrl)
-		clock.EXPECT().Now().Return(time.Unix(1000, 0))
 		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -6052,7 +5987,7 @@ func TestNFS40ProgramCompound_OP_SAVEFH(t *testing.T) {
 	rebootVerifier := nfsv4_xdr.Verifier4{0xe9, 0xf5, 0x40, 0xa0, 0x20, 0xd9, 0x2c, 0x52}
 	stateIDOtherPrefix := [...]byte{0xf1, 0xd0, 0x0e, 0xa0}
 	clock := mock.NewMockClock(ctrl)
-	program := nfsv4.NewNFS40Program(rootDirectory, handleResolver.Call, randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
+	program := nfsv4.NewNFS40Program(rootDirectory, nfsv4.NewOpenedFilesPool(handleResolver.Call), randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
 
 	t.Run("NoFileHandle", func(t *testing.T) {
 		// Calling SAVEFH without a file handle should fail.
@@ -6092,7 +6027,7 @@ func TestNFS40ProgramCompound_OP_SECINFO(t *testing.T) {
 	rebootVerifier := nfsv4_xdr.Verifier4{0x70, 0x34, 0xc6, 0x7a, 0x25, 0x6e, 0x08, 0xc0}
 	stateIDOtherPrefix := [...]byte{0xf9, 0x44, 0xa6, 0x25}
 	clock := mock.NewMockClock(ctrl)
-	program := nfsv4.NewNFS40Program(rootDirectory, handleResolver.Call, randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
+	program := nfsv4.NewNFS40Program(rootDirectory, nfsv4.NewOpenedFilesPool(handleResolver.Call), randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
 
 	t.Run("NoFileHandle", func(t *testing.T) {
 		// Calling SECINFO without a file handle should fail.
@@ -6125,7 +6060,6 @@ func TestNFS40ProgramCompound_OP_SECINFO(t *testing.T) {
 		// called against a symbolic link, SECINFO has no such
 		// requirement. It should always return NFS4ERR_NOTDIR.
 		leaf := mock.NewMockVirtualLeaf(ctrl)
-		clock.EXPECT().Now().Return(time.Unix(1000, 0))
 		handleResolverExpectCall(t, handleResolver, []byte{1, 2, 3}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -6318,7 +6252,7 @@ func TestNFS40ProgramCompound_OP_SETCLIENTID_CONFIRM(t *testing.T) {
 	rebootVerifier := nfsv4_xdr.Verifier4{0x73, 0xaf, 0xeb, 0xd6, 0x5b, 0x96, 0x74, 0xde}
 	stateIDOtherPrefix := [...]byte{0xdb, 0xd3, 0xb5, 0x41}
 	clock := mock.NewMockClock(ctrl)
-	program := nfsv4.NewNFS40Program(rootDirectory, handleResolver.Call, randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
+	program := nfsv4.NewNFS40Program(rootDirectory, nfsv4.NewOpenedFilesPool(handleResolver.Call), randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
 
 	t.Run("NoKnownClientID", func(t *testing.T) {
 		// Calling SETCLIENTID_CONFIRM without calling
@@ -6633,7 +6567,7 @@ func TestNFS40ProgramCompound_OP_VERIFY(t *testing.T) {
 	rebootVerifier := nfsv4_xdr.Verifier4{0x71, 0x69, 0x6c, 0x7c, 0x90, 0x79, 0x3b, 0x13}
 	stateIDOtherPrefix := [...]byte{0x19, 0xed, 0x93, 0x5f}
 	clock := mock.NewMockClock(ctrl)
-	program := nfsv4.NewNFS40Program(rootDirectory, handleResolver.Call, randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
+	program := nfsv4.NewNFS40Program(rootDirectory, nfsv4.NewOpenedFilesPool(handleResolver.Call), randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
 
 	t.Run("NoFileHandle", func(t *testing.T) {
 		// Calling VERIFY without a file handle should fail.

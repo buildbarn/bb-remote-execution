@@ -128,7 +128,7 @@ func TestNFS41ProgramCompound_OP_CLOSE(t *testing.T) {
 	clock := mock.NewMockClock(ctrl)
 	program := nfsv4.NewNFS41Program(
 		rootDirectory,
-		handleResolver.Call,
+		nfsv4.NewOpenedFilesPool(handleResolver.Call),
 		serverOwner,
 		serverScope,
 		&nfsv4_xdr.ChannelAttrs4{
@@ -894,7 +894,7 @@ func TestNFS41ProgramCompound_OP_CREATE_SESSION(t *testing.T) {
 	clock := mock.NewMockClock(ctrl)
 	program := nfsv4.NewNFS41Program(
 		rootDirectory,
-		handleResolver.Call,
+		nfsv4.NewOpenedFilesPool(handleResolver.Call),
 		serverOwner,
 		serverScope,
 		&nfsv4_xdr.ChannelAttrs4{
@@ -1255,7 +1255,7 @@ func TestNFS41ProgramCompound_OP_DESTROY_CLIENTID(t *testing.T) {
 	clock := mock.NewMockClock(ctrl)
 	program := nfsv4.NewNFS41Program(
 		rootDirectory,
-		handleResolver.Call,
+		nfsv4.NewOpenedFilesPool(handleResolver.Call),
 		serverOwner,
 		serverScope,
 		&nfsv4_xdr.ChannelAttrs4{
@@ -1391,7 +1391,7 @@ func TestNFS41ProgramCompound_OP_DESTROY_SESSION(t *testing.T) {
 	clock := mock.NewMockClock(ctrl)
 	program := nfsv4.NewNFS41Program(
 		rootDirectory,
-		handleResolver.Call,
+		nfsv4.NewOpenedFilesPool(handleResolver.Call),
 		serverOwner,
 		serverScope,
 		&nfsv4_xdr.ChannelAttrs4{
@@ -1628,7 +1628,7 @@ func TestNFS41ProgramCompound_OP_EXCHANGE_ID(t *testing.T) {
 	clock := mock.NewMockClock(ctrl)
 	program := nfsv4.NewNFS41Program(
 		rootDirectory,
-		handleResolver.Call,
+		nfsv4.NewOpenedFilesPool(handleResolver.Call),
 		serverOwner,
 		serverScope,
 		&nfsv4_xdr.ChannelAttrs4{
@@ -1922,7 +1922,7 @@ func TestNFS41ProgramCompound_OP_OPEN(t *testing.T) {
 	clock := mock.NewMockClock(ctrl)
 	program := nfsv4.NewNFS41Program(
 		rootDirectory,
-		handleResolver.Call,
+		nfsv4.NewOpenedFilesPool(handleResolver.Call),
 		serverOwner,
 		serverScope,
 		&nfsv4_xdr.ChannelAttrs4{
@@ -2516,7 +2516,7 @@ func TestNFS41ProgramCompound_OP_OPEN_DOWNGRADE(t *testing.T) {
 	clock := mock.NewMockClock(ctrl)
 	program := nfsv4.NewNFS41Program(
 		rootDirectory,
-		handleResolver.Call,
+		nfsv4.NewOpenedFilesPool(handleResolver.Call),
 		serverOwner,
 		serverScope,
 		&nfsv4_xdr.ChannelAttrs4{
@@ -3676,7 +3676,7 @@ func TestNFS41ProgramCompound_OP_SEQUENCE(t *testing.T) {
 	clock := mock.NewMockClock(ctrl)
 	program := nfsv4.NewNFS41Program(
 		rootDirectory,
-		handleResolver.Call,
+		nfsv4.NewOpenedFilesPool(handleResolver.Call),
 		serverOwner,
 		serverScope,
 		&nfsv4_xdr.ChannelAttrs4{
@@ -4432,7 +4432,7 @@ func TestNFS41ProgramCompound_OP_TEST_STATEID(t *testing.T) {
 	clock := mock.NewMockClock(ctrl)
 	program := nfsv4.NewNFS41Program(
 		rootDirectory,
-		handleResolver.Call,
+		nfsv4.NewOpenedFilesPool(handleResolver.Call),
 		serverOwner,
 		serverScope,
 		&nfsv4_xdr.ChannelAttrs4{
