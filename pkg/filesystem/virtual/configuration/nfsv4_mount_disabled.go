@@ -1,5 +1,5 @@
-//go:build freebsd || linux || windows
-// +build freebsd linux windows
+//go:build freebsd || windows
+// +build freebsd windows
 
 package configuration
 

@@ -26,6 +26,11 @@ message MountConfiguration {
     // with Ventura 13.3 (22E252), though the use of Sonoma 14.5
     // (23F79) or later is strongly recommended.
     //
+    // This option also works on Linux, but support was only added for
+    // protocol conformance validation purposes. On Linux, the use of
+    // FUSE is strongly recommended, as it performs better and deals
+    // with the server shutting down more gracefully.
+    //
     // The NFS server is expected to conform to NFSv4.0 (RFC 7530) and
     // NFSv4.1 (RFC 8881). The use of NFSv4.1 is recommended, because it
     // provides better parallelism.
@@ -141,6 +146,10 @@ message NFSv4MountConfiguration {
     // Configuration options specific to mounting the NFSv4 file system
     // on macOS.
     NFSv4DarwinMountConfiguration darwin = 1;
+
+    // Configuration options specific to mounting the NFSv4 file system
+    // on Linux.
+    NFSv4LinuxMountConfiguration linux = 5;
   }
 
   // The amount of time that needs to pass for the server to close files
@@ -217,6 +226,14 @@ message NFSv4DarwinMountConfiguration {
   // When left unset, the latest protocol version is used that is
   // supported by the currently running version of macOS.
   google.protobuf.UInt32Value minor_version = 5;
+}
+
+message NFSv4LinuxMountConfiguration {
+  // Additional mount options to apply. Please refer to the nfs(5)
+  // manual page for more details.
+  //
+  // Recommended value: ["vers=4.1"]
+  repeated string mount_options = 1;
 }
 
 message RPCv2SystemAuthenticationConfiguration {

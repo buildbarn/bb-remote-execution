@@ -9,6 +9,7 @@ go_library(
         "fuse_mount_enabled.go",
         "nfsv4_mount_darwin.go",
         "nfsv4_mount_disabled.go",
+        "nfsv4_mount_linux.go",
         "remove_stale_mounts.go",
     ],
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual/configuration",
