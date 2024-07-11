@@ -68,35 +68,11 @@ func (m *nfsv4Mount) Expose(terminationGroup program.Group, rootDirectory virtua
 		return util.StatusWrap(err, "Invalid announced lease time")
 	}
 
-	var minorVersion uint32
-	if msg := m.configuration.MinorVersion; msg != nil {
-		minorVersion = msg.Value
-	} else {
-		var err error
-		minorVersion, err = getLatestSupportedNFSv4MinorVersion()
-		if err != nil {
-			return util.StatusWrap(err, "Unable to determine the latest minor version of NFSv4 supported by the operating system")
-		}
-	}
-
+	// Create a single server that is capable of accepting both
+	// NFSv4.0 and NFSv4.1 requests.
 	openedFilesPool := nfsv4.NewOpenedFilesPool(m.handleAllocator.ResolveHandle)
-	var program nfsv4_xdr.Nfs4Program
-	switch minorVersion {
-	case 0:
-		// Use NFSv4.0 (RFC 7530).
-		program = nfsv4.NewNFS40Program(
-			rootDirectory,
-			openedFilesPool,
-			random.NewFastSingleThreadedGenerator(),
-			rebootVerifier,
-			stateIDOtherPrefix,
-			clock.SystemClock,
-			enforcedLeaseTime.AsDuration(),
-			announcedLeaseTime.AsDuration(),
-		)
-	case 1:
-		// Use NFSv4.1 (RFC 8881).
-		program = nfsv4.NewNFS41Program(
+	program := nfsv4.NewMinorVersionFallbackProgram([]nfsv4_xdr.Nfs4Program{
+		nfsv4.NewNFS41Program(
 			rootDirectory,
 			openedFilesPool,
 			serverOwner,
@@ -114,10 +90,18 @@ func (m *nfsv4Mount) Expose(terminationGroup program.Group, rootDirectory virtua
 			clock.SystemClock,
 			enforcedLeaseTime.AsDuration(),
 			announcedLeaseTime.AsDuration(),
-		)
-	default:
-		return status.Errorf(codes.Unimplemented, "Unsupported NFSv4 minor version: %d", minorVersion)
-	}
+		),
+		nfsv4.NewNFS40Program(
+			rootDirectory,
+			openedFilesPool,
+			random.NewFastSingleThreadedGenerator(),
+			rebootVerifier,
+			stateIDOtherPrefix,
+			clock.SystemClock,
+			enforcedLeaseTime.AsDuration(),
+			announcedLeaseTime.AsDuration(),
+		),
+	})
 
 	// Create an RPC server that offers the NFSv4 program.
 	rpcServer := rpcserver.NewServer(map[uint32]rpcserver.Service{
@@ -126,7 +110,7 @@ func (m *nfsv4Mount) Expose(terminationGroup program.Group, rootDirectory virtua
 		),
 	}, m.authenticator)
 
-	return m.mount(terminationGroup, rpcServer, minorVersion)
+	return m.mount(terminationGroup, rpcServer)
 }
 
 // NewMountFromConfiguration creates a new FUSE mount based on options

@@ -85,12 +85,7 @@ func (bv macOSBuildVersion) greaterEqual(major int64, minor byte, daily int64) b
 	return bv.major > major || (bv.major == major && (bv.minor > minor || (bv.minor == minor && bv.daily >= daily)))
 }
 
-func getLatestSupportedNFSv4MinorVersion() (uint32, error) {
-	// macOS only supports NFSv4.0.
-	return 0, nil
-}
-
-func (m *nfsv4Mount) mount(terminationGroup program.Group, rpcServer *rpcserver.Server, minorVersion uint32) error {
+func (m *nfsv4Mount) mount(terminationGroup program.Group, rpcServer *rpcserver.Server) error {
 	// Extract the version of macOS used. We need to know this, as
 	// it determines which mount options are supported.
 	buildVersion, err := getMacOSBuildVersion()
@@ -168,7 +163,12 @@ func (m *nfsv4Mount) mount(terminationGroup program.Group, rpcServer *rpcserver.
 	attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_NFS_VERSION
 	nfs_sys_prot.WriteNfsMattrNfsVersion(&attrVals, 4)
 	attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_NFS_MINOR_VERSION
-	nfs_sys_prot.WriteNfsMattrNfsMinorVersion(&attrVals, minorVersion)
+	if msg := osConfiguration.MinorVersion; msg != nil {
+		nfs_sys_prot.WriteNfsMattrNfsMinorVersion(&attrVals, msg.Value)
+	} else {
+		// macOS currently only supports NFSv4.0.
+		nfs_sys_prot.WriteNfsMattrNfsMinorVersion(&attrVals, 0)
+	}
 
 	// Set attribute caching durations. This needs to be set at
 	// mount time, as NFSv4 provides no facilities for conveying
