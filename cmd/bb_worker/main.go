@@ -92,7 +92,6 @@ func main() {
 		}
 		globalContentAddressableStorage = re_blobstore.NewExistencePreconditionBlobAccess(globalContentAddressableStorage)
 
-		var prefetchingDownloadConcurrency *semaphore.Weighted
 		var fileSystemAccessCache blobstore.BlobAccess
 		prefetchingConfiguration := configuration.Prefetching
 		if prefetchingConfiguration != nil {
@@ -106,7 +105,6 @@ func main() {
 				return util.StatusWrap(err, "Failed to create File System Access Cache")
 			}
 			fileSystemAccessCache = info.BlobAccess
-			prefetchingDownloadConcurrency = semaphore.NewWeighted(prefetchingConfiguration.DownloadConcurrency)
 		}
 
 		// Cached read access for Directory objects stored in the
@@ -160,6 +158,12 @@ func main() {
 				}
 			}()
 		}
+
+		inputDownloadConcurrency := configuration.InputDownloadConcurrency
+		if inputDownloadConcurrency <= 0 {
+			return status.Errorf(codes.InvalidArgument, "Nonpositive input download concurrency: ", inputDownloadConcurrency)
+		}
+		inputDownloadConcurrencySemaphore := semaphore.NewWeighted(inputDownloadConcurrency)
 
 		outputUploadConcurrency := configuration.OutputUploadConcurrency
 		if outputUploadConcurrency <= 0 {
@@ -361,6 +365,7 @@ func main() {
 							naiveBuildDirectory,
 							directoryFetcher,
 							fileFetcher,
+							inputDownloadConcurrencySemaphore,
 							contentAddressableStorageWriter)
 					}
 
@@ -406,7 +411,7 @@ func main() {
 							buildExecutor,
 							globalContentAddressableStorage,
 							directoryFetcher,
-							prefetchingDownloadConcurrency,
+							inputDownloadConcurrencySemaphore,
 							fileSystemAccessCache,
 							int(configuration.MaximumMessageSizeBytes),
 							int(prefetchingConfiguration.BloomFilterBitsPerPath),

@@ -17,6 +17,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
+	"golang.org/x/sync/semaphore"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -89,13 +90,13 @@ func TestNaiveBuildDirectorySuccess(t *testing.T) {
 	fileFetcher.EXPECT().GetFile(
 		gomock.Any(),
 		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "9999999999999999999999999999999999999999999999999999999999999999", 512),
-		buildDirectory,
+		gomock.Any(),
 		path.MustNewComponent("non-executable"),
 		false).Return(nil)
 	fileFetcher.EXPECT().GetFile(
 		gomock.Any(),
 		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", 512),
-		buildDirectory,
+		gomock.Any(),
 		path.MustNewComponent("executable"),
 		true).Return(nil)
 	buildDirectory.EXPECT().Symlink(gomock.Any(), path.MustNewComponent("link-to-executable")).
@@ -105,7 +106,7 @@ func TestNaiveBuildDirectorySuccess(t *testing.T) {
 			require.Equal(t, "executable", targetPath.GetUNIXString())
 		})
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, contentAddressableStorage)
+	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, semaphore.NewWeighted(1), contentAddressableStorage)
 
 	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
@@ -127,7 +128,7 @@ func TestNaiveBuildDirectoryInputRootNotInStorage(t *testing.T) {
 	buildDirectory := mock.NewMockDirectoryCloser(ctrl)
 	fileFetcher := mock.NewMockFileFetcher(ctrl)
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, contentAddressableStorage)
+	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, semaphore.NewWeighted(1), contentAddressableStorage)
 
 	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
@@ -173,7 +174,7 @@ func TestNaiveBuildDirectoryMissingInputDirectoryDigest(t *testing.T) {
 	helloDirectory.EXPECT().Close()
 	fileFetcher := mock.NewMockFileFetcher(ctrl)
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, contentAddressableStorage)
+	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, semaphore.NewWeighted(1), contentAddressableStorage)
 
 	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
@@ -224,7 +225,7 @@ func TestNaiveBuildDirectoryDirectoryCreationFailure(t *testing.T) {
 	helloDirectory.EXPECT().Close()
 	fileFetcher := mock.NewMockFileFetcher(ctrl)
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, contentAddressableStorage)
+	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, semaphore.NewWeighted(1), contentAddressableStorage)
 
 	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
@@ -276,7 +277,7 @@ func TestNaiveBuildDirectoryDirectoryEnterDirectoryFailure(t *testing.T) {
 	helloDirectory.EXPECT().Close()
 	fileFetcher := mock.NewMockFileFetcher(ctrl)
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, contentAddressableStorage)
+	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, semaphore.NewWeighted(1), contentAddressableStorage)
 
 	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
@@ -322,7 +323,7 @@ func TestNaiveBuildDirectoryMissingInputFileDigest(t *testing.T) {
 	helloDirectory.EXPECT().Close()
 	fileFetcher := mock.NewMockFileFetcher(ctrl)
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, contentAddressableStorage)
+	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, semaphore.NewWeighted(1), contentAddressableStorage)
 
 	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
@@ -373,12 +374,12 @@ func TestNaiveBuildDirectoryFileCreationFailure(t *testing.T) {
 	fileFetcher.EXPECT().GetFile(
 		gomock.Any(),
 		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 87),
-		helloDirectory,
+		gomock.Any(),
 		path.MustNewComponent("World"),
 		false).Return(status.Error(codes.DataLoss, "Disk on fire"))
 	helloDirectory.EXPECT().Close()
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, contentAddressableStorage)
+	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, semaphore.NewWeighted(1), contentAddressableStorage)
 
 	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
@@ -432,7 +433,7 @@ func TestNaiveBuildDirectorySymlinkCreationFailure(t *testing.T) {
 	helloDirectory.EXPECT().Close()
 	fileFetcher := mock.NewMockFileFetcher(ctrl)
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, contentAddressableStorage)
+	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, semaphore.NewWeighted(1), contentAddressableStorage)
 
 	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
@@ -453,7 +454,9 @@ func TestNaiveBuildDirectoryUploadFile(t *testing.T) {
 		buildDirectory,
 		directoryFetcher,
 		fileFetcher,
-		contentAddressableStorage)
+		semaphore.NewWeighted(1),
+		contentAddressableStorage,
+	)
 
 	helloWorldDigest := digest.MustNewDigest("default-scheduler", remoteexecution.DigestFunction_MD5, "3e25960a79dbc69b674cd4ec67a72c62", 11)
 	digestFunction := helloWorldDigest.GetDigestFunction()

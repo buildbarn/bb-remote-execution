@@ -15,6 +15,8 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
 
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -22,6 +24,7 @@ import (
 type naiveBuildDirectoryOptions struct {
 	directoryFetcher          cas.DirectoryFetcher
 	fileFetcher               cas.FileFetcher
+	fileFetcherSemaphore      *semaphore.Weighted
 	contentAddressableStorage blobstore.BlobAccess
 }
 
@@ -40,12 +43,13 @@ type naiveBuildDirectory struct {
 // regular local file systems. The downside of such file systems is that
 // we cannot populate them on demand. All of the input files must be
 // present before invoking the build action.
-func NewNaiveBuildDirectory(directory filesystem.DirectoryCloser, directoryFetcher cas.DirectoryFetcher, fileFetcher cas.FileFetcher, contentAddressableStorage blobstore.BlobAccess) BuildDirectory {
+func NewNaiveBuildDirectory(directory filesystem.DirectoryCloser, directoryFetcher cas.DirectoryFetcher, fileFetcher cas.FileFetcher, fileFetcherSemaphore *semaphore.Weighted, contentAddressableStorage blobstore.BlobAccess) BuildDirectory {
 	return &naiveBuildDirectory{
 		DirectoryCloser: directory,
 		options: &naiveBuildDirectoryOptions{
 			directoryFetcher:          directoryFetcher,
 			fileFetcher:               fileFetcher,
+			fileFetcherSemaphore:      fileFetcherSemaphore,
 			contentAddressableStorage: contentAddressableStorage,
 		},
 	}
@@ -76,7 +80,7 @@ func (d *naiveBuildDirectory) InstallHooks(filePool re_filesystem.FilePool, erro
 	// of I/O errors is performed.
 }
 
-func (d *naiveBuildDirectory) mergeDirectoryContents(ctx context.Context, digest digest.Digest, inputDirectory filesystem.Directory, pathTrace *path.Trace) error {
+func (d *naiveBuildDirectory) mergeDirectoryContents(ctx context.Context, group *errgroup.Group, digest digest.Digest, inputDirectory *filesystem.ReferenceCountedDirectoryCloser, pathTrace *path.Trace) error {
 	// Obtain directory.
 	options := d.options
 	directory, err := options.directoryFetcher.GetDirectory(ctx, digest)
@@ -96,9 +100,24 @@ func (d *naiveBuildDirectory) mergeDirectoryContents(ctx context.Context, digest
 		if err != nil {
 			return util.StatusWrapf(err, "Failed to extract digest for input file %#v", childPathTrace.GetUNIXString())
 		}
-		if err := options.fileFetcher.GetFile(ctx, childDigest, inputDirectory, component, file.IsExecutable); err != nil {
-			return util.StatusWrapf(err, "Failed to obtain input file %#v", childPathTrace.GetUNIXString())
+
+		// Download individual input files in parallel.
+		if err := util.AcquireSemaphore(ctx, options.fileFetcherSemaphore, 1); err != nil {
+			return err
 		}
+		downloadDirectory := inputDirectory.Duplicate()
+		group.Go(func() error {
+			errGetFile := options.fileFetcher.GetFile(ctx, childDigest, downloadDirectory, component, file.IsExecutable)
+			errClose := downloadDirectory.Close()
+			options.fileFetcherSemaphore.Release(1)
+			if errGetFile != nil {
+				return util.StatusWrapf(errGetFile, "Failed to obtain input file %#v", childPathTrace.GetUNIXString())
+			}
+			if errClose != nil {
+				return util.StatusWrapf(err, "Failed to close input directory %#v", pathTrace.GetUNIXString())
+			}
+			return nil
+		})
 	}
 	for _, directory := range directory.Directories {
 		component, ok := path.NewComponent(directory.Name)
@@ -117,10 +136,14 @@ func (d *naiveBuildDirectory) mergeDirectoryContents(ctx context.Context, digest
 		if err != nil {
 			return util.StatusWrapf(err, "Failed to enter input directory %#v", childPathTrace.GetUNIXString())
 		}
-		err = d.mergeDirectoryContents(ctx, childDigest, childDirectory, childPathTrace)
-		childDirectory.Close()
-		if err != nil {
-			return err
+		refcountedDirectory := filesystem.NewReferenceCountedDirectoryCloser(childDirectory)
+		errMerge := d.mergeDirectoryContents(ctx, group, childDigest, refcountedDirectory, childPathTrace)
+		errClose := refcountedDirectory.Close()
+		if errMerge != nil {
+			return errMerge
+		}
+		if errClose != nil {
+			return util.StatusWrapf(err, "Failed to close input directory %#v", childPathTrace.GetUNIXString())
 		}
 	}
 	for _, symlink := range directory.Symlinks {
@@ -137,7 +160,11 @@ func (d *naiveBuildDirectory) mergeDirectoryContents(ctx context.Context, digest
 }
 
 func (d *naiveBuildDirectory) MergeDirectoryContents(ctx context.Context, errorLogger util.ErrorLogger, digest digest.Digest, monitor access.UnreadDirectoryMonitor) error {
-	return d.mergeDirectoryContents(ctx, digest, d.DirectoryCloser, nil)
+	group, groupCtx := errgroup.WithContext(ctx)
+	group.Go(func() error {
+		return d.mergeDirectoryContents(groupCtx, group, digest, filesystem.NewReferenceCountedDirectoryCloser(d.DirectoryCloser), nil)
+	})
+	return group.Wait()
 }
 
 func (d *naiveBuildDirectory) UploadFile(ctx context.Context, name path.Component, digestFunction digest.Function, writableFileUploadDelay <-chan struct{}) (digest.Digest, error) {
