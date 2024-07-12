@@ -19,11 +19,15 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-type naiveBuildDirectory struct {
-	filesystem.DirectoryCloser
+type naiveBuildDirectoryOptions struct {
 	directoryFetcher          cas.DirectoryFetcher
 	fileFetcher               cas.FileFetcher
 	contentAddressableStorage blobstore.BlobAccess
+}
+
+type naiveBuildDirectory struct {
+	filesystem.DirectoryCloser
+	options *naiveBuildDirectoryOptions
 }
 
 // NewNaiveBuildDirectory creates a BuildDirectory that is backed by a
@@ -38,10 +42,12 @@ type naiveBuildDirectory struct {
 // present before invoking the build action.
 func NewNaiveBuildDirectory(directory filesystem.DirectoryCloser, directoryFetcher cas.DirectoryFetcher, fileFetcher cas.FileFetcher, contentAddressableStorage blobstore.BlobAccess) BuildDirectory {
 	return &naiveBuildDirectory{
-		DirectoryCloser:           directory,
-		directoryFetcher:          directoryFetcher,
-		fileFetcher:               fileFetcher,
-		contentAddressableStorage: contentAddressableStorage,
+		DirectoryCloser: directory,
+		options: &naiveBuildDirectoryOptions{
+			directoryFetcher:          directoryFetcher,
+			fileFetcher:               fileFetcher,
+			contentAddressableStorage: contentAddressableStorage,
+		},
 	}
 }
 
@@ -51,10 +57,8 @@ func (d *naiveBuildDirectory) EnterBuildDirectory(name path.Component) (BuildDir
 		return nil, err
 	}
 	return &naiveBuildDirectory{
-		DirectoryCloser:           child,
-		directoryFetcher:          d.directoryFetcher,
-		fileFetcher:               d.fileFetcher,
-		contentAddressableStorage: d.contentAddressableStorage,
+		DirectoryCloser: child,
+		options:         d.options,
 	}, nil
 }
 
@@ -74,7 +78,8 @@ func (d *naiveBuildDirectory) InstallHooks(filePool re_filesystem.FilePool, erro
 
 func (d *naiveBuildDirectory) mergeDirectoryContents(ctx context.Context, digest digest.Digest, inputDirectory filesystem.Directory, pathTrace *path.Trace) error {
 	// Obtain directory.
-	directory, err := d.directoryFetcher.GetDirectory(ctx, digest)
+	options := d.options
+	directory, err := options.directoryFetcher.GetDirectory(ctx, digest)
 	if err != nil {
 		return util.StatusWrapf(err, "Failed to obtain input directory %#v", pathTrace.GetUNIXString())
 	}
@@ -91,7 +96,7 @@ func (d *naiveBuildDirectory) mergeDirectoryContents(ctx context.Context, digest
 		if err != nil {
 			return util.StatusWrapf(err, "Failed to extract digest for input file %#v", childPathTrace.GetUNIXString())
 		}
-		if err := d.fileFetcher.GetFile(ctx, childDigest, inputDirectory, component, file.IsExecutable); err != nil {
+		if err := options.fileFetcher.GetFile(ctx, childDigest, inputDirectory, component, file.IsExecutable); err != nil {
 			return util.StatusWrapf(err, "Failed to obtain input file %#v", childPathTrace.GetUNIXString())
 		}
 	}
@@ -154,7 +159,7 @@ func (d *naiveBuildDirectory) UploadFile(ctx context.Context, name path.Componen
 	// used to compute the digest. This ensures uploads succeed,
 	// even if more data gets appended in the meantime. This is not
 	// uncommon, especially for stdout and stderr logs.
-	if err := d.contentAddressableStorage.Put(
+	if err := d.options.contentAddressableStorage.Put(
 		ctx,
 		blobDigest,
 		buffer.NewCASBufferFromReader(
