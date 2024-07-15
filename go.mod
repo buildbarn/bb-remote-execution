@@ -9,9 +9,8 @@ require (
 	cloud.google.com/go/longrunning v0.5.10
 	github.com/bazelbuild/buildtools v0.0.0-20240626162158-92a716d768c0
 	github.com/bazelbuild/remote-apis v0.0.0-20240703191324-0d21f29acdb9
-	github.com/buildbarn/bb-storage v0.0.0-20240712181055-c56df61c6866
+	github.com/buildbarn/bb-storage v0.0.0-20240714184744-24d544b34a86
 	github.com/buildbarn/go-xdr v0.0.0-20240702182809-236788cf9e89
-	github.com/golang/mock v1.6.0
 	github.com/golang/protobuf v1.5.4
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
@@ -23,6 +22,7 @@ require (
 	github.com/stretchr/testify v1.9.0
 	go.opentelemetry.io/otel v1.28.0
 	go.opentelemetry.io/otel/trace v1.28.0
+	go.uber.org/mock v0.4.0
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616
 	golang.org/x/sync v0.7.0
 	golang.org/x/sys v0.22.0

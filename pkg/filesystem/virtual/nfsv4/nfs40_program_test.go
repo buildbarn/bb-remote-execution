@@ -14,8 +14,9 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	nfsv4_xdr "github.com/buildbarn/go-xdr/pkg/protocols/nfsv4"
 	"github.com/buildbarn/go-xdr/pkg/protocols/rpcv2"
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+
+	"go.uber.org/mock/gomock"
 )
 
 func handleResolverExpectCall(t *testing.T, handleResolver *mock.MockHandleResolver, expectedID []byte, child virtual.DirectoryChild, status virtual.Status) {

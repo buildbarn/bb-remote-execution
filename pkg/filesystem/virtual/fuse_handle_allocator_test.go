@@ -8,8 +8,9 @@ import (
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+
+	"go.uber.org/mock/gomock"
 )
 
 func TestFUSEHandleAllocator(t *testing.T) {

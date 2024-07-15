@@ -10,8 +10,9 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual/nfsv4"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	nfsv4_xdr "github.com/buildbarn/go-xdr/pkg/protocols/nfsv4"
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+
+	"go.uber.org/mock/gomock"
 )
 
 func exchangeIDAndCreateSessionForTesting(ctx context.Context, t *testing.T, serverOwner nfsv4_xdr.ServerOwner4, serverScope []byte, randomNumberGenerator *mock.MockSingleThreadedGenerator, program nfsv4_xdr.Nfs4Program, sessionID nfsv4_xdr.Sessionid4) {
