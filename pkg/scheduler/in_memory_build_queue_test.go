@@ -21,7 +21,6 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -37,6 +36,8 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"cloud.google.com/go/longrunning/autogen/longrunningpb"
+
+	"go.uber.org/mock/gomock"
 )
 
 var buildQueueConfigurationForTesting = scheduler.InMemoryBuildQueueConfiguration{

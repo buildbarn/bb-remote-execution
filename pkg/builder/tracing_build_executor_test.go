@@ -12,12 +12,13 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
-	"github.com/golang/mock/gomock"
 
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+
+	"go.uber.org/mock/gomock"
 )
 
 func TestTracingBuildExecutor(t *testing.T) {

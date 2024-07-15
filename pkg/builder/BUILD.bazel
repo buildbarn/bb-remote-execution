@@ -119,7 +119,6 @@ go_test(
         "@com_github_buildbarn_bb_storage//pkg/proto/fsac",
         "@com_github_buildbarn_bb_storage//pkg/testutil",
         "@com_github_buildbarn_bb_storage//pkg/util",
-        "@com_github_golang_mock//gomock",
         "@com_github_google_uuid//:uuid",
         "@com_github_stretchr_testify//require",
         "@io_opentelemetry_go_otel//attribute",
@@ -134,5 +133,6 @@ go_test(
         "@org_golang_google_protobuf//types/known/emptypb",
         "@org_golang_google_protobuf//types/known/timestamppb",
         "@org_golang_x_sync//semaphore",
+        "@org_uber_go_mock//gomock",
     ],
 )

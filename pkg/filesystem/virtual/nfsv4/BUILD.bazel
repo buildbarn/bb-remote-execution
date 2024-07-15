@@ -48,9 +48,9 @@ go_test(
         "@com_github_buildbarn_bb_storage//pkg/testutil",
         "@com_github_buildbarn_go_xdr//pkg/protocols/nfsv4",
         "@com_github_buildbarn_go_xdr//pkg/protocols/rpcv2",
-        "@com_github_golang_mock//gomock",
         "@com_github_jmespath_go_jmespath//:go-jmespath",
         "@com_github_stretchr_testify//require",
         "@org_golang_google_protobuf//types/known/structpb",
+        "@org_uber_go_mock//gomock",
     ],
 )

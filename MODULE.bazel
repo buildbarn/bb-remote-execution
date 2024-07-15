@@ -16,7 +16,7 @@ bazel_dep(name = "toolchains_llvm", version = "1.0.0")
 
 git_override(
     module_name = "com_github_buildbarn_bb_storage",
-    commit = "c56df61c686606081a5e4ec5aafcd389a521f40c",
+    commit = "24d544b34a866f55838d576a0b110f4495f04450",
     remote = "https://github.com/buildbarn/bb-storage.git",
 )
 
@@ -60,7 +60,6 @@ use_repo(
     "cc_mvdan_gofumpt",
     "com_github_bazelbuild_buildtools",
     "com_github_bazelbuild_remote_apis",
-    "com_github_golang_mock",
     "com_github_golang_protobuf",
     "com_github_google_uuid",
     "com_github_gorilla_mux",
@@ -79,6 +78,7 @@ use_repo(
     "org_golang_x_lint",
     "org_golang_x_sync",
     "org_golang_x_sys",
+    "org_uber_go_mock",
 )
 
 go_deps_dev = use_extension("@gazelle//:extensions.bzl", "go_deps", dev_dependency = True)
@@ -97,13 +97,6 @@ go_deps_dev.gazelle_override(
     path = "github.com/bazelbuild/remote-apis",
 )
 go_deps_dev.module_override(
-    patches = [
-        "@com_github_buildbarn_bb_storage//:patches/com_github_golang_mock/mocks-for-funcs.diff",
-        "//:patches/com_github_golang_mock/generics.diff",
-    ],
-    path = "github.com/golang/mock",
-)
-go_deps_dev.module_override(
     patches = ["@com_github_buildbarn_bb_storage//:patches/com_github_grpc_ecosystem_go_grpc_prometheus/client-metrics-prevent-handled-twice.diff"],
     path = "github.com/grpc-ecosystem/go-grpc-prometheus",
 )
@@ -118,6 +111,13 @@ go_deps_dev.module_override(
 go_deps_dev.module_override(
     patches = ["@com_github_buildbarn_bb_storage//:patches/org_golang_x_lint/generic.diff"],
     path = "golang.org/x/lint",
+)
+go_deps_dev.module_override(
+    patches = [
+        "@com_github_buildbarn_bb_storage//:patches/org_uber_go_mock/mocks-for-funcs.diff",
+        "//:patches/org_uber_go_mock/generics.diff",
+    ],
+    path = "go.uber.org/mock",
 )
 
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
