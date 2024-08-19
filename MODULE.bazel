@@ -16,7 +16,7 @@ bazel_dep(name = "toolchains_llvm", version = "1.0.0")
 
 git_override(
     module_name = "com_github_buildbarn_bb_storage",
-    commit = "d07a29c5d102dbc0aa177687f453b1a5614f006a",
+    commit = "a869915feea7333a85e92e7a9f7a4821969408d6",
     remote = "https://github.com/buildbarn/bb-storage.git",
 )
 

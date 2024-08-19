@@ -9,7 +9,7 @@ require (
 	cloud.google.com/go/longrunning v0.5.12
 	github.com/bazelbuild/buildtools v0.0.0-20240804201302-37932ddd7230
 	github.com/bazelbuild/remote-apis v0.0.0-20240703191324-0d21f29acdb9
-	github.com/buildbarn/bb-storage v0.0.0-20240816064113-d07a29c5d102
+	github.com/buildbarn/bb-storage v0.0.0-20240819085035-a869915feea7
 	github.com/buildbarn/go-xdr v0.0.0-20240702182809-236788cf9e89
 	github.com/golang/protobuf v1.5.4
 	github.com/google/uuid v1.6.0
