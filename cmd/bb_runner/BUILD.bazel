@@ -64,11 +64,13 @@ pkg_tar(
         ],
     }),
     tags = ["manual"],
+    visibility = ["//visibility:public"],
 )
 
 pkg_tar(
     name = "install_layer",
     srcs = ["install"],
+    visibility = ["//visibility:public"],
 )
 
 oci_image(
