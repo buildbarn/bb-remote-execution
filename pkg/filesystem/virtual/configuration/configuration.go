@@ -117,6 +117,10 @@ func (m *nfsv4Mount) Expose(terminationGroup program.Group, rootDirectory virtua
 // specified in a configuration message and starts processing of
 // incoming requests.
 func NewMountFromConfiguration(configuration *pb.MountConfiguration, fsName string, rootDirectoryAttributeCaching, childDirectoriesAttributeCaching, leavesAttributeCaching AttributeCachingDuration) (Mount, virtual.StatefulHandleAllocator, error) {
+	if configuration == nil {
+		return nil, nil, status.Error(codes.InvalidArgument, "No mount configuration provided")
+	}
+
 	switch backend := configuration.Backend.(type) {
 	case *pb.MountConfiguration_Fuse:
 		handleAllocator := virtual.NewFUSEHandleAllocator(random.FastThreadSafeGenerator)
