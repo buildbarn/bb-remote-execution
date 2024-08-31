@@ -116,7 +116,7 @@ func TestLazyDirectory(t *testing.T) {
 	t.Run("ReadlinkSuccess", func(t *testing.T) {
 		underlyingDirectory := mock.NewMockDirectoryCloser(ctrl)
 		directoryOpener.EXPECT().Call().Return(underlyingDirectory, nil)
-		underlyingDirectory.EXPECT().Readlink(path.MustNewComponent("symlink")).Return(path.NewUNIXParser("target"), nil)
+		underlyingDirectory.EXPECT().Readlink(path.MustNewComponent("symlink")).Return(path.UNIXFormat.NewParser("target"), nil)
 		underlyingDirectory.EXPECT().Close().Return(nil)
 
 		// Call should be forwarded literally.
@@ -182,7 +182,7 @@ func TestLazyDirectory(t *testing.T) {
 		underlyingDirectory.EXPECT().Close().Return(nil)
 
 		// Call should be forwarded literally.
-		err := directory.Symlink(path.NewUNIXParser("old"), path.MustNewComponent("new"))
+		err := directory.Symlink(path.UNIXFormat.NewParser("old"), path.MustNewComponent("new"))
 		require.NoError(t, err)
 	})
 

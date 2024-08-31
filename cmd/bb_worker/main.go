@@ -249,7 +249,7 @@ func main() {
 			case *bb_worker.BuildDirectoryConfiguration_Native:
 				// Directory where actual builds take place.
 				nativeConfiguration := backend.Native
-				naiveBuildDirectory, err = filesystem.NewLocalDirectory(path.NewLocalParser(nativeConfiguration.BuildDirectoryPath))
+				naiveBuildDirectory, err = filesystem.NewLocalDirectory(path.LocalFormat.NewParser(nativeConfiguration.BuildDirectoryPath))
 				if err != nil {
 					return util.StatusWrapf(err, "Failed to open build directory %v", nativeConfiguration.BuildDirectoryPath)
 				}
@@ -262,7 +262,7 @@ func main() {
 				// TODO: Have a single process-wide hardlinking
 				// cache even if multiple build directories are
 				// used. This increases cache hit rate.
-				cacheDirectory, err := filesystem.NewLocalDirectory(path.NewLocalParser(nativeConfiguration.CacheDirectoryPath))
+				cacheDirectory, err := filesystem.NewLocalDirectory(path.LocalFormat.NewParser(nativeConfiguration.CacheDirectoryPath))
 				if err != nil {
 					return util.StatusWrapf(err, "Failed to open cache directory %#v", nativeConfiguration.CacheDirectoryPath)
 				}

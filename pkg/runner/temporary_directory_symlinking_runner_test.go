@@ -24,7 +24,7 @@ func TestTemporaryDirectorySymlinkingRunnerRun(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	buildDirectory, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
-	require.NoError(t, path.Resolve(path.NewUNIXParser("/worker/build"), scopeWalker))
+	require.NoError(t, path.Resolve(path.UNIXFormat.NewParser("/worker/build"), scopeWalker))
 
 	t.Run("InvalidTemporaryDirectory", func(t *testing.T) {
 		// The temporary directory path provided by bb_worker is
@@ -97,7 +97,7 @@ func TestTemporaryDirectorySymlinkingRunnerCheckReadiness(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	buildDirectory, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
-	require.NoError(t, path.Resolve(path.NewUNIXParser("/worker/build"), scopeWalker))
+	require.NoError(t, path.Resolve(path.UNIXFormat.NewParser("/worker/build"), scopeWalker))
 
 	t.Run("InvalidSymlinkPath", func(t *testing.T) {
 		// Readiness checks should fail in case the path at

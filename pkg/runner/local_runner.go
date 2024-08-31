@@ -78,7 +78,7 @@ func (r *localRunner) openLog(logPath string) (filesystem.FileAppender, error) {
 		stack: util.NewNonEmptyStack(filesystem.NopDirectoryCloser(r.buildDirectory)),
 	}
 	defer logFileResolver.closeAll()
-	if err := path.Resolve(path.NewUNIXParser(logPath), path.NewRelativeScopeWalker(&logFileResolver)); err != nil {
+	if err := path.Resolve(path.UNIXFormat.NewParser(logPath), path.NewRelativeScopeWalker(&logFileResolver)); err != nil {
 		return nil, err
 	}
 	if logFileResolver.TerminalName == nil {
@@ -101,7 +101,7 @@ func NewPlainCommandCreator(sysProcAttr *syscall.SysProcAttr) CommandCreator {
 		if err := path.Resolve(workingDirectoryParser, scopeWalker); err != nil {
 			return nil, util.StatusWrap(err, "Failed to resolve working directory")
 		}
-		workingDirectoryStr, err := path.GetLocalString(workingDirectory)
+		workingDirectoryStr, err := path.LocalFormat.GetString(workingDirectory)
 		if err != nil {
 			return nil, util.StatusWrap(err, "Failed to create local representation of working directory")
 		}
@@ -141,11 +141,11 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 	}
 
 	inputRootDirectory, scopeWalker := r.buildDirectoryPath.Join(path.VoidScopeWalker)
-	if err := path.Resolve(path.NewUNIXParser(request.InputRootDirectory), scopeWalker); err != nil {
+	if err := path.Resolve(path.UNIXFormat.NewParser(request.InputRootDirectory), scopeWalker); err != nil {
 		return nil, util.StatusWrap(err, "Failed to resolve input root directory")
 	}
 
-	cmd, err := r.commandCreator(ctx, request.Arguments, inputRootDirectory, path.NewUNIXParser(request.WorkingDirectory), request.EnvironmentVariables["PATH"])
+	cmd, err := r.commandCreator(ctx, request.Arguments, inputRootDirectory, path.UNIXFormat.NewParser(request.WorkingDirectory), request.EnvironmentVariables["PATH"])
 	if err != nil {
 		return nil, err
 	}
@@ -154,10 +154,10 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 	cmd.Env = make([]string, 0, len(request.EnvironmentVariables)+1)
 	if r.setTmpdirEnvironmentVariable && request.TemporaryDirectory != "" {
 		temporaryDirectory, scopeWalker := r.buildDirectoryPath.Join(path.VoidScopeWalker)
-		if err := path.Resolve(path.NewUNIXParser(request.TemporaryDirectory), scopeWalker); err != nil {
+		if err := path.Resolve(path.UNIXFormat.NewParser(request.TemporaryDirectory), scopeWalker); err != nil {
 			return nil, util.StatusWrap(err, "Failed to resolve temporary directory")
 		}
-		temporaryDirectoryStr, err := path.GetLocalString(temporaryDirectory)
+		temporaryDirectoryStr, err := path.LocalFormat.GetString(temporaryDirectory)
 		if err != nil {
 			return nil, util.StatusWrap(err, "Failed to create local representation of temporary directory")
 		}
@@ -226,7 +226,7 @@ func (r *localRunner) CheckReadiness(ctx context.Context, request *runner.CheckR
 		stack: util.NewNonEmptyStack(filesystem.NopDirectoryCloser(r.buildDirectory)),
 	}
 	defer pathResolver.closeAll()
-	if err := path.Resolve(path.NewUNIXParser(request.Path), path.NewRelativeScopeWalker(&pathResolver)); err != nil {
+	if err := path.Resolve(path.UNIXFormat.NewParser(request.Path), path.NewRelativeScopeWalker(&pathResolver)); err != nil {
 		return nil, util.StatusWrapfWithCode(err, codes.Internal, "Failed to resolve path %#v in build directory", request.Path)
 	}
 	if name := pathResolver.TerminalName; name != nil {
@@ -242,15 +242,15 @@ func (r *localRunner) CheckReadiness(ctx context.Context, request *runner.CheckR
 // search path that is part of the PATH environment variable.
 func getExecutablePath(baseDirectory *path.Builder, searchPathStr, argv0 string) (string, error) {
 	searchPath, scopeWalker := baseDirectory.Join(path.VoidScopeWalker)
-	if err := path.Resolve(path.NewLocalParser(searchPathStr), scopeWalker); err != nil {
+	if err := path.Resolve(path.LocalFormat.NewParser(searchPathStr), scopeWalker); err != nil {
 		return "", err
 	}
 
 	executablePath, scopeWalker := searchPath.Join(path.VoidScopeWalker)
-	if err := path.Resolve(path.NewLocalParser(argv0), scopeWalker); err != nil {
+	if err := path.Resolve(path.LocalFormat.NewParser(argv0), scopeWalker); err != nil {
 		return "", err
 	}
-	return path.GetLocalString(executablePath)
+	return path.LocalFormat.GetString(executablePath)
 }
 
 // lookupExecutable returns the path of an executable, taking the PATH
