@@ -48,7 +48,7 @@ func main() {
 
 		// Create symbolic link whose target can be set by users.
 		buildDirectory, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
-		if err := path.Resolve(path.NewUNIXParser(configuration.BuildDirectoryPath), scopeWalker); err != nil {
+		if err := path.Resolve(path.UNIXFormat.NewParser(configuration.BuildDirectoryPath), scopeWalker); err != nil {
 			return util.StatusWrap(err, "Failed to resolve build directory path")
 		}
 		userSettableSymlink := virtual.NewUserSettableSymlink(buildDirectory)

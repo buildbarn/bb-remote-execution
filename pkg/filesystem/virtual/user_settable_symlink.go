@@ -63,7 +63,7 @@ func (f *UserSettableSymlink) InstallTemporaryDirectory(ctx context.Context, req
 	key := protojson.Format(publicAuthenticationMetadata)
 
 	temporaryDirectory, scopeWalker := f.buildDirectory.Join(path.NewRelativeScopeWalker(path.VoidComponentWalker))
-	if err := path.Resolve(path.NewUNIXParser(request.TemporaryDirectory), scopeWalker); err != nil {
+	if err := path.Resolve(path.UNIXFormat.NewParser(request.TemporaryDirectory), scopeWalker); err != nil {
 		return nil, err
 	}
 	target := []byte(temporaryDirectory.GetUNIXString())

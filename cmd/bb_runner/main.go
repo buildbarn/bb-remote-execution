@@ -39,7 +39,7 @@ func main() {
 		}
 
 		buildDirectoryPath, scopeWalker := path.EmptyBuilder.Join(path.NewAbsoluteScopeWalker(path.VoidComponentWalker))
-		if err := path.Resolve(path.NewLocalParser(configuration.BuildDirectoryPath), scopeWalker); err != nil {
+		if err := path.Resolve(path.LocalFormat.NewParser(configuration.BuildDirectoryPath), scopeWalker); err != nil {
 			return util.StatusWrapf(err, "Failed to resolve build directory %#v", configuration.BuildDirectoryPath)
 		}
 		buildDirectory := re_filesystem.NewLazyDirectory(
@@ -108,7 +108,7 @@ func main() {
 		// build actions aren't visible to successive actions. This also
 		// prevents systems from running out of disk space.
 		for _, d := range configuration.CleanTemporaryDirectories {
-			directory, err := filesystem.NewLocalDirectory(path.NewLocalParser(d))
+			directory, err := filesystem.NewLocalDirectory(path.LocalFormat.NewParser(d))
 			if err != nil {
 				return util.StatusWrapf(err, "Failed to open temporary directory %#v", d)
 			}

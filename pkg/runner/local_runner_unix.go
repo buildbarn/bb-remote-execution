@@ -29,7 +29,7 @@ func NewChrootedCommandCreator(sysProcAttr *syscall.SysProcAttr) (CommandCreator
 		// https://github.com/golang/go/issues/39341
 		cmd := exec.CommandContext(ctx, "/usr/bin/env", append([]string{"--"}, arguments...)...)
 
-		inputRootDirectoryStr, err := path.GetLocalString(inputRootDirectory)
+		inputRootDirectoryStr, err := path.LocalFormat.GetString(inputRootDirectory)
 		if err != nil {
 			return nil, util.StatusWrap(err, "Failed to create local representation of input root directory")
 		}
@@ -43,7 +43,7 @@ func NewChrootedCommandCreator(sysProcAttr *syscall.SysProcAttr) (CommandCreator
 		if err := path.Resolve(workingDirectoryParser, scopeWalker); err != nil {
 			return nil, util.StatusWrap(err, "Failed to resolve working directory")
 		}
-		workingDirectoryStr, err := path.GetLocalString(workingDirectory)
+		workingDirectoryStr, err := path.LocalFormat.GetString(workingDirectory)
 		if err != nil {
 			return nil, util.StatusWrap(err, "Failed to create local representation of working directory")
 		}

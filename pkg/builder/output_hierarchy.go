@@ -470,7 +470,7 @@ type OutputHierarchy struct {
 // message.
 func NewOutputHierarchy(command *remoteexecution.Command) (*OutputHierarchy, error) {
 	var workingDirectory outputNodePath
-	if err := path.Resolve(path.NewUNIXParser(command.WorkingDirectory), path.NewRelativeScopeWalker(&workingDirectory)); err != nil {
+	if err := path.Resolve(path.UNIXFormat.NewParser(command.WorkingDirectory), path.NewRelativeScopeWalker(&workingDirectory)); err != nil {
 		return nil, util.StatusWrap(err, "Invalid working directory")
 	}
 
@@ -522,7 +522,7 @@ func (oh *OutputHierarchy) lookup(workingDirectory outputNodePath, targetPath st
 	outputPath := outputNodePath{
 		components: append([]path.Component(nil), workingDirectory.components...),
 	}
-	if err := path.Resolve(path.NewUNIXParser(targetPath), path.NewRelativeScopeWalker(&outputPath)); err != nil {
+	if err := path.Resolve(path.UNIXFormat.NewParser(targetPath), path.NewRelativeScopeWalker(&outputPath)); err != nil {
 		return nil, nil, err
 	}
 

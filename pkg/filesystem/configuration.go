@@ -28,7 +28,7 @@ func NewFilePoolFromConfiguration(configuration *pb.FilePoolConfiguration) (File
 	case *pb.FilePoolConfiguration_InMemory:
 		filePool = InMemoryFilePool
 	case *pb.FilePoolConfiguration_DirectoryPath:
-		directory, err := filesystem.NewLocalDirectory(path.NewLocalParser(backend.DirectoryPath))
+		directory, err := filesystem.NewLocalDirectory(path.LocalFormat.NewParser(backend.DirectoryPath))
 		if err != nil {
 			return nil, util.StatusWrapf(err, "Failed to open directory %#v", backend.DirectoryPath)
 		}
