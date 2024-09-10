@@ -7,7 +7,7 @@ proto_library(
     srcs = ["buildqueuestate.proto"],
     visibility = ["//visibility:public"],
     deps = [
-        "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:remote_execution_proto",
+        "@bazel_remote_apis//build/bazel/remote/execution/v2:remote_execution_proto",
         "@googleapis//google/rpc:status_proto",
         "@protobuf//:any_proto",
         "@protobuf//:duration_proto",
@@ -26,7 +26,7 @@ go_proto_library(
     proto = ":buildqueuestate_proto",
     visibility = ["//visibility:public"],
     deps = [
-        "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:execution",
+        "@bazel_remote_apis//build/bazel/remote/execution/v2:remote_execution_go_proto",
         "@org_golang_google_genproto_googleapis_rpc//status",
     ],
 )
