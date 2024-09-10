@@ -61,7 +61,7 @@
             },
             {
                "name": "linux_amd64: upload bb_noop_worker",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_noop_worker.linux_amd64",
                   "path": "bb_noop_worker"
@@ -73,7 +73,7 @@
             },
             {
                "name": "linux_amd64: upload bb_runner",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_runner.linux_amd64",
                   "path": "bb_runner"
@@ -85,7 +85,7 @@
             },
             {
                "name": "linux_amd64: upload bb_scheduler",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_scheduler.linux_amd64",
                   "path": "bb_scheduler"
@@ -97,7 +97,7 @@
             },
             {
                "name": "linux_amd64: upload bb_virtual_tmp",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_virtual_tmp.linux_amd64",
                   "path": "bb_virtual_tmp"
@@ -109,7 +109,7 @@
             },
             {
                "name": "linux_amd64: upload bb_worker",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_worker.linux_amd64",
                   "path": "bb_worker"
@@ -121,7 +121,7 @@
             },
             {
                "name": "linux_amd64: upload fake_python",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "fake_python.linux_amd64",
                   "path": "fake_python"
@@ -133,7 +133,7 @@
             },
             {
                "name": "linux_amd64: upload fake_xcrun",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "fake_xcrun.linux_amd64",
                   "path": "fake_xcrun"
@@ -149,7 +149,7 @@
             },
             {
                "name": "linux_386: upload bb_noop_worker",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_noop_worker.linux_386",
                   "path": "bb_noop_worker"
@@ -161,7 +161,7 @@
             },
             {
                "name": "linux_386: upload bb_runner",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_runner.linux_386",
                   "path": "bb_runner"
@@ -173,7 +173,7 @@
             },
             {
                "name": "linux_386: upload bb_scheduler",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_scheduler.linux_386",
                   "path": "bb_scheduler"
@@ -185,7 +185,7 @@
             },
             {
                "name": "linux_386: upload bb_virtual_tmp",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_virtual_tmp.linux_386",
                   "path": "bb_virtual_tmp"
@@ -197,7 +197,7 @@
             },
             {
                "name": "linux_386: upload bb_worker",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_worker.linux_386",
                   "path": "bb_worker"
@@ -209,7 +209,7 @@
             },
             {
                "name": "linux_386: upload fake_python",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "fake_python.linux_386",
                   "path": "fake_python"
@@ -221,7 +221,7 @@
             },
             {
                "name": "linux_386: upload fake_xcrun",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "fake_xcrun.linux_386",
                   "path": "fake_xcrun"
@@ -237,7 +237,7 @@
             },
             {
                "name": "linux_arm: upload bb_noop_worker",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_noop_worker.linux_arm",
                   "path": "bb_noop_worker"
@@ -249,7 +249,7 @@
             },
             {
                "name": "linux_arm: upload bb_runner",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_runner.linux_arm",
                   "path": "bb_runner"
@@ -261,7 +261,7 @@
             },
             {
                "name": "linux_arm: upload bb_scheduler",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_scheduler.linux_arm",
                   "path": "bb_scheduler"
@@ -273,7 +273,7 @@
             },
             {
                "name": "linux_arm: upload bb_virtual_tmp",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_virtual_tmp.linux_arm",
                   "path": "bb_virtual_tmp"
@@ -285,7 +285,7 @@
             },
             {
                "name": "linux_arm: upload bb_worker",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_worker.linux_arm",
                   "path": "bb_worker"
@@ -297,7 +297,7 @@
             },
             {
                "name": "linux_arm: upload fake_python",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "fake_python.linux_arm",
                   "path": "fake_python"
@@ -309,7 +309,7 @@
             },
             {
                "name": "linux_arm: upload fake_xcrun",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "fake_xcrun.linux_arm",
                   "path": "fake_xcrun"
@@ -325,7 +325,7 @@
             },
             {
                "name": "linux_arm64: upload bb_noop_worker",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_noop_worker.linux_arm64",
                   "path": "bb_noop_worker"
@@ -337,7 +337,7 @@
             },
             {
                "name": "linux_arm64: upload bb_runner",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_runner.linux_arm64",
                   "path": "bb_runner"
@@ -349,7 +349,7 @@
             },
             {
                "name": "linux_arm64: upload bb_scheduler",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_scheduler.linux_arm64",
                   "path": "bb_scheduler"
@@ -361,7 +361,7 @@
             },
             {
                "name": "linux_arm64: upload bb_virtual_tmp",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_virtual_tmp.linux_arm64",
                   "path": "bb_virtual_tmp"
@@ -373,7 +373,7 @@
             },
             {
                "name": "linux_arm64: upload bb_worker",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_worker.linux_arm64",
                   "path": "bb_worker"
@@ -385,7 +385,7 @@
             },
             {
                "name": "linux_arm64: upload fake_python",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "fake_python.linux_arm64",
                   "path": "fake_python"
@@ -397,7 +397,7 @@
             },
             {
                "name": "linux_arm64: upload fake_xcrun",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "fake_xcrun.linux_arm64",
                   "path": "fake_xcrun"
@@ -413,7 +413,7 @@
             },
             {
                "name": "darwin_amd64: upload bb_noop_worker",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_noop_worker.darwin_amd64",
                   "path": "bb_noop_worker"
@@ -425,7 +425,7 @@
             },
             {
                "name": "darwin_amd64: upload bb_runner",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_runner.darwin_amd64",
                   "path": "bb_runner"
@@ -437,7 +437,7 @@
             },
             {
                "name": "darwin_amd64: upload bb_scheduler",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_scheduler.darwin_amd64",
                   "path": "bb_scheduler"
@@ -449,7 +449,7 @@
             },
             {
                "name": "darwin_amd64: upload bb_virtual_tmp",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_virtual_tmp.darwin_amd64",
                   "path": "bb_virtual_tmp"
@@ -461,7 +461,7 @@
             },
             {
                "name": "darwin_amd64: upload bb_worker",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_worker.darwin_amd64",
                   "path": "bb_worker"
@@ -473,7 +473,7 @@
             },
             {
                "name": "darwin_amd64: upload fake_python",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "fake_python.darwin_amd64",
                   "path": "fake_python"
@@ -485,7 +485,7 @@
             },
             {
                "name": "darwin_amd64: upload fake_xcrun",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "fake_xcrun.darwin_amd64",
                   "path": "fake_xcrun"
@@ -501,7 +501,7 @@
             },
             {
                "name": "darwin_arm64: upload bb_noop_worker",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_noop_worker.darwin_arm64",
                   "path": "bb_noop_worker"
@@ -513,7 +513,7 @@
             },
             {
                "name": "darwin_arm64: upload bb_runner",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_runner.darwin_arm64",
                   "path": "bb_runner"
@@ -525,7 +525,7 @@
             },
             {
                "name": "darwin_arm64: upload bb_scheduler",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_scheduler.darwin_arm64",
                   "path": "bb_scheduler"
@@ -537,7 +537,7 @@
             },
             {
                "name": "darwin_arm64: upload bb_virtual_tmp",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_virtual_tmp.darwin_arm64",
                   "path": "bb_virtual_tmp"
@@ -549,7 +549,7 @@
             },
             {
                "name": "darwin_arm64: upload bb_worker",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_worker.darwin_arm64",
                   "path": "bb_worker"
@@ -561,7 +561,7 @@
             },
             {
                "name": "darwin_arm64: upload fake_python",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "fake_python.darwin_arm64",
                   "path": "fake_python"
@@ -573,7 +573,7 @@
             },
             {
                "name": "darwin_arm64: upload fake_xcrun",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "fake_xcrun.darwin_arm64",
                   "path": "fake_xcrun"
@@ -589,7 +589,7 @@
             },
             {
                "name": "freebsd_amd64: upload bb_noop_worker",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_noop_worker.freebsd_amd64",
                   "path": "bb_noop_worker"
@@ -601,7 +601,7 @@
             },
             {
                "name": "freebsd_amd64: upload bb_runner",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_runner.freebsd_amd64",
                   "path": "bb_runner"
@@ -613,7 +613,7 @@
             },
             {
                "name": "freebsd_amd64: upload bb_scheduler",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_scheduler.freebsd_amd64",
                   "path": "bb_scheduler"
@@ -625,7 +625,7 @@
             },
             {
                "name": "freebsd_amd64: upload bb_virtual_tmp",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_virtual_tmp.freebsd_amd64",
                   "path": "bb_virtual_tmp"
@@ -637,7 +637,7 @@
             },
             {
                "name": "freebsd_amd64: upload bb_worker",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_worker.freebsd_amd64",
                   "path": "bb_worker"
@@ -649,7 +649,7 @@
             },
             {
                "name": "freebsd_amd64: upload fake_python",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "fake_python.freebsd_amd64",
                   "path": "fake_python"
@@ -661,7 +661,7 @@
             },
             {
                "name": "freebsd_amd64: upload fake_xcrun",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "fake_xcrun.freebsd_amd64",
                   "path": "fake_xcrun"
@@ -677,7 +677,7 @@
             },
             {
                "name": "windows_amd64: upload bb_noop_worker",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_noop_worker.windows_amd64",
                   "path": "bb_noop_worker.exe"
@@ -689,7 +689,7 @@
             },
             {
                "name": "windows_amd64: upload bb_runner",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_runner.windows_amd64",
                   "path": "bb_runner.exe"
@@ -701,7 +701,7 @@
             },
             {
                "name": "windows_amd64: upload bb_scheduler",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_scheduler.windows_amd64",
                   "path": "bb_scheduler.exe"
@@ -713,7 +713,7 @@
             },
             {
                "name": "windows_amd64: upload bb_virtual_tmp",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_virtual_tmp.windows_amd64",
                   "path": "bb_virtual_tmp.exe"
@@ -725,7 +725,7 @@
             },
             {
                "name": "windows_amd64: upload bb_worker",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_worker.windows_amd64",
                   "path": "bb_worker.exe"
@@ -737,7 +737,7 @@
             },
             {
                "name": "windows_amd64: upload fake_python",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "fake_python.windows_amd64",
                   "path": "fake_python.exe"
@@ -749,7 +749,7 @@
             },
             {
                "name": "windows_amd64: upload fake_xcrun",
-               "uses": "actions/upload-artifact@v2-preview",
+               "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "fake_xcrun.windows_amd64",
                   "path": "fake_xcrun.exe"
