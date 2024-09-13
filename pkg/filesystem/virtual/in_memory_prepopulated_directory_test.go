@@ -392,7 +392,7 @@ func TestInMemoryPrepopulatedDirectoryInstallHooks(t *testing.T) {
 
 	// Validate that the top-level directory uses both the new file
 	// allocator and error logger.
-	fileAllocator2.EXPECT().NewFile(false, uint64(0), virtual.ShareMaskWrite).
+	fileAllocator2.EXPECT().NewFile(virtual.PermissionsRead|virtual.PermissionsWrite, uint64(0), virtual.ShareMaskWrite).
 		Return(nil, virtual.StatusErrIO)
 	var attr virtual.Attributes
 	_, _, _, s := d.VirtualOpenChild(
@@ -410,7 +410,7 @@ func TestInMemoryPrepopulatedDirectoryInstallHooks(t *testing.T) {
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
 	child, err := d.CreateAndEnterPrepopulatedDirectory(path.MustNewComponent("dir"))
 	require.NoError(t, err)
-	fileAllocator2.EXPECT().NewFile(false, uint64(0), virtual.ShareMaskWrite).
+	fileAllocator2.EXPECT().NewFile(virtual.PermissionsRead|virtual.PermissionsWrite, uint64(0), virtual.ShareMaskWrite).
 		Return(nil, virtual.StatusErrIO)
 	_, _, _, s = child.VirtualOpenChild(
 		ctx,
@@ -552,7 +552,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualOpenChildAllocationFailure(t *testi
 
 	fileAllocator := mock.NewMockFileAllocator(ctrl)
 	symlinkFactory := mock.NewMockSymlinkFactory(ctrl)
-	fileAllocator.EXPECT().NewFile(false, uint64(0), virtual.ShareMaskWrite).
+	fileAllocator.EXPECT().NewFile(virtual.PermissionsRead|virtual.PermissionsWrite, uint64(0), virtual.ShareMaskWrite).
 		Return(nil, virtual.StatusErrIO)
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
@@ -610,7 +610,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualOpenChildSuccess(t *testing.T) {
 	fileAllocator := mock.NewMockFileAllocator(ctrl)
 	symlinkFactory := mock.NewMockSymlinkFactory(ctrl)
 	child := mock.NewMockNativeLeaf(ctrl)
-	fileAllocator.EXPECT().NewFile(false, uint64(0), virtual.ShareMaskWrite).
+	fileAllocator.EXPECT().NewFile(virtual.PermissionsRead|virtual.PermissionsWrite, uint64(0), virtual.ShareMaskWrite).
 		Return(child, virtual.StatusOK)
 	child.EXPECT().VirtualGetAttributes(
 		ctx,
