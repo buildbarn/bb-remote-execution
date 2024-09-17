@@ -110,3 +110,7 @@ func (d *staticDirectory) VirtualReadDir(ctx context.Context, firstCookie uint64
 	}
 	return StatusOK
 }
+
+func (staticDirectory) VirtualApply(data any) bool {
+	return false
+}

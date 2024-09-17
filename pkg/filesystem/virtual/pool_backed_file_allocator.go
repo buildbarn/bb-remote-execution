@@ -401,6 +401,10 @@ func (f *fileBackedFile) VirtualGetAttributes(ctx context.Context, requested Att
 	}
 }
 
+func (fileBackedFile) VirtualApply(data any) bool {
+	return false
+}
+
 func (f *fileBackedFile) VirtualSeek(offset uint64, regionType filesystem.RegionType) (*uint64, Status) {
 	f.lock.Lock()
 	if offset >= f.size {
