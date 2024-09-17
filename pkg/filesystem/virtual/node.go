@@ -12,6 +12,9 @@ import (
 type Node interface {
 	VirtualGetAttributes(ctx context.Context, requested AttributesMask, attributes *Attributes)
 	VirtualSetAttributes(ctx context.Context, in *Attributes, requested AttributesMask, attributes *Attributes) Status
+	// VirtualApply can be used to send data between backing nodes. Returns true
+	// if the request was intercepted.
+	VirtualApply(data any) bool
 }
 
 // GetFileInfo extracts the attributes of a node and returns it in the

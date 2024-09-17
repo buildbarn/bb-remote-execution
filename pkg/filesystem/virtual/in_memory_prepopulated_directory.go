@@ -738,6 +738,10 @@ func (i *inMemoryPrepopulatedDirectory) virtualGetAttributesLocked(requested Att
 	attributes.SetLastDataModificationTime(i.contents.lastDataModificationTime)
 }
 
+func (inMemoryPrepopulatedDirectory) VirtualApply(data any) bool {
+	return false
+}
+
 func (i *inMemoryPrepopulatedDirectory) VirtualLink(ctx context.Context, name path.Component, leaf Leaf, requested AttributesMask, out *Attributes) (ChangeInfo, Status) {
 	child, ok := leaf.(NativeLeaf)
 	if !ok {

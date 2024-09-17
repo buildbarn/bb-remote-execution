@@ -111,6 +111,10 @@ func (f *blobAccessCASFile) VirtualAllocate(off, size uint64) Status {
 	return StatusErrWrongType
 }
 
+func (blobAccessCASFile) VirtualApply(data any) bool {
+	return false
+}
+
 func (f *blobAccessCASFile) virtualGetAttributesCommon(attributes *Attributes) {
 	attributes.SetChangeID(0)
 	attributes.SetFileType(filesystem.FileTypeRegularFile)

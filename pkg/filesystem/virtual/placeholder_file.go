@@ -56,3 +56,7 @@ func (placeholderFile) VirtualSeek(offset uint64, regionType filesystem.RegionTy
 func (placeholderFile) VirtualWrite(buf []byte, off uint64) (int, Status) {
 	panic("Request to write to symbolic link should have been intercepted")
 }
+
+func (placeholderFile) VirtualApply(data any) bool {
+	return false
+}
