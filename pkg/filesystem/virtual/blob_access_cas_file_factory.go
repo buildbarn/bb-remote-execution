@@ -7,11 +7,9 @@ import (
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/bazeloutputservice"
 	bazeloutputservicerev2 "github.com/buildbarn/bb-remote-execution/pkg/proto/bazeloutputservice/rev2"
-	"github.com/buildbarn/bb-remote-execution/pkg/proto/outputpathpersistency"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
-	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
 
 	"google.golang.org/grpc/codes"
@@ -66,53 +64,49 @@ func (f *blobAccessCASFile) Link() Status {
 	return StatusOK
 }
 
-func (f *blobAccessCASFile) Readlink() (path.Parser, error) {
-	return nil, syscall.EINVAL
-}
-
 func (f *blobAccessCASFile) Unlink() {
-}
-
-func (f *blobAccessCASFile) UploadFile(ctx context.Context, contentAddressableStorage blobstore.BlobAccess, digestFunction digest.Function, writableFileUploadDelay <-chan struct{}) (digest.Digest, error) {
-	// This file is already backed by the Content Addressable
-	// Storage. There is thus no need to upload it once again.
-	//
-	// The client that created this build action already called
-	// FindMissingBlobs() on this file, so there's also a high
-	// degree of certainty that this file won't disappear from the
-	// Content Addressable Storage any time soon.
-	return f.digest, nil
-}
-
-func (f *blobAccessCASFile) GetContainingDigests() digest.Set {
-	return f.digest.ToSingletonSet()
-}
-
-func (f *blobAccessCASFile) GetBazelOutputServiceStat(digestFunction *digest.Function) (*bazeloutputservice.BatchStatResponse_Stat, error) {
-	// Assume that the file uses the same hash algorithm as
-	// the provided digest function. Incompatible files are
-	// removed from storage at the start of the build.
-	locator, err := anypb.New(&bazeloutputservicerev2.FileArtifactLocator{
-		Digest: f.digest.GetProto(),
-	})
-	if err != nil {
-		return nil, status.Error(codes.Internal, "Failed to marshal locator")
-	}
-	return &bazeloutputservice.BatchStatResponse_Stat{
-		Type: &bazeloutputservice.BatchStatResponse_Stat_File_{
-			File: &bazeloutputservice.BatchStatResponse_Stat_File{
-				Locator: locator,
-			},
-		},
-	}, nil
 }
 
 func (f *blobAccessCASFile) VirtualAllocate(off, size uint64) Status {
 	return StatusErrWrongType
 }
 
-func (blobAccessCASFile) VirtualApply(data any) bool {
-	return false
+func (f *blobAccessCASFile) virtualApplyCommon(data any) bool {
+	switch p := data.(type) {
+	case *ApplyReadlink:
+		p.Err = syscall.EINVAL
+	case *ApplyUploadFile:
+		// This file is already backed by the Content Addressable
+		// Storage. There is thus no need to upload it once again.
+		//
+		// The client that created this build action already called
+		// FindMissingBlobs() on this file, so there's also a high
+		// degree of certainty that this file won't disappear from the
+		// Content Addressable Storage any time soon.
+		p.Digest = f.digest
+	case *ApplyGetContainingDigests:
+		p.ContainingDigests = f.digest.ToSingletonSet()
+	case *ApplyGetBazelOutputServiceStat:
+		// Assume that the file uses the same hash algorithm as
+		// the provided digest function. Incompatible files are
+		// removed from storage at the start of the build.
+		if locator, err := anypb.New(&bazeloutputservicerev2.FileArtifactLocator{
+			Digest: f.digest.GetProto(),
+		}); err == nil {
+			p.Stat = &bazeloutputservice.BatchStatResponse_Stat{
+				Type: &bazeloutputservice.BatchStatResponse_Stat_File_{
+					File: &bazeloutputservice.BatchStatResponse_Stat_File{
+						Locator: locator,
+					},
+				},
+			}
+		} else {
+			p.Err = status.Error(codes.Internal, "Failed to marshal locator")
+		}
+	default:
+		return false
+	}
+	return true
 }
 
 func (f *blobAccessCASFile) virtualGetAttributesCommon(attributes *Attributes) {
@@ -183,12 +177,18 @@ type regularBlobAccessCASFile struct {
 	blobAccessCASFile
 }
 
-func (f *regularBlobAccessCASFile) AppendOutputPathPersistencyDirectoryNode(directory *outputpathpersistency.Directory, name path.Component) {
-	directory.Files = append(directory.Files, &remoteexecution.FileNode{
-		Name:         name.String(),
-		Digest:       f.digest.GetProto(),
-		IsExecutable: false,
-	})
+func (f *regularBlobAccessCASFile) VirtualApply(data any) bool {
+	switch p := data.(type) {
+	case *ApplyAppendOutputPathPersistencyDirectoryNode:
+		p.Directory.Files = append(p.Directory.Files, &remoteexecution.FileNode{
+			Name:         p.Name.String(),
+			Digest:       f.digest.GetProto(),
+			IsExecutable: false,
+		})
+	default:
+		return f.virtualApplyCommon(data)
+	}
+	return true
 }
 
 func (f *regularBlobAccessCASFile) VirtualGetAttributes(ctx context.Context, requested AttributesMask, attributes *Attributes) {
@@ -218,12 +218,18 @@ type executableBlobAccessCASFile struct {
 	blobAccessCASFile
 }
 
-func (f *executableBlobAccessCASFile) AppendOutputPathPersistencyDirectoryNode(directory *outputpathpersistency.Directory, name path.Component) {
-	directory.Files = append(directory.Files, &remoteexecution.FileNode{
-		Name:         name.String(),
-		Digest:       f.digest.GetProto(),
-		IsExecutable: true,
-	})
+func (f *executableBlobAccessCASFile) VirtualApply(data any) bool {
+	switch p := data.(type) {
+	case *ApplyAppendOutputPathPersistencyDirectoryNode:
+		p.Directory.Files = append(p.Directory.Files, &remoteexecution.FileNode{
+			Name:         p.Name.String(),
+			Digest:       f.digest.GetProto(),
+			IsExecutable: true,
+		})
+	default:
+		return f.virtualApplyCommon(data)
+	}
+	return true
 }
 
 func (f *executableBlobAccessCASFile) VirtualGetAttributes(ctx context.Context, requested AttributesMask, attributes *Attributes) {

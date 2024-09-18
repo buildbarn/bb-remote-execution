@@ -99,7 +99,9 @@ func TestBlobAccessCASFileFactoryGetContainingDigests(t *testing.T) {
 			SetSizeBytes(400),
 		&out)
 
-	require.Equal(t, digest.ToSingletonSet(), f.GetContainingDigests())
+	p := virtual.ApplyGetContainingDigests{}
+	require.True(t, f.VirtualApply(&p))
+	require.Equal(t, digest.ToSingletonSet(), p.ContainingDigests)
 }
 
 func TestBlobAccessCASFileFactoryGetBazelOutputServiceStat(t *testing.T) {
@@ -129,8 +131,11 @@ func TestBlobAccessCASFileFactoryGetBazelOutputServiceStat(t *testing.T) {
 	// need to perform any I/O, as the digest is already embedded in
 	// the file.
 	digestFunction := digest.GetDigestFunction()
-	fileStatus, err := f.GetBazelOutputServiceStat(&digestFunction)
-	require.NoError(t, err)
+	p := virtual.ApplyGetBazelOutputServiceStat{
+		DigestFunction: &digestFunction,
+	}
+	require.True(t, f.VirtualApply(&p))
+	require.NoError(t, p.Err)
 	locator, err := anypb.New(&bazeloutputservicerev2.FileArtifactLocator{
 		Digest: &remoteexecution.Digest{
 			Hash:      "8b1a9953c4611296a827abf8c47804d7",
@@ -144,7 +149,7 @@ func TestBlobAccessCASFileFactoryGetBazelOutputServiceStat(t *testing.T) {
 				Locator: locator,
 			},
 		},
-	}, fileStatus)
+	}, p.Stat)
 }
 
 func TestBlobAccessCASFileFactoryAppendOutputPathPersistencyDirectoryNode(t *testing.T) {
@@ -184,8 +189,14 @@ func TestBlobAccessCASFileFactoryAppendOutputPathPersistencyDirectoryNode(t *tes
 		&out2)
 
 	var directory outputpathpersistency.Directory
-	f1.AppendOutputPathPersistencyDirectoryNode(&directory, path.MustNewComponent("hello"))
-	f2.AppendOutputPathPersistencyDirectoryNode(&directory, path.MustNewComponent("world"))
+	require.True(t, f1.VirtualApply(&virtual.ApplyAppendOutputPathPersistencyDirectoryNode{
+		Directory: &directory,
+		Name:      path.MustNewComponent("hello"),
+	}))
+	require.True(t, f2.VirtualApply(&virtual.ApplyAppendOutputPathPersistencyDirectoryNode{
+		Directory: &directory,
+		Name:      path.MustNewComponent("world"),
+	}))
 	testutil.RequireEqualProto(t, &outputpathpersistency.Directory{
 		Files: []*remoteexecution.FileNode{
 			{

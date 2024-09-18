@@ -3,6 +3,10 @@ package virtual
 import (
 	"context"
 
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/bazeloutputservice"
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/outputpathpersistency"
+	"github.com/buildbarn/bb-storage/pkg/blobstore"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 )
@@ -30,4 +34,62 @@ func GetFileInfo(name path.Component, node Node) filesystem.FileInfo {
 		name,
 		attributes.GetFileType(),
 		permissions&PermissionsExecute != 0)
+}
+
+// ApplyReadlink is an operation for VirtualApply that returns the
+// target of a symbolic link in parsed form.
+type ApplyReadlink struct {
+	// Outputs.
+	Target path.Parser
+	Err    error
+}
+
+// ApplyUploadFile is an operation for VirtualApply that uploads the
+// contents of a file into the Content Addressable Storage and returns
+// the resulting object's digest.
+type ApplyUploadFile struct {
+	// Inputs.
+	Context                   context.Context
+	ContentAddressableStorage blobstore.BlobAccess
+	DigestFunction            digest.Function
+	WritableFileUploadDelay   <-chan struct{}
+
+	// Outputs.
+	Digest digest.Digest
+	Err    error
+}
+
+// ApplyGetContainingDigests is an operation for VirtualApply that
+// returns a set of digests of objects in the Content Addressable
+// Storage that back the contents of this file.
+//
+// The set returned by this function may be passed to
+// ContentAddressableStorage.FindMissingBlobs() to check whether
+// the file still exists in its entirety, and to prevent that
+// the file is removed in the nearby future.
+type ApplyGetContainingDigests struct {
+	// Outputs.
+	ContainingDigests digest.Set
+}
+
+// ApplyGetBazelOutputServiceStat is an operation for VirtualApply that
+// returns the status of the leaf node in the form of a Status message
+// that is used by the Bazel Output Service protocol.
+type ApplyGetBazelOutputServiceStat struct {
+	// Inputs.
+	DigestFunction *digest.Function
+
+	// Outputs.
+	Stat *bazeloutputservice.BatchStatResponse_Stat
+	Err  error
+}
+
+// ApplyAppendOutputPathPersistencyDirectoryNode is an operation for
+// VirtualApply that appends a FileNode or SymlinkNode entry to a
+// Directory message that is used to persist the state of a Bazel Output
+// Service output path to disk.
+type ApplyAppendOutputPathPersistencyDirectoryNode struct {
+	// Inputs.
+	Directory *outputpathpersistency.Directory
+	Name      path.Component
 }

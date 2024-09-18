@@ -3,7 +3,6 @@ package virtual
 import (
 	"context"
 
-	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 
@@ -22,14 +21,6 @@ func (placeholderFile) Link() Status {
 }
 
 func (placeholderFile) Unlink() {
-}
-
-func (placeholderFile) UploadFile(ctx context.Context, contentAddressableStorage blobstore.BlobAccess, digestFunction digest.Function, writableFileUploadDelay <-chan struct{}) (digest.Digest, error) {
-	return digest.BadDigest, status.Error(codes.InvalidArgument, "This file cannot be uploaded, as it is a placeholder")
-}
-
-func (placeholderFile) GetContainingDigests() digest.Set {
-	return digest.EmptySet
 }
 
 func (placeholderFile) VirtualAllocate(off, size uint64) Status {
@@ -58,5 +49,13 @@ func (placeholderFile) VirtualWrite(buf []byte, off uint64) (int, Status) {
 }
 
 func (placeholderFile) VirtualApply(data any) bool {
-	return false
+	switch p := data.(type) {
+	case *ApplyUploadFile:
+		p.Err = status.Error(codes.InvalidArgument, "This file cannot be uploaded, as it is a placeholder")
+	case *ApplyGetContainingDigests:
+		p.ContainingDigests = digest.EmptySet
+	default:
+		return false
+	}
+	return true
 }

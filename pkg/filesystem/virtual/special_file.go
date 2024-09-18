@@ -5,10 +5,7 @@ import (
 	"syscall"
 
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/bazeloutputservice"
-	"github.com/buildbarn/bb-remote-execution/pkg/proto/outputpathpersistency"
-	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
-	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 )
 
 type specialFile struct {
@@ -27,20 +24,6 @@ func NewSpecialFile(fileType filesystem.FileType, deviceNumber *filesystem.Devic
 		fileType:     fileType,
 		deviceNumber: deviceNumber,
 	}
-}
-
-func (f *specialFile) Readlink() (path.Parser, error) {
-	return nil, syscall.EINVAL
-}
-
-func (f *specialFile) GetBazelOutputServiceStat(digestFunction *digest.Function) (*bazeloutputservice.BatchStatResponse_Stat, error) {
-	return &bazeloutputservice.BatchStatResponse_Stat{}, nil
-}
-
-func (f *specialFile) AppendOutputPathPersistencyDirectoryNode(directory *outputpathpersistency.Directory, name path.Component) {
-	// UNIX sockets or FIFOs do not need to be preserved across
-	// restarts of bb_clientd, so there is no need to emit any
-	// persistency state.
 }
 
 func (f *specialFile) VirtualGetAttributes(ctx context.Context, requested AttributesMask, attributes *Attributes) {
@@ -63,4 +46,20 @@ func (f *specialFile) VirtualSetAttributes(ctx context.Context, in *Attributes, 
 	}
 	f.VirtualGetAttributes(ctx, requested, out)
 	return StatusOK
+}
+
+func (f *specialFile) VirtualApply(data any) bool {
+	switch p := data.(type) {
+	case *ApplyReadlink:
+		p.Err = syscall.EINVAL
+	case *ApplyGetBazelOutputServiceStat:
+		p.Stat = &bazeloutputservice.BatchStatResponse_Stat{}
+	case *ApplyAppendOutputPathPersistencyDirectoryNode:
+		// UNIX sockets or FIFOs do not need to be preserved across
+		// restarts of bb_clientd, so there is no need to emit any
+		// persistency state.
+	default:
+		f.placeholderFile.VirtualApply(data)
+	}
+	return true
 }

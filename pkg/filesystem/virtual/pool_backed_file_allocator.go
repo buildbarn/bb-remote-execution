@@ -12,12 +12,10 @@ import (
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/bazeloutputservice"
 	bazeloutputservicerev2 "github.com/buildbarn/bb-remote-execution/pkg/proto/bazeloutputservice/rev2"
-	"github.com/buildbarn/bb-remote-execution/pkg/proto/outputpathpersistency"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
-	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -184,10 +182,6 @@ func (f *fileBackedFile) Link() Status {
 	return StatusOK
 }
 
-func (f *fileBackedFile) Readlink() (path.Parser, error) {
-	return nil, syscall.EINVAL
-}
-
 func (f *fileBackedFile) Unlink() {
 	f.lock.Lock()
 	defer f.lock.Unlock()
@@ -225,7 +219,7 @@ func (f *fileBackedFile) updateCachedDigest(digestFunction digest.Function) (dig
 	return newDigest, nil
 }
 
-func (f *fileBackedFile) UploadFile(ctx context.Context, contentAddressableStorage blobstore.BlobAccess, digestFunction digest.Function, writableFileUploadDelay <-chan struct{}) (digest.Digest, error) {
+func (f *fileBackedFile) uploadFile(ctx context.Context, contentAddressableStorage blobstore.BlobAccess, digestFunction digest.Function, writableFileUploadDelay <-chan struct{}) (digest.Digest, error) {
 	f.lock.Lock()
 	if f.writableDescriptorsCount > 0 {
 		// Process table cleaning should have cleaned up any
@@ -277,11 +271,7 @@ func (f *fileBackedFile) UploadFile(ctx context.Context, contentAddressableStora
 	return blobDigest, nil
 }
 
-func (f *fileBackedFile) GetContainingDigests() digest.Set {
-	return digest.EmptySet
-}
-
-func (f *fileBackedFile) GetBazelOutputServiceStat(digestFunction *digest.Function) (*bazeloutputservice.BatchStatResponse_Stat, error) {
+func (f *fileBackedFile) getBazelOutputServiceStat(digestFunction *digest.Function) (*bazeloutputservice.BatchStatResponse_Stat, error) {
 	var locator *anypb.Any
 	f.lock.Lock()
 	if f.writableDescriptorsCount == 0 {
@@ -320,32 +310,6 @@ func (f *fileBackedFile) GetBazelOutputServiceStat(digestFunction *digest.Functi
 			},
 		},
 	}, nil
-}
-
-func (f *fileBackedFile) AppendOutputPathPersistencyDirectoryNode(directory *outputpathpersistency.Directory, name path.Component) {
-	// Because bb_clientd is mostly intended to be used in
-	// combination with remote execution, we don't want to spend too
-	// much effort persisting locally created output files. Those
-	// may easily exceed the size of the state file, making
-	// finalization of builds expensive.
-	//
-	// Most of the time people still enable remote caching for
-	// locally running actions, or have Build Event Streams enabled.
-	// In that case there is a fair chance that the file is present
-	// in the CAS anyway.
-	//
-	// In case we have a cached digest for the file available, let's
-	// generate an entry for it in the persistent state file. This
-	// means that after a restart, the file is silently converted to
-	// a CAS-backed file. If it turns out this assumption is
-	// incorrect, StartBuild() will clean up the file for us.
-	if cachedDigest := f.getCachedDigest(); cachedDigest != digest.BadDigest {
-		directory.Files = append(directory.Files, &remoteexecution.FileNode{
-			Name:         name.String(),
-			Digest:       f.cachedDigest.GetProto(),
-			IsExecutable: f.isExecutable,
-		})
-	}
 }
 
 func (f *fileBackedFile) Close() error {
@@ -401,8 +365,44 @@ func (f *fileBackedFile) VirtualGetAttributes(ctx context.Context, requested Att
 	}
 }
 
-func (fileBackedFile) VirtualApply(data any) bool {
-	return false
+func (f *fileBackedFile) VirtualApply(data any) bool {
+	switch p := data.(type) {
+	case *ApplyReadlink:
+		p.Err = syscall.EINVAL
+	case *ApplyUploadFile:
+		p.Digest, p.Err = f.uploadFile(p.Context, p.ContentAddressableStorage, p.DigestFunction, p.WritableFileUploadDelay)
+	case *ApplyGetContainingDigests:
+		p.ContainingDigests = digest.EmptySet
+	case *ApplyGetBazelOutputServiceStat:
+		p.Stat, p.Err = f.getBazelOutputServiceStat(p.DigestFunction)
+	case *ApplyAppendOutputPathPersistencyDirectoryNode:
+		// Because bb_clientd is mostly intended to be used in
+		// combination with remote execution, we don't want to spend too
+		// much effort persisting locally created output files. Those
+		// may easily exceed the size of the state file, making
+		// finalization of builds expensive.
+		//
+		// Most of the time people still enable remote caching for
+		// locally running actions, or have Build Event Streams enabled.
+		// In that case there is a fair chance that the file is present
+		// in the CAS anyway.
+		//
+		// In case we have a cached digest for the file available, let's
+		// generate an entry for it in the persistent state file. This
+		// means that after a restart, the file is silently converted to
+		// a CAS-backed file. If it turns out this assumption is
+		// incorrect, StartBuild() will clean up the file for us.
+		if cachedDigest := f.getCachedDigest(); cachedDigest != digest.BadDigest {
+			p.Directory.Files = append(p.Directory.Files, &remoteexecution.FileNode{
+				Name:         p.Name.String(),
+				Digest:       f.cachedDigest.GetProto(),
+				IsExecutable: f.isExecutable,
+			})
+		}
+	default:
+		return false
+	}
+	return true
 }
 
 func (f *fileBackedFile) VirtualSeek(offset uint64, regionType filesystem.RegionType) (*uint64, Status) {
