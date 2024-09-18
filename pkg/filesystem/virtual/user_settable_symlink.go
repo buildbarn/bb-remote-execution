@@ -4,16 +4,11 @@ import (
 	"context"
 	"sync"
 
-	"github.com/buildbarn/bb-remote-execution/pkg/proto/bazeloutputservice"
-	"github.com/buildbarn/bb-remote-execution/pkg/proto/outputpathpersistency"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/tmp_installer"
 	"github.com/buildbarn/bb-storage/pkg/auth"
-	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
@@ -72,26 +67,6 @@ func (f *UserSettableSymlink) InstallTemporaryDirectory(ctx context.Context, req
 	f.targets[key] = target
 	f.lock.Unlock()
 	return &emptypb.Empty{}, nil
-}
-
-// Readlink returns the target of the symbolic link. This method always
-// fails, as it's called in places where no Context is available.
-func (f *UserSettableSymlink) Readlink() (path.Parser, error) {
-	return nil, status.Error(codes.InvalidArgument, "Target of user settable symlinks can only be obtained through the virtual file system")
-}
-
-// GetBazelOutputServiceStat returns the status of the symbolic link, so
-// that it may be reported through the Bazel Output Service. This method
-// is a no-op, as this type is not used in combination with the Bazel
-// Output Service.
-func (f *UserSettableSymlink) GetBazelOutputServiceStat(digestFunction *digest.Function) (*bazeloutputservice.BatchStatResponse_Stat, error) {
-	return &bazeloutputservice.BatchStatResponse_Stat{}, nil
-}
-
-// AppendOutputPathPersistencyDirectoryNode returns the status of the
-// symbolic link, so that it may be persisted on disk. This method is a
-// no-op, as this type is not used as part of build output paths.
-func (f *UserSettableSymlink) AppendOutputPathPersistencyDirectoryNode(directory *outputpathpersistency.Directory, name path.Component) {
 }
 
 // VirtualGetAttributes returns the file system attributes of the

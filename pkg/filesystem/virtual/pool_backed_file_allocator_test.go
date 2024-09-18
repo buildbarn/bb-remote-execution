@@ -49,13 +49,16 @@ func TestPoolBackedFileAllocatorGetBazelOutputServiceStat(t *testing.T) {
 	// can compute its value properly, as unwritten data may still
 	// be present in the page cache.
 	digestFunction1 := digest.MustNewFunction("Hello", remoteexecution.DigestFunction_MD5)
-	fileStatus, err := f.GetBazelOutputServiceStat(&digestFunction1)
-	require.NoError(t, err)
+	p := virtual.ApplyGetBazelOutputServiceStat{
+		DigestFunction: &digestFunction1,
+	}
+	require.True(t, f.VirtualApply(&p))
+	require.NoError(t, p.Err)
 	testutil.RequireEqualProto(t, &bazeloutputservice.BatchStatResponse_Stat{
 		Type: &bazeloutputservice.BatchStatResponse_Stat_File_{
 			File: &bazeloutputservice.BatchStatResponse_Stat_File{},
 		},
-	}, fileStatus)
+	}, p.Stat)
 
 	f.VirtualClose(virtual.ShareMaskWrite)
 
@@ -66,8 +69,11 @@ func TestPoolBackedFileAllocatorGetBazelOutputServiceStat(t *testing.T) {
 		func(p []byte, off int64) (int, error) {
 			return copy(p, "Hello"), io.EOF
 		})
-	fileStatus, err = f.GetBazelOutputServiceStat(&digestFunction1)
-	require.NoError(t, err)
+	p = virtual.ApplyGetBazelOutputServiceStat{
+		DigestFunction: &digestFunction1,
+	}
+	require.True(t, f.VirtualApply(&p))
+	require.NoError(t, p.Err)
 	locator, err := anypb.New(&bazeloutputservicerev2.FileArtifactLocator{
 		Digest: &remoteexecution.Digest{
 			Hash:      "8b1a9953c4611296a827abf8c47804d7",
@@ -81,24 +87,27 @@ func TestPoolBackedFileAllocatorGetBazelOutputServiceStat(t *testing.T) {
 				Locator: locator,
 			},
 		},
-	}, fileStatus)
+	}, p.Stat)
 
 	// Calling the function a second time should not generate any
 	// reads against the file, as the contents of the file have not
 	// changed. A cached value should be returned.
-	fileStatus, err = f.GetBazelOutputServiceStat(&digestFunction1)
-	require.NoError(t, err)
+	p = virtual.ApplyGetBazelOutputServiceStat{
+		DigestFunction: &digestFunction1,
+	}
+	require.True(t, f.VirtualApply(&p))
+	require.NoError(t, p.Err)
 	testutil.RequireEqualProto(t, &bazeloutputservice.BatchStatResponse_Stat{
 		Type: &bazeloutputservice.BatchStatResponse_Stat_File_{
 			File: &bazeloutputservice.BatchStatResponse_Stat_File{
 				Locator: locator,
 			},
 		},
-	}, fileStatus)
+	}, p.Stat)
 
 	// Change the file's contents to invalidate the cached digest. A
-	// successive call to GetBazelOutputServiceStat() should
-	// recompute the digest.
+	// successive call to ApplyGetBazelOutputServiceStat
+	// should recompute the digest.
 	require.Equal(t, virtual.StatusOK, f.VirtualOpenSelf(ctx, virtual.ShareMaskWrite, &virtual.OpenExistingOptions{}, 0, &virtual.Attributes{}))
 	underlyingFile.EXPECT().WriteAt([]byte(" world"), int64(5)).Return(6, nil)
 	n, s = f.VirtualWrite([]byte(" world"), 5)
@@ -110,8 +119,11 @@ func TestPoolBackedFileAllocatorGetBazelOutputServiceStat(t *testing.T) {
 		func(p []byte, off int64) (int, error) {
 			return copy(p, "Hello world"), io.EOF
 		})
-	fileStatus, err = f.GetBazelOutputServiceStat(&digestFunction1)
-	require.NoError(t, err)
+	p = virtual.ApplyGetBazelOutputServiceStat{
+		DigestFunction: &digestFunction1,
+	}
+	require.True(t, f.VirtualApply(&p))
+	require.NoError(t, p.Err)
 	locator, err = anypb.New(&bazeloutputservicerev2.FileArtifactLocator{
 		Digest: &remoteexecution.Digest{
 			Hash:      "3e25960a79dbc69b674cd4ec67a72c62",
@@ -125,7 +137,7 @@ func TestPoolBackedFileAllocatorGetBazelOutputServiceStat(t *testing.T) {
 				Locator: locator,
 			},
 		},
-	}, fileStatus)
+	}, p.Stat)
 
 	// The cached digest should be ignored in case the instance name
 	// or hashing function is changed.
@@ -134,8 +146,11 @@ func TestPoolBackedFileAllocatorGetBazelOutputServiceStat(t *testing.T) {
 			return copy(p, "Hello world"), io.EOF
 		})
 	digestFunction2 := digest.MustNewFunction("Hello", remoteexecution.DigestFunction_SHA256)
-	fileStatus, err = f.GetBazelOutputServiceStat(&digestFunction2)
-	require.NoError(t, err)
+	p = virtual.ApplyGetBazelOutputServiceStat{
+		DigestFunction: &digestFunction2,
+	}
+	require.True(t, f.VirtualApply(&p))
+	require.NoError(t, p.Err)
 	locator, err = anypb.New(&bazeloutputservicerev2.FileArtifactLocator{
 		Digest: &remoteexecution.Digest{
 			Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
@@ -149,12 +164,16 @@ func TestPoolBackedFileAllocatorGetBazelOutputServiceStat(t *testing.T) {
 				Locator: locator,
 			},
 		},
-	}, fileStatus)
+	}, p.Stat)
 
 	// Once a cached digest is present, it should also become part
 	// of output path persistent state file.
 	var directory outputpathpersistency.Directory
-	f.AppendOutputPathPersistencyDirectoryNode(&directory, path.MustNewComponent("hello.txt"))
+	pAppend := virtual.ApplyAppendOutputPathPersistencyDirectoryNode{
+		Directory: &directory,
+		Name:      path.MustNewComponent("hello.txt"),
+	}
+	require.True(t, f.VirtualApply(&pAppend))
 	testutil.RequireEqualProto(t, &outputpathpersistency.Directory{
 		Files: []*remoteexecution.FileNode{
 			{
@@ -443,8 +462,14 @@ func TestPoolBackedFileAllocatorUploadFile(t *testing.T) {
 		underlyingFile.EXPECT().ReadAt(gomock.Any(), int64(0)).Return(0, syscall.EIO)
 		contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 
-		_, err := f.UploadFile(ctx, contentAddressableStorage, digestFunction, writableFileUploadDelay)
-		testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to compute file digest: input/output error"), err)
+		p := virtual.ApplyUploadFile{
+			Context:                   ctx,
+			ContentAddressableStorage: contentAddressableStorage,
+			DigestFunction:            digestFunction,
+			WritableFileUploadDelay:   writableFileUploadDelay,
+		}
+		require.True(t, f.VirtualApply(&p))
+		testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to compute file digest: input/output error"), p.Err)
 	})
 
 	t.Run("UploadFailure", func(t *testing.T) {
@@ -459,8 +484,14 @@ func TestPoolBackedFileAllocatorUploadFile(t *testing.T) {
 				return status.Error(codes.Internal, "Server on fire")
 			})
 
-		_, err := f.UploadFile(ctx, contentAddressableStorage, digestFunction, writableFileUploadDelay)
-		testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to upload file: Server on fire"), err)
+		p := virtual.ApplyUploadFile{
+			Context:                   ctx,
+			ContentAddressableStorage: contentAddressableStorage,
+			DigestFunction:            digestFunction,
+			WritableFileUploadDelay:   writableFileUploadDelay,
+		}
+		require.True(t, f.VirtualApply(&p))
+		testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to upload file: Server on fire"), p.Err)
 	})
 
 	t.Run("Success", func(t *testing.T) {
@@ -541,9 +572,15 @@ func TestPoolBackedFileAllocatorUploadFile(t *testing.T) {
 				return nil
 			})
 
-		uploadedDigest, err := f.UploadFile(ctx, contentAddressableStorage, digestFunction, writableFileUploadDelay)
-		require.NoError(t, err)
-		require.Equal(t, fileDigest, uploadedDigest)
+		p := virtual.ApplyUploadFile{
+			Context:                   ctx,
+			ContentAddressableStorage: contentAddressableStorage,
+			DigestFunction:            digestFunction,
+			WritableFileUploadDelay:   writableFileUploadDelay,
+		}
+		require.True(t, f.VirtualApply(&p))
+		require.NoError(t, p.Err)
+		require.Equal(t, fileDigest, p.Digest)
 	})
 
 	underlyingFile.EXPECT().Close()
@@ -556,8 +593,14 @@ func TestPoolBackedFileAllocatorUploadFile(t *testing.T) {
 		// Uploading a file that has already been released
 		// should fail. It should not cause accidental access to
 		// the closed file handle.
-		_, err := f.UploadFile(ctx, contentAddressableStorage, digestFunction, writableFileUploadDelay)
-		testutil.RequireEqualStatus(t, status.Error(codes.NotFound, "File was unlinked before uploading could start"), err)
+		p := virtual.ApplyUploadFile{
+			Context:                   ctx,
+			ContentAddressableStorage: contentAddressableStorage,
+			DigestFunction:            digestFunction,
+			WritableFileUploadDelay:   writableFileUploadDelay,
+		}
+		require.True(t, f.VirtualApply(&p))
+		testutil.RequireEqualStatus(t, status.Error(codes.NotFound, "File was unlinked before uploading could start"), p.Err)
 	})
 }
 

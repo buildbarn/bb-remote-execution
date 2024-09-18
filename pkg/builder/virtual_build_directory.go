@@ -114,7 +114,16 @@ func (d *virtualBuildDirectory) UploadFile(ctx context.Context, name path.Compon
 		return digest.BadDigest, err
 	}
 	if _, leaf := child.GetPair(); leaf != nil {
-		return leaf.UploadFile(ctx, d.options.contentAddressableStorage, digestFunction, writableFileUploadDelay)
+		p := virtual.ApplyUploadFile{
+			Context:                   ctx,
+			ContentAddressableStorage: d.options.contentAddressableStorage,
+			DigestFunction:            digestFunction,
+			WritableFileUploadDelay:   writableFileUploadDelay,
+		}
+		if !child.GetNode().VirtualApply(&p) {
+			panic("build directory contains leaves that don't handle ApplyUploadFile")
+		}
+		return p.Digest, p.Err
 	}
 	return digest.BadDigest, syscall.EISDIR
 }
@@ -156,7 +165,11 @@ func (d *virtualBuildDirectory) Readlink(name path.Component) (path.Parser, erro
 		return nil, err
 	}
 	if _, leaf := child.GetPair(); leaf != nil {
-		return leaf.Readlink()
+		p := virtual.ApplyReadlink{}
+		if !child.GetNode().VirtualApply(&p) {
+			panic("build directory contains leaves that don't handle ApplyReadlink")
+		}
+		return p.Target, p.Err
 	}
 	return nil, syscall.EISDIR
 }
