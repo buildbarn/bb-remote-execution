@@ -22,7 +22,7 @@ go_library(
         "in_memory_prepopulated_directory.go",
         "initial_contents_fetcher.go",
         "leaf.go",
-        "native_leaf.go",
+        "linkable_leaf.go",
         "nfs_handle_allocator.go",
         "node.go",
         "permissions.go",

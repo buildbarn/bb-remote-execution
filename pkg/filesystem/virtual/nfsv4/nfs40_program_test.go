@@ -6194,7 +6194,7 @@ func TestNFS40ProgramCompound_OP_SECINFO(t *testing.T) {
 	})
 
 	t.Run("Success", func(t *testing.T) {
-		leaf := mock.NewMockNativeLeaf(ctrl)
+		leaf := mock.NewMockLinkableLeaf(ctrl)
 		rootDirectory.EXPECT().VirtualLookup(
 			gomock.Any(),
 			path.MustNewComponent("Hello"),

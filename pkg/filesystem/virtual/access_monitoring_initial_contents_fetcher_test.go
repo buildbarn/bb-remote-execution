@@ -43,7 +43,7 @@ func TestAccessMonitoringInitialContentsFetcher(t *testing.T) {
 		// Reading the directory's contents should report it as being
 		// read. It should return children that are wrapped as well.
 		baseChildInitialContentsFetcher := mock.NewMockInitialContentsFetcher(ctrl)
-		baseChildFile := mock.NewMockNativeLeaf(ctrl)
+		baseChildFile := mock.NewMockLinkableLeaf(ctrl)
 		baseChildFileReadMonitor := mock.NewMockFileReadMonitor(ctrl)
 		baseFileReadMonitorFactory := mock.NewMockFileReadMonitorFactory(ctrl)
 		baseFileReadMonitorFactory.EXPECT().Call(path.MustNewComponent("file")).Return(baseChildFileReadMonitor.Call)

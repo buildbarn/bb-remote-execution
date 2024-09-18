@@ -19,7 +19,7 @@ type specialFile struct {
 // block device, FIFO or UNIX domain socket. Nodes of these types are
 // mere placeholders. The kernel is responsible for capturing calls to
 // open() and connect().
-func NewSpecialFile(fileType filesystem.FileType, deviceNumber *filesystem.DeviceNumber) NativeLeaf {
+func NewSpecialFile(fileType filesystem.FileType, deviceNumber *filesystem.DeviceNumber) LinkableLeaf {
 	return &specialFile{
 		fileType:     fileType,
 		deviceNumber: deviceNumber,

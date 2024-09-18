@@ -10,7 +10,7 @@ import (
 // InitialNode is the value type of the map of directory entries
 // returned by InitialContentsFetcher.FetchContents(). Either Directory
 // or Leaf is set, but not both.
-type InitialNode = Child[InitialContentsFetcher, NativeLeaf, any]
+type InitialNode = Child[InitialContentsFetcher, LinkableLeaf, any]
 
 // FileReadMonitor is used by the regular files created through the
 // InitialContentsFetcher to indicate that one or more calls against

@@ -91,10 +91,10 @@ func TestNFSHandleAllocator(t *testing.T) {
 		require.Equal(t, virtual.DirectoryChild{}.FromDirectory(wrappedDirectory), resolvedChild)
 	})
 
-	t.Run("StatefulNativeLeaf", func(t *testing.T) {
+	t.Run("StatefulLinkableLeaf", func(t *testing.T) {
 		// Create a stateful file and wrap it. A file handle, link
 		// count and inode number should be added.
-		baseLeaf := mock.NewMockNativeLeaf(ctrl)
+		baseLeaf := mock.NewMockLinkableLeaf(ctrl)
 		baseLeaf.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskChangeID|virtual.AttributesMaskSizeBytes, gomock.Any()).
 			Do(func(ctx context.Context, attributesMask virtual.AttributesMask, attributes *virtual.Attributes) {
 				attributes.SetChangeID(7)
@@ -102,7 +102,7 @@ func TestNFSHandleAllocator(t *testing.T) {
 			}).AnyTimes()
 
 		randomNumberGenerator.EXPECT().Uint64().Return(uint64(0xf999bb2fd22421d8))
-		wrappedLeaf := handleAllocator.New().AsNativeLeaf(baseLeaf)
+		wrappedLeaf := handleAllocator.New().AsLinkableLeaf(baseLeaf)
 
 		fileHandle := []byte{0xd8, 0x21, 0x24, 0xd2, 0x2f, 0xbb, 0x99, 0xf9}
 		var attr1 virtual.Attributes
@@ -177,7 +177,7 @@ func TestNFSHandleAllocator(t *testing.T) {
 			&attr4)
 	})
 
-	t.Run("StatelessNativeLeaf", func(t *testing.T) {
+	t.Run("StatelessLinkableLeaf", func(t *testing.T) {
 		// Create a stateless file and wrap it. A link count and
 		// inode number should be added. As the file is
 		// stateless, the reported link count uses a placeholder
@@ -188,7 +188,7 @@ func TestNFSHandleAllocator(t *testing.T) {
 		// The inode number of the leaf corresponds with the
 		// FNV-1a hash of "Hello", using 0x6aae40a05f45b861 as
 		// the offset basis.
-		baseLeaf := mock.NewMockNativeLeaf(ctrl)
+		baseLeaf := mock.NewMockLinkableLeaf(ctrl)
 		baseLeaf.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskChangeID|virtual.AttributesMaskSizeBytes, gomock.Any()).
 			Do(func(ctx context.Context, attributesMask virtual.AttributesMask, attributes *virtual.Attributes) {
 				attributes.SetChangeID(0)
@@ -200,7 +200,7 @@ func TestNFSHandleAllocator(t *testing.T) {
 			New().
 			AsStatelessAllocator().
 			New(bytes.NewBuffer([]byte("Hello"))).
-			AsNativeLeaf(baseLeaf)
+			AsLinkableLeaf(baseLeaf)
 
 		fileHandle := []byte{0x0f, 0x81, 0x5c, 0x1c, 0xc7, 0x04, 0xac, 0x2f}
 		var attr1 virtual.Attributes

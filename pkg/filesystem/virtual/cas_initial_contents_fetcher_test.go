@@ -105,7 +105,7 @@ func TestCASInitialContentsFetcherFetchContents(t *testing.T) {
 				},
 			},
 		}, nil)
-		file1 := mock.NewMockNativeLeaf(ctrl)
+		file1 := mock.NewMockLinkableLeaf(ctrl)
 		fileReadMonitor1 := mock.NewMockFileReadMonitor(ctrl)
 		fileReadMonitorFactory.EXPECT().Call(path.MustNewComponent("file1")).Return(fileReadMonitor1.Call)
 		casFileFactory.EXPECT().LookupFile(
@@ -139,7 +139,7 @@ func TestCASInitialContentsFetcherFetchContents(t *testing.T) {
 				},
 			},
 		}, nil)
-		file1 := mock.NewMockNativeLeaf(ctrl)
+		file1 := mock.NewMockLinkableLeaf(ctrl)
 		fileReadMonitor1 := mock.NewMockFileReadMonitor(ctrl)
 		fileReadMonitorFactory.EXPECT().Call(path.MustNewComponent("hello")).Return(fileReadMonitor1.Call)
 		casFileFactory.EXPECT().LookupFile(
@@ -195,7 +195,7 @@ func TestCASInitialContentsFetcherFetchContents(t *testing.T) {
 		childDirectoryWalker := mock.NewMockDirectoryWalker(ctrl)
 		directoryWalker.EXPECT().GetChild(digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "4b3b03436604cb9d831b91c71a8c1952", 123)).
 			Return(childDirectoryWalker)
-		executableLeaf := mock.NewMockNativeLeaf(ctrl)
+		executableLeaf := mock.NewMockLinkableLeaf(ctrl)
 		executableReadMonitor := mock.NewMockFileReadMonitor(ctrl)
 		fileReadMonitorFactory.EXPECT().Call(path.MustNewComponent("executable")).Return(executableReadMonitor.Call)
 		casFileFactory.EXPECT().LookupFile(
@@ -203,7 +203,7 @@ func TestCASInitialContentsFetcherFetchContents(t *testing.T) {
 			/* isExecutable = */ true,
 			gomock.Any(),
 		).Return(executableLeaf)
-		fileLeaf := mock.NewMockNativeLeaf(ctrl)
+		fileLeaf := mock.NewMockLinkableLeaf(ctrl)
 		fileReadMonitor := mock.NewMockFileReadMonitor(ctrl)
 		fileReadMonitorFactory.EXPECT().Call(path.MustNewComponent("file")).Return(fileReadMonitor.Call)
 		casFileFactory.EXPECT().LookupFile(
@@ -211,7 +211,7 @@ func TestCASInitialContentsFetcherFetchContents(t *testing.T) {
 			/* isExecutable = */ false,
 			gomock.Any(),
 		).Return(fileLeaf)
-		symlinkLeaf := mock.NewMockNativeLeaf(ctrl)
+		symlinkLeaf := mock.NewMockLinkableLeaf(ctrl)
 		symlinkFactory.EXPECT().LookupSymlink([]byte("target")).Return(symlinkLeaf)
 
 		children, err := initialContentsFetcher.FetchContents(fileReadMonitorFactory.Call)

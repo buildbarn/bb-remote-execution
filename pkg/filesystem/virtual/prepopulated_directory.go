@@ -34,16 +34,16 @@ type DirectoryPrepopulatedDirEntry struct {
 // LeafPrepopulatedDirEntry contains information about a leaf node that
 // is stored in a PrepopulatedDirectory.
 type LeafPrepopulatedDirEntry struct {
-	Child NativeLeaf
+	Child LinkableLeaf
 	Name  path.Component
 }
 
 // PrepopulatedDirectoryChild is either a PrepopulatedDirectory or a
-// NativeLeaf, as returned by PrepopulatedDirectory.LookupChild().
-type PrepopulatedDirectoryChild = Child[PrepopulatedDirectory, NativeLeaf, Node]
+// LinkableLeaf, as returned by PrepopulatedDirectory.LookupChild().
+type PrepopulatedDirectoryChild = Child[PrepopulatedDirectory, LinkableLeaf, Node]
 
 // PrepopulatedDirectory is a Directory that is writable and can contain
-// files of type NativeLeaf.
+// files of type LinkableLeaf.
 //
 // By making use of InitialContentsFetcher, it is possible to create
 // subdirectories that are prepopulated with files and directories.
@@ -61,7 +61,7 @@ type PrepopulatedDirectory interface {
 	//
 	// TODO: Can't use PrepopulatedDirectoryChild in the return type
 	// here, due to https://github.com/golang/go/issues/50259.
-	LookupChild(name path.Component) (Child[PrepopulatedDirectory, NativeLeaf, Node], error)
+	LookupChild(name path.Component) (Child[PrepopulatedDirectory, LinkableLeaf, Node], error)
 	// LookupAllChildren() looks up all files and directories
 	// contained in a PrepopulatedDirectory. This method is similar
 	// to VirtualReadDir(), except that it returns the native types
@@ -99,7 +99,7 @@ type PrepopulatedDirectory interface {
 	// of FilePool.
 	InstallHooks(fileAllocator FileAllocator, errorLogger util.ErrorLogger)
 	// FilterChildren() can be used to traverse over all of the
-	// InitialContentsFetcher and NativeLeaf objects stored in this
+	// InitialContentsFetcher and LinkableLeaf objects stored in this
 	// directory hierarchy. For each of the objects, a callback is
 	// provided that can be used to remove the file or the contents
 	// of the directory associated with this object.

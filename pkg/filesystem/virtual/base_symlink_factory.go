@@ -15,7 +15,7 @@ import (
 
 type symlinkFactory struct{}
 
-func (symlinkFactory) LookupSymlink(target []byte) NativeLeaf {
+func (symlinkFactory) LookupSymlink(target []byte) LinkableLeaf {
 	return symlink{target: target}
 }
 

@@ -68,7 +68,7 @@ func main() {
 			handleAllocator.New().AsStatelessDirectory(
 				virtual.NewStaticDirectory(map[path.Component]virtual.DirectoryChild{
 					path.MustNewComponent("tmp"): virtual.DirectoryChild{}.
-						FromLeaf(handleAllocator.New().AsNativeLeaf(userSettableSymlink)),
+						FromLeaf(handleAllocator.New().AsLinkableLeaf(userSettableSymlink)),
 				}))); err != nil {
 			return util.StatusWrap(err, "Failed to expose virtual file system mount")
 		}

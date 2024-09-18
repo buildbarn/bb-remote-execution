@@ -30,7 +30,7 @@ func NewResolvableHandleAllocatingCASFileFactory(base CASFileFactory, allocation
 	return cff
 }
 
-func (cff *resolvableHandleAllocatingCASFileFactory) LookupFile(blobDigest digest.Digest, isExecutable bool, fileReadMonitor FileReadMonitor) NativeLeaf {
+func (cff *resolvableHandleAllocatingCASFileFactory) LookupFile(blobDigest digest.Digest, isExecutable bool, fileReadMonitor FileReadMonitor) LinkableLeaf {
 	if fileReadMonitor != nil {
 		panic("Cannot monitor reads against CAS files with a resolvable handle, as the monitor would get lost across lookups")
 	}
@@ -45,7 +45,7 @@ func (cff *resolvableHandleAllocatingCASFileFactory) LookupFile(blobDigest diges
 			return cff.resolve(blobDigest, r)
 		}).
 		New(bytes.NewBuffer(isExecutableField[:])).
-		AsNativeLeaf(cff.base.LookupFile(blobDigest, isExecutable, nil))
+		AsLinkableLeaf(cff.base.LookupFile(blobDigest, isExecutable, nil))
 }
 
 func (cff *resolvableHandleAllocatingCASFileFactory) resolve(blobDigest digest.Digest, remainder io.ByteReader) (DirectoryChild, Status) {

@@ -198,7 +198,7 @@ gomock(
         "HandleResolver",
         "InitialContentsFetcher",
         "Leaf",
-        "NativeLeaf",
+        "LinkableLeaf",
         "ResolvableHandleAllocation",
         "ResolvableHandleAllocator",
         "StatefulDirectoryHandle",

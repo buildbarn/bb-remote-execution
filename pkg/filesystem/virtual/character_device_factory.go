@@ -13,12 +13,12 @@ import (
 // Character devices are immutable files; it is not possible to change
 // the device after it has been created.
 type CharacterDeviceFactory interface {
-	LookupCharacterDevice(deviceNumber filesystem.DeviceNumber) NativeLeaf
+	LookupCharacterDevice(deviceNumber filesystem.DeviceNumber) LinkableLeaf
 }
 
 type baseCharacterDeviceFactory struct{}
 
-func (baseCharacterDeviceFactory) LookupCharacterDevice(deviceNumber filesystem.DeviceNumber) NativeLeaf {
+func (baseCharacterDeviceFactory) LookupCharacterDevice(deviceNumber filesystem.DeviceNumber) LinkableLeaf {
 	return NewSpecialFile(filesystem.FileTypeCharacterDevice, &deviceNumber)
 }
 
@@ -46,7 +46,7 @@ func NewHandleAllocatingCharacterDeviceFactory(base CharacterDeviceFactory, allo
 	return cdf
 }
 
-func (cdf *handleAllocatingCharacterDeviceFactory) LookupCharacterDevice(deviceNumber filesystem.DeviceNumber) NativeLeaf {
+func (cdf *handleAllocatingCharacterDeviceFactory) LookupCharacterDevice(deviceNumber filesystem.DeviceNumber) LinkableLeaf {
 	// Convert the device number to a binary identifier.
 	major, minor := deviceNumber.ToMajorMinor()
 	var identifier [binary.MaxVarintLen32 * 2]byte
@@ -55,7 +55,7 @@ func (cdf *handleAllocatingCharacterDeviceFactory) LookupCharacterDevice(deviceN
 
 	return cdf.allocator.
 		New(bytes.NewBuffer(identifier[:length])).
-		AsNativeLeaf(cdf.base.LookupCharacterDevice(deviceNumber))
+		AsLinkableLeaf(cdf.base.LookupCharacterDevice(deviceNumber))
 }
 
 func (cdf *handleAllocatingCharacterDeviceFactory) resolve(r io.ByteReader) (DirectoryChild, Status) {
