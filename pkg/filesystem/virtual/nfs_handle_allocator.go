@@ -44,8 +44,8 @@ type nfsHandlePool struct {
 	lock                  sync.RWMutex
 	randomNumberGenerator random.SingleThreadedGenerator
 	directories           map[uint64]Directory
-	statefulLeaves        map[uint64]*nfsStatefulNativeLeaf
-	statelessLeaves       map[uint64]*nfsStatelessNativeLeaf
+	statefulLeaves        map[uint64]*nfsStatefulLinkableLeaf
+	statelessLeaves       map[uint64]*nfsStatelessLinkableLeaf
 	resolvers             map[uint64]HandleResolver
 }
 
@@ -111,8 +111,8 @@ func NewNFSHandleAllocator(randomNumberGenerator random.SingleThreadedGenerator)
 		pool: &nfsHandlePool{
 			randomNumberGenerator: randomNumberGenerator,
 			directories:           map[uint64]Directory{},
-			statefulLeaves:        map[uint64]*nfsStatefulNativeLeaf{},
-			statelessLeaves:       map[uint64]*nfsStatelessNativeLeaf{},
+			statefulLeaves:        map[uint64]*nfsStatefulLinkableLeaf{},
+			statelessLeaves:       map[uint64]*nfsStatelessLinkableLeaf{},
 			resolvers:             map[uint64]HandleResolver{},
 		},
 	}
@@ -214,16 +214,16 @@ func (hn *nfsStatefulHandleAllocation) AsStatelessDirectory(underlyingDirectory 
 	return directory
 }
 
-func (hn *nfsStatefulHandleAllocation) AsNativeLeaf(underlyingLeaf NativeLeaf) NativeLeaf {
+func (hn *nfsStatefulHandleAllocation) AsLinkableLeaf(underlyingLeaf LinkableLeaf) LinkableLeaf {
 	hp := hn.pool
 	hp.lock.Lock()
 	inodeNumber := hp.randomNumberGenerator.Uint64()
 	fileHandle := inodeNumberToBaseFileHandle(inodeNumber)
-	leaf := &nfsStatefulNativeLeaf{
-		NativeLeaf: underlyingLeaf,
-		pool:       hp,
-		fileHandle: fileHandle[:],
-		linkCount:  1,
+	leaf := &nfsStatefulLinkableLeaf{
+		LinkableLeaf: underlyingLeaf,
+		pool:         hp,
+		fileHandle:   fileHandle[:],
+		linkCount:    1,
 	}
 	hp.statefulLeaves[inodeNumber] = leaf
 	hp.lock.Unlock()
@@ -286,7 +286,7 @@ func (hn *nfsStatelessHandleAllocation) AsStatelessDirectory(underlyingDirectory
 	return directory
 }
 
-func (hn *nfsStatelessHandleAllocation) AsNativeLeaf(underlyingLeaf NativeLeaf) NativeLeaf {
+func (hn *nfsStatelessHandleAllocation) AsLinkableLeaf(underlyingLeaf LinkableLeaf) LinkableLeaf {
 	hp := hn.pool
 	hp.lock.Lock()
 
@@ -300,11 +300,11 @@ func (hn *nfsStatelessHandleAllocation) AsNativeLeaf(underlyingLeaf NativeLeaf) 
 
 	// None exists. Create a new one.
 	fileHandle := inodeNumberToBaseFileHandle(hn.currentInodeNumber)
-	leaf := &nfsStatelessNativeLeaf{
-		NativeLeaf: underlyingLeaf,
-		pool:       hp,
-		fileHandle: fileHandle[:],
-		linkCount:  1,
+	leaf := &nfsStatelessLinkableLeaf{
+		LinkableLeaf: underlyingLeaf,
+		pool:         hp,
+		fileHandle:   fileHandle[:],
+		linkCount:    1,
 	}
 	hp.statelessLeaves[hn.currentInodeNumber] = leaf
 	hp.lock.Unlock()
@@ -352,10 +352,10 @@ func (hn *nfsResolvableHandleAllocation) AsStatelessDirectory(underlyingDirector
 	return directory
 }
 
-func (hn *nfsResolvableHandleAllocation) AsNativeLeaf(underlyingLeaf NativeLeaf) NativeLeaf {
-	leaf := &nfsResolvableNativeLeaf{
-		NativeLeaf: underlyingLeaf,
-		fileHandle: hn.currentFileHandle,
+func (hn *nfsResolvableHandleAllocation) AsLinkableLeaf(underlyingLeaf LinkableLeaf) LinkableLeaf {
+	leaf := &nfsResolvableLinkableLeaf{
+		LinkableLeaf: underlyingLeaf,
+		fileHandle:   hn.currentFileHandle,
 	}
 	*hn = nfsResolvableHandleAllocation{}
 	return leaf
@@ -421,12 +421,12 @@ func (d *nfsStatelessDirectory) VirtualSetAttributes(ctx context.Context, in *At
 	return StatusOK
 }
 
-// nfsStatefulNativeLeaf is a decorator for NativeLeaf that augments
+// nfsStatefulLinkableLeaf is a decorator for LinkableLeaf that augments
 // the results of VirtualGetAttributes() to contain a file handle, inode
 // number and link count. Link() and Unlink() calls are intercepted, and
 // are only forwarded if the link count drops to zero.
-type nfsStatefulNativeLeaf struct {
-	NativeLeaf
+type nfsStatefulLinkableLeaf struct {
+	LinkableLeaf
 	pool       *nfsHandlePool
 	fileHandle []byte
 
@@ -435,7 +435,7 @@ type nfsStatefulNativeLeaf struct {
 	changeID  uint64
 }
 
-func (l *nfsStatefulNativeLeaf) Link() Status {
+func (l *nfsStatefulLinkableLeaf) Link() Status {
 	hp := l.pool
 	hp.lock.Lock()
 	defer hp.lock.Unlock()
@@ -448,7 +448,7 @@ func (l *nfsStatefulNativeLeaf) Link() Status {
 	return StatusOK
 }
 
-func (l *nfsStatefulNativeLeaf) Unlink() {
+func (l *nfsStatefulLinkableLeaf) Unlink() {
 	inodeNumber := fileHandleToInodeNumber(l.fileHandle)
 
 	hp := l.pool
@@ -461,13 +461,13 @@ func (l *nfsStatefulNativeLeaf) Unlink() {
 	if l.linkCount == 0 {
 		delete(hp.statefulLeaves, inodeNumber)
 		hp.lock.Unlock()
-		l.NativeLeaf.Unlink()
+		l.LinkableLeaf.Unlink()
 	} else {
 		hp.lock.Unlock()
 	}
 }
 
-func (l *nfsStatefulNativeLeaf) injectAttributes(requested AttributesMask, attributes *Attributes) {
+func (l *nfsStatefulLinkableLeaf) injectAttributes(requested AttributesMask, attributes *Attributes) {
 	setAttributesForFileHandle(l.fileHandle, requested, attributes)
 	if requested&(AttributesMaskChangeID|AttributesMaskLinkCount) != 0 {
 		hp := l.pool
@@ -480,30 +480,30 @@ func (l *nfsStatefulNativeLeaf) injectAttributes(requested AttributesMask, attri
 	}
 }
 
-func (l *nfsStatefulNativeLeaf) VirtualGetAttributes(ctx context.Context, requested AttributesMask, attributes *Attributes) {
+func (l *nfsStatefulLinkableLeaf) VirtualGetAttributes(ctx context.Context, requested AttributesMask, attributes *Attributes) {
 	if remaining := requested &^ (AttributesMaskFileHandle | AttributesMaskInodeNumber | AttributesMaskLinkCount); remaining != 0 {
-		l.NativeLeaf.VirtualGetAttributes(ctx, remaining, attributes)
+		l.LinkableLeaf.VirtualGetAttributes(ctx, remaining, attributes)
 	}
 	l.injectAttributes(requested, attributes)
 }
 
-func (l *nfsStatefulNativeLeaf) VirtualSetAttributes(ctx context.Context, in *Attributes, requested AttributesMask, attributes *Attributes) Status {
-	if s := l.NativeLeaf.VirtualSetAttributes(ctx, in, requested, attributes); s != StatusOK {
+func (l *nfsStatefulLinkableLeaf) VirtualSetAttributes(ctx context.Context, in *Attributes, requested AttributesMask, attributes *Attributes) Status {
+	if s := l.LinkableLeaf.VirtualSetAttributes(ctx, in, requested, attributes); s != StatusOK {
 		return s
 	}
 	l.injectAttributes(requested, attributes)
 	return StatusOK
 }
 
-func (l *nfsStatefulNativeLeaf) VirtualOpenSelf(ctx context.Context, shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status {
-	if s := l.NativeLeaf.VirtualOpenSelf(ctx, shareAccess, options, requested, attributes); s != StatusOK {
+func (l *nfsStatefulLinkableLeaf) VirtualOpenSelf(ctx context.Context, shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status {
+	if s := l.LinkableLeaf.VirtualOpenSelf(ctx, shareAccess, options, requested, attributes); s != StatusOK {
 		return s
 	}
 	l.injectAttributes(requested, attributes)
 	return StatusOK
 }
 
-// nfsStatelessNativeLeaf is a decorator for NativeLeaf that augments
+// nfsStatelessLinkableLeaf is a decorator for LinkableLeaf that augments
 // the results of VirtualGetAttributes() to contain a file handle, inode
 // number and link count.
 //
@@ -512,8 +512,8 @@ func (l *nfsStatefulNativeLeaf) VirtualOpenSelf(ctx context.Context, shareAccess
 // from nfsHandlePool. We do report a constant link count back to the
 // user, both to prevent invalidation of the attributes and for
 // consistency with FUSE.
-type nfsStatelessNativeLeaf struct {
-	NativeLeaf
+type nfsStatelessLinkableLeaf struct {
+	LinkableLeaf
 	pool       *nfsHandlePool
 	fileHandle []byte
 
@@ -521,7 +521,7 @@ type nfsStatelessNativeLeaf struct {
 	linkCount uint32
 }
 
-func (l *nfsStatelessNativeLeaf) Link() Status {
+func (l *nfsStatelessLinkableLeaf) Link() Status {
 	hp := l.pool
 	hp.lock.Lock()
 	defer hp.lock.Unlock()
@@ -533,7 +533,7 @@ func (l *nfsStatelessNativeLeaf) Link() Status {
 	return StatusOK
 }
 
-func (l *nfsStatelessNativeLeaf) Unlink() {
+func (l *nfsStatelessLinkableLeaf) Unlink() {
 	inodeNumber := fileHandleToInodeNumber(l.fileHandle)
 
 	hp := l.pool
@@ -545,77 +545,77 @@ func (l *nfsStatelessNativeLeaf) Unlink() {
 	if l.linkCount == 0 {
 		delete(hp.statelessLeaves, inodeNumber)
 		hp.lock.Unlock()
-		l.NativeLeaf.Unlink()
+		l.LinkableLeaf.Unlink()
 	} else {
 		hp.lock.Unlock()
 	}
 }
 
-func (l *nfsStatelessNativeLeaf) injectAttributes(requested AttributesMask, attributes *Attributes) {
+func (l *nfsStatelessLinkableLeaf) injectAttributes(requested AttributesMask, attributes *Attributes) {
 	setAttributesForFileHandle(l.fileHandle, requested, attributes)
 	attributes.SetLinkCount(StatelessLeafLinkCount)
 }
 
-func (l *nfsStatelessNativeLeaf) VirtualGetAttributes(ctx context.Context, requested AttributesMask, attributes *Attributes) {
+func (l *nfsStatelessLinkableLeaf) VirtualGetAttributes(ctx context.Context, requested AttributesMask, attributes *Attributes) {
 	if remaining := requested &^ (AttributesMaskFileHandle | AttributesMaskInodeNumber | AttributesMaskLinkCount); remaining != 0 {
-		l.NativeLeaf.VirtualGetAttributes(ctx, remaining, attributes)
+		l.LinkableLeaf.VirtualGetAttributes(ctx, remaining, attributes)
 	}
 	l.injectAttributes(requested, attributes)
 }
 
-func (l *nfsStatelessNativeLeaf) VirtualSetAttributes(ctx context.Context, in *Attributes, requested AttributesMask, attributes *Attributes) Status {
-	if s := l.NativeLeaf.VirtualSetAttributes(ctx, in, requested, attributes); s != StatusOK {
+func (l *nfsStatelessLinkableLeaf) VirtualSetAttributes(ctx context.Context, in *Attributes, requested AttributesMask, attributes *Attributes) Status {
+	if s := l.LinkableLeaf.VirtualSetAttributes(ctx, in, requested, attributes); s != StatusOK {
 		return s
 	}
 	l.injectAttributes(requested, attributes)
 	return StatusOK
 }
 
-func (l *nfsStatelessNativeLeaf) VirtualOpenSelf(ctx context.Context, shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status {
-	if s := l.NativeLeaf.VirtualOpenSelf(ctx, shareAccess, options, requested, attributes); s != StatusOK {
+func (l *nfsStatelessLinkableLeaf) VirtualOpenSelf(ctx context.Context, shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status {
+	if s := l.LinkableLeaf.VirtualOpenSelf(ctx, shareAccess, options, requested, attributes); s != StatusOK {
 		return s
 	}
 	l.injectAttributes(requested, attributes)
 	return StatusOK
 }
 
-// nfsResolvableNativeLeaf is a decorator for NativeLeaf that augments
+// nfsResolvableLinkableLeaf is a decorator for LinkableLeaf that augments
 // the results of VirtualGetAttributes() to contain a file handle, inode
 // number and link count. For these kinds of files, the link count is
 // just a constant.
-type nfsResolvableNativeLeaf struct {
-	NativeLeaf
+type nfsResolvableLinkableLeaf struct {
+	LinkableLeaf
 	fileHandle []byte
 }
 
-func (l *nfsResolvableNativeLeaf) Link() Status {
+func (l *nfsResolvableLinkableLeaf) Link() Status {
 	return StatusOK
 }
 
-func (l *nfsResolvableNativeLeaf) Unlink() {}
+func (l *nfsResolvableLinkableLeaf) Unlink() {}
 
-func (l *nfsResolvableNativeLeaf) injectAttributes(requested AttributesMask, attributes *Attributes) {
+func (l *nfsResolvableLinkableLeaf) injectAttributes(requested AttributesMask, attributes *Attributes) {
 	setAttributesForFileHandle(l.fileHandle, requested, attributes)
 	attributes.SetLinkCount(StatelessLeafLinkCount)
 }
 
-func (l *nfsResolvableNativeLeaf) VirtualGetAttributes(ctx context.Context, requested AttributesMask, attributes *Attributes) {
+func (l *nfsResolvableLinkableLeaf) VirtualGetAttributes(ctx context.Context, requested AttributesMask, attributes *Attributes) {
 	if remaining := requested &^ (AttributesMaskFileHandle | AttributesMaskInodeNumber | AttributesMaskLinkCount); remaining != 0 {
-		l.NativeLeaf.VirtualGetAttributes(ctx, remaining, attributes)
+		l.LinkableLeaf.VirtualGetAttributes(ctx, remaining, attributes)
 	}
 	l.injectAttributes(requested, attributes)
 }
 
-func (l *nfsResolvableNativeLeaf) VirtualSetAttributes(ctx context.Context, in *Attributes, requested AttributesMask, attributes *Attributes) Status {
-	if s := l.NativeLeaf.VirtualSetAttributes(ctx, in, requested, attributes); s != StatusOK {
+func (l *nfsResolvableLinkableLeaf) VirtualSetAttributes(ctx context.Context, in *Attributes, requested AttributesMask, attributes *Attributes) Status {
+	if s := l.LinkableLeaf.VirtualSetAttributes(ctx, in, requested, attributes); s != StatusOK {
 		return s
 	}
 	l.injectAttributes(requested, attributes)
 	return StatusOK
 }
 
-func (l *nfsResolvableNativeLeaf) VirtualOpenSelf(ctx context.Context, shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status {
-	if s := l.NativeLeaf.VirtualOpenSelf(ctx, shareAccess, options, requested, attributes); s != StatusOK {
+func (l *nfsResolvableLinkableLeaf) VirtualOpenSelf(ctx context.Context, shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status {
+	if s := l.LinkableLeaf.VirtualOpenSelf(ctx, shareAccess, options, requested, attributes); s != StatusOK {
 		return s
 	}
 	l.injectAttributes(requested, attributes)

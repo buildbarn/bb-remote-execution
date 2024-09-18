@@ -32,7 +32,7 @@ type UserSettableSymlink struct {
 }
 
 var (
-	_ NativeLeaf                                      = (*UserSettableSymlink)(nil)
+	_ LinkableLeaf                                    = (*UserSettableSymlink)(nil)
 	_ tmp_installer.TemporaryDirectoryInstallerServer = (*UserSettableSymlink)(nil)
 )
 

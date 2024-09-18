@@ -75,17 +75,17 @@ func TestFUSEHandleAllocator(t *testing.T) {
 			&attr)
 	})
 
-	t.Run("StatefulNativeLeaf", func(t *testing.T) {
+	t.Run("StatefulLinkableLeaf", func(t *testing.T) {
 		// Create a stateful file and wrap it. A link count and
 		// inode number should be added.
-		baseLeaf := mock.NewMockNativeLeaf(ctrl)
+		baseLeaf := mock.NewMockLinkableLeaf(ctrl)
 		baseLeaf.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskSizeBytes, gomock.Any()).
 			Do(func(ctx context.Context, attributesMask virtual.AttributesMask, attributes *virtual.Attributes) {
 				attributes.SetSizeBytes(42)
 			}).AnyTimes()
 
 		randomNumberGenerator.EXPECT().Uint64().Return(uint64(0xf999bb2fd22421d8))
-		wrappedLeaf := handleAllocator.New().AsNativeLeaf(baseLeaf)
+		wrappedLeaf := handleAllocator.New().AsLinkableLeaf(baseLeaf)
 
 		var attr1 virtual.Attributes
 		wrappedLeaf.VirtualGetAttributes(ctx, attributesMask, &attr1)
@@ -142,7 +142,7 @@ func TestFUSEHandleAllocator(t *testing.T) {
 			&attr4)
 	})
 
-	t.Run("StatelessNativeLeaf", func(t *testing.T) {
+	t.Run("StatelessLinkableLeaf", func(t *testing.T) {
 		// Create a stateless file and wrap it. A link count and
 		// inode number should be added. As the file is
 		// stateless, the link count uses a placeholder value.
@@ -150,7 +150,7 @@ func TestFUSEHandleAllocator(t *testing.T) {
 		// The inode number of the leaf corresponds with the
 		// FNV-1a hash of "Hello", using 0x6aae40a05f45b861 as
 		// the offset basis.
-		baseLeaf := mock.NewMockNativeLeaf(ctrl)
+		baseLeaf := mock.NewMockLinkableLeaf(ctrl)
 		baseLeaf.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskSizeBytes, gomock.Any()).
 			Do(func(ctx context.Context, attributesMask virtual.AttributesMask, attributes *virtual.Attributes) {
 				attributes.SetSizeBytes(123)
@@ -161,7 +161,7 @@ func TestFUSEHandleAllocator(t *testing.T) {
 			New().
 			AsStatelessAllocator().
 			New(bytes.NewBuffer([]byte("Hello"))).
-			AsNativeLeaf(baseLeaf)
+			AsLinkableLeaf(baseLeaf)
 
 		var attr1 virtual.Attributes
 		wrappedLeaf.VirtualGetAttributes(ctx, attributesMask, &attr1)

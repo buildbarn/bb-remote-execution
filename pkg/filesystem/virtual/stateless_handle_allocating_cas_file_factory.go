@@ -30,12 +30,12 @@ func NewStatelessHandleAllocatingCASFileFactory(base CASFileFactory, allocation 
 	return cff
 }
 
-func (cff *statelessHandleAllocatingCASFileFactory) LookupFile(blobDigest digest.Digest, isExecutable bool, readMonitor FileReadMonitor) NativeLeaf {
+func (cff *statelessHandleAllocatingCASFileFactory) LookupFile(blobDigest digest.Digest, isExecutable bool, readMonitor FileReadMonitor) LinkableLeaf {
 	leaf := cff.base.LookupFile(blobDigest, isExecutable, nil)
 	if readMonitor != nil {
-		leaf = &readMonitoringNativeLeaf{
-			NativeLeaf: leaf,
-			monitor:    readMonitor,
+		leaf = &readMonitoringLinkableLeaf{
+			LinkableLeaf: leaf,
+			monitor:      readMonitor,
 		}
 	}
 	return cff.allocator.
@@ -43,7 +43,7 @@ func (cff *statelessHandleAllocatingCASFileFactory) LookupFile(blobDigest digest
 			blobDigest:   blobDigest,
 			isExecutable: isExecutable,
 		}).
-		AsNativeLeaf(leaf)
+		AsLinkableLeaf(leaf)
 }
 
 // casFileID is capable of converting the parameters that were used to
@@ -67,20 +67,20 @@ func (id *casFileID) WriteTo(w io.Writer) (nTotal int64, err error) {
 	return
 }
 
-// readMonitoringNativeLeaf is a decorator for NativeLeaf that reports
+// readMonitoringLinkableLeaf is a decorator for LinkableLeaf that reports
 // read operations against files to a FileReadMonitor.
-type readMonitoringNativeLeaf struct {
-	NativeLeaf
+type readMonitoringLinkableLeaf struct {
+	LinkableLeaf
 	once    sync.Once
 	monitor FileReadMonitor
 }
 
-func (l *readMonitoringNativeLeaf) reportRead() {
+func (l *readMonitoringLinkableLeaf) reportRead() {
 	l.monitor()
 	l.monitor = nil
 }
 
-func (l *readMonitoringNativeLeaf) VirtualRead(buf []byte, off uint64) (int, bool, Status) {
+func (l *readMonitoringLinkableLeaf) VirtualRead(buf []byte, off uint64) (int, bool, Status) {
 	l.once.Do(l.reportRead)
-	return l.NativeLeaf.VirtualRead(buf, off)
+	return l.LinkableLeaf.VirtualRead(buf, off)
 }

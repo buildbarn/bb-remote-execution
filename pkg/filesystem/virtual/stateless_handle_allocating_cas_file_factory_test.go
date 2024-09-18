@@ -25,13 +25,13 @@ func TestStatelessHandleAllocatingCASFileFactory(t *testing.T) {
 
 	t.Run("NotExecutable", func(t *testing.T) {
 		blobDigest := digest.MustNewDigest("hello", remoteexecution.DigestFunction_SHA256, "bc126902a442931481d7f89552a41b1891cf06dd8d3675062eede66d104d97b4", 123)
-		underlyingLeaf := mock.NewMockNativeLeaf(ctrl)
+		underlyingLeaf := mock.NewMockLinkableLeaf(ctrl)
 		baseCASFileFactory.EXPECT().LookupFile(
 			blobDigest,
 			/* isExecutable = */ false,
 			/* readMonitor = */ nil,
 		).Return(underlyingLeaf)
-		wrappedLeaf := mock.NewMockNativeLeaf(ctrl)
+		wrappedLeaf := mock.NewMockLinkableLeaf(ctrl)
 		leafHandleAllocation := mock.NewMockStatelessHandleAllocation(ctrl)
 		handleAllocator.EXPECT().New(gomock.Any()).DoAndReturn(func(id io.WriterTo) virtual.StatelessHandleAllocation {
 			idBuf := bytes.NewBuffer(nil)
@@ -47,20 +47,20 @@ func TestStatelessHandleAllocatingCASFileFactory(t *testing.T) {
 					"\x00"), idBuf.Bytes())
 			return leafHandleAllocation
 		})
-		leafHandleAllocation.EXPECT().AsNativeLeaf(underlyingLeaf).Return(wrappedLeaf)
+		leafHandleAllocation.EXPECT().AsLinkableLeaf(underlyingLeaf).Return(wrappedLeaf)
 
 		require.Equal(t, wrappedLeaf, casFileFactory.LookupFile(blobDigest, false, nil))
 	})
 
 	t.Run("Executable", func(t *testing.T) {
 		blobDigest := digest.MustNewDigest("foobar", remoteexecution.DigestFunction_MD5, "c8a4ddfcd3a5a0caf4cc1d64883df421", 456)
-		underlyingLeaf := mock.NewMockNativeLeaf(ctrl)
+		underlyingLeaf := mock.NewMockLinkableLeaf(ctrl)
 		baseCASFileFactory.EXPECT().LookupFile(
 			blobDigest,
 			/* isExecutable = */ true,
 			/* readMonitor = */ nil,
 		).Return(underlyingLeaf)
-		wrappedLeaf := mock.NewMockNativeLeaf(ctrl)
+		wrappedLeaf := mock.NewMockLinkableLeaf(ctrl)
 		leafHandleAllocation := mock.NewMockStatelessHandleAllocation(ctrl)
 		handleAllocator.EXPECT().New(gomock.Any()).DoAndReturn(func(id io.WriterTo) virtual.StatelessHandleAllocation {
 			idBuf := bytes.NewBuffer(nil)
@@ -76,7 +76,7 @@ func TestStatelessHandleAllocatingCASFileFactory(t *testing.T) {
 					"\x01"), idBuf.Bytes())
 			return leafHandleAllocation
 		})
-		leafHandleAllocation.EXPECT().AsNativeLeaf(underlyingLeaf).Return(wrappedLeaf)
+		leafHandleAllocation.EXPECT().AsLinkableLeaf(underlyingLeaf).Return(wrappedLeaf)
 
 		require.Equal(t, wrappedLeaf, casFileFactory.LookupFile(blobDigest, true, nil))
 	})
@@ -87,13 +87,13 @@ func TestStatelessHandleAllocatingCASFileFactory(t *testing.T) {
 		// twice: once to intercept VirtualRead() calls, and
 		// once by the HandleAllocator.
 		blobDigest := digest.MustNewDigest("foobar", remoteexecution.DigestFunction_MD5, "1234fc8071156282a346e0563ef92b6f", 123)
-		underlyingLeaf := mock.NewMockNativeLeaf(ctrl)
+		underlyingLeaf := mock.NewMockLinkableLeaf(ctrl)
 		baseCASFileFactory.EXPECT().LookupFile(
 			blobDigest,
 			/* isExecutable = */ true,
 			/* readMonitor = */ nil,
 		).Return(underlyingLeaf)
-		wrappedLeaf := mock.NewMockNativeLeaf(ctrl)
+		wrappedLeaf := mock.NewMockLinkableLeaf(ctrl)
 		leafHandleAllocation := mock.NewMockStatelessHandleAllocation(ctrl)
 		handleAllocator.EXPECT().New(gomock.Any()).DoAndReturn(func(id io.WriterTo) virtual.StatelessHandleAllocation {
 			idBuf := bytes.NewBuffer(nil)
@@ -109,8 +109,8 @@ func TestStatelessHandleAllocatingCASFileFactory(t *testing.T) {
 					"\x01"), idBuf.Bytes())
 			return leafHandleAllocation
 		})
-		var monitoringLeaf virtual.NativeLeaf
-		leafHandleAllocation.EXPECT().AsNativeLeaf(gomock.Any()).DoAndReturn(func(leaf virtual.NativeLeaf) virtual.NativeLeaf {
+		var monitoringLeaf virtual.LinkableLeaf
+		leafHandleAllocation.EXPECT().AsLinkableLeaf(gomock.Any()).DoAndReturn(func(leaf virtual.LinkableLeaf) virtual.LinkableLeaf {
 			monitoringLeaf = leaf
 			return wrappedLeaf
 		})

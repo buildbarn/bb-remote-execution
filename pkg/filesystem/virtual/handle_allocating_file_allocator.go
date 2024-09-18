@@ -16,10 +16,10 @@ func NewHandleAllocatingFileAllocator(base FileAllocator, allocator StatefulHand
 	}
 }
 
-func (fa *handleAllocatingFileAllocator) NewFile(isExecutable bool, size uint64, shareAccess ShareMask) (NativeLeaf, Status) {
+func (fa *handleAllocatingFileAllocator) NewFile(isExecutable bool, size uint64, shareAccess ShareMask) (LinkableLeaf, Status) {
 	leaf, s := fa.base.NewFile(isExecutable, size, shareAccess)
 	if s != StatusOK {
 		return nil, s
 	}
-	return fa.allocator.New().AsNativeLeaf(leaf), StatusOK
+	return fa.allocator.New().AsLinkableLeaf(leaf), StatusOK
 }

@@ -1,8 +1,8 @@
 package virtual
 
-// NativeLeaf objects are non-directory nodes that can be placed in a
+// LinkableLeaf objects are non-directory nodes that can be placed in a
 // PrepopulatedDirectory.
-type NativeLeaf interface {
+type LinkableLeaf interface {
 	Leaf
 
 	// Operations called into by implementations of

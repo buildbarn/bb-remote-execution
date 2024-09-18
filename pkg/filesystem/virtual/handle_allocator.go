@@ -107,7 +107,7 @@ type HandleResolver func(r io.ByteReader) (DirectoryChild, Status)
 type ResolvableHandleAllocation interface {
 	AsResolvableAllocator(resolver HandleResolver) ResolvableHandleAllocator
 	AsStatelessDirectory(directory Directory) Directory
-	AsNativeLeaf(leaf NativeLeaf) NativeLeaf
+	AsLinkableLeaf(leaf LinkableLeaf) LinkableLeaf
 	AsLeaf(leaf Leaf) Leaf
 }
 

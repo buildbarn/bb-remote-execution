@@ -5,5 +5,5 @@ package virtual
 // replacing the node entirely (e.g., by first unlinking it from the
 // directory).
 type SymlinkFactory interface {
-	LookupSymlink(target []byte) NativeLeaf
+	LookupSymlink(target []byte) LinkableLeaf
 }

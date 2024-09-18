@@ -32,9 +32,9 @@ func TestHandleAllocatingCharacterDeviceFactory(t *testing.T) {
 	t.Run("Lookup", func(t *testing.T) {
 		// Look up /dev/null (on Linux: major 1, minor 3).
 		deviceNumber := filesystem.NewDeviceNumberFromMajorMinor(1, 3)
-		underlyingLeaf := mock.NewMockNativeLeaf(ctrl)
+		underlyingLeaf := mock.NewMockLinkableLeaf(ctrl)
 		baseCharacterDeviceFactory.EXPECT().LookupCharacterDevice(deviceNumber).Return(underlyingLeaf)
-		wrappedLeaf := mock.NewMockNativeLeaf(ctrl)
+		wrappedLeaf := mock.NewMockLinkableLeaf(ctrl)
 		leafHandleAllocation := mock.NewMockResolvableHandleAllocation(ctrl)
 		handleAllocator.EXPECT().New(gomock.Any()).
 			DoAndReturn(func(id io.WriterTo) virtual.ResolvableHandleAllocation {
@@ -45,7 +45,7 @@ func TestHandleAllocatingCharacterDeviceFactory(t *testing.T) {
 				require.Equal(t, []byte{1, 3}, idBuf.Bytes())
 				return leafHandleAllocation
 			})
-		leafHandleAllocation.EXPECT().AsNativeLeaf(underlyingLeaf).Return(wrappedLeaf)
+		leafHandleAllocation.EXPECT().AsLinkableLeaf(underlyingLeaf).Return(wrappedLeaf)
 
 		require.Equal(t, wrappedLeaf, characterDeviceFactory.LookupCharacterDevice(deviceNumber))
 	})
@@ -65,9 +65,9 @@ func TestHandleAllocatingCharacterDeviceFactory(t *testing.T) {
 	t.Run("ResolverTwoNumbers", func(t *testing.T) {
 		// Provided both a major and minor number.
 		deviceNumber := filesystem.NewDeviceNumberFromMajorMinor(1, 3)
-		underlyingLeaf := mock.NewMockNativeLeaf(ctrl)
+		underlyingLeaf := mock.NewMockLinkableLeaf(ctrl)
 		baseCharacterDeviceFactory.EXPECT().LookupCharacterDevice(deviceNumber).Return(underlyingLeaf)
-		wrappedLeaf := mock.NewMockNativeLeaf(ctrl)
+		wrappedLeaf := mock.NewMockLinkableLeaf(ctrl)
 		leafHandleAllocation := mock.NewMockResolvableHandleAllocation(ctrl)
 		handleAllocator.EXPECT().New(gomock.Any()).
 			DoAndReturn(func(id io.WriterTo) virtual.ResolvableHandleAllocation {
@@ -78,7 +78,7 @@ func TestHandleAllocatingCharacterDeviceFactory(t *testing.T) {
 				require.Equal(t, []byte{1, 3}, idBuf.Bytes())
 				return leafHandleAllocation
 			})
-		leafHandleAllocation.EXPECT().AsNativeLeaf(underlyingLeaf).Return(wrappedLeaf)
+		leafHandleAllocation.EXPECT().AsLinkableLeaf(underlyingLeaf).Return(wrappedLeaf)
 
 		actualChild, s := handleResolver(bytes.NewBuffer([]byte{1, 3}))
 		require.Equal(t, virtual.StatusOK, s)

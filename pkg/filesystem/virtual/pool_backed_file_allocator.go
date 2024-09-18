@@ -70,7 +70,7 @@ func NewPoolBackedFileAllocator(pool re_filesystem.FilePool, errorLogger util.Er
 	}
 }
 
-func (fa *poolBackedFileAllocator) NewFile(isExecutable bool, size uint64, shareAccess ShareMask) (NativeLeaf, Status) {
+func (fa *poolBackedFileAllocator) NewFile(isExecutable bool, size uint64, shareAccess ShareMask) (LinkableLeaf, Status) {
 	file, err := fa.pool.NewFile()
 	if err != nil {
 		fa.errorLogger.Log(util.StatusWrapf(err, "Failed to create new file"))

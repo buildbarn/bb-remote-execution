@@ -21,8 +21,8 @@ func NewHandleAllocatingSymlinkFactory(base SymlinkFactory, allocation Stateless
 	}
 }
 
-func (sf *handleAllocatingSymlinkFactory) LookupSymlink(target []byte) NativeLeaf {
+func (sf *handleAllocatingSymlinkFactory) LookupSymlink(target []byte) LinkableLeaf {
 	return sf.allocator.
 		New(ByteSliceID(target)).
-		AsNativeLeaf(sf.base.LookupSymlink(target))
+		AsLinkableLeaf(sf.base.LookupSymlink(target))
 }

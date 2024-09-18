@@ -74,7 +74,7 @@ func (icf *casInitialContentsFetcher) fetchContentsUnwrapped(fileReadMonitorFact
 	}
 
 	// Ensure that leaves are properly unlinked if this method fails.
-	leavesToUnlink := make([]NativeLeaf, 0, len(directory.Files)+len(directory.Symlinks))
+	leavesToUnlink := make([]LinkableLeaf, 0, len(directory.Files)+len(directory.Symlinks))
 	defer func() {
 		for _, leaf := range leavesToUnlink {
 			leaf.Unlink()
