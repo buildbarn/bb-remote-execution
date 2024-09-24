@@ -2133,8 +2133,9 @@ func (o *operation) waitExecution(bq *InMemoryBuildQueue, out remoteexecution.Ex
 		// Construct the longrunningpb.Operation that needs to be
 		// sent back to the client.
 		metadata, err := anypb.New(&remoteexecution.ExecuteOperationMetadata{
-			Stage:        t.getStage(),
-			ActionDigest: t.desiredState.ActionDigest,
+			Stage:          t.getStage(),
+			ActionDigest:   t.desiredState.ActionDigest,
+			DigestFunction: t.desiredState.DigestFunction,
 		})
 		if err != nil {
 			return util.StatusWrap(err, "Failed to marshal execute operation metadata")
