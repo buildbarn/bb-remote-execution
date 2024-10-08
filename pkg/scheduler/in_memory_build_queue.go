@@ -1446,7 +1446,10 @@ func (pq *platformQueue) addSizeClassQueue(bq *InMemoryBuildQueue, sizeClass uin
 		"size_class":           sizeClassStr,
 	}
 	for p, pv := range pq.properties {
-		platformLabels[p] = pv
+		// do not overwrite existing labels, in case of weirdly named properties.
+		if _, ok := platformLabels[p]; !ok {
+			platformLabels[p] = pv
+		}
 	}
 	metrics := newSizeClassQueueMetrics(platformLabels)
 	scq := &sizeClassQueue{
