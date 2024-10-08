@@ -48,7 +48,7 @@ var (
 
 	schedulerRegistry = prometheus.NewRegistry()
 
-	inMemoryBuildQueueInFlightDeduplicationsTotalTemplate = metricTemplate[prometheus.CounterOpts]{
+	inMemoryBuildQueueInFlightDeduplicationsTotalTemplate = counterTemplate{
 		prometheus.CounterOpts{
 			Namespace: "buildbarn",
 			Subsystem: "builder",
@@ -58,7 +58,7 @@ var (
 		[]string{"outcome"},
 	}
 
-	inMemoryBuildQueueInvocationsCreatedTotalTemplate = metricTemplate[prometheus.CounterOpts]{
+	inMemoryBuildQueueInvocationsCreatedTotalTemplate = counterTemplate{
 		prometheus.CounterOpts{
 			Namespace: "buildbarn",
 			Subsystem: "builder",
@@ -68,7 +68,7 @@ var (
 		[]string{"depth"},
 	}
 
-	inMemoryBuildQueueInvocationsActivatedTotalTemplate = metricTemplate[prometheus.CounterOpts]{
+	inMemoryBuildQueueInvocationsActivatedTotalTemplate = counterTemplate{
 		prometheus.CounterOpts{
 			Namespace: "buildbarn",
 			Subsystem: "builder",
@@ -78,7 +78,7 @@ var (
 		[]string{"depth"},
 	}
 
-	inMemoryBuildQueueInvocationsDeactivatedTotalTemplate = metricTemplate[prometheus.CounterOpts]{
+	inMemoryBuildQueueInvocationsDeactivatedTotalTemplate = counterTemplate{
 		prometheus.CounterOpts{
 			Namespace: "buildbarn",
 			Subsystem: "builder",
@@ -88,7 +88,7 @@ var (
 		[]string{"depth"},
 	}
 
-	inMemoryBuildQueueInvocationsRemovedTotalTemplate = metricTemplate[prometheus.CounterOpts]{
+	inMemoryBuildQueueInvocationsRemovedTotalTemplate = counterTemplate{
 		prometheus.CounterOpts{
 			Namespace: "buildbarn",
 			Subsystem: "builder",
@@ -98,7 +98,7 @@ var (
 		[]string{"depth"},
 	}
 
-	inMemoryBuildQueueTasksScheduledTotalTemplate = metricTemplate[prometheus.CounterOpts]{
+	inMemoryBuildQueueTasksScheduledTotalTemplate = counterTemplate{
 		prometheus.CounterOpts{
 			Namespace: "buildbarn",
 			Subsystem: "builder",
@@ -108,7 +108,7 @@ var (
 		[]string{"assignment", "do_not_cache"},
 	}
 
-	inMemoryBuildQueueTasksQueuedDurationSecondsTemplate = metricTemplate[prometheus.HistogramOpts]{
+	inMemoryBuildQueueTasksQueuedDurationSecondsTemplate = histogramTemplate{
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
 			Subsystem: "builder",
@@ -119,7 +119,7 @@ var (
 		[]string{},
 	}
 
-	inMemoryBuildQueueTasksExecutingDurationSecondsTemplate = metricTemplate[prometheus.HistogramOpts]{
+	inMemoryBuildQueueTasksExecutingDurationSecondsTemplate = histogramTemplate{
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
 			Subsystem: "builder",
@@ -130,7 +130,7 @@ var (
 		[]string{"result", "grpc_code"},
 	}
 
-	inMemoryBuildQueueTasksExecutingRetriesTemplate = metricTemplate[prometheus.HistogramOpts]{
+	inMemoryBuildQueueTasksExecutingRetriesTemplate = histogramTemplate{
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
 			Subsystem: "builder",
@@ -141,7 +141,7 @@ var (
 		[]string{"result", "grpc_code"},
 	}
 
-	inMemoryBuildQueueTasksCompletedDurationSecondsTemplate = metricTemplate[prometheus.HistogramOpts]{
+	inMemoryBuildQueueTasksCompletedDurationSecondsTemplate = histogramTemplate{
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
 			Subsystem: "builder",
@@ -152,7 +152,7 @@ var (
 		[]string{},
 	}
 
-	inMemoryBuildQueueWorkersCreatedTotalTemplate = metricTemplate[prometheus.CounterOpts]{
+	inMemoryBuildQueueWorkersCreatedTotalTemplate = counterTemplate{
 		prometheus.CounterOpts{
 			Namespace: "buildbarn",
 			Subsystem: "builder",
@@ -162,7 +162,7 @@ var (
 		[]string{},
 	}
 
-	inMemoryBuildQueueWorkersTerminatingTotalTemplate = metricTemplate[prometheus.CounterOpts]{
+	inMemoryBuildQueueWorkersTerminatingTotalTemplate = counterTemplate{
 		prometheus.CounterOpts{
 			Namespace: "buildbarn",
 			Subsystem: "builder",
@@ -172,7 +172,7 @@ var (
 		[]string{},
 	}
 
-	inMemoryBuildQueueWorkersRemovedTotalTemplate = metricTemplate[prometheus.CounterOpts]{
+	inMemoryBuildQueueWorkersRemovedTotalTemplate = counterTemplate{
 		prometheus.CounterOpts{
 			Namespace: "buildbarn",
 			Subsystem: "builder",
@@ -182,7 +182,7 @@ var (
 		[]string{"state"},
 	}
 
-	inMemoryBuildQueueWorkerInvocationStickinessRetainedTemplate = metricTemplate[prometheus.HistogramOpts]{
+	inMemoryBuildQueueWorkerInvocationStickinessRetainedTemplate = histogramTemplate{
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
 			Subsystem: "builder",
@@ -194,9 +194,42 @@ var (
 	}
 )
 
-type metricTemplate[T prometheus.HistogramOpts | prometheus.CounterOpts] struct {
-	opts           T
+// counterTemplate is a utility struct for generating and registering prometheus.CounterVec
+// resources from a set of options, and required labels to appear in the resulting vec.
+type counterTemplate struct {
+	opts           prometheus.CounterOpts
 	requiredLabels []string
+}
+
+// createMetric creates an instance of the counter vec, including whatever additional labels are provided.
+func (ct *counterTemplate) createMetric(additionalLabels []string) *prometheus.CounterVec {
+	return prometheus.NewCounterVec(ct.opts, append(ct.requiredLabels, additionalLabels...))
+}
+
+// createAndRegisterMetric performs the same task as createMetric, but also registers the metric in the provided registry.
+func (ct *counterTemplate) createAndRegisterMetric(additionalLabels []string, registry *prometheus.Registry) *prometheus.CounterVec {
+	metric := ct.createMetric(additionalLabels)
+	registry.MustRegister(metric)
+	return metric
+}
+
+// counterTemplate is a utility struct for generating and registering prometheus.HistogramVec
+// resources from a set of options, and required labels to appear in the resulting vec.
+type histogramTemplate struct {
+	opts           prometheus.HistogramOpts
+	requiredLabels []string
+}
+
+// createMetric creates an instance of the counter vec, including whatever additional labels are provided.
+func (ht *histogramTemplate) createMetric(additionalLabels []string) *prometheus.HistogramVec {
+	return prometheus.NewHistogramVec(ht.opts, append(ht.requiredLabels, additionalLabels...))
+}
+
+// createAndRegisterMetric performs the same task as createMetric, but also registers the metric in the provided registry.
+func (ht *histogramTemplate) createAndRegisterMetric(additionalLabels []string, registry *prometheus.Registry) *prometheus.HistogramVec {
+	metric := ht.createMetric(additionalLabels)
+	registry.MustRegister(metric)
+	return metric
 }
 
 // InMemoryBuildQueueConfiguration contains all the tunable settings of
@@ -1527,89 +1560,20 @@ func newSizeClassQueueMetrics(properties map[string]string) sizeClassQueueMetric
 	registry := prometheus.NewRegistry()
 	schedulerRegistry.MustRegister(registry)
 
-	inMemoryBuildQueueInFlightDeduplicationsTotal := prometheus.NewCounterVec(
-		inMemoryBuildQueueInFlightDeduplicationsTotalTemplate.opts,
-		append(inMemoryBuildQueueInFlightDeduplicationsTotalTemplate.requiredLabels, propertyKeys...),
-	)
-	registry.MustRegister(inMemoryBuildQueueInFlightDeduplicationsTotal)
-
-	inMemoryBuildQueueInvocationsCreatedTotal := prometheus.NewCounterVec(
-		inMemoryBuildQueueInvocationsCreatedTotalTemplate.opts,
-		append(inMemoryBuildQueueInvocationsCreatedTotalTemplate.requiredLabels, propertyKeys...),
-	)
-	registry.MustRegister(inMemoryBuildQueueInvocationsCreatedTotal)
-
-	inMemoryBuildQueueInvocationsActivatedTotal := prometheus.NewCounterVec(
-		inMemoryBuildQueueInvocationsActivatedTotalTemplate.opts,
-		append(inMemoryBuildQueueInvocationsActivatedTotalTemplate.requiredLabels, propertyKeys...),
-	)
-	registry.MustRegister(inMemoryBuildQueueInvocationsActivatedTotal)
-
-	inMemoryBuildQueueInvocationsDeactivatedTotal := prometheus.NewCounterVec(
-		inMemoryBuildQueueInvocationsDeactivatedTotalTemplate.opts,
-		append(inMemoryBuildQueueInvocationsDeactivatedTotalTemplate.requiredLabels, propertyKeys...),
-	)
-	registry.MustRegister(inMemoryBuildQueueInvocationsDeactivatedTotal)
-
-	inMemoryBuildQueueInvocationsRemovedTotal := prometheus.NewCounterVec(
-		inMemoryBuildQueueInvocationsRemovedTotalTemplate.opts,
-		append(inMemoryBuildQueueInvocationsRemovedTotalTemplate.requiredLabels, propertyKeys...),
-	)
-	registry.MustRegister(inMemoryBuildQueueInvocationsRemovedTotal)
-
-	inMemoryBuildQueueTasksScheduledTotal := prometheus.NewCounterVec(
-		inMemoryBuildQueueTasksScheduledTotalTemplate.opts,
-		append(inMemoryBuildQueueTasksScheduledTotalTemplate.requiredLabels, propertyKeys...),
-	)
-	registry.MustRegister(inMemoryBuildQueueTasksScheduledTotal)
-
-	inMemoryBuildQueueTasksQueuedDurationSeconds := prometheus.NewHistogramVec(
-		inMemoryBuildQueueTasksQueuedDurationSecondsTemplate.opts,
-		append(inMemoryBuildQueueTasksQueuedDurationSecondsTemplate.requiredLabels, propertyKeys...),
-	)
-	registry.MustRegister(inMemoryBuildQueueTasksQueuedDurationSeconds)
-
-	inMemoryBuildQueueTasksExecutingDurationSeconds := prometheus.NewHistogramVec(
-		inMemoryBuildQueueTasksExecutingDurationSecondsTemplate.opts,
-		append(inMemoryBuildQueueTasksExecutingDurationSecondsTemplate.requiredLabels, propertyKeys...),
-	)
-	registry.MustRegister(inMemoryBuildQueueTasksExecutingDurationSeconds)
-
-	inMemoryBuildQueueTasksExecutingRetries := prometheus.NewHistogramVec(
-		inMemoryBuildQueueTasksExecutingRetriesTemplate.opts,
-		append(inMemoryBuildQueueTasksExecutingRetriesTemplate.requiredLabels, propertyKeys...),
-	)
-	registry.MustRegister(inMemoryBuildQueueTasksExecutingRetries)
-
-	inMemoryBuildQueueTasksCompletedDurationSeconds := prometheus.NewHistogramVec(
-		inMemoryBuildQueueTasksCompletedDurationSecondsTemplate.opts,
-		append(inMemoryBuildQueueTasksCompletedDurationSecondsTemplate.requiredLabels, propertyKeys...),
-	)
-	registry.MustRegister(inMemoryBuildQueueTasksCompletedDurationSeconds)
-
-	inMemoryBuildQueueWorkersCreatedTotal := prometheus.NewCounterVec(
-		inMemoryBuildQueueWorkersCreatedTotalTemplate.opts,
-		append(inMemoryBuildQueueWorkersCreatedTotalTemplate.requiredLabels, propertyKeys...),
-	)
-	registry.MustRegister(inMemoryBuildQueueWorkersCreatedTotal)
-
-	inMemoryBuildQueueWorkersTerminatingTotal := prometheus.NewCounterVec(
-		inMemoryBuildQueueWorkersTerminatingTotalTemplate.opts,
-		append(inMemoryBuildQueueWorkersTerminatingTotalTemplate.requiredLabels, propertyKeys...),
-	)
-	registry.MustRegister(inMemoryBuildQueueWorkersTerminatingTotal)
-
-	inMemoryBuildQueueWorkersRemovedTotal := prometheus.NewCounterVec(
-		inMemoryBuildQueueWorkersRemovedTotalTemplate.opts,
-		append(inMemoryBuildQueueWorkersRemovedTotalTemplate.requiredLabels, propertyKeys...),
-	)
-	registry.MustRegister(inMemoryBuildQueueWorkersRemovedTotal)
-
-	inMemoryBuildQueueWorkerInvocationStickinessRetained := prometheus.NewHistogramVec(
-		inMemoryBuildQueueWorkerInvocationStickinessRetainedTemplate.opts,
-		append(inMemoryBuildQueueWorkerInvocationStickinessRetainedTemplate.requiredLabels, propertyKeys...),
-	)
-	registry.MustRegister(inMemoryBuildQueueWorkerInvocationStickinessRetained)
+	inMemoryBuildQueueInFlightDeduplicationsTotal := inMemoryBuildQueueInFlightDeduplicationsTotalTemplate.createAndRegisterMetric(propertyKeys, registry)
+	inMemoryBuildQueueInvocationsCreatedTotal := inMemoryBuildQueueInvocationsCreatedTotalTemplate.createAndRegisterMetric(propertyKeys, registry)
+	inMemoryBuildQueueInvocationsActivatedTotal := inMemoryBuildQueueInvocationsActivatedTotalTemplate.createAndRegisterMetric(propertyKeys, registry)
+	inMemoryBuildQueueInvocationsDeactivatedTotal := inMemoryBuildQueueInvocationsDeactivatedTotalTemplate.createAndRegisterMetric(propertyKeys, registry)
+	inMemoryBuildQueueInvocationsRemovedTotal := inMemoryBuildQueueInvocationsRemovedTotalTemplate.createAndRegisterMetric(propertyKeys, registry)
+	inMemoryBuildQueueTasksScheduledTotal := inMemoryBuildQueueTasksScheduledTotalTemplate.createAndRegisterMetric(propertyKeys, registry)
+	inMemoryBuildQueueTasksQueuedDurationSeconds := inMemoryBuildQueueTasksQueuedDurationSecondsTemplate.createAndRegisterMetric(propertyKeys, registry)
+	inMemoryBuildQueueTasksExecutingDurationSeconds := inMemoryBuildQueueTasksExecutingDurationSecondsTemplate.createAndRegisterMetric(propertyKeys, registry)
+	inMemoryBuildQueueTasksExecutingRetries := inMemoryBuildQueueTasksExecutingRetriesTemplate.createAndRegisterMetric(propertyKeys, registry)
+	inMemoryBuildQueueTasksCompletedDurationSeconds := inMemoryBuildQueueTasksCompletedDurationSecondsTemplate.createAndRegisterMetric(propertyKeys, registry)
+	inMemoryBuildQueueWorkersCreatedTotal := inMemoryBuildQueueWorkersCreatedTotalTemplate.createAndRegisterMetric(propertyKeys, registry)
+	inMemoryBuildQueueWorkersTerminatingTotal := inMemoryBuildQueueWorkersTerminatingTotalTemplate.createAndRegisterMetric(propertyKeys, registry)
+	inMemoryBuildQueueWorkersRemovedTotal := inMemoryBuildQueueWorkersRemovedTotalTemplate.createAndRegisterMetric(propertyKeys, registry)
+	inMemoryBuildQueueWorkerInvocationStickinessRetained := inMemoryBuildQueueWorkerInvocationStickinessRetainedTemplate.createAndRegisterMetric(propertyKeys, registry)
 
 	tasksScheduledTotal := inMemoryBuildQueueTasksScheduledTotal.MustCurryWith(properties)
 	return sizeClassQueueMetrics{
