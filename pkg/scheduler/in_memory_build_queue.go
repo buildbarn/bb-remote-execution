@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"math"
+	"slices"
 	"sort"
 	"strconv"
 	"sync"
@@ -376,13 +378,19 @@ var (
 	_ buildqueuestate.BuildQueueStateServer = (*InMemoryBuildQueue)(nil)
 )
 
+// getPlatformProperties returns the list of platform properties from a remoteexecution.Platform
+// as a map. Multiple instances of the same property name are concatenated with a comma delimeter.
 func getPlatformProperties(platform *remoteexecution.Platform) map[string]string {
 	if platform == nil {
 		return make(map[string]string, 0)
 	}
 	properties := make(map[string]string, len(platform.Properties))
 	for _, property := range platform.Properties {
-		properties[property.Name] = property.Value
+		if currVal, ok := properties[property.Name]; ok {
+			properties[property.Name] = fmt.Sprintf("%s,%s", currVal, property.Value)
+		} else {
+			properties[property.Name] = property.Value
+		}
 	}
 	return properties
 }
@@ -1541,22 +1549,7 @@ type sizeClassQueueMetrics struct {
 // newly created metrics with the associated regisry. The registry should be deregistered from
 // the global registry if the sizeclass is ever deleted.
 func newSizeClassQueueMetrics(properties map[string]string) sizeClassQueueMetrics {
-	propertyKeys := make([]string, 0, len(properties))
-	for k := range properties {
-		propertyKeys = append(propertyKeys, k)
-	}
-
-	update := func(base, updates map[string]string) prometheus.Labels {
-		ret := make(map[string]string, len(base))
-		for k, v := range base {
-			ret[k] = v
-		}
-		for k, v := range updates {
-			ret[k] = v
-		}
-		return ret
-	}
-
+	propertyKeys := slices.Collect[string](maps.Keys(properties))
 	registry := prometheus.NewRegistry()
 	schedulerRegistry.MustRegister(registry)
 
@@ -1576,6 +1569,11 @@ func newSizeClassQueueMetrics(properties map[string]string) sizeClassQueueMetric
 	inMemoryBuildQueueWorkerInvocationStickinessRetained := inMemoryBuildQueueWorkerInvocationStickinessRetainedTemplate.createAndRegisterMetric(propertyKeys, registry)
 
 	tasksScheduledTotal := inMemoryBuildQueueTasksScheduledTotal.MustCurryWith(properties)
+	update := func(base, updates map[string]string) map[string]string {
+		clone := maps.Clone(base)
+		maps.Insert(clone, maps.All(updates))
+		return clone
+	}
 	return sizeClassQueueMetrics{
 		registry:                              registry,
 		inFlightDeduplicationsSameInvocation:  inMemoryBuildQueueInFlightDeduplicationsTotal.With(update(properties, map[string]string{"outcome": "SameInvocation"})),
