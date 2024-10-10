@@ -2508,19 +2508,24 @@ func (t *task) complete(bq *InMemoryBuildQueue, executeResponse *remoteexecution
 					// Already running too many background tasks.
 					backgroundInitialSizeClassLearner.Abandoned()
 				} else {
-					backgroundAction := *t.desiredState.Action
-					backgroundAction.DoNotCache = true
-					backgroundAction.Timeout = durationpb.New(backgroundTimeout)
 					backgroundTask := &task{
 						operations:              map[*invocation]*operation{},
 						actionDigest:            t.actionDigest,
-						desiredState:            t.desiredState,
 						targetID:                t.targetID,
 						expectedDuration:        backgroundExpectedDuration,
 						initialSizeClassLearner: backgroundInitialSizeClassLearner,
 						stageChangeWakeup:       make(chan struct{}),
 					}
-					backgroundTask.desiredState.Action = &backgroundAction
+
+					// Set do_not_cache to ensure that
+					// background learning doesn't
+					// overwrite the ActionResult obtained
+					// by the foreground task.
+					proto.Merge(&backgroundTask.desiredState, &t.desiredState)
+					backgroundAction := backgroundTask.desiredState.Action
+					backgroundAction.DoNotCache = true
+					backgroundAction.Timeout = durationpb.New(backgroundTimeout)
+
 					backgroundTask.newOperation(bq, pq.backgroundLearningOperationPriority, backgroundInvocation, true)
 					backgroundTask.schedule(bq)
 				}
