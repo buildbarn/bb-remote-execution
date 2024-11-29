@@ -1258,6 +1258,15 @@ func (bq *InMemoryBuildQueue) leave() {
 	bq.lock.Unlock()
 }
 
+// ForceCleanup forcefully runs any pending cleanup tasks. This method
+// can be invoked periodically to ensure that workers are removed, even
+// if no other RPC traffic occurs. This ensures that Prometheus metrics
+// report the correct values.
+func (bq *InMemoryBuildQueue) ForceCleanup() {
+	bq.enter(bq.clock.Now())
+	bq.leave()
+}
+
 // getIdleSynchronizeResponse returns a synchronization response that
 // explicitly instructs a worker to return to the idle state.
 func (bq *InMemoryBuildQueue) getIdleSynchronizeResponse() *remoteworker.SynchronizeResponse {
