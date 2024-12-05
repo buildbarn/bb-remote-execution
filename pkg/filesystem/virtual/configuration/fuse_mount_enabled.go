@@ -94,5 +94,11 @@ func (m *fuseMount) Expose(terminationGroup program.Group, rootDirectory virtual
 	); err != nil {
 		return util.StatusWrap(err, "Failed to set Linux Backing Device Info tunables")
 	}
+
+	// Access to call mount() is no longer needed now that FUSE has been initialized.
+	if err := dropMountCapabilities(); err != nil {
+		return util.StatusWrap(err, "Unable to drop mount capability. You may be missing CAP_SETPCAP")
+	}
+
 	return nil
 }
