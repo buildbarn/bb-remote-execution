@@ -128,7 +128,7 @@ func (f *fileBackedFile) lockMutatingData() {
 	}
 }
 
-func (f *fileBackedFile) acquireFrozenDescriptorLocked() (filesystem.FileReader, bool) {
+func (f *fileBackedFile) openReadFrozen() (filesystem.FileReader, bool) {
 	if f.referenceCount == 0 {
 		return nil, false
 	}
@@ -137,6 +137,43 @@ func (f *fileBackedFile) acquireFrozenDescriptorLocked() (filesystem.FileReader,
 	return &frozenFileBackedFile{
 		file: f,
 	}, true
+}
+
+func (f *fileBackedFile) waitAndOpenReadFrozen(writableFileDelay <-chan struct{}) (filesystem.FileReader, bool) {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+
+	if f.writableDescriptorsCount > 0 {
+		// Process table cleaning should have cleaned up any
+		// file descriptors belonging to files in the input
+		// root. Yet we are still seeing the file being opened
+		// for writing. This is bad, as it means that data may
+		// still be present in the kernel's page cache.
+		start := time.Now()
+		deadlineExceeded := false
+		for f.writableDescriptorsCount > 0 && !deadlineExceeded {
+			if f.noMoreWritersWakeup == nil {
+				f.noMoreWritersWakeup = make(chan struct{})
+			}
+			c := f.noMoreWritersWakeup
+
+			f.lock.Unlock()
+			select {
+			case <-writableFileDelay:
+				deadlineExceeded = true
+			case <-c:
+			}
+			f.lock.Lock()
+		}
+
+		if f.writableDescriptorsCount > 0 {
+			poolBackedFileAllocatorWritableFileUploadDelayTimeouts.Inc()
+		} else {
+			poolBackedFileAllocatorWritableFileUploadDelaySeconds.Observe(time.Now().Sub(start).Seconds())
+		}
+	}
+
+	return f.openReadFrozen()
 }
 
 func (f *fileBackedFile) acquireShareAccessLocked(shareAccess ShareMask) {
@@ -184,7 +221,7 @@ func (f *fileBackedFile) getCachedDigest() digest.Digest {
 // updateCachedDigest returns the digest of the file. It either returns
 // a cached value, or computes the digest and caches it. It is only safe
 // to call this function while the file is frozen (i.e., calling
-// f.acquireFrozenDescriptorLocked()).
+// f.openReadFrozen()).
 func (f *fileBackedFile) updateCachedDigest(digestFunction digest.Function, frozenFile filesystem.FileReader) (digest.Digest, error) {
 	// Check whether the cached digest we have is still valid.
 	if cachedDigest := f.getCachedDigest(); cachedDigest != digest.BadDigest && cachedDigest.UsesDigestFunction(digestFunction) {
@@ -206,38 +243,7 @@ func (f *fileBackedFile) updateCachedDigest(digestFunction digest.Function, froz
 }
 
 func (f *fileBackedFile) uploadFile(ctx context.Context, contentAddressableStorage blobstore.BlobAccess, digestFunction digest.Function, writableFileUploadDelay <-chan struct{}) (digest.Digest, error) {
-	f.lock.Lock()
-	if f.writableDescriptorsCount > 0 {
-		// Process table cleaning should have cleaned up any
-		// file descriptors belonging to files in the input
-		// root. Yet we are still seeing the file being opened
-		// for writing. This is bad, as it means that data may
-		// still be present in the kernel's page cache.
-		start := time.Now()
-		deadlineExceeded := false
-		for f.writableDescriptorsCount > 0 && !deadlineExceeded {
-			if f.noMoreWritersWakeup == nil {
-				f.noMoreWritersWakeup = make(chan struct{})
-			}
-			c := f.noMoreWritersWakeup
-
-			f.lock.Unlock()
-			select {
-			case <-writableFileUploadDelay:
-				deadlineExceeded = true
-			case <-c:
-			}
-			f.lock.Lock()
-		}
-
-		if f.writableDescriptorsCount > 0 {
-			poolBackedFileAllocatorWritableFileUploadDelayTimeouts.Inc()
-		} else {
-			poolBackedFileAllocatorWritableFileUploadDelaySeconds.Observe(time.Now().Sub(start).Seconds())
-		}
-	}
-	frozenFile, success := f.acquireFrozenDescriptorLocked()
-	f.lock.Unlock()
+	frozenFile, success := f.waitAndOpenReadFrozen(writableFileUploadDelay)
 	if !success {
 		return digest.BadDigest, status.Error(codes.NotFound, "File was unlinked before uploading could start")
 	}
@@ -261,7 +267,7 @@ func (f *fileBackedFile) getBazelOutputServiceStat(digestFunction *digest.Functi
 	var locator *anypb.Any
 	f.lock.Lock()
 	if f.writableDescriptorsCount == 0 {
-		frozenFile, success := f.acquireFrozenDescriptorLocked()
+		frozenFile, success := f.openReadFrozen()
 		f.lock.Unlock()
 		if !success {
 			return nil, status.Error(codes.NotFound, "File was unlinked before digest computation could start")
