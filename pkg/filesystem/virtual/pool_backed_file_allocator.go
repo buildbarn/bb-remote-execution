@@ -379,6 +379,12 @@ func (f *fileBackedFile) VirtualApply(data any) bool {
 				IsExecutable: f.isExecutable,
 			})
 		}
+	case *ApplyOpenReadFrozen:
+		if frozenFile, success := f.waitAndOpenReadFrozen(p.WritableFileDelay); success {
+			p.Reader = frozenFile
+		} else {
+			p.Err = status.Error(codes.NotFound, "File was unlinked before file could be opened")
+		}
 	default:
 		return false
 	}
