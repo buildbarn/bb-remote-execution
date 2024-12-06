@@ -93,3 +93,21 @@ type ApplyAppendOutputPathPersistencyDirectoryNode struct {
 	Directory *outputpathpersistency.Directory
 	Name      path.Component
 }
+
+// ApplyOpenReadFrozen is an operation for VirtualApply that opens a
+// regular file for reading. The file's contents are guaranteed to be
+// immutable as long as the file is kept open.
+//
+// If the file is still opened for writing through the virtual file
+// system, implementations should wait for the file to be closed to
+// ensure that all data is flushed from the page cache. The
+// WritableFileDelay channel can be used to place a bound on the maximum
+// amount of time to wait.
+type ApplyOpenReadFrozen struct {
+	// Inputs.
+	WritableFileDelay <-chan struct{}
+
+	// Outputs.
+	Reader filesystem.FileReader
+	Err    error
+}
