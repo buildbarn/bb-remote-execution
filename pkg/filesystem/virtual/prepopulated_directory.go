@@ -14,7 +14,7 @@ type ChildRemover func() error
 // PrepopulatedDirectory.FilterChildren() for each of the children
 // underneath the current directory hierarchy.
 //
-// For each of the children, an InitialNode object is provided that
+// For each of the children, an InitialChild object is provided that
 // describes the contents of that file or directory. In addition to
 // that, a callback is provided that can remove the file or the contents
 // of the directory. This callback may be invoked synchronously or
@@ -22,7 +22,7 @@ type ChildRemover func() error
 //
 // The boolean return value of this function signals whether traversal
 // should continue. When false, traversal will stop immediately.
-type ChildFilter func(node InitialNode, remove ChildRemover) bool
+type ChildFilter func(node InitialChild, remove ChildRemover) bool
 
 // DirectoryPrepopulatedDirEntry contains information about a directory
 // node that is stored in a PrepopulatedDirectory.
@@ -75,7 +75,7 @@ type PrepopulatedDirectory interface {
 	// will be replaced. If the overwrite flag is not set, the call
 	// will fail if one or more entries already exist. No changes
 	// will be made to the directory in that case.
-	CreateChildren(children map[path.Component]InitialNode, overwrite bool) error
+	CreateChildren(children map[path.Component]InitialChild, overwrite bool) error
 	// CreateAndEnterPrepopulatedDirectory() is similar to
 	// LookupChild(), except that it creates the specified directory
 	// if it does not yet exist. If a file already exists, it will

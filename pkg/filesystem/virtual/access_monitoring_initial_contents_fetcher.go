@@ -21,7 +21,7 @@ func NewAccessMonitoringInitialContentsFetcher(base InitialContentsFetcher, root
 	}
 }
 
-func (icf *accessMonitoringInitialContentsFetcher) FetchContents(fileReadMonitorFactory FileReadMonitorFactory) (map[path.Component]InitialNode, error) {
+func (icf *accessMonitoringInitialContentsFetcher) FetchContents(fileReadMonitorFactory FileReadMonitorFactory) (map[path.Component]InitialChild, error) {
 	// Call into underlying initial contents fetcher. Wrap the file
 	// read monitors that are installed on the files, so that we can
 	// detect file access.
@@ -43,16 +43,16 @@ func (icf *accessMonitoringInitialContentsFetcher) FetchContents(fileReadMonitor
 
 	// Wrap all of the child directories, so that we can detect
 	// directory access.
-	wrappedContents := make(map[path.Component]InitialNode, len(contents))
+	wrappedContents := make(map[path.Component]InitialChild, len(contents))
 	for name, node := range contents {
 		childInitialContentsFetcher, leaf := node.GetPair()
 		if childInitialContentsFetcher != nil {
-			wrappedContents[name] = InitialNode{}.FromDirectory(&accessMonitoringInitialContentsFetcher{
+			wrappedContents[name] = InitialChild{}.FromDirectory(&accessMonitoringInitialContentsFetcher{
 				InitialContentsFetcher: childInitialContentsFetcher,
 				unreadDirectoryMonitor: readDirectoryMonitor.ResolvedDirectory(name),
 			})
 		} else {
-			wrappedContents[name] = InitialNode{}.FromLeaf(leaf)
+			wrappedContents[name] = InitialChild{}.FromLeaf(leaf)
 		}
 	}
 	return wrappedContents, nil

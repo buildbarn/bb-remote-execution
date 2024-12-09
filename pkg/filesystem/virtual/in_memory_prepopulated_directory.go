@@ -167,7 +167,7 @@ func (c *inMemoryDirectoryContents) isDeletable(hiddenFilesMatcher StringMatcher
 	return true
 }
 
-func (c *inMemoryDirectoryContents) createChildren(subtree *inMemorySubtree, children map[path.Component]InitialNode) {
+func (c *inMemoryDirectoryContents) createChildren(subtree *inMemorySubtree, children map[path.Component]InitialChild) {
 	// Either sort or shuffle the children before inserting them
 	// into the directory. This either makes VirtualReadDir() behave
 	// deterministically, or not, based on preference.
@@ -519,7 +519,7 @@ func (i *inMemoryPrepopulatedDirectory) InstallHooks(fileAllocator FileAllocator
 	}
 }
 
-func (i *inMemoryPrepopulatedDirectory) CreateChildren(children map[path.Component]InitialNode, overwrite bool) error {
+func (i *inMemoryPrepopulatedDirectory) CreateChildren(children map[path.Component]InitialChild, overwrite bool) error {
 	i.lock.Lock()
 	contents, err := i.getContents()
 	if err != nil {
@@ -598,7 +598,7 @@ func (i *inMemoryPrepopulatedDirectory) filterChildrenRecursive(childFilter Chil
 		// instantiate it. Simply provide the
 		// InitialContentsFetcher to the callback.
 		i.lock.Unlock()
-		return childFilter(InitialNode{}.FromDirectory(initialContentsFetcher), func() error {
+		return childFilter(InitialChild{}.FromDirectory(initialContentsFetcher), func() error {
 			return i.RemoveAllChildren(false)
 		})
 	}
@@ -626,7 +626,7 @@ func (i *inMemoryPrepopulatedDirectory) filterChildrenRecursive(childFilter Chil
 	// Invoke the callback for all children.
 	for _, child := range leaves {
 		name := child.name
-		if !childFilter(InitialNode{}.FromLeaf(child.leaf), func() error {
+		if !childFilter(InitialChild{}.FromLeaf(child.leaf), func() error {
 			return i.Remove(name)
 		}) {
 			return false

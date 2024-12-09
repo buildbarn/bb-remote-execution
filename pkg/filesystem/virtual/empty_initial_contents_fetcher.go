@@ -9,8 +9,8 @@ import (
 
 type emptyInitialContentsFetcher struct{}
 
-func (f emptyInitialContentsFetcher) FetchContents(fileReadMonitorFactory FileReadMonitorFactory) (map[path.Component]InitialNode, error) {
-	return map[path.Component]InitialNode{}, nil
+func (f emptyInitialContentsFetcher) FetchContents(fileReadMonitorFactory FileReadMonitorFactory) (map[path.Component]InitialChild, error) {
+	return map[path.Component]InitialChild{}, nil
 }
 
 func (f emptyInitialContentsFetcher) GetContainingDigests(ctx context.Context) (digest.Set, error) {
