@@ -7,10 +7,10 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 )
 
-// InitialNode is the value type of the map of directory entries
+// InitialChild is the value type of the map of directory entries
 // returned by InitialContentsFetcher.FetchContents(). Either Directory
 // or Leaf is set, but not both.
-type InitialNode = Child[InitialContentsFetcher, LinkableLeaf, any]
+type InitialChild = Child[InitialContentsFetcher, LinkableLeaf, any]
 
 // FileReadMonitor is used by the regular files created through the
 // InitialContentsFetcher to indicate that one or more calls against
@@ -35,7 +35,7 @@ type FileReadMonitorFactory func(name path.Component) FileReadMonitor
 // may be possible FetchContents() is never called. This may happen if
 // the directory in question is never accessed.
 type InitialContentsFetcher interface {
-	FetchContents(fileReadMonitorFactory FileReadMonitorFactory) (map[path.Component]InitialNode, error)
+	FetchContents(fileReadMonitorFactory FileReadMonitorFactory) (map[path.Component]InitialChild, error)
 
 	// GetContainingDigests() returns a set of digests of objects in
 	// the Content Addressable Storage that back the directories and

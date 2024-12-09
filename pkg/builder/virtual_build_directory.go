@@ -140,8 +140,8 @@ func (d *virtualBuildDirectory) Lstat(name path.Component) (filesystem.FileInfo,
 }
 
 func (d *virtualBuildDirectory) Mkdir(name path.Component, mode os.FileMode) error {
-	return d.CreateChildren(map[path.Component]virtual.InitialNode{
-		name: virtual.InitialNode{}.FromDirectory(virtual.EmptyInitialContentsFetcher),
+	return d.CreateChildren(map[path.Component]virtual.InitialChild{
+		name: virtual.InitialChild{}.FromDirectory(virtual.EmptyInitialContentsFetcher),
 	}, false)
 }
 
@@ -150,8 +150,8 @@ func (d *virtualBuildDirectory) Mknod(name path.Component, perm os.FileMode, dev
 		return status.Error(codes.InvalidArgument, "The provided file mode is not for a character device")
 	}
 	characterDevice := d.options.characterDeviceFactory.LookupCharacterDevice(deviceNumber)
-	if err := d.CreateChildren(map[path.Component]virtual.InitialNode{
-		name: virtual.InitialNode{}.FromLeaf(characterDevice),
+	if err := d.CreateChildren(map[path.Component]virtual.InitialChild{
+		name: virtual.InitialChild{}.FromLeaf(characterDevice),
 	}, false); err != nil {
 		characterDevice.Unlink()
 		return err
