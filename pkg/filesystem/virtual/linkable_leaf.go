@@ -4,6 +4,7 @@ package virtual
 // PrepopulatedDirectory.
 type LinkableLeaf interface {
 	Leaf
+	InitialNode
 
 	// Operations called into by implementations of
 	// PrepopulatedDirectory. The Link() operation may fail, for the
