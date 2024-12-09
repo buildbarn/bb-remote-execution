@@ -127,23 +127,29 @@ func (icf *casInitialContentsFetcher) FetchContents(fileReadMonitorFactory FileR
 	return children, nil
 }
 
-func (icf *casInitialContentsFetcher) GetContainingDigests(ctx context.Context) (digest.Set, error) {
-	gatherer := casContainingDigestsGatherer{
-		context:             ctx,
-		digestFunction:      icf.options.digestFunction,
-		digests:             digest.NewSetBuilder(),
-		directoriesGathered: map[digest.Digest]struct{}{},
+func (icf *casInitialContentsFetcher) VirtualApply(data any) bool {
+	switch p := data.(type) {
+	case *ApplyGetContainingDigests:
+		gatherer := casContainingDigestsGatherer{
+			context:             p.Context,
+			digestFunction:      icf.options.digestFunction,
+			digests:             digest.NewSetBuilder(),
+			directoriesGathered: map[digest.Digest]struct{}{},
+		}
+		if err := gatherer.traverse(icf.directoryWalker); err == nil {
+			p.ContainingDigests = gatherer.digests.Build()
+		} else {
+			p.Err = err
+		}
+	default:
+		return false
 	}
-	err := gatherer.traverse(icf.directoryWalker)
-	if err != nil {
-		return digest.EmptySet, err
-	}
-	return gatherer.digests.Build(), nil
+	return true
 }
 
 // casContainingDigestsGatherer is used by casInitialContentsFetcher's
-// GetContainingDigests() to compute the transitive closure of digests
-// referenced by a hierarchy of Directory objects.
+// implementation of ApplyGetContainingDigests to compute the transitive
+// closure of digests referenced by a hierarchy of Directory objects.
 type casContainingDigestsGatherer struct {
 	context             context.Context
 	digestFunction      digest.Function

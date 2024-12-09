@@ -68,8 +68,12 @@ type ApplyUploadFile struct {
 // the file still exists in its entirety, and to prevent that
 // the file is removed in the nearby future.
 type ApplyGetContainingDigests struct {
+	// Inputs.
+	Context context.Context
+
 	// Outputs.
 	ContainingDigests digest.Set
+	Err               error
 }
 
 // ApplyGetBazelOutputServiceStat is an operation for VirtualApply that
