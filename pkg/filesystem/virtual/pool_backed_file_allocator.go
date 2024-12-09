@@ -351,8 +351,6 @@ func (f *fileBackedFile) VirtualApply(data any) bool {
 		p.Err = syscall.EINVAL
 	case *ApplyUploadFile:
 		p.Digest, p.Err = f.uploadFile(p.Context, p.ContentAddressableStorage, p.DigestFunction, p.WritableFileUploadDelay)
-	case *ApplyGetContainingDigests:
-		p.ContainingDigests = digest.EmptySet
 	case *ApplyGetBazelOutputServiceStat:
 		p.Stat, p.Err = f.getBazelOutputServiceStat(p.DigestFunction)
 	case *ApplyAppendOutputPathPersistencyDirectoryNode:

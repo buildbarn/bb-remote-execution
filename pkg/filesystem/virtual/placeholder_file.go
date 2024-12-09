@@ -3,7 +3,6 @@ package virtual
 import (
 	"context"
 
-	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 
 	"google.golang.org/grpc/codes"
@@ -52,8 +51,6 @@ func (placeholderFile) VirtualApply(data any) bool {
 	switch p := data.(type) {
 	case *ApplyUploadFile:
 		p.Err = status.Error(codes.InvalidArgument, "This file cannot be uploaded, as it is a placeholder")
-	case *ApplyGetContainingDigests:
-		p.ContainingDigests = digest.EmptySet
 	default:
 		return false
 	}
