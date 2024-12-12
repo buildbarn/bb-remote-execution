@@ -142,7 +142,7 @@ message FUSEMountConfiguration {
 
   // DirectMountStrict is like DirectMount but no fallback to fusermount is
   // performed. If both DirectMount and DirectMountStrict are set,
-	// DirectMountStrict wins.
+  // DirectMountStrict wins.
   bool direct_mount_strict = 10;
 }
 
