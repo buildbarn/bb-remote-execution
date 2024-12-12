@@ -70,9 +70,10 @@ func (m *fuseMount) Expose(terminationGroup program.Group, rootDirectory virtual
 			// Newer versions of runc use an improved parser
 			// that's more reliable:
 			// https://github.com/moby/sys/blob/master/mountinfo/mountinfo_linux.go
-			FsName:      m.fsName,
-			AllowOther:  m.configuration.AllowOther,
-			DirectMount: m.configuration.DirectMount,
+			FsName:            m.fsName,
+			AllowOther:        m.configuration.AllowOther,
+			DirectMount:       m.configuration.DirectMount,
+			DirectMountStrict: m.configuration.DirectMountStrict,
 			// Speed up workloads that perform many tiny
 			// writes. This means data is only guaranteed to
 			// make it into the virtual file system after

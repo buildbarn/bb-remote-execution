@@ -139,6 +139,11 @@ message FUSEMountConfiguration {
   //
   // Recommended value: unset
   map<string, string> linux_backing_dev_info_tunables = 9;
+
+  // DirectMountStrict is like DirectMount but no fallback to fusermount is
+  // performed. If both DirectMount and DirectMountStrict are set,
+	// DirectMountStrict wins.
+  bool direct_mount_strict = 10;
 }
 
 message NFSv4MountConfiguration {
