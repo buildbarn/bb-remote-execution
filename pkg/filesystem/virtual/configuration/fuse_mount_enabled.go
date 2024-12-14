@@ -15,6 +15,8 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/util"
 	go_fuse "github.com/hanwen/go-fuse/v2/fuse"
 	"github.com/jmespath/go-jmespath"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func (m *fuseMount) Expose(terminationGroup program.Group, rootDirectory virtual.Directory) error {
@@ -72,7 +74,7 @@ func (m *fuseMount) Expose(terminationGroup program.Group, rootDirectory virtual
 	case virtualpb.FUSEMountConfiguration_FUSERMOUNT:
 		// No additional options needed for FUSERMOUNT
 	default:
-		// Default to use FUSERMOUNT
+		return status.Error(codes.InvalidArgument, "Invalid mount method")
 	}
 
 	server, err := go_fuse.NewServer(
