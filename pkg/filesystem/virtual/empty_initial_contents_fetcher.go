@@ -1,20 +1,17 @@
 package virtual
 
 import (
-	"context"
-
-	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 )
 
 type emptyInitialContentsFetcher struct{}
 
-func (f emptyInitialContentsFetcher) FetchContents(fileReadMonitorFactory FileReadMonitorFactory) (map[path.Component]InitialNode, error) {
-	return map[path.Component]InitialNode{}, nil
+func (f emptyInitialContentsFetcher) FetchContents(fileReadMonitorFactory FileReadMonitorFactory) (map[path.Component]InitialChild, error) {
+	return map[path.Component]InitialChild{}, nil
 }
 
-func (f emptyInitialContentsFetcher) GetContainingDigests(ctx context.Context) (digest.Set, error) {
-	return digest.EmptySet, nil
+func (f emptyInitialContentsFetcher) VirtualApply(data any) bool {
+	return false
 }
 
 // EmptyInitialContentsFetcher is an instance of InitialContentsFetcher

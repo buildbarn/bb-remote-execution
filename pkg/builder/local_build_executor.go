@@ -299,7 +299,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool re_filesyste
 
 	// Attach the exit code or execution error.
 	if runErr == nil {
-		response.Result.ExitCode = runResponse.ExitCode
+		response.Result.ExitCode = int32(runResponse.ExitCode)
 		response.Result.ExecutionMetadata.AuxiliaryMetadata = append(response.Result.ExecutionMetadata.AuxiliaryMetadata, runResponse.ResourceUsage...)
 	} else {
 		attachErrorToExecuteResponse(response, util.StatusWrap(runErr, "Failed to run command"))

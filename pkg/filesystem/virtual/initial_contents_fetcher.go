@@ -1,16 +1,22 @@
 package virtual
 
 import (
-	"context"
-
-	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 )
 
-// InitialNode is the value type of the map of directory entries
+// InitialNode contains the common set of operations that can be applied
+// against files and directories returned by
+// InitialContentsFetcher.FetchContents().
+type InitialNode interface {
+	// VirtualApply can be used to perform implementation defined
+	// operations against files and directories.
+	VirtualApply(data any) bool
+}
+
+// InitialChild is the value type of the map of directory entries
 // returned by InitialContentsFetcher.FetchContents(). Either Directory
 // or Leaf is set, but not both.
-type InitialNode = Child[InitialContentsFetcher, LinkableLeaf, any]
+type InitialChild = Child[InitialContentsFetcher, LinkableLeaf, InitialNode]
 
 // FileReadMonitor is used by the regular files created through the
 // InitialContentsFetcher to indicate that one or more calls against
@@ -35,21 +41,7 @@ type FileReadMonitorFactory func(name path.Component) FileReadMonitor
 // may be possible FetchContents() is never called. This may happen if
 // the directory in question is never accessed.
 type InitialContentsFetcher interface {
-	FetchContents(fileReadMonitorFactory FileReadMonitorFactory) (map[path.Component]InitialNode, error)
+	InitialNode
 
-	// GetContainingDigests() returns a set of digests of objects in
-	// the Content Addressable Storage that back the directories and
-	// leaf nodes yielded by this InitialContentsFetcher.
-	//
-	// The set returned by this function may be passed to
-	// ContentAddressableStorage.FindMissingBlobs() to check whether
-	// the all files underneath this directory still exist, and to
-	// prevent them from being removed in the nearby future.
-	//
-	// This API assumes that the resulting set is small enough to
-	// fit in memory. For hierarchies backed by Tree objects, this
-	// will generally hold. It may not be safe to call this method
-	// on InitialContentsFetchers that expand to infinitely big
-	// hierarchies.
-	GetContainingDigests(ctx context.Context) (digest.Set, error)
+	FetchContents(fileReadMonitorFactory FileReadMonitorFactory) (map[path.Component]InitialChild, error)
 }

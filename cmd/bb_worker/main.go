@@ -296,7 +296,7 @@ func main() {
 			}
 			for _, runnerConfiguration := range buildDirectoryConfiguration.Runners {
 				if runnerConfiguration.Concurrency < 1 {
-					return util.StatusWrap(err, "Runner concurrency must be positive")
+					return status.Error(codes.InvalidArgument, "Runner concurrency must be positive")
 				}
 				concurrencyLength := len(strconv.FormatUint(runnerConfiguration.Concurrency-1, 10))
 

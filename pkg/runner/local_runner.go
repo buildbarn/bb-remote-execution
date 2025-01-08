@@ -212,7 +212,7 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 		return nil, util.StatusWrap(err, "Failed to marshal POSIX resource usage")
 	}
 	return &runner.RunResponse{
-		ExitCode:      int32(cmd.ProcessState.ExitCode()),
+		ExitCode:      int64(cmd.ProcessState.ExitCode()),
 		ResourceUsage: []*anypb.Any{posixResourceUsage},
 	}, nil
 }

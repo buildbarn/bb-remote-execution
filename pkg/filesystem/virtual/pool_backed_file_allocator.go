@@ -128,29 +128,52 @@ func (f *fileBackedFile) lockMutatingData() {
 	}
 }
 
-func (f *fileBackedFile) acquireFrozenDescriptorLocked() (success bool) {
+func (f *fileBackedFile) openReadFrozen() (filesystem.FileReader, bool) {
 	if f.referenceCount == 0 {
-		return false
+		return nil, false
 	}
 	f.referenceCount++
 	f.frozenDescriptorsCount++
-	return true
+	return &frozenFileBackedFile{
+		file: f,
+	}, true
 }
 
-func (f *fileBackedFile) releaseFrozenDescriptor() {
+func (f *fileBackedFile) waitAndOpenReadFrozen(writableFileDelay <-chan struct{}) (filesystem.FileReader, bool) {
 	f.lock.Lock()
 	defer f.lock.Unlock()
 
-	if f.frozenDescriptorsCount == 0 {
-		panic("Invalid open frozen descriptor count")
-	}
-	f.frozenDescriptorsCount--
-	if f.frozenDescriptorsCount == 0 && f.unfreezeWakeup != nil {
-		close(f.unfreezeWakeup)
-		f.unfreezeWakeup = nil
+	if f.writableDescriptorsCount > 0 {
+		// Process table cleaning should have cleaned up any
+		// file descriptors belonging to files in the input
+		// root. Yet we are still seeing the file being opened
+		// for writing. This is bad, as it means that data may
+		// still be present in the kernel's page cache.
+		start := time.Now()
+		deadlineExceeded := false
+		for f.writableDescriptorsCount > 0 && !deadlineExceeded {
+			if f.noMoreWritersWakeup == nil {
+				f.noMoreWritersWakeup = make(chan struct{})
+			}
+			c := f.noMoreWritersWakeup
+
+			f.lock.Unlock()
+			select {
+			case <-writableFileDelay:
+				deadlineExceeded = true
+			case <-c:
+			}
+			f.lock.Lock()
+		}
+
+		if f.writableDescriptorsCount > 0 {
+			poolBackedFileAllocatorWritableFileUploadDelayTimeouts.Inc()
+		} else {
+			poolBackedFileAllocatorWritableFileUploadDelaySeconds.Observe(time.Now().Sub(start).Seconds())
+		}
 	}
 
-	f.releaseReferencesLocked(1)
+	return f.openReadFrozen()
 }
 
 func (f *fileBackedFile) acquireShareAccessLocked(shareAccess ShareMask) {
@@ -198,8 +221,8 @@ func (f *fileBackedFile) getCachedDigest() digest.Digest {
 // updateCachedDigest returns the digest of the file. It either returns
 // a cached value, or computes the digest and caches it. It is only safe
 // to call this function while the file is frozen (i.e., calling
-// f.acquireFrozenDescriptorLocked()).
-func (f *fileBackedFile) updateCachedDigest(digestFunction digest.Function) (digest.Digest, error) {
+// f.openReadFrozen()).
+func (f *fileBackedFile) updateCachedDigest(digestFunction digest.Function, frozenFile filesystem.FileReader) (digest.Digest, error) {
 	// Check whether the cached digest we have is still valid.
 	if cachedDigest := f.getCachedDigest(); cachedDigest != digest.BadDigest && cachedDigest.UsesDigestFunction(digestFunction) {
 		return cachedDigest, nil
@@ -207,7 +230,7 @@ func (f *fileBackedFile) updateCachedDigest(digestFunction digest.Function) (dig
 
 	// If not, compute a new digest.
 	digestGenerator := digestFunction.NewGenerator(math.MaxInt64)
-	if _, err := io.Copy(digestGenerator, io.NewSectionReader(f, 0, math.MaxInt64)); err != nil {
+	if _, err := io.Copy(digestGenerator, io.NewSectionReader(frozenFile, 0, math.MaxInt64)); err != nil {
 		return digest.BadDigest, util.StatusWrapWithCode(err, codes.Internal, "Failed to compute file digest")
 	}
 	newDigest := digestGenerator.Sum()
@@ -220,52 +243,21 @@ func (f *fileBackedFile) updateCachedDigest(digestFunction digest.Function) (dig
 }
 
 func (f *fileBackedFile) uploadFile(ctx context.Context, contentAddressableStorage blobstore.BlobAccess, digestFunction digest.Function, writableFileUploadDelay <-chan struct{}) (digest.Digest, error) {
-	f.lock.Lock()
-	if f.writableDescriptorsCount > 0 {
-		// Process table cleaning should have cleaned up any
-		// file descriptors belonging to files in the input
-		// root. Yet we are still seeing the file being opened
-		// for writing. This is bad, as it means that data may
-		// still be present in the kernel's page cache.
-		start := time.Now()
-		deadlineExceeded := false
-		for f.writableDescriptorsCount > 0 && !deadlineExceeded {
-			if f.noMoreWritersWakeup == nil {
-				f.noMoreWritersWakeup = make(chan struct{})
-			}
-			c := f.noMoreWritersWakeup
-
-			f.lock.Unlock()
-			select {
-			case <-writableFileUploadDelay:
-				deadlineExceeded = true
-			case <-c:
-			}
-			f.lock.Lock()
-		}
-
-		if f.writableDescriptorsCount > 0 {
-			poolBackedFileAllocatorWritableFileUploadDelayTimeouts.Inc()
-		} else {
-			poolBackedFileAllocatorWritableFileUploadDelaySeconds.Observe(time.Now().Sub(start).Seconds())
-		}
-	}
-	success := f.acquireFrozenDescriptorLocked()
-	f.lock.Unlock()
+	frozenFile, success := f.waitAndOpenReadFrozen(writableFileUploadDelay)
 	if !success {
 		return digest.BadDigest, status.Error(codes.NotFound, "File was unlinked before uploading could start")
 	}
 
-	blobDigest, err := f.updateCachedDigest(digestFunction)
+	blobDigest, err := f.updateCachedDigest(digestFunction, frozenFile)
 	if err != nil {
-		f.Close()
+		frozenFile.Close()
 		return digest.BadDigest, err
 	}
 
 	if err := contentAddressableStorage.Put(
 		ctx,
 		blobDigest,
-		buffer.NewValidatedBufferFromReaderAt(f, blobDigest.GetSizeBytes())); err != nil {
+		buffer.NewValidatedBufferFromReaderAt(frozenFile, blobDigest.GetSizeBytes())); err != nil {
 		return digest.BadDigest, util.StatusWrap(err, "Failed to upload file")
 	}
 	return blobDigest, nil
@@ -275,14 +267,14 @@ func (f *fileBackedFile) getBazelOutputServiceStat(digestFunction *digest.Functi
 	var locator *anypb.Any
 	f.lock.Lock()
 	if f.writableDescriptorsCount == 0 {
-		success := f.acquireFrozenDescriptorLocked()
+		frozenFile, success := f.openReadFrozen()
 		f.lock.Unlock()
 		if !success {
 			return nil, status.Error(codes.NotFound, "File was unlinked before digest computation could start")
 		}
-		defer f.releaseFrozenDescriptor()
+		defer frozenFile.Close()
 
-		blobDigest, err := f.updateCachedDigest(*digestFunction)
+		blobDigest, err := f.updateCachedDigest(*digestFunction, frozenFile)
 		if err != nil {
 			return nil, err
 		}
@@ -310,18 +302,6 @@ func (f *fileBackedFile) getBazelOutputServiceStat(digestFunction *digest.Functi
 			},
 		},
 	}, nil
-}
-
-func (f *fileBackedFile) Close() error {
-	f.releaseFrozenDescriptor()
-	return nil
-}
-
-func (f *fileBackedFile) ReadAt(b []byte, off int64) (int, error) {
-	f.lock.Lock()
-	defer f.lock.Unlock()
-
-	return f.file.ReadAt(b, off)
 }
 
 func (f *fileBackedFile) VirtualAllocate(off, size uint64) Status {
@@ -371,8 +351,6 @@ func (f *fileBackedFile) VirtualApply(data any) bool {
 		p.Err = syscall.EINVAL
 	case *ApplyUploadFile:
 		p.Digest, p.Err = f.uploadFile(p.Context, p.ContentAddressableStorage, p.DigestFunction, p.WritableFileUploadDelay)
-	case *ApplyGetContainingDigests:
-		p.ContainingDigests = digest.EmptySet
 	case *ApplyGetBazelOutputServiceStat:
 		p.Stat, p.Err = f.getBazelOutputServiceStat(p.DigestFunction)
 	case *ApplyAppendOutputPathPersistencyDirectoryNode:
@@ -398,6 +376,12 @@ func (f *fileBackedFile) VirtualApply(data any) bool {
 				Digest:       f.cachedDigest.GetProto(),
 				IsExecutable: f.isExecutable,
 			})
+		}
+	case *ApplyOpenReadFrozen:
+		if frozenFile, success := f.waitAndOpenReadFrozen(p.WritableFileDelay); success {
+			p.Reader = frozenFile
+		} else {
+			p.Err = status.Error(codes.NotFound, "File was unlinked before file could be opened")
 		}
 	default:
 		return false
@@ -539,4 +523,46 @@ func (f *fileBackedFile) VirtualWrite(buf []byte, offset uint64) (int, Status) {
 		return nWritten, StatusErrIO
 	}
 	return nWritten, StatusOK
+}
+
+// frozenFileBackedFile is a handle to a file whose contents have been
+// frozen and has been opened for reading. The file will be unfrozen
+// when closed.
+type frozenFileBackedFile struct {
+	file *fileBackedFile
+}
+
+func (ff *frozenFileBackedFile) Close() error {
+	f := ff.file
+	f.lock.Lock()
+	defer f.lock.Unlock()
+
+	if f.frozenDescriptorsCount == 0 {
+		panic("Invalid open frozen descriptor count")
+	}
+	f.frozenDescriptorsCount--
+	if f.frozenDescriptorsCount == 0 && f.unfreezeWakeup != nil {
+		close(f.unfreezeWakeup)
+		f.unfreezeWakeup = nil
+	}
+
+	f.releaseReferencesLocked(1)
+	ff.file = nil
+	return nil
+}
+
+func (ff *frozenFileBackedFile) GetNextRegionOffset(offset int64, regionType filesystem.RegionType) (int64, error) {
+	f := ff.file
+	f.lock.Lock()
+	defer f.lock.Unlock()
+
+	return f.file.GetNextRegionOffset(offset, regionType)
+}
+
+func (ff *frozenFileBackedFile) ReadAt(b []byte, off int64) (int, error) {
+	f := ff.file
+	f.lock.Lock()
+	defer f.lock.Unlock()
+
+	return f.file.ReadAt(b, off)
 }

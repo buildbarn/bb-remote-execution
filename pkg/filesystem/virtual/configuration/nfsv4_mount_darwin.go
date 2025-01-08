@@ -160,13 +160,16 @@ func (m *nfsv4Mount) mount(terminationGroup program.Group, rpcServer *rpcserver.
 	flags.WriteTo(&attrVals)
 
 	// Request the use of the desired NFSv4 protocol minor version.
+	// If no minor version is specified, use the latest version that
+	// is supported by the operating system.
 	attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_NFS_VERSION
 	nfs_sys_prot.WriteNfsMattrNfsVersion(&attrVals, 4)
 	attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_NFS_MINOR_VERSION
 	if msg := osConfiguration.MinorVersion; msg != nil {
 		nfs_sys_prot.WriteNfsMattrNfsMinorVersion(&attrVals, msg.Value)
+	} else if buildVersion.greaterEqual(25, 'A', 117) {
+		nfs_sys_prot.WriteNfsMattrNfsMinorVersion(&attrVals, 1)
 	} else {
-		// macOS currently only supports NFSv4.0.
 		nfs_sys_prot.WriteNfsMattrNfsMinorVersion(&attrVals, 0)
 	}
 

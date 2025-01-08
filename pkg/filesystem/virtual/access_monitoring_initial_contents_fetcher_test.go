@@ -49,11 +49,11 @@ func TestAccessMonitoringInitialContentsFetcher(t *testing.T) {
 		baseFileReadMonitorFactory.EXPECT().Call(path.MustNewComponent("file")).Return(baseChildFileReadMonitor.Call)
 		var childFileReadMonitor virtual.FileReadMonitor
 		baseInitialContentsFetcher.EXPECT().FetchContents(gomock.Any()).
-			DoAndReturn(func(fileReadMonitorFactory virtual.FileReadMonitorFactory) (map[path.Component]virtual.InitialNode, error) {
+			DoAndReturn(func(fileReadMonitorFactory virtual.FileReadMonitorFactory) (map[path.Component]virtual.InitialChild, error) {
 				childFileReadMonitor = fileReadMonitorFactory(path.MustNewComponent("file"))
-				return map[path.Component]virtual.InitialNode{
-					path.MustNewComponent("dir"):  virtual.InitialNode{}.FromDirectory(baseChildInitialContentsFetcher),
-					path.MustNewComponent("file"): virtual.InitialNode{}.FromLeaf(baseChildFile),
+				return map[path.Component]virtual.InitialChild{
+					path.MustNewComponent("dir"):  virtual.InitialChild{}.FromDirectory(baseChildInitialContentsFetcher),
+					path.MustNewComponent("file"): virtual.InitialChild{}.FromLeaf(baseChildFile),
 				}, nil
 			})
 		rootReadDirectoryMonitor := mock.NewMockReadDirectoryMonitor(ctrl)
@@ -69,7 +69,7 @@ func TestAccessMonitoringInitialContentsFetcher(t *testing.T) {
 			childInitialContentsFetcher, _ := rootContents[path.MustNewComponent("dir")].GetPair()
 
 			t.Run("FetchContentsSucceeded", func(t *testing.T) {
-				baseChildInitialContentsFetcher.EXPECT().FetchContents(gomock.Any()).Return(map[path.Component]virtual.InitialNode{}, nil)
+				baseChildInitialContentsFetcher.EXPECT().FetchContents(gomock.Any()).Return(map[path.Component]virtual.InitialChild{}, nil)
 				childReadDirectoryMonitor := mock.NewMockReadDirectoryMonitor(ctrl)
 				childUnreadDirectoryMonitor.EXPECT().ReadDirectory().Return(childReadDirectoryMonitor)
 				baseChildFileReadMonitorFactory := mock.NewMockFileReadMonitorFactory(ctrl)

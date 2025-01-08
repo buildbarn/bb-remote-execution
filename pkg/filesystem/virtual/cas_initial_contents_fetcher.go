@@ -44,7 +44,7 @@ func NewCASInitialContentsFetcher(ctx context.Context, directoryWalker cas.Direc
 	}
 }
 
-func (icf *casInitialContentsFetcher) fetchContentsUnwrapped(fileReadMonitorFactory FileReadMonitorFactory) (map[path.Component]InitialNode, error) {
+func (icf *casInitialContentsFetcher) fetchContentsUnwrapped(fileReadMonitorFactory FileReadMonitorFactory) (map[path.Component]InitialChild, error) {
 	directory, err := icf.directoryWalker.GetDirectory(icf.options.context)
 	if err != nil {
 		return nil, err
@@ -53,7 +53,7 @@ func (icf *casInitialContentsFetcher) fetchContentsUnwrapped(fileReadMonitorFact
 	// Create InitialContentsFetchers for all child directories.
 	// These can yield even more InitialContentsFetchers for
 	// grandchildren.
-	children := make(map[path.Component]InitialNode, len(directory.Directories)+len(directory.Files)+len(directory.Symlinks))
+	children := make(map[path.Component]InitialChild, len(directory.Directories)+len(directory.Files)+len(directory.Symlinks))
 	for _, entry := range directory.Directories {
 		component, ok := path.NewComponent(entry.Name)
 		if !ok {
@@ -67,7 +67,7 @@ func (icf *casInitialContentsFetcher) fetchContentsUnwrapped(fileReadMonitorFact
 		if err != nil {
 			return nil, util.StatusWrapf(err, "Failed to obtain digest for directory %#v", entry.Name)
 		}
-		children[component] = InitialNode{}.FromDirectory(&casInitialContentsFetcher{
+		children[component] = InitialChild{}.FromDirectory(&casInitialContentsFetcher{
 			options:         icf.options,
 			directoryWalker: icf.directoryWalker.GetChild(childDigest),
 		})
@@ -96,7 +96,7 @@ func (icf *casInitialContentsFetcher) fetchContentsUnwrapped(fileReadMonitorFact
 			return nil, util.StatusWrapf(err, "Failed to obtain digest for file %#v", entry.Name)
 		}
 		leaf := icf.options.casFileFactory.LookupFile(childDigest, entry.IsExecutable, fileReadMonitorFactory(component))
-		children[component] = InitialNode{}.FromLeaf(leaf)
+		children[component] = InitialChild{}.FromLeaf(leaf)
 		leavesToUnlink = append(leavesToUnlink, leaf)
 	}
 
@@ -111,7 +111,7 @@ func (icf *casInitialContentsFetcher) fetchContentsUnwrapped(fileReadMonitorFact
 		}
 
 		leaf := icf.options.symlinkFactory.LookupSymlink([]byte(entry.Target))
-		children[component] = InitialNode{}.FromLeaf(leaf)
+		children[component] = InitialChild{}.FromLeaf(leaf)
 		leavesToUnlink = append(leavesToUnlink, leaf)
 	}
 
@@ -119,7 +119,7 @@ func (icf *casInitialContentsFetcher) fetchContentsUnwrapped(fileReadMonitorFact
 	return children, nil
 }
 
-func (icf *casInitialContentsFetcher) FetchContents(fileReadMonitorFactory FileReadMonitorFactory) (map[path.Component]InitialNode, error) {
+func (icf *casInitialContentsFetcher) FetchContents(fileReadMonitorFactory FileReadMonitorFactory) (map[path.Component]InitialChild, error) {
 	children, err := icf.fetchContentsUnwrapped(fileReadMonitorFactory)
 	if err != nil {
 		return nil, util.StatusWrap(err, icf.directoryWalker.GetDescription())
@@ -127,23 +127,29 @@ func (icf *casInitialContentsFetcher) FetchContents(fileReadMonitorFactory FileR
 	return children, nil
 }
 
-func (icf *casInitialContentsFetcher) GetContainingDigests(ctx context.Context) (digest.Set, error) {
-	gatherer := casContainingDigestsGatherer{
-		context:             ctx,
-		digestFunction:      icf.options.digestFunction,
-		digests:             digest.NewSetBuilder(),
-		directoriesGathered: map[digest.Digest]struct{}{},
+func (icf *casInitialContentsFetcher) VirtualApply(data any) bool {
+	switch p := data.(type) {
+	case *ApplyGetContainingDigests:
+		gatherer := casContainingDigestsGatherer{
+			context:             p.Context,
+			digestFunction:      icf.options.digestFunction,
+			digests:             digest.NewSetBuilder(),
+			directoriesGathered: map[digest.Digest]struct{}{},
+		}
+		if err := gatherer.traverse(icf.directoryWalker); err == nil {
+			p.ContainingDigests = gatherer.digests.Build()
+		} else {
+			p.Err = err
+		}
+	default:
+		return false
 	}
-	err := gatherer.traverse(icf.directoryWalker)
-	if err != nil {
-		return digest.EmptySet, err
-	}
-	return gatherer.digests.Build(), nil
+	return true
 }
 
 // casContainingDigestsGatherer is used by casInitialContentsFetcher's
-// GetContainingDigests() to compute the transitive closure of digests
-// referenced by a hierarchy of Directory objects.
+// implementation of ApplyGetContainingDigests to compute the transitive
+// closure of digests referenced by a hierarchy of Directory objects.
 type casContainingDigestsGatherer struct {
 	context             context.Context
 	digestFunction      digest.Function

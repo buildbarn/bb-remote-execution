@@ -124,7 +124,7 @@ func TestLocalRunnerRun(t *testing.T) {
 			TemporaryDirectory: "EmptyEnvironment/tmp",
 		})
 		require.NoError(t, err)
-		require.Equal(t, int32(0), response.ExitCode)
+		require.Equal(t, int64(0), response.ExitCode)
 
 		stdout, err := os.ReadFile(filepath.Join(testPath, "stdout"))
 		require.NoError(t, err)
@@ -158,7 +158,7 @@ func TestLocalRunnerRun(t *testing.T) {
 			TemporaryDirectory: "NonEmptyEnvironment/tmp",
 		})
 		require.NoError(t, err)
-		require.Equal(t, int32(0), response.ExitCode)
+		require.Equal(t, int64(0), response.ExitCode)
 
 		stdout, err := os.ReadFile(filepath.Join(testPath, "stdout"))
 		require.NoError(t, err)
@@ -213,7 +213,7 @@ func TestLocalRunnerRun(t *testing.T) {
 			TemporaryDirectory:   "OverridingTmpdir/tmp",
 		})
 		require.NoError(t, err)
-		require.Equal(t, int32(0), response.ExitCode)
+		require.Equal(t, int64(0), response.ExitCode)
 
 		stdout, err := os.ReadFile(filepath.Join(testPath, "stdout"))
 		require.NoError(t, err)
@@ -256,7 +256,7 @@ func TestLocalRunnerRun(t *testing.T) {
 			TemporaryDirectory: "NonZeroExitCode/tmp",
 		})
 		require.NoError(t, err)
-		require.Equal(t, int32(255), response.ExitCode)
+		require.Equal(t, int64(255), response.ExitCode)
 
 		stdout, err := os.ReadFile(filepath.Join(testPath, "stdout"))
 		require.NoError(t, err)
@@ -289,7 +289,7 @@ func TestLocalRunnerRun(t *testing.T) {
 			TemporaryDirectory: "SigKill/tmp",
 		})
 		require.NoError(t, err)
-		require.NotEqual(t, int32(0), response.ExitCode)
+		require.NotEqual(t, int64(0), response.ExitCode)
 
 		require.Len(t, response.ResourceUsage, 1)
 		var posixResourceUsage resourceusage.POSIXResourceUsage
@@ -372,7 +372,7 @@ func TestLocalRunnerRun(t *testing.T) {
 			TemporaryDirectory:   "RelativeSearchPath/tmp",
 		})
 		require.NoError(t, err)
-		require.Equal(t, int32(42), response.ExitCode)
+		require.Equal(t, int64(42), response.ExitCode)
 
 		stdout, err := os.ReadFile(filepath.Join(testPath, "stdout"))
 		require.NoError(t, err)

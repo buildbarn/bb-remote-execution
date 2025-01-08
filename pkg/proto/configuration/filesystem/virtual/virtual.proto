@@ -87,11 +87,8 @@ message FUSEMountConfiguration {
   // unintended access to the mount point.
   bool allow_other = 6;
 
-  // If set, the FUSE mount is created by calling mount() directly, as
-  // opposed to invoking the fusermount utility. This option needs to be
-  // enabled in environments where the fusermount utility is not
-  // available, such as the bb_worker container images.
-  bool direct_mount = 7;
+  // Was 'direct_mount'. Use 'mount_method' instead.
+  reserved 7;
 
   // If set, extract authentication metadata from the "fuse_in_header"
   // messages sent by the kernel. This field contains a JMESPath
@@ -139,6 +136,23 @@ message FUSEMountConfiguration {
   //
   // Recommended value: unset
   map<string, string> linux_backing_dev_info_tunables = 9;
+
+  enum MountMethod {
+    // Call into the fusermount utility to create the FUSE mount.
+    FUSERMOUNT = 0;
+
+    // Create the FUSE mount using the mount() system call. This can be
+    // used in environments where the fusermount utility is not available,
+    // such as the bb_worker container images.
+    DIRECT = 1;
+
+    // First attempt to create the FUSE mount using the mount() system
+    // call. Upon failure, fall back to the fusermount utility.
+    DIRECT_AND_FUSERMOUNT = 2;
+  }
+
+  // Method to use to create the FUSE mount.
+  MountMethod mount_method = 10;
 }
 
 message NFSv4MountConfiguration {
