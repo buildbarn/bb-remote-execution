@@ -161,13 +161,13 @@ func main() {
 
 		inputDownloadConcurrency := configuration.InputDownloadConcurrency
 		if inputDownloadConcurrency <= 0 {
-			return status.Errorf(codes.InvalidArgument, "Nonpositive input download concurrency: ", inputDownloadConcurrency)
+			return status.Errorf(codes.InvalidArgument, "Nonpositive input download concurrency: %d", inputDownloadConcurrency)
 		}
 		inputDownloadConcurrencySemaphore := semaphore.NewWeighted(inputDownloadConcurrency)
 
 		outputUploadConcurrency := configuration.OutputUploadConcurrency
 		if outputUploadConcurrency <= 0 {
-			return status.Errorf(codes.InvalidArgument, "Nonpositive output upload concurrency: ", outputUploadConcurrency)
+			return status.Errorf(codes.InvalidArgument, "Nonpositive output upload concurrency: %d", outputUploadConcurrency)
 		}
 		outputUploadConcurrencySemaphore := semaphore.NewWeighted(outputUploadConcurrency)
 
