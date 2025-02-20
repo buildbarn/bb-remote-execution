@@ -141,7 +141,29 @@ func main() {
 			actionRouter,
 			executeAuthorizer,
 			modifyDrainsAuthorizer,
-			killOperationsAuthorizer)
+			killOperationsAuthorizer,
+		)
+
+		// Force periodic cleanups of stale workers. This also
+		// happens automatically when RPCs occur, but that's not
+		// sufficient to ensure Prometheus metrics are updated
+		// if the final workers disappear.
+		//
+		// TODO: Maybe it's better to let InMemoryBuildQueue
+		// implement prometheus.Collector? Then cleanups can run
+		// whenever the scheduler is scraped.
+		dependenciesGroup.Go(func(ctx context.Context, siblingsGroup, dependenciesGroup program.Group) error {
+			t := time.NewTicker(time.Minute)
+			for {
+				select {
+				case <-t.C:
+					buildQueue.ForceCleanup()
+				case <-ctx.Done():
+					t.Stop()
+					return nil
+				}
+			}
+		})
 
 		// Create predeclared platform queues.
 		for _, platformQueue := range configuration.PredeclaredPlatformQueues {
