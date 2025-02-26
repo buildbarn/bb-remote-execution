@@ -37,11 +37,11 @@
             },
             {
                "name": "Protobuf generation",
-               "run": "find . bazel-bin/pkg/proto -name '*.pb.go' -delete || true\nbazel build $(bazel query --output=label 'kind(\"go_proto_library\", //...)')\nfind bazel-bin/pkg/proto -name '*.pb.go' | while read f; do\n  cat $f > $(echo $f | sed -e 's|.*/pkg/proto/|pkg/proto/|')\ndone\n"
+               "run": "if [ -d pkg/proto ]; then\n  find . bazel-bin/pkg/proto -name '*.pb.go' -delete || true\n  bazel build $(bazel query --output=label 'kind(\"go_proto_library\", //...)')\n  find bazel-bin/pkg/proto -name '*.pb.go' | while read f; do\n    cat $f > $(echo $f | sed -e 's|.*/pkg/proto/|pkg/proto/|')\n  done\nfi\n"
             },
             {
                "name": "Embedded asset generation",
-               "run": "bazel build $(git grep '^[[:space:]]*//go:embed ' | sed -e 's|\\(.*\\)/.*//go:embed |//\\1:|' | sort -u)\ngit grep '^[[:space:]]*//go:embed ' | sed -e 's|\\(.*\\)/.*//go:embed |\\1/|' | while read o; do\n  if [ -e \"bazel-bin/$o\" ]; then\n    rm -rf \"$o\"\n    cp -r \"bazel-bin/$o\" \"$o\"\n    find \"$o\" -type f -exec chmod -x {} +\n  fi\ndone\n"
+               "run": "bazel build $(git grep '^[[:space:]]*//go:embed ' | sed -e 's|\\(.*\\)/.*//go:embed |//\\1:|; s|\"||g; s| .*||' | sort -u)\ngit grep '^[[:space:]]*//go:embed ' | sed -e 's|\\(.*\\)/.*//go:embed |\\1/|' | while read o; do\n  if [ -e \"bazel-bin/$o\" ]; then\n    rm -rf \"$o\"\n    cp -r \"bazel-bin/$o\" \"$o\"\n    find \"$o\" -type f -exec chmod -x {} +\n  fi\ndone\n"
             },
             {
                "name": "Test style conformance",
@@ -81,7 +81,7 @@
             },
             {
                "name": "windows_amd64: build and test",
-               "run": "bazel build --platforms=@rules_go//go/toolchain:windows_amd64 //..."
+               "run": "bazel build --platforms=@rules_go//go/toolchain:windows_amd64 //cmd/bb_noop_worker //cmd/bb_runner //cmd/bb_scheduler //cmd/bb_virtual_tmp //cmd/bb_worker //cmd/fake_python //cmd/fake_xcrun"
             }
          ]
       }
@@ -90,6 +90,7 @@
    "on": {
       "pull_request": {
          "branches": [
+            "main",
             "master"
          ]
       }

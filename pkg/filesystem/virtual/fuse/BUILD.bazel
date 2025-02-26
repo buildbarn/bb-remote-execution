@@ -75,7 +75,15 @@ go_library(
             "@org_golang_google_grpc//codes",
             "@org_golang_google_grpc//status",
         ],
+        "@rules_go//go/platform:osx": [
+            "@org_golang_google_grpc//codes",
+            "@org_golang_google_grpc//status",
+        ],
         "@rules_go//go/platform:plan9": [
+            "@org_golang_google_grpc//codes",
+            "@org_golang_google_grpc//status",
+        ],
+        "@rules_go//go/platform:qnx": [
             "@org_golang_google_grpc//codes",
             "@org_golang_google_grpc//status",
         ],
