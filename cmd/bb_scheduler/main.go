@@ -16,7 +16,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/scheduler"
 	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/initialsizeclass"
 	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/routing"
-	"github.com/buildbarn/bb-storage/pkg/auth"
+	auth_configuration "github.com/buildbarn/bb-storage/pkg/auth/configuration"
 	blobstore_configuration "github.com/buildbarn/bb-storage/pkg/blobstore/configuration"
 	"github.com/buildbarn/bb-storage/pkg/capabilities"
 	"github.com/buildbarn/bb-storage/pkg/clock"
@@ -97,16 +97,16 @@ func main() {
 			return util.StatusWrap(err, "Failed to create action router")
 		}
 
-		authorizerFactory := auth.DefaultAuthorizerFactory
-		executeAuthorizer, err := authorizerFactory.NewAuthorizerFromConfiguration(configuration.ExecuteAuthorizer)
+		authorizerFactory := auth_configuration.DefaultAuthorizerFactory
+		executeAuthorizer, err := authorizerFactory.NewAuthorizerFromConfiguration(configuration.ExecuteAuthorizer, grpcClientFactory)
 		if err != nil {
 			return util.StatusWrap(err, "Failed to create execute authorizer")
 		}
-		modifyDrainsAuthorizer, err := authorizerFactory.NewAuthorizerFromConfiguration(configuration.ModifyDrainsAuthorizer)
+		modifyDrainsAuthorizer, err := authorizerFactory.NewAuthorizerFromConfiguration(configuration.ModifyDrainsAuthorizer, grpcClientFactory)
 		if err != nil {
 			return util.StatusWrap(err, "Failed to create modify drains authorizer")
 		}
-		killOperationsAuthorizer, err := authorizerFactory.NewAuthorizerFromConfiguration(configuration.KillOperationsAuthorizer)
+		killOperationsAuthorizer, err := authorizerFactory.NewAuthorizerFromConfiguration(configuration.KillOperationsAuthorizer, grpcClientFactory)
 		if err != nil {
 			return util.StatusWrap(err, "Failed to create kill operaitons authorizer")
 		}
@@ -179,6 +179,7 @@ func main() {
 				remoteexecution.RegisterExecutionServer(s, buildQueue)
 			},
 			siblingsGroup,
+			grpcClientFactory,
 		); err != nil {
 			return util.StatusWrap(err, "Client gRPC server failure")
 		}
@@ -188,6 +189,7 @@ func main() {
 				remoteworker.RegisterOperationQueueServer(s, buildQueue)
 			},
 			siblingsGroup,
+			grpcClientFactory,
 		); err != nil {
 			return util.StatusWrap(err, "Worker gRPC server failure")
 		}
@@ -197,6 +199,7 @@ func main() {
 				buildqueuestate.RegisterBuildQueueStateServer(s, buildQueue)
 			},
 			siblingsGroup,
+			grpcClientFactory,
 		); err != nil {
 			return util.StatusWrap(err, "Build queue state gRPC server failure")
 		}
@@ -213,6 +216,7 @@ func main() {
 			configuration.AdminHttpServers,
 			http.NewMetricsHandler(router, "SchedulerUI"),
 			siblingsGroup,
+			grpcClientFactory,
 		)
 
 		lifecycleState.MarkReadyAndWait(siblingsGroup)
