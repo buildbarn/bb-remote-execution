@@ -738,7 +738,14 @@ func (i *inMemoryPrepopulatedDirectory) virtualGetAttributesLocked(requested Att
 	attributes.SetLastDataModificationTime(i.contents.lastDataModificationTime)
 }
 
-func (inMemoryPrepopulatedDirectory) VirtualApply(data any) bool {
+func (i *inMemoryPrepopulatedDirectory) VirtualApply(data any) bool {
+	i.lock.Lock()
+	initialContentsFetcher := i.initialContentsFetcher
+	i.lock.Unlock()
+
+	if initialContentsFetcher != nil {
+		return initialContentsFetcher.VirtualApply(data)
+	}
 	return false
 }
 
