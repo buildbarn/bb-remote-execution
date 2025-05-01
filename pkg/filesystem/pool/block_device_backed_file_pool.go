@@ -3,6 +3,7 @@ package pool
 import (
 	"fmt"
 	"io"
+	"strings"
 
 	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/blockdevice"
@@ -33,16 +34,31 @@ func NewBlockDeviceBackedFilePool(blockDevice blockdevice.BlockDevice, sectorAll
 	}
 }
 
-func (fp *blockDeviceBackedFilePool) NewFile() (filesystem.FileReadWriter, error) {
-	return &blockDeviceBackedFile{
-		fp: fp,
-	}, nil
+func (fp *blockDeviceBackedFilePool) NewFile(sparseReaderAt SparseReaderAt, initialSize uint64) (filesystem.FileReadWriter, error) {
+	var err error
+	if sparseReaderAt == nil {
+		if initialSize != 0 {
+			return nil, status.Errorf(codes.InvalidArgument, "initial size must be zero when sparseReaderAt is nil")
+		}
+		if sparseReaderAt, err = NewSimpleSparseReaderAt(strings.NewReader(""), nil, 0); err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to create empty SparseReaderAt: %v", err)
+		}
+	}
+	fr := &blockDeviceBackedFile{
+		fp:         fp,
+		underlying: NewTruncatableSparseReaderAt(sparseReaderAt, int64(initialSize)),
+	}
+	if err = fr.Truncate(int64(initialSize)); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to truncate file to initial size: %v", err)
+	}
+	return fr, nil
 }
 
 type blockDeviceBackedFile struct {
-	fp        *blockDeviceBackedFilePool
-	sizeBytes uint64
-	sectors   []uint32
+	fp         *blockDeviceBackedFilePool
+	underlying TruncatableSparseReaderAt
+	sizeBytes  uint64
+	sectors    []uint32
 }
 
 func (f *blockDeviceBackedFile) Close() error {
@@ -115,7 +131,7 @@ func (f *blockDeviceBackedFile) limitBufferToSectorBoundary(p []byte, sectorCoun
 	return p
 }
 
-func (f *blockDeviceBackedFile) GetNextRegionOffset(off int64, regionType filesystem.RegionType) (int64, error) {
+func (f *blockDeviceBackedFile) getNextRegionOffsetForOverlay(off int64, regionType filesystem.RegionType) (int64, error) {
 	// Short circuit calls that are out of bounds.
 	if off < 0 {
 		return 0, status.Errorf(codes.InvalidArgument, "Negative seek offset: %d", off)
@@ -165,6 +181,77 @@ func (f *blockDeviceBackedFile) GetNextRegionOffset(off int64, regionType filesy
 	}
 }
 
+func (f *blockDeviceBackedFile) GetNextRegionOffset(off int64, regionType filesystem.RegionType) (int64, error) {
+	// Short circuit calls that are out of bounds.
+	if off < 0 {
+		return 0, status.Errorf(codes.InvalidArgument, "Negative seek offset: %d", off)
+	}
+	if uint64(off) >= f.sizeBytes {
+		return 0, io.EOF
+	}
+
+	// Data is represented by the existence of a written sector in
+	// either the overlay or the underlying file. Holes are represented
+	// by the absence of a written sector in the overlay _and_ a hole in
+	// the underlying file.
+	//
+	// For data this is the lowest valued offset of the two candidates.
+	// For holes it's the first position which both sources agree upon
+	// are holes.
+	switch regionType {
+	case filesystem.Data:
+		data1, err := f.underlying.GetNextRegionOffset(off, filesystem.Data)
+		if err == io.EOF {
+			// No more data in the underlying file. Return the result
+			// from the overlay.
+			return f.getNextRegionOffsetForOverlay(off, filesystem.Data)
+		}
+		if err != nil {
+			return data1, status.Errorf(codes.Internal, "unexpected error while searching for data in underlying file: %v", err)
+		}
+		data2, err := f.getNextRegionOffsetForOverlay(off, filesystem.Data)
+		if err == io.EOF {
+			// No more data in the overlay, return the data from the
+			// underlying file.
+			return data1, nil
+		}
+		if err != nil {
+			return data2, status.Errorf(codes.Internal, "unexpected error while searching for data in underlying file: %v", err)
+		}
+		if data1 < data2 {
+			return data1, nil
+		}
+		return data2, nil
+	case filesystem.Hole:
+		for {
+			// Since we have already ruled out that we are past the EOF
+			// boundary no calls to GetNextRegionOffset should be
+			// capable of returning holes.
+			hole1, err := f.underlying.GetNextRegionOffset(off, filesystem.Hole)
+			if err != nil {
+				return hole1, status.Errorf(codes.Internal, "unexpected error while searching for hole in underlying file: %v", err)
+			}
+			hole2, err := f.getNextRegionOffsetForOverlay(off, filesystem.Hole)
+			if err != nil {
+				return hole2, status.Errorf(codes.Internal, "unexpected error while searching for hole in overlay file: %v", err)
+			}
+			if hole1 == hole2 {
+				// Both sources agree that it's a hole.
+				return hole1, nil
+			}
+			if hole1 == int64(f.sizeBytes) || hole2 == int64(f.sizeBytes) {
+				// The only possible hole is the implicit hole at the
+				// end of the file.
+				return int64(f.sizeBytes), nil
+			}
+			// Continue searching at the next possible offset.
+			off = max(hole1, hole2)
+		}
+	default:
+		panic("Unknown region type")
+	}
+}
+
 // readFromSectors performs a single read against the block device. It
 // attempts to read as much data into the output buffer as is possible
 // in a single read operation. If the file is fragmented, multiple reads
@@ -172,23 +259,17 @@ func (f *blockDeviceBackedFile) GetNextRegionOffset(off int64, regionType filesy
 func (f *blockDeviceBackedFile) readFromSectors(p []byte, sectorIndex, lastSectorIndex, offsetWithinSector int) (int, error) {
 	if sectorIndex >= len(f.sectors) {
 		// Attempted to read from a hole located at the
-		// end of the file. Fill up all of the remaining
-		// space with zero bytes.
-		for i := 0; i < len(p); i++ {
-			p[i] = 0
-		}
-		return len(p), nil
+		// end of the file. Delegate to ReadLayer.
+		offset := f.fp.sectorSizeBytes*sectorIndex + offsetWithinSector
+		return f.underlying.ReadAt(p, int64(offset))
 	}
 
 	sector, sectorsToRead := f.getSectorsContiguous(sectorIndex, lastSectorIndex)
 	p = f.limitBufferToSectorBoundary(p, sectorsToRead, offsetWithinSector)
 	if sector == 0 {
 		// Attempted to read from a sparse region of the file.
-		// Fill in zero bytes.
-		for i := 0; i < len(p); i++ {
-			p[i] = 0
-		}
-		return len(p), nil
+		offset := f.fp.sectorSizeBytes*sectorIndex + offsetWithinSector
+		return f.underlying.ReadAt(p, int64(offset))
 	}
 
 	// Attempted to read from a region of the file that contains
@@ -267,6 +348,9 @@ func (f *blockDeviceBackedFile) Truncate(size int64) error {
 	if size < 0 {
 		return status.Errorf(codes.InvalidArgument, "Negative truncation size: %d", size)
 	}
+	if err := f.underlying.Truncate(size); err != nil {
+		return status.Errorf(codes.Internal, "truncating the underlying file failed: %v", err)
+	}
 
 	sectorIndex := int(size / int64(f.fp.sectorSizeBytes))
 	offsetWithinSector := int(size % int64(f.fp.sectorSizeBytes))
@@ -299,7 +383,7 @@ func (f *blockDeviceBackedFile) Truncate(size int64) error {
 // writeToNewSectors is used to write data into new sectors. This
 // function is called when holes in a sparse file are filled up or when
 // data is appended to the end of a file.
-func (f *blockDeviceBackedFile) writeToNewSectors(p []byte, offsetWithinSector int) (int, uint32, int, error) {
+func (f *blockDeviceBackedFile) writeToNewSectors(p []byte, fromSector, offsetWithinSector int) (int, uint32, int, error) {
 	// Allocate space to store the data.
 	sectorsToAllocate := int((uint64(offsetWithinSector) + uint64(len(p)) + uint64(f.fp.sectorSizeBytes) - 1) / uint64(f.fp.sectorSizeBytes))
 	firstSector, sectorsAllocated, err := f.fp.sectorAllocator.AllocateContiguous(sectorsToAllocate)
@@ -314,10 +398,15 @@ func (f *blockDeviceBackedFile) writeToNewSectors(p []byte, offsetWithinSector i
 	nWritten := len(p)
 
 	// Write the first sector separately when we need to introduce
-	// leading zero padding.
+	// leading read layer padding.
 	sector := firstSector
 	if offsetWithinSector > 0 {
 		buf := make([]byte, f.fp.sectorSizeBytes)
+		logicalOffset := fromSector * f.fp.sectorSizeBytes
+		if _, err := f.underlying.ReadAt(buf[:offsetWithinSector], int64(logicalOffset)); err != nil {
+			f.fp.sectorAllocator.FreeContiguous(firstSector, sectorsAllocated)
+			return 0, 0, 0, err
+		}
 		nWritten := copy(buf[offsetWithinSector:], p)
 		if _, err := f.fp.blockDevice.WriteAt(buf, f.toDeviceOffset(sector, 0)); err != nil {
 			f.fp.sectorAllocator.FreeContiguous(firstSector, sectorsAllocated)
@@ -340,9 +429,14 @@ func (f *blockDeviceBackedFile) writeToNewSectors(p []byte, offsetWithinSector i
 	}
 
 	// Write the last sector separately when we need to introduce
-	// trailing zero padding.
+	// trailing read layer padding.
 	if len(p) > 0 {
 		buf := make([]byte, f.fp.sectorSizeBytes)
+		logicalOffset := uint32(len(p)) + (sector-firstSector)*uint32(f.fp.sectorSizeBytes)
+		if _, err := f.underlying.ReadAt(buf[len(p):], int64(logicalOffset)); err != nil {
+			f.fp.sectorAllocator.FreeContiguous(firstSector, sectorsAllocated)
+			return 0, 0, 0, err
+		}
 		copy(buf, p)
 		if _, err := f.fp.blockDevice.WriteAt(buf, f.toDeviceOffset(sector, 0)); err != nil {
 			f.fp.sectorAllocator.FreeContiguous(firstSector, sectorsAllocated)
@@ -375,7 +469,7 @@ func (f *blockDeviceBackedFile) writeToSectors(p []byte, sectorIndex, lastSector
 		// Attempted to write past the end-of-file or within a
 		// hole located at the end of a sparse file. Allocate
 		// space and grow the file.
-		bytesWritten, firstSector, sectorsAllocated, err := f.writeToNewSectors(p, offsetWithinSector)
+		bytesWritten, firstSector, sectorsAllocated, err := f.writeToNewSectors(p, sectorIndex, offsetWithinSector)
 		if err != nil {
 			return 0, err
 		}
@@ -389,7 +483,7 @@ func (f *blockDeviceBackedFile) writeToSectors(p []byte, sectorIndex, lastSector
 	if sector == 0 {
 		// Attempted to write to a hole within a sparse file.
 		// Allocate space and insert sectors into the file.
-		bytesWritten, firstSector, sectorsAllocated, err := f.writeToNewSectors(p, offsetWithinSector)
+		bytesWritten, firstSector, sectorsAllocated, err := f.writeToNewSectors(p, sectorIndex, offsetWithinSector)
 		if err != nil {
 			return 0, err
 		}
@@ -408,6 +502,13 @@ func (f *blockDeviceBackedFile) WriteAt(p []byte, off int64) (int, error) {
 	}
 	if len(p) == 0 {
 		return 0, nil
+	}
+	// Truncate the file to a larger size if needed to accomodate the
+	// read.
+	if f.sizeBytes < uint64(off)+uint64(len(p)) {
+		if err := f.Truncate(off + int64(len(p))); err != nil {
+			return 0, err
+		}
 	}
 
 	// As the file may be stored on disk non-contiguously or may be

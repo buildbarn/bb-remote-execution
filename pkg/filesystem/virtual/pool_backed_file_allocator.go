@@ -71,7 +71,7 @@ func NewPoolBackedFileAllocator(pool pool.FilePool, errorLogger util.ErrorLogger
 }
 
 func (fa *poolBackedFileAllocator) NewFile(isExecutable bool, size uint64, shareAccess ShareMask) (LinkableLeaf, Status) {
-	file, err := fa.pool.NewFile()
+	file, err := fa.pool.NewFile(nil, 0)
 	if err != nil {
 		fa.errorLogger.Log(util.StatusWrapf(err, "Failed to create new file"))
 		return nil, StatusErrIO

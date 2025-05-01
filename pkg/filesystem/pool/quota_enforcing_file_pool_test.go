@@ -25,12 +25,12 @@ func testRemainingQuota(t *testing.T, ctrl *gomock.Controller, underlyingPool *m
 	files := make([]filesystem.FileReadWriter, filesRemaining)
 	for i := 0; i < filesRemaining; i++ {
 		underlyingFiles[i] = mock.NewMockFileReadWriter(ctrl)
-		underlyingPool.EXPECT().NewFile().Return(underlyingFiles[i], nil)
+		underlyingPool.EXPECT().NewFile(nil, uint64(0)).Return(underlyingFiles[i], nil)
 		var err error
-		files[i], err = pool.NewFile()
+		files[i], err = pool.NewFile(nil, 0)
 		require.NoError(t, err)
 	}
-	_, err := pool.NewFile()
+	_, err := pool.NewFile(nil, 0)
 	require.Equal(t, err, status.Error(codes.InvalidArgument, "File count quota reached"))
 	for i := 0; i < filesRemaining; i++ {
 		underlyingFiles[i].EXPECT().Close().Return(nil)
@@ -40,8 +40,8 @@ func testRemainingQuota(t *testing.T, ctrl *gomock.Controller, underlyingPool *m
 	// Check that the remaining amount of space is available by
 	// allocating one file and truncating it to the exact size.
 	underlyingFile := mock.NewMockFileReadWriter(ctrl)
-	underlyingPool.EXPECT().NewFile().Return(underlyingFile, nil)
-	f, err := pool.NewFile()
+	underlyingPool.EXPECT().NewFile(nil, uint64(0)).Return(underlyingFile, nil)
+	f, err := pool.NewFile(nil, 0)
 	require.NoError(t, err)
 	if bytesRemaining != 0 {
 		underlyingFile.EXPECT().Truncate(bytesRemaining).Return(nil)
@@ -62,15 +62,15 @@ func TestQuotaEnforcingFilePoolExample(t *testing.T) {
 
 	// Failure to allocate a file from the underlying pool should
 	// not affect the quota.
-	underlyingPool.EXPECT().NewFile().Return(nil, status.Error(codes.Internal, "I/O error"))
-	_, err := pool.NewFile()
+	underlyingPool.EXPECT().NewFile(nil, uint64(0)).Return(nil, status.Error(codes.Internal, "I/O error"))
+	_, err := pool.NewFile(nil, 0)
 	require.Equal(t, err, status.Error(codes.Internal, "I/O error"))
 	testRemainingQuota(t, ctrl, underlyingPool, pool, 10, 1000)
 
 	// Successfully allocate a file.
 	underlyingFile := mock.NewMockFileReadWriter(ctrl)
-	underlyingPool.EXPECT().NewFile().Return(underlyingFile, nil)
-	f, err := pool.NewFile()
+	underlyingPool.EXPECT().NewFile(nil, uint64(0)).Return(underlyingFile, nil)
+	f, err := pool.NewFile(nil, 0)
 	require.NoError(t, err)
 	testRemainingQuota(t, ctrl, underlyingPool, pool, 9, 1000)
 

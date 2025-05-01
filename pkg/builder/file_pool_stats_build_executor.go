@@ -57,8 +57,8 @@ type statsCollectingFilePool struct {
 	totalFiles uint64
 }
 
-func (fp *statsCollectingFilePool) NewFile() (filesystem.FileReadWriter, error) {
-	f, err := fp.base.NewFile()
+func (fp *statsCollectingFilePool) NewFile(sparseReaderAt pool.SparseReaderAt, size uint64) (filesystem.FileReadWriter, error) {
+	f, err := fp.base.NewFile(sparseReaderAt, size)
 	if err != nil {
 		return nil, err
 	}
