@@ -44,8 +44,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/cas",
-        "//pkg/filesystem",
         "//pkg/filesystem/access",
+        "//pkg/filesystem/pool",
         "//pkg/proto/bazeloutputservice",
         "//pkg/proto/bazeloutputservice/rev2",
         "//pkg/proto/outputpathpersistency",

@@ -7,8 +7,8 @@ import (
 	"sync/atomic"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
-	"github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
+	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/program"
@@ -105,7 +105,7 @@ func (be *testInfrastructureFailureDetectingBuildExecutor) CheckReadiness(ctx co
 	})
 }
 
-func (be *testInfrastructureFailureDetectingBuildExecutor) Execute(ctx context.Context, filePool filesystem.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+func (be *testInfrastructureFailureDetectingBuildExecutor) Execute(ctx context.Context, filePool pool.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 	if err := be.shutdownState.isShutDown(); err != nil {
 		response := NewDefaultExecuteResponse(request)
 		attachErrorToExecuteResponse(response, err)

@@ -1,4 +1,4 @@
-package filesystem_test
+package pool_test
 
 import (
 	"io"
@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
-	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
+	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/stretchr/testify/require"
@@ -22,7 +22,7 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 
 	blockDevice := mock.NewMockBlockDevice(ctrl)
 	sectorAllocator := mock.NewMockSectorAllocator(ctrl)
-	pool := re_filesystem.NewBlockDeviceBackedFilePool(blockDevice, sectorAllocator, 16)
+	pool := pool.NewBlockDeviceBackedFilePool(blockDevice, sectorAllocator, 16)
 
 	t.Run("ReadEmptyFile", func(t *testing.T) {
 		// Test that reads on an empty file work as expected.

@@ -5,8 +5,8 @@ import (
 	"sync"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
-	"github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
+	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage"
 	"github.com/buildbarn/bb-storage/pkg/digest"
@@ -292,7 +292,7 @@ func observeTimestampDelta(histogram prometheus.Observer, pbStart, pbCompleted *
 	histogram.Observe(pbCompleted.AsTime().Sub(pbStart.AsTime()).Seconds())
 }
 
-func (be *metricsBuildExecutor) Execute(ctx context.Context, filePool filesystem.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+func (be *metricsBuildExecutor) Execute(ctx context.Context, filePool pool.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 	response := be.BuildExecutor.Execute(ctx, filePool, monitor, digestFunction, request, executionStateUpdates)
 	result, grpcCode := GetResultAndGRPCCodeFromExecuteResponse(response)
 

@@ -6,8 +6,8 @@ import (
 	"net/url"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
-	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
+	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	re_util "github.com/buildbarn/bb-remote-execution/pkg/util"
 	"github.com/buildbarn/bb-storage/pkg/digest"
@@ -31,7 +31,7 @@ func NewLoggingBuildExecutor(base BuildExecutor, browserURL *url.URL) BuildExecu
 	}
 }
 
-func (be *loggingBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+func (be *loggingBuildExecutor) Execute(ctx context.Context, filePool pool.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 	// Print URL to bb_browser prior to execution.
 	if actionDigest, err := digestFunction.NewDigestFromProto(request.ActionDigest); err == nil {
 		log.Printf("Action: %s with timeout %s", re_util.GetBrowserURL(be.browserURL, "action", actionDigest), request.Action.GetTimeout().AsDuration())

@@ -4,8 +4,8 @@ import (
 	"context"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
-	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
+	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 
@@ -29,7 +29,7 @@ func NewTracingBuildExecutor(buildExecutor BuildExecutor, tracerProvider trace.T
 	}
 }
 
-func (be *tracingBuildExecutor) Execute(ctx context.Context, filePool re_filesystem.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+func (be *tracingBuildExecutor) Execute(ctx context.Context, filePool pool.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 	actionDigest := request.ActionDigest
 	action := request.Action
 	ctxWithTracing, span := be.tracer.Start(ctx, "BuildExecutor.Execute", trace.WithAttributes(

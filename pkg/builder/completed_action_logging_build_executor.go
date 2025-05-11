@@ -4,8 +4,8 @@ import (
 	"context"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
-	"github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
+	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	cas_proto "github.com/buildbarn/bb-remote-execution/pkg/proto/cas"
 	cal_proto "github.com/buildbarn/bb-remote-execution/pkg/proto/completedactionlogger"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
@@ -34,7 +34,7 @@ func NewCompletedActionLoggingBuildExecutor(base BuildExecutor, uuidGenerator ut
 	}
 }
 
-func (be *completedActionLoggingBuildExecutor) Execute(ctx context.Context, filePool filesystem.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+func (be *completedActionLoggingBuildExecutor) Execute(ctx context.Context, filePool pool.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 	response := be.BuildExecutor.Execute(ctx, filePool, monitor, digestFunction, request, executionStateUpdates)
 
 	completedAction := &cal_proto.CompletedAction{

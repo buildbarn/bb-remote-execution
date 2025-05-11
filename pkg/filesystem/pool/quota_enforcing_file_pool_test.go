@@ -1,11 +1,11 @@
-package filesystem_test
+package pool_test
 
 import (
 	"io"
 	"testing"
 
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
-	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
+	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/stretchr/testify/require"
 
@@ -18,7 +18,7 @@ import (
 // testRemainingQuota is a helper function for the
 // QuotaEnforcingFilePool tests to check that a certain amount of space
 // is available within the pool.
-func testRemainingQuota(t *testing.T, ctrl *gomock.Controller, underlyingPool *mock.MockFilePool, pool re_filesystem.FilePool, filesRemaining int, bytesRemaining int64) {
+func testRemainingQuota(t *testing.T, ctrl *gomock.Controller, underlyingPool *mock.MockFilePool, pool pool.FilePool, filesRemaining int, bytesRemaining int64) {
 	// Check that the remaining number of files is available by
 	// allocating all of them.
 	underlyingFiles := make([]*mock.MockFileReadWriter, filesRemaining)
@@ -57,7 +57,7 @@ func TestQuotaEnforcingFilePoolExample(t *testing.T) {
 
 	// An empty pool should have the advertised amount of space available.
 	underlyingPool := mock.NewMockFilePool(ctrl)
-	pool := re_filesystem.NewQuotaEnforcingFilePool(underlyingPool, 10, 1000)
+	pool := pool.NewQuotaEnforcingFilePool(underlyingPool, 10, 1000)
 	testRemainingQuota(t, ctrl, underlyingPool, pool, 10, 1000)
 
 	// Failure to allocate a file from the underlying pool should

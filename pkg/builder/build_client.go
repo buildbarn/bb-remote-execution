@@ -6,7 +6,7 @@ import (
 	"time"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
-	"github.com/buildbarn/bb-remote-execution/pkg/filesystem"
+	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
@@ -28,7 +28,7 @@ type BuildClient struct {
 	// Constant fields.
 	scheduler           remoteworker.OperationQueueClient
 	buildExecutor       BuildExecutor
-	filePool            filesystem.FilePool
+	filePool            pool.FilePool
 	clock               clock.Clock
 	instanceNamePrefix  digest.InstanceName
 	instanceNamePatcher digest.InstanceNamePatcher
@@ -45,7 +45,7 @@ type BuildClient struct {
 
 // NewBuildClient creates a new BuildClient instance that is set to the
 // initial state (i.e., being idle).
-func NewBuildClient(scheduler remoteworker.OperationQueueClient, buildExecutor BuildExecutor, filePool filesystem.FilePool, clock clock.Clock, workerID map[string]string, instanceNamePrefix digest.InstanceName, platform *remoteexecution.Platform, sizeClass uint32) *BuildClient {
+func NewBuildClient(scheduler remoteworker.OperationQueueClient, buildExecutor BuildExecutor, filePool pool.FilePool, clock clock.Clock, workerID map[string]string, instanceNamePrefix digest.InstanceName, platform *remoteexecution.Platform, sizeClass uint32) *BuildClient {
 	return &BuildClient{
 		scheduler:           scheduler,
 		buildExecutor:       buildExecutor,

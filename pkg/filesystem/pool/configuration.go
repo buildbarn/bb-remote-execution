@@ -1,8 +1,9 @@
-package filesystem
+package pool
 
 import (
 	"math"
 
+	"github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	pb "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/blockdevice"
 	"github.com/buildbarn/bb-storage/pkg/util"
@@ -33,7 +34,7 @@ func NewFilePoolFromConfiguration(configuration *pb.FilePoolConfiguration) (File
 		}
 		filePool = NewBlockDeviceBackedFilePool(
 			blockDevice,
-			NewBitmapSectorAllocator(uint32(sectorCount)),
+			filesystem.NewBitmapSectorAllocator(uint32(sectorCount)),
 			sectorSizeBytes)
 	default:
 		return nil, status.Error(codes.InvalidArgument, "Configuration did not contain a supported file pool backend")

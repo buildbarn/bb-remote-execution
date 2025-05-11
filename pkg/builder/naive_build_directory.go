@@ -6,8 +6,8 @@ import (
 	"math"
 
 	"github.com/buildbarn/bb-remote-execution/pkg/cas"
-	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
+	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
@@ -74,7 +74,7 @@ func (d *naiveBuildDirectory) EnterUploadableDirectory(name path.Component) (Upl
 	return d.EnterBuildDirectory(name)
 }
 
-func (d *naiveBuildDirectory) InstallHooks(filePool re_filesystem.FilePool, errorLogger util.ErrorLogger) {
+func (d *naiveBuildDirectory) InstallHooks(filePool pool.FilePool, errorLogger util.ErrorLogger) {
 	// Simply ignore the provided hooks, as POSIX offers no way to
 	// install them. This means no quota enforcement and detection
 	// of I/O errors is performed.

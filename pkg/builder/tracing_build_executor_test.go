@@ -7,8 +7,8 @@ import (
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
-	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
+	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
@@ -65,7 +65,7 @@ func TestTracingBuildExecutor(t *testing.T) {
 	monitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
 	digestFunction := digest.MustNewFunction("hello", remoteexecution.DigestFunction_SHA256)
 	baseBuildExecutor.EXPECT().Execute(ctxWithTracing, filePool, monitor, digestFunction, testutil.EqProto(t, request), gomock.Any()).DoAndReturn(
-		func(ctx context.Context, filePool re_filesystem.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+		func(ctx context.Context, filePool pool.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 			executionStateUpdates <- fetchingInputs
 			executionStateUpdates <- running
 			executionStateUpdates <- uploadingOutputs

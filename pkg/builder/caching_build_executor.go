@@ -5,8 +5,8 @@ import (
 	"net/url"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
-	"github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
+	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	cas_proto "github.com/buildbarn/bb-remote-execution/pkg/proto/cas"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	re_util "github.com/buildbarn/bb-remote-execution/pkg/util"
@@ -42,7 +42,7 @@ func NewCachingBuildExecutor(base BuildExecutor, contentAddressableStorage, acti
 	}
 }
 
-func (be *cachingBuildExecutor) Execute(ctx context.Context, filePool filesystem.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+func (be *cachingBuildExecutor) Execute(ctx context.Context, filePool pool.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 	response := be.BuildExecutor.Execute(ctx, filePool, monitor, digestFunction, request, executionStateUpdates)
 	if actionDigest, err := digestFunction.NewDigestFromProto(request.ActionDigest); err != nil {
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to extract digest for action"))

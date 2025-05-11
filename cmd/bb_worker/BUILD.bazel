@@ -16,7 +16,7 @@ go_library(
         "//pkg/cas",
         "//pkg/cleaner",
         "//pkg/clock",
-        "//pkg/filesystem",
+        "//pkg/filesystem/pool",
         "//pkg/filesystem/virtual",
         "//pkg/filesystem/virtual/configuration",
         "//pkg/proto/completedactionlogger",

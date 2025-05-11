@@ -8,8 +8,8 @@ import (
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
-	"github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
+	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
@@ -69,7 +69,7 @@ func TestTimestampedBuildExecutorExample(t *testing.T) {
 		monitor,
 		digest.MustNewFunction("main", remoteexecution.DigestFunction_MD5),
 		request,
-		gomock.Any()).DoAndReturn(func(ctx context.Context, filePool filesystem.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+		gomock.Any()).DoAndReturn(func(ctx context.Context, filePool pool.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 		clock.EXPECT().Now().Return(time.Unix(1001, 0))
 		executionStateUpdates <- updateFetchingInputs
 		clock.EXPECT().Now().Return(time.Unix(1002, 0))
