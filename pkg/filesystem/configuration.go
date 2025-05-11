@@ -5,8 +5,6 @@ import (
 
 	pb "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/blockdevice"
-	"github.com/buildbarn/bb-storage/pkg/filesystem"
-	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
 
 	"google.golang.org/grpc/codes"
@@ -25,18 +23,6 @@ func NewFilePoolFromConfiguration(configuration *pb.FilePoolConfiguration) (File
 
 	var filePool FilePool
 	switch backend := configuration.Backend.(type) {
-	case *pb.FilePoolConfiguration_InMemory:
-		filePool = InMemoryFilePool
-	case *pb.FilePoolConfiguration_DirectoryPath:
-		directory, err := filesystem.NewLocalDirectory(path.LocalFormat.NewParser(backend.DirectoryPath))
-		if err != nil {
-			return nil, util.StatusWrapf(err, "Failed to open directory %#v", backend.DirectoryPath)
-		}
-		if err := directory.RemoveAllChildren(); err != nil {
-			directory.Close()
-			return nil, util.StatusWrapf(err, "Failed to empty out directory %#v", backend.DirectoryPath)
-		}
-		filePool = NewDirectoryBackedFilePool(directory)
 	case *pb.FilePoolConfiguration_BlockDevice:
 		blockDevice, sectorSizeBytes, sectorCount, err := blockdevice.NewBlockDeviceFromConfiguration(backend.BlockDevice, true)
 		if err != nil {
