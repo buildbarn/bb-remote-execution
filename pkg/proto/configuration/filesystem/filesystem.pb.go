@@ -10,7 +10,6 @@ import (
 	blockdevice "github.com/buildbarn/bb-storage/pkg/proto/configuration/blockdevice"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -27,8 +26,6 @@ type FilePoolConfiguration struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Backend:
 	//
-	//	*FilePoolConfiguration_InMemory
-	//	*FilePoolConfiguration_DirectoryPath
 	//	*FilePoolConfiguration_BlockDevice
 	Backend       isFilePoolConfiguration_Backend `protobuf_oneof:"backend"`
 	unknownFields protoimpl.UnknownFields
@@ -72,24 +69,6 @@ func (x *FilePoolConfiguration) GetBackend() isFilePoolConfiguration_Backend {
 	return nil
 }
 
-func (x *FilePoolConfiguration) GetInMemory() *emptypb.Empty {
-	if x != nil {
-		if x, ok := x.Backend.(*FilePoolConfiguration_InMemory); ok {
-			return x.InMemory
-		}
-	}
-	return nil
-}
-
-func (x *FilePoolConfiguration) GetDirectoryPath() string {
-	if x != nil {
-		if x, ok := x.Backend.(*FilePoolConfiguration_DirectoryPath); ok {
-			return x.DirectoryPath
-		}
-	}
-	return ""
-}
-
 func (x *FilePoolConfiguration) GetBlockDevice() *blockdevice.Configuration {
 	if x != nil {
 		if x, ok := x.Backend.(*FilePoolConfiguration_BlockDevice); ok {
@@ -103,21 +82,9 @@ type isFilePoolConfiguration_Backend interface {
 	isFilePoolConfiguration_Backend()
 }
 
-type FilePoolConfiguration_InMemory struct {
-	InMemory *emptypb.Empty `protobuf:"bytes,1,opt,name=in_memory,json=inMemory,proto3,oneof"`
-}
-
-type FilePoolConfiguration_DirectoryPath struct {
-	DirectoryPath string `protobuf:"bytes,2,opt,name=directory_path,json=directoryPath,proto3,oneof"`
-}
-
 type FilePoolConfiguration_BlockDevice struct {
 	BlockDevice *blockdevice.Configuration `protobuf:"bytes,3,opt,name=block_device,json=blockDevice,proto3,oneof"`
 }
-
-func (*FilePoolConfiguration_InMemory) isFilePoolConfiguration_Backend() {}
-
-func (*FilePoolConfiguration_DirectoryPath) isFilePoolConfiguration_Backend() {}
 
 func (*FilePoolConfiguration_BlockDevice) isFilePoolConfiguration_Backend() {}
 
@@ -125,12 +92,10 @@ var File_pkg_proto_configuration_filesystem_filesystem_proto protoreflect.FileDe
 
 const file_pkg_proto_configuration_filesystem_filesystem_proto_rawDesc = "" +
 	"\n" +
-	"3pkg/proto/configuration/filesystem/filesystem.proto\x12\"buildbarn.configuration.filesystem\x1a\x1bgoogle/protobuf/empty.proto\x1a5pkg/proto/configuration/blockdevice/blockdevice.proto\"\xdb\x01\n" +
-	"\x15FilePoolConfiguration\x125\n" +
-	"\tin_memory\x18\x01 \x01(\v2\x16.google.protobuf.EmptyH\x00R\binMemory\x12'\n" +
-	"\x0edirectory_path\x18\x02 \x01(\tH\x00R\rdirectoryPath\x12W\n" +
+	"3pkg/proto/configuration/filesystem/filesystem.proto\x12\"buildbarn.configuration.filesystem\x1a5pkg/proto/configuration/blockdevice/blockdevice.proto\"\x87\x01\n" +
+	"\x15FilePoolConfiguration\x12W\n" +
 	"\fblock_device\x18\x03 \x01(\v22.buildbarn.configuration.blockdevice.ConfigurationH\x00R\vblockDeviceB\t\n" +
-	"\abackendBMZKgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystemb\x06proto3"
+	"\abackendJ\x04\b\x01\x10\x02J\x04\b\x02\x10\x03BMZKgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystemb\x06proto3"
 
 var (
 	file_pkg_proto_configuration_filesystem_filesystem_proto_rawDescOnce sync.Once
@@ -147,17 +112,15 @@ func file_pkg_proto_configuration_filesystem_filesystem_proto_rawDescGZIP() []by
 var file_pkg_proto_configuration_filesystem_filesystem_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_pkg_proto_configuration_filesystem_filesystem_proto_goTypes = []any{
 	(*FilePoolConfiguration)(nil),     // 0: buildbarn.configuration.filesystem.FilePoolConfiguration
-	(*emptypb.Empty)(nil),             // 1: google.protobuf.Empty
-	(*blockdevice.Configuration)(nil), // 2: buildbarn.configuration.blockdevice.Configuration
+	(*blockdevice.Configuration)(nil), // 1: buildbarn.configuration.blockdevice.Configuration
 }
 var file_pkg_proto_configuration_filesystem_filesystem_proto_depIdxs = []int32{
-	1, // 0: buildbarn.configuration.filesystem.FilePoolConfiguration.in_memory:type_name -> google.protobuf.Empty
-	2, // 1: buildbarn.configuration.filesystem.FilePoolConfiguration.block_device:type_name -> buildbarn.configuration.blockdevice.Configuration
-	2, // [2:2] is the sub-list for method output_type
-	2, // [2:2] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	1, // 0: buildbarn.configuration.filesystem.FilePoolConfiguration.block_device:type_name -> buildbarn.configuration.blockdevice.Configuration
+	1, // [1:1] is the sub-list for method output_type
+	1, // [1:1] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_pkg_proto_configuration_filesystem_filesystem_proto_init() }
@@ -166,8 +129,6 @@ func file_pkg_proto_configuration_filesystem_filesystem_proto_init() {
 		return
 	}
 	file_pkg_proto_configuration_filesystem_filesystem_proto_msgTypes[0].OneofWrappers = []any{
-		(*FilePoolConfiguration_InMemory)(nil),
-		(*FilePoolConfiguration_DirectoryPath)(nil),
 		(*FilePoolConfiguration_BlockDevice)(nil),
 	}
 	type x struct{}

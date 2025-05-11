@@ -6,10 +6,7 @@ proto_library(
     name = "filesystem_proto",
     srcs = ["filesystem.proto"],
     visibility = ["//visibility:public"],
-    deps = [
-        "@com_github_buildbarn_bb_storage//pkg/proto/configuration/blockdevice:blockdevice_proto",
-        "@protobuf//:empty_proto",
-    ],
+    deps = ["@com_github_buildbarn_bb_storage//pkg/proto/configuration/blockdevice:blockdevice_proto"],
 )
 
 go_proto_library(

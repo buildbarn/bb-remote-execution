@@ -70,12 +70,29 @@ func TestFilePoolStatsBuildExecutorExample(t *testing.T) {
 		}
 	})
 
+	// Mock all the file operations performed in the execution request.
+	filePool := mock.NewMockFilePool(ctrl)
+	file1 := mock.NewMockFileReadWriter(ctrl)
+	file2 := mock.NewMockFileReadWriter(ctrl)
+
+	filePool.EXPECT().NewFile().Return(file1, nil)
+	file1.EXPECT().Truncate(int64(5)).Return(nil)
+	file1.EXPECT().Close().Return(nil)
+	filePool.EXPECT().NewFile().Return(file2, nil)
+	file2.EXPECT().WriteAt([]byte("Hello"), int64(100)).Return(5, nil)
+	file2.EXPECT().ReadAt(gomock.Any(), int64(98)).DoAndReturn(func(p []byte, offset int64) (int, error) {
+		copy(p, []byte("\x00\x00Hello\x00\x00\x00"))
+		return 7, io.EOF
+	})
+	file2.EXPECT().Truncate(int64(42)).Return(nil)
+	file2.EXPECT().Close().Return(nil)
+
 	// Perform the execution request.
 	executionStateUpdates := make(chan *remoteworker.CurrentState_Executing, 3)
 	buildExecutor := builder.NewFilePoolStatsBuildExecutor(baseBuildExecutor)
 	executeResponse := buildExecutor.Execute(
 		ctx,
-		filesystem.InMemoryFilePool,
+		filePool,
 		monitor,
 		digest.MustNewFunction("hello", remoteexecution.DigestFunction_MD5),
 		request,
