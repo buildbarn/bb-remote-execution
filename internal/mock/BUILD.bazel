@@ -172,10 +172,21 @@ gomock(
     out = "filesystem_re.go",
     interfaces = [
         "DirectoryOpener",
-        "FilePool",
         "SectorAllocator",
     ],
     library = "//pkg/filesystem",
+    mockgen_model_library = "@org_uber_go_mock//mockgen/model",
+    mockgen_tool = "@org_uber_go_mock//mockgen",
+    package = "mock",
+)
+
+gomock(
+    name = "filesystem_filepool",
+    out = "filesystem_filepool.go",
+    interfaces = [
+        "FilePool",
+    ],
+    library = "//pkg/filesystem/pool",
     mockgen_model_library = "@org_uber_go_mock//mockgen/model",
     mockgen_tool = "@org_uber_go_mock//mockgen",
     package = "mock",
@@ -411,6 +422,7 @@ go_library(
         ":completedactionlogger.go",
         ":filesystem.go",
         ":filesystem_access.go",
+        ":filesystem_filepool.go",
         ":filesystem_re.go",
         ":filesystem_virtual.go",
         ":grpc_go.go",
@@ -445,6 +457,7 @@ go_library(
         "//pkg/cleaner",
         "//pkg/filesystem",
         "//pkg/filesystem/access",
+        "//pkg/filesystem/pool",
         "//pkg/filesystem/virtual",
         "//pkg/proto/bazeloutputservice",
         "//pkg/proto/buildqueuestate",

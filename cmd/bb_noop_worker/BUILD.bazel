@@ -9,7 +9,7 @@ go_library(
     deps = [
         "//pkg/blobstore",
         "//pkg/builder",
-        "//pkg/filesystem",
+        "//pkg/filesystem/pool",
         "//pkg/proto/configuration/bb_noop_worker",
         "//pkg/proto/remoteworker",
         "@com_github_buildbarn_bb_storage//pkg/blobstore/configuration",

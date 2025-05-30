@@ -4,8 +4,8 @@ import (
 	"context"
 	"os"
 
-	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
+	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
@@ -36,7 +36,7 @@ type BuildDirectory interface {
 	// errors. Implementations of BuildDirectory are free to let
 	// this be a no-op, with the disadvantage that they cannot apply
 	// resource limits or provide rich I/O error messages.
-	InstallHooks(filePool re_filesystem.FilePool, errorLogger util.ErrorLogger)
+	InstallHooks(filePool pool.FilePool, errorLogger util.ErrorLogger)
 
 	// Recursively merges the contents of a Directory stored in the
 	// Content Addressable Storage into a local directory. If this

@@ -7,8 +7,8 @@ import (
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
-	"github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
+	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
@@ -182,7 +182,7 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 			digestFunction,
 			testutil.EqProto(t, exampleRequest),
 			executionStateUpdates,
-		).DoAndReturn(func(ctx context.Context, filePool filesystem.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+		).DoAndReturn(func(ctx context.Context, filePool pool.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 			<-ctx.Done()
 			require.Equal(t, context.Canceled, ctx.Err())
 			return &remoteexecution.ExecuteResponse{
@@ -224,7 +224,7 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 			digestFunction,
 			testutil.EqProto(t, exampleRequest),
 			executionStateUpdates,
-		).DoAndReturn(func(ctx context.Context, filePool filesystem.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+		).DoAndReturn(func(ctx context.Context, filePool pool.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 			<-ctx.Done()
 			require.Equal(t, context.Canceled, ctx.Err())
 			return &remoteexecution.ExecuteResponse{
@@ -271,7 +271,7 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 			digestFunction,
 			testutil.EqProto(t, exampleRequest),
 			executionStateUpdates,
-		).DoAndReturn(func(ctx context.Context, filePool filesystem.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+		).DoAndReturn(func(ctx context.Context, filePool pool.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 			<-ctx.Done()
 			require.Equal(t, context.Canceled, ctx.Err())
 			return &remoteexecution.ExecuteResponse{
@@ -416,7 +416,7 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 			digestFunction,
 			testutil.EqProto(t, exampleRequest),
 			executionStateUpdates,
-		).DoAndReturn(func(ctx context.Context, filePool filesystem.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+		).DoAndReturn(func(ctx context.Context, filePool pool.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 			monitor.ReadDirectory()
 			return &remoteexecution.ExecuteResponse{
 				Result: &remoteexecution.ActionResult{

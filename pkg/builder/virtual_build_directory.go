@@ -6,8 +6,8 @@ import (
 	"syscall"
 
 	"github.com/buildbarn/bb-remote-execution/pkg/cas"
-	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
+	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/digest"
@@ -78,7 +78,7 @@ func (d *virtualBuildDirectory) EnterUploadableDirectory(name path.Component) (U
 	return d.EnterBuildDirectory(name)
 }
 
-func (d *virtualBuildDirectory) InstallHooks(filePool re_filesystem.FilePool, errorLogger util.ErrorLogger) {
+func (d *virtualBuildDirectory) InstallHooks(filePool pool.FilePool, errorLogger util.ErrorLogger) {
 	d.PrepopulatedDirectory.InstallHooks(
 		virtual.NewHandleAllocatingFileAllocator(
 			virtual.NewPoolBackedFileAllocator(filePool, errorLogger),

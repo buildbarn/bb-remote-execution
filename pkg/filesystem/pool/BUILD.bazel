@@ -1,34 +1,40 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
-    name = "filesystem",
+    name = "pool",
     srcs = [
-        "bitmap_sector_allocator.go",
-        "lazy_directory.go",
-        "sector_allocator.go",
+        "block_device_backed_file_pool.go",
+        "configuration.go",
+        "empty_file_pool.go",
+        "file_pool.go",
+        "metrics_file_pool.go",
+        "quota_enforcing_file_pool.go",
     ],
-    importpath = "github.com/buildbarn/bb-remote-execution/pkg/filesystem",
+    importpath = "github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/filesystem",
+        "//pkg/proto/configuration/filesystem",
+        "@com_github_buildbarn_bb_storage//pkg/blockdevice",
         "@com_github_buildbarn_bb_storage//pkg/filesystem",
-        "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
         "@com_github_buildbarn_bb_storage//pkg/util",
+        "@com_github_prometheus_client_golang//prometheus",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//status",
     ],
 )
 
 go_test(
-    name = "filesystem_test",
+    name = "pool_test",
     srcs = [
-        "bitmap_sector_allocator_test.go",
-        "lazy_directory_test.go",
+        "block_device_backed_file_pool_test.go",
+        "empty_file_pool_test.go",
+        "quota_enforcing_file_pool_test.go",
     ],
     deps = [
-        ":filesystem",
+        ":pool",
         "//internal/mock",
         "@com_github_buildbarn_bb_storage//pkg/filesystem",
-        "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
         "@com_github_buildbarn_bb_storage//pkg/testutil",
         "@com_github_stretchr_testify//require",
         "@org_golang_google_grpc//codes",

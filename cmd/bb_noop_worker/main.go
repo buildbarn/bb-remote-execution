@@ -7,7 +7,7 @@ import (
 
 	re_blobstore "github.com/buildbarn/bb-remote-execution/pkg/blobstore"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
-	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
+	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_noop_worker"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	blobstore_configuration "github.com/buildbarn/bb-storage/pkg/blobstore/configuration"
@@ -76,7 +76,7 @@ func main() {
 				contentAddressableStorage,
 				int(configuration.MaximumMessageSizeBytes),
 				browserURL),
-			re_filesystem.EmptyFilePool,
+			pool.EmptyFilePool,
 			clock.SystemClock,
 			configuration.WorkerId,
 			instanceNamePrefix,

@@ -1,9 +1,10 @@
-package filesystem
+package pool
 
 import (
 	"fmt"
 	"io"
 
+	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/blockdevice"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 
@@ -13,7 +14,7 @@ import (
 
 type blockDeviceBackedFilePool struct {
 	blockDevice     blockdevice.BlockDevice
-	sectorAllocator SectorAllocator
+	sectorAllocator re_filesystem.SectorAllocator
 	sectorSizeBytes int
 	zeroSector      []byte
 }
@@ -23,7 +24,7 @@ type blockDeviceBackedFilePool struct {
 // device tends to be faster than using a directory on a file system,
 // for the reason that no metadata (e.g., a directory hierarchy and
 // inode attributes) needs to be stored.
-func NewBlockDeviceBackedFilePool(blockDevice blockdevice.BlockDevice, sectorAllocator SectorAllocator, sectorSizeBytes int) FilePool {
+func NewBlockDeviceBackedFilePool(blockDevice blockdevice.BlockDevice, sectorAllocator re_filesystem.SectorAllocator, sectorSizeBytes int) FilePool {
 	return &blockDeviceBackedFilePool{
 		blockDevice:     blockDevice,
 		sectorAllocator: sectorAllocator,

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
-	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
+	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/bazeloutputservice"
 	bazeloutputservicerev2 "github.com/buildbarn/bb-remote-execution/pkg/proto/bazeloutputservice/rev2"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
@@ -45,7 +45,7 @@ var (
 )
 
 type poolBackedFileAllocator struct {
-	pool        re_filesystem.FilePool
+	pool        pool.FilePool
 	errorLogger util.ErrorLogger
 }
 
@@ -58,7 +58,7 @@ type poolBackedFileAllocator struct {
 // file descriptor count reach zero), Close() is called on the
 // underlying backing file descriptor. This may be used to request
 // deletion from underlying storage.
-func NewPoolBackedFileAllocator(pool re_filesystem.FilePool, errorLogger util.ErrorLogger) FileAllocator {
+func NewPoolBackedFileAllocator(pool pool.FilePool, errorLogger util.ErrorLogger) FileAllocator {
 	poolBackedFileAllocatorPrometheusMetrics.Do(func() {
 		prometheus.MustRegister(poolBackedFileAllocatorWritableFileUploadDelaySeconds)
 		prometheus.MustRegister(poolBackedFileAllocatorWritableFileUploadDelayTimeouts)
