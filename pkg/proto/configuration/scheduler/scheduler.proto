@@ -104,6 +104,9 @@ message PlatformKeyExtractorConfiguration {
     // This is less efficient than only considering the Action message,
     // but allows requests from clients that implement REv2.1 or earlier
     // to be respected as well.
+    //
+    // NOTE: This feature is deprecated, and will be removed after
+    // 2025-12-31.
     google.protobuf.Empty action_and_command = 2;
 
     // Do not respect platform properties from the client's request, but

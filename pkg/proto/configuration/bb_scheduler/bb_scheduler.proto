@@ -129,7 +129,7 @@ message ApplicationConfiguration {
   //
   // {
   //   simple: {
-  //     platformKeyExtractor: { actionAndCommand: {} },
+  //     platformKeyExtractor: { action: {} },
   //     invocationKeyExtractors: [{ toolInvocationId: {} }],
   //     initialSizeClassAnalyzer: {
   //       defaultExecutionTimeout: '1800s',
