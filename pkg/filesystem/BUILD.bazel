@@ -5,11 +5,13 @@ go_library(
     srcs = [
         "bitmap_sector_allocator.go",
         "lazy_directory.go",
+        "quota_enforcing_sector_allocator.go",
         "sector_allocator.go",
     ],
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/filesystem",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/util",
         "@com_github_buildbarn_bb_storage//pkg/filesystem",
         "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
         "@com_github_buildbarn_bb_storage//pkg/util",
@@ -23,6 +25,7 @@ go_test(
     srcs = [
         "bitmap_sector_allocator_test.go",
         "lazy_directory_test.go",
+        "quota_enforcing_sector_allocator_test.go",
     ],
     deps = [
         ":filesystem",

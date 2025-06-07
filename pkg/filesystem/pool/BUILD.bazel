@@ -15,6 +15,7 @@ go_library(
     deps = [
         "//pkg/filesystem",
         "//pkg/proto/configuration/filesystem",
+        "//pkg/util",
         "@com_github_buildbarn_bb_storage//pkg/blockdevice",
         "@com_github_buildbarn_bb_storage//pkg/filesystem",
         "@com_github_buildbarn_bb_storage//pkg/util",
