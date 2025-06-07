@@ -20,6 +20,10 @@ import (
 //
 //   - Truncate() can be used to remove data at the end of the HoleSource.
 //     Subsequent attempts to read data must return null bytes.
+//
+// Consumers of HoleSource should take into consideration that
+// GetNextRegionOffset might return io.EOF based on an internal
+// representation of the file rather than its truncated size.
 type HoleSource interface {
 	filesystem.FileReader
 	Truncate(int64) error
