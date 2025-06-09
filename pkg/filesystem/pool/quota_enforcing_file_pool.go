@@ -1,7 +1,6 @@
 package pool
 
 import (
-	"github.com/buildbarn/bb-remote-execution/pkg/util"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 
 	"google.golang.org/grpc/codes"
@@ -11,7 +10,7 @@ import (
 type quotaEnforcingFilePool struct {
 	base FilePool
 
-	filesRemaining util.QuotaMetric
+	filesRemaining *quotaMetric
 }
 
 // NewQuotaEnforcingFilePool creates a FilePool that enforces disk
@@ -22,18 +21,18 @@ type quotaEnforcingFilePool struct {
 func NewQuotaEnforcingFilePool(base FilePool, maximumFileCount int64) FilePool {
 	fp := &quotaEnforcingFilePool{
 		base:           base,
-		filesRemaining: util.NewQuotaMetric(maximumFileCount),
+		filesRemaining: newQuotaMetric(maximumFileCount),
 	}
 	return fp
 }
 
 func (fp *quotaEnforcingFilePool) NewFile() (filesystem.FileReadWriter, error) {
-	if !fp.filesRemaining.Allocate(1) {
+	if !fp.filesRemaining.allocate(1) {
 		return nil, status.Error(codes.InvalidArgument, "File count quota reached")
 	}
 	f, err := fp.base.NewFile()
 	if err != nil {
-		fp.filesRemaining.Release(1)
+		fp.filesRemaining.release(1)
 		return nil, err
 	}
 	return &quotaEnforcingFile{
@@ -54,7 +53,7 @@ func (f *quotaEnforcingFile) Close() error {
 	err := f.FileReadWriter.Close()
 	f.FileReadWriter = nil
 	// Release associated resources.
-	f.pool.filesRemaining.Release(1)
+	f.pool.filesRemaining.release(1)
 	f.pool = nil
 	return err
 }

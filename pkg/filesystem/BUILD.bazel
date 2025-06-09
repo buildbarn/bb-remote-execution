@@ -3,10 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "filesystem",
     srcs = [
-        "bitmap_sector_allocator.go",
         "lazy_directory.go",
-        "quota_enforcing_sector_allocator.go",
-        "sector_allocator.go",
     ],
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/filesystem",
     visibility = ["//visibility:public"],
@@ -23,9 +20,7 @@ go_library(
 go_test(
     name = "filesystem_test",
     srcs = [
-        "bitmap_sector_allocator_test.go",
         "lazy_directory_test.go",
-        "quota_enforcing_sector_allocator_test.go",
     ],
     deps = [
         ":filesystem",

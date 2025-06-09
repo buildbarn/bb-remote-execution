@@ -1,20 +1,15 @@
-package util
+package pool
 
 import "sync/atomic"
 
-// QuotaMetric is a simple 64-bit counter from/to which can be
+// quotaMetric is a simple 64-bit counter from/to which can be
 // subtracted/added atomically. It is used to store the number of files
 // and bytes of space available.
-type QuotaMetric interface {
-	Allocate(v int64) bool
-	Release(v int64)
-}
-
 type quotaMetric struct {
 	remaining atomic.Int64
 }
 
-func NewQuotaMetric(limit int64) QuotaMetric {
+func newQuotaMetric(limit int64) *quotaMetric {
 	m := &quotaMetric{
 		remaining: atomic.Int64{},
 	}
@@ -22,7 +17,7 @@ func NewQuotaMetric(limit int64) QuotaMetric {
 	return m
 }
 
-func (m *quotaMetric) Allocate(v int64) bool {
+func (m *quotaMetric) allocate(v int64) bool {
 	for {
 		remaining := m.remaining.Load()
 		if remaining < v {
@@ -34,6 +29,6 @@ func (m *quotaMetric) Allocate(v int64) bool {
 	}
 }
 
-func (m *quotaMetric) Release(v int64) {
+func (m *quotaMetric) release(v int64) {
 	m.remaining.Add(v)
 }

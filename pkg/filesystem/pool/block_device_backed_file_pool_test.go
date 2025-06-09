@@ -50,6 +50,7 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 		require.Equal(t, 0, n)
 		require.Equal(t, io.EOF, err)
 
+		sectorAllocator.EXPECT().FreeList(make([]uint32, 12))
 		require.NoError(t, f.Close())
 	})
 
@@ -97,7 +98,9 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 		// the final sector to be released.
 		sectorAllocator.EXPECT().FreeList([]uint32{5})
 		require.NoError(t, f.Truncate(80))
-
+		// Closing of the file should cause the direct sector
+		// list to be released.
+		sectorAllocator.EXPECT().FreeList(make([]uint32, 12))
 		require.NoError(t, f.Close())
 	})
 
