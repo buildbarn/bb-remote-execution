@@ -43,31 +43,34 @@ func TestSectorPointer(t *testing.T) {
 	t.Run("Truncate", func(t *testing.T) {
 		sm := pool.NewSectorPointer()
 		// Insert 10 sectors every 1 million sectors.
-		for i := uint32(0); i < 1000; i++ {
-			err := sm.InsertSectorsContiguous(i*1_000_000, 1_000_000_000+i*1_000_000, 10)
+		for i := uint32(0); i < 4000; i++ {
+			err := sm.InsertSectorsContiguous(i*1_000_000, 100+i*1_000_000, 10)
 			length := sm.GetLogicalSize()
 			require.NoError(t, err)
 			require.Equal(t, i*1_000_000+10, length)
 		}
 		// Truncate away the inserted sectors.
-		for i := uint32(1000); i >= 1; i-- {
+		for i := uint32(4000); i >= 1; i-- {
 			sm.Truncate(i * 1_000_000)
 			length := sm.GetLogicalSize()
+			if i == 4 {
+				t.Logf("Value at 3_000_009: %d", sm.GetPhysicalIndex(3_000_009))
+			}
 			require.Equal(t, (i-1)*1_000_000+10, length)
 		}
 	})
 	t.Run("NextMappedSector", func(t *testing.T) {
 		sm := pool.NewSectorPointer()
 		// Insert 10 sectors every 1 million sectors with offset 50.
-		for i := uint32(0); i < 1000; i++ {
-			err := sm.InsertSectorsContiguous(i*1_000_000+50, 1_000_000_000+i*1_000_000, 10)
+		for i := uint32(0); i < 4000; i++ {
+			err := sm.InsertSectorsContiguous(i*1_000_000+50, 100+i*1_000_000, 10)
 			length := sm.GetLogicalSize()
 			require.NoError(t, err)
 			require.Equal(t, i*1_000_000+10+50, length)
 		}
 		// Search for next Mapped sector every 1 million sectors with
 		// offset 0.
-		for i := uint32(0); i < 1000; i++ {
+		for i := uint32(0); i < 4000; i++ {
 			x, err := sm.GetNextMappedSector(i * 1_000_000)
 			require.NoError(t, err)
 			require.Equal(t, i*1_000_000+50, x)

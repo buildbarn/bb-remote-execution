@@ -44,7 +44,7 @@ type sectorPointer struct {
 // sectors which can be represented by a maximum of 0, 1, 2, and 3
 // indirections respectively.
 const (
-	_SIZE   = 1024
+	_SIZE   = 1626 // Smallest size where the full unsigned 32 bit range can be addressed.
 	_DIRECT = 12
 	_SINGLE = _DIRECT + _SIZE
 	_DOUBLE = _SINGLE + _SIZE*_SIZE
@@ -71,8 +71,91 @@ func (sp *sectorPointer) GetNextMappedSector(logical uint32) (uint32, error) {
 	}
 }
 
+func firstUnmappedSingle(x uint32, single *indirect[uint32]) (uint32, error) {
+	start := x
+	for i := start; i < _SIZE; i++ {
+		if single.val[i] == 0 {
+			return i, nil
+		}
+	}
+	return 0, io.EOF
+}
+
+func firstUnmappedDouble(x uint32, double *indirect[*indirect[uint32]]) (uint32, error) {
+	start := x / _SIZE
+	remainder := x % _SIZE
+	for i := start; i < _SIZE; i++ {
+		if double.val[i] == nil {
+			return i*_SIZE + remainder, nil
+		}
+		offset, err := firstUnmappedSingle(remainder, double.val[i])
+		if err == nil {
+			return i*_SIZE + offset, nil
+		}
+		remainder = 0
+	}
+	return 0, io.EOF
+}
+
+func noOverflow(x uint64) (uint32, error) {
+	if x > math.MaxUint32 {
+		return 0, io.EOF
+	}
+	return uint32(x), nil
+
+}
+func firstUnmappedTriple(x uint32, triple *indirect[*indirect[*indirect[uint32]]]) (uint32, error) {
+	start := x / (_SIZE * _SIZE)
+	remainder := x % (_SIZE * _SIZE)
+	for i := start; i < _SIZE; i++ {
+		if triple.val[i] == nil {
+			return noOverflow(uint64(i)*_SIZE*_SIZE + uint64(remainder))
+		}
+		offset, err := firstUnmappedDouble(remainder, triple.val[i])
+		if err == nil {
+			return noOverflow(uint64(i)*_SIZE*_SIZE + uint64(offset))
+		}
+		remainder = 0
+	}
+	return 0, io.EOF
+}
+
 func (sp *sectorPointer) GetNextUnmappedSector(logical uint32) (uint32, error) {
-	panic("Not implemented")
+	for i := logical; i < _DIRECT; i++ {
+		if sp.direct[i] == 0 {
+			return i, nil
+		}
+		logical = i + 1
+	}
+	if logical < _SINGLE {
+		if sp.single == nil {
+			return logical, nil
+		}
+		ret, err := firstUnmappedSingle(logical-_DIRECT, sp.single)
+		if err == nil {
+			return ret, nil
+		}
+		logical = _SINGLE
+	}
+	if logical < _DOUBLE {
+		if sp.double == nil {
+			return logical, nil
+		}
+		ret, err := firstUnmappedDouble(logical-_SINGLE, sp.double)
+		if err == nil {
+			return ret, nil
+		}
+		logical = _DOUBLE
+	}
+	// logical < _TRIPLE
+	if sp.triple == nil {
+		return logical, nil
+	}
+	ret, err := firstUnmappedTriple(logical-_DOUBLE, sp.triple)
+	if err == nil {
+		return ret, nil
+	}
+	return 0, io.EOF
 }
 
 func (sp *sectorPointer) GetPhysicalIndex(logical uint32) uint32 {
@@ -98,23 +181,21 @@ func (sp *sectorPointer) GetPhysicalIndex(logical uint32) uint32 {
 		}
 		return sp.double.val[i].val[j]
 	}
-	if logical < _TRIPLE {
-		offset := logical - _DOUBLE
-		i := offset / _SIZE / _SIZE
-		j := (offset - i*_SIZE*_SIZE) / _SIZE
-		k := offset - i*_SIZE*_SIZE - j*_SIZE
-		if sp.triple == nil {
-			return 0
-		}
-		if sp.triple.val[i] == nil {
-			return 0
-		}
-		if sp.triple.val[i].val[j] == nil {
-			return 0
-		}
-		return sp.triple.val[i].val[j].val[k]
+	// if logical < _TRIPLE
+	offset := logical - _DOUBLE
+	i := offset / _SIZE / _SIZE
+	j := (offset - i*_SIZE*_SIZE) / _SIZE
+	k := offset - i*_SIZE*_SIZE - j*_SIZE
+	if sp.triple == nil {
+		return 0
 	}
-	return 0
+	if sp.triple.val[i] == nil {
+		return 0
+	}
+	if sp.triple.val[i].val[j] == nil {
+		return 0
+	}
+	return sp.triple.val[i].val[j].val[k]
 }
 
 func getNextDirectSectorListFromSingle(x uint32, single *indirect[uint32]) (uint32, []uint32) {
@@ -125,9 +206,6 @@ func getNextDirectSectorListFromSingle(x uint32, single *indirect[uint32]) (uint
 }
 
 func getNextDirectSectorListFromDouble(x uint32, double *indirect[*indirect[uint32]]) (uint32, []uint32) {
-	if x >= _SIZE*_SIZE {
-		return 0, nil
-	}
 	start := x / _SIZE
 	remainder := x % _SIZE
 	for i := start; i < _SIZE; i++ {
@@ -143,9 +221,6 @@ func getNextDirectSectorListFromDouble(x uint32, double *indirect[*indirect[uint
 }
 
 func getNextDirectSectorListFromTriple(x uint32, triple *indirect[*indirect[*indirect[uint32]]]) (uint32, []uint32) {
-	if x >= _SIZE*_SIZE*_SIZE {
-		return 0, nil
-	}
 	start := x / (_SIZE * _SIZE)
 	remainder := x % (_SIZE * _SIZE)
 	for i := start; i < _SIZE; i++ {
@@ -182,83 +257,93 @@ func (sp *sectorPointer) GetNextDirectSectorList(start uint32) (uint32, []uint32
 		}
 		start = _DOUBLE
 	}
-	if start < _TRIPLE {
-		if sp.triple != nil {
-			next, list := getNextDirectSectorListFromTriple(start-_DOUBLE, sp.triple)
-			if list != nil {
-				return next + _DOUBLE, list
-			}
+	// start < _TRIPLE, always true since _TRIPLE is larger than uint32.
+	if sp.triple != nil {
+		next, list := getNextDirectSectorListFromTriple(start-_DOUBLE, sp.triple)
+		if list != nil {
+			return next + _DOUBLE, list
 		}
-		start = _TRIPLE
 	}
 	return 0, nil
 }
 
 func (sp *sectorPointer) GetLogicalSize() uint32 {
-	if sp.logicalSectorLength == math.MaxUint32 {
-		sp.updateLogicalSize()
-	}
 	return sp.logicalSectorLength
 }
 
-func (sp *sectorPointer) updateLogicalSize() {
-	// TODO: This can potentially be optimized by using
-	// GetNextMappedSector and GetNextUnmappedSector one at a time.
-	size, err := sp.GetNextMappedSector(0)
-	if err == io.EOF {
-		sp.logicalSectorLength = 0
-		return
-	}
-	for {
-		next, err := sp.GetNextMappedSector(size + 1)
-		if err == nil {
-			size = next
-		} else if err == io.EOF {
-			break
+// Shrinks the logical size to the first allocated sector less than or
+// equal to the supplied value. This is used when the sector mapper is
+// truncated to find the first mapped sector in it's internal structure
+// less than the supplied value.
+func (sp *sectorPointer) shrinkLogicalSize(n uint32) {
+	// sort.Search does not support the entire uint32 range, so we
+	// implement it ourselves.
+	var i, j uint32 = 0, n
+	for i < j {
+		h := i + (j-i)/2
+		next, err := sp.GetNextMappedSector(h)
+		if err == io.EOF || next >= n {
+			j = h
+		} else {
+			i = h + 1
 		}
 	}
-	sp.logicalSectorLength = size + 1
+	sp.logicalSectorLength = i
 }
 
-func clearSingle(x uint32, single *indirect[uint32]) {
+func clearSingle(x uint32, single *indirect[uint32]) bool {
 	for i := x; i < _SIZE; i++ {
 		single.val[i] = 0
 	}
+	for i := uint32(0); i < x; i++ {
+		if single.val[i] != 0 {
+			return false
+		}
+	}
+	return true
 }
 
-func clearDouble(x uint32, double *indirect[*indirect[uint32]]) {
+func clearDouble(x uint32, double *indirect[*indirect[uint32]]) bool {
 	start := x / _SIZE
 	remainder := x % _SIZE
 	for i := start; i < _SIZE; i++ {
 		if double.val[i] != nil {
-			if remainder == 0 {
+			if remainder == 0 || clearSingle(remainder, double.val[i]) {
 				double.val[i] = nil
-			} else {
-				clearSingle(remainder, double.val[i])
 			}
 		}
 		remainder = 0
 	}
+	for i := uint32(0); i <= start; i++ {
+		if double.val[i] != nil {
+			return false
+		}
+	}
+	return true
 }
 
-func clearTriple(x uint32, triple *indirect[*indirect[*indirect[uint32]]]) {
+func clearTriple(x uint32, triple *indirect[*indirect[*indirect[uint32]]]) bool {
 	start := x / (_SIZE * _SIZE)
 	remainder := x % (_SIZE * _SIZE)
 	for i := start; i < _SIZE; i++ {
 		if triple.val[i] != nil {
-			if remainder == 0 {
+			if remainder == 0 || clearDouble(remainder, triple.val[i]) {
 				triple.val[i] = nil
-			} else {
-				clearDouble(remainder, triple.val[i])
 			}
 		}
 		remainder = 0
 	}
+	for i := uint32(0); i <= start; i++ {
+		if triple.val[i] != nil {
+			return false
+		}
+	}
+	return true
 }
 
 func (sp *sectorPointer) Truncate(length uint32) {
 	if length < sp.logicalSectorLength {
-		sp.logicalSectorLength = math.MaxUint32
+		sp.shrinkLogicalSize(length)
 	}
 	for i := length; i < _DIRECT; i++ {
 		sp.direct[i] = 0
@@ -267,30 +352,34 @@ func (sp *sectorPointer) Truncate(length uint32) {
 		sp.single = nil
 	}
 	if sp.single != nil {
-		clearSingle(length-_DIRECT, sp.single)
+		if clearSingle(length-_DIRECT, sp.single) {
+			sp.single = nil
+		}
 	}
 	if length <= _SINGLE {
 		sp.double = nil
 	}
 	if sp.double != nil {
-		clearDouble(length-_SINGLE, sp.double)
+		if clearDouble(length-_SINGLE, sp.double) {
+			sp.double = nil
+		}
+
 	}
 	if length <= _DOUBLE {
 		sp.triple = nil
 	}
 	if sp.triple != nil {
-		clearTriple(length-_DOUBLE, sp.triple)
+		if clearTriple(length-_DOUBLE, sp.triple) {
+			sp.triple = nil
+		}
 	}
 }
 
-func (sp *sectorPointer) setPhysicalIndex(logical, physical uint32) error {
-	if logical >= _TRIPLE {
-		return status.Errorf(codes.InvalidArgument, "Attempted to set logical sector %d, which is beyond the maximum representable by this data structure (%d)", logical, _TRIPLE-1)
-	}
+func (sp *sectorPointer) setPhysicalIndex(logical, physical uint32) {
 	sp.logicalSectorLength = max(sp.logicalSectorLength, logical+1)
 	if logical < _DIRECT {
 		sp.direct[logical] = physical
-		return nil
+		return
 	}
 	if logical < _SINGLE {
 		if sp.single == nil {
@@ -298,7 +387,7 @@ func (sp *sectorPointer) setPhysicalIndex(logical, physical uint32) error {
 		}
 		i := (logical - _DIRECT)
 		sp.single.val[i] = physical
-		return nil
+		return
 	}
 	if logical < _DOUBLE {
 		i := (logical - _SINGLE) / _SIZE
@@ -310,7 +399,7 @@ func (sp *sectorPointer) setPhysicalIndex(logical, physical uint32) error {
 			sp.double.val[i] = &indirect[uint32]{}
 		}
 		sp.double.val[i].val[j] = physical
-		return nil
+		return
 	}
 	// logical < _TRIPLE
 	i := (logical - _DOUBLE) / _SIZE / _SIZE
@@ -326,7 +415,6 @@ func (sp *sectorPointer) setPhysicalIndex(logical, physical uint32) error {
 		sp.triple.val[i].val[j] = &indirect[uint32]{}
 	}
 	sp.triple.val[i].val[j].val[k] = physical
-	return nil
 }
 
 func (sp *sectorPointer) InsertSectorsContiguous(logical uint32, physical uint32, length uint32) error {
@@ -335,10 +423,7 @@ func (sp *sectorPointer) InsertSectorsContiguous(logical uint32, physical uint32
 		if val != 0 {
 			return status.Errorf(codes.Internal, "Attempted to insert a sector at logical adress %d but it is already occupied by %d", i+logical, val)
 		}
-		err := sp.setPhysicalIndex(i+logical, i+physical)
-		if err != nil {
-			return status.Errorf(codes.Internal, "Unexpected error when inserting a sector at logical adress %d: %v", i+logical, err)
-		}
+		sp.setPhysicalIndex(i+logical, i+physical)
 	}
 	return nil
 }

@@ -3,6 +3,7 @@ package pool
 import (
 	"fmt"
 	"io"
+	"math"
 
 	"github.com/buildbarn/bb-storage/pkg/blockdevice"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
@@ -138,26 +139,37 @@ func (f *blockDeviceBackedFile) GetNextRegionOffset(off int64, regionType filesy
 	}
 
 	sectorSizeBytes := int64(f.fp.sectorSizeBytes)
-	sectorIndex := int(off / sectorSizeBytes)
+	sectorIndex := uint32(off / sectorSizeBytes)
 	switch regionType {
 	case filesystem.Data:
-		index, err := f.sectorMapper.GetNextMappedSector(uint32(sectorIndex))
-		if err == io.EOF {
+		if sectorIndex >= f.sectorMapper.GetLogicalSize() {
 			// Inside the hole at the end of the file.
 			return 0, io.EOF
-		} else if err != nil {
-			return 0, status.Errorf(codes.Internal, "Failed to get next mapped sector from index %d: %v", sectorIndex, err)
+		}
+		if f.sectorMapper.GetPhysicalIndex(sectorIndex) != 0 {
+			// Already inside a sector containing data.
+			return off, nil
+		}
+		// Find the next sector containing data.
+		index, err := f.sectorMapper.GetNextMappedSector(uint32(sectorIndex))
+		if err != nil {
+			return 0, status.Errorf(codes.Internal, "Failed to get next mapped sector: %v", err)
 		}
 		return int64(index) * sectorSizeBytes, nil
 	case filesystem.Hole:
-		index, err := f.sectorMapper.GetNextUnmappedSector(uint32(sectorIndex))
-		if err != nil {
-			// This should not be possible as we know that we're inside of the file.
-			return 0, status.Errorf(codes.Internal, "Failed to get next unmapped sector from index %d: %v", sectorIndex, err)
+		if f.sectorMapper.GetPhysicalIndex(uint32(sectorIndex)) == 0 {
+			// Already inside a hole.
+			return off, nil
 		}
-		// Correct for file ending in the middle of a sector containing data
-		offset := min(int64(f.sizeBytes), int64(index)*sectorSizeBytes)
-		return offset, nil
+		// Find the next sector containing a hole.
+		index, err := f.sectorMapper.GetNextUnmappedSector(uint32(sectorIndex))
+		if err == io.EOF {
+			// This can happen if the last logical possible
+			// sector index is mapped.
+			index = math.MaxUint32
+		}
+		// Correct for file ending in the middle of a sector containing data.
+		return min(int64(f.sizeBytes), int64(index)*sectorSizeBytes), nil
 	default:
 		panic("Unknown region type")
 	}
@@ -264,6 +276,10 @@ func (f *blockDeviceBackedFile) Sync() error {
 func (f *blockDeviceBackedFile) Truncate(size int64) error {
 	if size < 0 {
 		return status.Errorf(codes.InvalidArgument, "Negative truncation size: %d", size)
+	}
+	maxFileSize := int64(f.fp.sectorSizeBytes) * int64(math.MaxUint32)
+	if size > maxFileSize {
+		return status.Errorf(codes.InvalidArgument, "Truncation size %d exceeds maximum file size allowed by file system %d", size, maxFileSize)
 	}
 
 	sectorIndex := uint32(size / int64(f.fp.sectorSizeBytes))
@@ -398,6 +414,10 @@ func (f *blockDeviceBackedFile) WriteAt(p []byte, off int64) (int, error) {
 	}
 	if len(p) == 0 {
 		return 0, nil
+	}
+	maxFileSize := int64(f.fp.sectorSizeBytes) * int64(math.MaxUint32)
+	if off+int64(len(p)) > maxFileSize {
+		return 0, status.Errorf(codes.InvalidArgument, "Write exceeds maximum file size: %d", maxFileSize)
 	}
 
 	// As the file may be stored on disk non-contiguously or may be

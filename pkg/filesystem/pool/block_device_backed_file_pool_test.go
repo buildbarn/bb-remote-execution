@@ -22,10 +22,21 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 
 	blockDevice := mock.NewMockBlockDevice(ctrl)
 	sectorAllocator := mock.NewMockSectorAllocator(ctrl)
+	freedSectors := make([]uint32, 0, 16)
+	sectorAllocator.EXPECT().FreeList(gomock.Any()).DoAndReturn(func(sectors []uint32) {
+		toFree := make([]uint32, 0, len(sectors))
+		for _, s := range sectors {
+			if s != 0 {
+				toFree = append(toFree, s)
+			}
+		}
+		freedSectors = append(freedSectors, toFree...)
+	}).AnyTimes()
 	pool := pool.NewBlockDeviceBackedFilePool(blockDevice, sectorAllocator, 16)
 
 	t.Run("ReadEmptyFile", func(t *testing.T) {
 		// Test that reads on an empty file work as expected.
+		freedSectors = freedSectors[:0]
 		f, err := pool.NewFile()
 		require.NoError(t, err)
 
@@ -50,11 +61,12 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 		require.Equal(t, 0, n)
 		require.Equal(t, io.EOF, err)
 
-		sectorAllocator.EXPECT().FreeList(make([]uint32, 12))
+		require.Equal(t, []uint32{}, freedSectors)
 		require.NoError(t, f.Close())
 	})
 
 	t.Run("Truncate", func(t *testing.T) {
+		freedSectors = freedSectors[:0]
 		f, err := pool.NewFile()
 		require.NoError(t, err)
 
@@ -96,15 +108,13 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 
 		// Continuing to shrink the file should eventually cause
 		// the final sector to be released.
-		sectorAllocator.EXPECT().FreeList([]uint32{5})
 		require.NoError(t, f.Truncate(80))
-		// Closing of the file should cause the direct sector
-		// list to be released.
-		sectorAllocator.EXPECT().FreeList(make([]uint32, 12))
+		require.Equal(t, []uint32{5}, freedSectors)
 		require.NoError(t, f.Close())
 	})
 
 	t.Run("WritesAndReadOnSingleSector", func(t *testing.T) {
+		freedSectors = freedSectors[:0]
 		f, err := pool.NewFile()
 		require.NoError(t, err)
 
@@ -137,11 +147,12 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 		require.Equal(t, io.EOF, err)
 		require.Equal(t, []byte("\x00\x00Hello\x00world"), buf[:n])
 
-		sectorAllocator.EXPECT().FreeList([]uint32{12})
 		require.NoError(t, f.Close())
+		require.Equal(t, []uint32{12}, freedSectors)
 	})
 
 	t.Run("WriteFragmentation", func(t *testing.T) {
+		freedSectors = freedSectors[:0]
 		f, err := pool.NewFile()
 		require.NoError(t, err)
 
@@ -170,11 +181,12 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 		require.Equal(t, 137, n)
 		require.NoError(t, err)
 
-		sectorAllocator.EXPECT().FreeList([]uint32{0, 0, 75, 76, 77, 21, 22, 23, 24, 105, 106, 40})
 		require.NoError(t, f.Close())
+		require.Equal(t, []uint32{75, 76, 77, 21, 22, 23, 24, 105, 106, 40}, freedSectors)
 	})
 
 	t.Run("WriteSectorAllocatorFailure", func(t *testing.T) {
+		freedSectors = freedSectors[:0]
 		f, err := pool.NewFile()
 		require.NoError(t, err)
 
@@ -190,11 +202,12 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 		require.Equal(t, 6, n)
 		require.Equal(t, status.Error(codes.ResourceExhausted, "Out of storage space"), err)
 
-		sectorAllocator.EXPECT().FreeList([]uint32{0, 0, 75})
 		require.NoError(t, f.Close())
+		require.Equal(t, []uint32{75}, freedSectors)
 	})
 
 	t.Run("WriteIOFailure", func(t *testing.T) {
+		freedSectors = freedSectors[:0]
 		f, err := pool.NewFile()
 		require.NoError(t, err)
 
@@ -212,12 +225,13 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 		require.Equal(t, 6, n)
 		require.Equal(t, status.Error(codes.Internal, "Disk failure"), err)
 
-		sectorAllocator.EXPECT().FreeList([]uint32{0, 0, 75})
 		require.NoError(t, f.Close())
+		require.Equal(t, []uint32{75}, freedSectors)
 	})
 
 	t.Run("GetNextRegionOffset", func(t *testing.T) {
 		// Test the behavior on empty files.
+		freedSectors = freedSectors[:0]
 		f, err := pool.NewFile()
 		require.NoError(t, err)
 
@@ -311,8 +325,8 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 		_, err = f.GetNextRegionOffset(384, filesystem.Hole)
 		require.Equal(t, io.EOF, err)
 
-		sectorAllocator.EXPECT().FreeList([]uint32{0, 0, 0, 0, 0, 0, 0, 0, 5})
 		require.NoError(t, f.Close())
+		require.Equal(t, []uint32{5}, freedSectors)
 	})
 
 	t.Run("WriteAt", func(t *testing.T) {
