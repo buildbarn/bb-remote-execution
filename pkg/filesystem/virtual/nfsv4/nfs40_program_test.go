@@ -1681,7 +1681,16 @@ func TestNFS40ProgramCompound_OP_GETATTR(t *testing.T) {
 		// Request all supported attributes.
 		rootDirectory.EXPECT().VirtualGetAttributes(
 			ctx,
-			virtual.AttributesMaskChangeID|virtual.AttributesMaskFileHandle|virtual.AttributesMaskFileType|virtual.AttributesMaskInodeNumber|virtual.AttributesMaskLastDataModificationTime|virtual.AttributesMaskLinkCount|virtual.AttributesMaskPermissions|virtual.AttributesMaskSizeBytes,
+			virtual.AttributesMaskChangeID|
+				virtual.AttributesMaskFileHandle|
+				virtual.AttributesMaskFileType|
+				virtual.AttributesMaskInodeNumber|
+				virtual.AttributesMaskLastDataModificationTime|
+				virtual.AttributesMaskLinkCount|
+				virtual.AttributesMaskOwnerGroupID|
+				virtual.AttributesMaskOwnerUserID|
+				virtual.AttributesMaskPermissions|
+				virtual.AttributesMaskSizeBytes,
 			gomock.Any(),
 		).Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 			attributes.SetChangeID(0xeaab7253dad16ee5)
@@ -1690,6 +1699,8 @@ func TestNFS40ProgramCompound_OP_GETATTR(t *testing.T) {
 			attributes.SetInodeNumber(0xfcadd45521cb1db2)
 			attributes.SetLastDataModificationTime(time.Unix(1654791566, 4839067173))
 			attributes.SetLinkCount(12)
+			attributes.SetOwnerGroupID(20)
+			attributes.SetOwnerUserID(501)
 			attributes.SetPermissions(virtual.PermissionsRead | virtual.PermissionsExecute)
 			attributes.SetSizeBytes(8192)
 		})
@@ -1716,6 +1727,8 @@ func TestNFS40ProgramCompound_OP_GETATTR(t *testing.T) {
 								(1 << nfsv4_xdr.FATTR4_FILEID),
 							(1 << (nfsv4_xdr.FATTR4_MODE - 32)) |
 								(1 << (nfsv4_xdr.FATTR4_NUMLINKS - 32)) |
+								(1 << (nfsv4_xdr.FATTR4_OWNER - 32)) |
+								(1 << (nfsv4_xdr.FATTR4_OWNER_GROUP - 32)) |
 								(1 << (nfsv4_xdr.FATTR4_TIME_ACCESS - 32)) |
 								(1 << (nfsv4_xdr.FATTR4_TIME_METADATA - 32)) |
 								(1 << (nfsv4_xdr.FATTR4_TIME_MODIFY - 32)),
@@ -1753,6 +1766,8 @@ func TestNFS40ProgramCompound_OP_GETATTR(t *testing.T) {
 										(1 << nfsv4_xdr.FATTR4_FILEID),
 									(1 << (nfsv4_xdr.FATTR4_MODE - 32)) |
 										(1 << (nfsv4_xdr.FATTR4_NUMLINKS - 32)) |
+										(1 << (nfsv4_xdr.FATTR4_OWNER - 32)) |
+										(1 << (nfsv4_xdr.FATTR4_OWNER_GROUP - 32)) |
 										(1 << (nfsv4_xdr.FATTR4_TIME_ACCESS - 32)) |
 										(1 << (nfsv4_xdr.FATTR4_TIME_METADATA - 32)) |
 										(1 << (nfsv4_xdr.FATTR4_TIME_MODIFY - 32)),
@@ -1761,7 +1776,7 @@ func TestNFS40ProgramCompound_OP_GETATTR(t *testing.T) {
 									// FATTR4_SUPPORTED_ATTRS.
 									0x00, 0x00, 0x00, 0x02,
 									0x00, 0x18, 0x0f, 0xff,
-									0x00, 0x30, 0x80, 0x0a,
+									0x00, 0x30, 0x80, 0x3a,
 									// FATTR4_TYPE == NF4DIR.
 									0x00, 0x00, 0x00, 0x02,
 									// FATTR4_FH_EXPIRE_TYPE == FH4_PERSISTENT.
@@ -1792,6 +1807,12 @@ func TestNFS40ProgramCompound_OP_GETATTR(t *testing.T) {
 									0x00, 0x00, 0x01, 0x6d,
 									// FATTR4_NUMLINKS.
 									0x00, 0x00, 0x00, 0x0c,
+									// FATTR4_OWNER == "501".
+									0x00, 0x00, 0x00, 0x03,
+									0x35, 0x30, 0x31, 0x00,
+									// FATTR4_OWNER_GROUP == "20".
+									0x00, 0x00, 0x00, 0x02,
+									0x32, 0x30, 0x00, 0x00,
 									// FATTR4_TIME_ACCESS == 2000-01-01T00:00:00Z.
 									0x00, 0x00, 0x00, 0x00, 0x38, 0x6d, 0x43, 0x80,
 									0x00, 0x00, 0x00, 0x00,

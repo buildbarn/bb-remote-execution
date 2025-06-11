@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"io"
+	"strconv"
 	"sync"
 	"time"
 
@@ -398,6 +399,8 @@ func (p *nfs41Program) writeAttributes(attributes *virtual.Attributes, attrReque
 					(1 << nfsv4.FATTR4_FILEID),
 				(1 << (nfsv4.FATTR4_MODE - 32)) |
 					(1 << (nfsv4.FATTR4_NUMLINKS - 32)) |
+					(1 << (nfsv4.FATTR4_OWNER - 32)) |
+					(1 << (nfsv4.FATTR4_OWNER_GROUP - 32)) |
 					(1 << (nfsv4.FATTR4_TIME_ACCESS - 32)) |
 					(1 << (nfsv4.FATTR4_TIME_METADATA - 32)) |
 					(1 << (nfsv4.FATTR4_TIME_MODIFY - 32)),
@@ -495,6 +498,25 @@ func (p *nfs41Program) writeAttributes(attributes *virtual.Attributes, attrReque
 		if b := uint32(1 << (nfsv4.FATTR4_NUMLINKS - 32)); f&b != 0 {
 			s |= b
 			nfsv4.WriteUint32T(w, attributes.GetLinkCount())
+		}
+		if b := uint32(1 << (nfsv4.FATTR4_OWNER - 32)); f&b != 0 {
+			// The macOS NFSv4 driver requires that if
+			// FATTR4_OWNER is a supported attribute, all
+			// files in the file system report it.
+			s |= b
+			v := ""
+			if ownerUserID, ok := attributes.GetOwnerUserID(); ok {
+				v = strconv.FormatUint(uint64(ownerUserID), 10)
+			}
+			nfsv4.WriteUtf8strMixed(w, v)
+		}
+		if b := uint32(1 << (nfsv4.FATTR4_OWNER_GROUP - 32)); f&b != 0 {
+			s |= b
+			v := ""
+			if ownerGroupID, ok := attributes.GetOwnerGroupID(); ok {
+				v = strconv.FormatUint(uint64(ownerGroupID), 10)
+			}
+			nfsv4.WriteUtf8strMixed(w, v)
 		}
 		if b := uint32(1 << (nfsv4.FATTR4_TIME_ACCESS - 32)); f&b != 0 {
 			s |= b

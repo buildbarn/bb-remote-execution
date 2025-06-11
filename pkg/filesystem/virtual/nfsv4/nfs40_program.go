@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"math"
+	"strconv"
 	"sync"
 	"time"
 
@@ -560,6 +561,8 @@ func (p *nfs40Program) writeAttributes(attributes *virtual.Attributes, attrReque
 					(1 << nfsv4.FATTR4_FILEID),
 				(1 << (nfsv4.FATTR4_MODE - 32)) |
 					(1 << (nfsv4.FATTR4_NUMLINKS - 32)) |
+					(1 << (nfsv4.FATTR4_OWNER - 32)) |
+					(1 << (nfsv4.FATTR4_OWNER_GROUP - 32)) |
 					(1 << (nfsv4.FATTR4_TIME_ACCESS - 32)) |
 					(1 << (nfsv4.FATTR4_TIME_METADATA - 32)) |
 					(1 << (nfsv4.FATTR4_TIME_MODIFY - 32)),
@@ -656,6 +659,25 @@ func (p *nfs40Program) writeAttributes(attributes *virtual.Attributes, attrReque
 		if b := uint32(1 << (nfsv4.FATTR4_NUMLINKS - 32)); f&b != 0 {
 			s |= b
 			nfsv4.WriteUint32T(w, attributes.GetLinkCount())
+		}
+		if b := uint32(1 << (nfsv4.FATTR4_OWNER - 32)); f&b != 0 {
+			// The macOS NFSv4 driver requires that if
+			// FATTR4_OWNER is a supported attribute, all
+			// files in the file system report it.
+			s |= b
+			v := ""
+			if ownerUserID, ok := attributes.GetOwnerUserID(); ok {
+				v = strconv.FormatUint(uint64(ownerUserID), 10)
+			}
+			nfsv4.WriteUtf8strMixed(w, v)
+		}
+		if b := uint32(1 << (nfsv4.FATTR4_OWNER_GROUP - 32)); f&b != 0 {
+			s |= b
+			v := ""
+			if ownerGroupID, ok := attributes.GetOwnerGroupID(); ok {
+				v = strconv.FormatUint(uint64(ownerGroupID), 10)
+			}
+			nfsv4.WriteUtf8strMixed(w, v)
 		}
 		if b := uint32(1 << (nfsv4.FATTR4_TIME_ACCESS - 32)); f&b != 0 {
 			s |= b
@@ -3026,6 +3048,12 @@ func attrRequestToAttributesMask(attrRequest nfsv4.Bitmap4) virtual.AttributesMa
 		if f&uint32(1<<(nfsv4.FATTR4_NUMLINKS-32)) != 0 {
 			attributesMask |= virtual.AttributesMaskLinkCount
 		}
+		if f&uint32(1<<(nfsv4.FATTR4_OWNER-32)) != 0 {
+			attributesMask |= virtual.AttributesMaskOwnerUserID
+		}
+		if f&uint32(1<<(nfsv4.FATTR4_OWNER_GROUP-32)) != 0 {
+			attributesMask |= virtual.AttributesMaskOwnerGroupID
+		}
 		if f&uint32(1<<(nfsv4.FATTR4_TIME_MODIFY-32)) != 0 {
 			attributesMask |= virtual.AttributesMaskLastDataModificationTime
 		}
@@ -3043,6 +3071,12 @@ func attributesMaskToBitmap4(in virtual.AttributesMask) []uint32 {
 	out := make([]uint32, 2)
 	if in&virtual.AttributesMaskPermissions != 0 {
 		out[1] |= (1 << (nfsv4.FATTR4_MODE - 32))
+	}
+	if in&virtual.AttributesMaskOwnerUserID != 0 {
+		out[1] |= (1 << (nfsv4.FATTR4_OWNER - 32))
+	}
+	if in&virtual.AttributesMaskOwnerGroupID != 0 {
+		out[1] |= (1 << (nfsv4.FATTR4_OWNER_GROUP - 32))
 	}
 	if in&virtual.AttributesMaskSizeBytes != 0 {
 		out[0] |= (1 << nfsv4.FATTR4_SIZE)
@@ -3172,7 +3206,9 @@ func fattr4ToAttributes(in *nfsv4.Fattr4, out *virtual.Attributes) nfsv4.Nfsstat
 	if len(in.Attrmask) > 1 {
 		// Attributes 32 to 63.
 		f := in.Attrmask[1]
-		if f&^(1<<(nfsv4.FATTR4_MODE-32)) != 0 {
+		if f&^((1<<(nfsv4.FATTR4_MODE-32))|
+			(1<<(nfsv4.FATTR4_OWNER-32))|
+			(1<<(nfsv4.FATTR4_OWNER_GROUP-32))) != 0 {
 			return nfsv4.NFS4ERR_ATTRNOTSUPP
 		}
 		if f&(1<<(nfsv4.FATTR4_MODE-32)) != 0 {
@@ -3181,6 +3217,9 @@ func fattr4ToAttributes(in *nfsv4.Fattr4, out *virtual.Attributes) nfsv4.Nfsstat
 				return nfsv4.NFS4ERR_BADXDR
 			}
 			out.SetPermissions(virtual.NewPermissionsFromMode(mode))
+		}
+		if f&((1<<(nfsv4.FATTR4_OWNER-32))|(1<<(nfsv4.FATTR4_OWNER_GROUP-32))) != 0 {
+			return nfsv4.NFS4ERR_PERM
 		}
 	}
 	for i := 2; i < len(in.Attrmask); i++ {
