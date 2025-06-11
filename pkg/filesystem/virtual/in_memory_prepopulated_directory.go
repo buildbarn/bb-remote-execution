@@ -40,9 +40,10 @@ type inMemoryFilesystem struct {
 // error logger, which allows us to notify LocalBuildExecutor of disk
 // I/O errors.
 type inMemorySubtree struct {
-	filesystem    *inMemoryFilesystem
-	fileAllocator FileAllocator
-	errorLogger   util.ErrorLogger
+	filesystem              *inMemoryFilesystem
+	fileAllocator           FileAllocator
+	errorLogger             util.ErrorLogger
+	defaultAttributesSetter DefaultAttributesSetter
 }
 
 func (s *inMemorySubtree) createNewDirectory(initialContentsFetcher InitialContentsFetcher) *inMemoryPrepopulatedDirectory {
@@ -263,7 +264,7 @@ type inMemoryPrepopulatedDirectory struct {
 // that keeps all directory metadata stored in memory. As the filesystem
 // API does not allow traversing the hierarchy upwards, this directory
 // can be considered the root directory of the hierarchy.
-func NewInMemoryPrepopulatedDirectory(fileAllocator FileAllocator, symlinkFactory SymlinkFactory, errorLogger util.ErrorLogger, handleAllocator StatefulHandleAllocator, initialContentsSorter Sorter, hiddenFilesMatcher StringMatcher, clock clock.Clock) PrepopulatedDirectory {
+func NewInMemoryPrepopulatedDirectory(fileAllocator FileAllocator, symlinkFactory SymlinkFactory, errorLogger util.ErrorLogger, handleAllocator StatefulHandleAllocator, initialContentsSorter Sorter, hiddenFilesMatcher StringMatcher, clock clock.Clock, defaultAttributesSetter DefaultAttributesSetter) PrepopulatedDirectory {
 	subtree := &inMemorySubtree{
 		filesystem: &inMemoryFilesystem{
 			symlinkFactory:          symlinkFactory,
@@ -272,8 +273,9 @@ func NewInMemoryPrepopulatedDirectory(fileAllocator FileAllocator, symlinkFactor
 			hiddenFilesMatcher:      hiddenFilesMatcher,
 			clock:                   clock,
 		},
-		fileAllocator: fileAllocator,
-		errorLogger:   errorLogger,
+		fileAllocator:           fileAllocator,
+		errorLogger:             errorLogger,
+		defaultAttributesSetter: defaultAttributesSetter,
 	}
 	return subtree.createNewDirectory(EmptyInitialContentsFetcher)
 }
@@ -508,14 +510,15 @@ func (i *inMemoryPrepopulatedDirectory) postRemoveChildren(entries *inMemoryDire
 	}
 }
 
-func (i *inMemoryPrepopulatedDirectory) InstallHooks(fileAllocator FileAllocator, errorLogger util.ErrorLogger) {
+func (i *inMemoryPrepopulatedDirectory) InstallHooks(fileAllocator FileAllocator, errorLogger util.ErrorLogger, defaultAttributesSetter DefaultAttributesSetter) {
 	i.lock.Lock()
 	defer i.lock.Unlock()
 
 	i.subtree = &inMemorySubtree{
-		filesystem:    i.subtree.filesystem,
-		fileAllocator: fileAllocator,
-		errorLogger:   errorLogger,
+		filesystem:              i.subtree.filesystem,
+		fileAllocator:           fileAllocator,
+		errorLogger:             errorLogger,
+		defaultAttributesSetter: defaultAttributesSetter,
 	}
 }
 
@@ -723,6 +726,7 @@ func (i *inMemoryPrepopulatedDirectory) VirtualGetAttributes(ctx context.Context
 }
 
 func (i *inMemoryPrepopulatedDirectory) virtualGetAttributesUnlocked(requested AttributesMask, attributes *Attributes) {
+	i.subtree.defaultAttributesSetter(requested, attributes)
 	attributes.SetFileType(filesystem.FileTypeDirectory)
 	// To be consistent with traditional UNIX file systems, this
 	// would need to be 2 + len(i.directories), but that would

@@ -28,6 +28,8 @@ const (
 		virtual.AttributesMaskInodeNumber |
 		virtual.AttributesMaskLastDataModificationTime |
 		virtual.AttributesMaskLinkCount |
+		virtual.AttributesMaskOwnerGroupID |
+		virtual.AttributesMaskOwnerUserID |
 		virtual.AttributesMaskPermissions |
 		virtual.AttributesMaskSizeBytes
 	// AttributesMaskForFUSEDirEntry is the attributes mask to use
@@ -149,7 +151,18 @@ func toFUSEFileType(fileType filesystem.FileType) uint32 {
 	}
 }
 
+func populateOwner(attributes *virtual.Attributes, out *fuse.Owner) {
+	if userID, ok := attributes.GetOwnerUserID(); ok {
+		out.Uid = userID
+	}
+	if groupID, ok := attributes.GetOwnerGroupID(); ok {
+		out.Gid = groupID
+	}
+}
+
 func populateAttr(attributes *virtual.Attributes, out *fuse.Attr) {
+	populateOwner(attributes, &out.Owner)
+
 	if deviceNumber, ok := attributes.GetDeviceNumber(); ok {
 		out.Rdev = uint32(deviceNumber.ToRaw())
 	}

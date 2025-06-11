@@ -32,6 +32,12 @@ const (
 	AttributesMaskLastDataModificationTime
 	// AttributesMaskLinkCount requests the link count (st_nlink).
 	AttributesMaskLinkCount
+	// AttributesMaskOwnerGroupID requests the ID of the group that
+	// owns the file (st_gid).
+	AttributesMaskOwnerGroupID
+	// AttributesMaskOwnerUserID requests the ID of the user that
+	// owns the file (st_uid).
+	AttributesMaskOwnerUserID
 	// AttributesMaskPermissions requests the permissions (lowest 12
 	// bits of set_mode).
 	AttributesMaskPermissions
@@ -51,6 +57,8 @@ type Attributes struct {
 	inodeNumber              uint64
 	lastDataModificationTime time.Time
 	linkCount                uint32
+	ownerGroupID             uint32
+	ownerUserID              uint32
 	permissions              Permissions
 	sizeBytes                uint64
 }
@@ -161,6 +169,30 @@ func (a *Attributes) GetLinkCount() uint32 {
 func (a *Attributes) SetLinkCount(linkCount uint32) *Attributes {
 	a.linkCount = linkCount
 	a.fieldsPresent |= AttributesMaskLinkCount
+	return a
+}
+
+// GetOwnerGroupID returns the ID of the group owning the file (st_gid).
+func (a *Attributes) GetOwnerGroupID() (uint32, bool) {
+	return a.ownerGroupID, a.fieldsPresent&AttributesMaskOwnerGroupID != 0
+}
+
+// SetOwnerGroupID sets the ID of the group owning the file (st_gid).
+func (a *Attributes) SetOwnerGroupID(ownerGroupID uint32) *Attributes {
+	a.ownerGroupID = ownerGroupID
+	a.fieldsPresent |= AttributesMaskOwnerGroupID
+	return a
+}
+
+// GetOwnerUserID returns the ID of the group owning the file (st_uid).
+func (a *Attributes) GetOwnerUserID() (uint32, bool) {
+	return a.ownerUserID, a.fieldsPresent&AttributesMaskOwnerUserID != 0
+}
+
+// SetOwnerUserID sets the ID of the group owning the file (st_uid).
+func (a *Attributes) SetOwnerUserID(ownerUserID uint32) *Attributes {
+	a.ownerUserID = ownerUserID
+	a.fieldsPresent |= AttributesMaskOwnerUserID
 	return a
 }
 

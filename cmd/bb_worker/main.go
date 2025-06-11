@@ -226,7 +226,13 @@ func main() {
 					handleAllocator,
 					initialContentsSorter,
 					hiddenFilesPattern,
-					clock.SystemClock)
+					clock.SystemClock,
+					/* defaultAttributesSetter = */ func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+						// No need to set ownership
+						// attributes on the top-level
+						// directory.
+					},
+				)
 
 				if err := mount.Expose(dependenciesGroup, virtualBuildDirectory); err != nil {
 					return util.StatusWrap(err, "Failed to expose build directory mount")
