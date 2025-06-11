@@ -83,7 +83,13 @@ func (d *virtualBuildDirectory) InstallHooks(filePool pool.FilePool, errorLogger
 		virtual.NewHandleAllocatingFileAllocator(
 			virtual.NewPoolBackedFileAllocator(filePool, errorLogger),
 			d.options.handleAllocator),
-		errorLogger)
+		errorLogger,
+		/* defaultAttributesSetter = */ func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+			// TODO: Do we want to provide the ability to
+			// let build directories be owned by the user
+			// running the build actions?
+		},
+	)
 }
 
 func (d *virtualBuildDirectory) MergeDirectoryContents(ctx context.Context, errorLogger util.ErrorLogger, digest digest.Digest, monitor access.UnreadDirectoryMonitor) error {

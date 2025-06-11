@@ -199,6 +199,7 @@ gomock(
         "CASFileFactory",
         "CharacterDeviceFactory",
         "ChildFilter",
+        "DefaultAttributesSetter",
         "Directory",
         "DirectoryEntryReporter",
         "FileAllocator",

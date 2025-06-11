@@ -42,6 +42,11 @@ type LeafPrepopulatedDirEntry struct {
 // LinkableLeaf, as returned by PrepopulatedDirectory.LookupChild().
 type PrepopulatedDirectoryChild = Child[PrepopulatedDirectory, LinkableLeaf, Node]
 
+// DefaultAttributesSetter is called into by implementations of
+// PrepopulatedDirectory to apply default values of file attributes,
+// such as the owner user/group ID.
+type DefaultAttributesSetter func(requested AttributesMask, attributes *Attributes)
+
 // PrepopulatedDirectory is a Directory that is writable and can contain
 // files of type LinkableLeaf.
 //
@@ -97,7 +102,7 @@ type PrepopulatedDirectory interface {
 	// This function is identical to BuildDirectory.InstallHooks(),
 	// except that it uses the FUSE specific FileAllocator instead
 	// of FilePool.
-	InstallHooks(fileAllocator FileAllocator, errorLogger util.ErrorLogger)
+	InstallHooks(fileAllocator FileAllocator, errorLogger util.ErrorLogger, defaultAttributesSetter DefaultAttributesSetter)
 	// FilterChildren() can be used to traverse over all of the
 	// InitialContentsFetcher and LinkableLeaf objects stored in this
 	// directory hierarchy. For each of the objects, a callback is
