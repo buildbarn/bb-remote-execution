@@ -18,18 +18,6 @@ message ApplicationConfiguration {
   // server can now be configured through 'admin_http_servers'.
   reserved 2;
 
-  // Configuration for the HTTP servers that expose the web UI.
-  //
-  // TODO: This web UI no longer needs to be integrated into
-  // bb_scheduler, as the underlying information can be exposed over
-  // gRPC using the 'build_queue_state_grpc_servers' option.
-  repeated buildbarn.configuration.http.ServerConfiguration admin_http_servers =
-      19;
-
-  // The path under which the administrative web UI needs to be exposed.
-  // When left empty, the web UI will be exposed at "/".
-  string admin_route_prefix = 22;
-
   // gRPC servers to spawn to listen for requests from clients
   // (bb_storage or Bazel).
   repeated buildbarn.configuration.grpc.ServerConfiguration
@@ -83,26 +71,6 @@ message ApplicationConfiguration {
   // requests.
   buildbarn.configuration.auth.AuthorizerConfiguration execute_authorizer = 15;
 
-  // Authorization requirements to be enforced for AddDrain and
-  // RemoveDrain requests issued through the BuildQueueState gRPC
-  // servers and web UI.
-  //
-  // The instance name to be matched is the instance name prefix of the
-  // size class queue to which drains are added, or from which drains
-  // are removed.
-  buildbarn.configuration.auth.AuthorizerConfiguration
-      modify_drains_authorizer = 20;
-
-  // Authorization requirements to be enforced for KillOperations
-  // RemoveDrain requests issued through the BuildQueueState gRPC
-  // servers and web UI.
-  //
-  // The instance name to be matched is the instance name prefix of the
-  // size class queue containing the operation. Not the instance name
-  // used by the operation itself.
-  buildbarn.configuration.auth.AuthorizerConfiguration
-      kill_operations_authorizer = 21;
-
   // The policy for routing actions.
   //
   // Before the scheduler is capable of enqueueing an action, it must
@@ -153,6 +121,38 @@ message ApplicationConfiguration {
   //
   // Recommended value: 900s
   google.protobuf.Duration platform_queue_with_no_workers_timeout = 18;
+
+  // Configuration for the HTTP servers that expose the web UI.
+  //
+  // TODO: This web UI no longer needs to be integrated into
+  // bb_scheduler, as the underlying information can be exposed over
+  // gRPC using the 'build_queue_state_grpc_servers' option.
+  repeated buildbarn.configuration.http.ServerConfiguration admin_http_servers =
+      19;
+
+  // Authorization requirements to be enforced for AddDrain and
+  // RemoveDrain requests issued through the BuildQueueState gRPC
+  // servers and web UI.
+  //
+  // The instance name to be matched is the instance name prefix of the
+  // size class queue to which drains are added, or from which drains
+  // are removed.
+  buildbarn.configuration.auth.AuthorizerConfiguration
+      modify_drains_authorizer = 20;
+
+  // Authorization requirements to be enforced for KillOperations
+  // RemoveDrain requests issued through the BuildQueueState gRPC
+  // servers and web UI.
+  //
+  // The instance name to be matched is the instance name prefix of the
+  // size class queue containing the operation. Not the instance name
+  // used by the operation itself.
+  buildbarn.configuration.auth.AuthorizerConfiguration
+      kill_operations_authorizer = 21;
+
+  // The path under which the administrative web UI needs to be exposed.
+  // When left empty, the web UI will be exposed at "/".
+  string admin_route_prefix = 22;
 }
 
 message PredeclaredPlatformQueueConfiguration {
