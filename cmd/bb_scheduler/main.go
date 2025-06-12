@@ -116,26 +116,41 @@ func main() {
 			return util.StatusWrap(err, "Invalid platform queue with no workers timeout")
 		}
 
+		operationWithNoWaitersTimeout := time.Minute
+		if configuration.OperationWithNoWaitersTimeout != nil {
+			if err := configuration.OperationWithNoWaitersTimeout.CheckValid(); err != nil {
+				return util.StatusWrap(err, "Invalid operation with no waiters timeout")
+			}
+			operationWithNoWaitersTimeout = configuration.OperationWithNoWaitersTimeout.AsDuration()
+		}
+
+		workerWithNoSynchronizationsTimeout := time.Minute
+		if configuration.WorkerWithNoSynchronizationsTimeout != nil {
+			if err := configuration.WorkerWithNoSynchronizationsTimeout.CheckValid(); err != nil {
+				return util.StatusWrap(err, "Invalid worker with no synchronizations timeout")
+			}
+			workerWithNoSynchronizationsTimeout = configuration.WorkerWithNoSynchronizationsTimeout.AsDuration()
+		}
+
 		// Create in-memory build queue.
-		// TODO: Make timeouts configurable.
 		generator := random.NewFastSingleThreadedGenerator()
 		buildQueue := scheduler.NewInMemoryBuildQueue(
 			contentAddressableStorage,
 			clock.SystemClock,
 			uuid.NewRandom,
 			&scheduler.InMemoryBuildQueueConfiguration{
-				ExecutionUpdateInterval:           time.Minute,
-				OperationWithNoWaitersTimeout:     time.Minute,
-				PlatformQueueWithNoWorkersTimeout: platformQueueWithNoWorkersTimeout.AsDuration(),
-				BusyWorkerSynchronizationInterval: 10 * time.Second,
+				ExecutionUpdateInterval:                 time.Minute,
+				OperationWithNoWaitersTimeout:           operationWithNoWaitersTimeout,
+				PlatformQueueWithNoWorkersTimeout:       platformQueueWithNoWorkersTimeout.AsDuration(),
+				BusyWorkerSynchronizationInterval:       10 * time.Second,
 				GetIdleWorkerSynchronizationInterval: func() time.Duration {
 					// Let synchronization calls block somewhere
 					// between 0 and 2 minutes. Add jitter to
 					// prevent recurring traffic spikes.
 					return random.Duration(generator, 2*time.Minute)
 				},
-				WorkerTaskRetryCount:                9,
-				WorkerWithNoSynchronizationsTimeout: time.Minute,
+				WorkerTaskRetryCount:                    9,
+				WorkerWithNoSynchronizationsTimeout:     workerWithNoSynchronizationsTimeout,
 			},
 			int(configuration.MaximumMessageSizeBytes),
 			actionRouter,
