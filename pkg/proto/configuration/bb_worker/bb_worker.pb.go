@@ -41,11 +41,11 @@ type ApplicationConfiguration struct {
 	BuildDirectories               []*BuildDirectoryConfiguration            `protobuf:"bytes,20,rep,name=build_directories,json=buildDirectories,proto3" json:"build_directories,omitempty"`
 	FilePool                       *filesystem.FilePoolConfiguration         `protobuf:"bytes,22,opt,name=file_pool,json=filePool,proto3" json:"file_pool,omitempty"`
 	CompletedActionLoggers         []*CompletedActionLoggingConfiguration    `protobuf:"bytes,23,rep,name=completed_action_loggers,json=completedActionLoggers,proto3" json:"completed_action_loggers,omitempty"`
-	InputDownloadConcurrency       int64                                     `protobuf:"varint,28,opt,name=input_download_concurrency,json=inputDownloadConcurrency,proto3" json:"input_download_concurrency,omitempty"`
 	OutputUploadConcurrency        int64                                     `protobuf:"varint,24,opt,name=output_upload_concurrency,json=outputUploadConcurrency,proto3" json:"output_upload_concurrency,omitempty"`
 	DirectoryCache                 *cas.CachingDirectoryFetcherConfiguration `protobuf:"bytes,25,opt,name=directory_cache,json=directoryCache,proto3" json:"directory_cache,omitempty"`
 	Prefetching                    *PrefetchingConfiguration                 `protobuf:"bytes,26,opt,name=prefetching,proto3" json:"prefetching,omitempty"`
 	ForceUploadTreesAndDirectories bool                                      `protobuf:"varint,27,opt,name=force_upload_trees_and_directories,json=forceUploadTreesAndDirectories,proto3" json:"force_upload_trees_and_directories,omitempty"`
+	InputDownloadConcurrency       int64                                     `protobuf:"varint,28,opt,name=input_download_concurrency,json=inputDownloadConcurrency,proto3" json:"input_download_concurrency,omitempty"`
 	unknownFields                  protoimpl.UnknownFields
 	sizeCache                      protoimpl.SizeCache
 }
@@ -136,13 +136,6 @@ func (x *ApplicationConfiguration) GetCompletedActionLoggers() []*CompletedActio
 	return nil
 }
 
-func (x *ApplicationConfiguration) GetInputDownloadConcurrency() int64 {
-	if x != nil {
-		return x.InputDownloadConcurrency
-	}
-	return 0
-}
-
 func (x *ApplicationConfiguration) GetOutputUploadConcurrency() int64 {
 	if x != nil {
 		return x.OutputUploadConcurrency
@@ -169,6 +162,13 @@ func (x *ApplicationConfiguration) GetForceUploadTreesAndDirectories() bool {
 		return x.ForceUploadTreesAndDirectories
 	}
 	return false
+}
+
+func (x *ApplicationConfiguration) GetInputDownloadConcurrency() int64 {
+	if x != nil {
+		return x.InputDownloadConcurrency
+	}
+	return 0
 }
 
 type BuildDirectoryConfiguration struct {
@@ -679,12 +679,12 @@ const file_pkg_proto_configuration_bb_worker_bb_worker_proto_rawDesc = "" +
 	"\x06global\x18\x13 \x01(\v2-.buildbarn.configuration.global.ConfigurationR\x06global\x12k\n" +
 	"\x11build_directories\x18\x14 \x03(\v2>.buildbarn.configuration.bb_worker.BuildDirectoryConfigurationR\x10buildDirectories\x12V\n" +
 	"\tfile_pool\x18\x16 \x01(\v29.buildbarn.configuration.filesystem.FilePoolConfigurationR\bfilePool\x12\x80\x01\n" +
-	"\x18completed_action_loggers\x18\x17 \x03(\v2F.buildbarn.configuration.bb_worker.CompletedActionLoggingConfigurationR\x16completedActionLoggers\x12<\n" +
-	"\x1ainput_download_concurrency\x18\x1c \x01(\x03R\x18inputDownloadConcurrency\x12:\n" +
+	"\x18completed_action_loggers\x18\x17 \x03(\v2F.buildbarn.configuration.bb_worker.CompletedActionLoggingConfigurationR\x16completedActionLoggers\x12:\n" +
 	"\x19output_upload_concurrency\x18\x18 \x01(\x03R\x17outputUploadConcurrency\x12j\n" +
 	"\x0fdirectory_cache\x18\x19 \x01(\v2A.buildbarn.configuration.cas.CachingDirectoryFetcherConfigurationR\x0edirectoryCache\x12]\n" +
 	"\vprefetching\x18\x1a \x01(\v2;.buildbarn.configuration.bb_worker.PrefetchingConfigurationR\vprefetching\x12J\n" +
-	"\"force_upload_trees_and_directories\x18\x1b \x01(\bR\x1eforceUploadTreesAndDirectoriesJ\x04\b\t\x10\n" +
+	"\"force_upload_trees_and_directories\x18\x1b \x01(\bR\x1eforceUploadTreesAndDirectories\x12<\n" +
+	"\x1ainput_download_concurrency\x18\x1c \x01(\x03R\x18inputDownloadConcurrencyJ\x04\b\t\x10\n" +
 	"J\x04\b\f\x10\rJ\x04\b\x10\x10\x11J\x04\b\x12\x10\x13J\x04\b\x15\x10\x16\"\xbd\x02\n" +
 	"\x1bBuildDirectoryConfiguration\x12^\n" +
 	"\x06native\x18\x01 \x01(\v2D.buildbarn.configuration.bb_worker.NativeBuildDirectoryConfigurationH\x00R\x06native\x12a\n" +
