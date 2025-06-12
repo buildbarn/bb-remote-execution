@@ -60,7 +60,7 @@ func NewKey(instanceNamePrefix digest.InstanceName, platform *remoteexecution.Pl
 
 // MustNewKey is identical to NewKey, except that it panics upon failure.
 func MustNewKey(instanceNamePrefix string, platform *remoteexecution.Platform) Key {
-	key, err := NewKey(digest.MustNewInstanceName(instanceNamePrefix), platform)
+	key, err := NewKey(util.Must(digest.NewInstanceName(instanceNamePrefix)), platform)
 	if err != nil {
 		panic(err)
 	}

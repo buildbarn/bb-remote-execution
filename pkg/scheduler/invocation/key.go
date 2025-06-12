@@ -7,17 +7,8 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/util"
 
 	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
-
-func mustNewAny(src proto.Message) *anypb.Any {
-	any, err := anypb.New(src)
-	if err != nil {
-		panic(err)
-	}
-	return any
-}
 
 // Key for identifying client invocations. InMemoryBuildQueue uses this
 // type to group operations within a given size class queue. This
@@ -38,16 +29,6 @@ func NewKey(id *anypb.Any) (Key, error) {
 	return Key(data), nil
 }
 
-// MustNewKey is identical to NewKey, except that it panics in case of
-// failures.
-func MustNewKey(id *anypb.Any) Key {
-	key, err := NewKey(id)
-	if err != nil {
-		panic(err)
-	}
-	return key
-}
-
 // GetID reobtains the Protobuf message that was used to construct the
 // key.
 func (k Key) GetID() *anypb.Any {
@@ -62,5 +43,5 @@ func (k Key) GetID() *anypb.Any {
 // all operations that are created to perform background learning (see
 // initialsizeclass.FeedbackAnalyzer).
 var BackgroundLearningKeys = []Key{
-	MustNewKey(mustNewAny(&buildqueuestate.BackgroundLearning{})),
+	util.Must(NewKey(util.Must(anypb.New(&buildqueuestate.BackgroundLearning{})))),
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
+	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/stretchr/testify/require"
 
 	"google.golang.org/grpc/codes"
@@ -36,7 +37,7 @@ func TestBuildClient(t *testing.T) {
 			{Name: "os", Value: "linux"},
 		},
 	}
-	bc := builder.NewBuildClient(operationQueueClient, buildExecutor, filePool, clock, workerID, digest.MustNewInstanceName("prefix"), platform, 4)
+	bc := builder.NewBuildClient(operationQueueClient, buildExecutor, filePool, clock, workerID, util.Must(digest.NewInstanceName("prefix")), platform, 4)
 
 	// If synchronizing against the scheduler doesn't yield any
 	// action to run, the client should remain in the idle state.

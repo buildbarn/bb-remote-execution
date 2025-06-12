@@ -10,6 +10,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/routing"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
+	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/stretchr/testify/require"
 
 	"google.golang.org/grpc/codes"
@@ -32,7 +33,7 @@ func TestDemultiplexingActionRouter(t *testing.T) {
 		},
 	}
 	linuxActionRouter := mock.NewMockActionRouter(ctrl)
-	require.NoError(t, actionRouter.RegisterActionRouter(digest.MustNewInstanceName("a"), linuxPlatform, linuxActionRouter))
+	require.NoError(t, actionRouter.RegisterActionRouter(util.Must(digest.NewInstanceName("a")), linuxPlatform, linuxActionRouter))
 
 	windowsPlatform := &remoteexecution.Platform{
 		Properties: []*remoteexecution.Platform_Property{
@@ -40,7 +41,7 @@ func TestDemultiplexingActionRouter(t *testing.T) {
 		},
 	}
 	windowsActionRouter := mock.NewMockActionRouter(ctrl)
-	require.NoError(t, actionRouter.RegisterActionRouter(digest.MustNewInstanceName("a"), windowsPlatform, windowsActionRouter))
+	require.NoError(t, actionRouter.RegisterActionRouter(util.Must(digest.NewInstanceName("a")), windowsPlatform, windowsActionRouter))
 
 	// Attempting to register another backend with the same instance
 	// name prefix and platform properties should fail.
@@ -48,7 +49,7 @@ func TestDemultiplexingActionRouter(t *testing.T) {
 	testutil.RequireEqualStatus(
 		t,
 		status.Error(codes.AlreadyExists, "An action router with the same instance name prefix and platform already exists"),
-		actionRouter.RegisterActionRouter(digest.MustNewInstanceName("a"), linuxPlatform, unusedActionRouter))
+		actionRouter.RegisterActionRouter(util.Must(digest.NewInstanceName("a")), linuxPlatform, unusedActionRouter))
 
 	t.Run("DefaultActionRouter", func(t *testing.T) {
 		// Even though the platform properties indicate Linux,

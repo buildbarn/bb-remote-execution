@@ -8,6 +8,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/platform"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
+	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/stretchr/testify/require"
 
 	"google.golang.org/grpc/codes"
@@ -31,10 +32,10 @@ func TestKey(t *testing.T) {
 	})
 
 	t.Run("EmptyPlatform", func(t *testing.T) {
-		k, err := platform.NewKey(digest.MustNewInstanceName("a/b"), &remoteexecution.Platform{})
+		k, err := platform.NewKey(util.Must(digest.NewInstanceName("a/b")), &remoteexecution.Platform{})
 		require.NoError(t, err)
 
-		require.Equal(t, digest.MustNewInstanceName("a/b"), k.GetInstanceNamePrefix())
+		require.Equal(t, util.Must(digest.NewInstanceName("a/b")), k.GetInstanceNamePrefix())
 		require.Equal(t, "{}", k.GetPlatformString())
 		testutil.RequireEqualProto(t, &buildqueuestate.PlatformQueueName{
 			InstanceNamePrefix: "a/b",
@@ -45,7 +46,7 @@ func TestKey(t *testing.T) {
 	t.Run("InvalidPropertiesOrder", func(t *testing.T) {
 		// Platform properties must be provided in sorted order,
 		// as the encoding is ambiguous otherwise.
-		_, err := platform.NewKey(digest.MustNewInstanceName("a"), &remoteexecution.Platform{
+		_, err := platform.NewKey(util.Must(digest.NewInstanceName("a")), &remoteexecution.Platform{
 			Properties: []*remoteexecution.Platform_Property{
 				{
 					Name:  "os",
@@ -63,7 +64,7 @@ func TestKey(t *testing.T) {
 	t.Run("MultipleValues", func(t *testing.T) {
 		// It is valid to provide multiple values for the same
 		// platform property, as long as the values are sorted.
-		k, err := platform.NewKey(digest.MustNewInstanceName("a"), &remoteexecution.Platform{
+		k, err := platform.NewKey(util.Must(digest.NewInstanceName("a")), &remoteexecution.Platform{
 			Properties: []*remoteexecution.Platform_Property{
 				{
 					Name:  "cpu",
@@ -81,7 +82,7 @@ func TestKey(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		require.Equal(t, digest.MustNewInstanceName("a"), k.GetInstanceNamePrefix())
+		require.Equal(t, util.Must(digest.NewInstanceName("a")), k.GetInstanceNamePrefix())
 		require.Equal(
 			t,
 			"{\"properties\":[{\"name\":\"cpu\",\"value\":\"i386\"},{\"name\":\"cpu\",\"value\":\"x86_64\"},{\"name\":\"os\",\"value\":\"linux\"}]}",

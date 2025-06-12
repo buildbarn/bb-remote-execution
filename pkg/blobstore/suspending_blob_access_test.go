@@ -11,6 +11,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
+	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/stretchr/testify/require"
 
 	"go.uber.org/mock/gomock"
@@ -24,7 +25,7 @@ func TestSuspendingBlobAccess(t *testing.T) {
 	blobAccess := blobstore.NewSuspendingBlobAccess(baseBlobAccess, suspendable)
 
 	exampleDigest := digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "8b1a9953c4611296a827abf8c47804d7", 5)
-	exampleInstanceName := digest.MustNewInstanceName("hello")
+	exampleInstanceName := util.Must(digest.NewInstanceName("hello"))
 
 	t.Run("Get", func(t *testing.T) {
 		r := mock.NewMockReadCloser(ctrl)
