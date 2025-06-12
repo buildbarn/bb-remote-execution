@@ -11,6 +11,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	auth_pb "github.com/buildbarn/bb-storage/pkg/proto/auth"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
+	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/stretchr/testify/require"
 
 	"google.golang.org/grpc/codes"
@@ -25,14 +26,14 @@ func TestUserSettableSymlink(t *testing.T) {
 
 	ctx1 := auth.NewContextWithAuthenticationMetadata(
 		context.Background(),
-		auth.MustNewAuthenticationMetadataFromProto(&auth_pb.AuthenticationMetadata{
+		util.Must(auth.NewAuthenticationMetadataFromProto(&auth_pb.AuthenticationMetadata{
 			Public: structpb.NewStringValue("user1"),
-		}))
+		})))
 	ctx2 := auth.NewContextWithAuthenticationMetadata(
 		context.Background(),
-		auth.MustNewAuthenticationMetadataFromProto(&auth_pb.AuthenticationMetadata{
+		util.Must(auth.NewAuthenticationMetadataFromProto(&auth_pb.AuthenticationMetadata{
 			Public: structpb.NewStringValue("user2"),
-		}))
+		})))
 
 	t.Run("InstallTemporaryDirectory", func(t *testing.T) {
 		// Attempt to set some symlink target paths for the

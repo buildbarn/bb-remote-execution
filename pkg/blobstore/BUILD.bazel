@@ -45,6 +45,7 @@ go_test(
         "@com_github_buildbarn_bb_storage//pkg/digest",
         "@com_github_buildbarn_bb_storage//pkg/proto/iscc",
         "@com_github_buildbarn_bb_storage//pkg/testutil",
+        "@com_github_buildbarn_bb_storage//pkg/util",
         "@com_github_stretchr_testify//require",
         "@org_golang_google_genproto_googleapis_rpc//errdetails",
         "@org_golang_google_grpc//codes",

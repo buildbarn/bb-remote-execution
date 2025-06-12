@@ -12,6 +12,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
+	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/google/uuid"
 
 	"google.golang.org/protobuf/types/known/anypb"
@@ -55,7 +56,7 @@ func TestActionLoggingBuildExecutor(t *testing.T) {
 		baseBuildExecutor,
 		uuidGenerator.Call,
 		lq,
-		digest.NewInstanceNamePatcher(digest.EmptyInstanceName, digest.MustNewInstanceName("prefix")))
+		digest.NewInstanceNamePatcher(digest.EmptyInstanceName, util.Must(digest.NewInstanceName("prefix"))))
 
 	uuidGenerator.EXPECT().Call().Return(uuid.Parse("36ebab65-3c4f-4faf-818b-2eabb4cd1b02"))
 	lq.EXPECT().LogCompletedAction(&cal_proto.CompletedAction{

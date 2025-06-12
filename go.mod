@@ -12,7 +12,7 @@ require (
 	cloud.google.com/go/longrunning v0.6.6
 	github.com/bazelbuild/buildtools v0.0.0-20250410144851-f37c35dc3237
 	github.com/bazelbuild/remote-apis v0.0.0-20250410133023-536ec595e1df
-	github.com/buildbarn/bb-storage v0.0.0-20250408112116-1d733a37487a
+	github.com/buildbarn/bb-storage v0.0.0-20250610194855-1f558fbdc7c5
 	github.com/buildbarn/go-xdr v0.0.0-20240702182809-236788cf9e89
 	github.com/golang/protobuf v1.5.4
 	github.com/google/uuid v1.6.0
@@ -79,7 +79,6 @@ require (
 	github.com/go-jose/go-jose/v3 v3.0.4 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/go-jsonnet v0.20.0 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
@@ -97,7 +96,6 @@ require (
 	github.com/prometheus/common v0.63.0 // indirect
 	github.com/prometheus/procfs v0.16.0 // indirect
 	github.com/sercand/kuberesolver/v5 v5.1.1 // indirect
-	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.35.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.60.0 // indirect
@@ -121,7 +119,6 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20250409194420-de1ac958c67a // indirect
 	google.golang.org/genproto/googleapis/bytestream v0.0.0-20250409194420-de1ac958c67a // indirect
 	google.golang.org/grpc/security/advancedtls v1.0.0 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )

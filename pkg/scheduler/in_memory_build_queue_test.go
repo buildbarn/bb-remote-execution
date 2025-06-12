@@ -21,6 +21,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
+	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -1854,7 +1855,7 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 			},
 		}), testutil.EqProto(t, requestMetadata)).Return(
 			platform.MustNewKey("main", platformForTesting),
-			[]invocation.Key{invocation.MustNewKey(requestMetadataAny)},
+			[]invocation.Key{util.Must(invocation.NewKey(requestMetadataAny))},
 			initialSizeClassSelector,
 			nil,
 		)
@@ -2233,7 +2234,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonQueued(t *testing.T) {
 		require.NoError(t, err)
 		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), gomock.Any(), testutil.EqProto(t, requestMetadata)).Return(
 			platform.MustNewKey("main", platformForTesting),
-			[]invocation.Key{invocation.MustNewKey(requestMetadataAny)},
+			[]invocation.Key{util.Must(invocation.NewKey(requestMetadataAny))},
 			initialSizeClassSelector,
 			nil,
 		)
@@ -2425,7 +2426,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 		require.NoError(t, err)
 		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), gomock.Any(), testutil.EqProto(t, requestMetadata)).Return(
 			platform.MustNewKey("main", platformForTesting),
-			[]invocation.Key{invocation.MustNewKey(requestMetadataAny)},
+			[]invocation.Key{util.Must(invocation.NewKey(requestMetadataAny))},
 			initialSizeClassSelector,
 			nil,
 		)
@@ -2814,7 +2815,7 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 	// execution strategy remains deterministic.
 	clock.EXPECT().Now().Return(time.Unix(1000, 0))
 	require.NoError(t, buildQueue.RegisterPredeclaredPlatformQueue(
-		digest.MustNewInstanceName("main"),
+		util.Must(digest.NewInstanceName("main")),
 		platformForTesting,
 		/* workerInvocationStickinessLimits = */ nil,
 		/* maximumQueuedBackgroundLearningOperations = */ 0,
@@ -3194,7 +3195,7 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 	// execution strategy remains deterministic.
 	clock.EXPECT().Now().Return(time.Unix(1000, 0))
 	require.NoError(t, buildQueue.RegisterPredeclaredPlatformQueue(
-		digest.MustNewInstanceName("main"),
+		util.Must(digest.NewInstanceName("main")),
 		platformForTesting,
 		/* workerInvocationStickinessLimits = */ nil,
 		/* maximumQueuedBackgroundLearningOperations = */ 10,
@@ -3608,7 +3609,7 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 	initialSizeClassSelector1 := mock.NewMockSelector(ctrl)
 	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(
 		platform.MustNewKey("", platformForTesting),
-		[]invocation.Key{invocation.MustNewKey(invocationID1)},
+		[]invocation.Key{util.Must(invocation.NewKey(invocationID1))},
 		initialSizeClassSelector1,
 		nil,
 	)
@@ -3767,7 +3768,7 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 	initialSizeClassSelector2 := mock.NewMockSelector(ctrl)
 	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(
 		platform.MustNewKey("", platformForTesting),
-		[]invocation.Key{invocation.MustNewKey(invocationID2)},
+		[]invocation.Key{util.Must(invocation.NewKey(invocationID2))},
 		initialSizeClassSelector2,
 		nil,
 	)
@@ -3881,7 +3882,7 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 	initialSizeClassSelector3 := mock.NewMockSelector(ctrl)
 	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(
 		platform.MustNewKey("", platformForTesting),
-		[]invocation.Key{invocation.MustNewKey(invocationID3)},
+		[]invocation.Key{util.Must(invocation.NewKey(invocationID3))},
 		initialSizeClassSelector3,
 		nil,
 	)
@@ -3988,7 +3989,7 @@ func TestInMemoryBuildQueueWorkerInvocationStickinessLimit(t *testing.T) {
 		initialSizeClassSelector := mock.NewMockSelector(ctrl)
 		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(
 			platform.MustNewKey("", platformForTesting),
-			[]invocation.Key{invocation.MustNewKey(requestMetadataAny)},
+			[]invocation.Key{util.Must(invocation.NewKey(requestMetadataAny))},
 			initialSizeClassSelector,
 			nil,
 		)
@@ -4160,7 +4161,7 @@ func TestInMemoryBuildQueueAuthorization(t *testing.T) {
 	actionRouter := mock.NewMockActionRouter(ctrl)
 	authorizer := mock.NewMockAuthorizer(ctrl)
 	buildQueue := scheduler.NewInMemoryBuildQueue(contentAddressableStorage, clock, uuidGenerator.Call, &buildQueueConfigurationForTesting, 10000, actionRouter, authorizer, authorizer, authorizer)
-	beepboop := digest.MustNewInstanceName("beepboop")
+	beepboop := util.Must(digest.NewInstanceName("beepboop"))
 
 	t.Run("GetCapabilities-NotAuthorized", func(t *testing.T) {
 		authorizer.EXPECT().Authorize(gomock.Any(), []digest.InstanceName{beepboop}).Return([]error{status.Error(codes.PermissionDenied, "You shall not pass")})
@@ -4191,7 +4192,7 @@ func TestInMemoryBuildQueueAuthorization(t *testing.T) {
 
 	t.Run("WaitExecution", func(t *testing.T) {
 		buildQueue.RegisterPredeclaredPlatformQueue(
-			digest.MustNewInstanceName(""),
+			util.Must(digest.NewInstanceName("")),
 			&remoteexecution.Platform{},
 			/* workerInvocationStickinessLimits = */ nil,
 			/* maximumQueuedBackgroundLearningOperations = */ 0,
@@ -4326,8 +4327,8 @@ func TestInMemoryBuildQueueNestedInvocationsSynchronization(t *testing.T) {
 		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(
 			platform.MustNewKey("", platformForTesting),
 			[]invocation.Key{
-				invocation.MustNewKey(correlatedInvocationsIDAny),
-				invocation.MustNewKey(toolInvocationIDAny),
+				util.Must(invocation.NewKey(correlatedInvocationsIDAny)),
+				util.Must(invocation.NewKey(toolInvocationIDAny)),
 			},
 			initialSizeClassSelector,
 			nil,
