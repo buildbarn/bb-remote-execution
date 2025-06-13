@@ -30,25 +30,27 @@ const (
 )
 
 type ApplicationConfiguration struct {
-	state                             protoimpl.MessageState                   `protogen:"open.v1"`
-	AdminHttpServers                  []*http.ServerConfiguration              `protobuf:"bytes,19,rep,name=admin_http_servers,json=adminHttpServers,proto3" json:"admin_http_servers,omitempty"`
-	AdminRoutePrefix                  string                                   `protobuf:"bytes,22,opt,name=admin_route_prefix,json=adminRoutePrefix,proto3" json:"admin_route_prefix,omitempty"`
-	ClientGrpcServers                 []*grpc.ServerConfiguration              `protobuf:"bytes,3,rep,name=client_grpc_servers,json=clientGrpcServers,proto3" json:"client_grpc_servers,omitempty"`
-	WorkerGrpcServers                 []*grpc.ServerConfiguration              `protobuf:"bytes,4,rep,name=worker_grpc_servers,json=workerGrpcServers,proto3" json:"worker_grpc_servers,omitempty"`
-	BrowserUrl                        string                                   `protobuf:"bytes,5,opt,name=browser_url,json=browserUrl,proto3" json:"browser_url,omitempty"`
-	ContentAddressableStorage         *blobstore.BlobAccessConfiguration       `protobuf:"bytes,6,opt,name=content_addressable_storage,json=contentAddressableStorage,proto3" json:"content_addressable_storage,omitempty"`
-	MaximumMessageSizeBytes           int64                                    `protobuf:"varint,7,opt,name=maximum_message_size_bytes,json=maximumMessageSizeBytes,proto3" json:"maximum_message_size_bytes,omitempty"`
-	Global                            *global.Configuration                    `protobuf:"bytes,8,opt,name=global,proto3" json:"global,omitempty"`
-	BuildQueueStateGrpcServers        []*grpc.ServerConfiguration              `protobuf:"bytes,11,rep,name=build_queue_state_grpc_servers,json=buildQueueStateGrpcServers,proto3" json:"build_queue_state_grpc_servers,omitempty"`
-	PredeclaredPlatformQueues         []*PredeclaredPlatformQueueConfiguration `protobuf:"bytes,12,rep,name=predeclared_platform_queues,json=predeclaredPlatformQueues,proto3" json:"predeclared_platform_queues,omitempty"`
-	ExecuteAuthorizer                 *auth.AuthorizerConfiguration            `protobuf:"bytes,15,opt,name=execute_authorizer,json=executeAuthorizer,proto3" json:"execute_authorizer,omitempty"`
-	ModifyDrainsAuthorizer            *auth.AuthorizerConfiguration            `protobuf:"bytes,20,opt,name=modify_drains_authorizer,json=modifyDrainsAuthorizer,proto3" json:"modify_drains_authorizer,omitempty"`
-	KillOperationsAuthorizer          *auth.AuthorizerConfiguration            `protobuf:"bytes,21,opt,name=kill_operations_authorizer,json=killOperationsAuthorizer,proto3" json:"kill_operations_authorizer,omitempty"`
-	ActionRouter                      *scheduler.ActionRouterConfiguration     `protobuf:"bytes,16,opt,name=action_router,json=actionRouter,proto3" json:"action_router,omitempty"`
-	InitialSizeClassCache             *blobstore.BlobAccessConfiguration       `protobuf:"bytes,17,opt,name=initial_size_class_cache,json=initialSizeClassCache,proto3" json:"initial_size_class_cache,omitempty"`
-	PlatformQueueWithNoWorkersTimeout *durationpb.Duration                     `protobuf:"bytes,18,opt,name=platform_queue_with_no_workers_timeout,json=platformQueueWithNoWorkersTimeout,proto3" json:"platform_queue_with_no_workers_timeout,omitempty"`
-	unknownFields                     protoimpl.UnknownFields
-	sizeCache                         protoimpl.SizeCache
+	state                               protoimpl.MessageState                   `protogen:"open.v1"`
+	AdminHttpServers                    []*http.ServerConfiguration              `protobuf:"bytes,19,rep,name=admin_http_servers,json=adminHttpServers,proto3" json:"admin_http_servers,omitempty"`
+	AdminRoutePrefix                    string                                   `protobuf:"bytes,22,opt,name=admin_route_prefix,json=adminRoutePrefix,proto3" json:"admin_route_prefix,omitempty"`
+	ClientGrpcServers                   []*grpc.ServerConfiguration              `protobuf:"bytes,3,rep,name=client_grpc_servers,json=clientGrpcServers,proto3" json:"client_grpc_servers,omitempty"`
+	WorkerGrpcServers                   []*grpc.ServerConfiguration              `protobuf:"bytes,4,rep,name=worker_grpc_servers,json=workerGrpcServers,proto3" json:"worker_grpc_servers,omitempty"`
+	BrowserUrl                          string                                   `protobuf:"bytes,5,opt,name=browser_url,json=browserUrl,proto3" json:"browser_url,omitempty"`
+	ContentAddressableStorage           *blobstore.BlobAccessConfiguration       `protobuf:"bytes,6,opt,name=content_addressable_storage,json=contentAddressableStorage,proto3" json:"content_addressable_storage,omitempty"`
+	MaximumMessageSizeBytes             int64                                    `protobuf:"varint,7,opt,name=maximum_message_size_bytes,json=maximumMessageSizeBytes,proto3" json:"maximum_message_size_bytes,omitempty"`
+	Global                              *global.Configuration                    `protobuf:"bytes,8,opt,name=global,proto3" json:"global,omitempty"`
+	BuildQueueStateGrpcServers          []*grpc.ServerConfiguration              `protobuf:"bytes,11,rep,name=build_queue_state_grpc_servers,json=buildQueueStateGrpcServers,proto3" json:"build_queue_state_grpc_servers,omitempty"`
+	PredeclaredPlatformQueues           []*PredeclaredPlatformQueueConfiguration `protobuf:"bytes,12,rep,name=predeclared_platform_queues,json=predeclaredPlatformQueues,proto3" json:"predeclared_platform_queues,omitempty"`
+	ExecuteAuthorizer                   *auth.AuthorizerConfiguration            `protobuf:"bytes,15,opt,name=execute_authorizer,json=executeAuthorizer,proto3" json:"execute_authorizer,omitempty"`
+	ModifyDrainsAuthorizer              *auth.AuthorizerConfiguration            `protobuf:"bytes,20,opt,name=modify_drains_authorizer,json=modifyDrainsAuthorizer,proto3" json:"modify_drains_authorizer,omitempty"`
+	KillOperationsAuthorizer            *auth.AuthorizerConfiguration            `protobuf:"bytes,21,opt,name=kill_operations_authorizer,json=killOperationsAuthorizer,proto3" json:"kill_operations_authorizer,omitempty"`
+	ActionRouter                        *scheduler.ActionRouterConfiguration     `protobuf:"bytes,16,opt,name=action_router,json=actionRouter,proto3" json:"action_router,omitempty"`
+	InitialSizeClassCache               *blobstore.BlobAccessConfiguration       `protobuf:"bytes,17,opt,name=initial_size_class_cache,json=initialSizeClassCache,proto3" json:"initial_size_class_cache,omitempty"`
+	PlatformQueueWithNoWorkersTimeout   *durationpb.Duration                     `protobuf:"bytes,18,opt,name=platform_queue_with_no_workers_timeout,json=platformQueueWithNoWorkersTimeout,proto3" json:"platform_queue_with_no_workers_timeout,omitempty"`
+	OperationWithNoWaitersTimeout       *durationpb.Duration                     `protobuf:"bytes,23,opt,name=operation_with_no_waiters_timeout,json=operationWithNoWaitersTimeout,proto3" json:"operation_with_no_waiters_timeout,omitempty"`
+	WorkerWithNoSynchronizationsTimeout *durationpb.Duration                     `protobuf:"bytes,24,opt,name=worker_with_no_synchronizations_timeout,json=workerWithNoSynchronizationsTimeout,proto3" json:"worker_with_no_synchronizations_timeout,omitempty"`
+	unknownFields                       protoimpl.UnknownFields
+	sizeCache                           protoimpl.SizeCache
 }
 
 func (x *ApplicationConfiguration) Reset() {
@@ -193,6 +195,20 @@ func (x *ApplicationConfiguration) GetPlatformQueueWithNoWorkersTimeout() *durat
 	return nil
 }
 
+func (x *ApplicationConfiguration) GetOperationWithNoWaitersTimeout() *durationpb.Duration {
+	if x != nil {
+		return x.OperationWithNoWaitersTimeout
+	}
+	return nil
+}
+
+func (x *ApplicationConfiguration) GetWorkerWithNoSynchronizationsTimeout() *durationpb.Duration {
+	if x != nil {
+		return x.WorkerWithNoSynchronizationsTimeout
+	}
+	return nil
+}
+
 type PredeclaredPlatformQueueConfiguration struct {
 	state                                     protoimpl.MessageState `protogen:"open.v1"`
 	InstanceNamePrefix                        string                 `protobuf:"bytes,1,opt,name=instance_name_prefix,json=instanceNamePrefix,proto3" json:"instance_name_prefix,omitempty"`
@@ -281,7 +297,7 @@ var File_pkg_proto_configuration_bb_scheduler_bb_scheduler_proto protoreflect.Fi
 
 const file_pkg_proto_configuration_bb_scheduler_bb_scheduler_proto_rawDesc = "" +
 	"\n" +
-	"7pkg/proto/configuration/bb_scheduler/bb_scheduler.proto\x12$buildbarn.configuration.bb_scheduler\x1a6build/bazel/remote/execution/v2/remote_execution.proto\x1a\x1egoogle/protobuf/duration.proto\x1a'pkg/proto/configuration/auth/auth.proto\x1a1pkg/proto/configuration/blobstore/blobstore.proto\x1a+pkg/proto/configuration/global/global.proto\x1a'pkg/proto/configuration/grpc/grpc.proto\x1a'pkg/proto/configuration/http/http.proto\x1a1pkg/proto/configuration/scheduler/scheduler.proto\"\xc5\f\n" +
+	"7pkg/proto/configuration/bb_scheduler/bb_scheduler.proto\x12$buildbarn.configuration.bb_scheduler\x1a6build/bazel/remote/execution/v2/remote_execution.proto\x1a\x1egoogle/protobuf/duration.proto\x1a'pkg/proto/configuration/auth/auth.proto\x1a1pkg/proto/configuration/blobstore/blobstore.proto\x1a+pkg/proto/configuration/global/global.proto\x1a'pkg/proto/configuration/grpc/grpc.proto\x1a'pkg/proto/configuration/http/http.proto\x1a1pkg/proto/configuration/scheduler/scheduler.proto\"\x9b\x0e\n" +
 	"\x18ApplicationConfiguration\x12_\n" +
 	"\x12admin_http_servers\x18\x13 \x03(\v21.buildbarn.configuration.http.ServerConfigurationR\x10adminHttpServers\x12,\n" +
 	"\x12admin_route_prefix\x18\x16 \x01(\tR\x10adminRoutePrefix\x12a\n" +
@@ -299,7 +315,9 @@ const file_pkg_proto_configuration_bb_scheduler_bb_scheduler_proto_rawDesc = "" 
 	"\x1akill_operations_authorizer\x18\x15 \x01(\v25.buildbarn.configuration.auth.AuthorizerConfigurationR\x18killOperationsAuthorizer\x12a\n" +
 	"\raction_router\x18\x10 \x01(\v2<.buildbarn.configuration.scheduler.ActionRouterConfigurationR\factionRouter\x12s\n" +
 	"\x18initial_size_class_cache\x18\x11 \x01(\v2:.buildbarn.configuration.blobstore.BlobAccessConfigurationR\x15initialSizeClassCache\x12l\n" +
-	"&platform_queue_with_no_workers_timeout\x18\x12 \x01(\v2\x19.google.protobuf.DurationR!platformQueueWithNoWorkersTimeoutJ\x04\b\x02\x10\x03J\x04\b\t\x10\n" +
+	"&platform_queue_with_no_workers_timeout\x18\x12 \x01(\v2\x19.google.protobuf.DurationR!platformQueueWithNoWorkersTimeout\x12c\n" +
+	"!operation_with_no_waiters_timeout\x18\x17 \x01(\v2\x19.google.protobuf.DurationR\x1doperationWithNoWaitersTimeout\x12o\n" +
+	"'worker_with_no_synchronizations_timeout\x18\x18 \x01(\v2\x19.google.protobuf.DurationR#workerWithNoSynchronizationsTimeoutJ\x04\b\x02\x10\x03J\x04\b\t\x10\n" +
 	"J\x04\b\n" +
 	"\x10\vJ\x04\b\r\x10\x0eJ\x04\b\x0e\x10\x0f\"\xea\x03\n" +
 	"%PredeclaredPlatformQueueConfiguration\x120\n" +
@@ -349,13 +367,15 @@ var file_pkg_proto_configuration_bb_scheduler_bb_scheduler_proto_depIdxs = []int
 	7,  // 10: buildbarn.configuration.bb_scheduler.ApplicationConfiguration.action_router:type_name -> buildbarn.configuration.scheduler.ActionRouterConfiguration
 	4,  // 11: buildbarn.configuration.bb_scheduler.ApplicationConfiguration.initial_size_class_cache:type_name -> buildbarn.configuration.blobstore.BlobAccessConfiguration
 	8,  // 12: buildbarn.configuration.bb_scheduler.ApplicationConfiguration.platform_queue_with_no_workers_timeout:type_name -> google.protobuf.Duration
-	9,  // 13: buildbarn.configuration.bb_scheduler.PredeclaredPlatformQueueConfiguration.platform:type_name -> build.bazel.remote.execution.v2.Platform
-	8,  // 14: buildbarn.configuration.bb_scheduler.PredeclaredPlatformQueueConfiguration.worker_invocation_stickiness_limits:type_name -> google.protobuf.Duration
-	15, // [15:15] is the sub-list for method output_type
-	15, // [15:15] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	8,  // 13: buildbarn.configuration.bb_scheduler.ApplicationConfiguration.operation_with_no_waiters_timeout:type_name -> google.protobuf.Duration
+	8,  // 14: buildbarn.configuration.bb_scheduler.ApplicationConfiguration.worker_with_no_synchronizations_timeout:type_name -> google.protobuf.Duration
+	9,  // 15: buildbarn.configuration.bb_scheduler.PredeclaredPlatformQueueConfiguration.platform:type_name -> build.bazel.remote.execution.v2.Platform
+	8,  // 16: buildbarn.configuration.bb_scheduler.PredeclaredPlatformQueueConfiguration.worker_invocation_stickiness_limits:type_name -> google.protobuf.Duration
+	17, // [17:17] is the sub-list for method output_type
+	17, // [17:17] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_pkg_proto_configuration_bb_scheduler_bb_scheduler_proto_init() }

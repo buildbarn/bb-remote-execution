@@ -153,6 +153,18 @@ message ApplicationConfiguration {
   //
   // Recommended value: 900s
   google.protobuf.Duration platform_queue_with_no_workers_timeout = 18;
+
+  // Operations are removed when no clients are calling Execute() or
+  // WaitExecution() on them during this time period.
+  //
+  // Recommended and default value: 60s
+  google.protobuf.Duration operation_with_no_waiters_timeout = 23;
+
+  // Workers are removed when no Synchronize() calls are received
+  // during this time period.
+  //
+  // Recommended and default value: 60s
+  google.protobuf.Duration worker_with_no_synchronizations_timeout = 24;
 }
 
 message PredeclaredPlatformQueueConfiguration {
