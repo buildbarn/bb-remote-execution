@@ -45,7 +45,6 @@ type quotaEnforcingFile struct {
 	filesystem.FileReadWriter
 
 	pool *quotaEnforcingFilePool
-	size int64
 }
 
 func (f *quotaEnforcingFile) Close() error {

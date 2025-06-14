@@ -72,6 +72,9 @@ func (sp *sectorPointer) GetNextMappedSector(logical uint32) (uint32, error) {
 }
 
 func firstUnmappedSingle(x uint32, single *indirect[uint32]) (uint32, error) {
+	if single == nil {
+		return 0, nil
+	}
 	start := x
 	for i := start; i < _SIZE; i++ {
 		if single.val[i] == 0 {
@@ -82,6 +85,9 @@ func firstUnmappedSingle(x uint32, single *indirect[uint32]) (uint32, error) {
 }
 
 func firstUnmappedDouble(x uint32, double *indirect[*indirect[uint32]]) (uint32, error) {
+	if double == nil {
+		return 0, nil
+	}
 	start := x / _SIZE
 	remainder := x % _SIZE
 	for i := start; i < _SIZE; i++ {
@@ -105,6 +111,9 @@ func noOverflow(x uint64) (uint32, error) {
 
 }
 func firstUnmappedTriple(x uint32, triple *indirect[*indirect[*indirect[uint32]]]) (uint32, error) {
+	if triple == nil {
+		return 0, nil
+	}
 	start := x / (_SIZE * _SIZE)
 	remainder := x % (_SIZE * _SIZE)
 	for i := start; i < _SIZE; i++ {
@@ -128,34 +137,50 @@ func (sp *sectorPointer) GetNextUnmappedSector(logical uint32) (uint32, error) {
 		logical = i + 1
 	}
 	if logical < _SINGLE {
-		if sp.single == nil {
-			return logical, nil
-		}
 		ret, err := firstUnmappedSingle(logical-_DIRECT, sp.single)
 		if err == nil {
-			return ret, nil
+			return ret + _DIRECT, nil
 		}
 		logical = _SINGLE
 	}
 	if logical < _DOUBLE {
-		if sp.double == nil {
-			return logical, nil
-		}
 		ret, err := firstUnmappedDouble(logical-_SINGLE, sp.double)
 		if err == nil {
-			return ret, nil
+			return ret + _SINGLE, nil
 		}
 		logical = _DOUBLE
 	}
 	// logical < _TRIPLE
-	if sp.triple == nil {
-		return logical, nil
-	}
 	ret, err := firstUnmappedTriple(logical-_DOUBLE, sp.triple)
 	if err == nil {
-		return ret, nil
+		return ret + _DOUBLE, nil
 	}
 	return 0, io.EOF
+}
+
+func getPhysicalIndexSingle(x uint32, single *indirect[uint32]) uint32 {
+	if single == nil {
+		return 0
+	}
+	return single.val[x]
+}
+
+func getPhysicalIndexDouble(x uint32, double *indirect[*indirect[uint32]]) uint32 {
+	if double == nil {
+		return 0
+	}
+	i := x / _SIZE
+	j := x % _SIZE
+	return getPhysicalIndexSingle(j, double.val[i])
+}
+
+func getPhysicalIndexTriple(x uint32, triple *indirect[*indirect[*indirect[uint32]]]) uint32 {
+	if triple == nil {
+		return 0
+	}
+	i := x / _SIZE / _SIZE
+	j := x % _SIZE
+	return getPhysicalIndexDouble(j, triple.val[i])
 }
 
 func (sp *sectorPointer) GetPhysicalIndex(logical uint32) uint32 {
@@ -163,57 +188,31 @@ func (sp *sectorPointer) GetPhysicalIndex(logical uint32) uint32 {
 		return sp.direct[logical]
 	}
 	if logical < _SINGLE {
-		i := logical - _DIRECT
-		if sp.single == nil {
-			return 0
-		}
-		return sp.single.val[i]
+		return getPhysicalIndexSingle(logical-_DIRECT, sp.single)
 	}
 	if logical < _DOUBLE {
-		offset := logical - _SINGLE
-		i := offset / _SIZE
-		j := offset - i*_SIZE
-		if sp.double == nil {
-			return 0
-		}
-		if sp.double.val[i] == nil {
-			return 0
-		}
-		return sp.double.val[i].val[j]
+		return getPhysicalIndexDouble(logical-_SINGLE, sp.double)
 	}
-	// if logical < _TRIPLE
-	offset := logical - _DOUBLE
-	i := offset / _SIZE / _SIZE
-	j := (offset - i*_SIZE*_SIZE) / _SIZE
-	k := offset - i*_SIZE*_SIZE - j*_SIZE
-	if sp.triple == nil {
-		return 0
-	}
-	if sp.triple.val[i] == nil {
-		return 0
-	}
-	if sp.triple.val[i].val[j] == nil {
-		return 0
-	}
-	return sp.triple.val[i].val[j].val[k]
+	return getPhysicalIndexTriple(logical-_DOUBLE, sp.triple)
 }
 
 func getNextDirectSectorListFromSingle(x uint32, single *indirect[uint32]) (uint32, []uint32) {
-	if x >= _SIZE {
+	if single == nil {
 		return 0, nil
 	}
 	return _SIZE, single.val[x:]
 }
 
 func getNextDirectSectorListFromDouble(x uint32, double *indirect[*indirect[uint32]]) (uint32, []uint32) {
+	if double == nil {
+		return 0, nil
+	}
 	start := x / _SIZE
 	remainder := x % _SIZE
 	for i := start; i < _SIZE; i++ {
-		if double.val[i] != nil {
-			next, list := getNextDirectSectorListFromSingle(remainder, double.val[i])
-			if list != nil {
-				return next + i*_SIZE, list
-			}
+		next, list := getNextDirectSectorListFromSingle(remainder, double.val[i])
+		if list != nil {
+			return next + i*_SIZE, list
 		}
 		remainder = 0
 	}
@@ -221,6 +220,9 @@ func getNextDirectSectorListFromDouble(x uint32, double *indirect[*indirect[uint
 }
 
 func getNextDirectSectorListFromTriple(x uint32, triple *indirect[*indirect[*indirect[uint32]]]) (uint32, []uint32) {
+	if triple == nil {
+		return 0, nil
+	}
 	start := x / (_SIZE * _SIZE)
 	remainder := x % (_SIZE * _SIZE)
 	for i := start; i < _SIZE; i++ {
@@ -240,29 +242,23 @@ func (sp *sectorPointer) GetNextDirectSectorList(start uint32) (uint32, []uint32
 		return _DIRECT, sp.direct[start:]
 	}
 	if start < _SINGLE {
-		if sp.single != nil {
-			next, list := getNextDirectSectorListFromSingle(start-_DIRECT, sp.single)
-			if list != nil {
-				return next + _DIRECT, list
-			}
+		next, list := getNextDirectSectorListFromSingle(start-_DIRECT, sp.single)
+		if list != nil {
+			return next + _DIRECT, list
 		}
 		start = _SINGLE
 	}
 	if start < _DOUBLE {
-		if sp.double != nil {
-			next, list := getNextDirectSectorListFromDouble(start-_SINGLE, sp.double)
-			if list != nil {
-				return next + _SINGLE, list
-			}
+		next, list := getNextDirectSectorListFromDouble(start-_SINGLE, sp.double)
+		if list != nil {
+			return next + _SINGLE, list
 		}
 		start = _DOUBLE
 	}
 	// start < _TRIPLE, always true since _TRIPLE is larger than uint32.
-	if sp.triple != nil {
-		next, list := getNextDirectSectorListFromTriple(start-_DOUBLE, sp.triple)
-		if list != nil {
-			return next + _DOUBLE, list
-		}
+	next, list := getNextDirectSectorListFromTriple(start-_DOUBLE, sp.triple)
+	if list != nil {
+		return next + _DOUBLE, list
 	}
 	return 0, nil
 }
@@ -275,6 +271,13 @@ func (sp *sectorPointer) GetLogicalSize() uint32 {
 // equal to the supplied value. This is used when the sector mapper is
 // truncated to find the first mapped sector in it's internal structure
 // less than the supplied value.
+//
+// This function uses binary search with GetNextMappedSector function
+// with a little bit of logic to turn the function monotonic when it
+// reaches io.EOF.
+//
+// Finding the next mapped sector is roughly O(n^1/3) making this
+// O(log(n)*n^(1/3)).
 func (sp *sectorPointer) shrinkLogicalSize(n uint32) {
 	// sort.Search does not support the entire uint32 range, so we
 	// implement it ourselves.
@@ -292,6 +295,9 @@ func (sp *sectorPointer) shrinkLogicalSize(n uint32) {
 }
 
 func clearSingle(x uint32, single *indirect[uint32]) bool {
+	if single == nil {
+		return true
+	}
 	for i := x; i < _SIZE; i++ {
 		single.val[i] = 0
 	}
@@ -304,13 +310,14 @@ func clearSingle(x uint32, single *indirect[uint32]) bool {
 }
 
 func clearDouble(x uint32, double *indirect[*indirect[uint32]]) bool {
+	if double == nil {
+		return true
+	}
 	start := x / _SIZE
 	remainder := x % _SIZE
 	for i := start; i < _SIZE; i++ {
-		if double.val[i] != nil {
-			if remainder == 0 || clearSingle(remainder, double.val[i]) {
-				double.val[i] = nil
-			}
+		if remainder == 0 || clearSingle(remainder, double.val[i]) {
+			double.val[i] = nil
 		}
 		remainder = 0
 	}
@@ -323,13 +330,14 @@ func clearDouble(x uint32, double *indirect[*indirect[uint32]]) bool {
 }
 
 func clearTriple(x uint32, triple *indirect[*indirect[*indirect[uint32]]]) bool {
+	if triple == nil {
+		return true
+	}
 	start := x / (_SIZE * _SIZE)
 	remainder := x % (_SIZE * _SIZE)
 	for i := start; i < _SIZE; i++ {
-		if triple.val[i] != nil {
-			if remainder == 0 || clearDouble(remainder, triple.val[i]) {
-				triple.val[i] = nil
-			}
+		if remainder == 0 || clearDouble(remainder, triple.val[i]) {
+			triple.val[i] = nil
 		}
 		remainder = 0
 	}
@@ -348,30 +356,14 @@ func (sp *sectorPointer) Truncate(length uint32) {
 	for i := length; i < _DIRECT; i++ {
 		sp.direct[i] = 0
 	}
-	if length <= _DIRECT {
+	if length <= _DIRECT || clearSingle(length-_DIRECT, sp.single) {
 		sp.single = nil
 	}
-	if sp.single != nil {
-		if clearSingle(length-_DIRECT, sp.single) {
-			sp.single = nil
-		}
-	}
-	if length <= _SINGLE {
+	if length <= _SINGLE || clearDouble(length-_SINGLE, sp.double) {
 		sp.double = nil
 	}
-	if sp.double != nil {
-		if clearDouble(length-_SINGLE, sp.double) {
-			sp.double = nil
-		}
-
-	}
-	if length <= _DOUBLE {
+	if length <= _DOUBLE || clearTriple(length-_DOUBLE, sp.triple) {
 		sp.triple = nil
-	}
-	if sp.triple != nil {
-		if clearTriple(length-_DOUBLE, sp.triple) {
-			sp.triple = nil
-		}
 	}
 }
 

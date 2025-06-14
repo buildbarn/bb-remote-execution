@@ -9,7 +9,7 @@ type SectorMapper interface {
 	// lists exist then the function returns an empty list.
 	GetNextDirectSectorList(start uint32) (uint32, []uint32)
 
-	// GetSectorFromIndex returns the physical sector index for a
+	// GetPhysicalIndex returns the physical sector index for a
 	// given logical index. This physical index may be zero which
 	// indicates that this logical sector is unmapped.
 	GetPhysicalIndex(index uint32) uint32

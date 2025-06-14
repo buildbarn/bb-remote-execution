@@ -53,9 +53,6 @@ func TestSectorPointer(t *testing.T) {
 		for i := uint32(4000); i >= 1; i-- {
 			sm.Truncate(i * 1_000_000)
 			length := sm.GetLogicalSize()
-			if i == 4 {
-				t.Logf("Value at 3_000_009: %d", sm.GetPhysicalIndex(3_000_009))
-			}
 			require.Equal(t, (i-1)*1_000_000+10, length)
 		}
 	})
@@ -77,6 +74,24 @@ func TestSectorPointer(t *testing.T) {
 		}
 
 	})
+
+	t.Run("NextUnmappedSector", func(t *testing.T) {
+		sm := pool.NewSectorPointer()
+		// Insert 10 sectors every 1 million sectors.
+		for i := uint32(0); i < 4000; i++ {
+			err := sm.InsertSectorsContiguous(i*1_000_000, 100+i*1_000_000, 10)
+			length := sm.GetLogicalSize()
+			require.NoError(t, err)
+			require.Equal(t, i*1_000_000+10, length)
+		}
+		// Search for next unmapped sector every 1 million sectors.
+		for i := uint32(0); i < 4000; i++ {
+			x, err := sm.GetNextUnmappedSector(i * 1_000_000)
+			require.NoError(t, err)
+			require.Equal(t, i*1_000_000+10, x)
+		}
+	})
+
 	// t.Run("LengthByLastMapped", func(t *testing.T) {
 	// })
 	// t.Run("NextUnmappedSector", func(t *testing.T) {
