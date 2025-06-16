@@ -185,6 +185,7 @@ gomock(
     out = "filesystem_filepool.go",
     interfaces = [
         "FilePool",
+        "ReaderAt",
     ],
     library = "//pkg/filesystem/pool",
     mockgen_model_library = "@org_uber_go_mock//mockgen/model",

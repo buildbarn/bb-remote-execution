@@ -9,6 +9,9 @@ go_library(
         "file_pool.go",
         "metrics_file_pool.go",
         "quota_enforcing_file_pool.go",
+        "simple_sparse_reader_at.go",
+        "sparse_reader_at.go",
+        "truncatable_sparse_reader_at.go",
     ],
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool",
     visibility = ["//visibility:public"],
@@ -30,6 +33,8 @@ go_test(
         "block_device_backed_file_pool_test.go",
         "empty_file_pool_test.go",
         "quota_enforcing_file_pool_test.go",
+        "simple_sparse_reader_at_test.go",
+        "truncatable_sparse_reader_at_test.go",
     ],
     deps = [
         ":pool",
