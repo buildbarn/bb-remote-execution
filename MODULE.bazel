@@ -112,8 +112,8 @@ go_deps_dev.module_override(
 )
 go_deps_dev.module_override(
     patches = [
+        "@com_github_buildbarn_bb_storage//:patches/org_uber_go_mock/generics.diff",
         "@com_github_buildbarn_bb_storage//:patches/org_uber_go_mock/mocks-for-funcs.diff",
-        "//:patches/org_uber_go_mock/generics.diff",
     ],
     path = "go.uber.org/mock",
 )
