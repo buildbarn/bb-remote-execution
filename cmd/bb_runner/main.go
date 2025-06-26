@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/buildbarn/bb-remote-execution/pkg/cleaner"
@@ -134,7 +135,11 @@ func main() {
 			r = runner.NewPathExistenceCheckingRunner(r, configuration.ReadinessCheckingPathnames)
 		}
 
-		if len(configuration.AppleXcodeDeveloperDirectories) > 0 {
+		// On macOS we need to translate the Bazel specific
+		// XCODE_VERSION_OVERRIDE and APPLE_SDK_PLATFORM
+		// environment variables to DEVELOPER_DIR and SDKROOT,
+		// so that actions that depend on Xcode work properly.
+		if runtime.GOOS == "darwin" {
 			r = runner.NewAppleXcodeResolvingRunner(
 				r,
 				configuration.AppleXcodeDeveloperDirectories,

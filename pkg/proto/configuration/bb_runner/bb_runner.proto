@@ -92,10 +92,8 @@ message ApplicationConfiguration {
   // cleaning options that are handled in-process for optimal performance.
   repeated string run_command_cleaner = 13;
 
-  // If set, automatically inject DEVELOPER_DIR and SDKROOT environment
-  // variables based on the action's values of the APPLE_SDK_PLATFORM,
-  // APPLE_SDK_VERSION_OVERRIDE, and XCODE_VERSION_OVERRIDE environment
-  // variables.
+  // Mapping of XCODE_VERSION_OVERRIDE environment variable values to
+  // DEVELOPER_DIR paths.
   //
   // Tools such as /usr/bin/cc, /usr/bin/ld, etc. that ship with macOS
   // are stubs that forward their calls to copies that are part of
@@ -116,6 +114,13 @@ message ApplicationConfiguration {
   // XCODE_VERSION_OVERRIDE translate to values of DEVELOPER_DIR. The
   // value of SDKROOT is obtained by invoking the xcrun utility with
   // DEVELOPER_DIR set.
+  //
+  // In addition to the keys provided, XCODE_VERSION_OVERRIDE may be set
+  // to an absolute path. In that case it is assumed to be a
+  // DEVELOPER_DIR path. Even though this has the advantage that copies
+  // of Xcode can be used that are not declared explicitly, it does
+  // require the client to know at which paths Xcode is installed on the
+  // worker. Using this feature is therefore discouraged.
   //
   // Example:
   //
