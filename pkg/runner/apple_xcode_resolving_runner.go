@@ -21,7 +21,6 @@ const (
 	// Environment variables provided by Bazel.
 	environmentVariableXcodeVersion = "XCODE_VERSION_OVERRIDE"
 	environmentVariableSDKPlatform  = "APPLE_SDK_PLATFORM"
-	environmentVariableSDKVersion   = "APPLE_SDK_VERSION_OVERRIDE"
 
 	// Environment variables provided to the build action.
 	environmentVariableDeveloperDirectory = "DEVELOPER_DIR"
@@ -95,9 +94,8 @@ type appleXcodeResolvingRunner struct {
 
 // NewAppleXcodeResolvingRunner creates a decorator for RunnerServer
 // that injects DEVELOPER_DIR and SDKROOT environment variables into
-// actions, based on the presence of APPLE_SDK_PLATFORM,
-// APPLE_SDK_VERSION_OVERRIDE, and XCODE_VERSION_OVERRIDE environment
-// variables.
+// actions, based on the presence of APPLE_SDK_PLATFORM and
+// XCODE_VERSION_OVERRIDE environment variables.
 //
 // This decorator can be used on macOS workers to let build actions
 // choose between one of the copies of Xcode that is installed on the
@@ -144,13 +142,11 @@ func (r *appleXcodeResolvingRunner) Run(ctx context.Context, oldRequest *runner_
 	newEnvironment := newRequest.EnvironmentVariables
 	newEnvironment[environmentVariableDeveloperDirectory] = developerDir
 
-	// Check whether we need to infer SDKROOT from
-	// APPLE_SDK_PLATFORM and APPLE_SDK_VERSION_OVERRIDE.
+	// Check whether we need to infer SDKROOT from APPLE_SDK_PLATFORM.
 	_, hasSDKRoot := oldEnvironmentVariables[environmentVariableSDKRoot]
 	sdkPlatform, hasSDKPlatform := oldEnvironmentVariables[environmentVariableSDKPlatform]
-	sdkVersion, hasSDKVersion := oldEnvironmentVariables[environmentVariableSDKVersion]
-	if !hasSDKRoot && hasSDKPlatform && hasSDKVersion {
-		sdkName := strings.ToLower(sdkPlatform) + sdkVersion
+	if !hasSDKRoot && hasSDKPlatform {
+		sdkName := strings.ToLower(sdkPlatform)
 		sdkRoot, err := r.sdkRootResolver(ctx, developerDir, sdkName)
 		if err != nil {
 			return nil, util.StatusWrapf(err, "Cannot resolve root for SDK %#v in Xcode developer directory %#v", sdkName, developerDir)

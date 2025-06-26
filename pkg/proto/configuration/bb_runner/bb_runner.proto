@@ -107,11 +107,10 @@ message ApplicationConfiguration {
   // Because the location at which Xcode is installed may differ between
   // local and remote execution environments, Bazel does not set the
   // DEVELOPER_DIR and SDKROOT environment variables directly. Instead,
-  // it sets environment variables APPLE_SDK_PLATFORM,
-  // APPLE_SDK_VERSION_OVERRIDE and XCODE_VERSION_OVERRIDE. The remote
-  // worker is responsible for interpreting these environment variables
-  // and resolving those to the location of the intended copy of Xcode
-  // and the desired SDK.
+  // it sets environment variables APPLE_SDK_PLATFORM and
+  // XCODE_VERSION_OVERRIDE. The remote worker is responsible for
+  // interpreting these environment variables and resolving those to the
+  // location of the intended copy of Xcode and the desired SDK.
   //
   // This option can be used to specify how values of
   // XCODE_VERSION_OVERRIDE translate to values of DEVELOPER_DIR. The
