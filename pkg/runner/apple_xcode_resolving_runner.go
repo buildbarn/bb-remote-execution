@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
 
 	"google.golang.org/grpc/codes"
@@ -134,7 +135,14 @@ func (r *appleXcodeResolvingRunner) Run(ctx context.Context, oldRequest *runner_
 
 	developerDir, ok := r.developerDirectories[xcodeVersion]
 	if !ok {
-		return nil, status.Errorf(codes.FailedPrecondition, "Attempted to use Xcode installation with version %#v, while only %s are supported", xcodeVersion, r.supportedVersions)
+		// Bazel 8.3 and later also allow XCODE_VERSION_OVERRIDE
+		// to be set to a DEVELOPER_DIR path. This can be used
+		// to force the use of a specific copy of Xcode.
+		developerDirBuilder, scopeWalker := path.EmptyBuilder.Join(path.NewAbsoluteScopeWalker(path.VoidComponentWalker))
+		if err := path.Resolve(path.UNIXFormat.NewParser(xcodeVersion), scopeWalker); err != nil {
+			return nil, status.Errorf(codes.FailedPrecondition, "Attempted to use Xcode installation with version %#v, while only %s are supported", xcodeVersion, r.supportedVersions)
+		}
+		developerDir = developerDirBuilder.GetUNIXString()
 	}
 
 	var newRequest runner_pb.RunRequest
