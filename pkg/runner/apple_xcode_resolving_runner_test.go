@@ -164,4 +164,31 @@ func TestAppleXcodeResolvingRunner(t *testing.T) {
 		require.NoError(t, err)
 		testutil.RequireEqualProto(t, response, observedResponse)
 	})
+
+	t.Run("XcodeVersionOverrideIsDeveloperDir", func(t *testing.T) {
+		// Bazel 8.3 and later also allow XCODE_VERSION_OVERRIDE
+		// to be set to a DEVELOPER_DIR path. This can be used
+		// to force the use of a specific copy of Xcode.
+		sdkRootResolver.EXPECT().Call(ctx, "/Applications/Xcode12.app/Contents/Developer", "macosx").
+			Return("/Applications/Xcode12.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.0.sdk", nil)
+		baseRunner.EXPECT().Run(ctx, testutil.EqProto(t, &runner_pb.RunRequest{
+			Arguments: []string{"cc", "-o", "hello.o", "hello.c"},
+			EnvironmentVariables: map[string]string{
+				"APPLE_SDK_PLATFORM":     "MacOSX",
+				"DEVELOPER_DIR":          "/Applications/Xcode12.app/Contents/Developer",
+				"SDKROOT":                "/Applications/Xcode12.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.0.sdk",
+				"XCODE_VERSION_OVERRIDE": "/Applications/Xcode12.app/Contents/Developer",
+			},
+		})).Return(response, nil)
+
+		observedResponse, err := runner.Run(ctx, &runner_pb.RunRequest{
+			Arguments: []string{"cc", "-o", "hello.o", "hello.c"},
+			EnvironmentVariables: map[string]string{
+				"APPLE_SDK_PLATFORM":     "MacOSX",
+				"XCODE_VERSION_OVERRIDE": "/Applications/Xcode12.app/Contents/Developer",
+			},
+		})
+		require.NoError(t, err)
+		testutil.RequireEqualProto(t, response, observedResponse)
+	})
 }
