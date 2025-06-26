@@ -79,9 +79,9 @@ func TestAppleXcodeResolvingRunner(t *testing.T) {
 	})
 
 	t.Run("OnlyDeveloperDir", func(t *testing.T) {
-		// If only XCODE_VERSION_OVERRIDE is set without providing
-		// APPLE_SDK_PLATFORM and APPLE_SDK_VERSION_OVERRIDE, we
-		// can only set DEVELOPER_DIR. SDKROOT cannot be set.
+		// If only XCODE_VERSION_OVERRIDE is set without
+		// providing APPLE_SDK_PLATFORM, we can only set
+		// DEVELOPER_DIR. SDKROOT cannot be set.
 		baseRunner.EXPECT().Run(ctx, testutil.EqProto(t, &runner_pb.RunRequest{
 			Arguments: []string{"cc", "-o", "hello.o", "hello.c"},
 			EnvironmentVariables: map[string]string{
@@ -105,21 +105,19 @@ func TestAppleXcodeResolvingRunner(t *testing.T) {
 		baseRunner.EXPECT().Run(ctx, testutil.EqProto(t, &runner_pb.RunRequest{
 			Arguments: []string{"cc", "-o", "hello.o", "hello.c"},
 			EnvironmentVariables: map[string]string{
-				"APPLE_SDK_PLATFORM":         "MacOSX",
-				"APPLE_SDK_VERSION_OVERRIDE": "13.1",
-				"DEVELOPER_DIR":              "/Applications/Xcode13.app/Contents/Developer",
-				"SDKROOT":                    "/some/path",
-				"XCODE_VERSION_OVERRIDE":     "13.4.1.13F100",
+				"APPLE_SDK_PLATFORM":     "MacOSX",
+				"DEVELOPER_DIR":          "/Applications/Xcode13.app/Contents/Developer",
+				"SDKROOT":                "/some/path",
+				"XCODE_VERSION_OVERRIDE": "13.4.1.13F100",
 			},
 		})).Return(response, nil)
 
 		observedResponse, err := runner.Run(ctx, &runner_pb.RunRequest{
 			Arguments: []string{"cc", "-o", "hello.o", "hello.c"},
 			EnvironmentVariables: map[string]string{
-				"APPLE_SDK_PLATFORM":         "MacOSX",
-				"APPLE_SDK_VERSION_OVERRIDE": "13.1",
-				"SDKROOT":                    "/some/path",
-				"XCODE_VERSION_OVERRIDE":     "13.4.1.13F100",
+				"APPLE_SDK_PLATFORM":     "MacOSX",
+				"SDKROOT":                "/some/path",
+				"XCODE_VERSION_OVERRIDE": "13.4.1.13F100",
 			},
 		})
 		require.NoError(t, err)
@@ -128,42 +126,39 @@ func TestAppleXcodeResolvingRunner(t *testing.T) {
 
 	t.Run("UnknownSDK", func(t *testing.T) {
 		// Errors resolving the root of the SDK should be propagated.
-		sdkRootResolver.EXPECT().Call(ctx, "/Applications/Xcode13.app/Contents/Developer", "macosx13.1").
+		sdkRootResolver.EXPECT().Call(ctx, "/Applications/Xcode13.app/Contents/Developer", "macosx").
 			Return("", status.Error(codes.FailedPrecondition, "SDK not found"))
 
 		_, err := runner.Run(ctx, &runner_pb.RunRequest{
 			Arguments: []string{"cc", "-o", "hello.o", "hello.c"},
 			EnvironmentVariables: map[string]string{
-				"APPLE_SDK_PLATFORM":         "MacOSX",
-				"APPLE_SDK_VERSION_OVERRIDE": "13.1",
-				"XCODE_VERSION_OVERRIDE":     "13.4.1.13F100",
+				"APPLE_SDK_PLATFORM":     "MacOSX",
+				"XCODE_VERSION_OVERRIDE": "13.4.1.13F100",
 			},
 		})
-		testutil.RequireEqualStatus(t, status.Error(codes.FailedPrecondition, "Cannot resolve root for SDK \"macosx13.1\" in Xcode developer directory \"/Applications/Xcode13.app/Contents/Developer\": SDK not found"), err)
+		testutil.RequireEqualStatus(t, status.Error(codes.FailedPrecondition, "Cannot resolve root for SDK \"macosx\" in Xcode developer directory \"/Applications/Xcode13.app/Contents/Developer\": SDK not found"), err)
 	})
 
 	t.Run("BothDeveloperDirAndSDKRoot", func(t *testing.T) {
 		// Example invocation where both DEVELOPER_DIR and
 		// SDKROOT end up getting set.
-		sdkRootResolver.EXPECT().Call(ctx, "/Applications/Xcode13.app/Contents/Developer", "macosx13.1").
+		sdkRootResolver.EXPECT().Call(ctx, "/Applications/Xcode13.app/Contents/Developer", "macosx").
 			Return("/Applications/Xcode13.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX13.1.sdk", nil)
 		baseRunner.EXPECT().Run(ctx, testutil.EqProto(t, &runner_pb.RunRequest{
 			Arguments: []string{"cc", "-o", "hello.o", "hello.c"},
 			EnvironmentVariables: map[string]string{
-				"APPLE_SDK_PLATFORM":         "MacOSX",
-				"APPLE_SDK_VERSION_OVERRIDE": "13.1",
-				"DEVELOPER_DIR":              "/Applications/Xcode13.app/Contents/Developer",
-				"SDKROOT":                    "/Applications/Xcode13.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX13.1.sdk",
-				"XCODE_VERSION_OVERRIDE":     "13.4.1.13F100",
+				"APPLE_SDK_PLATFORM":     "MacOSX",
+				"DEVELOPER_DIR":          "/Applications/Xcode13.app/Contents/Developer",
+				"SDKROOT":                "/Applications/Xcode13.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX13.1.sdk",
+				"XCODE_VERSION_OVERRIDE": "13.4.1.13F100",
 			},
 		})).Return(response, nil)
 
 		observedResponse, err := runner.Run(ctx, &runner_pb.RunRequest{
 			Arguments: []string{"cc", "-o", "hello.o", "hello.c"},
 			EnvironmentVariables: map[string]string{
-				"APPLE_SDK_PLATFORM":         "MacOSX",
-				"APPLE_SDK_VERSION_OVERRIDE": "13.1",
-				"XCODE_VERSION_OVERRIDE":     "13.4.1.13F100",
+				"APPLE_SDK_PLATFORM":     "MacOSX",
+				"XCODE_VERSION_OVERRIDE": "13.4.1.13F100",
 			},
 		})
 		require.NoError(t, err)
