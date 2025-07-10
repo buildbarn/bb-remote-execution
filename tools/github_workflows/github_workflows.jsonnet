@@ -17,4 +17,16 @@ workflows_template.getWorkflows(
     'bb_scheduler:bb_scheduler',
     'bb_worker:bb_worker',
   ],
+  [
+    {
+      name: 'Install WinFSP',
+      run: 'choco install winfsp',
+      'if': "matrix.host.platform_name == 'windows_amd64'",
+    },
+    {
+      name: 'Register WinFSP availability in .bazelrc',
+      run: 'echo "common --host_platform=//tools/platforms:host_winfsp" >> .bazelrc',
+      'if': "matrix.host.platform_name == 'windows_amd64'",
+    },
+  ]
 )

@@ -11,6 +11,8 @@ go_library(
         "nfsv4_mount_disabled.go",
         "nfsv4_mount_linux.go",
         "remove_stale_mounts.go",
+        "winfsp_mount_disabled.go",
+        "winfsp_mount_windows.go",
     ],
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual/configuration",
     visibility = ["//visibility:public"],
@@ -48,6 +50,9 @@ go_library(
             "@com_github_buildbarn_bb_storage//pkg/filesystem",
             "@com_github_hanwen_go_fuse_v2//fuse",
             "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/filesystem/virtual/winfsp",
         ],
         "//conditions:default": [],
     }),

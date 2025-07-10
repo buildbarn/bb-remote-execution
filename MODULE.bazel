@@ -65,6 +65,7 @@ use_repo(
     "com_github_gorilla_mux",
     "com_github_hanwen_go_fuse_v2",
     "com_github_kballard_go_shellquote",
+    "com_github_pkg_errors",
     "com_github_prometheus_client_golang",
     "com_github_spf13_pflag",
     "com_github_stretchr_testify",
@@ -166,3 +167,16 @@ oci.pull(
     ],
 )
 use_repo(oci, "busybox", "busybox_linux_amd64", "busybox_linux_arm64_v8")
+
+http_archive(
+    name = "com_github_winfsp_winfsp_tests",
+    build_file_content = """
+filegroup(
+    name = "winfsp_tests_x64",
+    srcs = ["winfsp-tests-x64.exe"],
+    visibility = ["//visibility:public"],
+)
+""",
+    integrity = "sha256-DPxoeRcDyA+Wxynr04tjGH3lPhm6ocYDpwWdbqh8X1I=",
+    url = "https://github.com/winfsp/winfsp/releases/download/v2.1/winfsp-tests-2.1.25156.zip",
+)

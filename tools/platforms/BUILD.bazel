@@ -1,0 +1,7 @@
+platform(
+    name = "host_winfsp",
+    constraint_values = [
+        "//tools/constraints:winfsp",
+    ],
+    parents = ["@platforms//host"],
+)

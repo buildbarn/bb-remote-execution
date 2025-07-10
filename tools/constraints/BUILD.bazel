@@ -1,0 +1,8 @@
+constraint_setting(name = "winfsp_setting")
+
+# A constraint that indicates that winfsp is supported on a platform.
+constraint_value(
+    name = "winfsp",
+    constraint_setting = ":winfsp_setting",
+    visibility = ["//visibility:public"],
+)
