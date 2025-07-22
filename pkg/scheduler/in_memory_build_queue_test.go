@@ -1933,7 +1933,7 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 		})
 		require.NoError(t, err)
 		testutil.RequireEqualProto(t, invocationID, invocationStates.Children[i].Id)
-		require.Equal(t, uint32(5), invocationStates.Children[i].State.QueuedOperationsCount)
+		require.Equal(t, uint32(5), invocationStates.Children[i].State.QueuedOperationsCount.Direct)
 		require.Equal(t, uint32(0), invocationStates.Children[i].State.ExecutingWorkersCount)
 		require.Equal(t, uint32(0), invocationStates.Children[i].State.IdleWorkersCount)
 		require.Equal(t, uint32(0), invocationStates.Children[i].State.IdleSynchronizingWorkersCount)
@@ -1958,7 +1958,7 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 		})
 		require.NoError(t, err)
 		testutil.RequireEqualProto(t, invocationID, invocationStates.Children[i].Id)
-		require.Equal(t, uint32(5), invocationStates.Children[i].State.QueuedOperationsCount)
+		require.Equal(t, uint32(5), invocationStates.Children[i].State.QueuedOperationsCount.Direct)
 		require.Equal(t, uint32(0), invocationStates.Children[i].State.ExecutingWorkersCount)
 		require.Equal(t, uint32(0), invocationStates.Children[i].State.IdleWorkersCount)
 		require.Equal(t, uint32(0), invocationStates.Children[i].State.IdleSynchronizingWorkersCount)
@@ -2069,7 +2069,7 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 		})
 		require.NoError(t, err)
 		testutil.RequireEqualProto(t, invocationID, invocationStates.Children[i].Id)
-		require.Equal(t, uint32(0), invocationStates.Children[i].State.QueuedOperationsCount)
+		require.Equal(t, uint32(0), invocationStates.Children[i].State.QueuedOperationsCount.Direct)
 		require.Equal(t, uint32(5), invocationStates.Children[i].State.ExecutingWorkersCount)
 		require.Equal(t, uint32(0), invocationStates.Children[i].State.IdleWorkersCount)
 		require.Equal(t, uint32(0), invocationStates.Children[i].State.IdleSynchronizingWorkersCount)
@@ -3714,6 +3714,7 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 			{
 				Id: invocationID1,
 				State: &buildqueuestate.InvocationState{
+					QueuedOperationsCount:         &buildqueuestate.InvocationState_InvocationObjectCount{},
 					IdleWorkersCount:              1,
 					IdleSynchronizingWorkersCount: 1,
 				},
@@ -3861,6 +3862,7 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 			{
 				Id: invocationID1,
 				State: &buildqueuestate.InvocationState{
+					QueuedOperationsCount:         &buildqueuestate.InvocationState_InvocationObjectCount{},
 					IdleWorkersCount:              1,
 					IdleSynchronizingWorkersCount: 1,
 				},
@@ -3868,6 +3870,7 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 			{
 				Id: invocationID2,
 				State: &buildqueuestate.InvocationState{
+					QueuedOperationsCount:         &buildqueuestate.InvocationState_InvocationObjectCount{},
 					IdleWorkersCount:              1,
 					IdleSynchronizingWorkersCount: 1,
 				},
@@ -4483,8 +4486,9 @@ func TestInMemoryBuildQueueNestedInvocationsSynchronization(t *testing.T) {
 			{
 				Id: correlatedInvocationsIDAny,
 				State: &buildqueuestate.InvocationState{
-					IdleWorkersCount: 10,
-					ChildrenCount:    10,
+					QueuedOperationsCount: &buildqueuestate.InvocationState_InvocationObjectCount{},
+					IdleWorkersCount:      10,
+					ChildrenCount:         10,
 				},
 			},
 		},

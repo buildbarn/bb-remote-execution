@@ -1850,6 +1850,15 @@ func (i *invocation) removeIfEmpty() bool {
 	return false
 }
 
+func (i *invocation) getIndirectQueuedOperationsCount() uint32 {
+	recursiveQueuedOperationsCount := uint32(0)
+	for _, iChild := range i.children {
+		recursiveQueuedOperationsCount += uint32(iChild.queuedOperations.Len())
+		recursiveQueuedOperationsCount += iChild.getIndirectQueuedOperationsCount()
+	}
+	return recursiveQueuedOperationsCount
+}
+
 func (i *invocation) getInvocationState(bq *InMemoryBuildQueue) *buildqueuestate.InvocationState {
 	activeInvocationsCount := uint32(0)
 	for _, iChild := range i.children {
@@ -1857,8 +1866,14 @@ func (i *invocation) getInvocationState(bq *InMemoryBuildQueue) *buildqueuestate
 			activeInvocationsCount++
 		}
 	}
+
+	queuedOperationsCount := &buildqueuestate.InvocationState_InvocationObjectCount{
+		Direct:   uint32(i.queuedOperations.Len()),
+		Indirect: i.getIndirectQueuedOperationsCount(),
+	}
+
 	return &buildqueuestate.InvocationState{
-		QueuedOperationsCount:         uint32(i.queuedOperations.Len()),
+		QueuedOperationsCount:         queuedOperationsCount,
 		ChildrenCount:                 uint32(len(i.children)),
 		QueuedChildrenCount:           uint32(i.queuedChildren.Len()),
 		ActiveChildrenCount:           uint32(activeInvocationsCount),

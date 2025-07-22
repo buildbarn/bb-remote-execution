@@ -57,7 +57,7 @@
 						{{$sizeClassQueueName := get_size_class_queue_name $platformQueueName .SizeClass}}
 						{{$sizeClassQueueNameJSON := proto_to_json $sizeClassQueueName}}
 						{{$invocationNameJSON := printf "{\"sizeClassQueueName\":%s}" $sizeClassQueueNameJSON}}
-						<td class="text-end"><a href="queued_operations?invocation_name={{$invocationNameJSON}}">{{.RootInvocation.QueuedOperationsCount}}</a></td>
+						<td class="text-end"><a href="queued_operations?invocation_name={{$invocationNameJSON}}">{{.RootInvocation.QueuedOperationsCount.Direct}}</a></td>
 						<td class="text-end"><a href="invocation_children?invocation_name={{$invocationNameJSON}}&amp;filter=QUEUED">{{.RootInvocation.QueuedChildrenCount}}</a></td>
 						<td class="text-end"><a href="invocation_children?invocation_name={{$invocationNameJSON}}&amp;filter=ACTIVE">{{.RootInvocation.ActiveChildrenCount}}</a></td>
 						<td class="text-end"><a href="invocation_children?invocation_name={{$invocationNameJSON}}&amp;filter=ALL">{{.RootInvocation.ChildrenCount}}</a></td>
