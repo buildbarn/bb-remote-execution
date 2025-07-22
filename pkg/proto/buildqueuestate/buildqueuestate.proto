@@ -235,12 +235,23 @@ message PlatformQueueState {
 }
 
 message InvocationState {
+  // TODO: This message should be used for the other counts in InvocationState.
+  message InvocationObjectCount {
+    // The number of objects that are part of this invocation.
+    uint32 direct = 1;
+
+    // The number of objects that are part of all descendants of this
+    // invocation, not including the ones that are part of this invocation.
+    uint32 indirect = 2;
+  }
+
   // Was 'id'. Moved into InvocationChildState.
   reserved 1;
 
-  // The total number of operations associated with this platform queue
-  // and invocation that are in the QUEUED execution stage.
-  uint32 queued_operations_count = 2;
+  // The number of operations associated with this platform queue
+  // and invocation that are in the QUEUED execution stage, both directly
+  // and indirectly through descendant invocations.
+  InvocationObjectCount queued_operations_count = 2;
 
   // Was 'first_queued_operation'. This information is no longer
   // provided, as the scheduler web UI no longer displays it.

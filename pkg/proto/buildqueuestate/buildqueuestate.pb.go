@@ -591,14 +591,14 @@ func (x *PlatformQueueState) GetSizeClassQueues() []*SizeClassQueueState {
 }
 
 type InvocationState struct {
-	state                         protoimpl.MessageState `protogen:"open.v1"`
-	QueuedOperationsCount         uint32                 `protobuf:"varint,2,opt,name=queued_operations_count,json=queuedOperationsCount,proto3" json:"queued_operations_count,omitempty"`
-	ExecutingWorkersCount         uint32                 `protobuf:"varint,4,opt,name=executing_workers_count,json=executingWorkersCount,proto3" json:"executing_workers_count,omitempty"`
-	IdleWorkersCount              uint32                 `protobuf:"varint,5,opt,name=idle_workers_count,json=idleWorkersCount,proto3" json:"idle_workers_count,omitempty"`
-	IdleSynchronizingWorkersCount uint32                 `protobuf:"varint,6,opt,name=idle_synchronizing_workers_count,json=idleSynchronizingWorkersCount,proto3" json:"idle_synchronizing_workers_count,omitempty"`
-	ChildrenCount                 uint32                 `protobuf:"varint,7,opt,name=children_count,json=childrenCount,proto3" json:"children_count,omitempty"`
-	ActiveChildrenCount           uint32                 `protobuf:"varint,8,opt,name=active_children_count,json=activeChildrenCount,proto3" json:"active_children_count,omitempty"`
-	QueuedChildrenCount           uint32                 `protobuf:"varint,9,opt,name=queued_children_count,json=queuedChildrenCount,proto3" json:"queued_children_count,omitempty"`
+	state                         protoimpl.MessageState                 `protogen:"open.v1"`
+	QueuedOperationsCount         *InvocationState_InvocationObjectCount `protobuf:"bytes,2,opt,name=queued_operations_count,json=queuedOperationsCount,proto3" json:"queued_operations_count,omitempty"`
+	ExecutingWorkersCount         uint32                                 `protobuf:"varint,4,opt,name=executing_workers_count,json=executingWorkersCount,proto3" json:"executing_workers_count,omitempty"`
+	IdleWorkersCount              uint32                                 `protobuf:"varint,5,opt,name=idle_workers_count,json=idleWorkersCount,proto3" json:"idle_workers_count,omitempty"`
+	IdleSynchronizingWorkersCount uint32                                 `protobuf:"varint,6,opt,name=idle_synchronizing_workers_count,json=idleSynchronizingWorkersCount,proto3" json:"idle_synchronizing_workers_count,omitempty"`
+	ChildrenCount                 uint32                                 `protobuf:"varint,7,opt,name=children_count,json=childrenCount,proto3" json:"children_count,omitempty"`
+	ActiveChildrenCount           uint32                                 `protobuf:"varint,8,opt,name=active_children_count,json=activeChildrenCount,proto3" json:"active_children_count,omitempty"`
+	QueuedChildrenCount           uint32                                 `protobuf:"varint,9,opt,name=queued_children_count,json=queuedChildrenCount,proto3" json:"queued_children_count,omitempty"`
 	unknownFields                 protoimpl.UnknownFields
 	sizeCache                     protoimpl.SizeCache
 }
@@ -633,11 +633,11 @@ func (*InvocationState) Descriptor() ([]byte, []int) {
 	return file_pkg_proto_buildqueuestate_buildqueuestate_proto_rawDescGZIP(), []int{7}
 }
 
-func (x *InvocationState) GetQueuedOperationsCount() uint32 {
+func (x *InvocationState) GetQueuedOperationsCount() *InvocationState_InvocationObjectCount {
 	if x != nil {
 		return x.QueuedOperationsCount
 	}
-	return 0
+	return nil
 }
 
 func (x *InvocationState) GetExecutingWorkersCount() uint32 {
@@ -1698,6 +1698,58 @@ func (*BackgroundLearning) Descriptor() ([]byte, []int) {
 	return file_pkg_proto_buildqueuestate_buildqueuestate_proto_rawDescGZIP(), []int{27}
 }
 
+type InvocationState_InvocationObjectCount struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Direct        uint32                 `protobuf:"varint,1,opt,name=direct,proto3" json:"direct,omitempty"`
+	Indirect      uint32                 `protobuf:"varint,2,opt,name=indirect,proto3" json:"indirect,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InvocationState_InvocationObjectCount) Reset() {
+	*x = InvocationState_InvocationObjectCount{}
+	mi := &file_pkg_proto_buildqueuestate_buildqueuestate_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InvocationState_InvocationObjectCount) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InvocationState_InvocationObjectCount) ProtoMessage() {}
+
+func (x *InvocationState_InvocationObjectCount) ProtoReflect() protoreflect.Message {
+	mi := &file_pkg_proto_buildqueuestate_buildqueuestate_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InvocationState_InvocationObjectCount.ProtoReflect.Descriptor instead.
+func (*InvocationState_InvocationObjectCount) Descriptor() ([]byte, []int) {
+	return file_pkg_proto_buildqueuestate_buildqueuestate_proto_rawDescGZIP(), []int{7, 0}
+}
+
+func (x *InvocationState_InvocationObjectCount) GetDirect() uint32 {
+	if x != nil {
+		return x.Direct
+	}
+	return 0
+}
+
+func (x *InvocationState_InvocationObjectCount) GetIndirect() uint32 {
+	if x != nil {
+		return x.Indirect
+	}
+	return 0
+}
+
 type ListOperationsRequest_StartAfter struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	OperationName string                 `protobuf:"bytes,1,opt,name=operation_name,json=operationName,proto3" json:"operation_name,omitempty"`
@@ -1707,7 +1759,7 @@ type ListOperationsRequest_StartAfter struct {
 
 func (x *ListOperationsRequest_StartAfter) Reset() {
 	*x = ListOperationsRequest_StartAfter{}
-	mi := &file_pkg_proto_buildqueuestate_buildqueuestate_proto_msgTypes[30]
+	mi := &file_pkg_proto_buildqueuestate_buildqueuestate_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1719,7 +1771,7 @@ func (x *ListOperationsRequest_StartAfter) String() string {
 func (*ListOperationsRequest_StartAfter) ProtoMessage() {}
 
 func (x *ListOperationsRequest_StartAfter) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_proto_buildqueuestate_buildqueuestate_proto_msgTypes[30]
+	mi := &file_pkg_proto_buildqueuestate_buildqueuestate_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1755,7 +1807,7 @@ type KillOperationsRequest_Filter struct {
 
 func (x *KillOperationsRequest_Filter) Reset() {
 	*x = KillOperationsRequest_Filter{}
-	mi := &file_pkg_proto_buildqueuestate_buildqueuestate_proto_msgTypes[31]
+	mi := &file_pkg_proto_buildqueuestate_buildqueuestate_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1767,7 +1819,7 @@ func (x *KillOperationsRequest_Filter) String() string {
 func (*KillOperationsRequest_Filter) ProtoMessage() {}
 
 func (x *KillOperationsRequest_Filter) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_proto_buildqueuestate_buildqueuestate_proto_msgTypes[31]
+	mi := &file_pkg_proto_buildqueuestate_buildqueuestate_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1836,7 +1888,7 @@ type ListQueuedOperationsRequest_StartAfter struct {
 
 func (x *ListQueuedOperationsRequest_StartAfter) Reset() {
 	*x = ListQueuedOperationsRequest_StartAfter{}
-	mi := &file_pkg_proto_buildqueuestate_buildqueuestate_proto_msgTypes[32]
+	mi := &file_pkg_proto_buildqueuestate_buildqueuestate_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1848,7 +1900,7 @@ func (x *ListQueuedOperationsRequest_StartAfter) String() string {
 func (*ListQueuedOperationsRequest_StartAfter) ProtoMessage() {}
 
 func (x *ListQueuedOperationsRequest_StartAfter) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_proto_buildqueuestate_buildqueuestate_proto_msgTypes[32]
+	mi := &file_pkg_proto_buildqueuestate_buildqueuestate_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1899,7 +1951,7 @@ type ListWorkersRequest_Filter struct {
 
 func (x *ListWorkersRequest_Filter) Reset() {
 	*x = ListWorkersRequest_Filter{}
-	mi := &file_pkg_proto_buildqueuestate_buildqueuestate_proto_msgTypes[33]
+	mi := &file_pkg_proto_buildqueuestate_buildqueuestate_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1911,7 +1963,7 @@ func (x *ListWorkersRequest_Filter) String() string {
 func (*ListWorkersRequest_Filter) ProtoMessage() {}
 
 func (x *ListWorkersRequest_Filter) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_proto_buildqueuestate_buildqueuestate_proto_msgTypes[33]
+	mi := &file_pkg_proto_buildqueuestate_buildqueuestate_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1992,7 +2044,7 @@ type ListWorkersRequest_StartAfter struct {
 
 func (x *ListWorkersRequest_StartAfter) Reset() {
 	*x = ListWorkersRequest_StartAfter{}
-	mi := &file_pkg_proto_buildqueuestate_buildqueuestate_proto_msgTypes[34]
+	mi := &file_pkg_proto_buildqueuestate_buildqueuestate_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2004,7 +2056,7 @@ func (x *ListWorkersRequest_StartAfter) String() string {
 func (*ListWorkersRequest_StartAfter) ProtoMessage() {}
 
 func (x *ListWorkersRequest_StartAfter) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_proto_buildqueuestate_buildqueuestate_proto_msgTypes[34]
+	mi := &file_pkg_proto_buildqueuestate_buildqueuestate_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2071,15 +2123,18 @@ const file_pkg_proto_buildqueuestate_buildqueuestate_proto_rawDesc = "" +
 	"\x0froot_invocation\x18\t \x01(\v2*.buildbarn.buildqueuestate.InvocationStateR\x0erootInvocationJ\x04\b\x03\x10\x04J\x04\b\x04\x10\x05J\x04\b\x06\x10\aJ\x04\b\b\x10\t\"\xb2\x01\n" +
 	"\x12PlatformQueueState\x12@\n" +
 	"\x04name\x18\x01 \x01(\v2,.buildbarn.buildqueuestate.PlatformQueueNameR\x04name\x12Z\n" +
-	"\x11size_class_queues\x18\x02 \x03(\v2..buildbarn.buildqueuestate.SizeClassQueueStateR\x0fsizeClassQueues\"\x93\x03\n" +
-	"\x0fInvocationState\x126\n" +
-	"\x17queued_operations_count\x18\x02 \x01(\rR\x15queuedOperationsCount\x126\n" +
+	"\x11size_class_queues\x18\x02 \x03(\v2..buildbarn.buildqueuestate.SizeClassQueueStateR\x0fsizeClassQueues\"\xa2\x04\n" +
+	"\x0fInvocationState\x12x\n" +
+	"\x17queued_operations_count\x18\x02 \x01(\v2@.buildbarn.buildqueuestate.InvocationState.InvocationObjectCountR\x15queuedOperationsCount\x126\n" +
 	"\x17executing_workers_count\x18\x04 \x01(\rR\x15executingWorkersCount\x12,\n" +
 	"\x12idle_workers_count\x18\x05 \x01(\rR\x10idleWorkersCount\x12G\n" +
 	" idle_synchronizing_workers_count\x18\x06 \x01(\rR\x1didleSynchronizingWorkersCount\x12%\n" +
 	"\x0echildren_count\x18\a \x01(\rR\rchildrenCount\x122\n" +
 	"\x15active_children_count\x18\b \x01(\rR\x13activeChildrenCount\x122\n" +
-	"\x15queued_children_count\x18\t \x01(\rR\x13queuedChildrenCountJ\x04\b\x01\x10\x02J\x04\b\x03\x10\x04\"~\n" +
+	"\x15queued_children_count\x18\t \x01(\rR\x13queuedChildrenCount\x1aK\n" +
+	"\x15InvocationObjectCount\x12\x16\n" +
+	"\x06direct\x18\x01 \x01(\rR\x06direct\x12\x1a\n" +
+	"\bindirect\x18\x02 \x01(\rR\bindirectJ\x04\b\x01\x10\x02J\x04\b\x03\x10\x04\"~\n" +
 	"\x14InvocationChildState\x12$\n" +
 	"\x02id\x18\x01 \x01(\v2\x14.google.protobuf.AnyR\x02id\x12@\n" +
 	"\x05state\x18\x02 \x01(\v2*.buildbarn.buildqueuestate.InvocationStateR\x05state\"\xac\x02\n" +
@@ -2211,142 +2266,144 @@ func file_pkg_proto_buildqueuestate_buildqueuestate_proto_rawDescGZIP() []byte {
 }
 
 var file_pkg_proto_buildqueuestate_buildqueuestate_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_pkg_proto_buildqueuestate_buildqueuestate_proto_msgTypes = make([]protoimpl.MessageInfo, 38)
+var file_pkg_proto_buildqueuestate_buildqueuestate_proto_msgTypes = make([]protoimpl.MessageInfo, 39)
 var file_pkg_proto_buildqueuestate_buildqueuestate_proto_goTypes = []any{
-	(ListInvocationChildrenRequest_Filter)(0),      // 0: buildbarn.buildqueuestate.ListInvocationChildrenRequest.Filter
-	(*PaginationInfo)(nil),                         // 1: buildbarn.buildqueuestate.PaginationInfo
-	(*PlatformQueueName)(nil),                      // 2: buildbarn.buildqueuestate.PlatformQueueName
-	(*SizeClassQueueName)(nil),                     // 3: buildbarn.buildqueuestate.SizeClassQueueName
-	(*InvocationName)(nil),                         // 4: buildbarn.buildqueuestate.InvocationName
-	(*OperationState)(nil),                         // 5: buildbarn.buildqueuestate.OperationState
-	(*SizeClassQueueState)(nil),                    // 6: buildbarn.buildqueuestate.SizeClassQueueState
-	(*PlatformQueueState)(nil),                     // 7: buildbarn.buildqueuestate.PlatformQueueState
-	(*InvocationState)(nil),                        // 8: buildbarn.buildqueuestate.InvocationState
-	(*InvocationChildState)(nil),                   // 9: buildbarn.buildqueuestate.InvocationChildState
-	(*WorkerState)(nil),                            // 10: buildbarn.buildqueuestate.WorkerState
-	(*DrainState)(nil),                             // 11: buildbarn.buildqueuestate.DrainState
-	(*GetOperationRequest)(nil),                    // 12: buildbarn.buildqueuestate.GetOperationRequest
-	(*GetOperationResponse)(nil),                   // 13: buildbarn.buildqueuestate.GetOperationResponse
-	(*ListOperationsRequest)(nil),                  // 14: buildbarn.buildqueuestate.ListOperationsRequest
-	(*ListOperationsResponse)(nil),                 // 15: buildbarn.buildqueuestate.ListOperationsResponse
-	(*KillOperationsRequest)(nil),                  // 16: buildbarn.buildqueuestate.KillOperationsRequest
-	(*ListPlatformQueuesResponse)(nil),             // 17: buildbarn.buildqueuestate.ListPlatformQueuesResponse
-	(*ListInvocationChildrenRequest)(nil),          // 18: buildbarn.buildqueuestate.ListInvocationChildrenRequest
-	(*ListInvocationChildrenResponse)(nil),         // 19: buildbarn.buildqueuestate.ListInvocationChildrenResponse
-	(*ListQueuedOperationsRequest)(nil),            // 20: buildbarn.buildqueuestate.ListQueuedOperationsRequest
-	(*ListQueuedOperationsResponse)(nil),           // 21: buildbarn.buildqueuestate.ListQueuedOperationsResponse
-	(*ListWorkersRequest)(nil),                     // 22: buildbarn.buildqueuestate.ListWorkersRequest
-	(*ListWorkersResponse)(nil),                    // 23: buildbarn.buildqueuestate.ListWorkersResponse
-	(*TerminateWorkersRequest)(nil),                // 24: buildbarn.buildqueuestate.TerminateWorkersRequest
-	(*ListDrainsRequest)(nil),                      // 25: buildbarn.buildqueuestate.ListDrainsRequest
-	(*ListDrainsResponse)(nil),                     // 26: buildbarn.buildqueuestate.ListDrainsResponse
-	(*AddOrRemoveDrainRequest)(nil),                // 27: buildbarn.buildqueuestate.AddOrRemoveDrainRequest
-	(*BackgroundLearning)(nil),                     // 28: buildbarn.buildqueuestate.BackgroundLearning
-	nil,                                            // 29: buildbarn.buildqueuestate.WorkerState.IdEntry
-	nil,                                            // 30: buildbarn.buildqueuestate.DrainState.WorkerIdPatternEntry
-	(*ListOperationsRequest_StartAfter)(nil),       // 31: buildbarn.buildqueuestate.ListOperationsRequest.StartAfter
-	(*KillOperationsRequest_Filter)(nil),           // 32: buildbarn.buildqueuestate.KillOperationsRequest.Filter
-	(*ListQueuedOperationsRequest_StartAfter)(nil), // 33: buildbarn.buildqueuestate.ListQueuedOperationsRequest.StartAfter
-	(*ListWorkersRequest_Filter)(nil),              // 34: buildbarn.buildqueuestate.ListWorkersRequest.Filter
-	(*ListWorkersRequest_StartAfter)(nil),          // 35: buildbarn.buildqueuestate.ListWorkersRequest.StartAfter
-	nil,                                            // 36: buildbarn.buildqueuestate.ListWorkersRequest.StartAfter.WorkerIdEntry
-	nil,                                            // 37: buildbarn.buildqueuestate.TerminateWorkersRequest.WorkerIdPatternEntry
-	nil,                                            // 38: buildbarn.buildqueuestate.AddOrRemoveDrainRequest.WorkerIdPatternEntry
-	(*v2.Platform)(nil),                            // 39: build.bazel.remote.execution.v2.Platform
-	(*anypb.Any)(nil),                              // 40: google.protobuf.Any
-	(*durationpb.Duration)(nil),                    // 41: google.protobuf.Duration
-	(*timestamppb.Timestamp)(nil),                  // 42: google.protobuf.Timestamp
-	(*v2.Digest)(nil),                              // 43: build.bazel.remote.execution.v2.Digest
-	(*emptypb.Empty)(nil),                          // 44: google.protobuf.Empty
-	(*v2.ExecuteResponse)(nil),                     // 45: build.bazel.remote.execution.v2.ExecuteResponse
-	(v2.DigestFunction_Value)(0),                   // 46: build.bazel.remote.execution.v2.DigestFunction.Value
-	(v2.ExecutionStage_Value)(0),                   // 47: build.bazel.remote.execution.v2.ExecutionStage.Value
-	(*status.Status)(nil),                          // 48: google.rpc.Status
+	(ListInvocationChildrenRequest_Filter)(0),     // 0: buildbarn.buildqueuestate.ListInvocationChildrenRequest.Filter
+	(*PaginationInfo)(nil),                        // 1: buildbarn.buildqueuestate.PaginationInfo
+	(*PlatformQueueName)(nil),                     // 2: buildbarn.buildqueuestate.PlatformQueueName
+	(*SizeClassQueueName)(nil),                    // 3: buildbarn.buildqueuestate.SizeClassQueueName
+	(*InvocationName)(nil),                        // 4: buildbarn.buildqueuestate.InvocationName
+	(*OperationState)(nil),                        // 5: buildbarn.buildqueuestate.OperationState
+	(*SizeClassQueueState)(nil),                   // 6: buildbarn.buildqueuestate.SizeClassQueueState
+	(*PlatformQueueState)(nil),                    // 7: buildbarn.buildqueuestate.PlatformQueueState
+	(*InvocationState)(nil),                       // 8: buildbarn.buildqueuestate.InvocationState
+	(*InvocationChildState)(nil),                  // 9: buildbarn.buildqueuestate.InvocationChildState
+	(*WorkerState)(nil),                           // 10: buildbarn.buildqueuestate.WorkerState
+	(*DrainState)(nil),                            // 11: buildbarn.buildqueuestate.DrainState
+	(*GetOperationRequest)(nil),                   // 12: buildbarn.buildqueuestate.GetOperationRequest
+	(*GetOperationResponse)(nil),                  // 13: buildbarn.buildqueuestate.GetOperationResponse
+	(*ListOperationsRequest)(nil),                 // 14: buildbarn.buildqueuestate.ListOperationsRequest
+	(*ListOperationsResponse)(nil),                // 15: buildbarn.buildqueuestate.ListOperationsResponse
+	(*KillOperationsRequest)(nil),                 // 16: buildbarn.buildqueuestate.KillOperationsRequest
+	(*ListPlatformQueuesResponse)(nil),            // 17: buildbarn.buildqueuestate.ListPlatformQueuesResponse
+	(*ListInvocationChildrenRequest)(nil),         // 18: buildbarn.buildqueuestate.ListInvocationChildrenRequest
+	(*ListInvocationChildrenResponse)(nil),        // 19: buildbarn.buildqueuestate.ListInvocationChildrenResponse
+	(*ListQueuedOperationsRequest)(nil),           // 20: buildbarn.buildqueuestate.ListQueuedOperationsRequest
+	(*ListQueuedOperationsResponse)(nil),          // 21: buildbarn.buildqueuestate.ListQueuedOperationsResponse
+	(*ListWorkersRequest)(nil),                    // 22: buildbarn.buildqueuestate.ListWorkersRequest
+	(*ListWorkersResponse)(nil),                   // 23: buildbarn.buildqueuestate.ListWorkersResponse
+	(*TerminateWorkersRequest)(nil),               // 24: buildbarn.buildqueuestate.TerminateWorkersRequest
+	(*ListDrainsRequest)(nil),                     // 25: buildbarn.buildqueuestate.ListDrainsRequest
+	(*ListDrainsResponse)(nil),                    // 26: buildbarn.buildqueuestate.ListDrainsResponse
+	(*AddOrRemoveDrainRequest)(nil),               // 27: buildbarn.buildqueuestate.AddOrRemoveDrainRequest
+	(*BackgroundLearning)(nil),                    // 28: buildbarn.buildqueuestate.BackgroundLearning
+	(*InvocationState_InvocationObjectCount)(nil), // 29: buildbarn.buildqueuestate.InvocationState.InvocationObjectCount
+	nil,                                      // 30: buildbarn.buildqueuestate.WorkerState.IdEntry
+	nil,                                      // 31: buildbarn.buildqueuestate.DrainState.WorkerIdPatternEntry
+	(*ListOperationsRequest_StartAfter)(nil), // 32: buildbarn.buildqueuestate.ListOperationsRequest.StartAfter
+	(*KillOperationsRequest_Filter)(nil),     // 33: buildbarn.buildqueuestate.KillOperationsRequest.Filter
+	(*ListQueuedOperationsRequest_StartAfter)(nil), // 34: buildbarn.buildqueuestate.ListQueuedOperationsRequest.StartAfter
+	(*ListWorkersRequest_Filter)(nil),              // 35: buildbarn.buildqueuestate.ListWorkersRequest.Filter
+	(*ListWorkersRequest_StartAfter)(nil),          // 36: buildbarn.buildqueuestate.ListWorkersRequest.StartAfter
+	nil,                                            // 37: buildbarn.buildqueuestate.ListWorkersRequest.StartAfter.WorkerIdEntry
+	nil,                                            // 38: buildbarn.buildqueuestate.TerminateWorkersRequest.WorkerIdPatternEntry
+	nil,                                            // 39: buildbarn.buildqueuestate.AddOrRemoveDrainRequest.WorkerIdPatternEntry
+	(*v2.Platform)(nil),                            // 40: build.bazel.remote.execution.v2.Platform
+	(*anypb.Any)(nil),                              // 41: google.protobuf.Any
+	(*durationpb.Duration)(nil),                    // 42: google.protobuf.Duration
+	(*timestamppb.Timestamp)(nil),                  // 43: google.protobuf.Timestamp
+	(*v2.Digest)(nil),                              // 44: build.bazel.remote.execution.v2.Digest
+	(*emptypb.Empty)(nil),                          // 45: google.protobuf.Empty
+	(*v2.ExecuteResponse)(nil),                     // 46: build.bazel.remote.execution.v2.ExecuteResponse
+	(v2.DigestFunction_Value)(0),                   // 47: build.bazel.remote.execution.v2.DigestFunction.Value
+	(v2.ExecutionStage_Value)(0),                   // 48: build.bazel.remote.execution.v2.ExecutionStage.Value
+	(*status.Status)(nil),                          // 49: google.rpc.Status
 }
 var file_pkg_proto_buildqueuestate_buildqueuestate_proto_depIdxs = []int32{
-	39, // 0: buildbarn.buildqueuestate.PlatformQueueName.platform:type_name -> build.bazel.remote.execution.v2.Platform
+	40, // 0: buildbarn.buildqueuestate.PlatformQueueName.platform:type_name -> build.bazel.remote.execution.v2.Platform
 	2,  // 1: buildbarn.buildqueuestate.SizeClassQueueName.platform_queue_name:type_name -> buildbarn.buildqueuestate.PlatformQueueName
 	3,  // 2: buildbarn.buildqueuestate.InvocationName.size_class_queue_name:type_name -> buildbarn.buildqueuestate.SizeClassQueueName
-	40, // 3: buildbarn.buildqueuestate.InvocationName.ids:type_name -> google.protobuf.Any
+	41, // 3: buildbarn.buildqueuestate.InvocationName.ids:type_name -> google.protobuf.Any
 	4,  // 4: buildbarn.buildqueuestate.OperationState.invocation_name:type_name -> buildbarn.buildqueuestate.InvocationName
-	41, // 5: buildbarn.buildqueuestate.OperationState.expected_duration:type_name -> google.protobuf.Duration
-	42, // 6: buildbarn.buildqueuestate.OperationState.queued_timestamp:type_name -> google.protobuf.Timestamp
-	43, // 7: buildbarn.buildqueuestate.OperationState.action_digest:type_name -> build.bazel.remote.execution.v2.Digest
-	42, // 8: buildbarn.buildqueuestate.OperationState.timeout:type_name -> google.protobuf.Timestamp
-	44, // 9: buildbarn.buildqueuestate.OperationState.queued:type_name -> google.protobuf.Empty
-	44, // 10: buildbarn.buildqueuestate.OperationState.executing:type_name -> google.protobuf.Empty
-	45, // 11: buildbarn.buildqueuestate.OperationState.completed:type_name -> build.bazel.remote.execution.v2.ExecuteResponse
-	46, // 12: buildbarn.buildqueuestate.OperationState.digest_function:type_name -> build.bazel.remote.execution.v2.DigestFunction.Value
-	42, // 13: buildbarn.buildqueuestate.SizeClassQueueState.timeout:type_name -> google.protobuf.Timestamp
+	42, // 5: buildbarn.buildqueuestate.OperationState.expected_duration:type_name -> google.protobuf.Duration
+	43, // 6: buildbarn.buildqueuestate.OperationState.queued_timestamp:type_name -> google.protobuf.Timestamp
+	44, // 7: buildbarn.buildqueuestate.OperationState.action_digest:type_name -> build.bazel.remote.execution.v2.Digest
+	43, // 8: buildbarn.buildqueuestate.OperationState.timeout:type_name -> google.protobuf.Timestamp
+	45, // 9: buildbarn.buildqueuestate.OperationState.queued:type_name -> google.protobuf.Empty
+	45, // 10: buildbarn.buildqueuestate.OperationState.executing:type_name -> google.protobuf.Empty
+	46, // 11: buildbarn.buildqueuestate.OperationState.completed:type_name -> build.bazel.remote.execution.v2.ExecuteResponse
+	47, // 12: buildbarn.buildqueuestate.OperationState.digest_function:type_name -> build.bazel.remote.execution.v2.DigestFunction.Value
+	43, // 13: buildbarn.buildqueuestate.SizeClassQueueState.timeout:type_name -> google.protobuf.Timestamp
 	8,  // 14: buildbarn.buildqueuestate.SizeClassQueueState.root_invocation:type_name -> buildbarn.buildqueuestate.InvocationState
 	2,  // 15: buildbarn.buildqueuestate.PlatformQueueState.name:type_name -> buildbarn.buildqueuestate.PlatformQueueName
 	6,  // 16: buildbarn.buildqueuestate.PlatformQueueState.size_class_queues:type_name -> buildbarn.buildqueuestate.SizeClassQueueState
-	40, // 17: buildbarn.buildqueuestate.InvocationChildState.id:type_name -> google.protobuf.Any
-	8,  // 18: buildbarn.buildqueuestate.InvocationChildState.state:type_name -> buildbarn.buildqueuestate.InvocationState
-	29, // 19: buildbarn.buildqueuestate.WorkerState.id:type_name -> buildbarn.buildqueuestate.WorkerState.IdEntry
-	42, // 20: buildbarn.buildqueuestate.WorkerState.timeout:type_name -> google.protobuf.Timestamp
-	5,  // 21: buildbarn.buildqueuestate.WorkerState.current_operation:type_name -> buildbarn.buildqueuestate.OperationState
-	30, // 22: buildbarn.buildqueuestate.DrainState.worker_id_pattern:type_name -> buildbarn.buildqueuestate.DrainState.WorkerIdPatternEntry
-	42, // 23: buildbarn.buildqueuestate.DrainState.created_timestamp:type_name -> google.protobuf.Timestamp
-	5,  // 24: buildbarn.buildqueuestate.GetOperationResponse.operation:type_name -> buildbarn.buildqueuestate.OperationState
-	31, // 25: buildbarn.buildqueuestate.ListOperationsRequest.start_after:type_name -> buildbarn.buildqueuestate.ListOperationsRequest.StartAfter
-	40, // 26: buildbarn.buildqueuestate.ListOperationsRequest.filter_invocation_id:type_name -> google.protobuf.Any
-	47, // 27: buildbarn.buildqueuestate.ListOperationsRequest.filter_stage:type_name -> build.bazel.remote.execution.v2.ExecutionStage.Value
-	5,  // 28: buildbarn.buildqueuestate.ListOperationsResponse.operations:type_name -> buildbarn.buildqueuestate.OperationState
-	1,  // 29: buildbarn.buildqueuestate.ListOperationsResponse.pagination_info:type_name -> buildbarn.buildqueuestate.PaginationInfo
-	32, // 30: buildbarn.buildqueuestate.KillOperationsRequest.filter:type_name -> buildbarn.buildqueuestate.KillOperationsRequest.Filter
-	48, // 31: buildbarn.buildqueuestate.KillOperationsRequest.status:type_name -> google.rpc.Status
-	7,  // 32: buildbarn.buildqueuestate.ListPlatformQueuesResponse.platform_queues:type_name -> buildbarn.buildqueuestate.PlatformQueueState
-	4,  // 33: buildbarn.buildqueuestate.ListInvocationChildrenRequest.invocation_name:type_name -> buildbarn.buildqueuestate.InvocationName
-	0,  // 34: buildbarn.buildqueuestate.ListInvocationChildrenRequest.filter:type_name -> buildbarn.buildqueuestate.ListInvocationChildrenRequest.Filter
-	9,  // 35: buildbarn.buildqueuestate.ListInvocationChildrenResponse.children:type_name -> buildbarn.buildqueuestate.InvocationChildState
-	4,  // 36: buildbarn.buildqueuestate.ListQueuedOperationsRequest.invocation_name:type_name -> buildbarn.buildqueuestate.InvocationName
-	33, // 37: buildbarn.buildqueuestate.ListQueuedOperationsRequest.start_after:type_name -> buildbarn.buildqueuestate.ListQueuedOperationsRequest.StartAfter
-	5,  // 38: buildbarn.buildqueuestate.ListQueuedOperationsResponse.queued_operations:type_name -> buildbarn.buildqueuestate.OperationState
-	1,  // 39: buildbarn.buildqueuestate.ListQueuedOperationsResponse.pagination_info:type_name -> buildbarn.buildqueuestate.PaginationInfo
-	34, // 40: buildbarn.buildqueuestate.ListWorkersRequest.filter:type_name -> buildbarn.buildqueuestate.ListWorkersRequest.Filter
-	35, // 41: buildbarn.buildqueuestate.ListWorkersRequest.start_after:type_name -> buildbarn.buildqueuestate.ListWorkersRequest.StartAfter
-	10, // 42: buildbarn.buildqueuestate.ListWorkersResponse.workers:type_name -> buildbarn.buildqueuestate.WorkerState
-	1,  // 43: buildbarn.buildqueuestate.ListWorkersResponse.pagination_info:type_name -> buildbarn.buildqueuestate.PaginationInfo
-	37, // 44: buildbarn.buildqueuestate.TerminateWorkersRequest.worker_id_pattern:type_name -> buildbarn.buildqueuestate.TerminateWorkersRequest.WorkerIdPatternEntry
-	3,  // 45: buildbarn.buildqueuestate.ListDrainsRequest.size_class_queue_name:type_name -> buildbarn.buildqueuestate.SizeClassQueueName
-	11, // 46: buildbarn.buildqueuestate.ListDrainsResponse.drains:type_name -> buildbarn.buildqueuestate.DrainState
-	3,  // 47: buildbarn.buildqueuestate.AddOrRemoveDrainRequest.size_class_queue_name:type_name -> buildbarn.buildqueuestate.SizeClassQueueName
-	38, // 48: buildbarn.buildqueuestate.AddOrRemoveDrainRequest.worker_id_pattern:type_name -> buildbarn.buildqueuestate.AddOrRemoveDrainRequest.WorkerIdPatternEntry
-	3,  // 49: buildbarn.buildqueuestate.KillOperationsRequest.Filter.size_class_queue_without_workers:type_name -> buildbarn.buildqueuestate.SizeClassQueueName
-	41, // 50: buildbarn.buildqueuestate.ListQueuedOperationsRequest.StartAfter.expected_duration:type_name -> google.protobuf.Duration
-	42, // 51: buildbarn.buildqueuestate.ListQueuedOperationsRequest.StartAfter.queued_timestamp:type_name -> google.protobuf.Timestamp
-	3,  // 52: buildbarn.buildqueuestate.ListWorkersRequest.Filter.all:type_name -> buildbarn.buildqueuestate.SizeClassQueueName
-	4,  // 53: buildbarn.buildqueuestate.ListWorkersRequest.Filter.executing:type_name -> buildbarn.buildqueuestate.InvocationName
-	4,  // 54: buildbarn.buildqueuestate.ListWorkersRequest.Filter.idle_synchronizing:type_name -> buildbarn.buildqueuestate.InvocationName
-	36, // 55: buildbarn.buildqueuestate.ListWorkersRequest.StartAfter.worker_id:type_name -> buildbarn.buildqueuestate.ListWorkersRequest.StartAfter.WorkerIdEntry
-	12, // 56: buildbarn.buildqueuestate.BuildQueueState.GetOperation:input_type -> buildbarn.buildqueuestate.GetOperationRequest
-	14, // 57: buildbarn.buildqueuestate.BuildQueueState.ListOperations:input_type -> buildbarn.buildqueuestate.ListOperationsRequest
-	16, // 58: buildbarn.buildqueuestate.BuildQueueState.KillOperations:input_type -> buildbarn.buildqueuestate.KillOperationsRequest
-	44, // 59: buildbarn.buildqueuestate.BuildQueueState.ListPlatformQueues:input_type -> google.protobuf.Empty
-	18, // 60: buildbarn.buildqueuestate.BuildQueueState.ListInvocationChildren:input_type -> buildbarn.buildqueuestate.ListInvocationChildrenRequest
-	20, // 61: buildbarn.buildqueuestate.BuildQueueState.ListQueuedOperations:input_type -> buildbarn.buildqueuestate.ListQueuedOperationsRequest
-	22, // 62: buildbarn.buildqueuestate.BuildQueueState.ListWorkers:input_type -> buildbarn.buildqueuestate.ListWorkersRequest
-	24, // 63: buildbarn.buildqueuestate.BuildQueueState.TerminateWorkers:input_type -> buildbarn.buildqueuestate.TerminateWorkersRequest
-	25, // 64: buildbarn.buildqueuestate.BuildQueueState.ListDrains:input_type -> buildbarn.buildqueuestate.ListDrainsRequest
-	27, // 65: buildbarn.buildqueuestate.BuildQueueState.AddDrain:input_type -> buildbarn.buildqueuestate.AddOrRemoveDrainRequest
-	27, // 66: buildbarn.buildqueuestate.BuildQueueState.RemoveDrain:input_type -> buildbarn.buildqueuestate.AddOrRemoveDrainRequest
-	13, // 67: buildbarn.buildqueuestate.BuildQueueState.GetOperation:output_type -> buildbarn.buildqueuestate.GetOperationResponse
-	15, // 68: buildbarn.buildqueuestate.BuildQueueState.ListOperations:output_type -> buildbarn.buildqueuestate.ListOperationsResponse
-	44, // 69: buildbarn.buildqueuestate.BuildQueueState.KillOperations:output_type -> google.protobuf.Empty
-	17, // 70: buildbarn.buildqueuestate.BuildQueueState.ListPlatformQueues:output_type -> buildbarn.buildqueuestate.ListPlatformQueuesResponse
-	19, // 71: buildbarn.buildqueuestate.BuildQueueState.ListInvocationChildren:output_type -> buildbarn.buildqueuestate.ListInvocationChildrenResponse
-	21, // 72: buildbarn.buildqueuestate.BuildQueueState.ListQueuedOperations:output_type -> buildbarn.buildqueuestate.ListQueuedOperationsResponse
-	23, // 73: buildbarn.buildqueuestate.BuildQueueState.ListWorkers:output_type -> buildbarn.buildqueuestate.ListWorkersResponse
-	44, // 74: buildbarn.buildqueuestate.BuildQueueState.TerminateWorkers:output_type -> google.protobuf.Empty
-	26, // 75: buildbarn.buildqueuestate.BuildQueueState.ListDrains:output_type -> buildbarn.buildqueuestate.ListDrainsResponse
-	44, // 76: buildbarn.buildqueuestate.BuildQueueState.AddDrain:output_type -> google.protobuf.Empty
-	44, // 77: buildbarn.buildqueuestate.BuildQueueState.RemoveDrain:output_type -> google.protobuf.Empty
-	67, // [67:78] is the sub-list for method output_type
-	56, // [56:67] is the sub-list for method input_type
-	56, // [56:56] is the sub-list for extension type_name
-	56, // [56:56] is the sub-list for extension extendee
-	0,  // [0:56] is the sub-list for field type_name
+	29, // 17: buildbarn.buildqueuestate.InvocationState.queued_operations_count:type_name -> buildbarn.buildqueuestate.InvocationState.InvocationObjectCount
+	41, // 18: buildbarn.buildqueuestate.InvocationChildState.id:type_name -> google.protobuf.Any
+	8,  // 19: buildbarn.buildqueuestate.InvocationChildState.state:type_name -> buildbarn.buildqueuestate.InvocationState
+	30, // 20: buildbarn.buildqueuestate.WorkerState.id:type_name -> buildbarn.buildqueuestate.WorkerState.IdEntry
+	43, // 21: buildbarn.buildqueuestate.WorkerState.timeout:type_name -> google.protobuf.Timestamp
+	5,  // 22: buildbarn.buildqueuestate.WorkerState.current_operation:type_name -> buildbarn.buildqueuestate.OperationState
+	31, // 23: buildbarn.buildqueuestate.DrainState.worker_id_pattern:type_name -> buildbarn.buildqueuestate.DrainState.WorkerIdPatternEntry
+	43, // 24: buildbarn.buildqueuestate.DrainState.created_timestamp:type_name -> google.protobuf.Timestamp
+	5,  // 25: buildbarn.buildqueuestate.GetOperationResponse.operation:type_name -> buildbarn.buildqueuestate.OperationState
+	32, // 26: buildbarn.buildqueuestate.ListOperationsRequest.start_after:type_name -> buildbarn.buildqueuestate.ListOperationsRequest.StartAfter
+	41, // 27: buildbarn.buildqueuestate.ListOperationsRequest.filter_invocation_id:type_name -> google.protobuf.Any
+	48, // 28: buildbarn.buildqueuestate.ListOperationsRequest.filter_stage:type_name -> build.bazel.remote.execution.v2.ExecutionStage.Value
+	5,  // 29: buildbarn.buildqueuestate.ListOperationsResponse.operations:type_name -> buildbarn.buildqueuestate.OperationState
+	1,  // 30: buildbarn.buildqueuestate.ListOperationsResponse.pagination_info:type_name -> buildbarn.buildqueuestate.PaginationInfo
+	33, // 31: buildbarn.buildqueuestate.KillOperationsRequest.filter:type_name -> buildbarn.buildqueuestate.KillOperationsRequest.Filter
+	49, // 32: buildbarn.buildqueuestate.KillOperationsRequest.status:type_name -> google.rpc.Status
+	7,  // 33: buildbarn.buildqueuestate.ListPlatformQueuesResponse.platform_queues:type_name -> buildbarn.buildqueuestate.PlatformQueueState
+	4,  // 34: buildbarn.buildqueuestate.ListInvocationChildrenRequest.invocation_name:type_name -> buildbarn.buildqueuestate.InvocationName
+	0,  // 35: buildbarn.buildqueuestate.ListInvocationChildrenRequest.filter:type_name -> buildbarn.buildqueuestate.ListInvocationChildrenRequest.Filter
+	9,  // 36: buildbarn.buildqueuestate.ListInvocationChildrenResponse.children:type_name -> buildbarn.buildqueuestate.InvocationChildState
+	4,  // 37: buildbarn.buildqueuestate.ListQueuedOperationsRequest.invocation_name:type_name -> buildbarn.buildqueuestate.InvocationName
+	34, // 38: buildbarn.buildqueuestate.ListQueuedOperationsRequest.start_after:type_name -> buildbarn.buildqueuestate.ListQueuedOperationsRequest.StartAfter
+	5,  // 39: buildbarn.buildqueuestate.ListQueuedOperationsResponse.queued_operations:type_name -> buildbarn.buildqueuestate.OperationState
+	1,  // 40: buildbarn.buildqueuestate.ListQueuedOperationsResponse.pagination_info:type_name -> buildbarn.buildqueuestate.PaginationInfo
+	35, // 41: buildbarn.buildqueuestate.ListWorkersRequest.filter:type_name -> buildbarn.buildqueuestate.ListWorkersRequest.Filter
+	36, // 42: buildbarn.buildqueuestate.ListWorkersRequest.start_after:type_name -> buildbarn.buildqueuestate.ListWorkersRequest.StartAfter
+	10, // 43: buildbarn.buildqueuestate.ListWorkersResponse.workers:type_name -> buildbarn.buildqueuestate.WorkerState
+	1,  // 44: buildbarn.buildqueuestate.ListWorkersResponse.pagination_info:type_name -> buildbarn.buildqueuestate.PaginationInfo
+	38, // 45: buildbarn.buildqueuestate.TerminateWorkersRequest.worker_id_pattern:type_name -> buildbarn.buildqueuestate.TerminateWorkersRequest.WorkerIdPatternEntry
+	3,  // 46: buildbarn.buildqueuestate.ListDrainsRequest.size_class_queue_name:type_name -> buildbarn.buildqueuestate.SizeClassQueueName
+	11, // 47: buildbarn.buildqueuestate.ListDrainsResponse.drains:type_name -> buildbarn.buildqueuestate.DrainState
+	3,  // 48: buildbarn.buildqueuestate.AddOrRemoveDrainRequest.size_class_queue_name:type_name -> buildbarn.buildqueuestate.SizeClassQueueName
+	39, // 49: buildbarn.buildqueuestate.AddOrRemoveDrainRequest.worker_id_pattern:type_name -> buildbarn.buildqueuestate.AddOrRemoveDrainRequest.WorkerIdPatternEntry
+	3,  // 50: buildbarn.buildqueuestate.KillOperationsRequest.Filter.size_class_queue_without_workers:type_name -> buildbarn.buildqueuestate.SizeClassQueueName
+	42, // 51: buildbarn.buildqueuestate.ListQueuedOperationsRequest.StartAfter.expected_duration:type_name -> google.protobuf.Duration
+	43, // 52: buildbarn.buildqueuestate.ListQueuedOperationsRequest.StartAfter.queued_timestamp:type_name -> google.protobuf.Timestamp
+	3,  // 53: buildbarn.buildqueuestate.ListWorkersRequest.Filter.all:type_name -> buildbarn.buildqueuestate.SizeClassQueueName
+	4,  // 54: buildbarn.buildqueuestate.ListWorkersRequest.Filter.executing:type_name -> buildbarn.buildqueuestate.InvocationName
+	4,  // 55: buildbarn.buildqueuestate.ListWorkersRequest.Filter.idle_synchronizing:type_name -> buildbarn.buildqueuestate.InvocationName
+	37, // 56: buildbarn.buildqueuestate.ListWorkersRequest.StartAfter.worker_id:type_name -> buildbarn.buildqueuestate.ListWorkersRequest.StartAfter.WorkerIdEntry
+	12, // 57: buildbarn.buildqueuestate.BuildQueueState.GetOperation:input_type -> buildbarn.buildqueuestate.GetOperationRequest
+	14, // 58: buildbarn.buildqueuestate.BuildQueueState.ListOperations:input_type -> buildbarn.buildqueuestate.ListOperationsRequest
+	16, // 59: buildbarn.buildqueuestate.BuildQueueState.KillOperations:input_type -> buildbarn.buildqueuestate.KillOperationsRequest
+	45, // 60: buildbarn.buildqueuestate.BuildQueueState.ListPlatformQueues:input_type -> google.protobuf.Empty
+	18, // 61: buildbarn.buildqueuestate.BuildQueueState.ListInvocationChildren:input_type -> buildbarn.buildqueuestate.ListInvocationChildrenRequest
+	20, // 62: buildbarn.buildqueuestate.BuildQueueState.ListQueuedOperations:input_type -> buildbarn.buildqueuestate.ListQueuedOperationsRequest
+	22, // 63: buildbarn.buildqueuestate.BuildQueueState.ListWorkers:input_type -> buildbarn.buildqueuestate.ListWorkersRequest
+	24, // 64: buildbarn.buildqueuestate.BuildQueueState.TerminateWorkers:input_type -> buildbarn.buildqueuestate.TerminateWorkersRequest
+	25, // 65: buildbarn.buildqueuestate.BuildQueueState.ListDrains:input_type -> buildbarn.buildqueuestate.ListDrainsRequest
+	27, // 66: buildbarn.buildqueuestate.BuildQueueState.AddDrain:input_type -> buildbarn.buildqueuestate.AddOrRemoveDrainRequest
+	27, // 67: buildbarn.buildqueuestate.BuildQueueState.RemoveDrain:input_type -> buildbarn.buildqueuestate.AddOrRemoveDrainRequest
+	13, // 68: buildbarn.buildqueuestate.BuildQueueState.GetOperation:output_type -> buildbarn.buildqueuestate.GetOperationResponse
+	15, // 69: buildbarn.buildqueuestate.BuildQueueState.ListOperations:output_type -> buildbarn.buildqueuestate.ListOperationsResponse
+	45, // 70: buildbarn.buildqueuestate.BuildQueueState.KillOperations:output_type -> google.protobuf.Empty
+	17, // 71: buildbarn.buildqueuestate.BuildQueueState.ListPlatformQueues:output_type -> buildbarn.buildqueuestate.ListPlatformQueuesResponse
+	19, // 72: buildbarn.buildqueuestate.BuildQueueState.ListInvocationChildren:output_type -> buildbarn.buildqueuestate.ListInvocationChildrenResponse
+	21, // 73: buildbarn.buildqueuestate.BuildQueueState.ListQueuedOperations:output_type -> buildbarn.buildqueuestate.ListQueuedOperationsResponse
+	23, // 74: buildbarn.buildqueuestate.BuildQueueState.ListWorkers:output_type -> buildbarn.buildqueuestate.ListWorkersResponse
+	45, // 75: buildbarn.buildqueuestate.BuildQueueState.TerminateWorkers:output_type -> google.protobuf.Empty
+	26, // 76: buildbarn.buildqueuestate.BuildQueueState.ListDrains:output_type -> buildbarn.buildqueuestate.ListDrainsResponse
+	45, // 77: buildbarn.buildqueuestate.BuildQueueState.AddDrain:output_type -> google.protobuf.Empty
+	45, // 78: buildbarn.buildqueuestate.BuildQueueState.RemoveDrain:output_type -> google.protobuf.Empty
+	68, // [68:79] is the sub-list for method output_type
+	57, // [57:68] is the sub-list for method input_type
+	57, // [57:57] is the sub-list for extension type_name
+	57, // [57:57] is the sub-list for extension extendee
+	0,  // [0:57] is the sub-list for field type_name
 }
 
 func init() { file_pkg_proto_buildqueuestate_buildqueuestate_proto_init() }
@@ -2359,11 +2416,11 @@ func file_pkg_proto_buildqueuestate_buildqueuestate_proto_init() {
 		(*OperationState_Executing)(nil),
 		(*OperationState_Completed)(nil),
 	}
-	file_pkg_proto_buildqueuestate_buildqueuestate_proto_msgTypes[31].OneofWrappers = []any{
+	file_pkg_proto_buildqueuestate_buildqueuestate_proto_msgTypes[32].OneofWrappers = []any{
 		(*KillOperationsRequest_Filter_OperationName)(nil),
 		(*KillOperationsRequest_Filter_SizeClassQueueWithoutWorkers)(nil),
 	}
-	file_pkg_proto_buildqueuestate_buildqueuestate_proto_msgTypes[33].OneofWrappers = []any{
+	file_pkg_proto_buildqueuestate_buildqueuestate_proto_msgTypes[34].OneofWrappers = []any{
 		(*ListWorkersRequest_Filter_All)(nil),
 		(*ListWorkersRequest_Filter_Executing)(nil),
 		(*ListWorkersRequest_Filter_IdleSynchronizing)(nil),
@@ -2374,7 +2431,7 @@ func file_pkg_proto_buildqueuestate_buildqueuestate_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_pkg_proto_buildqueuestate_buildqueuestate_proto_rawDesc), len(file_pkg_proto_buildqueuestate_buildqueuestate_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   38,
+			NumMessages:   39,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

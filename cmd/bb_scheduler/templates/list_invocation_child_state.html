@@ -64,7 +64,7 @@
 				{{$childInvocationNameJSON := proto_to_json $childInvocationName}}
 				<tr>
 					<td><span style="word-break: break-all">{{proto_to_json .Id}}</span></td>
-					<td class="text-end"><a href="queued_operations?invocation_name={{$childInvocationNameJSON}}">{{.State.QueuedOperationsCount}}</a></td>
+					<td class="text-end"><a href="queued_operations?invocation_name={{$childInvocationNameJSON}}">{{.State.QueuedOperationsCount.Direct}}</a></td>
 					<td class="text-end"><a href="invocation_children?invocation_name={{$childInvocationNameJSON}}&amp;filter=QUEUED">{{.State.QueuedChildrenCount}}</a></td>
 					<td class="text-end"><a href="invocation_children?invocation_name={{$childInvocationNameJSON}}&amp;filter=ACTIVE">{{.State.ActiveChildrenCount}}</a></td>
 					<td class="text-end"><a href="invocation_children?invocation_name={{$childInvocationNameJSON}}&amp;filter=ALL">{{.State.ChildrenCount}}</a></td>
