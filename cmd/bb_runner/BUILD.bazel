@@ -107,6 +107,7 @@ oci_image_index(
             "arm64",
         ]
     ],
+    visibility = ["//visibility:public"],
 )
 
 container_push_official(
