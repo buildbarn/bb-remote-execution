@@ -153,6 +153,11 @@ message ApplicationConfiguration {
   // The path under which the administrative web UI needs to be exposed.
   // When left empty, the web UI will be exposed at "/".
   string admin_route_prefix = 22;
+
+  // Authorization requirements to be enforced for Synchronize requests
+  // by workers.
+  buildbarn.configuration.auth.AuthorizerConfiguration synchronize_authorizer =
+      23;
 }
 
 message PredeclaredPlatformQueueConfiguration {

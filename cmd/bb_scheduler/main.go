@@ -110,6 +110,10 @@ func main() {
 		if err != nil {
 			return util.StatusWrap(err, "Failed to create kill operaitons authorizer")
 		}
+		synchronizeAuthorizer, err := authorizerFactory.NewAuthorizerFromConfiguration(configuration.SynchronizeAuthorizer, grpcClientFactory)
+		if err != nil {
+			return util.StatusWrap(err, "Failed to create synchronize authorizer")
+		}
 
 		platformQueueWithNoWorkersTimeout := configuration.PlatformQueueWithNoWorkersTimeout
 		if err := platformQueueWithNoWorkersTimeout.CheckValid(); err != nil {
@@ -141,7 +145,8 @@ func main() {
 			actionRouter,
 			executeAuthorizer,
 			modifyDrainsAuthorizer,
-			killOperationsAuthorizer)
+			killOperationsAuthorizer,
+			synchronizeAuthorizer)
 
 		// Create predeclared platform queues.
 		for _, platformQueue := range configuration.PredeclaredPlatformQueues {
