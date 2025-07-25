@@ -264,6 +264,10 @@ type InMemoryBuildQueue struct {
 	// Authorizer used to allow/deny access for certain users to
 	// perform KillOperations calls.
 	killOperationsAuthorizer auth.Authorizer
+
+	// Authorizer used to allow/deny access for workers to perform
+	// Synchronize calls.
+	synchronizeAuthorizer auth.Authorizer
 }
 
 var inMemoryBuildQueueCapabilitiesProvider = capabilities.NewStaticProvider(&remoteexecution.ServerCapabilities{
@@ -282,7 +286,7 @@ var inMemoryBuildQueueCapabilitiesProvider = capabilities.NewStaticProvider(&rem
 // NewInMemoryBuildQueue creates a new InMemoryBuildQueue that is in the
 // initial state. It does not have any queues, workers or queued
 // execution requests. All of these are created by sending it RPCs.
-func NewInMemoryBuildQueue(contentAddressableStorage blobstore.BlobAccess, clock clock.Clock, uuidGenerator util.UUIDGenerator, configuration *InMemoryBuildQueueConfiguration, maximumMessageSizeBytes int, actionRouter routing.ActionRouter, executeAuthorizer, modifyDrainsAuthorizer, killOperationsAuthorizer auth.Authorizer) *InMemoryBuildQueue {
+func NewInMemoryBuildQueue(contentAddressableStorage blobstore.BlobAccess, clock clock.Clock, uuidGenerator util.UUIDGenerator, configuration *InMemoryBuildQueueConfiguration, maximumMessageSizeBytes int, actionRouter routing.ActionRouter, executeAuthorizer, modifyDrainsAuthorizer, killOperationsAuthorizer, synchronizeAuthorizer auth.Authorizer) *InMemoryBuildQueue {
 	inMemoryBuildQueuePrometheusMetrics.Do(func() {
 		prometheus.MustRegister(inMemoryBuildQueueInFlightDeduplicationsTotal)
 
@@ -321,6 +325,7 @@ func NewInMemoryBuildQueue(contentAddressableStorage blobstore.BlobAccess, clock
 		executeAuthorizer:                   executeAuthorizer,
 		modifyDrainsAuthorizer:              modifyDrainsAuthorizer,
 		killOperationsAuthorizer:            killOperationsAuthorizer,
+		synchronizeAuthorizer:               synchronizeAuthorizer,
 	}
 }
 
@@ -579,6 +584,12 @@ func (bq *InMemoryBuildQueue) Synchronize(ctx context.Context, request *remotewo
 		return nil, err
 	}
 	workerKey := newWorkerKey(request.WorkerId)
+
+	// Perform authorization checks without holding
+	// any locks.
+	if err := auth.AuthorizeSingleInstanceName(ctx, bq.synchronizeAuthorizer, instanceNamePrefix); err != nil {
+		return nil, util.StatusWrap(err, "Authorization")
+	}
 
 	bq.enter(bq.clock.Now())
 	defer bq.leave()

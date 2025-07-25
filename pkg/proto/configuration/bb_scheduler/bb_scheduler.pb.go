@@ -47,6 +47,7 @@ type ApplicationConfiguration struct {
 	ModifyDrainsAuthorizer            *auth.AuthorizerConfiguration            `protobuf:"bytes,20,opt,name=modify_drains_authorizer,json=modifyDrainsAuthorizer,proto3" json:"modify_drains_authorizer,omitempty"`
 	KillOperationsAuthorizer          *auth.AuthorizerConfiguration            `protobuf:"bytes,21,opt,name=kill_operations_authorizer,json=killOperationsAuthorizer,proto3" json:"kill_operations_authorizer,omitempty"`
 	AdminRoutePrefix                  string                                   `protobuf:"bytes,22,opt,name=admin_route_prefix,json=adminRoutePrefix,proto3" json:"admin_route_prefix,omitempty"`
+	SynchronizeAuthorizer             *auth.AuthorizerConfiguration            `protobuf:"bytes,23,opt,name=synchronize_authorizer,json=synchronizeAuthorizer,proto3" json:"synchronize_authorizer,omitempty"`
 	unknownFields                     protoimpl.UnknownFields
 	sizeCache                         protoimpl.SizeCache
 }
@@ -193,6 +194,13 @@ func (x *ApplicationConfiguration) GetAdminRoutePrefix() string {
 	return ""
 }
 
+func (x *ApplicationConfiguration) GetSynchronizeAuthorizer() *auth.AuthorizerConfiguration {
+	if x != nil {
+		return x.SynchronizeAuthorizer
+	}
+	return nil
+}
+
 type PredeclaredPlatformQueueConfiguration struct {
 	state                                     protoimpl.MessageState `protogen:"open.v1"`
 	InstanceNamePrefix                        string                 `protobuf:"bytes,1,opt,name=instance_name_prefix,json=instanceNamePrefix,proto3" json:"instance_name_prefix,omitempty"`
@@ -281,7 +289,7 @@ var File_pkg_proto_configuration_bb_scheduler_bb_scheduler_proto protoreflect.Fi
 
 const file_pkg_proto_configuration_bb_scheduler_bb_scheduler_proto_rawDesc = "" +
 	"\n" +
-	"7pkg/proto/configuration/bb_scheduler/bb_scheduler.proto\x12$buildbarn.configuration.bb_scheduler\x1a6build/bazel/remote/execution/v2/remote_execution.proto\x1a\x1egoogle/protobuf/duration.proto\x1a'pkg/proto/configuration/auth/auth.proto\x1a1pkg/proto/configuration/blobstore/blobstore.proto\x1a+pkg/proto/configuration/global/global.proto\x1a'pkg/proto/configuration/grpc/grpc.proto\x1a'pkg/proto/configuration/http/http.proto\x1a1pkg/proto/configuration/scheduler/scheduler.proto\"\xc5\f\n" +
+	"7pkg/proto/configuration/bb_scheduler/bb_scheduler.proto\x12$buildbarn.configuration.bb_scheduler\x1a6build/bazel/remote/execution/v2/remote_execution.proto\x1a\x1egoogle/protobuf/duration.proto\x1a'pkg/proto/configuration/auth/auth.proto\x1a1pkg/proto/configuration/blobstore/blobstore.proto\x1a+pkg/proto/configuration/global/global.proto\x1a'pkg/proto/configuration/grpc/grpc.proto\x1a'pkg/proto/configuration/http/http.proto\x1a1pkg/proto/configuration/scheduler/scheduler.proto\"\xb3\r\n" +
 	"\x18ApplicationConfiguration\x12a\n" +
 	"\x13client_grpc_servers\x18\x03 \x03(\v21.buildbarn.configuration.grpc.ServerConfigurationR\x11clientGrpcServers\x12a\n" +
 	"\x13worker_grpc_servers\x18\x04 \x03(\v21.buildbarn.configuration.grpc.ServerConfigurationR\x11workerGrpcServers\x12\x1f\n" +
@@ -299,7 +307,8 @@ const file_pkg_proto_configuration_bb_scheduler_bb_scheduler_proto_rawDesc = "" 
 	"\x12admin_http_servers\x18\x13 \x03(\v21.buildbarn.configuration.http.ServerConfigurationR\x10adminHttpServers\x12o\n" +
 	"\x18modify_drains_authorizer\x18\x14 \x01(\v25.buildbarn.configuration.auth.AuthorizerConfigurationR\x16modifyDrainsAuthorizer\x12s\n" +
 	"\x1akill_operations_authorizer\x18\x15 \x01(\v25.buildbarn.configuration.auth.AuthorizerConfigurationR\x18killOperationsAuthorizer\x12,\n" +
-	"\x12admin_route_prefix\x18\x16 \x01(\tR\x10adminRoutePrefixJ\x04\b\x02\x10\x03J\x04\b\t\x10\n" +
+	"\x12admin_route_prefix\x18\x16 \x01(\tR\x10adminRoutePrefix\x12l\n" +
+	"\x16synchronize_authorizer\x18\x17 \x01(\v25.buildbarn.configuration.auth.AuthorizerConfigurationR\x15synchronizeAuthorizerJ\x04\b\x02\x10\x03J\x04\b\t\x10\n" +
 	"J\x04\b\n" +
 	"\x10\vJ\x04\b\r\x10\x0eJ\x04\b\x0e\x10\x0f\"\xea\x03\n" +
 	"%PredeclaredPlatformQueueConfiguration\x120\n" +
@@ -349,13 +358,14 @@ var file_pkg_proto_configuration_bb_scheduler_bb_scheduler_proto_depIdxs = []int
 	8,  // 10: buildbarn.configuration.bb_scheduler.ApplicationConfiguration.admin_http_servers:type_name -> buildbarn.configuration.http.ServerConfiguration
 	5,  // 11: buildbarn.configuration.bb_scheduler.ApplicationConfiguration.modify_drains_authorizer:type_name -> buildbarn.configuration.auth.AuthorizerConfiguration
 	5,  // 12: buildbarn.configuration.bb_scheduler.ApplicationConfiguration.kill_operations_authorizer:type_name -> buildbarn.configuration.auth.AuthorizerConfiguration
-	9,  // 13: buildbarn.configuration.bb_scheduler.PredeclaredPlatformQueueConfiguration.platform:type_name -> build.bazel.remote.execution.v2.Platform
-	7,  // 14: buildbarn.configuration.bb_scheduler.PredeclaredPlatformQueueConfiguration.worker_invocation_stickiness_limits:type_name -> google.protobuf.Duration
-	15, // [15:15] is the sub-list for method output_type
-	15, // [15:15] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	5,  // 13: buildbarn.configuration.bb_scheduler.ApplicationConfiguration.synchronize_authorizer:type_name -> buildbarn.configuration.auth.AuthorizerConfiguration
+	9,  // 14: buildbarn.configuration.bb_scheduler.PredeclaredPlatformQueueConfiguration.platform:type_name -> build.bazel.remote.execution.v2.Platform
+	7,  // 15: buildbarn.configuration.bb_scheduler.PredeclaredPlatformQueueConfiguration.worker_invocation_stickiness_limits:type_name -> google.protobuf.Duration
+	16, // [16:16] is the sub-list for method output_type
+	16, // [16:16] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_pkg_proto_configuration_bb_scheduler_bb_scheduler_proto_init() }
