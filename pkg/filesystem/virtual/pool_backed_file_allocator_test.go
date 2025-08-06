@@ -32,7 +32,7 @@ func TestPoolBackedFileAllocatorGetBazelOutputServiceStat(t *testing.T) {
 	// Create a file and initialize it with some contents.
 	pool := mock.NewMockFilePool(ctrl)
 	underlyingFile := mock.NewMockFileReadWriter(ctrl)
-	pool.EXPECT().NewFile().Return(underlyingFile, nil)
+	pool.EXPECT().NewFile(nil, uint64(0)).Return(underlyingFile, nil)
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 
 	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger).
@@ -201,7 +201,7 @@ func TestPoolBackedFileAllocatorVirtualSeek(t *testing.T) {
 
 	pool := mock.NewMockFilePool(ctrl)
 	underlyingFile := mock.NewMockFileReadWriter(ctrl)
-	pool.EXPECT().NewFile().Return(underlyingFile, nil)
+	pool.EXPECT().NewFile(nil, uint64(0)).Return(underlyingFile, nil)
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 
 	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger).
@@ -268,7 +268,7 @@ func TestPoolBackedFileAllocatorVirtualOpenSelfStaleAfterUnlink(t *testing.T) {
 
 	pool := mock.NewMockFilePool(ctrl)
 	underlyingFile := mock.NewMockFileReadWriter(ctrl)
-	pool.EXPECT().NewFile().Return(underlyingFile, nil)
+	pool.EXPECT().NewFile(nil, uint64(0)).Return(underlyingFile, nil)
 	underlyingFile.EXPECT().Close()
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 
@@ -293,7 +293,7 @@ func TestPoolBackedFileAllocatorVirtualOpenSelfStaleAfterClose(t *testing.T) {
 
 	pool := mock.NewMockFilePool(ctrl)
 	underlyingFile := mock.NewMockFileReadWriter(ctrl)
-	pool.EXPECT().NewFile().Return(underlyingFile, nil)
+	pool.EXPECT().NewFile(nil, uint64(0)).Return(underlyingFile, nil)
 	underlyingFile.EXPECT().Close()
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 
@@ -315,7 +315,7 @@ func TestPoolBackedFileAllocatorVirtualRead(t *testing.T) {
 
 	pool := mock.NewMockFilePool(ctrl)
 	underlyingFile := mock.NewMockFileReadWriter(ctrl)
-	pool.EXPECT().NewFile().Return(underlyingFile, nil)
+	pool.EXPECT().NewFile(nil, uint64(0)).Return(underlyingFile, nil)
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 
 	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger).
@@ -390,7 +390,7 @@ func TestPoolBackedFileAllocatorFUSETruncateFailure(t *testing.T) {
 
 	pool := mock.NewMockFilePool(ctrl)
 	underlyingFile := mock.NewMockFileReadWriter(ctrl)
-	pool.EXPECT().NewFile().Return(underlyingFile, nil)
+	pool.EXPECT().NewFile(nil, uint64(0)).Return(underlyingFile, nil)
 	underlyingFile.EXPECT().Truncate(int64(42)).Return(status.Error(codes.Unavailable, "Storage backends offline"))
 	underlyingFile.EXPECT().Close()
 
@@ -417,7 +417,7 @@ func TestPoolBackedFileAllocatorVirtualWriteFailure(t *testing.T) {
 
 	pool := mock.NewMockFilePool(ctrl)
 	underlyingFile := mock.NewMockFileReadWriter(ctrl)
-	pool.EXPECT().NewFile().Return(underlyingFile, nil)
+	pool.EXPECT().NewFile(nil, uint64(0)).Return(underlyingFile, nil)
 	var p [10]byte
 	underlyingFile.EXPECT().WriteAt(p[:], int64(42)).Return(0, status.Error(codes.Unavailable, "Storage backends offline"))
 	underlyingFile.EXPECT().Close()
@@ -440,7 +440,7 @@ func TestPoolBackedFileAllocatorUploadFile(t *testing.T) {
 	// Create a file backed by a FilePool.
 	pool := mock.NewMockFilePool(ctrl)
 	underlyingFile := mock.NewMockFileReadWriter(ctrl)
-	pool.EXPECT().NewFile().Return(underlyingFile, nil)
+	pool.EXPECT().NewFile(nil, uint64(0)).Return(underlyingFile, nil)
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 
 	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger).
@@ -610,7 +610,7 @@ func TestPoolBackedFileAllocatorVirtualClose(t *testing.T) {
 	// Create a new file.
 	pool := mock.NewMockFilePool(ctrl)
 	underlyingFile := mock.NewMockFileReadWriter(ctrl)
-	pool.EXPECT().NewFile().Return(underlyingFile, nil)
+	pool.EXPECT().NewFile(nil, uint64(0)).Return(underlyingFile, nil)
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 
 	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger).
