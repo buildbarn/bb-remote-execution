@@ -13,9 +13,7 @@ import (
 // to call methods of the child directory, as that could cause
 // deadlocks.
 type DirectoryEntryReporter interface {
-	// TODO: Can't use DirectoryChild in the arguments here, due to
-	// https://github.com/golang/go/issues/50259.
-	ReportEntry(nextCookie uint64, name path.Component, child Child[Directory, Leaf, Node], attributes *Attributes) bool
+	ReportEntry(nextCookie uint64, name path.Component, child DirectoryChild, attributes *Attributes) bool
 }
 
 // ChangeInfo contains a pair of change IDs of a directory, before and
@@ -54,10 +52,7 @@ type Directory interface {
 	VirtualLink(ctx context.Context, name path.Component, leaf Leaf, requested AttributesMask, attributes *Attributes) (ChangeInfo, Status)
 	// VirtualLookup obtains the inode corresponding with a child
 	// stored within the directory.
-	//
-	// TODO: Can't use DirectoryChild in the return type here, due to
-	// https://github.com/golang/go/issues/50259.
-	VirtualLookup(ctx context.Context, name path.Component, requested AttributesMask, out *Attributes) (Child[Directory, Leaf, Node], Status)
+	VirtualLookup(ctx context.Context, name path.Component, requested AttributesMask, out *Attributes) (DirectoryChild, Status)
 	// VirtualMkdir creates an empty directory within the current
 	// directory.
 	VirtualMkdir(name path.Component, requested AttributesMask, attributes *Attributes) (Directory, ChangeInfo, Status)
