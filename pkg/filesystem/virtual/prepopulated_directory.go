@@ -63,10 +63,7 @@ type PrepopulatedDirectory interface {
 	// PrepopulatedDirectory. This method is similar to
 	// VirtualLookup(), except that it returns the native types
 	// managed by PrepopulatedDirectory.
-	//
-	// TODO: Can't use PrepopulatedDirectoryChild in the return type
-	// here, due to https://github.com/golang/go/issues/50259.
-	LookupChild(name path.Component) (Child[PrepopulatedDirectory, LinkableLeaf, Node], error)
+	LookupChild(name path.Component) (PrepopulatedDirectoryChild, error)
 	// LookupAllChildren() looks up all files and directories
 	// contained in a PrepopulatedDirectory. This method is similar
 	// to VirtualReadDir(), except that it returns the native types
