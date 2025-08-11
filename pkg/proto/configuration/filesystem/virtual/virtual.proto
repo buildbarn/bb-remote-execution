@@ -5,6 +5,7 @@ package buildbarn.configuration.filesystem.virtual;
 import "google/protobuf/duration.proto";
 import "google/protobuf/wrappers.proto";
 import "pkg/proto/configuration/eviction/eviction.proto";
+import "pkg/proto/configuration/jmespath/jmespath.proto";
 
 option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem/virtual";
 
@@ -102,7 +103,8 @@ message FUSEMountConfiguration {
   //     }
   //
   // NOTE: This option is only used by bb_virtual_tmp.
-  string in_header_authentication_metadata_jmespath_expression = 8;
+  buildbarn.configuration.jmespath.Expression
+      in_header_authentication_metadata_jmespath_expression = 8;
 
   // Tunables to apply to the Linux Backing Dev Info (BDI) after the
   // FUSE mount has been created. Setting this option causes the
@@ -263,7 +265,7 @@ message RPCv2SystemAuthenticationConfiguration {
   //       "gid": number,
   //       "gids": list<number>,
   //     }
-  string metadata_jmespath_expression = 1;
+  buildbarn.configuration.jmespath.Expression metadata_jmespath_expression = 1;
 
   // The number of authentication metadata objects to cache. This cache
   // allows clients to use authentication flavor AUTH_SHORT in

@@ -7,10 +7,10 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual/nfsv4"
 	"github.com/buildbarn/bb-storage/pkg/auth"
 	"github.com/buildbarn/bb-storage/pkg/eviction"
+	"github.com/buildbarn/bb-storage/pkg/jmespath"
 	auth_pb "github.com/buildbarn/bb-storage/pkg/proto/auth"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/buildbarn/go-xdr/pkg/protocols/rpcv2"
-	"github.com/jmespath/go-jmespath"
 	"github.com/stretchr/testify/require"
 
 	"google.golang.org/protobuf/types/known/structpb"

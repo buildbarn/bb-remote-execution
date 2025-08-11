@@ -6,12 +6,12 @@ import (
 	pb "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem/virtual"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/eviction"
+	"github.com/buildbarn/bb-storage/pkg/jmespath"
 	"github.com/buildbarn/bb-storage/pkg/program"
 	"github.com/buildbarn/bb-storage/pkg/random"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	nfsv4_xdr "github.com/buildbarn/go-xdr/pkg/protocols/nfsv4"
 	"github.com/buildbarn/go-xdr/pkg/rpcserver"
-	"github.com/jmespath/go-jmespath"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -36,7 +36,6 @@ type nfsv4Mount struct {
 	mountPath                        string
 	configuration                    *pb.NFSv4MountConfiguration
 	handleAllocator                  *virtual.NFSStatefulHandleAllocator
-	authenticator                    rpcserver.Authenticator
 	fsName                           string
 	rootDirectoryAttributeCaching    AttributeCachingDuration
 	childDirectoriesAttributeCaching AttributeCachingDuration
@@ -66,6 +65,22 @@ func (m *nfsv4Mount) Expose(terminationGroup program.Group, rootDirectory virtua
 	announcedLeaseTime := m.configuration.AnnouncedLeaseTime
 	if err := announcedLeaseTime.CheckValid(); err != nil {
 		return util.StatusWrap(err, "Invalid announced lease time")
+	}
+
+	authenticator := rpcserver.AllowAuthenticator
+	if systemAuthentication := m.configuration.SystemAuthentication; systemAuthentication != nil {
+		compiledExpression, err := jmespath.NewExpressionFromConfiguration(systemAuthentication.MetadataJmespathExpression, terminationGroup, clock.SystemClock)
+		if err != nil {
+			return util.StatusWrap(err, "Failed to compile system authentication metadata JMESPath expression")
+		}
+		evictionSet, err := eviction.NewSetFromConfiguration[nfsv4.SystemAuthenticatorCacheKey](systemAuthentication.CacheReplacementPolicy)
+		if err != nil {
+			return util.StatusWrap(err, "Failed to create system authentication eviction set")
+		}
+		authenticator = nfsv4.NewSystemAuthenticator(
+			compiledExpression,
+			int(systemAuthentication.MaximumCacheSize),
+			eviction.NewMetricsSet(evictionSet, "SystemAuthenticator"))
 	}
 
 	// Create a single server that is capable of accepting both
@@ -108,7 +123,7 @@ func (m *nfsv4Mount) Expose(terminationGroup program.Group, rootDirectory virtua
 		nfsv4_xdr.NFS4_PROGRAM_PROGRAM_NUMBER: nfsv4_xdr.NewNfs4ProgramService(
 			nfsv4.NewMetricsProgram(program),
 		),
-	}, m.authenticator)
+	}, authenticator)
 
 	return m.mount(terminationGroup, rpcServer)
 }
@@ -133,27 +148,10 @@ func NewMountFromConfiguration(configuration *pb.MountConfiguration, fsName stri
 	case *pb.MountConfiguration_Nfsv4:
 		handleAllocator := virtual.NewNFSHandleAllocator(random.NewFastSingleThreadedGenerator())
 
-		authenticator := rpcserver.AllowAuthenticator
-		if systemAuthentication := backend.Nfsv4.SystemAuthentication; systemAuthentication != nil {
-			compiledExpression, err := jmespath.Compile(systemAuthentication.MetadataJmespathExpression)
-			if err != nil {
-				return nil, nil, util.StatusWrap(err, "Failed to compile system authentication metadata JMESPath expression")
-			}
-			evictionSet, err := eviction.NewSetFromConfiguration[nfsv4.SystemAuthenticatorCacheKey](systemAuthentication.CacheReplacementPolicy)
-			if err != nil {
-				return nil, nil, util.StatusWrap(err, "Failed to create system authentication eviction set")
-			}
-			authenticator = nfsv4.NewSystemAuthenticator(
-				compiledExpression,
-				int(systemAuthentication.MaximumCacheSize),
-				eviction.NewMetricsSet(evictionSet, "SystemAuthenticator"))
-		}
-
 		return &nfsv4Mount{
 			mountPath:                        configuration.MountPath,
 			configuration:                    backend.Nfsv4,
 			handleAllocator:                  handleAllocator,
-			authenticator:                    authenticator,
 			fsName:                           fsName,
 			rootDirectoryAttributeCaching:    rootDirectoryAttributeCaching,
 			childDirectoriesAttributeCaching: childDirectoriesAttributeCaching,

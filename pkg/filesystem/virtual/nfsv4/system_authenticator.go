@@ -9,9 +9,9 @@ import (
 
 	"github.com/buildbarn/bb-storage/pkg/auth"
 	"github.com/buildbarn/bb-storage/pkg/eviction"
+	"github.com/buildbarn/bb-storage/pkg/jmespath"
 	"github.com/buildbarn/go-xdr/pkg/protocols/rpcv2"
 	"github.com/buildbarn/go-xdr/pkg/rpcserver"
-	"github.com/jmespath/go-jmespath"
 )
 
 // SystemAuthenticatorCacheKey is the key type that's used by
@@ -19,7 +19,7 @@ import (
 type SystemAuthenticatorCacheKey [sha256.Size]byte
 
 type systemAuthenticator struct {
-	metadataExtractor *jmespath.JMESPath
+	metadataExtractor *jmespath.Expression
 
 	lock             sync.Mutex
 	cache            map[SystemAuthenticatorCacheKey]*auth.AuthenticationMetadata
@@ -32,7 +32,7 @@ type systemAuthenticator struct {
 // 5531, appendix A. The body of the credentials are converted to an
 // AuthenticationMetadata object using a JMESPath expression. The
 // resulting metadata is attached to the Context.
-func NewSystemAuthenticator(metadataExtractor *jmespath.JMESPath, maximumCacheSize int, evictionSet eviction.Set[SystemAuthenticatorCacheKey]) rpcserver.Authenticator {
+func NewSystemAuthenticator(metadataExtractor *jmespath.Expression, maximumCacheSize int, evictionSet eviction.Set[SystemAuthenticatorCacheKey]) rpcserver.Authenticator {
 	return &systemAuthenticator{
 		metadataExtractor: metadataExtractor,
 

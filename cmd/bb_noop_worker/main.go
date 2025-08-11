@@ -35,7 +35,7 @@ func main() {
 		if err := util.UnmarshalConfigurationFromFile(os.Args[1], &configuration); err != nil {
 			return util.StatusWrapf(err, "Failed to read configuration from %s", os.Args[1])
 		}
-		lifecycleState, grpcClientFactory, err := global.ApplyConfiguration(configuration.Global)
+		lifecycleState, grpcClientFactory, err := global.ApplyConfiguration(configuration.Global, dependenciesGroup)
 		if err != nil {
 			return util.StatusWrap(err, "Failed to apply global configuration options")
 		}
@@ -59,7 +59,7 @@ func main() {
 			return util.StatusWrap(err, "Failed to parse browser URL")
 		}
 
-		schedulerConnection, err := grpcClientFactory.NewClientFromConfiguration(configuration.Scheduler)
+		schedulerConnection, err := grpcClientFactory.NewClientFromConfiguration(configuration.Scheduler, dependenciesGroup)
 		if err != nil {
 			return util.StatusWrap(err, "Failed to create scheduler RPC client")
 		}

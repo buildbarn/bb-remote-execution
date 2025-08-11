@@ -9,8 +9,8 @@ import (
 
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual/fuse"
 	"github.com/buildbarn/bb-storage/pkg/auth"
+	"github.com/buildbarn/bb-storage/pkg/jmespath"
 	go_fuse "github.com/hanwen/go-fuse/v2/fuse"
-	"github.com/jmespath/go-jmespath"
 	"github.com/stretchr/testify/require"
 )
 

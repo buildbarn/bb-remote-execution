@@ -18,6 +18,7 @@ load("@gazelle//:def.bzl", "gazelle")
 # gazelle:resolve proto go pkg/proto/configuration/global/global.proto @com_github_buildbarn_bb_storage//pkg/proto/configuration/global
 # gazelle:resolve proto go pkg/proto/configuration/grpc/grpc.proto @com_github_buildbarn_bb_storage//pkg/proto/configuration/grpc
 # gazelle:resolve proto go pkg/proto/configuration/http/http.proto @com_github_buildbarn_bb_storage//pkg/proto/configuration/http
+# gazelle:resolve proto go pkg/proto/configuration/jmespath/jmespath.proto @com_github_buildbarn_bb_storage//pkg/proto/configuration/jmespath
 # gazelle:resolve proto google/bytestream/bytestream.proto @googleapis//google/bytestream:bytestream_proto
 # gazelle:resolve proto google/protobuf/any.proto @protobuf//:any_proto
 # gazelle:resolve proto google/protobuf/duration.proto @protobuf//:duration_proto
@@ -33,6 +34,7 @@ load("@gazelle//:def.bzl", "gazelle")
 # gazelle:resolve proto pkg/proto/configuration/global/global.proto @com_github_buildbarn_bb_storage//pkg/proto/configuration/global:global_proto
 # gazelle:resolve proto pkg/proto/configuration/grpc/grpc.proto @com_github_buildbarn_bb_storage//pkg/proto/configuration/grpc:grpc_proto
 # gazelle:resolve proto pkg/proto/configuration/http/http.proto @com_github_buildbarn_bb_storage//pkg/proto/configuration/http:http_proto
+# gazelle:resolve proto pkg/proto/configuration/jmespath/jmespath.proto @com_github_buildbarn_bb_storage//pkg/proto/configuration/jmespath:jmespath_proto
 gazelle(
     name = "gazelle",
 )
