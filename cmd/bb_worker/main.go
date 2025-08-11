@@ -54,7 +54,7 @@ func main() {
 		if err := util.UnmarshalConfigurationFromFile(os.Args[1], &configuration); err != nil {
 			return util.StatusWrapf(err, "Failed to read configuration from %s", os.Args[1])
 		}
-		lifecycleState, grpcClientFactory, err := global.ApplyConfiguration(configuration.Global)
+		lifecycleState, grpcClientFactory, err := global.ApplyConfiguration(configuration.Global, dependenciesGroup)
 		if err != nil {
 			return util.StatusWrap(err, "Failed to apply global configuration options")
 		}
@@ -66,7 +66,7 @@ func main() {
 		}
 
 		// Create connection with scheduler.
-		schedulerConnection, err := grpcClientFactory.NewClientFromConfiguration(configuration.Scheduler)
+		schedulerConnection, err := grpcClientFactory.NewClientFromConfiguration(configuration.Scheduler, dependenciesGroup)
 		if err != nil {
 			return util.StatusWrap(err, "Failed to create scheduler RPC client")
 		}
@@ -134,7 +134,7 @@ func main() {
 		}
 		remoteCompletedActionLoggers := make([]remoteCompletedActionLogger, 0, len(configuration.CompletedActionLoggers))
 		for _, c := range configuration.CompletedActionLoggers {
-			loggerQueueConnection, err := grpcClientFactory.NewClientFromConfiguration(c.Client)
+			loggerQueueConnection, err := grpcClientFactory.NewClientFromConfiguration(c.Client, dependenciesGroup)
 			if err != nil {
 				return util.StatusWrap(err, "Failed to create a new gRPC client for logging completed actions")
 			}
@@ -321,7 +321,7 @@ func main() {
 				// used in combination with a runner process. Having a separate
 				// runner process also makes it possible to apply privilege
 				// separation.
-				runnerConnection, err := grpcClientFactory.NewClientFromConfiguration(runnerConfiguration.Endpoint)
+				runnerConnection, err := grpcClientFactory.NewClientFromConfiguration(runnerConfiguration.Endpoint, dependenciesGroup)
 				if err != nil {
 					return util.StatusWrap(err, "Failed to create runner RPC client")
 				}

@@ -1,14 +1,14 @@
 module(name = "com_github_buildbarn_bb_remote_execution")
 
 bazel_dep(name = "aspect_bazel_lib", version = "2.20.0")
-bazel_dep(name = "aspect_rules_js", version = "2.4.0")
+bazel_dep(name = "aspect_rules_js", version = "2.4.2")
 bazel_dep(name = "bazel_remote_apis", version = "0.0.0")
 bazel_dep(name = "com_github_buildbarn_bb_storage")
 bazel_dep(name = "com_github_buildbarn_go_xdr")
-bazel_dep(name = "gazelle", version = "0.44.0")
+bazel_dep(name = "gazelle", version = "0.45.0")
 bazel_dep(name = "googleapis", version = "0.0.0-20250703-f9d6fe4a")
 bazel_dep(name = "protobuf", version = "31.1")
-bazel_dep(name = "rules_go", version = "0.55.1")
+bazel_dep(name = "rules_go", version = "0.56.1")
 bazel_dep(name = "rules_jsonnet", version = "0.7.2")
 bazel_dep(name = "rules_oci", version = "2.2.6")
 bazel_dep(name = "rules_pkg", version = "1.1.0")
@@ -17,13 +17,13 @@ bazel_dep(name = "toolchains_llvm", version = "1.4.0")
 
 git_override(
     module_name = "bazel_remote_apis",
-    commit = "9ef19c6b5fbf77d6dd9d84d75fbb5a20a6b62ef1",
+    commit = "e94a7ece2a1e8da1dcf278a0baf2edfe7baafb94",
     remote = "https://github.com/bazelbuild/remote-apis.git",
 )
 
 git_override(
     module_name = "com_github_buildbarn_bb_storage",
-    commit = "e30fe8b16b69dc4f1e8ce273eb6b4e8b85dff5b8",
+    commit = "48ed13203b8710ffdde5cc4441d7e58033a76957",
     remote = "https://github.com/buildbarn/bb-storage.git",
 )
 
@@ -58,7 +58,6 @@ use_repo(
     "com_github_google_uuid",
     "com_github_gorilla_mux",
     "com_github_hanwen_go_fuse_v2",
-    "com_github_jmespath_go_jmespath",
     "com_github_kballard_go_shellquote",
     "com_github_prometheus_client_golang",
     "com_github_spf13_pflag",

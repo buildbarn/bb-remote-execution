@@ -11,10 +11,10 @@ import (
 	pb "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem/virtual"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
+	"github.com/buildbarn/bb-storage/pkg/jmespath"
 	"github.com/buildbarn/bb-storage/pkg/program"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	go_fuse "github.com/hanwen/go-fuse/v2/fuse"
-	"github.com/jmespath/go-jmespath"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -38,8 +38,8 @@ func (m *fuseMount) Expose(terminationGroup program.Group, rootDirectory virtual
 	}
 
 	authenticator := fuse.AllowAuthenticator
-	if expression := m.configuration.InHeaderAuthenticationMetadataJmespathExpression; expression != "" {
-		compiledExpression, err := jmespath.Compile(expression)
+	if expression := m.configuration.InHeaderAuthenticationMetadataJmespathExpression; expression != nil {
+		compiledExpression, err := jmespath.NewExpressionFromConfiguration(expression, terminationGroup, clock.SystemClock)
 		if err != nil {
 			return util.StatusWrap(err, "Failed to compile in-header authentication metadata JMESPath expression")
 		}

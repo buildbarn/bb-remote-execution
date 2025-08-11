@@ -8,12 +8,12 @@ import (
 	"log"
 
 	"github.com/buildbarn/bb-storage/pkg/auth"
+	"github.com/buildbarn/bb-storage/pkg/jmespath"
 	"github.com/hanwen/go-fuse/v2/fuse"
-	"github.com/jmespath/go-jmespath"
 )
 
 type inHeaderAuthenticator struct {
-	metadataExtractor *jmespath.JMESPath
+	metadataExtractor *jmespath.Expression
 }
 
 // NewInHeaderAuthenticator creates an Authenticator that obtains
@@ -21,7 +21,7 @@ type inHeaderAuthenticator struct {
 // the "fuse_in_header" structure that's provided by the kernel. This
 // structure contains the user ID, group ID and process ID of the
 // calling process.
-func NewInHeaderAuthenticator(metadataExtractor *jmespath.JMESPath) Authenticator {
+func NewInHeaderAuthenticator(metadataExtractor *jmespath.Expression) Authenticator {
 	return &inHeaderAuthenticator{
 		metadataExtractor: metadataExtractor,
 	}

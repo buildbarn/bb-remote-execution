@@ -45,7 +45,7 @@ func main() {
 		if err := util.UnmarshalConfigurationFromFile(os.Args[1], &configuration); err != nil {
 			return util.StatusWrapf(err, "Failed to read configuration from %s", os.Args[1])
 		}
-		lifecycleState, grpcClientFactory, err := global.ApplyConfiguration(configuration.Global)
+		lifecycleState, grpcClientFactory, err := global.ApplyConfiguration(configuration.Global, dependenciesGroup)
 		if err != nil {
 			return util.StatusWrap(err, "Failed to apply global configuration options")
 		}
@@ -98,19 +98,19 @@ func main() {
 		}
 
 		authorizerFactory := auth_configuration.DefaultAuthorizerFactory
-		executeAuthorizer, err := authorizerFactory.NewAuthorizerFromConfiguration(configuration.ExecuteAuthorizer, grpcClientFactory)
+		executeAuthorizer, err := authorizerFactory.NewAuthorizerFromConfiguration(configuration.ExecuteAuthorizer, dependenciesGroup, grpcClientFactory)
 		if err != nil {
 			return util.StatusWrap(err, "Failed to create execute authorizer")
 		}
-		modifyDrainsAuthorizer, err := authorizerFactory.NewAuthorizerFromConfiguration(configuration.ModifyDrainsAuthorizer, grpcClientFactory)
+		modifyDrainsAuthorizer, err := authorizerFactory.NewAuthorizerFromConfiguration(configuration.ModifyDrainsAuthorizer, dependenciesGroup, grpcClientFactory)
 		if err != nil {
 			return util.StatusWrap(err, "Failed to create modify drains authorizer")
 		}
-		killOperationsAuthorizer, err := authorizerFactory.NewAuthorizerFromConfiguration(configuration.KillOperationsAuthorizer, grpcClientFactory)
+		killOperationsAuthorizer, err := authorizerFactory.NewAuthorizerFromConfiguration(configuration.KillOperationsAuthorizer, dependenciesGroup, grpcClientFactory)
 		if err != nil {
 			return util.StatusWrap(err, "Failed to create kill operaitons authorizer")
 		}
-		synchronizeAuthorizer, err := authorizerFactory.NewAuthorizerFromConfiguration(configuration.SynchronizeAuthorizer, grpcClientFactory)
+		synchronizeAuthorizer, err := authorizerFactory.NewAuthorizerFromConfiguration(configuration.SynchronizeAuthorizer, dependenciesGroup, grpcClientFactory)
 		if err != nil {
 			return util.StatusWrap(err, "Failed to create synchronize authorizer")
 		}

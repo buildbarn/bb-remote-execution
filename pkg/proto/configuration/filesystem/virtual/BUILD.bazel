@@ -8,6 +8,7 @@ proto_library(
     visibility = ["//visibility:public"],
     deps = [
         "@com_github_buildbarn_bb_storage//pkg/proto/configuration/eviction:eviction_proto",
+        "@com_github_buildbarn_bb_storage//pkg/proto/configuration/jmespath:jmespath_proto",
         "@protobuf//:duration_proto",
         "@protobuf//:wrappers_proto",
     ],
@@ -18,7 +19,10 @@ go_proto_library(
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem/virtual",
     proto = ":virtual_proto",
     visibility = ["//visibility:public"],
-    deps = ["@com_github_buildbarn_bb_storage//pkg/proto/configuration/eviction"],
+    deps = [
+        "@com_github_buildbarn_bb_storage//pkg/proto/configuration/eviction",
+        "@com_github_buildbarn_bb_storage//pkg/proto/configuration/jmespath",
+    ],
 )
 
 go_library(
