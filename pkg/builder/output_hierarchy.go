@@ -468,7 +468,7 @@ type OutputHierarchy struct {
 // NewOutputHierarchy creates a new OutputHierarchy that uses the
 // working directory and the output paths specified in an REv2 Command
 // message.
-func NewOutputHierarchy(command *remoteexecution.Command) (*OutputHierarchy, error) {
+func NewOutputHierarchy(command *remoteexecution.Command, supportLegacyOutputFilesAndDirectories bool) (*OutputHierarchy, error) {
 	var workingDirectory outputNodePath
 	if err := path.Resolve(path.UNIXFormat.NewParser(command.WorkingDirectory), path.NewRelativeScopeWalker(&workingDirectory)); err != nil {
 		return nil, util.StatusWrap(err, "Invalid working directory")
@@ -483,6 +483,9 @@ func NewOutputHierarchy(command *remoteexecution.Command) (*OutputHierarchy, err
 	if len(command.OutputPaths) == 0 {
 		// Register REv2.0 output directories.
 		for _, outputDirectory := range command.OutputDirectories {
+			if !supportLegacyOutputFilesAndDirectories {
+				return nil, status.Error(codes.Unimplemented, "Command specifies output paths using REv2.0's output_files field, which is deprecated and not enabled on this worker")
+			}
 			if on, name, err := oh.lookup(workingDirectory, outputDirectory); err != nil {
 				return nil, util.StatusWrapf(err, "Invalid output directory %#v", outputDirectory)
 			} else if on == nil {
@@ -494,6 +497,9 @@ func NewOutputHierarchy(command *remoteexecution.Command) (*OutputHierarchy, err
 
 		// Register REv2.0 output files.
 		for _, outputFile := range command.OutputFiles {
+			if !supportLegacyOutputFilesAndDirectories {
+				return nil, status.Error(codes.Unimplemented, "Command specifies output paths using REv2.0's output_files field, which is deprecated and not enabled on this worker")
+			}
 			if on, name, err := oh.lookup(workingDirectory, outputFile); err != nil {
 				return nil, util.StatusWrapf(err, "Invalid output file %#v", outputFile)
 			} else if on == nil {

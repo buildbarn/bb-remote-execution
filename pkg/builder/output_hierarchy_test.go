@@ -26,14 +26,14 @@ func TestOutputHierarchyCreation(t *testing.T) {
 	t.Run("AbsoluteWorkingDirectory", func(t *testing.T) {
 		_, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory: "/tmp/hello/../..",
-		})
+		}, false)
 		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Invalid working directory: Path is absolute, while a relative path was expected"), err)
 	})
 
 	t.Run("InvalidWorkingDirectory", func(t *testing.T) {
 		_, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory: "hello/../..",
-		})
+		}, false)
 		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Invalid working directory: Path resolves to a location outside the input root directory"), err)
 	})
 
@@ -41,7 +41,7 @@ func TestOutputHierarchyCreation(t *testing.T) {
 		_, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory:  ".",
 			OutputDirectories: []string{"/etc/passwd"},
-		})
+		}, true)
 		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Invalid output directory \"/etc/passwd\": Path is absolute, while a relative path was expected"), err)
 	})
 
@@ -49,7 +49,7 @@ func TestOutputHierarchyCreation(t *testing.T) {
 		_, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory:  "hello",
 			OutputDirectories: []string{"../.."},
-		})
+		}, true)
 		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Invalid output directory \"../..\": Path resolves to a location outside the input root directory"), err)
 	})
 
@@ -57,7 +57,7 @@ func TestOutputHierarchyCreation(t *testing.T) {
 		_, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory: "hello",
 			OutputFiles:      []string{".."},
-		})
+		}, true)
 		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Output file \"..\" resolves to the input root directory"), err)
 	})
 }
@@ -71,7 +71,7 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 		// No parent directories should be created.
 		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory: ".",
-		})
+		}, false)
 		require.NoError(t, err)
 		require.NoError(t, oh.CreateParentDirectories(root))
 	})
@@ -83,7 +83,7 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 		// not cause any Mkdir() calls.
 		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory: "foo/bar",
-		})
+		}, true)
 		require.NoError(t, err)
 		require.NoError(t, oh.CreateParentDirectories(root))
 	})
@@ -97,7 +97,7 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 			OutputDirectories: []string{".."},
 			OutputFiles:       []string{"../file"},
 			OutputPaths:       []string{"../path"},
-		})
+		}, false)
 		require.NoError(t, err)
 		require.NoError(t, oh.CreateParentDirectories(root))
 	})
@@ -120,7 +120,7 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 			WorkingDirectory:  "foo",
 			OutputDirectories: []string{"bar/baz"},
 			OutputFiles:       []string{"../foo/qux/xyzzy"},
-		})
+		}, true)
 		require.NoError(t, err)
 		require.NoError(t, oh.CreateParentDirectories(root))
 	})
@@ -135,7 +135,7 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 			OutputDirectories: []string{"bar/baz"},
 			OutputFiles:       []string{"../foo/qux/xyzzy"},
 			OutputPaths:       []string{"../alice/bob"},
-		})
+		}, false)
 		require.NoError(t, err)
 		require.NoError(t, oh.CreateParentDirectories(root))
 	})
@@ -152,7 +152,7 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory: "foo",
 			OutputFiles:      []string{"bar/baz"},
-		})
+		}, true)
 		require.NoError(t, err)
 		testutil.RequireEqualStatus(
 			t,
@@ -173,7 +173,7 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory: "foo",
 			OutputFiles:      []string{"bar/baz"},
-		})
+		}, true)
 		require.NoError(t, err)
 		require.NoError(t, oh.CreateParentDirectories(root))
 	})
@@ -190,7 +190,7 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory:  "foo",
 			OutputDirectories: []string{"bar"},
-		})
+		}, true)
 		require.NoError(t, err)
 		testutil.RequireEqualStatus(
 			t,
@@ -211,7 +211,7 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory:  "foo",
 			OutputDirectories: []string{"bar"},
-		})
+		}, true)
 		require.NoError(t, err)
 		require.NoError(t, oh.CreateParentDirectories(root))
 	})
@@ -227,7 +227,7 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory:  "foo",
 			OutputDirectories: []string{"bar/baz"},
-		})
+		}, true)
 		require.NoError(t, err)
 		testutil.RequireEqualStatus(
 			t,
@@ -249,7 +249,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		// should not trigger any I/O.
 		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory: ".",
-		})
+		}, false)
 		require.NoError(t, err)
 		var actionResult remoteexecution.ActionResult
 		require.NoError(
@@ -391,7 +391,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 
 		foo.EXPECT().Close()
 
-		oh, err := builder.NewOutputHierarchy(command)
+		oh, err := builder.NewOutputHierarchy(command, true)
 		require.NoError(t, err)
 		var actionResult remoteexecution.ActionResult
 		require.NoError(
@@ -746,7 +746,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory:  "foo",
 			OutputDirectories: []string{".."},
-		})
+		}, true)
 		require.NoError(t, err)
 		var actionResult remoteexecution.ActionResult
 		require.NoError(
@@ -793,7 +793,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory: "foo",
 			OutputPaths:      []string{".."},
-		})
+		}, false)
 		require.NoError(t, err)
 		var actionResult remoteexecution.ActionResult
 		require.NoError(
@@ -828,7 +828,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory:  "",
 			OutputDirectories: []string{"foo"},
-		})
+		}, true)
 		require.NoError(t, err)
 		var actionResult remoteexecution.ActionResult
 		testutil.RequireEqualStatus(
@@ -853,7 +853,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory: "",
 			OutputFiles:      []string{"foo"},
-		})
+		}, true)
 		require.NoError(t, err)
 		var actionResult remoteexecution.ActionResult
 		testutil.RequireEqualStatus(
@@ -878,7 +878,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory: "",
 			OutputPaths:      []string{"foo"},
-		})
+		}, false)
 		require.NoError(t, err)
 		var actionResult remoteexecution.ActionResult
 		testutil.RequireEqualStatus(
@@ -992,7 +992,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			OutputPaths:           []string{"."},
 			OutputDirectoryFormat: remoteexecution.Command_TREE_AND_DIRECTORY,
-		})
+		}, false)
 		require.NoError(t, err)
 		var actionResult remoteexecution.ActionResult
 		require.NoError(

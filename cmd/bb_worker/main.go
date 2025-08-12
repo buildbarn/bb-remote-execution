@@ -410,7 +410,9 @@ func main() {
 						inputRootCharacterDevices,
 						int(configuration.MaximumMessageSizeBytes),
 						runnerConfiguration.EnvironmentVariables,
-						configuration.ForceUploadTreesAndDirectories)
+						configuration.ForceUploadTreesAndDirectories,
+						configuration.SupportLegacyOutputFilesAndDirectories,
+					)
 
 					if prefetchingConfiguration != nil {
 						buildExecutor = builder.NewPrefetchingBuildExecutor(

@@ -65,30 +65,32 @@ func (el *capturingErrorLogger) GetError() error {
 }
 
 type localBuildExecutor struct {
-	contentAddressableStorage      blobstore.BlobAccess
-	buildDirectoryCreator          BuildDirectoryCreator
-	runner                         runner_pb.RunnerClient
-	clock                          clock.Clock
-	maximumWritableFileUploadDelay time.Duration
-	inputRootCharacterDevices      map[path.Component]filesystem.DeviceNumber
-	maximumMessageSizeBytes        int
-	environmentVariables           map[string]string
-	forceUploadTreesAndDirectories bool
+	contentAddressableStorage              blobstore.BlobAccess
+	buildDirectoryCreator                  BuildDirectoryCreator
+	runner                                 runner_pb.RunnerClient
+	clock                                  clock.Clock
+	maximumWritableFileUploadDelay         time.Duration
+	inputRootCharacterDevices              map[path.Component]filesystem.DeviceNumber
+	maximumMessageSizeBytes                int
+	environmentVariables                   map[string]string
+	forceUploadTreesAndDirectories         bool
+	supportLegacyOutputFilesAndDirectories bool
 }
 
 // NewLocalBuildExecutor returns a BuildExecutor that executes build
 // steps on the local system.
-func NewLocalBuildExecutor(contentAddressableStorage blobstore.BlobAccess, buildDirectoryCreator BuildDirectoryCreator, runner runner_pb.RunnerClient, clock clock.Clock, maximumWritableFileUploadDelay time.Duration, inputRootCharacterDevices map[path.Component]filesystem.DeviceNumber, maximumMessageSizeBytes int, environmentVariables map[string]string, forceUploadTreesAndDirectories bool) BuildExecutor {
+func NewLocalBuildExecutor(contentAddressableStorage blobstore.BlobAccess, buildDirectoryCreator BuildDirectoryCreator, runner runner_pb.RunnerClient, clock clock.Clock, maximumWritableFileUploadDelay time.Duration, inputRootCharacterDevices map[path.Component]filesystem.DeviceNumber, maximumMessageSizeBytes int, environmentVariables map[string]string, forceUploadTreesAndDirectories, supportLegacyOutputFilesAndDirectories bool) BuildExecutor {
 	return &localBuildExecutor{
-		contentAddressableStorage:      contentAddressableStorage,
-		buildDirectoryCreator:          buildDirectoryCreator,
-		runner:                         runner,
-		clock:                          clock,
-		maximumWritableFileUploadDelay: maximumWritableFileUploadDelay,
-		inputRootCharacterDevices:      inputRootCharacterDevices,
-		maximumMessageSizeBytes:        maximumMessageSizeBytes,
-		environmentVariables:           environmentVariables,
-		forceUploadTreesAndDirectories: forceUploadTreesAndDirectories,
+		contentAddressableStorage:              contentAddressableStorage,
+		buildDirectoryCreator:                  buildDirectoryCreator,
+		runner:                                 runner,
+		clock:                                  clock,
+		maximumWritableFileUploadDelay:         maximumWritableFileUploadDelay,
+		inputRootCharacterDevices:              inputRootCharacterDevices,
+		maximumMessageSizeBytes:                maximumMessageSizeBytes,
+		environmentVariables:                   environmentVariables,
+		forceUploadTreesAndDirectories:         forceUploadTreesAndDirectories,
+		supportLegacyOutputFilesAndDirectories: supportLegacyOutputFilesAndDirectories,
 	}
 }
 
@@ -231,7 +233,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool pool.FilePoo
 		return response
 	}
 	command := commandMessage.(*remoteexecution.Command)
-	outputHierarchy, err := NewOutputHierarchy(command)
+	outputHierarchy, err := NewOutputHierarchy(command, be.supportLegacyOutputFilesAndDirectories)
 	if err != nil {
 		attachErrorToExecuteResponse(response, err)
 		return response
