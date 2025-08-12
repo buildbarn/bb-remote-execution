@@ -47,7 +47,9 @@ func TestLocalBuildExecutorInvalidActionDigest(t *testing.T) {
 		/* inputRootCharacterDevices = */ nil,
 		/* maximumMessageSizeBytes = */ 10000,
 		/* environmentVariables = */ map[string]string{},
-		/* forceUploadTreesAndDirectories = */ false)
+		/* forceUploadTreesAndDirectories = */ false,
+		/* supportLegacyOutputFilesAndDirectories = */ false,
+	)
 
 	filePool := mock.NewMockFilePool(ctrl)
 	monitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
@@ -95,7 +97,9 @@ func TestLocalBuildExecutorMissingAction(t *testing.T) {
 		/* inputRootCharacterDevices = */ nil,
 		/* maximumMessageSizeBytes = */ 10000,
 		/* environmentVariables = */ map[string]string{},
-		/* forceUploadTreesAndDirectories = */ false)
+		/* forceUploadTreesAndDirectories = */ false,
+		/* supportLegacyOutputFilesAndDirectories = */ false,
+	)
 
 	filePool := mock.NewMockFilePool(ctrl)
 	monitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
@@ -139,7 +143,9 @@ func TestLocalBuildExecutorBuildDirectoryCreatorFailedFailed(t *testing.T) {
 		/* inputRootCharacterDevices = */ nil,
 		/* maximumMessageSizeBytes = */ 10000,
 		/* environmentVariables = */ map[string]string{},
-		/* forceUploadTreesAndDirectories = */ false)
+		/* forceUploadTreesAndDirectories = */ false,
+		/* supportLegacyOutputFilesAndDirectories = */ false,
+	)
 
 	filePool := mock.NewMockFilePool(ctrl)
 	monitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
@@ -205,7 +211,9 @@ func TestLocalBuildExecutorInputRootPopulationFailed(t *testing.T) {
 		/* inputRootCharacterDevices = */ nil,
 		/* maximumMessageSizeBytes = */ 10000,
 		/* environmentVariables = */ map[string]string{},
-		/* forceUploadTreesAndDirectories = */ false)
+		/* forceUploadTreesAndDirectories = */ false,
+		/* supportLegacyOutputFilesAndDirectories = */ false,
+	)
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
 	executeResponse := localBuildExecutor.Execute(
@@ -280,7 +288,9 @@ func TestLocalBuildExecutorOutputDirectoryCreationFailure(t *testing.T) {
 		/* inputRootCharacterDevices = */ nil,
 		/* maximumMessageSizeBytes = */ 10000,
 		/* environmentVariables = */ map[string]string{},
-		/* forceUploadTreesAndDirectories = */ false)
+		/* forceUploadTreesAndDirectories = */ false,
+		/* supportLegacyOutputFilesAndDirectories = */ false,
+	)
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
 	executeResponse := localBuildExecutor.Execute(
@@ -348,7 +358,9 @@ func TestLocalBuildExecutorMissingCommand(t *testing.T) {
 		/* inputRootCharacterDevices = */ nil,
 		/* maximumMessageSizeBytes = */ 10000,
 		/* environmentVariables = */ map[string]string{},
-		/* forceUploadTreesAndDirectories = */ false)
+		/* forceUploadTreesAndDirectories = */ false,
+		/* supportLegacyOutputFilesAndDirectories = */ false,
+	)
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
 	executeResponse := localBuildExecutor.Execute(
@@ -473,7 +485,9 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 		/* inputRootCharacterDevices = */ nil,
 		/* maximumMessageSizeBytes = */ 10000,
 		/* environmentVariables = */ map[string]string{},
-		/* forceUploadTreesAndDirectories = */ false)
+		/* forceUploadTreesAndDirectories = */ false,
+		/* supportLegacyOutputFilesAndDirectories = */ false,
+	)
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
 	executeResponse := localBuildExecutor.Execute(
@@ -704,7 +718,9 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 			"TEST_VAR": "123",
 			"PWD":      "dont-overwrite",
 		},
-		/* forceUploadTreesAndDirectories = */ false)
+		/* forceUploadTreesAndDirectories = */ false,
+		/* supportLegacyOutputFilesAndDirectories = */ false,
+	)
 
 	requestMetadata, err := anypb.New(&remoteexecution.RequestMetadata{
 		ToolInvocationId: "666b72d8-c43e-4998-866c-9312a31fe86d",
@@ -786,7 +802,9 @@ func TestLocalBuildExecutorCachingInvalidTimeout(t *testing.T) {
 		/* inputRootCharacterDevices = */ nil,
 		/* maximumMessageSizeBytes = */ 10000,
 		/* environmentVariables = */ map[string]string{},
-		/* forceUploadTreesAndDirectories = */ false)
+		/* forceUploadTreesAndDirectories = */ false,
+		/* supportLegacyOutputFilesAndDirectories = */ false,
+	)
 
 	// Execution should fail, as the number of nanoseconds in the
 	// timeout is not within bounds.
@@ -904,7 +922,9 @@ func TestLocalBuildExecutorInputRootIOFailureDuringExecution(t *testing.T) {
 		/* inputRootCharacterDevices = */ nil,
 		/* maximumMessageSizeBytes = */ 10000,
 		/* environmentVariables = */ map[string]string{},
-		/* forceUploadTreesAndDirectories = */ false)
+		/* forceUploadTreesAndDirectories = */ false,
+		/* supportLegacyOutputFilesAndDirectories = */ false,
+	)
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
 	executeResponse := localBuildExecutor.Execute(
@@ -1035,7 +1055,9 @@ func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 		/* inputRootCharacterDevices = */ nil,
 		/* maximumMessageSizeBytes = */ 10000,
 		/* environmentVariables = */ map[string]string{},
-		/* forceUploadTreesAndDirectories = */ false)
+		/* forceUploadTreesAndDirectories = */ false,
+		/* supportLegacyOutputFilesAndDirectories = */ false,
+	)
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
 	executeResponse := localBuildExecutor.Execute(
@@ -1135,7 +1157,9 @@ func TestLocalBuildExecutorCharacterDeviceNodeCreationFailed(t *testing.T) {
 		},
 		/* maximumMessageSizeBytes = */ 10000,
 		/* environmentVariables = */ map[string]string{},
-		/* forceUploadTreesAndDirectories = */ false)
+		/* forceUploadTreesAndDirectories = */ false,
+		/* supportLegacyOutputFilesAndDirectories = */ false,
+	)
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
 	executeResponse := localBuildExecutor.Execute(

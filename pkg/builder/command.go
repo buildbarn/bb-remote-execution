@@ -86,7 +86,7 @@ func ConvertCommandToShellScript(command *remoteexecution.Command, w io.StringWr
 	}
 
 	// Create parent directories of outputs.
-	outputHierarchy, err := NewOutputHierarchy(command)
+	outputHierarchy, err := NewOutputHierarchy(command, false)
 	if err != nil {
 		return err
 	}
