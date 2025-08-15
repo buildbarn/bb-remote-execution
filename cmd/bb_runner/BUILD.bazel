@@ -90,6 +90,7 @@ oci_image(
     platform_transition_filegroup(
         name = "bb_runner_installer_image_" + arch,
         srcs = ["bb_runner_installer_image"],
+        tags = ["manual"],
         target_platform = "@rules_go//go/toolchain:linux_" + arch,
     )
     for arch in [
@@ -107,6 +108,7 @@ oci_image_index(
             "arm64",
         ]
     ],
+    tags = ["manual"],
     visibility = ["//visibility:public"],
 )
 
