@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package buildbarn.configuration.bb_virtual_dir;
+
+import "pkg/proto/configuration/filesystem/filesystem.proto";
+import "pkg/proto/configuration/filesystem/virtual/virtual.proto";
+import "pkg/proto/configuration/global/global.proto";
+
+option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_virtual_dir";
+
+message ApplicationConfiguration {
+  // Common configuration options that apply to all Buildbarn binaries.
+  buildbarn.configuration.global.Configuration global = 1;
+
+  // The virtual file system to expose.
+  buildbarn.configuration.filesystem.virtual.MountConfiguration mount = 2;
+
+  // Location where temporary files that are created whilst using the
+  // virtual directory are stored. When left unset, any attempt to allocate
+  // temporary files will fail.
+  buildbarn.configuration.filesystem.FilePoolConfiguration file_pool = 3;
+}

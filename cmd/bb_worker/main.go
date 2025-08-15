@@ -227,6 +227,7 @@ func main() {
 					initialContentsSorter,
 					hiddenFilesPattern,
 					clock.SystemClock,
+					mount.CaseSensitive(),
 					/* defaultAttributesSetter = */ func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
 						// No need to set ownership
 						// attributes on the top-level

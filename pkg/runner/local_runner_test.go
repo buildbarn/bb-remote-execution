@@ -24,6 +24,15 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
+func noSuchFileOrDirectoryMessage() string {
+	switch runtime.GOOS {
+	case "windows":
+		return "The system cannot find the file specified."
+	default:
+		return "no such file or directory"
+	}
+}
+
 func TestLocalRunnerCheckReadiness(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 

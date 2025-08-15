@@ -81,6 +81,7 @@ type MountConfiguration struct {
 	//
 	//	*MountConfiguration_Fuse
 	//	*MountConfiguration_Nfsv4
+	//	*MountConfiguration_Winfsp
 	Backend       isMountConfiguration_Backend `protobuf_oneof:"backend"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -148,6 +149,15 @@ func (x *MountConfiguration) GetNfsv4() *NFSv4MountConfiguration {
 	return nil
 }
 
+func (x *MountConfiguration) GetWinfsp() *WinFSPMountConfiguration {
+	if x != nil {
+		if x, ok := x.Backend.(*MountConfiguration_Winfsp); ok {
+			return x.Winfsp
+		}
+	}
+	return nil
+}
+
 type isMountConfiguration_Backend interface {
 	isMountConfiguration_Backend()
 }
@@ -160,9 +170,15 @@ type MountConfiguration_Nfsv4 struct {
 	Nfsv4 *NFSv4MountConfiguration `protobuf:"bytes,3,opt,name=nfsv4,proto3,oneof"`
 }
 
+type MountConfiguration_Winfsp struct {
+	Winfsp *WinFSPMountConfiguration `protobuf:"bytes,4,opt,name=winfsp,proto3,oneof"`
+}
+
 func (*MountConfiguration_Fuse) isMountConfiguration_Backend() {}
 
 func (*MountConfiguration_Nfsv4) isMountConfiguration_Backend() {}
+
+func (*MountConfiguration_Winfsp) isMountConfiguration_Backend() {}
 
 type FUSEMountConfiguration struct {
 	state                                            protoimpl.MessageState             `protogen:"open.v1"`
@@ -518,16 +534,61 @@ func (x *RPCv2SystemAuthenticationConfiguration) GetCacheReplacementPolicy() evi
 	return eviction.CacheReplacementPolicy(0)
 }
 
+type WinFSPMountConfiguration struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CaseSensitive bool                   `protobuf:"varint,1,opt,name=case_sensitive,json=caseSensitive,proto3" json:"case_sensitive,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WinFSPMountConfiguration) Reset() {
+	*x = WinFSPMountConfiguration{}
+	mi := &file_pkg_proto_configuration_filesystem_virtual_virtual_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WinFSPMountConfiguration) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WinFSPMountConfiguration) ProtoMessage() {}
+
+func (x *WinFSPMountConfiguration) ProtoReflect() protoreflect.Message {
+	mi := &file_pkg_proto_configuration_filesystem_virtual_virtual_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WinFSPMountConfiguration.ProtoReflect.Descriptor instead.
+func (*WinFSPMountConfiguration) Descriptor() ([]byte, []int) {
+	return file_pkg_proto_configuration_filesystem_virtual_virtual_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *WinFSPMountConfiguration) GetCaseSensitive() bool {
+	if x != nil {
+		return x.CaseSensitive
+	}
+	return false
+}
+
 var File_pkg_proto_configuration_filesystem_virtual_virtual_proto protoreflect.FileDescriptor
 
 const file_pkg_proto_configuration_filesystem_virtual_virtual_proto_rawDesc = "" +
 	"\n" +
-	"8pkg/proto/configuration/filesystem/virtual/virtual.proto\x12*buildbarn.configuration.filesystem.virtual\x1a\x1egoogle/protobuf/duration.proto\x1a\x1egoogle/protobuf/wrappers.proto\x1a/pkg/proto/configuration/eviction/eviction.proto\x1a/pkg/proto/configuration/jmespath/jmespath.proto\"\xf5\x01\n" +
+	"8pkg/proto/configuration/filesystem/virtual/virtual.proto\x12*buildbarn.configuration.filesystem.virtual\x1a\x1egoogle/protobuf/duration.proto\x1a\x1egoogle/protobuf/wrappers.proto\x1a/pkg/proto/configuration/eviction/eviction.proto\x1a/pkg/proto/configuration/jmespath/jmespath.proto\"\xd5\x02\n" +
 	"\x12MountConfiguration\x12\x1d\n" +
 	"\n" +
 	"mount_path\x18\x01 \x01(\tR\tmountPath\x12X\n" +
 	"\x04fuse\x18\x02 \x01(\v2B.buildbarn.configuration.filesystem.virtual.FUSEMountConfigurationH\x00R\x04fuse\x12[\n" +
-	"\x05nfsv4\x18\x03 \x01(\v2C.buildbarn.configuration.filesystem.virtual.NFSv4MountConfigurationH\x00R\x05nfsv4B\t\n" +
+	"\x05nfsv4\x18\x03 \x01(\v2C.buildbarn.configuration.filesystem.virtual.NFSv4MountConfigurationH\x00R\x05nfsv4\x12^\n" +
+	"\x06winfsp\x18\x04 \x01(\v2D.buildbarn.configuration.filesystem.virtual.WinFSPMountConfigurationH\x00R\x06winfspB\t\n" +
 	"\abackend\"\xca\x06\n" +
 	"\x16FUSEMountConfiguration\x12S\n" +
 	"\x18directory_entry_validity\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\x16directoryEntryValidity\x12S\n" +
@@ -564,7 +625,9 @@ const file_pkg_proto_configuration_filesystem_virtual_virtual_proto_rawDesc = ""
 	"&RPCv2SystemAuthenticationConfiguration\x12n\n" +
 	"\x1cmetadata_jmespath_expression\x18\x01 \x01(\v2,.buildbarn.configuration.jmespath.ExpressionR\x1ametadataJmespathExpression\x12,\n" +
 	"\x12maximum_cache_size\x18\x02 \x01(\x05R\x10maximumCacheSize\x12r\n" +
-	"\x18cache_replacement_policy\x18\x03 \x01(\x0e28.buildbarn.configuration.eviction.CacheReplacementPolicyR\x16cacheReplacementPolicyBUZSgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem/virtualb\x06proto3"
+	"\x18cache_replacement_policy\x18\x03 \x01(\x0e28.buildbarn.configuration.eviction.CacheReplacementPolicyR\x16cacheReplacementPolicy\"A\n" +
+	"\x18WinFSPMountConfiguration\x12%\n" +
+	"\x0ecase_sensitive\x18\x01 \x01(\bR\rcaseSensitiveBUZSgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem/virtualb\x06proto3"
 
 var (
 	file_pkg_proto_configuration_filesystem_virtual_virtual_proto_rawDescOnce sync.Once
@@ -579,7 +642,7 @@ func file_pkg_proto_configuration_filesystem_virtual_virtual_proto_rawDescGZIP()
 }
 
 var file_pkg_proto_configuration_filesystem_virtual_virtual_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_pkg_proto_configuration_filesystem_virtual_virtual_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_pkg_proto_configuration_filesystem_virtual_virtual_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_pkg_proto_configuration_filesystem_virtual_virtual_proto_goTypes = []any{
 	(FUSEMountConfiguration_MountMethod)(0),        // 0: buildbarn.configuration.filesystem.virtual.FUSEMountConfiguration.MountMethod
 	(*MountConfiguration)(nil),                     // 1: buildbarn.configuration.filesystem.virtual.MountConfiguration
@@ -588,33 +651,35 @@ var file_pkg_proto_configuration_filesystem_virtual_virtual_proto_goTypes = []an
 	(*NFSv4DarwinMountConfiguration)(nil),          // 4: buildbarn.configuration.filesystem.virtual.NFSv4DarwinMountConfiguration
 	(*NFSv4LinuxMountConfiguration)(nil),           // 5: buildbarn.configuration.filesystem.virtual.NFSv4LinuxMountConfiguration
 	(*RPCv2SystemAuthenticationConfiguration)(nil), // 6: buildbarn.configuration.filesystem.virtual.RPCv2SystemAuthenticationConfiguration
-	nil,                                  // 7: buildbarn.configuration.filesystem.virtual.FUSEMountConfiguration.LinuxBackingDevInfoTunablesEntry
-	(*durationpb.Duration)(nil),          // 8: google.protobuf.Duration
-	(*jmespath.Expression)(nil),          // 9: buildbarn.configuration.jmespath.Expression
-	(*wrapperspb.UInt32Value)(nil),       // 10: google.protobuf.UInt32Value
-	(eviction.CacheReplacementPolicy)(0), // 11: buildbarn.configuration.eviction.CacheReplacementPolicy
+	(*WinFSPMountConfiguration)(nil),               // 7: buildbarn.configuration.filesystem.virtual.WinFSPMountConfiguration
+	nil,                                            // 8: buildbarn.configuration.filesystem.virtual.FUSEMountConfiguration.LinuxBackingDevInfoTunablesEntry
+	(*durationpb.Duration)(nil),                    // 9: google.protobuf.Duration
+	(*jmespath.Expression)(nil),                    // 10: buildbarn.configuration.jmespath.Expression
+	(*wrapperspb.UInt32Value)(nil),                 // 11: google.protobuf.UInt32Value
+	(eviction.CacheReplacementPolicy)(0),           // 12: buildbarn.configuration.eviction.CacheReplacementPolicy
 }
 var file_pkg_proto_configuration_filesystem_virtual_virtual_proto_depIdxs = []int32{
 	2,  // 0: buildbarn.configuration.filesystem.virtual.MountConfiguration.fuse:type_name -> buildbarn.configuration.filesystem.virtual.FUSEMountConfiguration
 	3,  // 1: buildbarn.configuration.filesystem.virtual.MountConfiguration.nfsv4:type_name -> buildbarn.configuration.filesystem.virtual.NFSv4MountConfiguration
-	8,  // 2: buildbarn.configuration.filesystem.virtual.FUSEMountConfiguration.directory_entry_validity:type_name -> google.protobuf.Duration
-	8,  // 3: buildbarn.configuration.filesystem.virtual.FUSEMountConfiguration.inode_attribute_validity:type_name -> google.protobuf.Duration
-	9,  // 4: buildbarn.configuration.filesystem.virtual.FUSEMountConfiguration.in_header_authentication_metadata_jmespath_expression:type_name -> buildbarn.configuration.jmespath.Expression
-	7,  // 5: buildbarn.configuration.filesystem.virtual.FUSEMountConfiguration.linux_backing_dev_info_tunables:type_name -> buildbarn.configuration.filesystem.virtual.FUSEMountConfiguration.LinuxBackingDevInfoTunablesEntry
-	0,  // 6: buildbarn.configuration.filesystem.virtual.FUSEMountConfiguration.mount_method:type_name -> buildbarn.configuration.filesystem.virtual.FUSEMountConfiguration.MountMethod
-	4,  // 7: buildbarn.configuration.filesystem.virtual.NFSv4MountConfiguration.darwin:type_name -> buildbarn.configuration.filesystem.virtual.NFSv4DarwinMountConfiguration
-	5,  // 8: buildbarn.configuration.filesystem.virtual.NFSv4MountConfiguration.linux:type_name -> buildbarn.configuration.filesystem.virtual.NFSv4LinuxMountConfiguration
-	8,  // 9: buildbarn.configuration.filesystem.virtual.NFSv4MountConfiguration.enforced_lease_time:type_name -> google.protobuf.Duration
-	8,  // 10: buildbarn.configuration.filesystem.virtual.NFSv4MountConfiguration.announced_lease_time:type_name -> google.protobuf.Duration
-	6,  // 11: buildbarn.configuration.filesystem.virtual.NFSv4MountConfiguration.system_authentication:type_name -> buildbarn.configuration.filesystem.virtual.RPCv2SystemAuthenticationConfiguration
-	10, // 12: buildbarn.configuration.filesystem.virtual.NFSv4DarwinMountConfiguration.minor_version:type_name -> google.protobuf.UInt32Value
-	9,  // 13: buildbarn.configuration.filesystem.virtual.RPCv2SystemAuthenticationConfiguration.metadata_jmespath_expression:type_name -> buildbarn.configuration.jmespath.Expression
-	11, // 14: buildbarn.configuration.filesystem.virtual.RPCv2SystemAuthenticationConfiguration.cache_replacement_policy:type_name -> buildbarn.configuration.eviction.CacheReplacementPolicy
-	15, // [15:15] is the sub-list for method output_type
-	15, // [15:15] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	7,  // 2: buildbarn.configuration.filesystem.virtual.MountConfiguration.winfsp:type_name -> buildbarn.configuration.filesystem.virtual.WinFSPMountConfiguration
+	9,  // 3: buildbarn.configuration.filesystem.virtual.FUSEMountConfiguration.directory_entry_validity:type_name -> google.protobuf.Duration
+	9,  // 4: buildbarn.configuration.filesystem.virtual.FUSEMountConfiguration.inode_attribute_validity:type_name -> google.protobuf.Duration
+	10, // 5: buildbarn.configuration.filesystem.virtual.FUSEMountConfiguration.in_header_authentication_metadata_jmespath_expression:type_name -> buildbarn.configuration.jmespath.Expression
+	8,  // 6: buildbarn.configuration.filesystem.virtual.FUSEMountConfiguration.linux_backing_dev_info_tunables:type_name -> buildbarn.configuration.filesystem.virtual.FUSEMountConfiguration.LinuxBackingDevInfoTunablesEntry
+	0,  // 7: buildbarn.configuration.filesystem.virtual.FUSEMountConfiguration.mount_method:type_name -> buildbarn.configuration.filesystem.virtual.FUSEMountConfiguration.MountMethod
+	4,  // 8: buildbarn.configuration.filesystem.virtual.NFSv4MountConfiguration.darwin:type_name -> buildbarn.configuration.filesystem.virtual.NFSv4DarwinMountConfiguration
+	5,  // 9: buildbarn.configuration.filesystem.virtual.NFSv4MountConfiguration.linux:type_name -> buildbarn.configuration.filesystem.virtual.NFSv4LinuxMountConfiguration
+	9,  // 10: buildbarn.configuration.filesystem.virtual.NFSv4MountConfiguration.enforced_lease_time:type_name -> google.protobuf.Duration
+	9,  // 11: buildbarn.configuration.filesystem.virtual.NFSv4MountConfiguration.announced_lease_time:type_name -> google.protobuf.Duration
+	6,  // 12: buildbarn.configuration.filesystem.virtual.NFSv4MountConfiguration.system_authentication:type_name -> buildbarn.configuration.filesystem.virtual.RPCv2SystemAuthenticationConfiguration
+	11, // 13: buildbarn.configuration.filesystem.virtual.NFSv4DarwinMountConfiguration.minor_version:type_name -> google.protobuf.UInt32Value
+	10, // 14: buildbarn.configuration.filesystem.virtual.RPCv2SystemAuthenticationConfiguration.metadata_jmespath_expression:type_name -> buildbarn.configuration.jmespath.Expression
+	12, // 15: buildbarn.configuration.filesystem.virtual.RPCv2SystemAuthenticationConfiguration.cache_replacement_policy:type_name -> buildbarn.configuration.eviction.CacheReplacementPolicy
+	16, // [16:16] is the sub-list for method output_type
+	16, // [16:16] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_pkg_proto_configuration_filesystem_virtual_virtual_proto_init() }
@@ -625,6 +690,7 @@ func file_pkg_proto_configuration_filesystem_virtual_virtual_proto_init() {
 	file_pkg_proto_configuration_filesystem_virtual_virtual_proto_msgTypes[0].OneofWrappers = []any{
 		(*MountConfiguration_Fuse)(nil),
 		(*MountConfiguration_Nfsv4)(nil),
+		(*MountConfiguration_Winfsp)(nil),
 	}
 	file_pkg_proto_configuration_filesystem_virtual_virtual_proto_msgTypes[2].OneofWrappers = []any{
 		(*NFSv4MountConfiguration_Darwin)(nil),
@@ -636,7 +702,7 @@ func file_pkg_proto_configuration_filesystem_virtual_virtual_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_pkg_proto_configuration_filesystem_virtual_virtual_proto_rawDesc), len(file_pkg_proto_configuration_filesystem_virtual_virtual_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   7,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -22,6 +22,8 @@ import (
 // kernel or network yet. Before calling Expose(), the caller has the
 // possibility to construct a root directory.
 type Mount interface {
+	// Whether the mount is case sensitive.
+	CaseSensitive() bool
 	Expose(terminationGroup program.Group, rootDirectory virtual.Directory) error
 }
 
@@ -40,6 +42,25 @@ type nfsv4Mount struct {
 	rootDirectoryAttributeCaching    AttributeCachingDuration
 	childDirectoriesAttributeCaching AttributeCachingDuration
 	leavesAttributeCaching           AttributeCachingDuration
+}
+
+type winfspMount struct {
+	mountPath       string
+	configuration   *pb.WinFSPMountConfiguration
+	handleAllocator *virtual.FUSEStatefulHandleAllocator
+	fsName          string
+}
+
+func (m *fuseMount) CaseSensitive() bool {
+	return true
+}
+
+func (m *nfsv4Mount) CaseSensitive() bool {
+	return true
+}
+
+func (m *winfspMount) CaseSensitive() bool {
+	return m.configuration.CaseSensitive
 }
 
 func (m *nfsv4Mount) Expose(terminationGroup program.Group, rootDirectory virtual.Directory) error {
@@ -156,6 +177,14 @@ func NewMountFromConfiguration(configuration *pb.MountConfiguration, fsName stri
 			rootDirectoryAttributeCaching:    rootDirectoryAttributeCaching,
 			childDirectoriesAttributeCaching: childDirectoriesAttributeCaching,
 			leavesAttributeCaching:           leavesAttributeCaching,
+		}, handleAllocator, nil
+	case *pb.MountConfiguration_Winfsp:
+		handleAllocator := virtual.NewFUSEHandleAllocator(random.FastThreadSafeGenerator)
+		return &winfspMount{
+			mountPath:       configuration.MountPath,
+			configuration:   backend.Winfsp,
+			handleAllocator: handleAllocator,
+			fsName:          fsName,
 		}, handleAllocator, nil
 	default:
 		return nil, nil, status.Error(codes.InvalidArgument, "No virtual file system backend configuration provided")

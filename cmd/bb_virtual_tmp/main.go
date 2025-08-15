@@ -66,7 +66,7 @@ func main() {
 		if err := mount.Expose(
 			siblingsGroup,
 			handleAllocator.New().AsStatelessDirectory(
-				virtual.NewStaticDirectory(map[path.Component]virtual.DirectoryChild{
+				virtual.NewStaticDirectory(mount.CaseSensitive(), map[path.Component]virtual.DirectoryChild{
 					path.MustNewComponent("tmp"): virtual.DirectoryChild{}.
 						FromLeaf(handleAllocator.New().AsLinkableLeaf(userSettableSymlink)),
 				}))); err != nil {
