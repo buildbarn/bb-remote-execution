@@ -1,3 +1,5 @@
+load("@aspect_bazel_lib//lib:transitions.bzl", "platform_transition_filegroup")
+load("@aspect_rules_js//js:defs.bzl", "js_run_binary")
 load("@com_github_buildbarn_bb_remote_execution_npm//:purgecss/package_json.bzl", purgecss_bin = "bin")
 load("@com_github_buildbarn_bb_storage//tools:container.bzl", "container_push_official", "multiarch_go_image")
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
@@ -8,8 +10,9 @@ go_library(
         "build_queue_state_service.go",
         "main.go",
     ],
+    # keep
     embedsrcs = [
-        "stylesheet.css",
+        ":stylesheet",
         "templates/error.html",
         "templates/footer.html",
         "templates/get_build_queue_state.html",
@@ -59,9 +62,11 @@ go_library(
     ],
 )
 
+templates = glob(["templates/*.html"])
+
 filegroup(
     name = "templates",
-    srcs = glob(["templates/*.html"]),
+    srcs = templates,
 )
 
 purgecss_bin.purgecss_binary(
@@ -70,16 +75,37 @@ purgecss_bin.purgecss_binary(
 )
 
 # Create a copy of Bootstrap that only contains the style attributes
-# used by the HTML templates.
-genrule(
-    name = "stylesheet",
+# used by the HTML template.
+js_run_binary(
+    name = "stylesheet_platform",
     srcs = [
         "@com_github_twbs_bootstrap//:css/bootstrap.min.css",
-        ":templates",
-    ],
+    ] + templates,
     outs = ["stylesheet.css"],
-    cmd = "BAZEL_BINDIR=$(BINDIR) $(location :purgecss) --css $${PWD}/$(location @com_github_twbs_bootstrap//:css/bootstrap.min.css) --content $$(for i in $(locations templates); do echo $${PWD}/$${i}; done) --output $${PWD}/$@",
-    tools = [":purgecss"],
+    args = [
+        # js_run_binary runs in the output dir;
+        # see https://github.com/aspect-build/rules_js/blob/main/docs/migrate.md#account-for-change-to-working-directory
+        "--css",
+        "../../../$(location @com_github_twbs_bootstrap//:css/bootstrap.min.css)",
+        "--output",
+        "../../../$(location stylesheet.css)",
+        "--content",
+    ] + [
+        "../../../$(location %s)" % f
+        for f in templates
+    ],
+    copy_srcs_to_bin = False,
+    tags = ["manual"],
+    tool = ":purgecss",
+)
+
+# Work around https://github.com/aspect-build/rules_js/issues/2121 by always
+# building the stylesheet for the host platform, even if we are cross
+# compiling.
+platform_transition_filegroup(
+    name = "stylesheet",
+    srcs = [":stylesheet_platform"],
+    target_platform = "@platforms//host",
 )
 
 go_binary(

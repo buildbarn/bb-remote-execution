@@ -75,8 +75,8 @@ github.com/bazelbuild/remote-apis v0.0.0-20250728120203-e94a7ece2a1e/go.mod h1:/
 github.com/benbjohnson/clock v1.1.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
-github.com/buildbarn/bb-storage v0.0.0-20250811173226-48ed13203b87 h1:A/kPfCDwlhNpPEJ6qnhPdPmMdeTzlschpM97c76dEik=
-github.com/buildbarn/bb-storage v0.0.0-20250811173226-48ed13203b87/go.mod h1:ro83180H9FprjjO6nTjBfhvke3edvWtsLuZkfSSMgpo=
+github.com/buildbarn/bb-storage v0.0.0-20250814113139-139cf51268e0 h1:S6iMu1p4Wv7B8nqnowOLeiY8CTW0v9D1zxpH4L2bJmk=
+github.com/buildbarn/bb-storage v0.0.0-20250814113139-139cf51268e0/go.mod h1:ro83180H9FprjjO6nTjBfhvke3edvWtsLuZkfSSMgpo=
 github.com/buildbarn/go-sha256tree v0.0.0-20250310211320-0f70f20e855b h1:IKUxixGBm9UxobU7c248z0BF0ojG19uoSLz8MFZM/KA=
 github.com/buildbarn/go-sha256tree v0.0.0-20250310211320-0f70f20e855b/go.mod h1:e7g3/yWApcg+PpDqd4eQEEV8pexQmfCgK3frP+1Wuvk=
 github.com/buildbarn/go-xdr v0.0.0-20240702182809-236788cf9e89 h1:Wtpgk4CIkoEJ7Qx3BwjaMp3TOVv834heqyCC9jMKStM=

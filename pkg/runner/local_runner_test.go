@@ -49,7 +49,7 @@ func TestLocalRunnerCheckReadiness(t *testing.T) {
 		_, err := runner.CheckReadiness(ctx, &runner_pb.CheckReadinessRequest{
 			Path: "does_not_exist",
 		})
-		testutil.RequirePrefixedStatus(t, status.Error(codes.Internal, "Failed to check existence of path \"does_not_exist\" in build directory: no such file or directory"), err)
+		testutil.RequirePrefixedStatus(t, status.Error(codes.Internal, "Failed to check existence of path \"does_not_exist\" in build directory: "), err)
 	})
 
 	t.Run("NonExistentDirectory", func(t *testing.T) {
@@ -59,7 +59,7 @@ func TestLocalRunnerCheckReadiness(t *testing.T) {
 		_, err := runner.CheckReadiness(ctx, &runner_pb.CheckReadinessRequest{
 			Path: "does/not/exist",
 		})
-		testutil.RequirePrefixedStatus(t, status.Error(codes.Internal, "Failed to resolve path \"does/not/exist\" in build directory: no such file or directory"), err)
+		testutil.RequirePrefixedStatus(t, status.Error(codes.Internal, "Failed to resolve path \"does/not/exist\" in build directory: "), err)
 	})
 
 	t.Run("Success", func(t *testing.T) {
@@ -90,7 +90,7 @@ func TestLocalRunnerRun(t *testing.T) {
 	defer buildDirectory.Close()
 
 	buildDirectoryPathBuilder, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
-	require.NoError(t, path.Resolve(path.UNIXFormat.NewParser(buildDirectoryPath), scopeWalker))
+	require.NoError(t, path.Resolve(path.LocalFormat.NewParser(buildDirectoryPath), scopeWalker))
 
 	var cmdPath string
 	var getEnvCommand []string
