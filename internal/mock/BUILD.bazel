@@ -111,6 +111,7 @@ gomock(
     interfaces = [
         "Clock",
         "Timer",
+        "Ticker",
     ],
     library = "@com_github_buildbarn_bb_storage//pkg/clock",
     mockgen_model_library = "@org_uber_go_mock//mockgen/model",

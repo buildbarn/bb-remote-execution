@@ -235,11 +235,30 @@ func (c *SuspendableClock) NewTimer(d time.Duration) (clock.Timer, <-chan time.T
 	return t, resultChannel
 }
 
-// NewTicker creates a channel that at a fixed interval publishes the
-// time of day at a point of time in the future.
+// NewTicker creates a channel that publishes the time of day at intervals
+// of time in the future, taking suspension of the Clock into account.
 func (c *SuspendableClock) NewTicker(d time.Duration) (clock.Ticker, <-chan time.Time) {
-	// TODO: Do we also want to provide a suspension aware ticker?
-	return c.base.NewTicker(d)
+	stopChannel := make(chan struct{})
+	t := &suspendableTicker{
+		lock:        &c.lock,
+		stopChannel: stopChannel,
+	}
+	resultChannel := make(chan time.Time, 1)
+	go func() {
+		for {
+			// Use NewTimer for each tick interval to allow the timer to
+			// handle the suspension logic.
+			timer, timerChannel := c.NewTimer(d)
+			select {
+			case tickTime := <-timerChannel:
+				resultChannel <- tickTime
+			case <-stopChannel:
+				timer.Stop()
+				return
+			}
+		}
+	}()
+	return t, resultChannel
 }
 
 // suspendableContext is the implementation of Context that is returned
@@ -293,4 +312,21 @@ func (ctx *suspendableTimer) Stop() bool {
 		return true
 	}
 	return false
+}
+
+// suspendableTicker is the implementation of Ticker that is returned by
+// SuspendableClock.NewTicker(). It provides cancelation.
+type suspendableTicker struct {
+	lock        *sync.Mutex
+	stopChannel chan<- struct{}
+}
+
+func (t *suspendableTicker) Stop() {
+	t.lock.Lock()
+	defer t.lock.Unlock()
+
+	if t.stopChannel != nil {
+		close(t.stopChannel)
+		t.stopChannel = nil
+	}
 }

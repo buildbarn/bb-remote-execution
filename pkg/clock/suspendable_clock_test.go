@@ -7,6 +7,7 @@ import (
 
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/clock"
+	base_clock "github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/stretchr/testify/require"
 
 	"go.uber.org/mock/gomock"
@@ -269,5 +270,99 @@ func TestSuspendableClockNewTimer(t *testing.T) {
 
 		baseChannel <- time.Unix(1325, 0)
 		require.Equal(t, time.Unix(1325, 0), <-suspendableChannel)
+	})
+}
+
+func TestSuspendableClockNewTicker(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	baseClock := mock.NewMockClock(ctrl)
+	suspendableClock := clock.NewSuspendableClock(baseClock, time.Hour, time.Second)
+
+	t.Run("NoSuspension", func(t *testing.T) {
+		maximumSuspensionTimer := mock.NewMockTimer(ctrl)
+		maximumSuspensionChannel := make(chan time.Time, 1)
+		baseClock.EXPECT().NewTimer(time.Hour+5*time.Second).Return(maximumSuspensionTimer, maximumSuspensionChannel)
+		baseClock.EXPECT().Now().Return(time.Unix(1018, 0))
+		baseTimer := mock.NewMockTimer(ctrl)
+		baseChannel := make(chan time.Time, 1)
+		baseClock.EXPECT().NewTimer(5*time.Second).Return(baseTimer, baseChannel)
+
+		suspendableTicker, suspendableChannel := suspendableClock.NewTicker(5 * time.Second)
+		require.NotNil(t, suspendableTicker)
+		require.NotNil(t, suspendableChannel)
+
+		// Setup for next tick.
+		maximumSuspensionTimer.EXPECT().Stop().Return(true)
+		baseClock.EXPECT().NewTimer(time.Hour+5*time.Second).Return(maximumSuspensionTimer, maximumSuspensionChannel)
+		baseClock.EXPECT().NewTimer(5*time.Second).Return(baseTimer, baseChannel)
+		baseClock.EXPECT().Now().Return(time.Unix(1023, 0))
+
+		baseChannel <- time.Unix(1023, 0)
+		require.Equal(t, time.Unix(1023, 0), <-suspendableChannel)
+
+		// Setup for next tick.
+		maximumSuspensionTimer.EXPECT().Stop().Return(true)
+		baseClock.EXPECT().NewTimer(time.Hour+5*time.Second).Return(maximumSuspensionTimer, maximumSuspensionChannel)
+		baseClock.EXPECT().NewTimer(5*time.Second).Return(baseTimer, baseChannel)
+		baseClock.EXPECT().Now().Return(time.Unix(1028, 0))
+
+		baseChannel <- time.Unix(1028, 0)
+		require.Equal(t, time.Unix(1028, 0), <-suspendableChannel)
+	})
+
+	t.Run("Suspension", func(t *testing.T) {
+		// Create a timer that runs for five seconds. Suspend
+		// the clock for one seconds during these five seconds.
+		// This should cause a second timer to be created with a
+		// one second timeout.
+		maximumSuspensionTimer := mock.NewMockTimer(ctrl)
+		maximumSuspensionChannel := make(chan time.Time)
+		baseClock.EXPECT().NewTimer(time.Hour+5*time.Second).Return(maximumSuspensionTimer, maximumSuspensionChannel)
+		initialised := make(chan struct{})
+		baseClock.EXPECT().Now().DoAndReturn(func() time.Time {
+			initialised <- struct{}{}
+			return time.Unix(1100, 0)
+		}).Times(1)
+		baseTimer1 := mock.NewMockTimer(ctrl)
+		baseChannel1 := make(chan time.Time)
+		baseClock.EXPECT().NewTimer(5*time.Second).Return(baseTimer1, baseChannel1)
+
+		_, suspendableChannel := suspendableClock.NewTicker(5 * time.Second)
+		require.Empty(t, suspendableChannel)
+
+		<-initialised
+		baseClock.EXPECT().Now().Return(time.Unix(1102, 0))
+		suspendableClock.Suspend()
+
+		// It is possible to suspend the clock recursively. It
+		// should have no effect on the bookkeeping.
+		suspendableClock.Suspend()
+		suspendableClock.Suspend()
+		suspendableClock.Resume()
+		suspendableClock.Resume()
+
+		baseClock.EXPECT().Now().Return(time.Unix(1103, 0))
+		suspendableClock.Resume()
+
+		baseTimer2 := mock.NewMockTimer(ctrl)
+		baseChannel2 := make(chan time.Time)
+		baseClock.EXPECT().NewTimer(1*time.Second).Return(baseTimer2, baseChannel2)
+		maximumSuspensionTimer.EXPECT().Stop().Return(true)
+
+		baseChannel1 <- time.Unix(1105, 0)
+
+		// Create expectations for the next tick period.
+		baseClock.EXPECT().NewTimer(time.Hour+5*time.Second).Return(maximumSuspensionTimer, maximumSuspensionChannel)
+		baseClock.EXPECT().Now().Return(time.Unix(1106, 0))
+		baseClock.EXPECT().NewTimer(5 * time.Second).DoAndReturn(func(d time.Duration) (base_clock.Timer, <-chan time.Time) {
+			initialised <- struct{}{}
+			return baseTimer2, baseChannel2
+		})
+
+		baseChannel2 <- time.Unix(1106, 0)
+		require.Equal(t, time.Unix(1106, 0), <-suspendableChannel)
+
+		<-initialised
 	})
 }
