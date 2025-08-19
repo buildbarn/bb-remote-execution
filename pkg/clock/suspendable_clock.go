@@ -235,6 +235,11 @@ func (c *SuspendableClock) NewTimer(d time.Duration) (clock.Timer, <-chan time.T
 	return t, resultChannel
 }
 
+func (c *SuspendableClock) NewTicker(d time.Duration) (clock.Ticker, <-chan time.Time) {
+	// TODO: Do we also want to provide a suspension aware ticker?
+	return c.base.NewTicker(d)
+}
+
 // suspendableContext is the implementation of Context that is returned
 // by SuspendableClock.NewContextWithTimeout().
 type suspendableContext struct {
