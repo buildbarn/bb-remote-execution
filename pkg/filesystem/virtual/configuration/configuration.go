@@ -42,6 +42,12 @@ type nfsv4Mount struct {
 	leavesAttributeCaching           AttributeCachingDuration
 }
 
+type winfspMount struct {
+	mountPath     string
+	fsName        string
+	caseSensitive bool
+}
+
 func (m *nfsv4Mount) Expose(terminationGroup program.Group, rootDirectory virtual.Directory) error {
 	// Random values that the client can use to identify the server, or
 	// detect that the server has been restarted and lost all state.
@@ -131,7 +137,7 @@ func (m *nfsv4Mount) Expose(terminationGroup program.Group, rootDirectory virtua
 // NewMountFromConfiguration creates a new FUSE mount based on options
 // specified in a configuration message and starts processing of
 // incoming requests.
-func NewMountFromConfiguration(configuration *pb.MountConfiguration, fsName string, rootDirectoryAttributeCaching, childDirectoriesAttributeCaching, leavesAttributeCaching AttributeCachingDuration) (Mount, virtual.StatefulHandleAllocator, error) {
+func NewMountFromConfiguration(configuration *pb.MountConfiguration, fsName string, rootDirectoryAttributeCaching, childDirectoriesAttributeCaching, leavesAttributeCaching AttributeCachingDuration, caseSensitive bool) (Mount, virtual.StatefulHandleAllocator, error) {
 	if configuration == nil {
 		return nil, nil, status.Error(codes.InvalidArgument, "No mount configuration provided")
 	}
@@ -156,6 +162,13 @@ func NewMountFromConfiguration(configuration *pb.MountConfiguration, fsName stri
 			rootDirectoryAttributeCaching:    rootDirectoryAttributeCaching,
 			childDirectoriesAttributeCaching: childDirectoriesAttributeCaching,
 			leavesAttributeCaching:           leavesAttributeCaching,
+		}, handleAllocator, nil
+	case *pb.MountConfiguration_Winfsp:
+		handleAllocator := virtual.NewFUSEHandleAllocator(random.FastThreadSafeGenerator)
+		return &winfspMount{
+			mountPath:     configuration.MountPath,
+			fsName:        fsName,
+			caseSensitive: caseSensitive,
 		}, handleAllocator, nil
 	default:
 		return nil, nil, status.Error(codes.InvalidArgument, "No virtual file system backend configuration provided")

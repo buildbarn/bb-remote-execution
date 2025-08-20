@@ -893,6 +893,16 @@
                }
             },
             {
+               "if": "matrix.host.platform_name == 'windows_amd64'",
+               "name": "Install WinFSP",
+               "run": "choco install winfsp"
+            },
+            {
+               "if": "matrix.host.platform_name == 'windows_amd64'",
+               "name": "Execute WinFSP Integration Tests",
+               "run": "bazel test --platforms=@rules_go//go/toolchain:windows_amd64 //pkg/filesystem/virtual/winfsp:file_system_integration_test"
+            },
+            {
                "env": {
                   "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}"
                },

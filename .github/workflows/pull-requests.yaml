@@ -107,6 +107,16 @@
                "if": "matrix.host.cross_compile || matrix.host.platform_name == 'windows_amd64'",
                "name": "windows_amd64: build${{ matrix.host.platform_name == 'windows_amd64' && ' and test' || '' }}",
                "run": "bazel ${{ matrix.host.platform_name == 'windows_amd64' && 'test --test_output=errors' || 'build' }} --platforms=@rules_go//go/toolchain:windows_amd64 //..."
+            },
+            {
+               "if": "matrix.host.platform_name == 'windows_amd64'",
+               "name": "Install WinFSP",
+               "run": "choco install winfsp"
+            },
+            {
+               "if": "matrix.host.platform_name == 'windows_amd64'",
+               "name": "Execute WinFSP Integration Tests",
+               "run": "bazel test --platforms=@rules_go//go/toolchain:windows_amd64 //pkg/filesystem/virtual/winfsp:file_system_integration_test"
             }
          ],
          "strategy": {

@@ -10,6 +10,7 @@ proto_library(
         "@com_github_buildbarn_bb_storage//pkg/proto/configuration/eviction:eviction_proto",
         "@com_github_buildbarn_bb_storage//pkg/proto/configuration/jmespath:jmespath_proto",
         "@protobuf//:duration_proto",
+        "@protobuf//:empty_proto",
         "@protobuf//:wrappers_proto",
     ],
 )

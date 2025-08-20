@@ -25,7 +25,7 @@ git_override(
 
 git_override(
     module_name = "com_github_buildbarn_bb_storage",
-    commit = "da347f4e972b0a2b43c1c2cc30a6835b4d941355",
+    commit = "fd11d3e1b0b435165c5e37254ac5d265e7999cb8",
     remote = "https://github.com/buildbarn/bb-storage.git",
 )
 
@@ -59,6 +59,7 @@ go_deps.from_file(go_mod = "//:go.mod")
 use_repo(
     go_deps,
     "cc_mvdan_gofumpt",
+    "com_github_aegistudio_go_winfsp",
     "com_github_bazelbuild_buildtools",
     "com_github_golang_protobuf",
     "com_github_google_uuid",
@@ -166,3 +167,16 @@ oci.pull(
     ],
 )
 use_repo(oci, "busybox", "busybox_linux_amd64", "busybox_linux_arm64_v8")
+
+http_archive(
+    name = "com_github_winfsp_winfsp_tests",
+    build_file_content = """
+filegroup(
+    name = "winfsp_tests_x64",
+    srcs = ["winfsp-tests-x64.exe"],
+    visibility = ["//visibility:public"],
+)
+""",
+    integrity = "sha256-DPxoeRcDyA+Wxynr04tjGH3lPhm6ocYDpwWdbqh8X1I=",
+    url = "https://github.com/winfsp/winfsp/releases/download/v2.1/winfsp-tests-2.1.25156.zip",
+)

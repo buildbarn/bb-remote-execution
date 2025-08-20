@@ -12,6 +12,7 @@ go_library(
         "cas_initial_contents_fetcher.go",
         "character_device_factory.go",
         "child.go",
+        "component_normalizer.go",
         "directory.go",
         "empty_initial_contents_fetcher.go",
         "file_allocator.go",

@@ -1,0 +1,87 @@
+# gazelle:go_test file
+
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "winfsp",
+    srcs = [
+        "file_system.go",
+        "opened_files_pool.go",
+    ],
+    importpath = "github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual/winfsp",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/filesystem/virtual",
+            "@com_github_aegistudio_go_winfsp//:go-winfsp",
+            "@com_github_aegistudio_go_winfsp//filetime",
+            "@com_github_buildbarn_bb_storage//pkg/filesystem",
+            "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
+            "@com_github_buildbarn_bb_storage//pkg/filesystem/windowsext",
+            "@com_github_buildbarn_bb_storage//pkg/util",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "file_system_test",
+    srcs = select({
+        "@rules_go//go/platform:windows": [
+            "file_system_test.go",
+        ],
+        "//conditions:default": [],
+    }),
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            ":winfsp",
+            "//internal/mock",
+            "//pkg/filesystem/virtual",
+            "@com_github_aegistudio_go_winfsp//:go-winfsp",
+            "@com_github_aegistudio_go_winfsp//filetime",
+            "@com_github_buildbarn_bb_storage//pkg/filesystem",
+            "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
+            "@com_github_buildbarn_bb_storage//pkg/filesystem/windowsext",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//windows",
+            "@org_uber_go_mock//gomock",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "file_system_integration_test",
+    srcs = select({
+        "@rules_go//go/platform:windows": [
+            "file_system_integration_test.go",
+        ],
+        "//conditions:default": [],
+    }),
+    data = select({
+        "@rules_go//go/platform:windows": [
+            "@com_github_winfsp_winfsp_tests//:winfsp_tests_x64",
+        ],
+        "//conditions:default": [],
+    }),
+    tags = ["manual"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/filesystem",
+            "//pkg/filesystem/pool",
+            "//pkg/filesystem/virtual",
+            "//pkg/filesystem/virtual/configuration",
+            "//pkg/proto/configuration/filesystem/virtual",
+            "@com_github_aegistudio_go_winfsp//:go-winfsp",
+            "@com_github_buildbarn_bb_storage//pkg/blockdevice",
+            "@com_github_buildbarn_bb_storage//pkg/clock",
+            "@com_github_buildbarn_bb_storage//pkg/program",
+            "@com_github_buildbarn_bb_storage//pkg/util",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//windows",
+            "@rules_go//go/runfiles",
+        ],
+        "//conditions:default": [],
+    }),
+)

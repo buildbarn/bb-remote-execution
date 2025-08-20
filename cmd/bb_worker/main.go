@@ -191,7 +191,8 @@ func main() {
 					"bb_worker",
 					/* rootDirectory = */ virtual_configuration.ShortAttributeCaching,
 					/* childDirectories = */ virtual_configuration.LongAttributeCaching,
-					/* leaves = */ virtual_configuration.LongAttributeCaching)
+					/* leaves = */ virtual_configuration.LongAttributeCaching,
+					!backend.Virtual.CaseInsensitive)
 				if err != nil {
 					return util.StatusWrap(err, "Failed to create build directory mount")
 				}
@@ -209,6 +210,12 @@ func main() {
 				if backend.Virtual.ShuffleDirectoryListings {
 					initialContentsSorter = virtual.Shuffle
 				}
+
+				normalizer := virtual.CaseSensitiveComponentNormalizer
+				if backend.Virtual.CaseInsensitive {
+					normalizer = virtual.CaseInsensitiveComponentNormalizer
+				}
+
 				symlinkFactory = virtual.NewHandleAllocatingSymlinkFactory(
 					virtual.BaseSymlinkFactory,
 					handleAllocator.New())
@@ -227,6 +234,7 @@ func main() {
 					initialContentsSorter,
 					hiddenFilesPattern,
 					clock.SystemClock,
+					normalizer,
 					/* defaultAttributesSetter = */ func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
 						// No need to set ownership
 						// attributes on the top-level
