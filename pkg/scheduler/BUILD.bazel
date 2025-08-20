@@ -40,6 +40,12 @@ go_library(
 go_test(
     name = "scheduler_test",
     srcs = ["in_memory_build_queue_test.go"],
+    # By using bufconn, there are various places where these tests leave
+    # goroutines running in the background, which may cause calls
+    # against mocks to get triggered after tests should have complete.
+    #
+    # TODO: Change these tests to not use bufconn to address flakiness.
+    flaky = True,
     deps = [
         ":scheduler",
         "//internal/mock",
