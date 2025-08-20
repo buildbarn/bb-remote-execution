@@ -59,14 +59,15 @@ func main() {
 			"bb_virtual_tmp",
 			/* rootDirectory = */ virtual_configuration.LongAttributeCaching,
 			/* childDirectories = */ virtual_configuration.LongAttributeCaching,
-			/* leaves = */ virtual_configuration.NoAttributeCaching)
+			/* leaves = */ virtual_configuration.NoAttributeCaching,
+			/* caseSensitive = */ true)
 		if err != nil {
 			return util.StatusWrap(err, "Failed to create virtual file system mount")
 		}
 		if err := mount.Expose(
 			siblingsGroup,
 			handleAllocator.New().AsStatelessDirectory(
-				virtual.NewStaticDirectory(map[path.Component]virtual.DirectoryChild{
+				virtual.NewStaticDirectory(virtual.CaseSensitiveComponentNormalizer, map[path.Component]virtual.DirectoryChild{
 					path.MustNewComponent("tmp"): virtual.DirectoryChild{}.
 						FromLeaf(handleAllocator.New().AsLinkableLeaf(userSettableSymlink)),
 				}))); err != nil {

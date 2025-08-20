@@ -9,8 +9,9 @@ import (
 )
 
 type staticDirectoryEntry struct {
-	name  path.Component
-	child DirectoryChild
+	name           path.Component
+	normalizedName NormalizedComponent
+	child          DirectoryChild
 }
 
 type staticDirectoryEntryList []staticDirectoryEntry
@@ -20,7 +21,7 @@ func (l staticDirectoryEntryList) Len() int {
 }
 
 func (l staticDirectoryEntryList) Less(i, j int) bool {
-	return l[i].name.String() < l[j].name.String()
+	return l[i].normalizedName < l[j].normalizedName
 }
 
 func (l staticDirectoryEntryList) Swap(i, j int) {
@@ -30,14 +31,15 @@ func (l staticDirectoryEntryList) Swap(i, j int) {
 type staticDirectory struct {
 	ReadOnlyDirectory
 
-	entries   []staticDirectoryEntry
-	linkCount uint32
+	normalizer ComponentNormalizer
+	entries    []staticDirectoryEntry
+	linkCount  uint32
 }
 
 // NewStaticDirectory creates a Directory that contains a hardcoded list
 // of child files or directories. The contents of this directory are
 // immutable.
-func NewStaticDirectory(directories map[path.Component]DirectoryChild) Directory {
+func NewStaticDirectory(normalizer ComponentNormalizer, directories map[path.Component]DirectoryChild) Directory {
 	// Place all directory entries in a sorted list. This allows us
 	// to do lookups by performing a binary search, while also
 	// making it possible to implement readdir() deterministically.
@@ -45,8 +47,9 @@ func NewStaticDirectory(directories map[path.Component]DirectoryChild) Directory
 	linkCount := EmptyDirectoryLinkCount
 	for name, child := range directories {
 		entries = append(entries, staticDirectoryEntry{
-			name:  name,
-			child: child,
+			name:           name,
+			normalizedName: normalizer.Normalize(name),
+			child:          child,
 		})
 		if directory, _ := child.GetPair(); directory != nil {
 			linkCount++
@@ -55,8 +58,9 @@ func NewStaticDirectory(directories map[path.Component]DirectoryChild) Directory
 	sort.Sort(entries)
 
 	return &staticDirectory{
-		entries:   entries,
-		linkCount: linkCount,
+		normalizer: normalizer,
+		entries:    entries,
+		linkCount:  linkCount,
 	}
 }
 
@@ -69,9 +73,10 @@ func (d *staticDirectory) VirtualGetAttributes(ctx context.Context, requested At
 }
 
 func (d *staticDirectory) VirtualLookup(ctx context.Context, name path.Component, requested AttributesMask, out *Attributes) (DirectoryChild, Status) {
+	normalizedName := d.normalizer.Normalize(name)
 	if i := sort.Search(len(d.entries), func(i int) bool {
-		return d.entries[i].name.String() >= name.String()
-	}); i < len(d.entries) && d.entries[i].name == name {
+		return d.entries[i].normalizedName >= normalizedName
+	}); i < len(d.entries) && d.entries[i].normalizedName == normalizedName {
 		child := d.entries[i].child
 		child.GetNode().VirtualGetAttributes(ctx, requested, out)
 		return (child), StatusOK
@@ -80,14 +85,15 @@ func (d *staticDirectory) VirtualLookup(ctx context.Context, name path.Component
 }
 
 func (d *staticDirectory) VirtualOpenChild(ctx context.Context, name path.Component, shareAccess ShareMask, createAttributes *Attributes, existingOptions *OpenExistingOptions, requested AttributesMask, openedFileAttributes *Attributes) (Leaf, AttributesMask, ChangeInfo, Status) {
+	normalizedName := d.normalizer.Normalize(name)
 	if i := sort.Search(len(d.entries), func(i int) bool {
-		return d.entries[i].name.String() >= name.String()
-	}); i < len(d.entries) && d.entries[i].name == name {
+		return d.entries[i].normalizedName >= normalizedName
+	}); i < len(d.entries) && d.entries[i].normalizedName == normalizedName {
 		if existingOptions == nil {
 			return nil, 0, ChangeInfo{}, StatusErrExist
 		}
-		directory, leaf := d.entries[i].child.GetPair()
-		if directory != nil {
+		_, leaf := d.entries[i].child.GetPair()
+		if leaf == nil {
 			return nil, 0, ChangeInfo{}, StatusErrIsDir
 		}
 		s := leaf.VirtualOpenSelf(ctx, shareAccess, existingOptions, requested, openedFileAttributes)

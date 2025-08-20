@@ -17,4 +17,17 @@ workflows_template.getWorkflows(
     'bb_scheduler:bb_scheduler',
     'bb_worker:bb_worker',
   ],
+  [],
+  [
+    {
+      name: 'Install WinFSP',
+      run: 'choco install winfsp',
+      'if': "matrix.host.platform_name == 'windows_amd64'",
+    },
+    {
+      name: 'Execute WinFSP Integration Tests',
+      run: 'bazel test --platforms=@rules_go//go/toolchain:windows_amd64 //pkg/filesystem/virtual/winfsp:file_system_integration_test',
+      'if': "matrix.host.platform_name == 'windows_amd64'",
+    },
+  ]
 )

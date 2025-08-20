@@ -16,7 +16,7 @@ func TestStaticDirectoryVirtualLookup(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	child := mock.NewMockVirtualDirectory(ctrl)
-	d := virtual.NewStaticDirectory(map[path.Component]virtual.DirectoryChild{
+	d := virtual.NewStaticDirectory(virtual.CaseSensitiveComponentNormalizer, map[path.Component]virtual.DirectoryChild{
 		path.MustNewComponent("child"): virtual.DirectoryChild{}.FromDirectory(child),
 	})
 
@@ -47,7 +47,7 @@ func TestStaticDirectoryVirtualOpenChild(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	child := mock.NewMockVirtualDirectory(ctrl)
-	d := virtual.NewStaticDirectory(map[path.Component]virtual.DirectoryChild{
+	d := virtual.NewStaticDirectory(virtual.CaseSensitiveComponentNormalizer, map[path.Component]virtual.DirectoryChild{
 		path.MustNewComponent("child"): virtual.DirectoryChild{}.FromDirectory(child),
 	})
 
@@ -117,7 +117,7 @@ func TestStaticDirectoryVirtualReadDir(t *testing.T) {
 
 	childA := mock.NewMockVirtualDirectory(ctrl)
 	childB := mock.NewMockVirtualDirectory(ctrl)
-	d := virtual.NewStaticDirectory(map[path.Component]virtual.DirectoryChild{
+	d := virtual.NewStaticDirectory(virtual.CaseSensitiveComponentNormalizer, map[path.Component]virtual.DirectoryChild{
 		path.MustNewComponent("a"): virtual.DirectoryChild{}.FromDirectory(childA),
 		path.MustNewComponent("b"): virtual.DirectoryChild{}.FromDirectory(childB),
 	})
@@ -211,5 +211,45 @@ func TestStaticDirectoryVirtualReadDir(t *testing.T) {
 			t,
 			virtual.StatusOK,
 			d.VirtualReadDir(ctx, 3, virtual.AttributesMaskInodeNumber, reporter))
+	})
+}
+
+func TestStaticDirectoryCaseInsensitive(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+
+	child := mock.NewMockVirtualDirectory(ctrl)
+	d := virtual.NewStaticDirectory(virtual.CaseInsensitiveComponentNormalizer, map[path.Component]virtual.DirectoryChild{
+		path.MustNewComponent("Child"): virtual.DirectoryChild{}.FromDirectory(child),
+	})
+
+	t.Run("LookupDifferentCase", func(t *testing.T) {
+		child.EXPECT().VirtualGetAttributes(
+			ctx,
+			virtual.AttributesMaskInodeNumber,
+			gomock.Any(),
+		).Do(func(ctx context.Context, requested virtual.AttributesMask, out *virtual.Attributes) {
+			out.SetInodeNumber(456)
+		})
+
+		var out virtual.Attributes
+		actualChild, s := d.VirtualLookup(ctx, path.MustNewComponent("child"), virtual.AttributesMaskInodeNumber, &out)
+		require.Equal(t, virtual.StatusOK, s)
+		require.Equal(t, virtual.DirectoryChild{}.FromDirectory(child), actualChild)
+		require.Equal(t, *(&virtual.Attributes{}).SetInodeNumber(456), out)
+	})
+
+	t.Run("LookupUpperCase", func(t *testing.T) {
+		child.EXPECT().VirtualGetAttributes(
+			ctx,
+			virtual.AttributesMaskInodeNumber,
+			gomock.Any(),
+		).Do(func(ctx context.Context, requested virtual.AttributesMask, out *virtual.Attributes) {
+			out.SetInodeNumber(456)
+		})
+
+		var out virtual.Attributes
+		actualChild, s := d.VirtualLookup(ctx, path.MustNewComponent("CHILD"), virtual.AttributesMaskInodeNumber, &out)
+		require.Equal(t, virtual.StatusOK, s)
+		require.Equal(t, virtual.DirectoryChild{}.FromDirectory(child), actualChild)
 	})
 }

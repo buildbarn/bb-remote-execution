@@ -352,6 +352,7 @@ type VirtualBuildDirectoryConfiguration struct {
 	ShuffleDirectoryListings            bool                        `protobuf:"varint,3,opt,name=shuffle_directory_listings,json=shuffleDirectoryListings,proto3" json:"shuffle_directory_listings,omitempty"`
 	HiddenFilesPattern                  string                      `protobuf:"bytes,4,opt,name=hidden_files_pattern,json=hiddenFilesPattern,proto3" json:"hidden_files_pattern,omitempty"`
 	MaximumWritableFileUploadDelay      *durationpb.Duration        `protobuf:"bytes,5,opt,name=maximum_writable_file_upload_delay,json=maximumWritableFileUploadDelay,proto3" json:"maximum_writable_file_upload_delay,omitempty"`
+	CaseInsensitive                     bool                        `protobuf:"varint,6,opt,name=case_insensitive,json=caseInsensitive,proto3" json:"case_insensitive,omitempty"`
 	unknownFields                       protoimpl.UnknownFields
 	sizeCache                           protoimpl.SizeCache
 }
@@ -419,6 +420,13 @@ func (x *VirtualBuildDirectoryConfiguration) GetMaximumWritableFileUploadDelay()
 		return x.MaximumWritableFileUploadDelay
 	}
 	return nil
+}
+
+func (x *VirtualBuildDirectoryConfiguration) GetCaseInsensitive() bool {
+	if x != nil {
+		return x.CaseInsensitive
+	}
+	return false
 }
 
 type RunnerConfiguration struct {
@@ -705,13 +713,14 @@ const file_pkg_proto_configuration_bb_worker_bb_worker_proto_rawDesc = "" +
 	"\x14cache_directory_path\x18\x02 \x01(\tR\x12cacheDirectoryPath\x127\n" +
 	"\x18maximum_cache_file_count\x18\x03 \x01(\x04R\x15maximumCacheFileCount\x127\n" +
 	"\x18maximum_cache_size_bytes\x18\x04 \x01(\x03R\x15maximumCacheSizeBytes\x12r\n" +
-	"\x18cache_replacement_policy\x18\x05 \x01(\x0e28.buildbarn.configuration.eviction.CacheReplacementPolicyR\x16cacheReplacementPolicy\"\xc1\x03\n" +
+	"\x18cache_replacement_policy\x18\x05 \x01(\x0e28.buildbarn.configuration.eviction.CacheReplacementPolicyR\x16cacheReplacementPolicy\"\xec\x03\n" +
 	"\"VirtualBuildDirectoryConfiguration\x12T\n" +
 	"\x05mount\x18\x01 \x01(\v2>.buildbarn.configuration.filesystem.virtual.MountConfigurationR\x05mount\x12n\n" +
 	"&maximum_execution_timeout_compensation\x18\x02 \x01(\v2\x19.google.protobuf.DurationR#maximumExecutionTimeoutCompensation\x12<\n" +
 	"\x1ashuffle_directory_listings\x18\x03 \x01(\bR\x18shuffleDirectoryListings\x120\n" +
 	"\x14hidden_files_pattern\x18\x04 \x01(\tR\x12hiddenFilesPattern\x12e\n" +
-	"\"maximum_writable_file_upload_delay\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\x1emaximumWritableFileUploadDelay\"\xbe\t\n" +
+	"\"maximum_writable_file_upload_delay\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\x1emaximumWritableFileUploadDelay\x12)\n" +
+	"\x10case_insensitive\x18\x06 \x01(\bR\x0fcaseInsensitive\"\xbe\t\n" +
 	"\x13RunnerConfiguration\x12M\n" +
 	"\bendpoint\x18\x01 \x01(\v21.buildbarn.configuration.grpc.ClientConfigurationR\bendpoint\x12 \n" +
 	"\vconcurrency\x18\x02 \x01(\x04R\vconcurrency\x120\n" +

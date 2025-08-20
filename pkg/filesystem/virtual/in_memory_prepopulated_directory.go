@@ -29,6 +29,7 @@ type inMemoryFilesystem struct {
 	initialContentsSorter   Sorter
 	hiddenFilesMatcher      StringMatcher
 	clock                   clock.Clock
+	normalizer              ComponentNormalizer
 }
 
 // inMemorySubtree contains state that is shared across all
@@ -68,10 +69,11 @@ type inMemoryDirectoryEntry struct {
 	child inMemoryDirectoryChild
 
 	// For VirtualReadDir().
-	cookie   uint64
-	name     path.Component
-	previous *inMemoryDirectoryEntry
-	next     *inMemoryDirectoryEntry
+	cookie         uint64
+	name           path.Component
+	normalizedName NormalizedComponent
+	previous       *inMemoryDirectoryEntry
+	next           *inMemoryDirectoryEntry
 }
 
 // inMemoryDirectoryContents contains the listing of all children stored
@@ -80,7 +82,7 @@ type inMemoryDirectoryEntry struct {
 // deterministically. The isDeleted flag may be set when empty and no
 // new children may be added.
 type inMemoryDirectoryContents struct {
-	entriesMap               map[path.Component]*inMemoryDirectoryEntry
+	entriesMap               map[NormalizedComponent]*inMemoryDirectoryEntry
 	entriesList              inMemoryDirectoryEntry
 	isDeleted                bool
 	changeID                 uint64
@@ -89,25 +91,26 @@ type inMemoryDirectoryContents struct {
 
 // initialize a directory by making it empty.
 func (c *inMemoryDirectoryContents) initialize() {
-	c.entriesMap = map[path.Component]*inMemoryDirectoryEntry{}
+	c.entriesMap = map[NormalizedComponent]*inMemoryDirectoryEntry{}
 	c.entriesList.previous = &c.entriesList
 	c.entriesList.next = &c.entriesList
 }
 
 // attach an existing directory or leaf to the directory contents.
-func (c *inMemoryDirectoryContents) attach(subtree *inMemorySubtree, name path.Component, child inMemoryDirectoryChild) {
-	if err := c.mayAttach(name); err != 0 {
+func (c *inMemoryDirectoryContents) attach(subtree *inMemorySubtree, name path.Component, normalizedName NormalizedComponent, child inMemoryDirectoryChild) {
+	if err := c.mayAttach(normalizedName); err != 0 {
 		panic(fmt.Sprintf("Directory %#v may not be attached: %s", name, err))
 	}
 	entry := &inMemoryDirectoryEntry{
 		child: child,
 
-		name:     name,
-		cookie:   c.changeID,
-		previous: c.entriesList.previous,
-		next:     &c.entriesList,
+		name:           name,
+		normalizedName: normalizedName,
+		cookie:         c.changeID,
+		previous:       c.entriesList.previous,
+		next:           &c.entriesList,
 	}
-	c.entriesMap[name] = entry
+	c.entriesMap[normalizedName] = entry
 	entry.previous.next = entry
 	entry.next.previous = entry
 	c.touch(subtree)
@@ -116,9 +119,9 @@ func (c *inMemoryDirectoryContents) attach(subtree *inMemorySubtree, name path.C
 // attachDirectory adds a new directory to the directory contents. The
 // initial contents of this new directory may be specified in the form
 // of an InitialContentsFetcher, which gets evaluated lazily.
-func (c *inMemoryDirectoryContents) attachNewDirectory(subtree *inMemorySubtree, name path.Component, initialContentsFetcher InitialContentsFetcher) *inMemoryPrepopulatedDirectory {
+func (c *inMemoryDirectoryContents) attachNewDirectory(subtree *inMemorySubtree, name path.Component, normalizedName NormalizedComponent, initialContentsFetcher InitialContentsFetcher) *inMemoryPrepopulatedDirectory {
 	newDirectory := subtree.createNewDirectory(initialContentsFetcher)
-	c.attach(subtree, name, inMemoryDirectoryChild{}.FromDirectory(newDirectory))
+	c.attach(subtree, name, normalizedName, inMemoryDirectoryChild{}.FromDirectory(newDirectory))
 	return newDirectory
 }
 
@@ -126,7 +129,7 @@ func (c *inMemoryDirectoryContents) attachNewDirectory(subtree *inMemorySubtree,
 // foot-shooting. This allows VirtualReadDir() to detect that iteration
 // was interrupted.
 func (c *inMemoryDirectoryContents) detach(subtree *inMemorySubtree, entry *inMemoryDirectoryEntry) {
-	delete(c.entriesMap, entry.name)
+	delete(c.entriesMap, entry.normalizedName)
 	entry.previous.next = entry.next
 	entry.next.previous = entry.previous
 	entry.previous = nil
@@ -134,7 +137,7 @@ func (c *inMemoryDirectoryContents) detach(subtree *inMemorySubtree, entry *inMe
 	c.touch(subtree)
 }
 
-func (c *inMemoryDirectoryContents) mayAttach(name path.Component) syscall.Errno {
+func (c *inMemoryDirectoryContents) mayAttach(name NormalizedComponent) syscall.Errno {
 	if c.isDeleted {
 		return syscall.ENOENT
 	}
@@ -144,7 +147,7 @@ func (c *inMemoryDirectoryContents) mayAttach(name path.Component) syscall.Errno
 	return 0
 }
 
-func (c *inMemoryDirectoryContents) virtualMayAttach(name path.Component) Status {
+func (c *inMemoryDirectoryContents) virtualMayAttach(name NormalizedComponent) Status {
 	if c.isDeleted {
 		return StatusErrNoEnt
 	}
@@ -179,10 +182,11 @@ func (c *inMemoryDirectoryContents) createChildren(subtree *inMemorySubtree, chi
 	subtree.filesystem.initialContentsSorter(namesList)
 
 	for _, name := range namesList {
+		normalizedName := subtree.filesystem.normalizer.Normalize(name)
 		if directory, leaf := children[name].GetPair(); directory != nil {
-			c.attachNewDirectory(subtree, name, directory)
+			c.attachNewDirectory(subtree, name, normalizedName, directory)
 		} else {
-			c.attach(subtree, name, inMemoryDirectoryChild{}.FromLeaf(leaf))
+			c.attach(subtree, name, normalizedName, inMemoryDirectoryChild{}.FromLeaf(leaf))
 		}
 	}
 }
@@ -202,7 +206,7 @@ func (c *inMemoryDirectoryContents) getEntryAtCookie(firstCookie uint64) *inMemo
 // deadlocks, we must respect the lock order. This may require this
 // function to drop the lock on current directories prior to picking up
 // the lock of the child directory.
-func (c *inMemoryDirectoryContents) getAndLockIfDirectory(name path.Component, lockPile *re_sync.LockPile) (*inMemoryDirectoryEntry, bool) {
+func (c *inMemoryDirectoryContents) getAndLockIfDirectory(name NormalizedComponent, lockPile *re_sync.LockPile) (*inMemoryDirectoryEntry, bool) {
 	for {
 		entry, ok := c.entriesMap[name]
 		if !ok {
@@ -264,13 +268,14 @@ type inMemoryPrepopulatedDirectory struct {
 // that keeps all directory metadata stored in memory. As the filesystem
 // API does not allow traversing the hierarchy upwards, this directory
 // can be considered the root directory of the hierarchy.
-func NewInMemoryPrepopulatedDirectory(fileAllocator FileAllocator, symlinkFactory SymlinkFactory, errorLogger util.ErrorLogger, handleAllocator StatefulHandleAllocator, initialContentsSorter Sorter, hiddenFilesMatcher StringMatcher, clock clock.Clock, defaultAttributesSetter DefaultAttributesSetter) PrepopulatedDirectory {
+func NewInMemoryPrepopulatedDirectory(fileAllocator FileAllocator, symlinkFactory SymlinkFactory, errorLogger util.ErrorLogger, handleAllocator StatefulHandleAllocator, initialContentsSorter Sorter, hiddenFilesMatcher StringMatcher, clock clock.Clock, normalizer ComponentNormalizer, defaultAttributesSetter DefaultAttributesSetter) PrepopulatedDirectory {
 	subtree := &inMemorySubtree{
 		filesystem: &inMemoryFilesystem{
 			symlinkFactory:          symlinkFactory,
 			statefulHandleAllocator: handleAllocator,
 			initialContentsSorter:   initialContentsSorter,
 			hiddenFilesMatcher:      hiddenFilesMatcher,
+			normalizer:              normalizer,
 			clock:                   clock,
 		},
 		fileAllocator:           fileAllocator,
@@ -330,7 +335,8 @@ func (i *inMemoryPrepopulatedDirectory) LookupChild(name path.Component) (Prepop
 		return PrepopulatedDirectoryChild{}, err
 	}
 
-	if entry, ok := contents.entriesMap[name]; ok {
+	normalizedName := i.subtree.filesystem.normalizer.Normalize(name)
+	if entry, ok := contents.entriesMap[normalizedName]; ok {
 		child := &entry.child
 		directory, leaf := child.GetPair()
 		if directory != nil {
@@ -404,7 +410,8 @@ func (i *inMemoryPrepopulatedDirectory) Remove(name path.Component) error {
 		return err
 	}
 
-	if entry, ok := contents.getAndLockIfDirectory(name, &lockPile); ok {
+	normalizedName := i.subtree.filesystem.normalizer.Normalize(name)
+	if entry, ok := contents.getAndLockIfDirectory(normalizedName, &lockPile); ok {
 		if directory, leaf := entry.child.GetPair(); directory != nil {
 			// The directory has a child directory under
 			// that name. Perform an rmdir().
@@ -439,7 +446,8 @@ func (i *inMemoryPrepopulatedDirectory) RemoveAll(name path.Component) error {
 		return err
 	}
 
-	if entry, ok := contents.entriesMap[name]; ok {
+	normalizedName := i.subtree.filesystem.normalizer.Normalize(name)
+	if entry, ok := contents.entriesMap[normalizedName]; ok {
 		contents.detach(i.subtree, entry)
 		i.lock.Unlock()
 		i.handle.NotifyRemoval(name)
@@ -539,7 +547,8 @@ func (i *inMemoryPrepopulatedDirectory) CreateChildren(children map[path.Compone
 	var overwrittenEntries *inMemoryDirectoryEntry
 	if overwrite {
 		for name := range children {
-			if entry, ok := contents.entriesMap[name]; ok {
+			normalizedName := i.subtree.filesystem.normalizer.Normalize(name)
+			if entry, ok := contents.entriesMap[normalizedName]; ok {
 				contents.detach(i.subtree, entry)
 				entry.previous = overwrittenEntries
 				overwrittenEntries = entry
@@ -547,7 +556,8 @@ func (i *inMemoryPrepopulatedDirectory) CreateChildren(children map[path.Compone
 		}
 	} else {
 		for name := range children {
-			if _, ok := contents.entriesMap[name]; ok {
+			normalizedName := i.subtree.filesystem.normalizer.Normalize(name)
+			if _, ok := contents.entriesMap[normalizedName]; ok {
 				i.lock.Unlock()
 				return syscall.EEXIST
 			}
@@ -570,7 +580,8 @@ func (i *inMemoryPrepopulatedDirectory) CreateAndEnterPrepopulatedDirectory(name
 		return nil, err
 	}
 
-	if entry, ok := contents.entriesMap[name]; ok {
+	normalizedName := i.subtree.filesystem.normalizer.Normalize(name)
+	if entry, ok := contents.entriesMap[normalizedName]; ok {
 		directory, leaf := entry.child.GetPair()
 		if directory != nil {
 			// Already a directory.
@@ -580,7 +591,7 @@ func (i *inMemoryPrepopulatedDirectory) CreateAndEnterPrepopulatedDirectory(name
 		// Not a directory. Replace it.
 		contents.detach(i.subtree, entry)
 		leaf.Unlink()
-		newChild := contents.attachNewDirectory(i.subtree, name, EmptyInitialContentsFetcher)
+		newChild := contents.attachNewDirectory(i.subtree, name, normalizedName, EmptyInitialContentsFetcher)
 		i.lock.Unlock()
 		i.handle.NotifyRemoval(name)
 		return newChild, nil
@@ -589,7 +600,7 @@ func (i *inMemoryPrepopulatedDirectory) CreateAndEnterPrepopulatedDirectory(name
 	if contents.isDeleted {
 		return nil, syscall.ENOENT
 	}
-	child := contents.attachNewDirectory(i.subtree, name, EmptyInitialContentsFetcher)
+	child := contents.attachNewDirectory(i.subtree, name, normalizedName, EmptyInitialContentsFetcher)
 	i.lock.Unlock()
 	return child, nil
 }
@@ -666,13 +677,14 @@ func (i *inMemoryPrepopulatedDirectory) VirtualOpenChild(ctx context.Context, na
 		return nil, 0, ChangeInfo{}, s
 	}
 
-	if entry, ok := contents.entriesMap[name]; ok {
+	normalizedName := i.subtree.filesystem.normalizer.Normalize(name)
+	if entry, ok := contents.entriesMap[normalizedName]; ok {
 		// File already exists.
 		if existingOptions == nil {
 			return nil, 0, ChangeInfo{}, StatusErrExist
 		}
-		directory, leaf := entry.child.GetPair()
-		if directory != nil {
+		_, leaf := entry.child.GetPair()
+		if leaf == nil {
 			return nil, 0, ChangeInfo{}, StatusErrIsDir
 		}
 		s := leaf.VirtualOpenSelf(ctx, shareAccess, existingOptions, requested, openedFileAttributes)
@@ -706,7 +718,7 @@ func (i *inMemoryPrepopulatedDirectory) VirtualOpenChild(ctx context.Context, na
 
 	// Attach file to the directory.
 	changeIDBefore := contents.changeID
-	contents.attach(i.subtree, name, inMemoryDirectoryChild{}.FromLeaf(leaf))
+	contents.attach(i.subtree, name, normalizedName, inMemoryDirectoryChild{}.FromLeaf(leaf))
 	leaf.VirtualGetAttributes(ctx, requested, openedFileAttributes)
 	return leaf, respected, ChangeInfo{
 		Before: changeIDBefore,
@@ -769,14 +781,15 @@ func (i *inMemoryPrepopulatedDirectory) VirtualLink(ctx context.Context, name pa
 		return ChangeInfo{}, s
 	}
 
-	if s := contents.virtualMayAttach(name); s != StatusOK {
+	normalizedName := i.subtree.filesystem.normalizer.Normalize(name)
+	if s := contents.virtualMayAttach(normalizedName); s != StatusOK {
 		return ChangeInfo{}, s
 	}
 	if s := child.Link(); s != StatusOK {
 		return ChangeInfo{}, s
 	}
 	changeIDBefore := contents.changeID
-	contents.attach(i.subtree, name, inMemoryDirectoryChild{}.FromLeaf(child))
+	contents.attach(i.subtree, name, normalizedName, inMemoryDirectoryChild{}.FromLeaf(child))
 
 	child.VirtualGetAttributes(ctx, requested, out)
 	return ChangeInfo{
@@ -799,8 +812,9 @@ func (i *inMemoryPrepopulatedDirectory) VirtualLookup(ctx context.Context, name 
 	// need to lock the child directory or not. We can't just call
 	// into VirtualGetAttributes() on the child directory, as that
 	// might cause a deadlock.
+	normalizedName := i.subtree.filesystem.normalizer.Normalize(name)
 	if requested&inMemoryPrepopulatedDirectoryLockedAttributesMask != 0 {
-		if entry, ok := contents.getAndLockIfDirectory(name, &lockPile); ok {
+		if entry, ok := contents.getAndLockIfDirectory(normalizedName, &lockPile); ok {
 			directory, leaf := entry.child.GetPair()
 			if directory != nil {
 				directory.virtualGetAttributesUnlocked(requested, out)
@@ -811,7 +825,7 @@ func (i *inMemoryPrepopulatedDirectory) VirtualLookup(ctx context.Context, name 
 			return DirectoryChild{}.FromLeaf(leaf), StatusOK
 		}
 	} else {
-		if entry, ok := contents.entriesMap[name]; ok {
+		if entry, ok := contents.entriesMap[normalizedName]; ok {
 			directory, leaf := entry.child.GetPair()
 			if directory != nil {
 				directory.virtualGetAttributesUnlocked(requested, out)
@@ -833,11 +847,12 @@ func (i *inMemoryPrepopulatedDirectory) VirtualMkdir(name path.Component, reques
 		return nil, ChangeInfo{}, s
 	}
 
-	if s := contents.virtualMayAttach(name); s != StatusOK {
+	normalizedName := i.subtree.filesystem.normalizer.Normalize(name)
+	if s := contents.virtualMayAttach(normalizedName); s != StatusOK {
 		return nil, ChangeInfo{}, s
 	}
 	changeIDBefore := contents.changeID
-	child := contents.attachNewDirectory(i.subtree, name, EmptyInitialContentsFetcher)
+	child := contents.attachNewDirectory(i.subtree, name, normalizedName, EmptyInitialContentsFetcher)
 
 	// Even though the child directory is not locked explicitly, the
 	// following is safe, as the directory has not been returned yet.
@@ -858,7 +873,8 @@ func (i *inMemoryPrepopulatedDirectory) VirtualMknod(ctx context.Context, name p
 		return nil, ChangeInfo{}, s
 	}
 
-	if s := contents.virtualMayAttach(name); s != StatusOK {
+	normalizedName := i.subtree.filesystem.normalizer.Normalize(name)
+	if s := contents.virtualMayAttach(normalizedName); s != StatusOK {
 		return nil, ChangeInfo{}, s
 	}
 	// Every FIFO or UNIX domain socket needs to have its own inode
@@ -868,7 +884,7 @@ func (i *inMemoryPrepopulatedDirectory) VirtualMknod(ctx context.Context, name p
 		New().
 		AsLinkableLeaf(NewSpecialFile(fileType, nil))
 	changeIDBefore := contents.changeID
-	contents.attach(i.subtree, name, inMemoryDirectoryChild{}.FromLeaf(child))
+	contents.attach(i.subtree, name, normalizedName, inMemoryDirectoryChild{}.FromLeaf(child))
 
 	child.VirtualGetAttributes(ctx, requested, out)
 	return child, ChangeInfo{
@@ -948,8 +964,10 @@ func (i *inMemoryPrepopulatedDirectory) VirtualRename(oldName path.Component, ne
 
 	oldChangeIDBefore := oldContents.changeID
 	newChangeIDBefore := newContents.changeID
-	if newEntry, ok := newContents.getAndLockIfDirectory(newName, &lockPile); ok {
-		oldEntry, ok := oldContents.entriesMap[oldName]
+	normalizedOldName := iOld.subtree.filesystem.normalizer.Normalize(oldName)
+	normalizedNewName := i.subtree.filesystem.normalizer.Normalize(newName)
+	if newEntry, ok := newContents.getAndLockIfDirectory(normalizedNewName, &lockPile); ok {
+		oldEntry, ok := oldContents.entriesMap[normalizedOldName]
 		if !ok {
 			return ChangeInfo{}, ChangeInfo{}, StatusErrNoEnt
 		}
@@ -981,7 +999,7 @@ func (i *inMemoryPrepopulatedDirectory) VirtualRename(oldName path.Component, ne
 				// structures.
 				newContents.detach(i.subtree, newEntry)
 				newDirectory.markDeleted()
-				newContents.attach(i.subtree, newName, oldChild)
+				newContents.attach(i.subtree, newName, normalizedNewName, oldChild)
 			}
 		} else {
 			// Renaming to a location at which a leaf
@@ -997,7 +1015,7 @@ func (i *inMemoryPrepopulatedDirectory) VirtualRename(oldName path.Component, ne
 				oldContents.detach(i.subtree, oldEntry)
 				newContents.detach(i.subtree, newEntry)
 				newLeaf.Unlink()
-				newContents.attach(i.subtree, newName, oldChild)
+				newContents.attach(i.subtree, newName, normalizedNewName, oldChild)
 			}
 		}
 	} else {
@@ -1005,7 +1023,7 @@ func (i *inMemoryPrepopulatedDirectory) VirtualRename(oldName path.Component, ne
 		if newContents.isDeleted {
 			return ChangeInfo{}, ChangeInfo{}, StatusErrNoEnt
 		}
-		oldEntry, ok := oldContents.entriesMap[oldName]
+		oldEntry, ok := oldContents.entriesMap[normalizedOldName]
 		if !ok {
 			return ChangeInfo{}, ChangeInfo{}, StatusErrNoEnt
 		}
@@ -1016,7 +1034,7 @@ func (i *inMemoryPrepopulatedDirectory) VirtualRename(oldName path.Component, ne
 			}
 		}
 		oldContents.detach(i.subtree, oldEntry)
-		newContents.attach(i.subtree, newName, oldChild)
+		newContents.attach(i.subtree, newName, normalizedNewName, oldChild)
 	}
 	return ChangeInfo{
 			Before: oldChangeIDBefore,
@@ -1037,7 +1055,8 @@ func (i *inMemoryPrepopulatedDirectory) VirtualRemove(name path.Component, remov
 		return ChangeInfo{}, s
 	}
 
-	if entry, ok := contents.getAndLockIfDirectory(name, &lockPile); ok {
+	normalizedName := i.subtree.filesystem.normalizer.Normalize(name)
+	if entry, ok := contents.getAndLockIfDirectory(normalizedName, &lockPile); ok {
 		if directory, leaf := entry.child.GetPair(); directory != nil {
 			if !removeDirectory {
 				return ChangeInfo{}, StatusErrPerm
@@ -1084,12 +1103,13 @@ func (i *inMemoryPrepopulatedDirectory) VirtualSymlink(ctx context.Context, poin
 		return nil, ChangeInfo{}, s
 	}
 
-	if s := contents.virtualMayAttach(linkName); s != StatusOK {
+	normalizedLinkName := i.subtree.filesystem.normalizer.Normalize(linkName)
+	if s := contents.virtualMayAttach(normalizedLinkName); s != StatusOK {
 		return nil, ChangeInfo{}, s
 	}
 	child := i.subtree.filesystem.symlinkFactory.LookupSymlink(pointedTo)
 	changeIDBefore := contents.changeID
-	contents.attach(i.subtree, linkName, inMemoryDirectoryChild{}.FromLeaf(child))
+	contents.attach(i.subtree, linkName, normalizedLinkName, inMemoryDirectoryChild{}.FromLeaf(child))
 
 	child.VirtualGetAttributes(ctx, requested, out)
 	return child, ChangeInfo{

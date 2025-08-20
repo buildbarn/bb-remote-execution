@@ -294,6 +294,11 @@ message VirtualBuildDirectoryConfiguration {
   //
   // Recommended value: 60s.
   google.protobuf.Duration maximum_writable_file_upload_delay = 5;
+
+  // Whether the file system should be case insensitive. Note that
+  // bazel on Windows effectively assumes that the file system is case
+  // insensitive, so make sure this is set to true when using the WinFSP.
+  bool case_insensitive = 6;
 }
 
 message RunnerConfiguration {

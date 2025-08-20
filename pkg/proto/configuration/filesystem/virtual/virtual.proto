@@ -3,6 +3,7 @@ syntax = "proto3";
 package buildbarn.configuration.filesystem.virtual;
 
 import "google/protobuf/duration.proto";
+import "google/protobuf/empty.proto";
 import "google/protobuf/wrappers.proto";
 import "pkg/proto/configuration/eviction/eviction.proto";
 import "pkg/proto/configuration/jmespath/jmespath.proto";
@@ -36,6 +37,21 @@ message MountConfiguration {
     // NFSv4.1 (RFC 8881). The use of NFSv4.1 is recommended, because it
     // provides better parallelism.
     NFSv4MountConfiguration nfsv4 = 3;
+
+    // Expose a filesystem using WinFSP. This option is only available
+    // on Windows hosts that have WinFSP installed. For example, simply
+    // do `choco install WinFSP`.
+    //
+    // When using the WinFSP VFS it is recommended to create the mount
+    // using MountManager as this avoids odd errors with some Windows
+    // programs, such as https://github.com/winfsp/winfsp/issues/573.
+    // This either requires administrator permissions, or the
+    // `MountUseMountmgrFromFSD` registry key must be set; see
+    // https://github.com/winfsp/winfsp/wiki/WinFsp-Registry-Settings.
+    // Once that's enabled, specify the mount_path as something like
+    // `\\.\\b:`. Note in jsonnet that would be '\\\\.\\b:' to account
+    // for escaping.
+    google.protobuf.Empty winfsp = 4;
   }
 }
 
