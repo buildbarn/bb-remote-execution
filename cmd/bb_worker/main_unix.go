@@ -35,3 +35,5 @@ func getInputRootCharacterDevices(names []string) (map[path.Component]filesystem
 	}
 	return inputRootCharacterDevices, nil
 }
+
+var inputRootComponents = []path.Component{path.MustNewComponent("root")}

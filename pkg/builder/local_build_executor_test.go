@@ -49,6 +49,7 @@ func TestLocalBuildExecutorInvalidActionDigest(t *testing.T) {
 		/* environmentVariables = */ map[string]string{},
 		/* forceUploadTreesAndDirectories = */ false,
 		/* supportLegacyOutputFilesAndDirectories = */ false,
+		/* inputRootComponents = */ []path.Component{path.MustNewComponent("root")},
 	)
 
 	filePool := mock.NewMockFilePool(ctrl)
@@ -99,6 +100,7 @@ func TestLocalBuildExecutorMissingAction(t *testing.T) {
 		/* environmentVariables = */ map[string]string{},
 		/* forceUploadTreesAndDirectories = */ false,
 		/* supportLegacyOutputFilesAndDirectories = */ false,
+		/* inputRootComponents = */ []path.Component{path.MustNewComponent("root")},
 	)
 
 	filePool := mock.NewMockFilePool(ctrl)
@@ -145,6 +147,7 @@ func TestLocalBuildExecutorBuildDirectoryCreatorFailedFailed(t *testing.T) {
 		/* environmentVariables = */ map[string]string{},
 		/* forceUploadTreesAndDirectories = */ false,
 		/* supportLegacyOutputFilesAndDirectories = */ false,
+		/* inputRootComponents = */ []path.Component{path.MustNewComponent("root")},
 	)
 
 	filePool := mock.NewMockFilePool(ctrl)
@@ -213,6 +216,7 @@ func TestLocalBuildExecutorInputRootPopulationFailed(t *testing.T) {
 		/* environmentVariables = */ map[string]string{},
 		/* forceUploadTreesAndDirectories = */ false,
 		/* supportLegacyOutputFilesAndDirectories = */ false,
+		/* inputRootComponents = */ []path.Component{path.MustNewComponent("root")},
 	)
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
@@ -290,6 +294,7 @@ func TestLocalBuildExecutorOutputDirectoryCreationFailure(t *testing.T) {
 		/* environmentVariables = */ map[string]string{},
 		/* forceUploadTreesAndDirectories = */ false,
 		/* supportLegacyOutputFilesAndDirectories = */ false,
+		/* inputRootComponents = */ []path.Component{path.MustNewComponent("root")},
 	)
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
@@ -360,6 +365,7 @@ func TestLocalBuildExecutorMissingCommand(t *testing.T) {
 		/* environmentVariables = */ map[string]string{},
 		/* forceUploadTreesAndDirectories = */ false,
 		/* supportLegacyOutputFilesAndDirectories = */ false,
+		/* inputRootComponents = */ []path.Component{path.MustNewComponent("root")},
 	)
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
@@ -487,6 +493,7 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 		/* environmentVariables = */ map[string]string{},
 		/* forceUploadTreesAndDirectories = */ false,
 		/* supportLegacyOutputFilesAndDirectories = */ false,
+		/* inputRootComponents = */ []path.Component{path.MustNewComponent("root")},
 	)
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
@@ -547,7 +554,10 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 	// File system operations that should occur against the input
 	// root directory. Creation of
 	// bazel-out/k8-fastbuild/bin/_objs/hello.
+	rootDirectory := mock.NewMockBuildDirectory(ctrl)
+	rootDirectory.EXPECT().Mkdir(path.MustNewComponent("sub"), os.FileMode(0o777)).Return(nil)
 	inputRootDirectory := mock.NewMockBuildDirectory(ctrl)
+	rootDirectory.EXPECT().EnterBuildDirectory(path.MustNewComponent("sub")).Return(inputRootDirectory, nil)
 	inputRootDirectory.EXPECT().Mkdir(path.MustNewComponent("bazel-out"), os.FileMode(0o777)).Return(nil)
 	bazelOutDirectory := mock.NewMockParentPopulatableDirectory(ctrl)
 	inputRootDirectory.EXPECT().EnterParentPopulatableDirectory(path.MustNewComponent("bazel-out")).Return(bazelOutDirectory, nil)
@@ -644,7 +654,7 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 	monitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
 	buildDirectory.EXPECT().InstallHooks(filePool, gomock.Any())
 	buildDirectory.EXPECT().Mkdir(path.MustNewComponent("root"), os.FileMode(0o777))
-	buildDirectory.EXPECT().EnterBuildDirectory(path.MustNewComponent("root")).Return(inputRootDirectory, nil)
+	buildDirectory.EXPECT().EnterBuildDirectory(path.MustNewComponent("root")).Return(rootDirectory, nil)
 	inputRootDirectory.EXPECT().MergeDirectoryContents(
 		ctx,
 		gomock.Any(),
@@ -684,7 +694,7 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 		WorkingDirectory:    "",
 		StdoutPath:          "0000000000000000/stdout",
 		StderrPath:          "0000000000000000/stderr",
-		InputRootDirectory:  "0000000000000000/root",
+		InputRootDirectory:  "0000000000000000/root/sub",
 		TemporaryDirectory:  "0000000000000000/tmp",
 		ServerLogsDirectory: "0000000000000000/server_logs",
 	}).Return(&runner_pb.RunResponse{
@@ -692,6 +702,7 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 		ResourceUsage: []*anypb.Any{resourceUsage},
 	}, nil)
 	inputRootDirectory.EXPECT().Close()
+	rootDirectory.EXPECT().Close()
 	serverLogsDirectory := mock.NewMockUploadableDirectory(ctrl)
 	buildDirectory.EXPECT().EnterUploadableDirectory(path.MustNewComponent("server_logs")).Return(serverLogsDirectory, nil)
 	serverLogsDirectory.EXPECT().ReadDir()
@@ -720,6 +731,7 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 		},
 		/* forceUploadTreesAndDirectories = */ false,
 		/* supportLegacyOutputFilesAndDirectories = */ false,
+		/* inputRootComponents = */ []path.Component{path.MustNewComponent("root"), path.MustNewComponent("sub")},
 	)
 
 	requestMetadata, err := anypb.New(&remoteexecution.RequestMetadata{
@@ -804,6 +816,7 @@ func TestLocalBuildExecutorCachingInvalidTimeout(t *testing.T) {
 		/* environmentVariables = */ map[string]string{},
 		/* forceUploadTreesAndDirectories = */ false,
 		/* supportLegacyOutputFilesAndDirectories = */ false,
+		/* inputRootComponents = */ []path.Component{path.MustNewComponent("root")},
 	)
 
 	// Execution should fail, as the number of nanoseconds in the
@@ -924,6 +937,7 @@ func TestLocalBuildExecutorInputRootIOFailureDuringExecution(t *testing.T) {
 		/* environmentVariables = */ map[string]string{},
 		/* forceUploadTreesAndDirectories = */ false,
 		/* supportLegacyOutputFilesAndDirectories = */ false,
+		/* inputRootComponents = */ []path.Component{path.MustNewComponent("root")},
 	)
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
@@ -1057,6 +1071,7 @@ func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 		/* environmentVariables = */ map[string]string{},
 		/* forceUploadTreesAndDirectories = */ false,
 		/* supportLegacyOutputFilesAndDirectories = */ false,
+		/* inputRootComponents = */ []path.Component{path.MustNewComponent("root")},
 	)
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
@@ -1159,6 +1174,7 @@ func TestLocalBuildExecutorCharacterDeviceNodeCreationFailed(t *testing.T) {
 		/* environmentVariables = */ map[string]string{},
 		/* forceUploadTreesAndDirectories = */ false,
 		/* supportLegacyOutputFilesAndDirectories = */ false,
+		/* inputRootComponents = */ []path.Component{path.MustNewComponent("root")},
 	)
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)

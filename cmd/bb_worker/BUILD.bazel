@@ -5,8 +5,8 @@ go_library(
     name = "bb_worker_lib",
     srcs = [
         "main.go",
-        "main_nonunix.go",
         "main_unix.go",
+        "main_windows.go",
     ],
     importpath = "github.com/buildbarn/bb-remote-execution/cmd/bb_worker",
     visibility = ["//visibility:private"],

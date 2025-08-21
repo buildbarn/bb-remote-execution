@@ -420,6 +420,7 @@ func main() {
 						runnerConfiguration.EnvironmentVariables,
 						configuration.ForceUploadTreesAndDirectories,
 						configuration.SupportLegacyOutputFilesAndDirectories,
+						inputRootComponents,
 					)
 
 					if prefetchingConfiguration != nil {

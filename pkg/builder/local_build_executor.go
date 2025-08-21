@@ -30,7 +30,6 @@ var (
 	stdoutComponent              = path.MustNewComponent("stdout")
 	stderrComponent              = path.MustNewComponent("stderr")
 	deviceDirectoryComponent     = path.MustNewComponent("dev")
-	inputRootDirectoryComponent  = path.MustNewComponent("root")
 	serverLogsDirectoryComponent = path.MustNewComponent("server_logs")
 	temporaryDirectoryComponent  = path.MustNewComponent("tmp")
 	checkReadinessComponent      = path.MustNewComponent("check_readiness")
@@ -75,11 +74,12 @@ type localBuildExecutor struct {
 	environmentVariables                   map[string]string
 	forceUploadTreesAndDirectories         bool
 	supportLegacyOutputFilesAndDirectories bool
+	inputRootComponents                    []path.Component
 }
 
 // NewLocalBuildExecutor returns a BuildExecutor that executes build
 // steps on the local system.
-func NewLocalBuildExecutor(contentAddressableStorage blobstore.BlobAccess, buildDirectoryCreator BuildDirectoryCreator, runner runner_pb.RunnerClient, clock clock.Clock, maximumWritableFileUploadDelay time.Duration, inputRootCharacterDevices map[path.Component]filesystem.DeviceNumber, maximumMessageSizeBytes int, environmentVariables map[string]string, forceUploadTreesAndDirectories, supportLegacyOutputFilesAndDirectories bool) BuildExecutor {
+func NewLocalBuildExecutor(contentAddressableStorage blobstore.BlobAccess, buildDirectoryCreator BuildDirectoryCreator, runner runner_pb.RunnerClient, clock clock.Clock, maximumWritableFileUploadDelay time.Duration, inputRootCharacterDevices map[path.Component]filesystem.DeviceNumber, maximumMessageSizeBytes int, environmentVariables map[string]string, forceUploadTreesAndDirectories, supportLegacyOutputFilesAndDirectories bool, inputRootComponents []path.Component) BuildExecutor {
 	return &localBuildExecutor{
 		contentAddressableStorage:              contentAddressableStorage,
 		buildDirectoryCreator:                  buildDirectoryCreator,
@@ -91,6 +91,7 @@ func NewLocalBuildExecutor(contentAddressableStorage blobstore.BlobAccess, build
 		environmentVariables:                   environmentVariables,
 		forceUploadTreesAndDirectories:         forceUploadTreesAndDirectories,
 		supportLegacyOutputFilesAndDirectories: supportLegacyOutputFilesAndDirectories,
+		inputRootComponents:                    inputRootComponents,
 	}
 }
 
@@ -186,20 +187,25 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool pool.FilePoo
 	}
 
 	// Create input root directory inside of build directory.
-	if err := buildDirectory.Mkdir(inputRootDirectoryComponent, 0o777); err != nil {
-		attachErrorToExecuteResponse(
-			response,
-			util.StatusWrap(err, "Failed to create input root directory"))
-		return response
+	inputRootDirectory := buildDirectory
+	inputRootDirectoryPath := buildDirectoryPath
+	for _, component := range be.inputRootComponents {
+		if err := inputRootDirectory.Mkdir(component, 0o777); err != nil {
+			attachErrorToExecuteResponse(
+				response,
+				util.StatusWrap(err, "Failed to create input root directory"))
+			return response
+		}
+		inputRootDirectory, err = inputRootDirectory.EnterBuildDirectory(component)
+		if err != nil {
+			attachErrorToExecuteResponse(
+				response,
+				util.StatusWrap(err, "Failed to enter main root directory"))
+			return response
+		}
+		defer inputRootDirectory.Close()
+		inputRootDirectoryPath = inputRootDirectoryPath.Append(component)
 	}
-	inputRootDirectory, err := buildDirectory.EnterBuildDirectory(inputRootDirectoryComponent)
-	if err != nil {
-		attachErrorToExecuteResponse(
-			response,
-			util.StatusWrap(err, "Failed to enter input root directory"))
-		return response
-	}
-	defer inputRootDirectory.Close()
 
 	inputRootDigest, err := digestFunction.NewDigestFromProto(action.InputRootDigest)
 	if err != nil {
@@ -285,7 +291,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool pool.FilePoo
 		WorkingDirectory:     command.WorkingDirectory,
 		StdoutPath:           buildDirectoryPath.Append(stdoutComponent).GetUNIXString(),
 		StderrPath:           buildDirectoryPath.Append(stderrComponent).GetUNIXString(),
-		InputRootDirectory:   buildDirectoryPath.Append(inputRootDirectoryComponent).GetUNIXString(),
+		InputRootDirectory:   inputRootDirectoryPath.GetUNIXString(),
 		TemporaryDirectory:   buildDirectoryPath.Append(temporaryDirectoryComponent).GetUNIXString(),
 		ServerLogsDirectory:  buildDirectoryPath.Append(serverLogsDirectoryComponent).GetUNIXString(),
 	})
