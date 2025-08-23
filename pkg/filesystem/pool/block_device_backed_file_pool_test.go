@@ -3,6 +3,7 @@ package pool_test
 import (
 	"io"
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
@@ -26,7 +27,7 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 
 	t.Run("ReadEmptyFile", func(t *testing.T) {
 		// Test that reads on an empty file work as expected.
-		f, err := pool.NewFile()
+		f, err := pool.NewFile(nil, 0)
 		require.NoError(t, err)
 
 		var p [10]byte
@@ -54,7 +55,7 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 	})
 
 	t.Run("Truncate", func(t *testing.T) {
-		f, err := pool.NewFile()
+		f, err := pool.NewFile(nil, 0)
 		require.NoError(t, err)
 
 		// Invalid size.
@@ -102,7 +103,7 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 	})
 
 	t.Run("WritesAndReadOnSingleSector", func(t *testing.T) {
-		f, err := pool.NewFile()
+		f, err := pool.NewFile(nil, 0)
 		require.NoError(t, err)
 
 		// The initial write to a sector should cause the full
@@ -139,7 +140,7 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 	})
 
 	t.Run("WriteFragmentation", func(t *testing.T) {
-		f, err := pool.NewFile()
+		f, err := pool.NewFile(nil, 0)
 		require.NoError(t, err)
 
 		// Simulate the case where 137 bytes of data needs to be
@@ -172,7 +173,7 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 	})
 
 	t.Run("WriteSectorAllocatorFailure", func(t *testing.T) {
-		f, err := pool.NewFile()
+		f, err := pool.NewFile(nil, 0)
 		require.NoError(t, err)
 
 		// Failure to allocate sectors should cause the write to
@@ -192,7 +193,7 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 	})
 
 	t.Run("WriteIOFailure", func(t *testing.T) {
-		f, err := pool.NewFile()
+		f, err := pool.NewFile(nil, 0)
 		require.NoError(t, err)
 
 		// Write failures to freshly allocator sectors should
@@ -215,7 +216,7 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 
 	t.Run("GetNextRegionOffset", func(t *testing.T) {
 		// Test the behavior on empty files.
-		f, err := pool.NewFile()
+		f, err := pool.NewFile(nil, 0)
 		require.NoError(t, err)
 
 		_, err = f.GetNextRegionOffset(-1, filesystem.Data)
@@ -313,10 +314,172 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 	})
 
 	t.Run("WriteAt", func(t *testing.T) {
-		f, err := pool.NewFile()
+		f, err := pool.NewFile(nil, 0)
 		require.NoError(t, err)
 
 		_, err = f.WriteAt([]byte{0}, -1)
 		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Negative write offset: -1"), err)
+	})
+}
+
+func TestFilePoolWithSparseUnderlyingFile(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	blockDevice := mock.NewMockBlockDevice(ctrl)
+	sectorAllocator := mock.NewMockSectorAllocator(ctrl)
+	filepool := pool.NewBlockDeviceBackedFilePool(blockDevice, sectorAllocator, 16)
+
+	t.Run("ReadFromHoleReturnsBackingData", func(t *testing.T) {
+		sparseReaderAt, err := pool.NewSimpleSparseReaderAt(strings.NewReader("HelloWorld"), nil, 10)
+		require.NoError(t, err)
+		file, err := filepool.NewFile(sparseReaderAt, 10)
+		require.NoError(t, err)
+
+		buf := make([]byte, 10)
+		n, err := file.ReadAt(buf, 0)
+		require.Equal(t, err, io.EOF)
+		require.Equal(t, 10, n)
+		require.Equal(t, []byte("HelloWorld"), buf)
+
+		require.NoError(t, file.Close())
+	})
+
+	t.Run("CannotReadFromHoleBeyondBacking", func(t *testing.T) {
+		sparseReaderAt, err := pool.NewSimpleSparseReaderAt(strings.NewReader("abc"), nil, 3)
+		require.NoError(t, err)
+		file, err := filepool.NewFile(sparseReaderAt, 3)
+		require.NoError(t, err)
+
+		buf := make([]byte, 6)
+		n, err := file.ReadAt(buf, 0)
+		require.Equal(t, err, io.EOF)
+		require.Equal(t, 3, n)
+		require.Equal(t, []byte("abc\x00\x00\x00"), buf)
+
+		require.NoError(t, file.Close())
+	})
+
+	t.Run("TruncatePropagatesToBackingLayer", func(t *testing.T) {
+		sparseReaderAt, err := pool.NewSimpleSparseReaderAt(strings.NewReader("abcdefhij"), nil, 10)
+		require.NoError(t, err)
+		file, err := filepool.NewFile(sparseReaderAt, 10)
+		require.NoError(t, err)
+
+		require.NoError(t, file.Truncate(4))
+		buf := make([]byte, 6)
+		n, err := file.ReadAt(buf, 0)
+		require.Equal(t, 4, n)
+		require.Equal(t, io.EOF, err)
+		require.Equal(t, []byte("abcd\x00\x00"), buf)
+
+		require.NoError(t, file.Close())
+	})
+
+	t.Run("TruncateHasNoGhosting", func(t *testing.T) {
+		sparseReaderAt, err := pool.NewSimpleSparseReaderAt(strings.NewReader("abcdefhij"), nil, 10)
+		require.NoError(t, err)
+		file, err := filepool.NewFile(sparseReaderAt, 10)
+		require.NoError(t, err)
+		// shrunk to 4 bytes
+		require.NoError(t, file.Truncate(4))
+		buf := make([]byte, 6)
+		n, err := file.ReadAt(buf, 0)
+		require.Equal(t, 4, n)
+		require.Equal(t, io.EOF, err)
+		require.Equal(t, []byte("abcd\x00\x00"), buf)
+		// grow to 10 bytes
+		require.NoError(t, file.Truncate(10))
+		n, err = file.ReadAt(buf, 0)
+		require.Equal(t, 6, n)
+		require.NoError(t, err)
+		require.Equal(t, []byte("abcd\x00\x00"), buf)
+
+		require.NoError(t, file.Close())
+	})
+
+	t.Run("WriteOverridesBackingLayer", func(t *testing.T) {
+		// Use 4 byte sectors for clarity.
+		filepool := pool.NewBlockDeviceBackedFilePool(blockDevice, sectorAllocator, 4)
+		// Each letter covers a full sector.
+		sparseReaderAt, err := pool.NewSimpleSparseReaderAt(strings.NewReader("AAAABBBBCCCC"), nil, 12)
+		file, err := filepool.NewFile(sparseReaderAt, 12)
+		require.NoError(t, err)
+
+		// Write ZZZ at offset 2, this spans the first two sectors which
+		// requires us to bring them into our sparse file. We will allocate
+		// sector 10 and 11 of our block device for this (address 36 and 40).
+		sectorAllocator.EXPECT().AllocateContiguous(2).Return(uint32(10), 2, nil)
+		blockDevice.EXPECT().WriteAt([]byte("AAZZ"), int64(36)).Return(4, nil)
+		blockDevice.EXPECT().WriteAt([]byte("ZBBB"), int64(40)).Return(4, nil)
+		n, err := file.WriteAt([]byte("ZZZ"), 2)
+		require.NoError(t, err)
+		require.Equal(t, 3, n)
+
+		// This data would then be expected to be read back to us.
+		blockDevice.EXPECT().ReadAt(gomock.Len(8), int64(36)).DoAndReturn(
+			func(p []byte, offset int64) (int, error) {
+				copy(p, []byte("AAZZZBBB"))
+				return 8, nil
+			},
+		)
+
+		buf := make([]byte, 12)
+		n, err = file.ReadAt(buf, 0)
+		require.Equal(t, io.EOF, err)
+		require.Equal(t, 12, n)
+		require.Equal(t, []byte("AAZZZBBBCCCC"), buf)
+
+		sectorAllocator.EXPECT().FreeList([]uint32{10, 11})
+		require.NoError(t, file.Close())
+	})
+
+	t.Run("EffectivelyDense", func(t *testing.T) {
+		// Use 2 byte sectors.
+		filepool := pool.NewBlockDeviceBackedFilePool(blockDevice, sectorAllocator, 2)
+		// Use the sparse string 'xxBBxxDD' for the underlying.
+		sparseReader, err := pool.NewSimpleSparseReaderAt(strings.NewReader("\x00\x00BB\x00\x00DD"), []pool.Range{{Off: 0, Len: 2}, {Off: 4, Len: 2}}, 8)
+		require.NoError(t, err)
+		file, err := filepool.NewFile(sparseReader, 8)
+		require.NoError(t, err)
+
+		// Write exactly AA and DD to the overlay.
+		sectorAllocator.EXPECT().AllocateContiguous(1).Return(uint32(10), 1, nil)
+		sectorAllocator.EXPECT().AllocateContiguous(1).Return(uint32(11), 1, nil)
+		blockDevice.EXPECT().WriteAt([]byte("AA"), int64(18)).Return(2, nil)
+		blockDevice.EXPECT().WriteAt([]byte("CC"), int64(20)).Return(2, nil)
+		n, err := file.WriteAt([]byte("AA"), 0)
+		require.NoError(t, err)
+		require.Equal(t, n, 2)
+		n, err = file.WriteAt([]byte("CC"), 4)
+		require.NoError(t, err)
+		require.Equal(t, n, 2)
+
+		// Read it back.
+		blockDevice.EXPECT().ReadAt(gomock.Len(2), int64(18)).DoAndReturn(
+			func(p []byte, offset int64) (int, error) {
+				copy(p, []byte("AA"))
+				return 2, nil
+			},
+		)
+		blockDevice.EXPECT().ReadAt(gomock.Len(2), int64(20)).DoAndReturn(
+			func(p []byte, offset int64) (int, error) {
+				copy(p, []byte("CC"))
+				return 2, nil
+			},
+		)
+
+		buf := make([]byte, 8)
+		n, err = file.ReadAt(buf, 0)
+		require.Equal(t, 8, n)
+		require.Equal(t, []byte("AABBCCDD"), buf)
+
+		// Verify sparsity
+		for i := int64(0); i < 8; i++ {
+			o, err := file.GetNextRegionOffset(i, filesystem.Data)
+			require.NoError(t, err)
+			require.Equal(t, i, o)
+			o, err = file.GetNextRegionOffset(i, filesystem.Hole)
+			require.NoError(t, err)
+			require.Equal(t, int64(8), o)
+		}
 	})
 }
