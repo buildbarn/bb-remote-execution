@@ -167,8 +167,6 @@ func (m *nfsv4Mount) mount(terminationGroup program.Group, rpcServer *rpcserver.
 	attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_NFS_MINOR_VERSION
 	if msg := osConfiguration.MinorVersion; msg != nil {
 		nfs_sys_prot.WriteNfsMattrNfsMinorVersion(&attrVals, msg.Value)
-	} else if buildVersion.greaterEqual(25, 'A', 117) {
-		nfs_sys_prot.WriteNfsMattrNfsMinorVersion(&attrVals, 1)
 	} else {
 		nfs_sys_prot.WriteNfsMattrNfsMinorVersion(&attrVals, 0)
 	}
