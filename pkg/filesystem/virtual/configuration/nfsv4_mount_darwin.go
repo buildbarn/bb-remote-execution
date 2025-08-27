@@ -179,18 +179,7 @@ func (m *nfsv4Mount) mount(terminationGroup program.Group, rpcServer *rpcserver.
 	attrMask[0] |= (1 << nfs_sys_prot.NFS_MATTR_ATTRCACHE_REG_MIN) | (1 << nfs_sys_prot.NFS_MATTR_ATTRCACHE_REG_MAX)
 	writeAttributeCachingDuration(&m.leavesAttributeCaching, &attrVals)
 	attrMask[0] |= (1 << nfs_sys_prot.NFS_MATTR_ATTRCACHE_DIR_MIN) | (1 << nfs_sys_prot.NFS_MATTR_ATTRCACHE_DIR_MAX)
-	supportsRootDirectoryAttributeCachingTimeouts := buildVersion.greaterEqual(23, 'E', 86)
-	if supportsRootDirectoryAttributeCachingTimeouts {
-		writeAttributeCachingDuration(&m.childDirectoriesAttributeCaching, &attrVals)
-	} else {
-		// This version of macOS does not support the
-		// 'acrootdirmin' and 'acrootdirmax' mount options. The
-		// 'acdirmin' and 'acdirmax' option controls the
-		// attribute caching duration for all directories in the
-		// file system.
-		directoriesAttributeCaching := m.rootDirectoryAttributeCaching.Min(m.childDirectoriesAttributeCaching)
-		writeAttributeCachingDuration(&directoriesAttributeCaching, &attrVals)
-	}
+	writeAttributeCachingDuration(&m.childDirectoriesAttributeCaching, &attrVals)
 
 	// "ticotsord" is the X/Open Transport Interface (XTI)
 	// equivalent of AF_LOCAL with SOCK_STREAM.
@@ -216,10 +205,8 @@ func (m *nfsv4Mount) mount(terminationGroup program.Group, rpcServer *rpcserver.
 		nfs_sys_prot.NFS_READLINK_CACHE_MODE_FULLY_UNCACHED.WriteTo(&attrVals)
 	}
 
-	if supportsRootDirectoryAttributeCachingTimeouts {
-		attrMask[1] |= (1 << (nfs_sys_prot.NFS_MATTR_ATTRCACHE_ROOTDIR_MIN - 32)) | (1 << (nfs_sys_prot.NFS_MATTR_ATTRCACHE_ROOTDIR_MAX - 32))
-		writeAttributeCachingDuration(&m.rootDirectoryAttributeCaching, &attrVals)
-	}
+	attrMask[1] |= (1 << (nfs_sys_prot.NFS_MATTR_ATTRCACHE_ROOTDIR_MIN - 32)) | (1 << (nfs_sys_prot.NFS_MATTR_ATTRCACHE_ROOTDIR_MAX - 32))
+	writeAttributeCachingDuration(&m.rootDirectoryAttributeCaching, &attrVals)
 
 	if osConfiguration.AccessCacheSize > 0 && buildVersion.greaterEqual(24, 'A', 123) {
 		attrMask[1] |= 1 << (nfs_sys_prot.NFS_MATTR_ACCESS_CACHE - 32)

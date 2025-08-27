@@ -25,8 +25,8 @@ message MountConfiguration {
 
     // Run an in-process NFSv4 server and use the kernel's NFSv4 client
     // to expose the mount. This option is supported on macOS starting
-    // with Ventura 13.3 (22E252), though the use of Sonoma 14.5
-    // (23F79) or later is strongly recommended.
+    // with Sonoma 14.4 (23E214), though the use of Sonoma 14.5 (23F79)
+    // or later is strongly recommended.
     //
     // This option also works on Linux, but support was only added for
     // protocol conformance validation purposes. On Linux, the use of
