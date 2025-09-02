@@ -443,6 +443,8 @@ type RunnerConfiguration struct {
 	CostsPerSecond                               map[string]*resourceusage.MonetaryResourceUsage_Expense `protobuf:"bytes,10,rep,name=costs_per_second,json=costsPerSecond,proto3" json:"costs_per_second,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	EnvironmentVariables                         map[string]string                                       `protobuf:"bytes,11,rep,name=environment_variables,json=environmentVariables,proto3" json:"environment_variables,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	MaximumConsecutiveTestInfrastructureFailures uint32                                                  `protobuf:"varint,14,opt,name=maximum_consecutive_test_infrastructure_failures,json=maximumConsecutiveTestInfrastructureFailures,proto3" json:"maximum_consecutive_test_infrastructure_failures,omitempty"`
+	BuildDirectoryOwnerUserId                    uint32                                                  `protobuf:"varint,15,opt,name=build_directory_owner_user_id,json=buildDirectoryOwnerUserId,proto3" json:"build_directory_owner_user_id,omitempty"`
+	BuildDirectoryOwnerGroupId                   uint32                                                  `protobuf:"varint,16,opt,name=build_directory_owner_group_id,json=buildDirectoryOwnerGroupId,proto3" json:"build_directory_owner_group_id,omitempty"`
 	unknownFields                                protoimpl.UnknownFields
 	sizeCache                                    protoimpl.SizeCache
 }
@@ -557,6 +559,20 @@ func (x *RunnerConfiguration) GetEnvironmentVariables() map[string]string {
 func (x *RunnerConfiguration) GetMaximumConsecutiveTestInfrastructureFailures() uint32 {
 	if x != nil {
 		return x.MaximumConsecutiveTestInfrastructureFailures
+	}
+	return 0
+}
+
+func (x *RunnerConfiguration) GetBuildDirectoryOwnerUserId() uint32 {
+	if x != nil {
+		return x.BuildDirectoryOwnerUserId
+	}
+	return 0
+}
+
+func (x *RunnerConfiguration) GetBuildDirectoryOwnerGroupId() uint32 {
+	if x != nil {
+		return x.BuildDirectoryOwnerGroupId
 	}
 	return 0
 }
@@ -720,7 +736,8 @@ const file_pkg_proto_configuration_bb_worker_bb_worker_proto_rawDesc = "" +
 	"\x1ashuffle_directory_listings\x18\x03 \x01(\bR\x18shuffleDirectoryListings\x120\n" +
 	"\x14hidden_files_pattern\x18\x04 \x01(\tR\x12hiddenFilesPattern\x12e\n" +
 	"\"maximum_writable_file_upload_delay\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\x1emaximumWritableFileUploadDelay\x12)\n" +
-	"\x10case_insensitive\x18\x06 \x01(\bR\x0fcaseInsensitive\"\xbe\t\n" +
+	"\x10case_insensitive\x18\x06 \x01(\bR\x0fcaseInsensitive\"\xc4\n" +
+	"\n" +
 	"\x13RunnerConfiguration\x12M\n" +
 	"\bendpoint\x18\x01 \x01(\v21.buildbarn.configuration.grpc.ClientConfigurationR\bendpoint\x12 \n" +
 	"\vconcurrency\x18\x02 \x01(\x04R\vconcurrency\x120\n" +
@@ -735,7 +752,9 @@ const file_pkg_proto_configuration_bb_worker_bb_worker_proto_rawDesc = "" +
 	"\x10costs_per_second\x18\n" +
 	" \x03(\v2J.buildbarn.configuration.bb_worker.RunnerConfiguration.CostsPerSecondEntryR\x0ecostsPerSecond\x12\x85\x01\n" +
 	"\x15environment_variables\x18\v \x03(\v2P.buildbarn.configuration.bb_worker.RunnerConfiguration.EnvironmentVariablesEntryR\x14environmentVariables\x12f\n" +
-	"0maximum_consecutive_test_infrastructure_failures\x18\x0e \x01(\rR,maximumConsecutiveTestInfrastructureFailures\x1a;\n" +
+	"0maximum_consecutive_test_infrastructure_failures\x18\x0e \x01(\rR,maximumConsecutiveTestInfrastructureFailures\x12@\n" +
+	"\x1dbuild_directory_owner_user_id\x18\x0f \x01(\rR\x19buildDirectoryOwnerUserId\x12B\n" +
+	"\x1ebuild_directory_owner_group_id\x18\x10 \x01(\rR\x1abuildDirectoryOwnerGroupId\x1a;\n" +
 	"\rWorkerIdEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1ay\n" +
