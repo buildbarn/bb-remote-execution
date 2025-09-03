@@ -372,7 +372,9 @@ func main() {
 								suspendableClock),
 							symlinkFactory,
 							characterDeviceFactory,
-							handleAllocator)
+							handleAllocator,
+							runnerConfiguration.BuildDirectoryOwnerUserId,
+							runnerConfiguration.BuildDirectoryOwnerGroupId)
 					} else {
 						executionTimeoutClock = clock.SystemClock
 						buildDirectory = builder.NewNaiveBuildDirectory(
