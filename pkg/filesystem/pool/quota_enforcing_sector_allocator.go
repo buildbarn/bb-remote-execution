@@ -7,17 +7,19 @@ import (
 
 type quotaEnforcingSectorAllocator struct {
 	base             SectorAllocator
-	sectorsRemaining *quotaMetric
+	sectorsRemaining quotaMetric
 }
 
 // NewQuotaEnforcingSectorAllocator creates a SectorAllocator that
 // enforces disk quotas. It limits how many sectors may be allocated
 // from an underlying SectorAllocator.
 func NewQuotaEnforcingSectorAllocator(base SectorAllocator, maximumSectors int64) SectorAllocator {
-	return &quotaEnforcingSectorAllocator{
+	sa := &quotaEnforcingSectorAllocator{
 		base:             base,
-		sectorsRemaining: newQuotaMetric(maximumSectors),
+		sectorsRemaining: quotaMetric{},
 	}
+	sa.sectorsRemaining.init(maximumSectors)
+	return sa
 }
 
 func (a *quotaEnforcingSectorAllocator) AllocateContiguous(maximum int) (uint32, int, error) {

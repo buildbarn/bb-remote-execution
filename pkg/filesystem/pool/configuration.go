@@ -14,16 +14,17 @@ import (
 // FilePoolFactory allows constructions of configured file pools with
 // their own SectorAllocators. This is required to manage quotas for
 // different file pools.
-type FilePoolFactory interface {
-	NewFilePool(allocator SectorAllocator) FilePool
-}
-
-type filePoolFactory struct {
+type FilePoolFactory struct {
 	blockDevice     blockdevice.BlockDevice
 	sectorSizeBytes int
 }
 
-func (f *filePoolFactory) NewFilePool(allocator SectorAllocator) FilePool {
+// NewFilePool creates the file pool for the BlockDevice managed by
+// FilePoolFactory. To allow different quotas at the SectorAllocator
+// level for the different FilePools the function takes an allocator
+// that will ultimately allocate from the same block device as other
+// FilePools created by this FilePoolFactory.
+func (f FilePoolFactory) NewFilePool(allocator SectorAllocator) FilePool {
 	return NewBlockDeviceBackedFilePool(f.blockDevice, allocator, f.sectorSizeBytes)
 }
 
@@ -39,7 +40,7 @@ func NewFilePoolFactoryFromConfiguration(configuration *pb.FilePoolConfiguration
 		// No configuration provided. Because there are setups
 		// in which it's not required to use a file pool, let's
 		// return a nil factory by default.
-		return nil, nil, 0, nil
+		return FilePoolFactory{}, nil, 0, nil
 	}
 
 	var allocator SectorAllocator
@@ -52,18 +53,18 @@ func NewFilePoolFactoryFromConfiguration(configuration *pb.FilePoolConfiguration
 		var err error
 		blockDevice, sectorSizeBytes, sectorCount, err = blockdevice.NewBlockDeviceFromConfiguration(backend.BlockDevice, true)
 		if err != nil {
-			return nil, nil, 0, util.StatusWrap(err, "Failed to create block device")
+			return FilePoolFactory{}, nil, 0, util.StatusWrap(err, "Failed to create block device")
 		}
 		if sectorCount > math.MaxUint32 {
-			return nil, nil, 0, util.StatusWrapf(err, "Block device has %d sectors, while only %d may be addressed", sectorCount, uint32(math.MaxUint32))
+			return FilePoolFactory{}, nil, 0, util.StatusWrapf(err, "Block device has %d sectors, while only %d may be addressed", sectorCount, uint32(math.MaxUint32))
 		}
 		allocator = NewBitmapSectorAllocator(uint32(sectorCount))
-		factory = &filePoolFactory{
+		factory = FilePoolFactory{
 			blockDevice:     blockDevice,
 			sectorSizeBytes: sectorSizeBytes,
 		}
 	default:
-		return nil, nil, 0, status.Error(codes.InvalidArgument, "Configuration did not contain a supported file pool backend")
+		return FilePoolFactory{}, nil, 0, status.Error(codes.InvalidArgument, "Configuration did not contain a supported file pool backend")
 	}
 	return factory, allocator, sectorSizeBytes, nil
 }

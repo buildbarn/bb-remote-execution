@@ -13,7 +13,7 @@ go_library(
         "quota_enforcing_sector_allocator.go",
         "quota_metric.go",
         "sector_allocator.go",
-        "sector_pointer.go",
+        "sector_map.go",
     ],
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool",
     visibility = ["//visibility:public"],
@@ -36,7 +36,7 @@ go_test(
         "empty_file_pool_test.go",
         "quota_enforcing_file_pool_test.go",
         "quota_enforcing_sector_allocator_test.go",
-        "sector_pointer_test.go",
+        "sector_map_test.go",
     ],
     deps = [
         ":pool",

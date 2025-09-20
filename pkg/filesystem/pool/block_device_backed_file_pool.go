@@ -35,21 +35,20 @@ func NewBlockDeviceBackedFilePool(blockDevice blockdevice.BlockDevice, sectorAll
 
 func (fp *blockDeviceBackedFilePool) NewFile() (filesystem.FileReadWriter, error) {
 	return &blockDeviceBackedFile{
-		fp:           fp,
-		sectorMapper: NewSectorPointer(),
+		fp: fp,
+		sm: SectorMap{},
 	}, nil
 }
 
 type blockDeviceBackedFile struct {
-	fp           *blockDeviceBackedFilePool
-	sizeBytes    uint64
-	sectorMapper *SectorPointer
+	fp        *blockDeviceBackedFilePool
+	sizeBytes uint64
+	sm        SectorMap
 }
 
 func (f *blockDeviceBackedFile) Close() error {
-	f.sectorMapper.FreeSectors(0, f.fp.sectorAllocator.FreeList)
+	f.sm.FreeSectors(0, f.fp.sectorAllocator.FreeList)
 	f.fp = nil
-	f.sectorMapper = nil
 	return nil
 }
 
@@ -64,9 +63,6 @@ func (f *blockDeviceBackedFile) toDeviceOffset(sector uint32, offsetWithinSector
 func (f *blockDeviceBackedFile) getInitialSectorIndex(off int64, n int) (uint32, uint32, int) {
 	firstSectorIndex := uint32(off / int64(f.fp.sectorSizeBytes))
 	endSectorIndex := uint32((uint64(off) + uint64(n) + uint64(f.fp.sectorSizeBytes) - 1) / uint64(f.fp.sectorSizeBytes))
-	if endSectorIndex > f.sectorMapper.GetLogicalSize() {
-		endSectorIndex = f.sectorMapper.GetLogicalSize()
-	}
 	offsetWithinSector := int(off % int64(f.fp.sectorSizeBytes))
 	return firstSectorIndex, endSectorIndex - 1, offsetWithinSector
 }
@@ -85,15 +81,15 @@ func (f *blockDeviceBackedFile) incrementSectorIndex(sectorIndex *uint32, offset
 // on-disk sector number. It also computes how many sectors are stored
 // contiguously starting at this point.
 func (f *blockDeviceBackedFile) getSectorsContiguous(firstSectorIndex, lastSectorIndex uint32) (uint32, int) {
-	firstSector := f.sectorMapper.GetPhysicalIndex(firstSectorIndex)
+	firstSector := f.sm.GetPhysicalIndex(firstSectorIndex)
 	nContiguous := 0
 	if firstSector == 0 {
 		// A hole in a sparse file. Determine the size of the hole.
-		nextMapped, err := f.sectorMapper.GetNextMappedSector(firstSectorIndex)
+		nextMapped, err := f.sm.GetNextMappedSector(firstSectorIndex)
 		if err == io.EOF {
 			nextMapped = lastSectorIndex + 1
 		} else if err != nil {
-			panic(fmt.Errorf("unexpected error from SectorPointer.GetNextMappedSector: %w"))
+			panic(fmt.Errorf("unexpected error from SectorMap.GetNextMappedSector: %w"))
 		}
 		nextMapped = min(nextMapped, lastSectorIndex+1)
 		nContiguous = int(nextMapped - firstSectorIndex)
@@ -102,7 +98,7 @@ func (f *blockDeviceBackedFile) getSectorsContiguous(firstSectorIndex, lastSecto
 		// many sectors are contiguous.
 		n := lastSectorIndex - firstSectorIndex + 1
 		for i := uint32(0); i < n; i++ {
-			if f.sectorMapper.GetPhysicalIndex(i+firstSectorIndex) != firstSector+i {
+			if f.sm.GetPhysicalIndex(i+firstSectorIndex) != firstSector+i {
 				break
 			}
 			nContiguous = int(i + 1)
@@ -134,27 +130,26 @@ func (f *blockDeviceBackedFile) GetNextRegionOffset(off int64, regionType filesy
 	sectorIndex := uint32(off / sectorSizeBytes)
 	switch regionType {
 	case filesystem.Data:
-		if sectorIndex >= f.sectorMapper.GetLogicalSize() {
-			// Inside the hole at the end of the file.
-			return 0, io.EOF
-		}
-		if f.sectorMapper.GetPhysicalIndex(sectorIndex) != 0 {
+		if f.sm.GetPhysicalIndex(sectorIndex) != 0 {
 			// Already inside a sector containing data.
 			return off, nil
 		}
 		// Find the next sector containing data.
-		index, err := f.sectorMapper.GetNextMappedSector(uint32(sectorIndex))
-		if err != nil {
+		index, err := f.sm.GetNextMappedSector(uint32(sectorIndex))
+		if err == io.EOF {
+			// No more mapped sectors.
+			return 0, io.EOF
+		} else if err != nil {
 			return 0, status.Errorf(codes.Internal, "Failed to get next mapped sector: %v", err)
 		}
 		return int64(index) * sectorSizeBytes, nil
 	case filesystem.Hole:
-		if f.sectorMapper.GetPhysicalIndex(uint32(sectorIndex)) == 0 {
+		if f.sm.GetPhysicalIndex(uint32(sectorIndex)) == 0 {
 			// Already inside a hole.
 			return off, nil
 		}
 		// Find the next sector containing a hole.
-		index, err := f.sectorMapper.GetNextUnmappedSector(uint32(sectorIndex))
+		index, err := f.sm.GetNextUnmappedSector(uint32(sectorIndex))
 		if err == io.EOF {
 			// This can happen if the last logical possible
 			// sector index is mapped.
@@ -172,16 +167,6 @@ func (f *blockDeviceBackedFile) GetNextRegionOffset(off int64, regionType filesy
 // in a single read operation. If the file is fragmented, multiple reads
 // are necessary, requiring this function to be called repeatedly.
 func (f *blockDeviceBackedFile) readFromSectors(p []byte, sectorIndex, lastSectorIndex uint32, offsetWithinSector int) (int, error) {
-	if uint32(sectorIndex) >= f.sectorMapper.GetLogicalSize() {
-		// Attempted to read from a hole located at the
-		// end of the file. Fill up all of the remaining
-		// space with zero bytes.
-		for i := 0; i < len(p); i++ {
-			p[i] = 0
-		}
-		return len(p), nil
-	}
-
 	sector, sectorsToRead := f.getSectorsContiguous(sectorIndex, lastSectorIndex)
 	p = f.limitBufferToSectorBoundary(p, sectorsToRead, offsetWithinSector)
 	if sector == 0 {
@@ -246,8 +231,8 @@ func (f *blockDeviceBackedFile) ReadAt(p []byte, off int64) (int, error) {
 
 // truncateSectors truncates a file to a given number of sectors.
 func (f *blockDeviceBackedFile) truncateSectors(sectorCount uint32) {
-	f.sectorMapper.FreeSectors(sectorCount, f.fp.sectorAllocator.FreeList)
-	f.sectorMapper.Truncate(sectorCount)
+	f.sm.FreeSectors(sectorCount, f.fp.sectorAllocator.FreeList)
+	f.sm.Truncate(sectorCount)
 }
 
 func (f *blockDeviceBackedFile) Sync() error {
@@ -272,7 +257,7 @@ func (f *blockDeviceBackedFile) Truncate(size int64) error {
 		f.truncateSectors(sectorIndex)
 	} else {
 		// Truncating to partially into a sector.
-		sector := f.sectorMapper.GetPhysicalIndex(sectorIndex)
+		sector := f.sm.GetPhysicalIndex(sectorIndex)
 		if uint64(size) < f.sizeBytes && sector != 0 {
 			// The file is being shrunk and the new last
 			// sector is not a hole. Zero the trailing part
@@ -355,21 +340,6 @@ func (f *blockDeviceBackedFile) writeToNewSectors(p []byte, offsetWithinSector i
 // writes are necessary, requiring this function to be called
 // repeatedly.
 func (f *blockDeviceBackedFile) writeToSectors(p []byte, sectorIndex, lastSectorIndex uint32, offsetWithinSector int) (int, error) {
-	if sectorIndex >= f.sectorMapper.GetLogicalSize() {
-		// Attempted to write past the end-of-file or within a
-		// hole located at the end of a sparse file. Allocate
-		// space and grow the file.
-		bytesWritten, firstSector, sectorsAllocated, err := f.writeToNewSectors(p, offsetWithinSector)
-		if err != nil {
-			return 0, err
-		}
-		err = f.sectorMapper.InsertSectorsContiguous(sectorIndex, firstSector, uint32(sectorsAllocated))
-		if err != nil {
-			panic(fmt.Sprintf("The logic making sure we're not overwriting sectors is broken: %v", err))
-		}
-		return bytesWritten, nil
-	}
-
 	sector, sectorsToWrite := f.getSectorsContiguous(sectorIndex, lastSectorIndex)
 	p = f.limitBufferToSectorBoundary(p, sectorsToWrite, offsetWithinSector)
 	if sector == 0 {
@@ -379,7 +349,7 @@ func (f *blockDeviceBackedFile) writeToSectors(p []byte, sectorIndex, lastSector
 		if err != nil {
 			return 0, err
 		}
-		err = f.sectorMapper.InsertSectorsContiguous(sectorIndex, firstSector, uint32(sectorsAllocated))
+		err = f.sm.InsertSectorsContiguous(sectorIndex, firstSector, uint32(sectorsAllocated))
 		if err != nil {
 			panic(fmt.Sprintf("The logic making sure we're not overwriting sectors is broken: %v", err))
 		}

@@ -9,14 +9,6 @@ type quotaMetric struct {
 	remaining atomic.Int64
 }
 
-func newQuotaMetric(limit int64) *quotaMetric {
-	m := &quotaMetric{
-		remaining: atomic.Int64{},
-	}
-	m.remaining.Store(limit)
-	return m
-}
-
 func (m *quotaMetric) allocate(v int64) bool {
 	for {
 		remaining := m.remaining.Load()
@@ -31,4 +23,9 @@ func (m *quotaMetric) allocate(v int64) bool {
 
 func (m *quotaMetric) release(v int64) {
 	m.remaining.Add(v)
+}
+
+func (m *quotaMetric) init(v int64) {
+	m.remaining = atomic.Int64{}
+	m.remaining.Store(v)
 }

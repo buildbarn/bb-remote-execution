@@ -10,7 +10,7 @@ import (
 type quotaEnforcingFilePool struct {
 	base FilePool
 
-	filesRemaining *quotaMetric
+	filesRemaining quotaMetric
 }
 
 // NewQuotaEnforcingFilePool creates a FilePool that enforces disk
@@ -21,8 +21,9 @@ type quotaEnforcingFilePool struct {
 func NewQuotaEnforcingFilePool(base FilePool, maximumFileCount int64) FilePool {
 	fp := &quotaEnforcingFilePool{
 		base:           base,
-		filesRemaining: newQuotaMetric(maximumFileCount),
+		filesRemaining: quotaMetric{},
 	}
+	fp.filesRemaining.init(maximumFileCount)
 	return fp
 }
 
@@ -53,6 +54,5 @@ func (f *quotaEnforcingFile) Close() error {
 	f.FileReadWriter = nil
 	// Release associated resources.
 	f.pool.filesRemaining.release(1)
-	f.pool = nil
 	return err
 }

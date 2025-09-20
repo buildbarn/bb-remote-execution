@@ -8,12 +8,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// NewSectorPointer returns a new SectorPointer struct.
-func NewSectorPointer() *SectorPointer {
-	return &SectorPointer{}
-}
-
-// SectorPointer is a struct which implements mapping from logical to
+// SectorMap is a struct which implements mapping from logical to
 // physical sectors in a manner based on the unix inode pointer
 // structure.
 //
@@ -32,12 +27,14 @@ func NewSectorPointer() *SectorPointer {
 //   - Single indirection for files up to ~4MiB
 //   - Double indirection for files up to ~4GiB
 //   - Triple indirection for files up to ~4TiB
-type SectorPointer struct {
-	direct              [12]uint32
-	single              *indirect[uint32]
-	double              *indirect[*indirect[uint32]]
-	triple              *indirect[*indirect[*indirect[uint32]]]
-	logicalSectorLength uint32
+//
+// The zero initialization of a sector map is a valid sector map that
+// maps no sectors.
+type SectorMap struct {
+	direct [directSectors]uint32
+	single *indirect[uint32]
+	double *indirect[*indirect[uint32]]
+	triple *indirect[*indirect[*indirect[uint32]]]
 }
 
 // indirectionArraySize is the base size of the indirection array.
@@ -52,6 +49,9 @@ const (
 	singleIndirectionSectors = directSectors + indirectionArraySize
 	doubleIndirectionSectors = singleIndirectionSectors + indirectionArraySize*indirectionArraySize
 	tripleIndirectionSectors = doubleIndirectionSectors + indirectionArraySize*indirectionArraySize*indirectionArraySize
+	// Compile time error if tripleIndirectionSectors is not big
+	// enough to fit the entire 32 bit range.
+	_ uint32 = tripleIndirectionSectors - math.MaxUint32
 )
 
 type indirect[T any] struct {
@@ -62,19 +62,23 @@ type indirect[T any] struct {
 // sector in the sector map. If the start index is mapped then start is
 // returned. If there are no more mapped sectors then io.EOF is
 // returned.
-func (sp *SectorPointer) GetNextMappedSector(logical uint32) (uint32, error) {
-	from := logical
+func (sp *SectorMap) GetNextMappedSector(logical uint32) (uint32, error) {
+	current := logical
 	for {
-		next, list := sp.getNextDirectSectorList(from)
+		offset, list := sp.getNextDirectSectorList(current)
 		if list == nil {
 			return 0, io.EOF
 		}
 		for i := range list {
 			if list[i] != 0 {
-				return next - uint32(len(list)-i), nil
+				return current + offset + uint32(i), nil
 			}
 		}
-		from = next
+		next := uint64(current) + uint64(offset) + uint64(len(list))
+		if next > math.MaxUint32 {
+			return 0, io.EOF
+		}
+		current = uint32(next)
 	}
 }
 
@@ -110,13 +114,6 @@ func firstUnmappedDouble(x uint32, double *indirect[*indirect[uint32]]) (uint32,
 	return 0, io.EOF
 }
 
-func noOverflow(x uint64) (uint32, error) {
-	if x > math.MaxUint32 {
-		return 0, io.EOF
-	}
-	return uint32(x), nil
-}
-
 func firstUnmappedTriple(x uint32, triple *indirect[*indirect[*indirect[uint32]]]) (uint32, error) {
 	if triple == nil {
 		return 0, nil
@@ -125,11 +122,11 @@ func firstUnmappedTriple(x uint32, triple *indirect[*indirect[*indirect[uint32]]
 	remainder := x % (indirectionArraySize * indirectionArraySize)
 	for i := start; i < indirectionArraySize; i++ {
 		if triple.val[i] == nil {
-			return noOverflow(uint64(i)*indirectionArraySize*indirectionArraySize + uint64(remainder))
+			return i*indirectionArraySize*indirectionArraySize + remainder, nil
 		}
 		offset, err := firstUnmappedDouble(remainder, triple.val[i])
 		if err == nil {
-			return noOverflow(uint64(i)*indirectionArraySize*indirectionArraySize + uint64(offset))
+			return i*indirectionArraySize*indirectionArraySize + offset, nil
 		}
 		remainder = 0
 	}
@@ -140,7 +137,7 @@ func firstUnmappedTriple(x uint32, triple *indirect[*indirect[*indirect[uint32]]
 // sector in the sector map. If the start index is unmapped then start
 // is returned. If there are no more unmapped sectors then io.EOF is
 // returned.
-func (sp *SectorPointer) GetNextUnmappedSector(logical uint32) (uint32, error) {
+func (sp *SectorMap) GetNextUnmappedSector(logical uint32) (uint32, error) {
 	for i := logical; i < directSectors; i++ {
 		if sp.direct[i] == 0 {
 			return i, nil
@@ -163,10 +160,17 @@ func (sp *SectorPointer) GetNextUnmappedSector(logical uint32) (uint32, error) {
 	}
 	// logical < tripleIndirectionSectors
 	ret, err := firstUnmappedTriple(logical-doubleIndirectionSectors, sp.triple)
-	if err == nil {
-		return ret + doubleIndirectionSectors, nil
+	if err == io.EOF {
+		// This state should not be possible to reach as the last triple
+		// can't be addressed with a uint32. Thus there should always be
+		// unmapped regions in the sector map.
+		panic("Sector map in an invalid state.")
 	}
-	return 0, io.EOF
+
+	if uint64(ret)+doubleIndirectionSectors > math.MaxUint32 {
+		return 0, io.EOF
+	}
+	return ret + doubleIndirectionSectors, nil
 }
 
 func getPhysicalIndexSingle(x uint32, single *indirect[uint32]) uint32 {
@@ -197,7 +201,7 @@ func getPhysicalIndexTriple(x uint32, triple *indirect[*indirect[*indirect[uint3
 // GetPhysicalIndex returns the physical sector index for a given
 // logical index. This physical index may be zero which indicates that
 // this logical sector is unmapped.
-func (sp *SectorPointer) GetPhysicalIndex(logical uint32) uint32 {
+func (sp *SectorMap) GetPhysicalIndex(logical uint32) uint32 {
 	if logical < directSectors {
 		return sp.direct[logical]
 	}
@@ -214,7 +218,7 @@ func getNextDirectSectorListFromSingle(x uint32, single *indirect[uint32]) (uint
 	if single == nil {
 		return 0, nil
 	}
-	return indirectionArraySize, single.val[x:]
+	return 0, single.val[x:]
 }
 
 func getNextDirectSectorListFromDouble(x uint32, double *indirect[*indirect[uint32]]) (uint32, []uint32) {
@@ -224,9 +228,10 @@ func getNextDirectSectorListFromDouble(x uint32, double *indirect[*indirect[uint
 	start := x / indirectionArraySize
 	remainder := x % indirectionArraySize
 	for i := start; i < indirectionArraySize; i++ {
-		next, list := getNextDirectSectorListFromSingle(remainder, double.val[i])
+		offset, list := getNextDirectSectorListFromSingle(remainder, double.val[i])
 		if list != nil {
-			return next + i*indirectionArraySize, list
+			foundPosition := i*indirectionArraySize + remainder + offset
+			return foundPosition - x, list
 		}
 		remainder = 0
 	}
@@ -241,9 +246,10 @@ func getNextDirectSectorListFromTriple(x uint32, triple *indirect[*indirect[*ind
 	remainder := x % (indirectionArraySize * indirectionArraySize)
 	for i := start; i < indirectionArraySize; i++ {
 		if triple.val[i] != nil {
-			next, list := getNextDirectSectorListFromDouble(remainder, triple.val[i])
+			offset, list := getNextDirectSectorListFromDouble(remainder, triple.val[i])
 			if list != nil {
-				return next + i*indirectionArraySize*indirectionArraySize, list
+				foundPosition := i*indirectionArraySize*indirectionArraySize + remainder + offset
+				return foundPosition - x, list
 			}
 		}
 		remainder = 0
@@ -251,32 +257,39 @@ func getNextDirectSectorListFromTriple(x uint32, triple *indirect[*indirect[*ind
 	return 0, nil
 }
 
-// getNextDirectSectorList returns a direct list of physical sectors
-// mapped by the sector pointer. It also returns the logical index of
-// the next possible mapped sectors. If no such lists exist then the
-// function returns an empty list.
-func (sp *SectorPointer) getNextDirectSectorList(start uint32) (uint32, []uint32) {
+// getNextDirectSectorList return the next direct list of physical
+// sectors mapped by the sector pointer. It also returns the offset from
+// the start value from which this list starts.
+//
+// If list is nil there is no possible list remaining, if list is non
+// nil there may or may not be another list after
+// start+offset+len(list). Consumers should be aware that this number
+// may be greater than what is representable by uint32.
+func (sp *SectorMap) getNextDirectSectorList(start uint32) (uint32, []uint32) {
 	if start < directSectors {
-		return directSectors, sp.direct[start:]
+		return 0, sp.direct[start:]
 	}
+	extraOffset := uint32(0)
 	if start < singleIndirectionSectors {
-		next, list := getNextDirectSectorListFromSingle(start-directSectors, sp.single)
+		offset, list := getNextDirectSectorListFromSingle(start-directSectors, sp.single)
 		if list != nil {
-			return next + directSectors, list
+			return offset, list
 		}
+		extraOffset += singleIndirectionSectors - start
 		start = singleIndirectionSectors
 	}
 	if start < doubleIndirectionSectors {
-		next, list := getNextDirectSectorListFromDouble(start-singleIndirectionSectors, sp.double)
+		offset, list := getNextDirectSectorListFromDouble(start-singleIndirectionSectors, sp.double)
 		if list != nil {
-			return next + singleIndirectionSectors, list
+			return extraOffset + offset, list
 		}
+		extraOffset += doubleIndirectionSectors - start
 		start = doubleIndirectionSectors
 	}
-	// start < tripleIndirectionSectors, always true
-	next, list := getNextDirectSectorListFromTriple(start-doubleIndirectionSectors, sp.triple)
+
+	offset, list := getNextDirectSectorListFromTriple(start-doubleIndirectionSectors, sp.triple)
 	if list != nil {
-		return next + doubleIndirectionSectors, list
+		return extraOffset + offset, list
 	}
 	return 0, nil
 }
@@ -284,50 +297,20 @@ func (sp *SectorPointer) getNextDirectSectorList(start uint32) (uint32, []uint32
 // FreeSectors iterates through all direct sector lists starting from a
 // given logical offset and applies the provided callback function to
 // each list.
-func (sp *SectorPointer) FreeSectors(start uint32, callback func([]uint32)) {
-	from := start
+func (sp *SectorMap) FreeSectors(start uint32, callback func([]uint32)) {
+	current := start
 	for {
-		to, list := sp.getNextDirectSectorList(from)
+		offset, list := sp.getNextDirectSectorList(current)
 		if list == nil {
 			break
 		}
 		callback(list)
-		from = to
-	}
-}
-
-// GetLogicalSize returns the logical size of the sector pointer based
-// on the last mapped sector. All sectors indices greater than or equal
-// to this length are unmapped.
-func (sp *SectorPointer) GetLogicalSize() uint32 {
-	return sp.logicalSectorLength
-}
-
-// Shrinks the logical size to the first allocated sector less than or
-// equal to the supplied value. This is used when the sector pointer is
-// truncated to find the first mapped sector in it's internal structure
-// less than the supplied value.
-//
-// This function uses binary search with GetNextMappedSector function
-// with a little bit of logic to turn the function monotonic when it
-// reaches io.EOF.
-//
-// Finding the next mapped sector is roughly O(n^1/3) making this
-// O(log(n)*n^(1/3)).
-func (sp *SectorPointer) shrinkLogicalSize(n uint32) {
-	// sort.Search does not support the entire uint32 range, so we
-	// implement it ourselves.
-	var i, j uint32 = 0, n
-	for i < j {
-		h := i + (j-i)/2
-		next, err := sp.GetNextMappedSector(h)
-		if err == io.EOF || next >= n {
-			j = h
-		} else {
-			i = h + 1
+		next := uint64(current) + uint64(offset) + uint64(len(list))
+		if next > math.MaxUint32 {
+			break
 		}
+		current = uint32(next)
 	}
-	sp.logicalSectorLength = i
 }
 
 func clearSingle(x uint32, single *indirect[uint32]) bool {
@@ -387,10 +370,7 @@ func clearTriple(x uint32, triple *indirect[*indirect[*indirect[uint32]]]) bool 
 
 // Truncate the sector mapper to a given length. All logical mappings
 // above the given length are dropped.
-func (sp *SectorPointer) Truncate(length uint32) {
-	if length < sp.logicalSectorLength {
-		sp.shrinkLogicalSize(length)
-	}
+func (sp *SectorMap) Truncate(length uint32) {
 	for i := length; i < directSectors; i++ {
 		sp.direct[i] = 0
 	}
@@ -423,8 +403,7 @@ func setPhysicalTriple(triple *indirect[*indirect[*indirect[uint32]]], logical, 
 	setPhysicalDouble(triple.val[i], j, physical)
 }
 
-func (sp *SectorPointer) setPhysicalIndex(logical, physical uint32) {
-	sp.logicalSectorLength = max(sp.logicalSectorLength, logical+1)
+func (sp *SectorMap) setPhysicalIndex(logical, physical uint32) {
 	if logical < directSectors {
 		sp.direct[logical] = physical
 	} else if logical < singleIndirectionSectors {
@@ -449,7 +428,13 @@ func (sp *SectorPointer) setPhysicalIndex(logical, physical uint32) {
 // sector mapper. Attempting to overwrite an already mapped sector with
 // this method is an error. I.e. the entire logical range should be
 // unmapped.
-func (sp *SectorPointer) InsertSectorsContiguous(logical, physical, length uint32) error {
+func (sp *SectorMap) InsertSectorsContiguous(logical, physical, length uint32) error {
+	if uint64(logical)+uint64(length) > math.MaxUint32+1 {
+		return status.Errorf(codes.Internal, "Attempted to insert %d sectors from logical index %d but this would overflow", length, logical)
+	}
+	if uint64(physical)+uint64(length) > math.MaxUint32+1 {
+		return status.Errorf(codes.Internal, "Attempted to insert %d sectors from physical index %d but this would overflow", length, physical)
+	}
 	for i := uint32(0); i < length; i++ {
 		val := sp.GetPhysicalIndex(i + logical)
 		if val != 0 {
