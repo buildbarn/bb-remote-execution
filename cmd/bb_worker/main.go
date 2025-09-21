@@ -226,7 +226,10 @@ func main() {
 					virtual.NewHandleAllocatingFileAllocator(
 						virtual.NewPoolBackedFileAllocator(
 							pool.EmptyFilePool,
-							util.DefaultErrorLogger),
+							util.DefaultErrorLogger,
+							/* ownerGroupID = */ 0,
+							/* ownerUserID = */ 0,
+						),
 						handleAllocator),
 					symlinkFactory,
 					util.DefaultErrorLogger,

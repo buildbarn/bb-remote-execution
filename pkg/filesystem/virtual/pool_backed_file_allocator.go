@@ -45,8 +45,10 @@ var (
 )
 
 type poolBackedFileAllocator struct {
-	pool        pool.FilePool
-	errorLogger util.ErrorLogger
+	pool         pool.FilePool
+	errorLogger  util.ErrorLogger
+	ownerGroupID uint32
+	ownerUserID  uint32
 }
 
 // NewPoolBackedFileAllocator creates an allocator for a leaf node that
@@ -58,15 +60,17 @@ type poolBackedFileAllocator struct {
 // file descriptor count reach zero), Close() is called on the
 // underlying backing file descriptor. This may be used to request
 // deletion from underlying storage.
-func NewPoolBackedFileAllocator(pool pool.FilePool, errorLogger util.ErrorLogger) FileAllocator {
+func NewPoolBackedFileAllocator(pool pool.FilePool, errorLogger util.ErrorLogger, ownerGroupID, ownerUserID uint32) FileAllocator {
 	poolBackedFileAllocatorPrometheusMetrics.Do(func() {
 		prometheus.MustRegister(poolBackedFileAllocatorWritableFileUploadDelaySeconds)
 		prometheus.MustRegister(poolBackedFileAllocatorWritableFileUploadDelayTimeouts)
 	})
 
 	return &poolBackedFileAllocator{
-		pool:        pool,
-		errorLogger: errorLogger,
+		pool:         pool,
+		errorLogger:  errorLogger,
+		ownerGroupID: ownerGroupID,
+		ownerUserID:  ownerUserID,
 	}
 }
 
@@ -91,6 +95,8 @@ func (fa *poolBackedFileAllocator) NewFile(isExecutable bool, size uint64, share
 		size:           size,
 		referenceCount: 1,
 		cachedDigest:   digest.BadDigest,
+		ownerGroupID:   fa.ownerGroupID,
+		ownerUserID:    fa.ownerUserID,
 	}
 	f.acquireShareAccessLocked(shareAccess)
 	return f, StatusOK
@@ -110,6 +116,8 @@ type fileBackedFile struct {
 	unfreezeWakeup           chan struct{}
 	cachedDigest             digest.Digest
 	changeID                 uint64
+	ownerGroupID             uint32
+	ownerUserID              uint32
 }
 
 // lockMutatingData picks up the exclusive lock of the file and waits
@@ -320,6 +328,8 @@ func (f *fileBackedFile) VirtualAllocate(off, size uint64) Status {
 // obtained without picking up any locks.
 func (f *fileBackedFile) virtualGetAttributesUnlocked(attributes *Attributes) {
 	attributes.SetFileType(filesystem.FileTypeRegularFile)
+	attributes.SetOwnerUserID(f.ownerUserID)
+	attributes.SetOwnerGroupID(f.ownerGroupID)
 }
 
 // virtualGetAttributesUnlocked gets file attributes that can only be
@@ -332,6 +342,8 @@ func (f *fileBackedFile) virtualGetAttributesLocked(attributes *Attributes) {
 	}
 	attributes.SetPermissions(permissions)
 	attributes.SetSizeBytes(f.size)
+	attributes.SetOwnerUserID(f.ownerUserID)
+	attributes.SetOwnerGroupID(f.ownerGroupID)
 }
 
 func (f *fileBackedFile) VirtualGetAttributes(ctx context.Context, requested AttributesMask, attributes *Attributes) {

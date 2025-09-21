@@ -85,10 +85,10 @@ func (d *virtualBuildDirectory) EnterUploadableDirectory(name path.Component) (U
 func (d *virtualBuildDirectory) InstallHooks(filePool pool.FilePool, errorLogger util.ErrorLogger) {
 	d.PrepopulatedDirectory.InstallHooks(
 		virtual.NewHandleAllocatingFileAllocator(
-			virtual.NewPoolBackedFileAllocator(filePool, errorLogger),
+			virtual.NewPoolBackedFileAllocator(filePool, errorLogger, d.options.buildDirectoryOwnerGroupID, d.options.buildDirectoryOwnerUserID),
 			d.options.handleAllocator),
 		errorLogger,
-		/* defaultAttributesSetter = */ func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+		/* defaultAttributeSetter = */ func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
 			attributes.SetOwnerUserID(d.options.buildDirectoryOwnerUserID)
 			attributes.SetOwnerGroupID(d.options.buildDirectoryOwnerGroupID)
 		},
