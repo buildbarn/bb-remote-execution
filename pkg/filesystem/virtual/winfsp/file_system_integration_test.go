@@ -75,6 +75,7 @@ func createWinFSPMountForTest(t *testing.T, terminationGroup program.Group, case
 	}
 
 	// Create a virtual directory to hold new files.
+	defaultAttributesSetter := func(requested virtual.AttributesMask, attributes *virtual.Attributes) {}
 	err = mount.Expose(
 		terminationGroup,
 		virtual.NewInMemoryPrepopulatedDirectory(
@@ -85,22 +86,24 @@ func createWinFSPMountForTest(t *testing.T, terminationGroup program.Group, case
 						filesystem.NewBitmapSectorAllocator(uint32(sectorCount)),
 						sectorSizeBytes,
 					),
-					util.DefaultErrorLogger),
-				handleAllocator),
+					util.DefaultErrorLogger,
+					defaultAttributesSetter,
+				),
+				handleAllocator,
+			),
 			virtual.NewHandleAllocatingSymlinkFactory(
 				virtual.BaseSymlinkFactory,
-				handleAllocator.New()),
+				handleAllocator.New(),
+			),
 			util.DefaultErrorLogger,
 			handleAllocator,
 			sort.Sort,
 			func(s string) bool { return false },
 			clock.SystemClock,
 			normalizer,
-			/* defaultAttributesSetter = */ func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
-				// No need to set ownership attributes on the top-level
-				// directory.
-				attributes.SetPermissions(virtual.PermissionsExecute | virtual.PermissionsRead)
-			}))
+			defaultAttributesSetter,
+		),
+	)
 	require.NoError(t, err, "Failed to expose mount point")
 
 	return vfsPath, bd
