@@ -222,12 +222,19 @@ func main() {
 				characterDeviceFactory = virtual.NewHandleAllocatingCharacterDeviceFactory(
 					virtual.BaseCharacterDeviceFactory,
 					handleAllocator.New())
+				defaultAttributesSetter := func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+					// No need to set ownership attributes
+					// on the top-level directory.
+				}
 				virtualBuildDirectory = virtual.NewInMemoryPrepopulatedDirectory(
 					virtual.NewHandleAllocatingFileAllocator(
 						virtual.NewPoolBackedFileAllocator(
 							pool.EmptyFilePool,
-							util.DefaultErrorLogger),
-						handleAllocator),
+							util.DefaultErrorLogger,
+							defaultAttributesSetter,
+						),
+						handleAllocator,
+					),
 					symlinkFactory,
 					util.DefaultErrorLogger,
 					handleAllocator,
@@ -235,11 +242,7 @@ func main() {
 					hiddenFilesPattern,
 					clock.SystemClock,
 					normalizer,
-					/* defaultAttributesSetter = */ func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
-						// No need to set ownership
-						// attributes on the top-level
-						// directory.
-					},
+					defaultAttributesSetter,
 				)
 
 				if err := mount.Expose(dependenciesGroup, virtualBuildDirectory); err != nil {

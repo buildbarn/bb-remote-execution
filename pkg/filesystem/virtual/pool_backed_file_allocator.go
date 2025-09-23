@@ -45,8 +45,9 @@ var (
 )
 
 type poolBackedFileAllocator struct {
-	pool        pool.FilePool
-	errorLogger util.ErrorLogger
+	pool                    pool.FilePool
+	errorLogger             util.ErrorLogger
+	defaultAttributesSetter DefaultAttributesSetter
 }
 
 // NewPoolBackedFileAllocator creates an allocator for a leaf node that
@@ -58,15 +59,16 @@ type poolBackedFileAllocator struct {
 // file descriptor count reach zero), Close() is called on the
 // underlying backing file descriptor. This may be used to request
 // deletion from underlying storage.
-func NewPoolBackedFileAllocator(pool pool.FilePool, errorLogger util.ErrorLogger) FileAllocator {
+func NewPoolBackedFileAllocator(pool pool.FilePool, errorLogger util.ErrorLogger, defaultAttributesSetter DefaultAttributesSetter) FileAllocator {
 	poolBackedFileAllocatorPrometheusMetrics.Do(func() {
 		prometheus.MustRegister(poolBackedFileAllocatorWritableFileUploadDelaySeconds)
 		prometheus.MustRegister(poolBackedFileAllocatorWritableFileUploadDelayTimeouts)
 	})
 
 	return &poolBackedFileAllocator{
-		pool:        pool,
-		errorLogger: errorLogger,
+		pool:                    pool,
+		errorLogger:             errorLogger,
+		defaultAttributesSetter: defaultAttributesSetter,
 	}
 }
 
@@ -84,7 +86,7 @@ func (fa *poolBackedFileAllocator) NewFile(isExecutable bool, size uint64, share
 		}
 	}
 	f := &fileBackedFile{
-		errorLogger: fa.errorLogger,
+		allocator: fa,
 
 		file:           file,
 		isExecutable:   isExecutable,
@@ -97,7 +99,7 @@ func (fa *poolBackedFileAllocator) NewFile(isExecutable bool, size uint64, share
 }
 
 type fileBackedFile struct {
-	errorLogger util.ErrorLogger
+	allocator *poolBackedFileAllocator
 
 	lock                     sync.RWMutex
 	file                     filesystem.FileReadWriter
@@ -318,8 +320,9 @@ func (f *fileBackedFile) VirtualAllocate(off, size uint64) Status {
 
 // virtualGetAttributesUnlocked gets file attributes that can be
 // obtained without picking up any locks.
-func (f *fileBackedFile) virtualGetAttributesUnlocked(attributes *Attributes) {
+func (f *fileBackedFile) virtualGetAttributesUnlocked(requested AttributesMask, attributes *Attributes) {
 	attributes.SetFileType(filesystem.FileTypeRegularFile)
+	f.allocator.defaultAttributesSetter(requested, attributes)
 }
 
 // virtualGetAttributesUnlocked gets file attributes that can only be
@@ -337,7 +340,7 @@ func (f *fileBackedFile) virtualGetAttributesLocked(attributes *Attributes) {
 func (f *fileBackedFile) VirtualGetAttributes(ctx context.Context, requested AttributesMask, attributes *Attributes) {
 	// Only pick up the file's lock when the caller requests
 	// attributes that require locking.
-	f.virtualGetAttributesUnlocked(attributes)
+	f.virtualGetAttributesUnlocked(requested, attributes)
 	if requested&(AttributesMaskChangeID|AttributesMaskPermissions|AttributesMaskSizeBytes) != 0 {
 		f.lock.RLock()
 		f.virtualGetAttributesLocked(attributes)
@@ -404,7 +407,7 @@ func (f *fileBackedFile) VirtualSeek(offset uint64, regionType filesystem.Region
 		// instead of failing with ENXIO.
 		return nil, StatusOK
 	} else if err != nil {
-		f.errorLogger.Log(util.StatusWrapf(err, "Failed to get next region offset at offset %d", offset))
+		f.allocator.errorLogger.Log(util.StatusWrapf(err, "Failed to get next region offset at offset %d", offset))
 		return nil, StatusErrIO
 	}
 	result := uint64(off)
@@ -431,7 +434,7 @@ func (f *fileBackedFile) VirtualOpenSelf(ctx context.Context, shareAccess ShareM
 	}
 
 	f.acquireShareAccessLocked(shareAccess)
-	f.virtualGetAttributesUnlocked(attributes)
+	f.virtualGetAttributesUnlocked(requested, attributes)
 	f.virtualGetAttributesLocked(attributes)
 	return StatusOK
 }
@@ -443,7 +446,7 @@ func (f *fileBackedFile) VirtualRead(buf []byte, off uint64) (int, bool, Status)
 	buf, eof := BoundReadToFileSize(buf, off, f.size)
 	if len(buf) > 0 {
 		if n, err := f.file.ReadAt(buf, int64(off)); n != len(buf) {
-			f.errorLogger.Log(util.StatusWrapf(err, "Failed to read from file at offset %d", off))
+			f.allocator.errorLogger.Log(util.StatusWrapf(err, "Failed to read from file at offset %d", off))
 			return 0, false, StatusErrIO
 		}
 	}
@@ -473,7 +476,7 @@ func (f *fileBackedFile) VirtualClose(shareAccess ShareMask) {
 
 func (f *fileBackedFile) virtualTruncate(size uint64) Status {
 	if err := f.file.Truncate(int64(size)); err != nil {
-		f.errorLogger.Log(util.StatusWrapf(err, "Failed to truncate file to length %d", size))
+		f.allocator.errorLogger.Log(util.StatusWrapf(err, "Failed to truncate file to length %d", size))
 		return StatusErrIO
 	}
 	f.cachedDigest = digest.BadDigest
@@ -501,7 +504,7 @@ func (f *fileBackedFile) VirtualSetAttributes(ctx context.Context, in *Attribute
 		f.changeID++
 	}
 
-	f.virtualGetAttributesUnlocked(out)
+	f.virtualGetAttributesUnlocked(requested, out)
 	f.virtualGetAttributesLocked(out)
 	return StatusOK
 }
@@ -519,7 +522,7 @@ func (f *fileBackedFile) VirtualWrite(buf []byte, offset uint64) (int, Status) {
 		f.changeID++
 	}
 	if err != nil {
-		f.errorLogger.Log(util.StatusWrapf(err, "Failed to write to file at offset %d", offset))
+		f.allocator.errorLogger.Log(util.StatusWrapf(err, "Failed to write to file at offset %d", offset))
 		return nWritten, StatusErrIO
 	}
 	return nWritten, StatusOK
