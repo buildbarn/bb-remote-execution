@@ -1177,7 +1177,7 @@ func newNFS41RegularStateID(stateID *nfsv4.Stateid4) (nfs41RegularStateID, nfsv4
 func (sid *nfs41RegularStateID) externalize() (stateID nfsv4.Stateid4) {
 	stateID.Seqid = sid.seqID
 	binary.LittleEndian.PutUint64(stateID.Other[:], sid.other)
-	return
+	return stateID
 }
 
 // incrementSeqID increments a sequence ID of a state ID according to

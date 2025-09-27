@@ -60,7 +60,7 @@ func GetResultAndGRPCCodeFromExecuteResponse(response *remoteexecution.ExecuteRe
 	} else {
 		result = "NonZeroExitCode"
 	}
-	return
+	return result, grpcCode
 }
 
 // BuildExecutor is the interface for the ability to run Bazel execute

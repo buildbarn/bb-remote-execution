@@ -37,7 +37,7 @@ func (o *OpenExistingOptions) ToAttributesMask() (m AttributesMask) {
 	if o.Truncate {
 		m |= AttributesMaskSizeBytes
 	}
-	return
+	return m
 }
 
 // Leaf node that is exposed through FUSE using SimpleRawFileSystem, or
