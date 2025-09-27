@@ -2,11 +2,11 @@ syntax = "proto3";
 
 package buildbarn.configuration.filesystem.virtual;
 
+import "github.com/buildbarn/bb-storage/pkg/proto/configuration/eviction/eviction.proto";
+import "github.com/buildbarn/bb-storage/pkg/proto/configuration/jmespath/jmespath.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/wrappers.proto";
-import "pkg/proto/configuration/eviction/eviction.proto";
-import "pkg/proto/configuration/jmespath/jmespath.proto";
 
 option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem/virtual";
 

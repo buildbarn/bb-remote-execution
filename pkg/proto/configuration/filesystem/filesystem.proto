@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package buildbarn.configuration.filesystem;
 
-import "pkg/proto/configuration/blockdevice/blockdevice.proto";
+import "github.com/buildbarn/bb-storage/pkg/proto/configuration/blockdevice/blockdevice.proto";
 
 option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem";
 

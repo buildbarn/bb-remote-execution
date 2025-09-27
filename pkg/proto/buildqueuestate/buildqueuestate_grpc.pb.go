@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v6.31.1
-// source: pkg/proto/buildqueuestate/buildqueuestate.proto
+// source: github.com/buildbarn/bb-remote-execution/pkg/proto/buildqueuestate/buildqueuestate.proto
 
 package buildqueuestate
 
@@ -496,5 +496,5 @@ var BuildQueueState_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "pkg/proto/buildqueuestate/buildqueuestate.proto",
+	Metadata: "github.com/buildbarn/bb-remote-execution/pkg/proto/buildqueuestate/buildqueuestate.proto",
 }

@@ -5,6 +5,7 @@ load("@rules_proto//proto:defs.bzl", "proto_library")
 proto_library(
     name = "virtual_proto",
     srcs = ["virtual.proto"],
+    import_prefix = "github.com/buildbarn/bb-remote-execution",
     visibility = ["//visibility:public"],
     deps = [
         "@com_github_buildbarn_bb_storage//pkg/proto/configuration/eviction:eviction_proto",

@@ -16,7 +16,7 @@ import (
 	re_util "github.com/buildbarn/bb-remote-execution/pkg/util"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
-	bb_http "github.com/buildbarn/bb-storage/pkg/http"
+	http_server "github.com/buildbarn/bb-storage/pkg/http/server"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/gorilla/mux"
 
@@ -147,7 +147,7 @@ func invertColor(s string) string {
 
 func renderError(w http.ResponseWriter, err error) {
 	s := status.Convert(err)
-	w.WriteHeader(bb_http.StatusCodeFromGRPCCode(s.Code()))
+	w.WriteHeader(http_server.StatusCodeFromGRPCCode(s.Code()))
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	if err := templates.ExecuteTemplate(w, "error.html", s); err != nil {
 		log.Print(err)

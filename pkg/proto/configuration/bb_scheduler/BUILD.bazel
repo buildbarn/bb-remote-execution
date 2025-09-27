@@ -5,6 +5,7 @@ load("@rules_proto//proto:defs.bzl", "proto_library")
 proto_library(
     name = "bb_scheduler_proto",
     srcs = ["bb_scheduler.proto"],
+    import_prefix = "github.com/buildbarn/bb-remote-execution",
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/proto/configuration/scheduler:scheduler_proto",
@@ -13,7 +14,7 @@ proto_library(
         "@com_github_buildbarn_bb_storage//pkg/proto/configuration/blobstore:blobstore_proto",
         "@com_github_buildbarn_bb_storage//pkg/proto/configuration/global:global_proto",
         "@com_github_buildbarn_bb_storage//pkg/proto/configuration/grpc:grpc_proto",
-        "@com_github_buildbarn_bb_storage//pkg/proto/configuration/http:http_proto",
+        "@com_github_buildbarn_bb_storage//pkg/proto/configuration/http/server:server_proto",
         "@protobuf//:duration_proto",
     ],
 )
@@ -30,7 +31,7 @@ go_proto_library(
         "@com_github_buildbarn_bb_storage//pkg/proto/configuration/blobstore",
         "@com_github_buildbarn_bb_storage//pkg/proto/configuration/global",
         "@com_github_buildbarn_bb_storage//pkg/proto/configuration/grpc",
-        "@com_github_buildbarn_bb_storage//pkg/proto/configuration/http",
+        "@com_github_buildbarn_bb_storage//pkg/proto/configuration/http/server",
     ],
 )
 

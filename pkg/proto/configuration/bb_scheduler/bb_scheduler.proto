@@ -3,13 +3,13 @@ syntax = "proto3";
 package buildbarn.configuration.bb_scheduler;
 
 import "build/bazel/remote/execution/v2/remote_execution.proto";
+import "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/scheduler/scheduler.proto";
+import "github.com/buildbarn/bb-storage/pkg/proto/configuration/auth/auth.proto";
+import "github.com/buildbarn/bb-storage/pkg/proto/configuration/blobstore/blobstore.proto";
+import "github.com/buildbarn/bb-storage/pkg/proto/configuration/global/global.proto";
+import "github.com/buildbarn/bb-storage/pkg/proto/configuration/grpc/grpc.proto";
+import "github.com/buildbarn/bb-storage/pkg/proto/configuration/http/server/server.proto";
 import "google/protobuf/duration.proto";
-import "pkg/proto/configuration/auth/auth.proto";
-import "pkg/proto/configuration/blobstore/blobstore.proto";
-import "pkg/proto/configuration/global/global.proto";
-import "pkg/proto/configuration/grpc/grpc.proto";
-import "pkg/proto/configuration/http/http.proto";
-import "pkg/proto/configuration/scheduler/scheduler.proto";
 
 option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_scheduler";
 
@@ -127,8 +127,8 @@ message ApplicationConfiguration {
   // TODO: This web UI no longer needs to be integrated into
   // bb_scheduler, as the underlying information can be exposed over
   // gRPC using the 'build_queue_state_grpc_servers' option.
-  repeated buildbarn.configuration.http.ServerConfiguration admin_http_servers =
-      19;
+  repeated buildbarn.configuration.http.server.Configuration
+      admin_http_servers = 19;
 
   // Authorization requirements to be enforced for AddDrain and
   // RemoveDrain requests issued through the BuildQueueState gRPC

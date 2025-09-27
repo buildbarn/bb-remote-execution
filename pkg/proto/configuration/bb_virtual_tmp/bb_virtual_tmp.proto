@@ -2,9 +2,9 @@ syntax = "proto3";
 
 package buildbarn.configuration.bb_virtual_tmp;
 
-import "pkg/proto/configuration/filesystem/virtual/virtual.proto";
-import "pkg/proto/configuration/global/global.proto";
-import "pkg/proto/configuration/grpc/grpc.proto";
+import "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem/virtual/virtual.proto";
+import "github.com/buildbarn/bb-storage/pkg/proto/configuration/global/global.proto";
+import "github.com/buildbarn/bb-storage/pkg/proto/configuration/grpc/grpc.proto";
 
 option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_virtual_tmp";
 

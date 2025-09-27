@@ -23,7 +23,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/global"
 	bb_grpc "github.com/buildbarn/bb-storage/pkg/grpc"
-	"github.com/buildbarn/bb-storage/pkg/http"
+	http_server "github.com/buildbarn/bb-storage/pkg/http/server"
 	"github.com/buildbarn/bb-storage/pkg/program"
 	"github.com/buildbarn/bb-storage/pkg/proto/iscc"
 	"github.com/buildbarn/bb-storage/pkg/random"
@@ -217,9 +217,9 @@ func main() {
 		}
 		subrouter := router.PathPrefix(routePrefix).Subrouter()
 		newBuildQueueStateService(buildQueue, clock.SystemClock, browserURL, subrouter)
-		http.NewServersFromConfigurationAndServe(
+		http_server.NewServersFromConfigurationAndServe(
 			configuration.AdminHttpServers,
-			http.NewMetricsHandler(router, "SchedulerUI"),
+			http_server.NewMetricsHandler(router, "SchedulerUI"),
 			siblingsGroup,
 			grpcClientFactory,
 		)

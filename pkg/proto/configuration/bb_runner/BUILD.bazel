@@ -5,6 +5,7 @@ load("@rules_proto//proto:defs.bzl", "proto_library")
 proto_library(
     name = "bb_runner_proto",
     srcs = ["bb_runner.proto"],
+    import_prefix = "github.com/buildbarn/bb-remote-execution",
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/proto/configuration/credentials:credentials_proto",
