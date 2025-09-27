@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v6.31.1
-// source: pkg/proto/remoteworker/remoteworker.proto
+// source: github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker/remoteworker.proto
 
 package remoteworker
 
@@ -115,5 +115,5 @@ var OperationQueue_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "pkg/proto/remoteworker/remoteworker.proto",
+	Metadata: "github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker/remoteworker.proto",
 }

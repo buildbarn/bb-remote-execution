@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v6.31.1
-// source: pkg/proto/completedactionlogger/completed_action_logger.proto
+// source: github.com/buildbarn/bb-remote-execution/pkg/proto/completedactionlogger/completed_action_logger.proto
 
 package completedactionlogger
 
@@ -110,5 +110,5 @@ var CompletedActionLogger_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 	},
-	Metadata: "pkg/proto/completedactionlogger/completed_action_logger.proto",
+	Metadata: "github.com/buildbarn/bb-remote-execution/pkg/proto/completedactionlogger/completed_action_logger.proto",
 }

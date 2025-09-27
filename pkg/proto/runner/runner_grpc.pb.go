@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v6.31.1
-// source: pkg/proto/runner/runner.proto
+// source: github.com/buildbarn/bb-remote-execution/pkg/proto/runner/runner.proto
 
 package runner
 
@@ -154,5 +154,5 @@ var Runner_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "pkg/proto/runner/runner.proto",
+	Metadata: "github.com/buildbarn/bb-remote-execution/pkg/proto/runner/runner.proto",
 }

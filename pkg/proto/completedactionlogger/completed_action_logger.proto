@@ -3,8 +3,8 @@ syntax = "proto3";
 package buildbarn.completedactionlogger;
 
 import "build/bazel/remote/execution/v2/remote_execution.proto";
+import "github.com/buildbarn/bb-remote-execution/pkg/proto/cas/cas.proto";
 import "google/protobuf/empty.proto";
-import "pkg/proto/cas/cas.proto";
 
 option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/completedactionlogger";
 

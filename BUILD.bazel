@@ -4,37 +4,18 @@ load("@gazelle//:def.bzl", "gazelle")
 # gazelle:go_grpc_compilers @rules_go//proto:go_proto,@rules_go//proto:go_grpc_v2
 # gazelle:go_naming_convention_external import
 # gazelle:prefix github.com/buildbarn/bb-remote-execution
+# gazelle:proto_import_prefix github.com/buildbarn/bb-remote-execution
 # gazelle:resolve go github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2 @bazel_remote_apis//build/bazel/remote/execution/v2:remote_execution_go_proto
 # gazelle:resolve go github.com/bazelbuild/remote-apis/build/bazel/semver @bazel_remote_apis//build/bazel/semver:semver_go_proto
 # gazelle:resolve proto build/bazel/remote/execution/v2/remote_execution.proto @bazel_remote_apis//build/bazel/remote/execution/v2:remote_execution_proto
 # gazelle:resolve proto go build/bazel/remote/execution/v2/remote_execution.proto @bazel_remote_apis//build/bazel/remote/execution/v2:remote_execution_go_proto
 # gazelle:resolve proto go google/bytestream/bytestream.proto @org_golang_google_genproto_googleapis_bytestream//:bytestream
 # gazelle:resolve proto go google/rpc/status.proto @org_golang_google_genproto_googleapis_rpc//status
-# gazelle:resolve proto go pkg/proto/configuration/auth/auth.proto @com_github_buildbarn_bb_storage//pkg/proto/configuration/auth
-# gazelle:resolve proto go pkg/proto/configuration/blobstore/blobstore.proto @com_github_buildbarn_bb_storage//pkg/proto/configuration/blobstore
-# gazelle:resolve proto go pkg/proto/configuration/blockdevice/blockdevice.proto @com_github_buildbarn_bb_storage//pkg/proto/configuration/blockdevice
-# gazelle:resolve proto go pkg/proto/configuration/cloud/aws/aws.proto @com_github_buildbarn_bb_storage//pkg/proto/configuration/cloud/aws
-# gazelle:resolve proto go pkg/proto/configuration/eviction/eviction.proto @com_github_buildbarn_bb_storage//pkg/proto/configuration/eviction
-# gazelle:resolve proto go pkg/proto/configuration/global/global.proto @com_github_buildbarn_bb_storage//pkg/proto/configuration/global
-# gazelle:resolve proto go pkg/proto/configuration/grpc/grpc.proto @com_github_buildbarn_bb_storage//pkg/proto/configuration/grpc
-# gazelle:resolve proto go pkg/proto/configuration/http/http.proto @com_github_buildbarn_bb_storage//pkg/proto/configuration/http
-# gazelle:resolve proto go pkg/proto/configuration/jmespath/jmespath.proto @com_github_buildbarn_bb_storage//pkg/proto/configuration/jmespath
 # gazelle:resolve proto google/bytestream/bytestream.proto @googleapis//google/bytestream:bytestream_proto
-# gazelle:resolve proto google/protobuf/any.proto @protobuf//:any_proto
-# gazelle:resolve proto google/protobuf/duration.proto @protobuf//:duration_proto
-# gazelle:resolve proto google/protobuf/empty.proto @protobuf//:empty_proto
-# gazelle:resolve proto google/protobuf/struct.proto @protobuf//:struct_proto
-# gazelle:resolve proto google/protobuf/timestamp.proto @protobuf//:timestamp_proto
 # gazelle:resolve proto google/rpc/status.proto @googleapis//google/rpc:status_proto
-# gazelle:resolve proto pkg/proto/configuration/auth/auth.proto @com_github_buildbarn_bb_storage//pkg/proto/configuration/auth:auth_proto
-# gazelle:resolve proto pkg/proto/configuration/blobstore/blobstore.proto @com_github_buildbarn_bb_storage//pkg/proto/configuration/blobstore:blobstore_proto
-# gazelle:resolve proto pkg/proto/configuration/blockdevice/blockdevice.proto @com_github_buildbarn_bb_storage//pkg/proto/configuration/blockdevice:blockdevice_proto
-# gazelle:resolve proto pkg/proto/configuration/cloud/aws/aws.proto @com_github_buildbarn_bb_storage//pkg/proto/configuration/cloud/aws:aws_proto
-# gazelle:resolve proto pkg/proto/configuration/eviction/eviction.proto @com_github_buildbarn_bb_storage//pkg/proto/configuration/eviction:eviction_proto
-# gazelle:resolve proto pkg/proto/configuration/global/global.proto @com_github_buildbarn_bb_storage//pkg/proto/configuration/global:global_proto
-# gazelle:resolve proto pkg/proto/configuration/grpc/grpc.proto @com_github_buildbarn_bb_storage//pkg/proto/configuration/grpc:grpc_proto
-# gazelle:resolve proto pkg/proto/configuration/http/http.proto @com_github_buildbarn_bb_storage//pkg/proto/configuration/http:http_proto
-# gazelle:resolve proto pkg/proto/configuration/jmespath/jmespath.proto @com_github_buildbarn_bb_storage//pkg/proto/configuration/jmespath:jmespath_proto
+# gazelle:resolve_regexp proto github.com/buildbarn/bb-storage/(.*)/(.*)\.proto @com_github_buildbarn_bb_storage//$1:${2}_proto
+# gazelle:resolve_regexp proto go github.com/buildbarn/bb-storage/(.*)/(.*)\.proto @com_github_buildbarn_bb_storage//$1:$2
+# gazelle:resolve_regexp proto google/protobuf/(.*)\.proto @protobuf//:${1}_proto
 gazelle(
     name = "gazelle",
 )

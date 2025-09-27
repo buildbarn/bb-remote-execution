@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package buildbarn.configuration.cas;
 
-import "pkg/proto/configuration/eviction/eviction.proto";
+import "github.com/buildbarn/bb-storage/pkg/proto/configuration/eviction/eviction.proto";
 
 option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/cas";
 

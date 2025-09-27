@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v6.31.1
-// source: pkg/proto/tmp_installer/tmp_installer.proto
+// source: github.com/buildbarn/bb-remote-execution/pkg/proto/tmp_installer/tmp_installer.proto
 
 package tmp_installer
 
@@ -154,5 +154,5 @@ var TemporaryDirectoryInstaller_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "pkg/proto/tmp_installer/tmp_installer.proto",
+	Metadata: "github.com/buildbarn/bb-remote-execution/pkg/proto/tmp_installer/tmp_installer.proto",
 }
