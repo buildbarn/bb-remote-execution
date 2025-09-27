@@ -473,7 +473,7 @@ func (p *nfs40Program) getLockOwnerByOtherForTransaction(other regularStateIDOth
 func (p *nfs40Program) newRegularStateID(seqID nfsv4.Seqid4) (stateID nfs40RegularStateID) {
 	stateID.seqID = seqID
 	p.randomNumberGenerator.Read(stateID.other[:])
-	return
+	return stateID
 }
 
 // internalizeStateID converts a state ID that's provided as part of a

@@ -89,7 +89,7 @@ func (sc *pageRankStrategyCalculator) getSmallerSizeClassExecutionParameters(sma
 		// time is not too close to the execution timeout.
 		p.maximumAcceptableExecutionTime = ceiling
 	}
-	return
+	return p
 }
 
 func (sc *pageRankStrategyCalculator) GetStrategies(perSizeClassStatsMap map[uint32]*iscc.PerSizeClassStats, sizeClasses []uint32, originalTimeout time.Duration) []Strategy {

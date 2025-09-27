@@ -30,7 +30,7 @@ func NewPermissionsFromMode(m uint32) (p Permissions) {
 	if m&0o111 != 0 {
 		p |= PermissionsExecute
 	}
-	return
+	return p
 }
 
 // ToMode converts a set of permissions to a traditional UNIX style
@@ -45,5 +45,5 @@ func (p Permissions) ToMode() (m uint32) {
 	if p&PermissionsExecute != 0 {
 		m |= 0o111
 	}
-	return
+	return m
 }

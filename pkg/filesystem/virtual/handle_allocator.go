@@ -125,5 +125,5 @@ func (data ByteSliceID) WriteTo(w io.Writer) (nTotal int64, err error) {
 	nTotal += int64(n)
 	n, err = w.Write(data)
 	nTotal += int64(n)
-	return
+	return nTotal, err
 }

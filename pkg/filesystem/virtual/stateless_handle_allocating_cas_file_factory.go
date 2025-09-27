@@ -64,7 +64,7 @@ func (id *casFileID) WriteTo(w io.Writer) (nTotal int64, err error) {
 		n, _ := w.Write([]byte{0})
 		nTotal += int64(n)
 	}
-	return
+	return nTotal, err
 }
 
 // readMonitoringLinkableLeaf is a decorator for LinkableLeaf that reports

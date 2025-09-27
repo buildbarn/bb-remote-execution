@@ -240,7 +240,7 @@ func (c *inMemoryDirectoryContents) getDirectoriesAndLeavesCount(hiddenFilesMatc
 			leavesCount++
 		}
 	}
-	return
+	return directoriesCount, leavesCount
 }
 
 // inMemoryPrepopulatedDirectory is an implementation of PrepopulatedDirectory that
