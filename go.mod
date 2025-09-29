@@ -14,7 +14,7 @@ require (
 	github.com/bazelbuild/buildtools v0.0.0-20250926132224-6c4b75d79427
 	github.com/bazelbuild/remote-apis v0.0.0-20250915115802-824e1ba94b2d
 	github.com/bazelbuild/rules_go v0.57.0
-	github.com/buildbarn/bb-storage v0.0.0-20250927171156-7d1ca2fb9d2c
+	github.com/buildbarn/bb-storage v0.0.0-20250929074734-1170df56abab
 	github.com/buildbarn/go-xdr v0.0.0-20240702182809-236788cf9e89
 	github.com/golang/protobuf v1.5.4
 	github.com/google/uuid v1.6.0
@@ -101,7 +101,6 @@ require (
 	github.com/prometheus/procfs v0.17.0 // indirect
 	github.com/sercand/kuberesolver/v5 v5.1.1 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.6.0 // indirect
-	github.com/zeebo/errs v1.4.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.38.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.63.0 // indirect
