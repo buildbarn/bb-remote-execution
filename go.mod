@@ -11,10 +11,10 @@ replace github.com/hanwen/go-fuse/v2 => github.com/hanwen/go-fuse/v2 v2.5.1
 require (
 	cloud.google.com/go/longrunning v0.6.7
 	github.com/aegistudio/go-winfsp v1.0.1
-	github.com/bazelbuild/buildtools v0.0.0-20250926132224-6c4b75d79427
+	github.com/bazelbuild/buildtools v0.0.0-20250930140053-2eb4fccefb52
 	github.com/bazelbuild/remote-apis v0.0.0-20250915115802-824e1ba94b2d
 	github.com/bazelbuild/rules_go v0.57.0
-	github.com/buildbarn/bb-storage v0.0.0-20250929074734-1170df56abab
+	github.com/buildbarn/bb-storage v0.0.0-20250930070751-267d6195655f
 	github.com/buildbarn/go-xdr v0.0.0-20240702182809-236788cf9e89
 	github.com/golang/protobuf v1.5.4
 	github.com/google/uuid v1.6.0
@@ -30,7 +30,7 @@ require (
 	golang.org/x/lint v0.0.0-20241112194109-818c5a804067
 	golang.org/x/sync v0.17.0
 	golang.org/x/sys v0.36.0
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250922171735-9219d122eba9
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250929231259-57b25ae835d4
 	google.golang.org/grpc v1.75.1
 	google.golang.org/protobuf v1.36.9
 	mvdan.cc/gofumpt v0.9.1
@@ -51,8 +51,8 @@ require (
 	github.com/aohorodnyk/mimeheader v0.0.6 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.39.2 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.1 // indirect
-	github.com/aws/aws-sdk-go-v2/config v1.31.11 // indirect
-	github.com/aws/aws-sdk-go-v2/credentials v1.18.15 // indirect
+	github.com/aws/aws-sdk-go-v2/config v1.31.12 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.18.16 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.9 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.9 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.9 // indirect
@@ -63,7 +63,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.9 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.9 // indirect
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.88.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.29.5 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.29.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.38.6 // indirect
 	github.com/aws/smithy-go v1.23.0 // indirect
@@ -72,7 +72,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cncf/xds/go v0.0.0-20250501225837-2ac532fd4443 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/envoyproxy/go-control-plane/envoy v1.32.4 // indirect
+	github.com/envoyproxy/go-control-plane/envoy v1.35.0 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.2.1 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
@@ -120,10 +120,10 @@ require (
 	golang.org/x/text v0.29.0 // indirect
 	golang.org/x/time v0.13.0 // indirect
 	golang.org/x/tools v0.37.0 // indirect
-	google.golang.org/api v0.250.0 // indirect
-	google.golang.org/genproto v0.0.0-20250922171735-9219d122eba9 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20250922171735-9219d122eba9 // indirect
-	google.golang.org/genproto/googleapis/bytestream v0.0.0-20250922171735-9219d122eba9 // indirect
+	google.golang.org/api v0.251.0 // indirect
+	google.golang.org/genproto v0.0.0-20250929231259-57b25ae835d4 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20250929231259-57b25ae835d4 // indirect
+	google.golang.org/genproto/googleapis/bytestream v0.0.0-20250929231259-57b25ae835d4 // indirect
 	google.golang.org/grpc/security/advancedtls v1.0.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect

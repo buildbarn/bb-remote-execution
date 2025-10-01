@@ -65,7 +65,7 @@ message ApplicationConfiguration {
   // approximate cost of builds, or uncover underlying patterns in build
   // behavior. No CompletedActions will be streamed if this option is left
   // empty. See
-  // https://github.com/buildbarn/bb-adrs/blob/master/0006-operation-logging-and-monetary-resource-usage.md
+  // https://github.com/buildbarn/bb-adrs/blob/main/0006-operation-logging-and-monetary-resource-usage.md
   // for more details around the Completed Action Logger service.
   repeated CompletedActionLoggingConfiguration completed_action_loggers = 23;
 

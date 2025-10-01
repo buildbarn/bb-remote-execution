@@ -4,7 +4,7 @@ jsonnet_to_json(
     name = "github_workflows",
     src = "github_workflows.jsonnet",
     outs = [
-        "master.yaml",
+        "main.yaml",
         "pull-requests.yaml",
     ],
     deps = ["@com_github_buildbarn_bb_storage//tools/github_workflows:workflows_template"],

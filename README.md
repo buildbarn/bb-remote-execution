@@ -1,6 +1,6 @@
-# Buildbarn Remote Execution [![Build status](https://github.com/buildbarn/bb-remote-execution/workflows/master/badge.svg)](https://github.com/buildbarn/bb-remote-execution/actions) [![PkgGoDev](https://pkg.go.dev/badge/github.com/buildbarn/bb-remote-execution)](https://pkg.go.dev/github.com/buildbarn/bb-remote-execution) [![Go Report Card](https://goreportcard.com/badge/github.com/buildbarn/bb-remote-execution)](https://goreportcard.com/report/github.com/buildbarn/bb-remote-execution)
+# Buildbarn Remote Execution [![Build status](https://github.com/buildbarn/bb-remote-execution/workflows/main/badge.svg)](https://github.com/buildbarn/bb-remote-execution/actions) [![PkgGoDev](https://pkg.go.dev/badge/github.com/buildbarn/bb-remote-execution)](https://pkg.go.dev/github.com/buildbarn/bb-remote-execution) [![Go Report Card](https://goreportcard.com/badge/github.com/buildbarn/bb-remote-execution)](https://goreportcard.com/report/github.com/buildbarn/bb-remote-execution)
 
-Translations: [Chinese](https://github.com/buildbarn/bb-remote-execution/blob/master/doc/zh_CN/README.md)
+Translations: [Chinese](https://github.com/buildbarn/bb-remote-execution/blob/main/doc/zh_CN/README.md)
 
 This repository provides tools that can be used in combination with
 [the Buildbarn storage daemon](https://github.com/buildbarn/bb-storage)
@@ -32,7 +32,7 @@ following:
   allows `bb_worker` to cache these files across build actions,
   exposing it to the build action through hardlinking.
 - To make execution pluggable. `bb_worker` communicates with `bb_runner`
-  using [a simple gRPC-based protocol](https://github.com/buildbarn/bb-remote-execution/blob/master/pkg/proto/runner/runner.proto).
+  using [a simple gRPC-based protocol](https://github.com/buildbarn/bb-remote-execution/blob/main/pkg/proto/runner/runner.proto).
   One could, for example, implement a custom runner process that
   executes build actions using [QEMU user-mode emulation](https://www.qemu.org/).
 - To work around [a race condition](https://github.com/golang/go/issues/22315)

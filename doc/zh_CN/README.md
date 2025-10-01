@@ -13,7 +13,7 @@
 大多数的部署会跑一个`bb_scheduler`的实例以及大量成对的`bb_worker`/`bb_runner`进程。老版本的Buildbarn将`bb_worker` 和`bb_runner`的功能集成在一个单进程中。这些进程组合在一起完成以下功能：
 
 - 权限隔离： 防止Build Action对输入文件进行改写，使得`bb_worker`可以在Build Action间缓存这些文件，并通过硬链接暴露给Build Action
-- 执行可插拔：`bb_worker`通过 [gRPC协议](https://github.com/buildbarn/bb-remote-execution/blob/master/pkg/proto/runner/runner.proto)与`bb_runner`通信。例如一个集成了用[QEMU](https://www.qemu.org/)执行Build Action的Runner进程的云服务
+- 执行可插拔：`bb_worker`通过 [gRPC协议](https://github.com/buildbarn/bb-remote-execution/blob/main/pkg/proto/runner/runner.proto)与`bb_runner`通信。例如一个集成了用[QEMU](https://www.qemu.org/)执行Build Action的Runner进程的云服务
 - 解决[并发竞争的问题](https://github.com/golang/go/issues/22315) ： 有效防止多线程的进程向磁盘写可执行程序并且执行他们。Buildbarn提供的解决方案是 `bb_worker`将可执行程序写到磁盘，`bb_runner` 来执行他们。
 
 
