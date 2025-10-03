@@ -741,6 +741,7 @@ func (i *inMemoryPrepopulatedDirectory) virtualGetAttributesUnlocked(requested A
 	i.subtree.defaultAttributesSetter(requested, attributes)
 	attributes.SetFileType(filesystem.FileTypeDirectory)
 	attributes.SetHasNamedAttributes(false)
+	attributes.SetIsInNamedAttributeDirectory(false)
 	// To be consistent with traditional UNIX file systems, this
 	// would need to be 2 + len(i.directories), but that would
 	// require us to initialize the directory, which is undesirable.

@@ -24,6 +24,7 @@ import (
 const blobAccessCASFileFactoryAttributesMask = virtual.AttributesMaskChangeID |
 	virtual.AttributesMaskFileType |
 	virtual.AttributesMaskHasNamedAttributes |
+	virtual.AttributesMaskIsInNamedAttributeDirectory |
 	virtual.AttributesMaskPermissions |
 	virtual.AttributesMaskSizeBytes
 
@@ -47,6 +48,7 @@ func TestBlobAccessCASFileFactoryVirtualSeek(t *testing.T) {
 			SetChangeID(0).
 			SetFileType(filesystem.FileTypeRegularFile).
 			SetHasNamedAttributes(false).
+			SetIsInNamedAttributeDirectory(false).
 			SetPermissions(virtual.PermissionsRead).
 			SetSizeBytes(123),
 		&out)
@@ -98,6 +100,7 @@ func TestBlobAccessCASFileFactoryGetContainingDigests(t *testing.T) {
 			SetChangeID(0).
 			SetFileType(filesystem.FileTypeRegularFile).
 			SetHasNamedAttributes(false).
+			SetIsInNamedAttributeDirectory(false).
 			SetPermissions(virtual.PermissionsRead|virtual.PermissionsExecute).
 			SetSizeBytes(400),
 		&out)
@@ -127,6 +130,7 @@ func TestBlobAccessCASFileFactoryGetBazelOutputServiceStat(t *testing.T) {
 			SetChangeID(0).
 			SetFileType(filesystem.FileTypeRegularFile).
 			SetHasNamedAttributes(false).
+			SetIsInNamedAttributeDirectory(false).
 			SetPermissions(virtual.PermissionsRead).
 			SetSizeBytes(123),
 		&out)
@@ -176,6 +180,7 @@ func TestBlobAccessCASFileFactoryAppendOutputPathPersistencyDirectoryNode(t *tes
 			SetChangeID(0).
 			SetFileType(filesystem.FileTypeRegularFile).
 			SetHasNamedAttributes(false).
+			SetIsInNamedAttributeDirectory(false).
 			SetPermissions(virtual.PermissionsRead).
 			SetSizeBytes(123),
 		&out1)
@@ -190,6 +195,7 @@ func TestBlobAccessCASFileFactoryAppendOutputPathPersistencyDirectoryNode(t *tes
 			SetChangeID(0).
 			SetFileType(filesystem.FileTypeRegularFile).
 			SetHasNamedAttributes(false).
+			SetIsInNamedAttributeDirectory(false).
 			SetPermissions(virtual.PermissionsRead|virtual.PermissionsExecute).
 			SetSizeBytes(456),
 		&out2)

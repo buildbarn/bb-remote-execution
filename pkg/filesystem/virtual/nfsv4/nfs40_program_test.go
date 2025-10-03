@@ -1686,6 +1686,7 @@ func TestNFS40ProgramCompound_OP_GETATTR(t *testing.T) {
 				virtual.AttributesMaskFileType|
 				virtual.AttributesMaskHasNamedAttributes|
 				virtual.AttributesMaskInodeNumber|
+				virtual.AttributesMaskIsInNamedAttributeDirectory|
 				virtual.AttributesMaskLastDataModificationTime|
 				virtual.AttributesMaskLinkCount|
 				virtual.AttributesMaskOwnerGroupID|
@@ -1699,6 +1700,7 @@ func TestNFS40ProgramCompound_OP_GETATTR(t *testing.T) {
 			attributes.SetFileType(filesystem.FileTypeDirectory)
 			attributes.SetHasNamedAttributes(true)
 			attributes.SetInodeNumber(0xfcadd45521cb1db2)
+			attributes.SetIsInNamedAttributeDirectory(false)
 			attributes.SetLastDataModificationTime(time.Unix(1654791566, 4839067173))
 			attributes.SetLinkCount(12)
 			attributes.SetOwnerGroupID(20)
@@ -1824,6 +1826,132 @@ func TestNFS40ProgramCompound_OP_GETATTR(t *testing.T) {
 									// FATTR4_TIME_MODIFY == 2022-06-09T16:19:26.4839067173Z.
 									0x00, 0x00, 0x00, 0x00, 0x62, 0xa2, 0x1d, 0x92,
 									0x32, 0x03, 0x26, 0x25,
+								},
+							},
+						},
+					},
+				},
+			},
+			Status: nfsv4_xdr.NFS4_OK,
+		}, res)
+	})
+
+	t.Run("NamedAttributeDirectory", func(t *testing.T) {
+		// Even though a named attribute directory reports file
+		// type filesystem.FileTypeDirectory, at the NFSv4
+		// protocol level we should return NF4ATTRDIR.
+		directory := mock.NewMockVirtualDirectory(ctrl)
+		handleResolverExpectCall(t, handleResolver, []byte{0x8f, 0xb1, 0x16, 0x88, 0xff, 0x99, 0x10, 0x58}, virtual.DirectoryChild{}.FromDirectory(directory), virtual.StatusOK)
+		directory.EXPECT().VirtualGetAttributes(
+			ctx,
+			virtual.AttributesMaskFileType|virtual.AttributesMaskIsInNamedAttributeDirectory,
+			gomock.Any(),
+		).Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
+			attributes.SetFileType(filesystem.FileTypeDirectory)
+			attributes.SetIsInNamedAttributeDirectory(true)
+		})
+
+		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+			Tag: "stat",
+			Argarray: []nfsv4_xdr.NfsArgop4{
+				&nfsv4_xdr.NfsArgop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4args{
+						Object: nfsv4_xdr.NfsFh4{
+							0x8f, 0xb1, 0x16, 0x88, 0xff, 0x99, 0x10, 0x58,
+						},
+					},
+				},
+				&nfsv4_xdr.NfsArgop4_OP_GETATTR{
+					Opgetattr: nfsv4_xdr.Getattr4args{
+						AttrRequest: nfsv4_xdr.Bitmap4{
+							(1 << nfsv4_xdr.FATTR4_TYPE),
+						},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, &nfsv4_xdr.Compound4res{
+			Tag: "stat",
+			Resarray: []nfsv4_xdr.NfsResop4{
+				&nfsv4_xdr.NfsResop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4res{
+						Status: nfsv4_xdr.NFS4_OK,
+					},
+				},
+				&nfsv4_xdr.NfsResop4_OP_GETATTR{
+					Opgetattr: &nfsv4_xdr.Getattr4res_NFS4_OK{
+						Resok4: nfsv4_xdr.Getattr4resok{
+							ObjAttributes: nfsv4_xdr.Fattr4{
+								Attrmask: nfsv4_xdr.Bitmap4{
+									(1 << nfsv4_xdr.FATTR4_TYPE),
+								},
+								AttrVals: nfsv4_xdr.Attrlist4{
+									// FATTR4_TYPE == NF4ATTRDIR.
+									0x00, 0x00, 0x00, 0x08,
+								},
+							},
+						},
+					},
+				},
+			},
+			Status: nfsv4_xdr.NFS4_OK,
+		}, res)
+	})
+
+	t.Run("NamedAttribute", func(t *testing.T) {
+		// Even though a named attribute reports file type
+		// filesystem.FileTypeRegularFile, at the NFSv4 protocol
+		// level we should return NF4NAMEDATTR.
+		leaf := mock.NewMockVirtualLeaf(ctrl)
+		handleResolverExpectCall(t, handleResolver, []byte{0xc0, 0x39, 0x17, 0xbf, 0x76, 0x5f, 0x33, 0xb9}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
+		leaf.EXPECT().VirtualGetAttributes(
+			ctx,
+			virtual.AttributesMaskFileType|virtual.AttributesMaskIsInNamedAttributeDirectory,
+			gomock.Any(),
+		).Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
+			attributes.SetFileType(filesystem.FileTypeRegularFile)
+			attributes.SetIsInNamedAttributeDirectory(true)
+		})
+
+		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+			Tag: "stat",
+			Argarray: []nfsv4_xdr.NfsArgop4{
+				&nfsv4_xdr.NfsArgop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4args{
+						Object: nfsv4_xdr.NfsFh4{
+							0xc0, 0x39, 0x17, 0xbf, 0x76, 0x5f, 0x33, 0xb9,
+						},
+					},
+				},
+				&nfsv4_xdr.NfsArgop4_OP_GETATTR{
+					Opgetattr: nfsv4_xdr.Getattr4args{
+						AttrRequest: nfsv4_xdr.Bitmap4{
+							(1 << nfsv4_xdr.FATTR4_TYPE),
+						},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, &nfsv4_xdr.Compound4res{
+			Tag: "stat",
+			Resarray: []nfsv4_xdr.NfsResop4{
+				&nfsv4_xdr.NfsResop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4res{
+						Status: nfsv4_xdr.NFS4_OK,
+					},
+				},
+				&nfsv4_xdr.NfsResop4_OP_GETATTR{
+					Opgetattr: &nfsv4_xdr.Getattr4res_NFS4_OK{
+						Resok4: nfsv4_xdr.Getattr4resok{
+							ObjAttributes: nfsv4_xdr.Fattr4{
+								Attrmask: nfsv4_xdr.Bitmap4{
+									(1 << nfsv4_xdr.FATTR4_TYPE),
+								},
+								AttrVals: nfsv4_xdr.Attrlist4{
+									// FATTR4_TYPE == NF4NAMEDATTR.
+									0x00, 0x00, 0x00, 0x09,
 								},
 							},
 						},
@@ -2407,6 +2535,7 @@ func TestNFS40ProgramCompound_OP_LOOKUP(t *testing.T) {
 		leaf.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskFileType, gomock.Any()).
 			Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 				attributes.SetFileType(filesystem.FileTypeRegularFile)
+				attributes.SetIsInNamedAttributeDirectory(false)
 			})
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -2452,6 +2581,7 @@ func TestNFS40ProgramCompound_OP_LOOKUP(t *testing.T) {
 		leaf.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskFileType, gomock.Any()).
 			Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 				attributes.SetFileType(filesystem.FileTypeSymlink)
+				attributes.SetIsInNamedAttributeDirectory(false)
 			})
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -2600,10 +2730,11 @@ func TestNFS40ProgramCompound_OP_NVERIFY(t *testing.T) {
 	// assumed most of the logic is shared with VERIFY.
 
 	t.Run("Match", func(t *testing.T) {
-		rootDirectory.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskFileType|virtual.AttributesMaskInodeNumber, gomock.Any()).
+		rootDirectory.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskFileType|virtual.AttributesMaskInodeNumber|virtual.AttributesMaskIsInNamedAttributeDirectory, gomock.Any()).
 			Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 				attributes.SetFileType(filesystem.FileTypeDirectory)
 				attributes.SetInodeNumber(0x676b7bcb66d92ed6)
+				attributes.SetIsInNamedAttributeDirectory(false)
 			})
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -2648,9 +2779,10 @@ func TestNFS40ProgramCompound_OP_NVERIFY(t *testing.T) {
 	})
 
 	t.Run("Mismatch", func(t *testing.T) {
-		rootDirectory.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskFileType, gomock.Any()).
+		rootDirectory.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskFileType|virtual.AttributesMaskIsInNamedAttributeDirectory, gomock.Any()).
 			Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 				attributes.SetFileType(filesystem.FileTypeDirectory)
+				attributes.SetIsInNamedAttributeDirectory(false)
 			})
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -5012,7 +5144,7 @@ func TestNFS40ProgramCompound_OP_READDIR(t *testing.T) {
 		rootDirectory.EXPECT().VirtualReadDir(
 			ctx,
 			uint64(0),
-			virtual.AttributesMaskFileType|virtual.AttributesMaskInodeNumber,
+			virtual.AttributesMaskFileType|virtual.AttributesMaskInodeNumber|virtual.AttributesMaskIsInNamedAttributeDirectory,
 			gomock.Any(),
 		).Return(virtual.StatusOK)
 
@@ -5062,7 +5194,7 @@ func TestNFS40ProgramCompound_OP_READDIR(t *testing.T) {
 		rootDirectory.EXPECT().VirtualReadDir(
 			ctx,
 			uint64(0),
-			virtual.AttributesMaskFileType|virtual.AttributesMaskInodeNumber,
+			virtual.AttributesMaskFileType|virtual.AttributesMaskInodeNumber|virtual.AttributesMaskIsInNamedAttributeDirectory,
 			gomock.Any(),
 		).DoAndReturn(func(ctx context.Context, firstCookie uint64, attributesMask virtual.AttributesMask, reporter virtual.DirectoryEntryReporter) virtual.Status {
 			leaf := mock.NewMockVirtualLeaf(ctrl)
@@ -5072,7 +5204,8 @@ func TestNFS40ProgramCompound_OP_READDIR(t *testing.T) {
 				virtual.DirectoryChild{}.FromLeaf(leaf),
 				(&virtual.Attributes{}).
 					SetFileType(filesystem.FileTypeRegularFile).
-					SetInodeNumber(123)))
+					SetInodeNumber(123).
+					SetIsInNamedAttributeDirectory(false)))
 			return virtual.StatusOK
 		})
 
@@ -5116,7 +5249,7 @@ func TestNFS40ProgramCompound_OP_READDIR(t *testing.T) {
 		rootDirectory.EXPECT().VirtualReadDir(
 			ctx,
 			uint64(0),
-			virtual.AttributesMaskFileType|virtual.AttributesMaskInodeNumber,
+			virtual.AttributesMaskFileType|virtual.AttributesMaskInodeNumber|virtual.AttributesMaskIsInNamedAttributeDirectory,
 			gomock.Any(),
 		).DoAndReturn(func(ctx context.Context, firstCookie uint64, attributesMask virtual.AttributesMask, reporter virtual.DirectoryEntryReporter) virtual.Status {
 			leaf := mock.NewMockVirtualLeaf(ctrl)
@@ -5126,7 +5259,8 @@ func TestNFS40ProgramCompound_OP_READDIR(t *testing.T) {
 				virtual.DirectoryChild{}.FromLeaf(leaf),
 				(&virtual.Attributes{}).
 					SetFileType(filesystem.FileTypeRegularFile).
-					SetInodeNumber(123)))
+					SetInodeNumber(123).
+					SetIsInNamedAttributeDirectory(false)))
 			return virtual.StatusOK
 		})
 
@@ -6688,9 +6822,10 @@ func TestNFS40ProgramCompound_OP_VERIFY(t *testing.T) {
 		// prefix of what we compute ourselves, then the data
 		// provided by the client must be corrupted. XDR would
 		// never allow that.
-		rootDirectory.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskFileType, gomock.Any()).
+		rootDirectory.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskFileType|virtual.AttributesMaskIsInNamedAttributeDirectory, gomock.Any()).
 			Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 				attributes.SetFileType(filesystem.FileTypeDirectory)
+				attributes.SetIsInNamedAttributeDirectory(false)
 			})
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -6734,9 +6869,10 @@ func TestNFS40ProgramCompound_OP_VERIFY(t *testing.T) {
 	t.Run("BadXDR2", func(t *testing.T) {
 		// The same holds for when the client provides more data
 		// than we generate.
-		rootDirectory.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskFileType, gomock.Any()).
+		rootDirectory.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskFileType|virtual.AttributesMaskIsInNamedAttributeDirectory, gomock.Any()).
 			Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 				attributes.SetFileType(filesystem.FileTypeDirectory)
+				attributes.SetIsInNamedAttributeDirectory(false)
 			})
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -6783,9 +6919,10 @@ func TestNFS40ProgramCompound_OP_VERIFY(t *testing.T) {
 		// We don't support the 'system' attribute. Providing it
 		// as part of VERIFY should cause us to return
 		// NFS4ERR_ATTRNOTSUPP.
-		rootDirectory.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskFileType, gomock.Any()).
+		rootDirectory.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskFileType|virtual.AttributesMaskIsInNamedAttributeDirectory, gomock.Any()).
 			Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 				attributes.SetFileType(filesystem.FileTypeDirectory)
+				attributes.SetIsInNamedAttributeDirectory(false)
 			})
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -6832,9 +6969,10 @@ func TestNFS40ProgramCompound_OP_VERIFY(t *testing.T) {
 	t.Run("InvalidAttribute", func(t *testing.T) {
 		// The 'rdattr_error' attribute is only returned as part
 		// of READDIR. It cannot be provided to VERIFY.
-		rootDirectory.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskFileType, gomock.Any()).
+		rootDirectory.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskFileType|virtual.AttributesMaskIsInNamedAttributeDirectory, gomock.Any()).
 			Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 				attributes.SetFileType(filesystem.FileTypeDirectory)
+				attributes.SetIsInNamedAttributeDirectory(false)
 			})
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -6879,9 +7017,10 @@ func TestNFS40ProgramCompound_OP_VERIFY(t *testing.T) {
 	})
 
 	t.Run("Mismatch", func(t *testing.T) {
-		rootDirectory.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskFileType, gomock.Any()).
+		rootDirectory.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskFileType|virtual.AttributesMaskIsInNamedAttributeDirectory, gomock.Any()).
 			Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 				attributes.SetFileType(filesystem.FileTypeDirectory)
+				attributes.SetIsInNamedAttributeDirectory(false)
 			})
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
@@ -6923,10 +7062,11 @@ func TestNFS40ProgramCompound_OP_VERIFY(t *testing.T) {
 	})
 
 	t.Run("Match", func(t *testing.T) {
-		rootDirectory.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskFileType|virtual.AttributesMaskInodeNumber, gomock.Any()).
+		rootDirectory.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskFileType|virtual.AttributesMaskIsInNamedAttributeDirectory|virtual.AttributesMaskInodeNumber, gomock.Any()).
 			Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
 				attributes.SetFileType(filesystem.FileTypeDirectory)
 				attributes.SetInodeNumber(0x676b7bcb66d92ed6)
+				attributes.SetIsInNamedAttributeDirectory(false)
 			})
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{

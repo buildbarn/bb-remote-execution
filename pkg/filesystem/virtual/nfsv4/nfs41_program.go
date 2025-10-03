@@ -409,24 +409,7 @@ func (p *nfs41Program) writeAttributes(attributes *virtual.Attributes, attrReque
 		}
 		if b := uint32(1 << nfsv4.FATTR4_TYPE); f&b != 0 {
 			s |= b
-			switch attributes.GetFileType() {
-			case filesystem.FileTypeRegularFile:
-				nfsv4.NF4REG.WriteTo(w)
-			case filesystem.FileTypeDirectory:
-				nfsv4.NF4DIR.WriteTo(w)
-			case filesystem.FileTypeSymlink:
-				nfsv4.NF4LNK.WriteTo(w)
-			case filesystem.FileTypeBlockDevice:
-				nfsv4.NF4BLK.WriteTo(w)
-			case filesystem.FileTypeCharacterDevice:
-				nfsv4.NF4CHR.WriteTo(w)
-			case filesystem.FileTypeFIFO:
-				nfsv4.NF4FIFO.WriteTo(w)
-			case filesystem.FileTypeSocket:
-				nfsv4.NF4SOCK.WriteTo(w)
-			default:
-				panic("Unknown file type")
-			}
+			attributesToNfsFtype4(attributes).WriteTo(w)
 		}
 		if b := uint32(1 << nfsv4.FATTR4_FH_EXPIRE_TYPE); f&b != 0 {
 			s |= b

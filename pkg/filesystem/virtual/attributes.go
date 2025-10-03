@@ -30,6 +30,12 @@ const (
 	AttributesMaskHasNamedAttributes
 	// AttributesMaskInodeNumber requests the inode number (st_ino).
 	AttributesMaskInodeNumber
+	// AttributesMaskIsInNamedAttributeDirectory requests whether
+	// the node is inside named attributes directory.
+	//
+	// This attribute only needs to be provided by regular files and
+	// directories, as NFSv4 uses distinct file types for those.
+	AttributesMaskIsInNamedAttributeDirectory
 	// AttributesMaskLastDataModificationTime requests the last data
 	// modification time (st_mtim).
 	AttributesMaskLastDataModificationTime
@@ -53,18 +59,19 @@ const (
 type Attributes struct {
 	fieldsPresent AttributesMask
 
-	changeID                 uint64
-	deviceNumber             filesystem.DeviceNumber
-	fileHandle               []byte
-	fileType                 filesystem.FileType
-	hasNamedAttributes       bool
-	inodeNumber              uint64
-	lastDataModificationTime time.Time
-	linkCount                uint32
-	ownerGroupID             uint32
-	ownerUserID              uint32
-	permissions              Permissions
-	sizeBytes                uint64
+	changeID                        uint64
+	deviceNumber                    filesystem.DeviceNumber
+	fileHandle                      []byte
+	fileType                        filesystem.FileType
+	hasNamedAttributes              bool
+	inodeNumber                     uint64
+	isInsideNamedAttributeDirectory bool
+	lastDataModificationTime        time.Time
+	linkCount                       uint32
+	ownerGroupID                    uint32
+	ownerUserID                     uint32
+	permissions                     Permissions
+	sizeBytes                       uint64
 }
 
 // GetChangeID returns the change ID, which clients can use to determine
@@ -161,6 +168,23 @@ func (a *Attributes) GetInodeNumber() uint64 {
 func (a *Attributes) SetInodeNumber(inodeNumber uint64) *Attributes {
 	a.inodeNumber = inodeNumber
 	a.fieldsPresent |= AttributesMaskInodeNumber
+	return a
+}
+
+// GetIsInNamedAttributeDirectory returns whether whether the node is
+// inside named attributes directory.
+func (a *Attributes) GetIsInNamedAttributeDirectory() bool {
+	if a.fieldsPresent&AttributesMaskIsInNamedAttributeDirectory == 0 {
+		panic("The \"is in named attribute directory\" attribute is mandatory for regular files and directories, meaning it should be set when requested")
+	}
+	return a.isInsideNamedAttributeDirectory
+}
+
+// SetIsInNamedAttributeDirectory sets whether the node is inside a
+// named attributes directory.
+func (a *Attributes) SetIsInNamedAttributeDirectory(isInsideNamedAttributeDirectory bool) *Attributes {
+	a.isInsideNamedAttributeDirectory = isInsideNamedAttributeDirectory
+	a.fieldsPresent |= AttributesMaskIsInNamedAttributeDirectory
 	return a
 }
 

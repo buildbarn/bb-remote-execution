@@ -27,6 +27,7 @@ const inMemoryPrepopulatedDirectoryAttributesMask = virtual.AttributesMaskChange
 	virtual.AttributesMaskFileType |
 	virtual.AttributesMaskHasNamedAttributes |
 	virtual.AttributesMaskInodeNumber |
+	virtual.AttributesMaskIsInNamedAttributeDirectory |
 	virtual.AttributesMaskLastDataModificationTime |
 	virtual.AttributesMaskLinkCount |
 	virtual.AttributesMaskPermissions |
@@ -748,6 +749,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualGetAttributes(t *testing.T) {
 			SetFileType(filesystem.FileTypeDirectory).
 			SetHasNamedAttributes(false).
 			SetInodeNumber(100).
+			SetIsInNamedAttributeDirectory(false).
 			SetLastDataModificationTime(time.Unix(1000, 0)).
 			SetLinkCount(virtual.ImplicitDirectoryLinkCount).
 			SetOwnerUserID(1000).
@@ -924,6 +926,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualLookup(t *testing.T) {
 				SetFileType(filesystem.FileTypeDirectory).
 				SetHasNamedAttributes(false).
 				SetInodeNumber(101).
+				SetIsInNamedAttributeDirectory(false).
 				SetLastDataModificationTime(time.Unix(1001, 0)).
 				SetLinkCount(virtual.ImplicitDirectoryLinkCount).
 				SetOwnerUserID(1000).
@@ -1034,6 +1037,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualMkdir(t *testing.T) {
 				SetFileType(filesystem.FileTypeDirectory).
 				SetHasNamedAttributes(false).
 				SetInodeNumber(101).
+				SetIsInNamedAttributeDirectory(false).
 				SetLastDataModificationTime(time.Unix(1003, 0)).
 				SetLinkCount(virtual.ImplicitDirectoryLinkCount).
 				SetOwnerUserID(1000).
@@ -1195,6 +1199,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualReadDir(t *testing.T) {
 			SetFileType(filesystem.FileTypeDirectory).
 			SetHasNamedAttributes(false).
 			SetInodeNumber(101).
+			SetIsInNamedAttributeDirectory(false).
 			SetLastDataModificationTime(time.Unix(1001, 0)).
 			SetLinkCount(virtual.ImplicitDirectoryLinkCount).
 			SetOwnerUserID(1000).

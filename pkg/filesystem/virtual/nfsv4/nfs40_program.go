@@ -570,24 +570,7 @@ func (p *nfs40Program) writeAttributes(attributes *virtual.Attributes, attrReque
 		}
 		if b := uint32(1 << nfsv4.FATTR4_TYPE); f&b != 0 {
 			s |= b
-			switch attributes.GetFileType() {
-			case filesystem.FileTypeRegularFile:
-				nfsv4.NF4REG.WriteTo(w)
-			case filesystem.FileTypeDirectory:
-				nfsv4.NF4DIR.WriteTo(w)
-			case filesystem.FileTypeSymlink:
-				nfsv4.NF4LNK.WriteTo(w)
-			case filesystem.FileTypeBlockDevice:
-				nfsv4.NF4BLK.WriteTo(w)
-			case filesystem.FileTypeCharacterDevice:
-				nfsv4.NF4CHR.WriteTo(w)
-			case filesystem.FileTypeFIFO:
-				nfsv4.NF4FIFO.WriteTo(w)
-			case filesystem.FileTypeSocket:
-				nfsv4.NF4SOCK.WriteTo(w)
-			default:
-				panic("Unknown file type")
-			}
+			attributesToNfsFtype4(attributes).WriteTo(w)
 		}
 		if b := uint32(1 << nfsv4.FATTR4_FH_EXPIRE_TYPE); f&b != 0 {
 			s |= b
@@ -2439,6 +2422,35 @@ func toNFSv4Status(s virtual.Status) nfsv4.Nfsstat4 {
 	}
 }
 
+// attributesToNfsFtype4 extracts the file type from a node's attributes
+// and converts it to its NFSv4 equivalent.
+func attributesToNfsFtype4(attributes *virtual.Attributes) nfsv4.NfsFtype4 {
+	switch attributes.GetFileType() {
+	case filesystem.FileTypeRegularFile:
+		if attributes.GetIsInNamedAttributeDirectory() {
+			return nfsv4.NF4NAMEDATTR
+		}
+		return nfsv4.NF4REG
+	case filesystem.FileTypeDirectory:
+		if attributes.GetIsInNamedAttributeDirectory() {
+			return nfsv4.NF4ATTRDIR
+		}
+		return nfsv4.NF4DIR
+	case filesystem.FileTypeSymlink:
+		return nfsv4.NF4LNK
+	case filesystem.FileTypeBlockDevice:
+		return nfsv4.NF4BLK
+	case filesystem.FileTypeCharacterDevice:
+		return nfsv4.NF4CHR
+	case filesystem.FileTypeFIFO:
+		return nfsv4.NF4FIFO
+	case filesystem.FileTypeSocket:
+		return nfsv4.NF4SOCK
+	default:
+		panic("Unknown file type")
+	}
+}
+
 // toNFSv4ChangeInfo converts directory change information returned by
 // the virtual file system to its NFSv4 equivalent.
 func toNFSv4ChangeInfo(changeInfo *virtual.ChangeInfo) nfsv4.ChangeInfo4 {
@@ -3033,7 +3045,7 @@ func attrRequestToAttributesMask(attrRequest nfsv4.Bitmap4) virtual.AttributesMa
 		// Attributes 0 to 31.
 		f := attrRequest[0]
 		if f&uint32(1<<nfsv4.FATTR4_TYPE) != 0 {
-			attributesMask |= virtual.AttributesMaskFileType
+			attributesMask |= virtual.AttributesMaskFileType | virtual.AttributesMaskIsInNamedAttributeDirectory
 		}
 		if f&uint32(1<<nfsv4.FATTR4_CHANGE) != 0 {
 			attributesMask |= virtual.AttributesMaskChangeID
