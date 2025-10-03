@@ -25,6 +25,9 @@ const (
 	// AttributesMaskFileType requests the file type (upper 4 bits
 	// of st_mode).
 	AttributesMaskFileType
+	// AttributesMaskHasNamedAttributes requests whether the file
+	// has one or more named attributes.
+	AttributesMaskHasNamedAttributes
 	// AttributesMaskInodeNumber requests the inode number (st_ino).
 	AttributesMaskInodeNumber
 	// AttributesMaskLastDataModificationTime requests the last data
@@ -54,6 +57,7 @@ type Attributes struct {
 	deviceNumber             filesystem.DeviceNumber
 	fileHandle               []byte
 	fileType                 filesystem.FileType
+	hasNamedAttributes       bool
 	inodeNumber              uint64
 	lastDataModificationTime time.Time
 	linkCount                uint32
@@ -125,6 +129,23 @@ func (a *Attributes) GetFileType() filesystem.FileType {
 func (a *Attributes) SetFileType(fileType filesystem.FileType) *Attributes {
 	a.fileType = fileType
 	a.fieldsPresent |= AttributesMaskFileType
+	return a
+}
+
+// GetHasNamedAttributes returns whether there are one or more named
+// attributes present.
+func (a *Attributes) GetHasNamedAttributes() bool {
+	if a.fieldsPresent&AttributesMaskHasNamedAttributes == 0 {
+		panic("The \"has named attributes\" attribute is mandatory, meaning it should be set when requested")
+	}
+	return a.hasNamedAttributes
+}
+
+// SetHasNamedAttributes sets whether there are one or more named
+// attributes present.
+func (a *Attributes) SetHasNamedAttributes(hasNamedAttributes bool) *Attributes {
+	a.hasNamedAttributes = hasNamedAttributes
+	a.fieldsPresent |= AttributesMaskHasNamedAttributes
 	return a
 }
 

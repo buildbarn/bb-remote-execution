@@ -618,7 +618,7 @@ func (p *nfs40Program) writeAttributes(attributes *virtual.Attributes, attrReque
 		}
 		if b := uint32(1 << nfsv4.FATTR4_NAMED_ATTR); f&b != 0 {
 			s |= b
-			runtime.WriteBool(w, false)
+			runtime.WriteBool(w, attributes.GetHasNamedAttributes())
 		}
 		if b := uint32(1 << nfsv4.FATTR4_FSID); f&b != 0 {
 			s |= b
@@ -3031,6 +3031,9 @@ func attrRequestToAttributesMask(attrRequest nfsv4.Bitmap4) virtual.AttributesMa
 		}
 		if f&uint32(1<<nfsv4.FATTR4_SIZE) != 0 {
 			attributesMask |= virtual.AttributesMaskSizeBytes
+		}
+		if f&uint32(1<<nfsv4.FATTR4_NAMED_ATTR) != 0 {
+			attributesMask |= virtual.AttributesMaskHasNamedAttributes
 		}
 		if f&uint32(1<<nfsv4.FATTR4_FILEHANDLE) != 0 {
 			attributesMask |= virtual.AttributesMaskFileHandle

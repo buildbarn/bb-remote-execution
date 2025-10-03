@@ -322,6 +322,7 @@ func (f *fileBackedFile) VirtualAllocate(off, size uint64) Status {
 // obtained without picking up any locks.
 func (f *fileBackedFile) virtualGetAttributesUnlocked(requested AttributesMask, attributes *Attributes) {
 	attributes.SetFileType(filesystem.FileTypeRegularFile)
+	attributes.SetHasNamedAttributes(false)
 	f.allocator.defaultAttributesSetter(requested, attributes)
 }
 

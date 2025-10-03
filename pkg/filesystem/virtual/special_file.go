@@ -32,6 +32,7 @@ func (f *specialFile) VirtualGetAttributes(ctx context.Context, requested Attrib
 		attributes.SetDeviceNumber(*f.deviceNumber)
 	}
 	attributes.SetFileType(f.fileType)
+	attributes.SetHasNamedAttributes(false)
 	attributes.SetPermissions(PermissionsRead | PermissionsWrite)
 	attributes.SetSizeBytes(0)
 }

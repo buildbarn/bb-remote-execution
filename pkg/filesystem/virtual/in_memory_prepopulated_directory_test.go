@@ -25,6 +25,7 @@ import (
 
 const inMemoryPrepopulatedDirectoryAttributesMask = virtual.AttributesMaskChangeID |
 	virtual.AttributesMaskFileType |
+	virtual.AttributesMaskHasNamedAttributes |
 	virtual.AttributesMaskInodeNumber |
 	virtual.AttributesMaskLastDataModificationTime |
 	virtual.AttributesMaskLinkCount |
@@ -33,6 +34,7 @@ const inMemoryPrepopulatedDirectoryAttributesMask = virtual.AttributesMaskChange
 
 const specialFileAttributesMask = virtual.AttributesMaskChangeID |
 	virtual.AttributesMaskFileType |
+	virtual.AttributesMaskHasNamedAttributes |
 	virtual.AttributesMaskInodeNumber |
 	virtual.AttributesMaskLinkCount |
 	virtual.AttributesMaskPermissions |
@@ -744,6 +746,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualGetAttributes(t *testing.T) {
 		*(&virtual.Attributes{}).
 			SetChangeID(0).
 			SetFileType(filesystem.FileTypeDirectory).
+			SetHasNamedAttributes(false).
 			SetInodeNumber(100).
 			SetLastDataModificationTime(time.Unix(1000, 0)).
 			SetLinkCount(virtual.ImplicitDirectoryLinkCount).
@@ -919,6 +922,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualLookup(t *testing.T) {
 			*(&virtual.Attributes{}).
 				SetChangeID(0).
 				SetFileType(filesystem.FileTypeDirectory).
+				SetHasNamedAttributes(false).
 				SetInodeNumber(101).
 				SetLastDataModificationTime(time.Unix(1001, 0)).
 				SetLinkCount(virtual.ImplicitDirectoryLinkCount).
@@ -1028,6 +1032,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualMkdir(t *testing.T) {
 			*(&virtual.Attributes{}).
 				SetChangeID(0).
 				SetFileType(filesystem.FileTypeDirectory).
+				SetHasNamedAttributes(false).
 				SetInodeNumber(101).
 				SetLastDataModificationTime(time.Unix(1003, 0)).
 				SetLinkCount(virtual.ImplicitDirectoryLinkCount).
@@ -1089,6 +1094,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualMknodSuccess(t *testing.T) {
 			SetChangeID(0).
 			SetPermissions(virtual.PermissionsRead | virtual.PermissionsWrite).
 			SetFileType(filesystem.FileTypeFIFO).
+			SetHasNamedAttributes(false).
 			SetSizeBytes(0),
 		fifoAttr)
 
@@ -1110,6 +1116,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualMknodSuccess(t *testing.T) {
 			SetChangeID(0).
 			SetPermissions(virtual.PermissionsRead | virtual.PermissionsWrite).
 			SetFileType(filesystem.FileTypeSocket).
+			SetHasNamedAttributes(false).
 			SetSizeBytes(0),
 		socketAttr)
 
@@ -1186,6 +1193,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualReadDir(t *testing.T) {
 		(&virtual.Attributes{}).
 			SetChangeID(0).
 			SetFileType(filesystem.FileTypeDirectory).
+			SetHasNamedAttributes(false).
 			SetInodeNumber(101).
 			SetLastDataModificationTime(time.Unix(1001, 0)).
 			SetLinkCount(virtual.ImplicitDirectoryLinkCount).

@@ -740,6 +740,7 @@ func (i *inMemoryPrepopulatedDirectory) VirtualGetAttributes(ctx context.Context
 func (i *inMemoryPrepopulatedDirectory) virtualGetAttributesUnlocked(requested AttributesMask, attributes *Attributes) {
 	i.subtree.defaultAttributesSetter(requested, attributes)
 	attributes.SetFileType(filesystem.FileTypeDirectory)
+	attributes.SetHasNamedAttributes(false)
 	// To be consistent with traditional UNIX file systems, this
 	// would need to be 2 + len(i.directories), but that would
 	// require us to initialize the directory, which is undesirable.

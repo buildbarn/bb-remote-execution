@@ -457,7 +457,7 @@ func (p *nfs41Program) writeAttributes(attributes *virtual.Attributes, attrReque
 		}
 		if b := uint32(1 << nfsv4.FATTR4_NAMED_ATTR); f&b != 0 {
 			s |= b
-			runtime.WriteBool(w, false)
+			runtime.WriteBool(w, attributes.GetHasNamedAttributes())
 		}
 		if b := uint32(1 << nfsv4.FATTR4_FSID); f&b != 0 {
 			s |= b

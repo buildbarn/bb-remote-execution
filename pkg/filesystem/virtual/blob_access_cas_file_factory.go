@@ -112,6 +112,7 @@ func (f *blobAccessCASFile) virtualApplyCommon(data any) bool {
 func (f *blobAccessCASFile) virtualGetAttributesCommon(attributes *Attributes) {
 	attributes.SetChangeID(0)
 	attributes.SetFileType(filesystem.FileTypeRegularFile)
+	attributes.SetHasNamedAttributes(false)
 	attributes.SetSizeBytes(uint64(f.digest.GetSizeBytes()))
 }
 

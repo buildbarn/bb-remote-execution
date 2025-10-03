@@ -88,6 +88,7 @@ func TestUserSettableSymlink(t *testing.T) {
 
 		requestedAttributes := virtual.AttributesMaskChangeID |
 			virtual.AttributesMaskFileType |
+			virtual.AttributesMaskHasNamedAttributes |
 			virtual.AttributesMaskPermissions |
 			virtual.AttributesMaskSizeBytes
 
@@ -97,6 +98,7 @@ func TestUserSettableSymlink(t *testing.T) {
 			require.Equal(t, *(&virtual.Attributes{}).
 				SetChangeID(0).
 				SetFileType(filesystem.FileTypeSymlink).
+				SetHasNamedAttributes(false).
 				SetPermissions(virtual.PermissionsRead | virtual.PermissionsWrite | virtual.PermissionsExecute).
 				SetSizeBytes(0),
 				attributes)
@@ -108,6 +110,7 @@ func TestUserSettableSymlink(t *testing.T) {
 			require.Equal(t, *(&virtual.Attributes{}).
 				SetChangeID(1).
 				SetFileType(filesystem.FileTypeSymlink).
+				SetHasNamedAttributes(false).
 				SetPermissions(virtual.PermissionsRead | virtual.PermissionsWrite | virtual.PermissionsExecute).
 				SetSizeBytes(18),
 				attributes1)
@@ -117,6 +120,7 @@ func TestUserSettableSymlink(t *testing.T) {
 			require.Equal(t, *(&virtual.Attributes{}).
 				SetChangeID(2).
 				SetFileType(filesystem.FileTypeSymlink).
+				SetHasNamedAttributes(false).
 				SetPermissions(virtual.PermissionsRead | virtual.PermissionsWrite | virtual.PermissionsExecute).
 				SetSizeBytes(19),
 				attributes2)

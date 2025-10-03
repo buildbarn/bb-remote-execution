@@ -1684,6 +1684,7 @@ func TestNFS40ProgramCompound_OP_GETATTR(t *testing.T) {
 			virtual.AttributesMaskChangeID|
 				virtual.AttributesMaskFileHandle|
 				virtual.AttributesMaskFileType|
+				virtual.AttributesMaskHasNamedAttributes|
 				virtual.AttributesMaskInodeNumber|
 				virtual.AttributesMaskLastDataModificationTime|
 				virtual.AttributesMaskLinkCount|
@@ -1696,6 +1697,7 @@ func TestNFS40ProgramCompound_OP_GETATTR(t *testing.T) {
 			attributes.SetChangeID(0xeaab7253dad16ee5)
 			attributes.SetFileHandle([]byte{0xcd, 0xe9, 0xc7, 0x4c, 0x8b, 0x8d, 0x58, 0xef, 0xd9, 0x9f})
 			attributes.SetFileType(filesystem.FileTypeDirectory)
+			attributes.SetHasNamedAttributes(true)
 			attributes.SetInodeNumber(0xfcadd45521cb1db2)
 			attributes.SetLastDataModificationTime(time.Unix(1654791566, 4839067173))
 			attributes.SetLinkCount(12)
@@ -1789,8 +1791,8 @@ func TestNFS40ProgramCompound_OP_GETATTR(t *testing.T) {
 									0x00, 0x00, 0x00, 0x01,
 									// FATTR4_SYMLINK_SUPPORT == TRUE.
 									0x00, 0x00, 0x00, 0x01,
-									// FATTR4_NAMED_ATTR == FALSE.
-									0x00, 0x00, 0x00, 0x00,
+									// FATTR4_NAMED_ATTR == TRUE.
+									0x00, 0x00, 0x00, 0x01,
 									// FATTR4_FSID.
 									0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
 									0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
