@@ -766,6 +766,14 @@ func (i *inMemoryPrepopulatedDirectory) VirtualApply(data any) bool {
 	return false
 }
 
+func (inMemoryPrepopulatedDirectory) VirtualOpenNamedAttributes(ctx context.Context, createDirectory bool, requested AttributesMask, attributes *Attributes) (Directory, Status) {
+	// TODO: Provide a proper implementation.
+	if createDirectory {
+		return nil, StatusErrAccess
+	}
+	return nil, StatusErrNoEnt
+}
+
 func (i *inMemoryPrepopulatedDirectory) VirtualLink(ctx context.Context, name path.Component, leaf Leaf, requested AttributesMask, out *Attributes) (ChangeInfo, Status) {
 	child, ok := leaf.(LinkableLeaf)
 	if !ok {

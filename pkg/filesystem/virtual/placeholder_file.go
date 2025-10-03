@@ -56,3 +56,10 @@ func (placeholderFile) VirtualApply(data any) bool {
 	}
 	return true
 }
+
+func (placeholderFile) VirtualOpenNamedAttributes(ctx context.Context, createDirectory bool, requested AttributesMask, attributes *Attributes) (Directory, Status) {
+	if createDirectory {
+		return nil, StatusErrAccess
+	}
+	return nil, StatusErrNoEnt
+}

@@ -11,6 +11,16 @@ import (
 // operations that mutate the directory contents.
 type ReadOnlyDirectory struct{}
 
+// VirtualOpenNamedAttributes opens the named attribute directory of a
+// read-only directory. Because we assume that read-only directories
+// don't have any named attributes, this operation always fails.
+func (ReadOnlyDirectory) VirtualOpenNamedAttributes(ctx context.Context, createDirectory bool, requested AttributesMask, attributes *Attributes) (Directory, Status) {
+	if createDirectory {
+		return nil, StatusErrAccess
+	}
+	return nil, StatusErrNoEnt
+}
+
 // VirtualLink is an implementation of the link() system call that
 // treats the target directory as being read-only.
 func (ReadOnlyDirectory) VirtualLink(ctx context.Context, name path.Component, leaf Leaf, requested AttributesMask, out *Attributes) (ChangeInfo, Status) {

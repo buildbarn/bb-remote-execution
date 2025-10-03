@@ -3154,15 +3154,21 @@ func TestNFS40ProgramCompound_OP_OPENATTR(t *testing.T) {
 		}, res)
 	})
 
-	t.Run("NotSupported", func(t *testing.T) {
-		// This implementation does not support named attributes.
+	t.Run("NotFound", func(t *testing.T) {
+		rootDirectory.EXPECT().VirtualOpenNamedAttributes(
+			ctx,
+			/* createDirectory = */ false,
+			virtual.AttributesMaskFileHandle,
+			gomock.Any(),
+		).Return(nil, virtual.StatusErrNoEnt)
+
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "openattr",
 			Argarray: []nfsv4_xdr.NfsArgop4{
 				&nfsv4_xdr.NfsArgop4_OP_PUTROOTFH{},
 				&nfsv4_xdr.NfsArgop4_OP_OPENATTR{
 					Opopenattr: nfsv4_xdr.Openattr4args{
-						Createdir: true,
+						Createdir: false,
 					},
 				},
 			},
@@ -3178,11 +3184,61 @@ func TestNFS40ProgramCompound_OP_OPENATTR(t *testing.T) {
 				},
 				&nfsv4_xdr.NfsResop4_OP_OPENATTR{
 					Opopenattr: nfsv4_xdr.Openattr4res{
-						Status: nfsv4_xdr.NFS4ERR_NOTSUPP,
+						Status: nfsv4_xdr.NFS4ERR_NOENT,
 					},
 				},
 			},
-			Status: nfsv4_xdr.NFS4ERR_NOTSUPP,
+			Status: nfsv4_xdr.NFS4ERR_NOENT,
+		}, res)
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		namedAttributesDirectory := mock.NewMockVirtualDirectory(ctrl)
+		rootDirectory.EXPECT().VirtualOpenNamedAttributes(
+			ctx,
+			/* createDirectory = */ true,
+			virtual.AttributesMaskFileHandle,
+			gomock.Any(),
+		).DoAndReturn(func(ctx context.Context, createDirectory bool, requested virtual.AttributesMask, attributes *virtual.Attributes) (virtual.Directory, virtual.Status) {
+			attributes.SetFileHandle([]byte{0xde, 0x14, 0x6d, 0x8a, 0xf4, 0x11, 0x4f, 0x29})
+			return namedAttributesDirectory, virtual.StatusOK
+		})
+
+		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+			Tag: "openattr",
+			Argarray: []nfsv4_xdr.NfsArgop4{
+				&nfsv4_xdr.NfsArgop4_OP_PUTROOTFH{},
+				&nfsv4_xdr.NfsArgop4_OP_OPENATTR{
+					Opopenattr: nfsv4_xdr.Openattr4args{
+						Createdir: true,
+					},
+				},
+				&nfsv4_xdr.NfsArgop4_OP_GETFH{},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, &nfsv4_xdr.Compound4res{
+			Tag: "openattr",
+			Resarray: []nfsv4_xdr.NfsResop4{
+				&nfsv4_xdr.NfsResop4_OP_PUTROOTFH{
+					Opputrootfh: nfsv4_xdr.Putrootfh4res{
+						Status: nfsv4_xdr.NFS4_OK,
+					},
+				},
+				&nfsv4_xdr.NfsResop4_OP_OPENATTR{
+					Opopenattr: nfsv4_xdr.Openattr4res{
+						Status: nfsv4_xdr.NFS4_OK,
+					},
+				},
+				&nfsv4_xdr.NfsResop4_OP_GETFH{
+					Opgetfh: &nfsv4_xdr.Getfh4res_NFS4_OK{
+						Resok4: nfsv4_xdr.Getfh4resok{
+							Object: nfsv4_xdr.NfsFh4{0xde, 0x14, 0x6d, 0x8a, 0xf4, 0x11, 0x4f, 0x29},
+						},
+					},
+				},
+			},
+			Status: nfsv4_xdr.NFS4_OK,
 		}, res)
 	})
 }

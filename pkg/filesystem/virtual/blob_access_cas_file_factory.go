@@ -172,6 +172,13 @@ func (f *blobAccessCASFile) VirtualWrite(buf []byte, off uint64) (int, Status) {
 	panic("Request to write to read-only file should have been intercepted")
 }
 
+func (blobAccessCASFile) VirtualOpenNamedAttributes(ctx context.Context, createDirectory bool, requested AttributesMask, attributes *Attributes) (Directory, Status) {
+	if createDirectory {
+		return nil, StatusErrAccess
+	}
+	return nil, StatusErrNoEnt
+}
+
 // regularBlobAccessCASFile is the type BlobAccess backed files that are
 // not executable (-x).
 type regularBlobAccessCASFile struct {

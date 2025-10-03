@@ -916,7 +916,7 @@ func (p *nfs41Program) opSequence(ctx context.Context, args *nfsv4.Sequence4args
 				})
 				result.status = res.GetStatus()
 			case *nfsv4.NfsArgop4_OP_OPENATTR:
-				res := state.opOpenAttr(&op.Opopenattr)
+				res := state.opOpenAttr(ctx, &op.Opopenattr)
 				result.resArray = append(result.resArray, &nfsv4.NfsResop4_OP_OPENATTR{
 					Opopenattr: res,
 				})
@@ -2360,12 +2360,21 @@ func (s *sequenceState) opOpen(ctx context.Context, args *nfsv4.Open4args) nfsv4
 	}
 }
 
-func (s *sequenceState) opOpenAttr(args *nfsv4.Openattr4args) nfsv4.Openattr4res {
-	// This implementation does not support named attributes.
-	if _, _, st := s.currentFileHandle.getNode(); st != nfsv4.NFS4_OK {
+func (s *sequenceState) opOpenAttr(ctx context.Context, args *nfsv4.Openattr4args) nfsv4.Openattr4res {
+	currentNode, _, st := s.currentFileHandle.getNode()
+	if st != nfsv4.NFS4_OK {
 		return nfsv4.Openattr4res{Status: st}
 	}
-	return nfsv4.Openattr4res{Status: nfsv4.NFS4ERR_NOTSUPP}
+	var attributes virtual.Attributes
+	child, vs := currentNode.VirtualOpenNamedAttributes(ctx, args.Createdir, virtual.AttributesMaskFileHandle, &attributes)
+	if vs != virtual.StatusOK {
+		return nfsv4.Openattr4res{Status: toNFSv4Status(vs)}
+	}
+	s.currentFileHandle = nfs41FileHandle{
+		handle: attributes.GetFileHandle(),
+		node:   virtual.DirectoryChild{}.FromDirectory(child),
+	}
+	return nfsv4.Openattr4res{Status: nfsv4.NFS4_OK}
 }
 
 func (s *sequenceState) opOpenDowngrade(args *nfsv4.OpenDowngrade4args) nfsv4.OpenDowngrade4res {

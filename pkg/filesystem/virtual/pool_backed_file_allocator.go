@@ -393,6 +393,14 @@ func (f *fileBackedFile) VirtualApply(data any) bool {
 	return true
 }
 
+func (fileBackedFile) VirtualOpenNamedAttributes(ctx context.Context, createDirectory bool, requested AttributesMask, attributes *Attributes) (Directory, Status) {
+	// TODO: Provide a proper implementation.
+	if createDirectory {
+		return nil, StatusErrAccess
+	}
+	return nil, StatusErrNoEnt
+}
+
 func (f *fileBackedFile) VirtualSeek(offset uint64, regionType filesystem.RegionType) (*uint64, Status) {
 	f.lock.Lock()
 	if offset >= f.size {
