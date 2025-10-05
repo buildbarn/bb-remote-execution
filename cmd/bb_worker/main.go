@@ -376,8 +376,11 @@ func main() {
 							symlinkFactory,
 							characterDeviceFactory,
 							handleAllocator,
-							runnerConfiguration.BuildDirectoryOwnerUserId,
-							runnerConfiguration.BuildDirectoryOwnerGroupId)
+							/* defaultAttributesSetter = */ func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+								attributes.SetOwnerUserID(runnerConfiguration.BuildDirectoryOwnerUserId)
+								attributes.SetOwnerGroupID(runnerConfiguration.BuildDirectoryOwnerGroupId)
+							},
+						)
 					} else {
 						executionTimeoutClock = clock.SystemClock
 						buildDirectory = builder.NewNaiveBuildDirectory(

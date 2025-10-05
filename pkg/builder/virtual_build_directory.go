@@ -20,13 +20,12 @@ import (
 )
 
 type virtualBuildDirectoryOptions struct {
-	directoryFetcher           cas.DirectoryFetcher
-	contentAddressableStorage  blobstore.BlobAccess
-	symlinkFactory             virtual.SymlinkFactory
-	characterDeviceFactory     virtual.CharacterDeviceFactory
-	handleAllocator            virtual.StatefulHandleAllocator
-	buildDirectoryOwnerUserID  uint32
-	buildDirectoryOwnerGroupID uint32
+	directoryFetcher          cas.DirectoryFetcher
+	contentAddressableStorage blobstore.BlobAccess
+	symlinkFactory            virtual.SymlinkFactory
+	characterDeviceFactory    virtual.CharacterDeviceFactory
+	handleAllocator           virtual.StatefulHandleAllocator
+	defaultAttributesSetter   virtual.DefaultAttributesSetter
 }
 
 type virtualBuildDirectory struct {
@@ -39,17 +38,16 @@ type virtualBuildDirectory struct {
 // input root explicitly, it calls PrepopulatedDirectory.CreateChildren
 // to add special file and directory nodes whose contents are read on
 // demand.
-func NewVirtualBuildDirectory(directory virtual.PrepopulatedDirectory, directoryFetcher cas.DirectoryFetcher, contentAddressableStorage blobstore.BlobAccess, symlinkFactory virtual.SymlinkFactory, characterDeviceFactory virtual.CharacterDeviceFactory, handleAllocator virtual.StatefulHandleAllocator, buildDirectoryOwnerUserID, buildDirectoryOwnerGroupID uint32) BuildDirectory {
+func NewVirtualBuildDirectory(directory virtual.PrepopulatedDirectory, directoryFetcher cas.DirectoryFetcher, contentAddressableStorage blobstore.BlobAccess, symlinkFactory virtual.SymlinkFactory, characterDeviceFactory virtual.CharacterDeviceFactory, handleAllocator virtual.StatefulHandleAllocator, defaultAttributesSetter virtual.DefaultAttributesSetter) BuildDirectory {
 	return &virtualBuildDirectory{
 		PrepopulatedDirectory: directory,
 		options: &virtualBuildDirectoryOptions{
-			directoryFetcher:           directoryFetcher,
-			contentAddressableStorage:  contentAddressableStorage,
-			symlinkFactory:             symlinkFactory,
-			characterDeviceFactory:     characterDeviceFactory,
-			handleAllocator:            handleAllocator,
-			buildDirectoryOwnerUserID:  buildDirectoryOwnerUserID,
-			buildDirectoryOwnerGroupID: buildDirectoryOwnerGroupID,
+			directoryFetcher:          directoryFetcher,
+			contentAddressableStorage: contentAddressableStorage,
+			symlinkFactory:            symlinkFactory,
+			characterDeviceFactory:    characterDeviceFactory,
+			handleAllocator:           handleAllocator,
+			defaultAttributesSetter:   defaultAttributesSetter,
 		},
 	}
 }
@@ -84,17 +82,17 @@ func (d *virtualBuildDirectory) EnterUploadableDirectory(name path.Component) (U
 
 func (d *virtualBuildDirectory) InstallHooks(filePool pool.FilePool, errorLogger util.ErrorLogger) {
 	do := d.options
-	defaultAttributesSetter := func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
-		attributes.SetOwnerUserID(do.buildDirectoryOwnerUserID)
-		attributes.SetOwnerGroupID(do.buildDirectoryOwnerGroupID)
-	}
 	d.PrepopulatedDirectory.InstallHooks(
 		virtual.NewHandleAllocatingFileAllocator(
-			virtual.NewPoolBackedFileAllocator(filePool, errorLogger, defaultAttributesSetter),
+			virtual.NewPoolBackedFileAllocator(
+				filePool,
+				errorLogger,
+				do.defaultAttributesSetter,
+			),
 			do.handleAllocator,
 		),
 		errorLogger,
-		defaultAttributesSetter,
+		do.defaultAttributesSetter,
 	)
 }
 
