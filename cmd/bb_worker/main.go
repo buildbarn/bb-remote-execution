@@ -232,6 +232,7 @@ func main() {
 							pool.EmptyFilePool,
 							util.DefaultErrorLogger,
 							defaultAttributesSetter,
+							virtual.NoNamedAttributesFactory,
 						),
 						handleAllocator,
 					),
@@ -243,6 +244,7 @@ func main() {
 					clock.SystemClock,
 					normalizer,
 					defaultAttributesSetter,
+					virtual.NoNamedAttributesFactory,
 				)
 
 				if err := mount.Expose(dependenciesGroup, virtualBuildDirectory); err != nil {
@@ -376,8 +378,12 @@ func main() {
 							symlinkFactory,
 							characterDeviceFactory,
 							handleAllocator,
-							runnerConfiguration.BuildDirectoryOwnerUserId,
-							runnerConfiguration.BuildDirectoryOwnerGroupId)
+							/* defaultAttributesSetter = */ func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+								attributes.SetOwnerUserID(runnerConfiguration.BuildDirectoryOwnerUserId)
+								attributes.SetOwnerGroupID(runnerConfiguration.BuildDirectoryOwnerGroupId)
+							},
+							clock.SystemClock,
+						)
 					} else {
 						executionTimeoutClock = clock.SystemClock
 						buildDirectory = builder.NewNaiveBuildDirectory(

@@ -237,7 +237,7 @@ func (p *nfs40Program) NfsV4Nfsproc4Compound(ctx context.Context, arguments *nfs
 			})
 			status = res.GetStatus()
 		case *nfsv4.NfsArgop4_OP_OPENATTR:
-			res := state.opOpenattr(&op.Opopenattr)
+			res := state.opOpenattr(ctx, &op.Opopenattr)
 			resarray = append(resarray, &nfsv4.NfsResop4_OP_OPENATTR{
 				Opopenattr: res,
 			})
@@ -570,24 +570,7 @@ func (p *nfs40Program) writeAttributes(attributes *virtual.Attributes, attrReque
 		}
 		if b := uint32(1 << nfsv4.FATTR4_TYPE); f&b != 0 {
 			s |= b
-			switch attributes.GetFileType() {
-			case filesystem.FileTypeRegularFile:
-				nfsv4.NF4REG.WriteTo(w)
-			case filesystem.FileTypeDirectory:
-				nfsv4.NF4DIR.WriteTo(w)
-			case filesystem.FileTypeSymlink:
-				nfsv4.NF4LNK.WriteTo(w)
-			case filesystem.FileTypeBlockDevice:
-				nfsv4.NF4BLK.WriteTo(w)
-			case filesystem.FileTypeCharacterDevice:
-				nfsv4.NF4CHR.WriteTo(w)
-			case filesystem.FileTypeFIFO:
-				nfsv4.NF4FIFO.WriteTo(w)
-			case filesystem.FileTypeSocket:
-				nfsv4.NF4SOCK.WriteTo(w)
-			default:
-				panic("Unknown file type")
-			}
+			attributesToNfsFtype4(attributes).WriteTo(w)
 		}
 		if b := uint32(1 << nfsv4.FATTR4_FH_EXPIRE_TYPE); f&b != 0 {
 			s |= b
@@ -618,7 +601,7 @@ func (p *nfs40Program) writeAttributes(attributes *virtual.Attributes, attrReque
 		}
 		if b := uint32(1 << nfsv4.FATTR4_NAMED_ATTR); f&b != 0 {
 			s |= b
-			runtime.WriteBool(w, false)
+			runtime.WriteBool(w, attributes.GetHasNamedAttributes())
 		}
 		if b := uint32(1 << nfsv4.FATTR4_FSID); f&b != 0 {
 			s |= b
@@ -1697,12 +1680,21 @@ func (s *compoundState) txOpen(ctx context.Context, args *nfsv4.Open4args, oos *
 	}
 }
 
-func (s *compoundState) opOpenattr(args *nfsv4.Openattr4args) nfsv4.Openattr4res {
-	// This implementation does not support named attributes.
-	if _, _, st := s.currentFileHandle.getNode(); st != nfsv4.NFS4_OK {
+func (s *compoundState) opOpenattr(ctx context.Context, args *nfsv4.Openattr4args) nfsv4.Openattr4res {
+	currentNode, _, st := s.currentFileHandle.getNode()
+	if st != nfsv4.NFS4_OK {
 		return nfsv4.Openattr4res{Status: st}
 	}
-	return nfsv4.Openattr4res{Status: nfsv4.NFS4ERR_NOTSUPP}
+	var attributes virtual.Attributes
+	child, vs := currentNode.VirtualOpenNamedAttributes(ctx, args.Createdir, virtual.AttributesMaskFileHandle, &attributes)
+	if vs != virtual.StatusOK {
+		return nfsv4.Openattr4res{Status: toNFSv4Status(vs)}
+	}
+	s.currentFileHandle = nfs40FileHandle{
+		handle: attributes.GetFileHandle(),
+		node:   virtual.DirectoryChild{}.FromDirectory(child),
+	}
+	return nfsv4.Openattr4res{Status: nfsv4.NFS4_OK}
 }
 
 func (s *compoundState) opOpenConfirm(args *nfsv4.OpenConfirm4args) nfsv4.OpenConfirm4res {
@@ -2423,10 +2415,41 @@ func toNFSv4Status(s virtual.Status) nfsv4.Nfsstat4 {
 		return nfsv4.NFS4ERR_STALE
 	case virtual.StatusErrSymlink:
 		return nfsv4.NFS4ERR_SYMLINK
+	case virtual.StatusErrWrongType:
+		return nfsv4.NFS4ERR_WRONG_TYPE
 	case virtual.StatusErrXDev:
 		return nfsv4.NFS4ERR_XDEV
 	default:
 		panic("Unknown status")
+	}
+}
+
+// attributesToNfsFtype4 extracts the file type from a node's attributes
+// and converts it to its NFSv4 equivalent.
+func attributesToNfsFtype4(attributes *virtual.Attributes) nfsv4.NfsFtype4 {
+	switch attributes.GetFileType() {
+	case filesystem.FileTypeRegularFile:
+		if attributes.GetIsInNamedAttributeDirectory() {
+			return nfsv4.NF4NAMEDATTR
+		}
+		return nfsv4.NF4REG
+	case filesystem.FileTypeDirectory:
+		if attributes.GetIsInNamedAttributeDirectory() {
+			return nfsv4.NF4ATTRDIR
+		}
+		return nfsv4.NF4DIR
+	case filesystem.FileTypeSymlink:
+		return nfsv4.NF4LNK
+	case filesystem.FileTypeBlockDevice:
+		return nfsv4.NF4BLK
+	case filesystem.FileTypeCharacterDevice:
+		return nfsv4.NF4CHR
+	case filesystem.FileTypeFIFO:
+		return nfsv4.NF4FIFO
+	case filesystem.FileTypeSocket:
+		return nfsv4.NF4SOCK
+	default:
+		panic("Unknown file type")
 	}
 }
 
@@ -3024,13 +3047,16 @@ func attrRequestToAttributesMask(attrRequest nfsv4.Bitmap4) virtual.AttributesMa
 		// Attributes 0 to 31.
 		f := attrRequest[0]
 		if f&uint32(1<<nfsv4.FATTR4_TYPE) != 0 {
-			attributesMask |= virtual.AttributesMaskFileType
+			attributesMask |= virtual.AttributesMaskFileType | virtual.AttributesMaskIsInNamedAttributeDirectory
 		}
 		if f&uint32(1<<nfsv4.FATTR4_CHANGE) != 0 {
 			attributesMask |= virtual.AttributesMaskChangeID
 		}
 		if f&uint32(1<<nfsv4.FATTR4_SIZE) != 0 {
 			attributesMask |= virtual.AttributesMaskSizeBytes
+		}
+		if f&uint32(1<<nfsv4.FATTR4_NAMED_ATTR) != 0 {
+			attributesMask |= virtual.AttributesMaskHasNamedAttributes
 		}
 		if f&uint32(1<<nfsv4.FATTR4_FILEHANDLE) != 0 {
 			attributesMask |= virtual.AttributesMaskFileHandle

@@ -112,6 +112,8 @@ func (f *blobAccessCASFile) virtualApplyCommon(data any) bool {
 func (f *blobAccessCASFile) virtualGetAttributesCommon(attributes *Attributes) {
 	attributes.SetChangeID(0)
 	attributes.SetFileType(filesystem.FileTypeRegularFile)
+	attributes.SetHasNamedAttributes(false)
+	attributes.SetIsInNamedAttributeDirectory(false)
 	attributes.SetSizeBytes(uint64(f.digest.GetSizeBytes()))
 }
 
@@ -169,6 +171,13 @@ func (f *blobAccessCASFile) virtualSetAttributesCommon(in *Attributes) Status {
 
 func (f *blobAccessCASFile) VirtualWrite(buf []byte, off uint64) (int, Status) {
 	panic("Request to write to read-only file should have been intercepted")
+}
+
+func (blobAccessCASFile) VirtualOpenNamedAttributes(ctx context.Context, createDirectory bool, requested AttributesMask, attributes *Attributes) (Directory, Status) {
+	if createDirectory {
+		return nil, StatusErrAccess
+	}
+	return nil, StatusErrNoEnt
 }
 
 // regularBlobAccessCASFile is the type BlobAccess backed files that are

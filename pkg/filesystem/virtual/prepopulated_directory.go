@@ -99,7 +99,7 @@ type PrepopulatedDirectory interface {
 	// This function is identical to BuildDirectory.InstallHooks(),
 	// except that it uses the FUSE specific FileAllocator instead
 	// of FilePool.
-	InstallHooks(fileAllocator FileAllocator, errorLogger util.ErrorLogger, defaultAttributesSetter DefaultAttributesSetter)
+	InstallHooks(fileAllocator FileAllocator, errorLogger util.ErrorLogger, defaultAttributesSetter DefaultAttributesSetter, namedAttributesFactory NamedAttributesFactory)
 	// FilterChildren() can be used to traverse over all of the
 	// InitialContentsFetcher and LinkableLeaf objects stored in this
 	// directory hierarchy. For each of the objects, a callback is

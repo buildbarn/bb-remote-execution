@@ -73,6 +73,7 @@ func (f *UserSettableSymlink) InstallTemporaryDirectory(ctx context.Context, req
 // symbolic link.
 func (f *UserSettableSymlink) VirtualGetAttributes(ctx context.Context, requested AttributesMask, attributes *Attributes) {
 	attributes.SetFileType(filesystem.FileTypeSymlink)
+	attributes.SetHasNamedAttributes(false)
 	attributes.SetPermissions(PermissionsRead | PermissionsWrite | PermissionsExecute)
 
 	if requested&(AttributesMaskChangeID|AttributesMaskSizeBytes) != 0 {

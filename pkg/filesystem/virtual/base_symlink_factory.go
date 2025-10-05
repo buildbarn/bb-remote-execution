@@ -50,6 +50,7 @@ func (f symlink) readlinkString() (string, error) {
 func (f symlink) VirtualGetAttributes(ctx context.Context, requested AttributesMask, attributes *Attributes) {
 	attributes.SetChangeID(0)
 	attributes.SetFileType(filesystem.FileTypeSymlink)
+	attributes.SetHasNamedAttributes(false)
 	attributes.SetPermissions(PermissionsRead | PermissionsWrite | PermissionsExecute)
 	attributes.SetSizeBytes(uint64(len(f.target)))
 }

@@ -67,6 +67,8 @@ func NewStaticDirectory(normalizer ComponentNormalizer, directories map[path.Com
 func (d *staticDirectory) VirtualGetAttributes(ctx context.Context, requested AttributesMask, attributes *Attributes) {
 	attributes.SetChangeID(0)
 	attributes.SetFileType(filesystem.FileTypeDirectory)
+	attributes.SetHasNamedAttributes(false)
+	attributes.SetIsInNamedAttributeDirectory(false)
 	attributes.SetLinkCount(d.linkCount)
 	attributes.SetPermissions(PermissionsRead | PermissionsExecute)
 	attributes.SetSizeBytes(0)

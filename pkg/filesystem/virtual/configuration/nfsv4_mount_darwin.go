@@ -150,10 +150,12 @@ func (m *nfsv4Mount) mount(terminationGroup program.Group, rpcServer *rpcserver.
 	flags := nfs_sys_prot.NfsMattrFlags{
 		Mask: []uint32{
 			(1 << nfs_sys_prot.NFS_MFLAG_NOCALLBACK) |
+				(1 << nfs_sys_prot.NFS_MFLAG_NAMEDATTR) |
 				(1 << nfs_sys_prot.NFS_MFLAG_SKIP_RENEW),
 		},
 		Value: []uint32{
 			(1 << nfs_sys_prot.NFS_MFLAG_NOCALLBACK) |
+				(1 << nfs_sys_prot.NFS_MFLAG_NAMEDATTR) |
 				(1 << nfs_sys_prot.NFS_MFLAG_SKIP_RENEW),
 		},
 	}

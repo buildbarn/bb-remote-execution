@@ -48,6 +48,7 @@ type poolBackedFileAllocator struct {
 	pool                    pool.FilePool
 	errorLogger             util.ErrorLogger
 	defaultAttributesSetter DefaultAttributesSetter
+	namedAttributesFactory  NamedAttributesFactory
 }
 
 // NewPoolBackedFileAllocator creates an allocator for a leaf node that
@@ -59,7 +60,7 @@ type poolBackedFileAllocator struct {
 // file descriptor count reach zero), Close() is called on the
 // underlying backing file descriptor. This may be used to request
 // deletion from underlying storage.
-func NewPoolBackedFileAllocator(pool pool.FilePool, errorLogger util.ErrorLogger, defaultAttributesSetter DefaultAttributesSetter) FileAllocator {
+func NewPoolBackedFileAllocator(pool pool.FilePool, errorLogger util.ErrorLogger, defaultAttributesSetter DefaultAttributesSetter, namedAttributesFactory NamedAttributesFactory) FileAllocator {
 	poolBackedFileAllocatorPrometheusMetrics.Do(func() {
 		prometheus.MustRegister(poolBackedFileAllocatorWritableFileUploadDelaySeconds)
 		prometheus.MustRegister(poolBackedFileAllocatorWritableFileUploadDelayTimeouts)
@@ -69,6 +70,7 @@ func NewPoolBackedFileAllocator(pool pool.FilePool, errorLogger util.ErrorLogger
 		pool:                    pool,
 		errorLogger:             errorLogger,
 		defaultAttributesSetter: defaultAttributesSetter,
+		namedAttributesFactory:  namedAttributesFactory,
 	}
 }
 
@@ -86,7 +88,8 @@ func (fa *poolBackedFileAllocator) NewFile(isExecutable bool, size uint64, share
 		}
 	}
 	f := &fileBackedFile{
-		allocator: fa,
+		NamedAttributes: fa.namedAttributesFactory.NewNamedAttributes(),
+		allocator:       fa,
 
 		file:           file,
 		isExecutable:   isExecutable,
@@ -99,6 +102,7 @@ func (fa *poolBackedFileAllocator) NewFile(isExecutable bool, size uint64, share
 }
 
 type fileBackedFile struct {
+	NamedAttributes
 	allocator *poolBackedFileAllocator
 
 	lock                     sync.RWMutex
@@ -193,6 +197,7 @@ func (f *fileBackedFile) releaseReferencesLocked(count uint) {
 	if f.referenceCount == 0 {
 		f.file.Close()
 		f.file = nil
+		f.NamedAttributes.Release()
 	}
 }
 
@@ -323,6 +328,7 @@ func (f *fileBackedFile) VirtualAllocate(off, size uint64) Status {
 func (f *fileBackedFile) virtualGetAttributesUnlocked(requested AttributesMask, attributes *Attributes) {
 	attributes.SetFileType(filesystem.FileTypeRegularFile)
 	f.allocator.defaultAttributesSetter(requested, attributes)
+	f.NamedAttributes.VirtualGetAttributes(requested, attributes)
 }
 
 // virtualGetAttributesUnlocked gets file attributes that can only be

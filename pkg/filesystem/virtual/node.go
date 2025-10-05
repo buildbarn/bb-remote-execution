@@ -19,6 +19,9 @@ type Node interface {
 	// VirtualApply can be used to send data between backing nodes. Returns true
 	// if the request was intercepted.
 	VirtualApply(data any) bool
+	// VirtualOpenNamedAttributes can be used to create or look up
+	// the named attributes directory of a node.
+	VirtualOpenNamedAttributes(ctx context.Context, createDirectory bool, requested AttributesMask, attributes *Attributes) (Directory, Status)
 }
 
 // GetFileInfo extracts the attributes of a node and returns it in the
