@@ -37,7 +37,7 @@ func TestPoolBackedFileAllocatorGetBazelOutputServiceStat(t *testing.T) {
 	defaultAttributesSetter := mock.NewMockDefaultAttributesSetter(ctrl)
 	defaultAttributesSetter.EXPECT().Call(gomock.Any(), gomock.Any()).AnyTimes()
 
-	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger, defaultAttributesSetter.Call).
+	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger, defaultAttributesSetter.Call, virtual.NoNamedAttributesFactory).
 		NewFile(false, 0, virtual.ShareMaskRead|virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 
@@ -208,7 +208,7 @@ func TestPoolBackedFileAllocatorVirtualSeek(t *testing.T) {
 	defaultAttributesSetter := mock.NewMockDefaultAttributesSetter(ctrl)
 	defaultAttributesSetter.EXPECT().Call(gomock.Any(), gomock.Any()).AnyTimes()
 
-	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger, defaultAttributesSetter.Call).
+	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger, defaultAttributesSetter.Call, virtual.NoNamedAttributesFactory).
 		NewFile(false, 0, virtual.ShareMaskRead|virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 
@@ -277,7 +277,7 @@ func TestPoolBackedFileAllocatorVirtualOpenSelfStaleAfterUnlink(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	defaultAttributesSetter := mock.NewMockDefaultAttributesSetter(ctrl)
 
-	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger, defaultAttributesSetter.Call).
+	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger, defaultAttributesSetter.Call, virtual.NoNamedAttributesFactory).
 		NewFile(false, 0, virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 
@@ -303,7 +303,7 @@ func TestPoolBackedFileAllocatorVirtualOpenSelfStaleAfterClose(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	defaultAttributesSetter := mock.NewMockDefaultAttributesSetter(ctrl)
 
-	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger, defaultAttributesSetter.Call).
+	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger, defaultAttributesSetter.Call, virtual.NoNamedAttributesFactory).
 		NewFile(false, 0, virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 
@@ -325,7 +325,7 @@ func TestPoolBackedFileAllocatorVirtualRead(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	defaultAttributesSetter := mock.NewMockDefaultAttributesSetter(ctrl)
 
-	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger, defaultAttributesSetter.Call).
+	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger, defaultAttributesSetter.Call, virtual.NoNamedAttributesFactory).
 		NewFile(false, 0, virtual.ShareMaskRead|virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 
@@ -406,7 +406,7 @@ func TestPoolBackedFileAllocatorFUSETruncateFailure(t *testing.T) {
 
 	defaultAttributesSetter := mock.NewMockDefaultAttributesSetter(ctrl)
 
-	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger, defaultAttributesSetter.Call).
+	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger, defaultAttributesSetter.Call, virtual.NoNamedAttributesFactory).
 		NewFile(false, 0, virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 
@@ -436,7 +436,7 @@ func TestPoolBackedFileAllocatorVirtualWriteFailure(t *testing.T) {
 
 	defaultAttributesSetter := mock.NewMockDefaultAttributesSetter(ctrl)
 
-	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger, defaultAttributesSetter.Call).
+	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger, defaultAttributesSetter.Call, virtual.NoNamedAttributesFactory).
 		NewFile(false, 0, virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 	_, s = f.VirtualWrite(p[:], 42)
@@ -456,7 +456,7 @@ func TestPoolBackedFileAllocatorUploadFile(t *testing.T) {
 	defaultAttributesSetter := mock.NewMockDefaultAttributesSetter(ctrl)
 	defaultAttributesSetter.EXPECT().Call(gomock.Any(), gomock.Any()).AnyTimes()
 
-	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger, defaultAttributesSetter.Call).
+	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger, defaultAttributesSetter.Call, virtual.NoNamedAttributesFactory).
 		NewFile(false, 0, virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 
@@ -628,7 +628,7 @@ func TestPoolBackedFileAllocatorVirtualClose(t *testing.T) {
 	defaultAttributesSetter := mock.NewMockDefaultAttributesSetter(ctrl)
 	defaultAttributesSetter.EXPECT().Call(gomock.Any(), gomock.Any()).AnyTimes()
 
-	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger, defaultAttributesSetter.Call).
+	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger, defaultAttributesSetter.Call, virtual.NoNamedAttributesFactory).
 		NewFile(false, 0, virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 

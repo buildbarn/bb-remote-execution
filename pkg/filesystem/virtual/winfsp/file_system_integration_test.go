@@ -88,6 +88,7 @@ func createWinFSPMountForTest(t *testing.T, terminationGroup program.Group, case
 					),
 					util.DefaultErrorLogger,
 					defaultAttributesSetter,
+					virtual.NoNamedAttributesFactory,
 				),
 				handleAllocator,
 			),
@@ -102,6 +103,7 @@ func createWinFSPMountForTest(t *testing.T, terminationGroup program.Group, case
 			clock.SystemClock,
 			normalizer,
 			defaultAttributesSetter,
+			virtual.NoNamedAttributesFactory,
 		),
 	)
 	require.NoError(t, err, "Failed to expose mount point")

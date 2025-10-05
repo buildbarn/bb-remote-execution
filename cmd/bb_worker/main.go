@@ -232,6 +232,7 @@ func main() {
 							pool.EmptyFilePool,
 							util.DefaultErrorLogger,
 							defaultAttributesSetter,
+							virtual.NoNamedAttributesFactory,
 						),
 						handleAllocator,
 					),
@@ -243,6 +244,7 @@ func main() {
 					clock.SystemClock,
 					normalizer,
 					defaultAttributesSetter,
+					virtual.NoNamedAttributesFactory,
 				)
 
 				if err := mount.Expose(dependenciesGroup, virtualBuildDirectory); err != nil {
@@ -380,6 +382,7 @@ func main() {
 								attributes.SetOwnerUserID(runnerConfiguration.BuildDirectoryOwnerUserId)
 								attributes.SetOwnerGroupID(runnerConfiguration.BuildDirectoryOwnerGroupId)
 							},
+							clock.SystemClock,
 						)
 					} else {
 						executionTimeoutClock = clock.SystemClock

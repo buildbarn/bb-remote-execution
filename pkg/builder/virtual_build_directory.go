@@ -10,6 +10,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
+	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
@@ -26,6 +27,7 @@ type virtualBuildDirectoryOptions struct {
 	characterDeviceFactory    virtual.CharacterDeviceFactory
 	handleAllocator           virtual.StatefulHandleAllocator
 	defaultAttributesSetter   virtual.DefaultAttributesSetter
+	clock                     clock.Clock
 }
 
 type virtualBuildDirectory struct {
@@ -38,7 +40,7 @@ type virtualBuildDirectory struct {
 // input root explicitly, it calls PrepopulatedDirectory.CreateChildren
 // to add special file and directory nodes whose contents are read on
 // demand.
-func NewVirtualBuildDirectory(directory virtual.PrepopulatedDirectory, directoryFetcher cas.DirectoryFetcher, contentAddressableStorage blobstore.BlobAccess, symlinkFactory virtual.SymlinkFactory, characterDeviceFactory virtual.CharacterDeviceFactory, handleAllocator virtual.StatefulHandleAllocator, defaultAttributesSetter virtual.DefaultAttributesSetter) BuildDirectory {
+func NewVirtualBuildDirectory(directory virtual.PrepopulatedDirectory, directoryFetcher cas.DirectoryFetcher, contentAddressableStorage blobstore.BlobAccess, symlinkFactory virtual.SymlinkFactory, characterDeviceFactory virtual.CharacterDeviceFactory, handleAllocator virtual.StatefulHandleAllocator, defaultAttributesSetter virtual.DefaultAttributesSetter, clock clock.Clock) BuildDirectory {
 	return &virtualBuildDirectory{
 		PrepopulatedDirectory: directory,
 		options: &virtualBuildDirectoryOptions{
@@ -48,6 +50,7 @@ func NewVirtualBuildDirectory(directory virtual.PrepopulatedDirectory, directory
 			characterDeviceFactory:    characterDeviceFactory,
 			handleAllocator:           handleAllocator,
 			defaultAttributesSetter:   defaultAttributesSetter,
+			clock:                     clock,
 		},
 	}
 }
@@ -82,17 +85,34 @@ func (d *virtualBuildDirectory) EnterUploadableDirectory(name path.Component) (U
 
 func (d *virtualBuildDirectory) InstallHooks(filePool pool.FilePool, errorLogger util.ErrorLogger) {
 	do := d.options
+	namedAttributesFactory := virtual.NewInMemoryNamedAttributesFactory(
+		virtual.NewHandleAllocatingFileAllocator(
+			virtual.NewPoolBackedFileAllocator(
+				filePool,
+				errorLogger,
+				do.defaultAttributesSetter,
+				virtual.InNamedAttributeDirectoryNamedAttributesFactory,
+			),
+			do.handleAllocator,
+		),
+		do.symlinkFactory,
+		errorLogger,
+		do.handleAllocator,
+		do.clock,
+	)
 	d.PrepopulatedDirectory.InstallHooks(
 		virtual.NewHandleAllocatingFileAllocator(
 			virtual.NewPoolBackedFileAllocator(
 				filePool,
 				errorLogger,
 				do.defaultAttributesSetter,
+				namedAttributesFactory,
 			),
 			do.handleAllocator,
 		),
 		errorLogger,
 		do.defaultAttributesSetter,
+		namedAttributesFactory,
 	)
 }
 
