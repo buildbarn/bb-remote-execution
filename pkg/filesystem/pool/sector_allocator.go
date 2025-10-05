@@ -1,4 +1,4 @@
-package filesystem
+package pool
 
 // SectorAllocator is used by BlockDeviceBackedFilePool to allocate
 // space on the block device that is needed to store files.
