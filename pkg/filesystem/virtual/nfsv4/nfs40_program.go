@@ -2415,6 +2415,8 @@ func toNFSv4Status(s virtual.Status) nfsv4.Nfsstat4 {
 		return nfsv4.NFS4ERR_STALE
 	case virtual.StatusErrSymlink:
 		return nfsv4.NFS4ERR_SYMLINK
+	case virtual.StatusErrWrongType:
+		return nfsv4.NFS4ERR_WRONG_TYPE
 	case virtual.StatusErrXDev:
 		return nfsv4.NFS4ERR_XDEV
 	default:
