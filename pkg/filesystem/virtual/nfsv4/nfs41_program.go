@@ -1631,35 +1631,41 @@ func (s *sequenceState) getLockOwnerFileByStateID(rawStateID *nfsv4.Stateid4) (*
 }
 
 // getOpenedLeaf is used by READ and WRITE operations to obtain an
-// opened leaf corresponding to a file handle and open-owner state ID.
+// opened leaf corresponding to a file handle and state ID.
 //
 // When a special state ID is provided, it ensures the file is
 // temporarily opened for the duration of the operation. When a
 // non-special state ID is provided, it ensures that the file was
 // originally opened with the correct share access mask.
 func (s *sequenceState) getOpenedLeaf(ctx context.Context, stateID *nfsv4.Stateid4, shareAccess virtual.ShareMask) (virtual.Leaf, func(), nfsv4.Nfsstat4) {
-	if *stateID == anonymousStateID || *stateID == readBypassStateID {
-		// Client provided the anonymous state ID or READ bypass
-		// state ID. Temporarily open the file to perform the
-		// operation.
-		currentLeaf, st := s.currentFileHandle.getLeaf()
-		if st != nfsv4.NFS4_OK {
-			return nil, nil, st
-		}
-		if vs := currentLeaf.VirtualOpenSelf(
-			ctx,
-			shareAccess,
-			&virtual.OpenExistingOptions{},
-			0,
-			&virtual.Attributes{},
-		); vs != virtual.StatusOK {
-			return nil, nil, toNFSv4Status(vs)
-		}
-		return currentLeaf, func() {
-			currentLeaf.VirtualClose(shareAccess)
-		}, nfsv4.NFS4_OK
+	if *stateID != anonymousStateID && *stateID != readBypassStateID {
+		return s.getOpenedLeafWithRegularStateID(stateID, shareAccess)
 	}
 
+	// Client provided the anonymous state ID or READ bypass state
+	// ID. Temporarily open the file to perform the operation.
+	currentLeaf, st := s.currentFileHandle.getLeaf()
+	if st != nfsv4.NFS4_OK {
+		return nil, nil, st
+	}
+	if vs := currentLeaf.VirtualOpenSelf(
+		ctx,
+		shareAccess,
+		&virtual.OpenExistingOptions{},
+		0,
+		&virtual.Attributes{},
+	); vs != virtual.StatusOK {
+		return nil, nil, toNFSv4Status(vs)
+	}
+	return currentLeaf, func() {
+		currentLeaf.VirtualClose(shareAccess)
+	}, nfsv4.NFS4_OK
+}
+
+// getOpenedLeafWithRegularStateID is used by READ, SETATTR and WRITE
+// operations to obtain an opened leaf corresponding to a file handle
+// and regular state ID.
+func (s *sequenceState) getOpenedLeafWithRegularStateID(stateID *nfsv4.Stateid4, shareAccess virtual.ShareMask) (virtual.Leaf, func(), nfsv4.Nfsstat4) {
 	cis := s.session.clientIncarnation
 	cis.lock.Lock()
 	defer cis.lock.Unlock()
@@ -2641,11 +2647,24 @@ func (s *sequenceState) opSequence(args *nfsv4.Sequence4args) nfsv4.Sequence4res
 }
 
 func (s *sequenceState) opSetAttr(ctx context.Context, args *nfsv4.Setattr4args) nfsv4.Setattr4res {
-	// TODO: Respect the state ID, if provided!
 	currentNode, _, st := s.currentFileHandle.getNode()
 	if st != nfsv4.NFS4_OK {
 		return nfsv4.Setattr4res{Status: st}
 	}
+	if args.Stateid == anonymousStateID || args.Stateid == readBypassStateID {
+		currentNode, _, st = s.currentFileHandle.getNode()
+		if st != nfsv4.NFS4_OK {
+			return nfsv4.Setattr4res{Status: st}
+		}
+	} else {
+		currentLeaf, cleanup, st := s.getOpenedLeafWithRegularStateID(&args.Stateid, virtual.ShareMaskWrite)
+		if st != nfsv4.NFS4_OK {
+			return nfsv4.Setattr4res{Status: st}
+		}
+		defer cleanup()
+		currentNode = currentLeaf
+	}
+
 	var attributes virtual.Attributes
 	if st := fattr4ToAttributes(&args.ObjAttributes, &attributes); st != nfsv4.NFS4_OK {
 		return nfsv4.Setattr4res{Status: st}

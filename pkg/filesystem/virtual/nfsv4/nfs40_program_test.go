@@ -1787,7 +1787,7 @@ func TestNFS40ProgramCompound_OP_GETATTR(t *testing.T) {
 									0x00, 0x00, 0x00, 0x00,
 									// FATTR4_CHANGE.
 									0xea, 0xab, 0x72, 0x53, 0xda, 0xd1, 0x6e, 0xe5,
-									// FATTR4_SIZE.
+									// FATTR4_SIZE == 8192.
 									0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00,
 									// FATTR4_LINK_SUPPORT == TRUE.
 									0x00, 0x00, 0x00, 0x01,
@@ -1807,7 +1807,7 @@ func TestNFS40ProgramCompound_OP_GETATTR(t *testing.T) {
 									0xcd, 0xe9, 0xc7, 0x4c, 0x8b, 0x8d, 0x58, 0xef, 0xd9, 0x9f, 0x00, 0x00,
 									// FATTR4_FILEID.
 									0xfc, 0xad, 0xd4, 0x55, 0x21, 0xcb, 0x1d, 0xb2,
-									// FATTR4_MODE.
+									// FATTR4_MODE == 0o555.
 									0x00, 0x00, 0x01, 0x6d,
 									// FATTR4_NUMLINKS.
 									0x00, 0x00, 0x00, 0x0c,
@@ -3143,7 +3143,7 @@ func TestNFS40ProgramCompound_OP_OPEN(t *testing.T) {
 								How: &nfsv4_xdr.Createhow4_UNCHECKED4{
 									Createattrs: nfsv4_xdr.Fattr4{
 										Attrmask: nfsv4_xdr.Bitmap4{
-											(1 << nfsv4_xdr.FATTR4_SIZE),
+											1 << nfsv4_xdr.FATTR4_SIZE,
 										},
 										AttrVals: nfsv4_xdr.Attrlist4{
 											// FATTR4_SIZE == 0.
@@ -6450,7 +6450,452 @@ func TestNFS40ProgramCompound_OP_SECINFO(t *testing.T) {
 	})
 }
 
-// TODO: SETATTR
+func TestNFS40ProgramCompound_OP_SETATTR(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+
+	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
+	rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskFileHandle, gomock.Any()).
+		Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
+			attributes.SetFileHandle([]byte{0x31, 0xea, 0xa7, 0x14, 0xe0, 0x0a, 0x5f, 0xbd})
+		})
+	handleResolver := mock.NewMockHandleResolver(ctrl)
+	randomNumberGenerator := mock.NewMockSingleThreadedGenerator(ctrl)
+	rebootVerifier := nfsv4_xdr.Verifier4{0x59, 0x15, 0xd9, 0x57, 0x64, 0x49, 0xad, 0x0c}
+	stateIDOtherPrefix := [...]byte{0x04, 0xe2, 0x2c, 0x0b}
+	clock := mock.NewMockClock(ctrl)
+	program := nfsv4.NewNFS40Program(rootDirectory, nfsv4.NewOpenedFilesPool(handleResolver.Call), randomNumberGenerator, rebootVerifier, stateIDOtherPrefix, clock, 2*time.Minute, time.Minute)
+
+	t.Run("NoFileHandle", func(t *testing.T) {
+		// Calling SETATTR without a file handle should fail.
+		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+			Tag: "chmod",
+			Argarray: []nfsv4_xdr.NfsArgop4{
+				&nfsv4_xdr.NfsArgop4_OP_SETATTR{
+					Opsetattr: nfsv4_xdr.Setattr4args{
+						ObjAttributes: nfsv4_xdr.Fattr4{
+							Attrmask: nfsv4_xdr.Bitmap4{
+								0,
+								1 << (nfsv4_xdr.FATTR4_MODE - 32),
+							},
+							AttrVals: nfsv4_xdr.Attrlist4{
+								// FATTR4_MODE == 0o555.
+								0x00, 0x00, 0x01, 0x6d,
+							},
+						},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, &nfsv4_xdr.Compound4res{
+			Tag: "chmod",
+			Resarray: []nfsv4_xdr.NfsResop4{
+				&nfsv4_xdr.NfsResop4_OP_SETATTR{
+					Opsetattr: nfsv4_xdr.Setattr4res{
+						Status: nfsv4_xdr.NFS4ERR_NOFILEHANDLE,
+					},
+				},
+			},
+			Status: nfsv4_xdr.NFS4ERR_NOFILEHANDLE,
+		}, res)
+	})
+
+	t.Run("AnonymousStateID", func(t *testing.T) {
+		rootDirectory.EXPECT().VirtualSetAttributes(
+			ctx,
+			(&virtual.Attributes{}).SetPermissions(virtual.PermissionsExecute|virtual.PermissionsRead),
+			virtual.AttributesMask(0),
+			gomock.Any(),
+		)
+
+		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+			Tag: "chmod",
+			Argarray: []nfsv4_xdr.NfsArgop4{
+				&nfsv4_xdr.NfsArgop4_OP_PUTROOTFH{},
+				&nfsv4_xdr.NfsArgop4_OP_SETATTR{
+					Opsetattr: nfsv4_xdr.Setattr4args{
+						ObjAttributes: nfsv4_xdr.Fattr4{
+							Attrmask: nfsv4_xdr.Bitmap4{
+								0,
+								1 << (nfsv4_xdr.FATTR4_MODE - 32),
+							},
+							AttrVals: nfsv4_xdr.Attrlist4{
+								// FATTR4_MODE == 0o555.
+								0x00, 0x00, 0x01, 0x6d,
+							},
+						},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, &nfsv4_xdr.Compound4res{
+			Tag: "chmod",
+			Resarray: []nfsv4_xdr.NfsResop4{
+				&nfsv4_xdr.NfsResop4_OP_PUTROOTFH{
+					Opputrootfh: nfsv4_xdr.Putrootfh4res{
+						Status: nfsv4_xdr.NFS4_OK,
+					},
+				},
+				&nfsv4_xdr.NfsResop4_OP_SETATTR{
+					Opsetattr: nfsv4_xdr.Setattr4res{
+						Status: nfsv4_xdr.NFS4_OK,
+						Attrsset: nfsv4_xdr.Bitmap4{
+							0,
+							1 << (nfsv4_xdr.FATTR4_MODE - 32),
+						},
+					},
+				},
+			},
+			Status: nfsv4_xdr.NFS4_OK,
+		}, res)
+	})
+
+	// The remainder of the test assumes the availability of a client ID.
+	clock.EXPECT().Now().Return(time.Unix(1000, 0))
+	clock.EXPECT().Now().Return(time.Unix(1001, 0))
+	setClientIDForTesting(ctx, t, randomNumberGenerator, program, 0xdbb02d6b714876af)
+
+	// Open a file for reading, but don't confirm it yet.
+	leaf := mock.NewMockVirtualLeaf(ctrl)
+	clock.EXPECT().Now().Return(time.Unix(1002, 0))
+	clock.EXPECT().Now().Return(time.Unix(1003, 0))
+	openUnconfirmedFileForTesting(
+		ctx,
+		t,
+		randomNumberGenerator,
+		program,
+		rootDirectory,
+		leaf,
+		nfsv4_xdr.NfsFh4{0x4e, 0xd7, 0x49, 0x8a, 0x14, 0xa0, 0xf7, 0x33},
+		/* shortClientID = */ 0xdbb02d6b714876af,
+		/* seqID = */ 43,
+		/* stateIDOther = */ [...]byte{
+			0x04, 0xe2, 0x2c, 0x0b,
+			0xc3, 0xad, 0x03, 0x35,
+			0x15, 0x81, 0x06, 0xf7,
+		},
+	)
+
+	t.Run("UnconfirmedStateID", func(t *testing.T) {
+		// SETATTR can't be called against an open-owner that
+		// hasn't been confirmed yet.
+		clock.EXPECT().Now().Return(time.Unix(1004, 0))
+
+		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+			Tag: "close",
+			Argarray: []nfsv4_xdr.NfsArgop4{
+				&nfsv4_xdr.NfsArgop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4args{
+						Object: nfsv4_xdr.NfsFh4{0x4e, 0xd7, 0x49, 0x8a, 0x14, 0xa0, 0xf7, 0x33},
+					},
+				},
+				&nfsv4_xdr.NfsArgop4_OP_SETATTR{
+					Opsetattr: nfsv4_xdr.Setattr4args{
+						Stateid: nfsv4_xdr.Stateid4{
+							Seqid: 1,
+							Other: [...]byte{
+								0x04, 0xe2, 0x2c, 0x0b,
+								0xc3, 0xad, 0x03, 0x35,
+								0x15, 0x81, 0x06, 0xf7,
+							},
+						},
+						ObjAttributes: nfsv4_xdr.Fattr4{
+							Attrmask: nfsv4_xdr.Bitmap4{
+								1 << nfsv4_xdr.FATTR4_SIZE,
+							},
+							AttrVals: nfsv4_xdr.Attrlist4{
+								// FATTR4_SIZE == 8192.
+								0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00,
+							},
+						},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, &nfsv4_xdr.Compound4res{
+			Tag: "close",
+			Resarray: []nfsv4_xdr.NfsResop4{
+				&nfsv4_xdr.NfsResop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4res{
+						Status: nfsv4_xdr.NFS4_OK,
+					},
+				},
+				&nfsv4_xdr.NfsResop4_OP_SETATTR{
+					Opsetattr: nfsv4_xdr.Setattr4res{
+						Status: nfsv4_xdr.NFS4ERR_BAD_STATEID,
+					},
+				},
+			},
+			Status: nfsv4_xdr.NFS4ERR_BAD_STATEID,
+		}, res)
+	})
+
+	// Confirm the open-owner for the remainder of the test.
+	clock.EXPECT().Now().Return(time.Unix(1005, 0))
+	openConfirmForTesting(
+		ctx,
+		t,
+		randomNumberGenerator,
+		program,
+		nfsv4_xdr.NfsFh4{0x4e, 0xd7, 0x49, 0x8a, 0x14, 0xa0, 0xf7, 0x33},
+		/* seqID = */ 44,
+		/* stateIDOther = */ [...]byte{
+			0x04, 0xe2, 0x2c, 0x0b,
+			0xc3, 0xad, 0x03, 0x35,
+			0x15, 0x81, 0x06, 0xf7,
+		},
+	)
+
+	t.Run("OldStateID", func(t *testing.T) {
+		// Can't call SETATTR on a state ID from the past.
+		clock.EXPECT().Now().Return(time.Unix(1006, 0))
+
+		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+			Tag: "close",
+			Argarray: []nfsv4_xdr.NfsArgop4{
+				&nfsv4_xdr.NfsArgop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4args{
+						Object: nfsv4_xdr.NfsFh4{0x4e, 0xd7, 0x49, 0x8a, 0x14, 0xa0, 0xf7, 0x33},
+					},
+				},
+				&nfsv4_xdr.NfsArgop4_OP_SETATTR{
+					Opsetattr: nfsv4_xdr.Setattr4args{
+						Stateid: nfsv4_xdr.Stateid4{
+							Seqid: 1,
+							Other: [...]byte{
+								0x04, 0xe2, 0x2c, 0x0b,
+								0xc3, 0xad, 0x03, 0x35,
+								0x15, 0x81, 0x06, 0xf7,
+							},
+						},
+						ObjAttributes: nfsv4_xdr.Fattr4{
+							Attrmask: nfsv4_xdr.Bitmap4{
+								1 << nfsv4_xdr.FATTR4_SIZE,
+							},
+							AttrVals: nfsv4_xdr.Attrlist4{
+								// FATTR4_SIZE == 8192.
+								0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00,
+							},
+						},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, &nfsv4_xdr.Compound4res{
+			Tag: "close",
+			Resarray: []nfsv4_xdr.NfsResop4{
+				&nfsv4_xdr.NfsResop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4res{
+						Status: nfsv4_xdr.NFS4_OK,
+					},
+				},
+				&nfsv4_xdr.NfsResop4_OP_SETATTR{
+					Opsetattr: nfsv4_xdr.Setattr4res{
+						Status: nfsv4_xdr.NFS4ERR_OLD_STATEID,
+					},
+				},
+			},
+			Status: nfsv4_xdr.NFS4ERR_OLD_STATEID,
+		}, res)
+	})
+
+	t.Run("OpenMode", func(t *testing.T) {
+		// SETATTR can only be invoked against files that are
+		// opened for writing.
+		clock.EXPECT().Now().Return(time.Unix(1007, 0))
+
+		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+			Tag: "close",
+			Argarray: []nfsv4_xdr.NfsArgop4{
+				&nfsv4_xdr.NfsArgop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4args{
+						Object: nfsv4_xdr.NfsFh4{0x4e, 0xd7, 0x49, 0x8a, 0x14, 0xa0, 0xf7, 0x33},
+					},
+				},
+				&nfsv4_xdr.NfsArgop4_OP_SETATTR{
+					Opsetattr: nfsv4_xdr.Setattr4args{
+						Stateid: nfsv4_xdr.Stateid4{
+							Seqid: 2,
+							Other: [...]byte{
+								0x04, 0xe2, 0x2c, 0x0b,
+								0xc3, 0xad, 0x03, 0x35,
+								0x15, 0x81, 0x06, 0xf7,
+							},
+						},
+						ObjAttributes: nfsv4_xdr.Fattr4{
+							Attrmask: nfsv4_xdr.Bitmap4{
+								1 << nfsv4_xdr.FATTR4_SIZE,
+							},
+							AttrVals: nfsv4_xdr.Attrlist4{
+								// FATTR4_SIZE == 8192.
+								0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00,
+							},
+						},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, &nfsv4_xdr.Compound4res{
+			Tag: "close",
+			Resarray: []nfsv4_xdr.NfsResop4{
+				&nfsv4_xdr.NfsResop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4res{
+						Status: nfsv4_xdr.NFS4_OK,
+					},
+				},
+				&nfsv4_xdr.NfsResop4_OP_SETATTR{
+					Opsetattr: nfsv4_xdr.Setattr4res{
+						Status: nfsv4_xdr.NFS4ERR_OPENMODE,
+					},
+				},
+			},
+			Status: nfsv4_xdr.NFS4ERR_OPENMODE,
+		}, res)
+	})
+
+	// Upgrade the file to be writable for the remainder of the test.
+	clock.EXPECT().Now().Return(time.Unix(1008, 0))
+	rootDirectory.EXPECT().VirtualOpenChild(
+		ctx,
+		path.MustNewComponent("Hello"),
+		virtual.ShareMaskWrite,
+		nil,
+		&virtual.OpenExistingOptions{},
+		virtual.AttributesMaskFileHandle,
+		gomock.Any(),
+	).DoAndReturn(func(ctx context.Context, name path.Component, shareAccess virtual.ShareMask, createAttributes *virtual.Attributes, existingOptions *virtual.OpenExistingOptions, requested virtual.AttributesMask, openedFileAttributes *virtual.Attributes) (virtual.Leaf, virtual.AttributesMask, virtual.ChangeInfo, virtual.Status) {
+		openedFileAttributes.SetFileHandle([]byte{0x4e, 0xd7, 0x49, 0x8a, 0x14, 0xa0, 0xf7, 0x33})
+		return leaf, 0, virtual.ChangeInfo{
+			Before: 0xa3812ac209ccfb3b,
+			After:  0x7268a30c20a040f7,
+		}, virtual.StatusOK
+	})
+	clock.EXPECT().Now().Return(time.Unix(1009, 0))
+
+	res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+		Tag: "open",
+		Argarray: []nfsv4_xdr.NfsArgop4{
+			&nfsv4_xdr.NfsArgop4_OP_PUTROOTFH{},
+			&nfsv4_xdr.NfsArgop4_OP_OPEN{
+				Opopen: nfsv4_xdr.Open4args{
+					Seqid:       45,
+					ShareAccess: nfsv4_xdr.OPEN4_SHARE_ACCESS_WRITE,
+					ShareDeny:   nfsv4_xdr.OPEN4_SHARE_DENY_NONE,
+					Owner: nfsv4_xdr.OpenOwner4{
+						Clientid: 0xdbb02d6b714876af,
+						Owner:    []byte{0xc4, 0x85, 0x50, 0x6b, 0xa5, 0xec, 0x8e, 0x2c},
+					},
+					Openhow: &nfsv4_xdr.Openflag4_default{},
+					Claim: &nfsv4_xdr.OpenClaim4_CLAIM_NULL{
+						File: "Hello",
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, &nfsv4_xdr.Compound4res{
+		Tag: "open",
+		Resarray: []nfsv4_xdr.NfsResop4{
+			&nfsv4_xdr.NfsResop4_OP_PUTROOTFH{
+				Opputrootfh: nfsv4_xdr.Putrootfh4res{
+					Status: nfsv4_xdr.NFS4_OK,
+				},
+			},
+			&nfsv4_xdr.NfsResop4_OP_OPEN{
+				Opopen: &nfsv4_xdr.Open4res_NFS4_OK{
+					Resok4: nfsv4_xdr.Open4resok{
+						Stateid: nfsv4_xdr.Stateid4{
+							Seqid: 3,
+							Other: [...]byte{
+								0x04, 0xe2, 0x2c, 0x0b,
+								0xc3, 0xad, 0x03, 0x35,
+								0x15, 0x81, 0x06, 0xf7,
+							},
+						},
+						Cinfo: nfsv4_xdr.ChangeInfo4{
+							Atomic: true,
+							Before: 0xa3812ac209ccfb3b,
+							After:  0x7268a30c20a040f7,
+						},
+						Rflags:     nfsv4_xdr.OPEN4_RESULT_LOCKTYPE_POSIX,
+						Attrset:    nfsv4_xdr.Bitmap4{},
+						Delegation: &nfsv4_xdr.OpenDelegation4_OPEN_DELEGATE_NONE{},
+					},
+				},
+			},
+		},
+		Status: nfsv4_xdr.NFS4_OK,
+	}, res)
+
+	t.Run("RegularStateID", func(t *testing.T) {
+		clock.EXPECT().Now().Return(time.Unix(1010, 0))
+		leaf.EXPECT().VirtualSetAttributes(
+			ctx,
+			(&virtual.Attributes{}).SetSizeBytes(8192),
+			virtual.AttributesMask(0),
+			gomock.Any(),
+		)
+		clock.EXPECT().Now().Return(time.Unix(1011, 0))
+
+		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
+			Tag: "close",
+			Argarray: []nfsv4_xdr.NfsArgop4{
+				&nfsv4_xdr.NfsArgop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4args{
+						Object: nfsv4_xdr.NfsFh4{0x4e, 0xd7, 0x49, 0x8a, 0x14, 0xa0, 0xf7, 0x33},
+					},
+				},
+				&nfsv4_xdr.NfsArgop4_OP_SETATTR{
+					Opsetattr: nfsv4_xdr.Setattr4args{
+						Stateid: nfsv4_xdr.Stateid4{
+							Seqid: 3,
+							Other: [...]byte{
+								0x04, 0xe2, 0x2c, 0x0b,
+								0xc3, 0xad, 0x03, 0x35,
+								0x15, 0x81, 0x06, 0xf7,
+							},
+						},
+						ObjAttributes: nfsv4_xdr.Fattr4{
+							Attrmask: nfsv4_xdr.Bitmap4{
+								1 << nfsv4_xdr.FATTR4_SIZE,
+							},
+							AttrVals: nfsv4_xdr.Attrlist4{
+								// FATTR4_SIZE == 8192.
+								0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00,
+							},
+						},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, &nfsv4_xdr.Compound4res{
+			Tag: "close",
+			Resarray: []nfsv4_xdr.NfsResop4{
+				&nfsv4_xdr.NfsResop4_OP_PUTFH{
+					Opputfh: nfsv4_xdr.Putfh4res{
+						Status: nfsv4_xdr.NFS4_OK,
+					},
+				},
+				&nfsv4_xdr.NfsResop4_OP_SETATTR{
+					Opsetattr: nfsv4_xdr.Setattr4res{
+						Status: nfsv4_xdr.NFS4_OK,
+						Attrsset: nfsv4_xdr.Bitmap4{
+							1 << nfsv4_xdr.FATTR4_SIZE,
+						},
+					},
+				},
+			},
+			Status: nfsv4_xdr.NFS4_OK,
+		}, res)
+	})
+}
+
 // TODO: SETCLIENTID
 
 func TestNFS40ProgramCompound_OP_SETCLIENTID_CONFIRM(t *testing.T) {
