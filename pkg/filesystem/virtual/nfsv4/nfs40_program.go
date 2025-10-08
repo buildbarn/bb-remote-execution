@@ -2116,7 +2116,7 @@ func (s *compoundState) opSetattr(ctx context.Context, args *nfsv4.Setattr4args)
 		return nfsv4.Setattr4res{Status: toNFSv4Status(vs)}
 	}
 	return nfsv4.Setattr4res{
-		Status:   st,
+		Status:   nfsv4.NFS4_OK,
 		Attrsset: args.ObjAttributes.Attrmask,
 	}
 }

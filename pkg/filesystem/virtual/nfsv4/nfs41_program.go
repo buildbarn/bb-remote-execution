@@ -2647,11 +2647,9 @@ func (s *sequenceState) opSequence(args *nfsv4.Sequence4args) nfsv4.Sequence4res
 }
 
 func (s *sequenceState) opSetAttr(ctx context.Context, args *nfsv4.Setattr4args) nfsv4.Setattr4res {
-	currentNode, _, st := s.currentFileHandle.getNode()
-	if st != nfsv4.NFS4_OK {
-		return nfsv4.Setattr4res{Status: st}
-	}
+	var currentNode virtual.Node
 	if args.Stateid == anonymousStateID || args.Stateid == readBypassStateID {
+		var st nfsv4.Nfsstat4
 		currentNode, _, st = s.currentFileHandle.getNode()
 		if st != nfsv4.NFS4_OK {
 			return nfsv4.Setattr4res{Status: st}
@@ -2673,7 +2671,7 @@ func (s *sequenceState) opSetAttr(ctx context.Context, args *nfsv4.Setattr4args)
 		return nfsv4.Setattr4res{Status: toNFSv4Status(vs)}
 	}
 	return nfsv4.Setattr4res{
-		Status:   st,
+		Status:   nfsv4.NFS4_OK,
 		Attrsset: args.ObjAttributes.Attrmask,
 	}
 }
