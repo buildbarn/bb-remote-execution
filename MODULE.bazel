@@ -25,7 +25,7 @@ git_override(
 
 git_override(
     module_name = "com_github_buildbarn_bb_storage",
-    commit = "267d6195655f548609a004b35e9d72ae947c7947",
+    commit = "b207a91fefaa9f0897f8779e0ef8578aa4252316",
     remote = "https://github.com/buildbarn/bb-storage.git",
 )
 
@@ -48,6 +48,11 @@ git_override(
 single_version_override(
     module_name = "gazelle",
     patches = ["//:patches/gazelle/dont-flatten-srcs.diff"],
+)
+
+single_version_override(
+    module_name = "toolchains_llvm",
+    patches = ["//:patches/toolchains_llvm/non-root.diff"],
 )
 
 # Match protobuf above, until it ships a pre-built binary toolchain itself
@@ -144,9 +149,8 @@ http_file(
 
 llvm = use_extension("@toolchains_llvm//toolchain/extensions:llvm.bzl", "llvm", dev_dependency = True)
 llvm.toolchain(
-    llvm_version = "14.0.0",
+    llvm_version = "17.0.6",
 )
-use_repo(llvm, "llvm_toolchain_llvm")
 
 npm = use_extension("@aspect_rules_js//npm:extensions.bzl", "npm")
 npm.npm_translate_lock(
