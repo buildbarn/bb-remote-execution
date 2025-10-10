@@ -42,7 +42,14 @@ func LocalAppleXcodeSDKRootResolver(ctx context.Context, developerDirectory, sdk
 	if err != nil {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
-			return "", status.Errorf(codes.FailedPrecondition, "xcrun failed with output %#v", string(exitErr.Stderr))
+			stderr := string(exitErr.Stderr)
+			code := codes.FailedPrecondition
+			if strings.Contains(stderr, "Input/output error") {
+				// If xcrun fails to read files from disk,
+				// we should return a retriable error.
+				code = codes.Internal
+			}
+			return "", status.Errorf(code, "xcrun failed with output %#v", stderr)
 		}
 		return "", err
 	}
