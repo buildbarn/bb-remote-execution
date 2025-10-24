@@ -1,9 +1,9 @@
-package filesystem_test
+package pool_test
 
 import (
 	"testing"
 
-	re_filesystem "github.com/buildbarn/bb-remote-execution/pkg/filesystem"
+	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/stretchr/testify/require"
 
 	"google.golang.org/grpc/codes"
@@ -11,7 +11,7 @@ import (
 )
 
 func TestBitmapSectorAllocatorExample(t *testing.T) {
-	sectorAllocator := re_filesystem.NewBitmapSectorAllocator(1000)
+	sectorAllocator := pool.NewBitmapSectorAllocator(1000)
 
 	// Allocate five regions of sectors that span all of storage.
 	for i := 0; i < 5; i++ {

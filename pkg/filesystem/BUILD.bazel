@@ -2,11 +2,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "filesystem",
-    srcs = [
-        "bitmap_sector_allocator.go",
-        "lazy_directory.go",
-        "sector_allocator.go",
-    ],
+    srcs = ["lazy_directory.go"],
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/filesystem",
     visibility = ["//visibility:public"],
     deps = [
@@ -14,16 +10,12 @@ go_library(
         "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
         "@com_github_buildbarn_bb_storage//pkg/util",
         "@org_golang_google_grpc//codes",
-        "@org_golang_google_grpc//status",
     ],
 )
 
 go_test(
     name = "filesystem_test",
-    srcs = [
-        "bitmap_sector_allocator_test.go",
-        "lazy_directory_test.go",
-    ],
+    srcs = ["lazy_directory_test.go"],
     deps = [
         ":filesystem",
         "//internal/mock",

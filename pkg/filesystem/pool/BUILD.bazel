@@ -3,17 +3,18 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "pool",
     srcs = [
+        "bitmap_sector_allocator.go",
         "block_device_backed_file_pool.go",
         "configuration.go",
         "empty_file_pool.go",
         "file_pool.go",
         "metrics_file_pool.go",
         "quota_enforcing_file_pool.go",
+        "sector_allocator.go",
     ],
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/filesystem",
         "//pkg/proto/configuration/filesystem",
         "@com_github_buildbarn_bb_storage//pkg/blockdevice",
         "@com_github_buildbarn_bb_storage//pkg/filesystem",
@@ -27,6 +28,7 @@ go_library(
 go_test(
     name = "pool_test",
     srcs = [
+        "bitmap_sector_allocator_test.go",
         "block_device_backed_file_pool_test.go",
         "empty_file_pool_test.go",
         "quota_enforcing_file_pool_test.go",
