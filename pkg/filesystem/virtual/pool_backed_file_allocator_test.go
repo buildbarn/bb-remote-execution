@@ -30,14 +30,14 @@ func TestPoolBackedFileAllocatorGetBazelOutputServiceStat(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	// Create a file and initialize it with some contents.
-	pool := mock.NewMockFilePool(ctrl)
+	filePool := mock.NewMockFilePool(ctrl)
 	underlyingFile := mock.NewMockFileReadWriter(ctrl)
-	pool.EXPECT().NewFile().Return(underlyingFile, nil)
+	filePool.EXPECT().NewFile().Return(underlyingFile, nil)
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	defaultAttributesSetter := mock.NewMockDefaultAttributesSetter(ctrl)
 	defaultAttributesSetter.EXPECT().Call(gomock.Any(), gomock.Any()).AnyTimes()
 
-	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger, defaultAttributesSetter.Call, virtual.NoNamedAttributesFactory).
+	f, s := virtual.NewPoolBackedFileAllocator(filePool, errorLogger, defaultAttributesSetter.Call, virtual.NoNamedAttributesFactory).
 		NewFile(false, 0, virtual.ShareMaskRead|virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 
@@ -201,14 +201,14 @@ func TestPoolBackedFileAllocatorGetBazelOutputServiceStat(t *testing.T) {
 func TestPoolBackedFileAllocatorVirtualSeek(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	pool := mock.NewMockFilePool(ctrl)
+	filePool := mock.NewMockFilePool(ctrl)
 	underlyingFile := mock.NewMockFileReadWriter(ctrl)
-	pool.EXPECT().NewFile().Return(underlyingFile, nil)
+	filePool.EXPECT().NewFile().Return(underlyingFile, nil)
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	defaultAttributesSetter := mock.NewMockDefaultAttributesSetter(ctrl)
 	defaultAttributesSetter.EXPECT().Call(gomock.Any(), gomock.Any()).AnyTimes()
 
-	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger, defaultAttributesSetter.Call, virtual.NoNamedAttributesFactory).
+	f, s := virtual.NewPoolBackedFileAllocator(filePool, errorLogger, defaultAttributesSetter.Call, virtual.NoNamedAttributesFactory).
 		NewFile(false, 0, virtual.ShareMaskRead|virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 
@@ -270,14 +270,14 @@ func TestPoolBackedFileAllocatorVirtualSeek(t *testing.T) {
 func TestPoolBackedFileAllocatorVirtualOpenSelfStaleAfterUnlink(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	pool := mock.NewMockFilePool(ctrl)
+	filePool := mock.NewMockFilePool(ctrl)
 	underlyingFile := mock.NewMockFileReadWriter(ctrl)
-	pool.EXPECT().NewFile().Return(underlyingFile, nil)
+	filePool.EXPECT().NewFile().Return(underlyingFile, nil)
 	underlyingFile.EXPECT().Close()
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	defaultAttributesSetter := mock.NewMockDefaultAttributesSetter(ctrl)
 
-	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger, defaultAttributesSetter.Call, virtual.NoNamedAttributesFactory).
+	f, s := virtual.NewPoolBackedFileAllocator(filePool, errorLogger, defaultAttributesSetter.Call, virtual.NoNamedAttributesFactory).
 		NewFile(false, 0, virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 
@@ -296,14 +296,14 @@ func TestPoolBackedFileAllocatorVirtualOpenSelfStaleAfterUnlink(t *testing.T) {
 func TestPoolBackedFileAllocatorVirtualOpenSelfStaleAfterClose(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	pool := mock.NewMockFilePool(ctrl)
+	filePool := mock.NewMockFilePool(ctrl)
 	underlyingFile := mock.NewMockFileReadWriter(ctrl)
-	pool.EXPECT().NewFile().Return(underlyingFile, nil)
+	filePool.EXPECT().NewFile().Return(underlyingFile, nil)
 	underlyingFile.EXPECT().Close()
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	defaultAttributesSetter := mock.NewMockDefaultAttributesSetter(ctrl)
 
-	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger, defaultAttributesSetter.Call, virtual.NoNamedAttributesFactory).
+	f, s := virtual.NewPoolBackedFileAllocator(filePool, errorLogger, defaultAttributesSetter.Call, virtual.NoNamedAttributesFactory).
 		NewFile(false, 0, virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 
@@ -319,13 +319,13 @@ func TestPoolBackedFileAllocatorVirtualOpenSelfStaleAfterClose(t *testing.T) {
 func TestPoolBackedFileAllocatorVirtualRead(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
-	pool := mock.NewMockFilePool(ctrl)
+	filePool := mock.NewMockFilePool(ctrl)
 	underlyingFile := mock.NewMockFileReadWriter(ctrl)
-	pool.EXPECT().NewFile().Return(underlyingFile, nil)
+	filePool.EXPECT().NewFile().Return(underlyingFile, nil)
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	defaultAttributesSetter := mock.NewMockDefaultAttributesSetter(ctrl)
 
-	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger, defaultAttributesSetter.Call, virtual.NoNamedAttributesFactory).
+	f, s := virtual.NewPoolBackedFileAllocator(filePool, errorLogger, defaultAttributesSetter.Call, virtual.NoNamedAttributesFactory).
 		NewFile(false, 0, virtual.ShareMaskRead|virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 
@@ -395,9 +395,9 @@ func TestPoolBackedFileAllocatorVirtualRead(t *testing.T) {
 func TestPoolBackedFileAllocatorFUSETruncateFailure(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	pool := mock.NewMockFilePool(ctrl)
+	filePool := mock.NewMockFilePool(ctrl)
 	underlyingFile := mock.NewMockFileReadWriter(ctrl)
-	pool.EXPECT().NewFile().Return(underlyingFile, nil)
+	filePool.EXPECT().NewFile().Return(underlyingFile, nil)
 	underlyingFile.EXPECT().Truncate(int64(42)).Return(status.Error(codes.Unavailable, "Storage backends offline"))
 	underlyingFile.EXPECT().Close()
 
@@ -406,7 +406,7 @@ func TestPoolBackedFileAllocatorFUSETruncateFailure(t *testing.T) {
 
 	defaultAttributesSetter := mock.NewMockDefaultAttributesSetter(ctrl)
 
-	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger, defaultAttributesSetter.Call, virtual.NoNamedAttributesFactory).
+	f, s := virtual.NewPoolBackedFileAllocator(filePool, errorLogger, defaultAttributesSetter.Call, virtual.NoNamedAttributesFactory).
 		NewFile(false, 0, virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 
@@ -424,9 +424,9 @@ func TestPoolBackedFileAllocatorFUSETruncateFailure(t *testing.T) {
 func TestPoolBackedFileAllocatorVirtualWriteFailure(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
-	pool := mock.NewMockFilePool(ctrl)
+	filePool := mock.NewMockFilePool(ctrl)
 	underlyingFile := mock.NewMockFileReadWriter(ctrl)
-	pool.EXPECT().NewFile().Return(underlyingFile, nil)
+	filePool.EXPECT().NewFile().Return(underlyingFile, nil)
 	var p [10]byte
 	underlyingFile.EXPECT().WriteAt(p[:], int64(42)).Return(0, status.Error(codes.Unavailable, "Storage backends offline"))
 	underlyingFile.EXPECT().Close()
@@ -436,7 +436,7 @@ func TestPoolBackedFileAllocatorVirtualWriteFailure(t *testing.T) {
 
 	defaultAttributesSetter := mock.NewMockDefaultAttributesSetter(ctrl)
 
-	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger, defaultAttributesSetter.Call, virtual.NoNamedAttributesFactory).
+	f, s := virtual.NewPoolBackedFileAllocator(filePool, errorLogger, defaultAttributesSetter.Call, virtual.NoNamedAttributesFactory).
 		NewFile(false, 0, virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 	_, s = f.VirtualWrite(p[:], 42)
@@ -449,14 +449,14 @@ func TestPoolBackedFileAllocatorUploadFile(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	// Create a file backed by a FilePool.
-	pool := mock.NewMockFilePool(ctrl)
+	filePool := mock.NewMockFilePool(ctrl)
 	underlyingFile := mock.NewMockFileReadWriter(ctrl)
-	pool.EXPECT().NewFile().Return(underlyingFile, nil)
+	filePool.EXPECT().NewFile().Return(underlyingFile, nil)
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	defaultAttributesSetter := mock.NewMockDefaultAttributesSetter(ctrl)
 	defaultAttributesSetter.EXPECT().Call(gomock.Any(), gomock.Any()).AnyTimes()
 
-	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger, defaultAttributesSetter.Call, virtual.NoNamedAttributesFactory).
+	f, s := virtual.NewPoolBackedFileAllocator(filePool, errorLogger, defaultAttributesSetter.Call, virtual.NoNamedAttributesFactory).
 		NewFile(false, 0, virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 
@@ -621,14 +621,14 @@ func TestPoolBackedFileAllocatorVirtualClose(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	// Create a new file.
-	pool := mock.NewMockFilePool(ctrl)
+	filePool := mock.NewMockFilePool(ctrl)
 	underlyingFile := mock.NewMockFileReadWriter(ctrl)
-	pool.EXPECT().NewFile().Return(underlyingFile, nil)
+	filePool.EXPECT().NewFile().Return(underlyingFile, nil)
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	defaultAttributesSetter := mock.NewMockDefaultAttributesSetter(ctrl)
 	defaultAttributesSetter.EXPECT().Call(gomock.Any(), gomock.Any()).AnyTimes()
 
-	f, s := virtual.NewPoolBackedFileAllocator(pool, errorLogger, defaultAttributesSetter.Call, virtual.NoNamedAttributesFactory).
+	f, s := virtual.NewPoolBackedFileAllocator(filePool, errorLogger, defaultAttributesSetter.Call, virtual.NoNamedAttributesFactory).
 		NewFile(false, 0, virtual.ShareMaskWrite)
 	require.Equal(t, virtual.StatusOK, s)
 
