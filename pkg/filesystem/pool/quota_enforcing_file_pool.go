@@ -53,11 +53,11 @@ func NewQuotaEnforcingFilePool(base FilePool, maximumFileCount, maximumTotalSize
 	return fp
 }
 
-func (fp *quotaEnforcingFilePool) NewFile() (filesystem.FileReadWriter, error) {
+func (fp *quotaEnforcingFilePool) NewFile(holeSource HoleSource, size uint64) (filesystem.FileReadWriter, error) {
 	if !fp.filesRemaining.allocate(1) {
 		return nil, status.Error(codes.InvalidArgument, "File count quota reached")
 	}
-	f, err := fp.base.NewFile()
+	f, err := fp.base.NewFile(holeSource, size)
 	if err != nil {
 		fp.filesRemaining.release(1)
 		return nil, err

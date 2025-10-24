@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	re_sync "github.com/buildbarn/bb-remote-execution/pkg/sync"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
@@ -722,7 +723,7 @@ func (i *inMemoryPrepopulatedDirectory) VirtualOpenChild(ctx context.Context, na
 		respected |= AttributesMaskSizeBytes
 		size = sizeBytes
 	}
-	leaf, s := i.subtree.fileAllocator.NewFile(isExecutable, size, shareAccess)
+	leaf, s := i.subtree.fileAllocator.NewFile(pool.DefaultHoleSource, isExecutable, size, shareAccess)
 	if s != StatusOK {
 		return nil, 0, ChangeInfo{}, s
 	}

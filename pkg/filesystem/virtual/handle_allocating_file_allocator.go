@@ -1,5 +1,7 @@
 package virtual
 
+import "github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
+
 type handleAllocatingFileAllocator struct {
 	base      FileAllocator
 	allocator StatefulHandleAllocator
@@ -16,8 +18,8 @@ func NewHandleAllocatingFileAllocator(base FileAllocator, allocator StatefulHand
 	}
 }
 
-func (fa *handleAllocatingFileAllocator) NewFile(isExecutable bool, size uint64, shareAccess ShareMask) (LinkableLeaf, Status) {
-	leaf, s := fa.base.NewFile(isExecutable, size, shareAccess)
+func (fa *handleAllocatingFileAllocator) NewFile(holeSource pool.HoleSource, isExecutable bool, size uint64, shareAccess ShareMask) (LinkableLeaf, Status) {
+	leaf, s := fa.base.NewFile(holeSource, isExecutable, size, shareAccess)
 	if s != StatusOK {
 		return nil, s
 	}

@@ -8,6 +8,7 @@ go_library(
         "configuration.go",
         "empty_file_pool.go",
         "file_pool.go",
+        "hole_source.go",
         "metrics_file_pool.go",
         "quota_enforcing_file_pool.go",
         "sector_allocator.go",
