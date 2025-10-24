@@ -74,18 +74,11 @@ func NewPoolBackedFileAllocator(pool pool.FilePool, errorLogger util.ErrorLogger
 	}
 }
 
-func (fa *poolBackedFileAllocator) NewFile(isExecutable bool, size uint64, shareAccess ShareMask) (LinkableLeaf, Status) {
-	file, err := fa.pool.NewFile()
+func (fa *poolBackedFileAllocator) NewFile(holeSource pool.HoleSource, isExecutable bool, size uint64, shareAccess ShareMask) (LinkableLeaf, Status) {
+	file, err := fa.pool.NewFile(holeSource, size)
 	if err != nil {
 		fa.errorLogger.Log(util.StatusWrapf(err, "Failed to create new file"))
 		return nil, StatusErrIO
-	}
-	if size > 0 {
-		if err := file.Truncate(int64(size)); err != nil {
-			fa.errorLogger.Log(util.StatusWrapf(err, "Failed to truncate file to length %d", size))
-			file.Close()
-			return nil, StatusErrIO
-		}
 	}
 	f := &fileBackedFile{
 		NamedAttributes: fa.namedAttributesFactory.NewNamedAttributes(),

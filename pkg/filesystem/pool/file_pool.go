@@ -11,5 +11,5 @@ import (
 // locking needs to be done at higher levels to permit safe concurrent
 // access.
 type FilePool interface {
-	NewFile() (filesystem.FileReadWriter, error)
+	NewFile(holeSource HoleSource, size uint64) (filesystem.FileReadWriter, error)
 }

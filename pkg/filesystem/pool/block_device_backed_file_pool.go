@@ -32,16 +32,19 @@ func NewBlockDeviceBackedFilePool(blockDevice blockdevice.BlockDevice, sectorAll
 	}
 }
 
-func (fp *blockDeviceBackedFilePool) NewFile() (filesystem.FileReadWriter, error) {
+func (fp *blockDeviceBackedFilePool) NewFile(holeSource HoleSource, size uint64) (filesystem.FileReadWriter, error) {
 	return &blockDeviceBackedFile{
-		fp: fp,
+		fp:         fp,
+		holeSource: holeSource,
+		sizeBytes:  size,
 	}, nil
 }
 
 type blockDeviceBackedFile struct {
-	fp        *blockDeviceBackedFilePool
-	sizeBytes uint64
-	sectors   []uint32
+	fp         *blockDeviceBackedFilePool
+	holeSource filesystem.FileReader
+	sizeBytes  uint64
+	sectors    []uint32
 }
 
 func (f *blockDeviceBackedFile) Close() error {
@@ -50,7 +53,9 @@ func (f *blockDeviceBackedFile) Close() error {
 	}
 	f.fp = nil
 	f.sectors = nil
-	return nil
+	err := f.holeSource.Close()
+	f.holeSource = nil
+	return err
 }
 
 // toDeviceOffset converts a sector number and offset within a sector to
@@ -129,36 +134,43 @@ func (f *blockDeviceBackedFile) GetNextRegionOffset(off int64, regionType filesy
 	case filesystem.Data:
 		if sectorIndex >= len(f.sectors) {
 			// Inside the hole at the end of the file.
-			return 0, io.EOF
+			return f.holeSource.GetNextRegionOffset(off, regionType)
 		}
 		if f.sectors[sectorIndex] != 0 {
 			// Already inside a sector containing data.
 			return off, nil
 		}
 		// Find the next sector containing data.
-		for {
+		sectorIndex++
+		for f.sectors[sectorIndex] == 0 {
 			sectorIndex++
-			if f.sectors[sectorIndex] != 0 {
-				return int64(sectorIndex) * sectorSizeBytes, nil
-			}
 		}
+		o := int64(sectorIndex) * sectorSizeBytes
+		u, err := f.holeSource.GetNextRegionOffset(off, regionType)
+		if err == io.EOF {
+			return o, nil
+		} else if err != nil {
+			return 0, err
+		}
+		return min(o, u), nil
 	case filesystem.Hole:
-		if sectorIndex >= len(f.sectors) || f.sectors[sectorIndex] == 0 {
-			// Already inside a hole.
-			return off, nil
-		}
+		// There is a hole at EOF, or maybe the file is longer than the sectors account for.
+		next := min(int64(f.sizeBytes), int64(len(f.sectors))*sectorSizeBytes)
+
 		// Find the next sector containing a hole.
-		for sectorIndex++; sectorIndex < len(f.sectors); sectorIndex++ {
+		for ; sectorIndex < len(f.sectors); sectorIndex++ {
 			if f.sectors[sectorIndex] == 0 {
-				return int64(sectorIndex) * sectorSizeBytes, nil
+				next = int64(sectorIndex) * sectorSizeBytes
+				break
 			}
 		}
-		if allSectors := int64(len(f.sectors)) * sectorSizeBytes; allSectors < int64(f.sizeBytes) {
-			// File ends with a hole.
-			return allSectors, nil
+		u, err := f.holeSource.GetNextRegionOffset(off, regionType)
+		if err == io.EOF {
+			return next, nil
+		} else if err != nil {
+			return 0, err
 		}
-		// File ends in the middle of a sector containing data.
-		return int64(f.sizeBytes), nil
+		return max(next, u), nil
 	default:
 		panic("Unknown region type")
 	}
@@ -183,11 +195,15 @@ func (f *blockDeviceBackedFile) readFromSectors(p []byte, sectorIndex, lastSecto
 	p = f.limitBufferToSectorBoundary(p, sectorsToRead, offsetWithinSector)
 	if sector == 0 {
 		// Attempted to read from a sparse region of the file.
-		// Fill in zero bytes.
-		for i := 0; i < len(p); i++ {
-			p[i] = 0
+		// Redirect the read to the hole source, which usually produces zeroes.
+		n, err := f.holeSource.ReadAt(p, f.toDeviceOffset(sector, offsetWithinSector))
+		if err != nil && err != io.EOF {
+			return n, err
 		}
-		return len(p), nil
+		if n != len(p) {
+			return n, status.Errorf(codes.Internal, "Read against hole source file returned %d bytes, while %d bytes were expected", n, len(p))
+		}
+		return n, nil
 	}
 
 	// Attempted to read from a region of the file that contains

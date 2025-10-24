@@ -26,7 +26,7 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 
 	t.Run("ReadEmptyFile", func(t *testing.T) {
 		// Test that reads on an empty file work as expected.
-		f, err := filePool.NewFile()
+		f, err := filePool.NewFile(pool.DefaultHoleSource, 0)
 		require.NoError(t, err)
 
 		var p [10]byte
@@ -54,7 +54,7 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 	})
 
 	t.Run("Truncate", func(t *testing.T) {
-		f, err := filePool.NewFile()
+		f, err := filePool.NewFile(pool.DefaultHoleSource, 0)
 		require.NoError(t, err)
 
 		// Invalid size.
@@ -102,7 +102,7 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 	})
 
 	t.Run("WritesAndReadOnSingleSector", func(t *testing.T) {
-		f, err := filePool.NewFile()
+		f, err := filePool.NewFile(pool.DefaultHoleSource, 0)
 		require.NoError(t, err)
 
 		// The initial write to a sector should cause the full
@@ -139,7 +139,7 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 	})
 
 	t.Run("WriteFragmentation", func(t *testing.T) {
-		f, err := filePool.NewFile()
+		f, err := filePool.NewFile(pool.DefaultHoleSource, 0)
 		require.NoError(t, err)
 
 		// Simulate the case where 137 bytes of data needs to be
@@ -172,7 +172,7 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 	})
 
 	t.Run("WriteSectorAllocatorFailure", func(t *testing.T) {
-		f, err := filePool.NewFile()
+		f, err := filePool.NewFile(pool.DefaultHoleSource, 0)
 		require.NoError(t, err)
 
 		// Failure to allocate sectors should cause the write to
@@ -192,7 +192,7 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 	})
 
 	t.Run("WriteIOFailure", func(t *testing.T) {
-		f, err := filePool.NewFile()
+		f, err := filePool.NewFile(pool.DefaultHoleSource, 0)
 		require.NoError(t, err)
 
 		// Write failures to freshly allocator sectors should
@@ -215,7 +215,7 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 
 	t.Run("GetNextRegionOffset", func(t *testing.T) {
 		// Test the behavior on empty files.
-		f, err := filePool.NewFile()
+		f, err := filePool.NewFile(pool.DefaultHoleSource, 0)
 		require.NoError(t, err)
 
 		_, err = f.GetNextRegionOffset(-1, filesystem.Data)
@@ -313,7 +313,7 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 	})
 
 	t.Run("WriteAt", func(t *testing.T) {
-		f, err := filePool.NewFile()
+		f, err := filePool.NewFile(pool.DefaultHoleSource, 0)
 		require.NoError(t, err)
 
 		_, err = f.WriteAt([]byte{0}, -1)

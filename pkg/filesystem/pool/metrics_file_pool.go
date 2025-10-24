@@ -43,8 +43,8 @@ func NewMetricsFilePool(base FilePool) FilePool {
 	}
 }
 
-func (fp *metricsFilePool) NewFile() (filesystem.FileReadWriter, error) {
-	f, err := fp.base.NewFile()
+func (fp *metricsFilePool) NewFile(holeSource HoleSource, size uint64) (filesystem.FileReadWriter, error) {
+	f, err := fp.base.NewFile(holeSource, size)
 	if err != nil {
 		return nil, err
 	}
