@@ -16,7 +16,6 @@ import (
 
 	ffi "github.com/aegistudio/go-winfsp"
 	"github.com/bazelbuild/rules_go/go/runfiles"
-	"github.com/buildbarn/bb-remote-execution/pkg/filesystem"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual"
 	virtual_configuration "github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual/configuration"
@@ -83,7 +82,7 @@ func createWinFSPMountForTest(t *testing.T, terminationGroup program.Group, case
 				virtual.NewPoolBackedFileAllocator(
 					pool.NewBlockDeviceBackedFilePool(
 						bd,
-						filesystem.NewBitmapSectorAllocator(uint32(sectorCount)),
+						pool.NewBitmapSectorAllocator(uint32(sectorCount)),
 						sectorSizeBytes,
 					),
 					util.DefaultErrorLogger,

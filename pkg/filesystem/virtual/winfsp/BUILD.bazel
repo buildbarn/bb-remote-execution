@@ -68,7 +68,6 @@ go_test(
     tags = ["manual"],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "//pkg/filesystem",
             "//pkg/filesystem/pool",
             "//pkg/filesystem/virtual",
             "//pkg/filesystem/virtual/configuration",

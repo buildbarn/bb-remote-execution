@@ -171,10 +171,7 @@ gomock(
 gomock(
     name = "filesystem_re",
     out = "filesystem_re.go",
-    interfaces = [
-        "DirectoryOpener",
-        "SectorAllocator",
-    ],
+    interfaces = ["DirectoryOpener"],
     library = "//pkg/filesystem",
     mockgen_model_library = "@org_uber_go_mock//mockgen/model",
     mockgen_tool = "@org_uber_go_mock//mockgen",
@@ -186,6 +183,7 @@ gomock(
     out = "filesystem_filepool.go",
     interfaces = [
         "FilePool",
+        "SectorAllocator",
     ],
     library = "//pkg/filesystem/pool",
     mockgen_model_library = "@org_uber_go_mock//mockgen/model",
