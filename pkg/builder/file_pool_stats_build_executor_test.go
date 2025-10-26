@@ -44,12 +44,12 @@ func TestFilePoolStatsBuildExecutorExample(t *testing.T) {
 		digest.MustNewFunction("hello", remoteexecution.DigestFunction_MD5),
 		request,
 		gomock.Any()).DoAndReturn(func(ctx context.Context, filePool pool.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
-		f1, err := filePool.NewFile(pool.DefaultHoleSource, 0)
+		f1, err := filePool.NewFile(pool.ZeroHoleSource, 0)
 		require.NoError(t, err)
 		require.NoError(t, f1.Truncate(5))
 		require.NoError(t, f1.Close())
 
-		f2, err := filePool.NewFile(pool.DefaultHoleSource, 0)
+		f2, err := filePool.NewFile(pool.ZeroHoleSource, 0)
 		require.NoError(t, err)
 		n, err := f2.WriteAt([]byte("Hello"), 100)
 		require.Equal(t, 5, n)
@@ -60,7 +60,7 @@ func TestFilePoolStatsBuildExecutorExample(t *testing.T) {
 		require.Equal(t, io.EOF, err)
 		require.Equal(t, []byte("\x00\x00Hello\x00\x00\x00"), p[:])
 
-		f3, err := filePool.NewFile(pool.DefaultHoleSource, 200)
+		f3, err := filePool.NewFile(pool.ZeroHoleSource, 200)
 		require.NoError(t, err)
 
 		require.NoError(t, f2.Truncate(42))
@@ -82,16 +82,16 @@ func TestFilePoolStatsBuildExecutorExample(t *testing.T) {
 	file3 := mock.NewMockFileReadWriter(ctrl)
 
 	gomock.InOrder(
-		filePool.EXPECT().NewFile(pool.DefaultHoleSource, uint64(0)).Return(file1, nil),
+		filePool.EXPECT().NewFile(pool.ZeroHoleSource, uint64(0)).Return(file1, nil),
 		file1.EXPECT().Truncate(int64(5)).Return(nil),
 		file1.EXPECT().Close().Return(nil),
-		filePool.EXPECT().NewFile(pool.DefaultHoleSource, uint64(0)).Return(file2, nil),
+		filePool.EXPECT().NewFile(pool.ZeroHoleSource, uint64(0)).Return(file2, nil),
 		file2.EXPECT().WriteAt([]byte("Hello"), int64(100)).Return(5, nil),
 		file2.EXPECT().ReadAt(gomock.Any(), int64(98)).DoAndReturn(func(p []byte, offset int64) (int, error) {
 			copy(p, []byte("\x00\x00Hello\x00\x00\x00"))
 			return 7, io.EOF
 		}),
-		filePool.EXPECT().NewFile(pool.DefaultHoleSource, uint64(200)).Return(file3, nil),
+		filePool.EXPECT().NewFile(pool.ZeroHoleSource, uint64(200)).Return(file3, nil),
 		file2.EXPECT().Truncate(int64(42)).Return(nil),
 		file2.EXPECT().Close().Return(nil),
 		file3.EXPECT().Close().Return(nil),

@@ -11,7 +11,7 @@ type HoleSource interface {
 	Truncate(int64) error
 }
 
-var DefaultHoleSource HoleSource = zeroHoleSource{}
+var ZeroHoleSource HoleSource = zeroHoleSource{}
 
 type zeroHoleSource struct{}
 

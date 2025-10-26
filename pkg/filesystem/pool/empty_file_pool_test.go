@@ -11,6 +11,6 @@ import (
 )
 
 func TestEmptyFilePool(t *testing.T) {
-	_, err := pool.EmptyFilePool.NewFile(pool.DefaultHoleSource, 0)
+	_, err := pool.EmptyFilePool.NewFile(pool.ZeroHoleSource, 0)
 	require.Equal(t, err, status.Error(codes.ResourceExhausted, "Cannot create file in empty file pool"))
 }
