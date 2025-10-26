@@ -62,6 +62,10 @@ func (fp *statsCollectingFilePool) NewFile(holeSource pool.HoleSource, size uint
 	if err != nil {
 		return nil, err
 	}
+	wrappedFile := &statsCollectingFileReadWriter{
+		FileReadWriter: f,
+		pool:           fp,
+	}
 
 	fp.lock.Lock()
 	fp.stats.FilesCreated++
@@ -69,12 +73,9 @@ func (fp *statsCollectingFilePool) NewFile(holeSource pool.HoleSource, size uint
 	if fp.stats.FilesCountPeak < fp.totalFiles {
 		fp.stats.FilesCountPeak = fp.totalFiles
 	}
+	wrappedFile.updateSizeLocked(size)
 	fp.lock.Unlock()
-
-	return &statsCollectingFileReadWriter{
-		FileReadWriter: f,
-		pool:           fp,
-	}, nil
+	return wrappedFile, nil
 }
 
 // statsCollectingFileReadWriter is a decorator for
