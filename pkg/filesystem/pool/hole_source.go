@@ -6,11 +6,28 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 )
 
+// HoleSource is used by implementations of FilePool to provide the
+// contents of parts of a file to which no data has been written
+// explicitly (i.e., the holes of a file). This can be used to create
+// files that provide copy-on-write behaviour.
+//
+// Implementations of FileReader are supposed to behave as ordinary
+// FileReaders, with two differences:
+//
+//   - ReadAt() never returns io.EOF. Instead, if an attempt is made to
+//     read past the end of the file, an infinite stream of null bytes
+//     is returned.
+//
+//   - Truncate() can be used to remove data at the end of the HoleSource.
+//     Subsequent attempts to read data must return null bytes.
 type HoleSource interface {
 	filesystem.FileReader
 	Truncate(int64) error
 }
 
+// ZeroHoleSource is a primitive implementation of HoleSource that
+// returns null bytes at any given offset. This is sufficient for cases
+// where FilePool is only used to create files that are initially empty.
 var ZeroHoleSource HoleSource = zeroHoleSource{}
 
 type zeroHoleSource struct{}
