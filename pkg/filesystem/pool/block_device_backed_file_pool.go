@@ -42,7 +42,7 @@ func (fp *blockDeviceBackedFilePool) NewFile(holeSource HoleSource, size uint64)
 
 type blockDeviceBackedFile struct {
 	fp         *blockDeviceBackedFilePool
-	holeSource filesystem.FileReader
+	holeSource HoleSource
 	sizeBytes  uint64
 	sectors    []uint32
 }
@@ -320,6 +320,15 @@ func (f *blockDeviceBackedFile) Truncate(size int64) error {
 			}
 		}
 		f.truncateSectors(sectorIndex + 1)
+	}
+
+	// If we shrink the file, we should also convey this to the
+	// underlying hole source. If the file is grown again, the hole
+	// source needs to return null bytes.
+	if uint64(size) < f.sizeBytes {
+		if err := f.holeSource.Truncate(size); err != nil {
+			return err
+		}
 	}
 
 	f.sizeBytes = uint64(size)
