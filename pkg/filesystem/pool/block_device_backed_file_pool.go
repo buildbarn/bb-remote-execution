@@ -129,48 +129,63 @@ func (f *blockDeviceBackedFile) GetNextRegionOffset(off int64, regionType filesy
 	}
 
 	sectorSizeBytes := int64(f.fp.sectorSizeBytes)
-	sectorIndex := int(off / sectorSizeBytes)
 	switch regionType {
 	case filesystem.Data:
+		sectorIndex := int(off / sectorSizeBytes)
 		if sectorIndex >= len(f.sectors) {
 			// Inside the hole at the end of the file.
-			return f.holeSource.GetNextRegionOffset(off, regionType)
+			return f.holeSource.GetNextRegionOffset(off, filesystem.Data)
 		}
 		if f.sectors[sectorIndex] != 0 {
 			// Already inside a sector containing data.
 			return off, nil
 		}
+
 		// Find the next sector containing data.
 		sectorIndex++
 		for f.sectors[sectorIndex] == 0 {
 			sectorIndex++
 		}
-		o := int64(sectorIndex) * sectorSizeBytes
-		u, err := f.holeSource.GetNextRegionOffset(off, regionType)
-		if err == io.EOF {
-			return o, nil
-		} else if err != nil {
-			return 0, err
-		}
-		return min(o, u), nil
-	case filesystem.Hole:
-		// There is a hole at EOF, or maybe the file is longer than the sectors account for.
-		next := min(int64(f.sizeBytes), int64(len(f.sectors))*sectorSizeBytes)
+		sectorOffsetBytes := int64(sectorIndex) * sectorSizeBytes
 
-		// Find the next sector containing a hole.
-		for ; sectorIndex < len(f.sectors); sectorIndex++ {
-			if f.sectors[sectorIndex] == 0 {
-				next = int64(sectorIndex) * sectorSizeBytes
-				break
+		// Also consider data provided by the hole source.
+		holeSourceOffsetBytes, err := f.holeSource.GetNextRegionOffset(off, filesystem.Data)
+		if err != nil {
+			if err == io.EOF {
+				return sectorOffsetBytes, nil
 			}
-		}
-		u, err := f.holeSource.GetNextRegionOffset(off, regionType)
-		if err == io.EOF {
-			return next, nil
-		} else if err != nil {
 			return 0, err
 		}
-		return max(next, u), nil
+		return min(sectorOffsetBytes, holeSourceOffsetBytes), nil
+	case filesystem.Hole:
+		for {
+			// Progress to the next hole in the file.
+			sectorIndex := int(off / sectorSizeBytes)
+			if sectorIndex < len(f.sectors) && f.sectors[sectorIndex] != 0 {
+				for sectorIndex++; sectorIndex < len(f.sectors); sectorIndex++ {
+					if f.sectors[sectorIndex] == 0 {
+						break
+					}
+				}
+				off = int64(sectorIndex) * sectorSizeBytes
+			}
+			if uint64(off) >= f.sizeBytes {
+				return int64(f.sizeBytes), nil
+			}
+
+			// Progress to the next hole in the hole source.
+			holeSourceOffsetBytes, err := f.holeSource.GetNextRegionOffset(off, filesystem.Hole)
+			if err != nil {
+				return 0, err
+			}
+			if holeSourceOffsetBytes < int64(sectorIndex+1)*sectorSizeBytes {
+				// Found an offset that refers both to a
+				// hole in the file and one in the hole
+				// source.
+				return holeSourceOffsetBytes, nil
+			}
+			off = holeSourceOffsetBytes
+		}
 	default:
 		panic("Unknown region type")
 	}
