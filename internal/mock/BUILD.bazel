@@ -183,6 +183,7 @@ gomock(
     out = "filesystem_filepool.go",
     interfaces = [
         "FilePool",
+        "HoleSource",
         "SectorAllocator",
     ],
     library = "//pkg/filesystem/pool",

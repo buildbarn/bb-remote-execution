@@ -1,5 +1,7 @@
 package virtual
 
+import "github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
+
 // FileAllocator is called into by InMemoryPrepopulatedDirectory to
 // create new files within the file system. Such files could either be
 // stored in memory, on disk, remotely, etc.
@@ -7,5 +9,5 @@ package virtual
 // Files returned by this interface should have a link count of 1, and
 // are opened using the provided share access mask.
 type FileAllocator interface {
-	NewFile(isExecutable bool, size uint64, shareAccess ShareMask) (LinkableLeaf, Status)
+	NewFile(holeSource pool.HoleSource, isExecutable bool, size uint64, shareAccess ShareMask) (LinkableLeaf, Status)
 }

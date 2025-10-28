@@ -92,6 +92,7 @@ go_test(
     deps = [
         ":virtual",
         "//internal/mock",
+        "//pkg/filesystem/pool",
         "//pkg/proto/bazeloutputservice",
         "//pkg/proto/bazeloutputservice/rev2",
         "//pkg/proto/outputpathpersistency",

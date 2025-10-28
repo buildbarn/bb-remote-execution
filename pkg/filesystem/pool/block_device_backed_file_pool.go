@@ -32,16 +32,19 @@ func NewBlockDeviceBackedFilePool(blockDevice blockdevice.BlockDevice, sectorAll
 	}
 }
 
-func (fp *blockDeviceBackedFilePool) NewFile() (filesystem.FileReadWriter, error) {
+func (fp *blockDeviceBackedFilePool) NewFile(holeSource HoleSource, size uint64) (filesystem.FileReadWriter, error) {
 	return &blockDeviceBackedFile{
-		fp: fp,
+		fp:         fp,
+		holeSource: holeSource,
+		sizeBytes:  size,
 	}, nil
 }
 
 type blockDeviceBackedFile struct {
-	fp        *blockDeviceBackedFilePool
-	sizeBytes uint64
-	sectors   []uint32
+	fp         *blockDeviceBackedFilePool
+	holeSource HoleSource
+	sizeBytes  uint64
+	sectors    []uint32
 }
 
 func (f *blockDeviceBackedFile) Close() error {
@@ -50,7 +53,9 @@ func (f *blockDeviceBackedFile) Close() error {
 	}
 	f.fp = nil
 	f.sectors = nil
-	return nil
+	err := f.holeSource.Close()
+	f.holeSource = nil
+	return err
 }
 
 // toDeviceOffset converts a sector number and offset within a sector to
@@ -124,41 +129,63 @@ func (f *blockDeviceBackedFile) GetNextRegionOffset(off int64, regionType filesy
 	}
 
 	sectorSizeBytes := int64(f.fp.sectorSizeBytes)
-	sectorIndex := int(off / sectorSizeBytes)
 	switch regionType {
 	case filesystem.Data:
+		sectorIndex := int(off / sectorSizeBytes)
 		if sectorIndex >= len(f.sectors) {
 			// Inside the hole at the end of the file.
-			return 0, io.EOF
+			return f.holeSource.GetNextRegionOffset(off, filesystem.Data)
 		}
 		if f.sectors[sectorIndex] != 0 {
 			// Already inside a sector containing data.
 			return off, nil
 		}
+
 		// Find the next sector containing data.
-		for {
+		sectorIndex++
+		for f.sectors[sectorIndex] == 0 {
 			sectorIndex++
-			if f.sectors[sectorIndex] != 0 {
-				return int64(sectorIndex) * sectorSizeBytes, nil
-			}
 		}
+		sectorOffsetBytes := int64(sectorIndex) * sectorSizeBytes
+
+		// Also consider data provided by the hole source.
+		holeSourceOffsetBytes, err := f.holeSource.GetNextRegionOffset(off, filesystem.Data)
+		if err != nil {
+			if err == io.EOF {
+				return sectorOffsetBytes, nil
+			}
+			return 0, err
+		}
+		return min(sectorOffsetBytes, holeSourceOffsetBytes), nil
 	case filesystem.Hole:
-		if sectorIndex >= len(f.sectors) || f.sectors[sectorIndex] == 0 {
-			// Already inside a hole.
-			return off, nil
-		}
-		// Find the next sector containing a hole.
-		for sectorIndex++; sectorIndex < len(f.sectors); sectorIndex++ {
-			if f.sectors[sectorIndex] == 0 {
-				return int64(sectorIndex) * sectorSizeBytes, nil
+		for {
+			// Progress to the next hole in the file.
+			sectorIndex := int(off / sectorSizeBytes)
+			if sectorIndex < len(f.sectors) && f.sectors[sectorIndex] != 0 {
+				for sectorIndex++; sectorIndex < len(f.sectors); sectorIndex++ {
+					if f.sectors[sectorIndex] == 0 {
+						break
+					}
+				}
+				off = int64(sectorIndex) * sectorSizeBytes
 			}
+			if uint64(off) >= f.sizeBytes {
+				return int64(f.sizeBytes), nil
+			}
+
+			// Progress to the next hole in the hole source.
+			holeSourceOffsetBytes, err := f.holeSource.GetNextRegionOffset(off, filesystem.Hole)
+			if err != nil {
+				return 0, err
+			}
+			if holeSourceOffsetBytes < int64(sectorIndex+1)*sectorSizeBytes {
+				// Found an offset that refers both to a
+				// hole in the file and one in the hole
+				// source.
+				return holeSourceOffsetBytes, nil
+			}
+			off = holeSourceOffsetBytes
 		}
-		if allSectors := int64(len(f.sectors)) * sectorSizeBytes; allSectors < int64(f.sizeBytes) {
-			// File ends with a hole.
-			return allSectors, nil
-		}
-		// File ends in the middle of a sector containing data.
-		return int64(f.sizeBytes), nil
 	default:
 		panic("Unknown region type")
 	}
@@ -183,11 +210,15 @@ func (f *blockDeviceBackedFile) readFromSectors(p []byte, sectorIndex, lastSecto
 	p = f.limitBufferToSectorBoundary(p, sectorsToRead, offsetWithinSector)
 	if sector == 0 {
 		// Attempted to read from a sparse region of the file.
-		// Fill in zero bytes.
-		for i := 0; i < len(p); i++ {
-			p[i] = 0
+		// Redirect the read to the hole source, which usually produces zeroes.
+		n, err := f.holeSource.ReadAt(p, f.toDeviceOffset(sector, offsetWithinSector))
+		if err != nil && err != io.EOF {
+			return n, err
 		}
-		return len(p), nil
+		if n != len(p) {
+			return n, status.Errorf(codes.Internal, "Read against hole source file returned %d bytes, while %d bytes were expected", n, len(p))
+		}
+		return n, nil
 	}
 
 	// Attempted to read from a region of the file that contains
@@ -291,6 +322,15 @@ func (f *blockDeviceBackedFile) Truncate(size int64) error {
 		f.truncateSectors(sectorIndex + 1)
 	}
 
+	// If we shrink the file, we should also convey this to the
+	// underlying hole source. If the file is grown again, the hole
+	// source needs to return null bytes.
+	if uint64(size) < f.sizeBytes {
+		if err := f.holeSource.Truncate(size); err != nil {
+			return err
+		}
+	}
+
 	f.sizeBytes = uint64(size)
 	return nil
 }
@@ -298,7 +338,7 @@ func (f *blockDeviceBackedFile) Truncate(size int64) error {
 // writeToNewSectors is used to write data into new sectors. This
 // function is called when holes in a sparse file are filled up or when
 // data is appended to the end of a file.
-func (f *blockDeviceBackedFile) writeToNewSectors(p []byte, offsetWithinSector int) (int, uint32, int, error) {
+func (f *blockDeviceBackedFile) writeToNewSectors(p []byte, firstSectorIndex, offsetWithinSector int) (int, uint32, int, error) {
 	// Allocate space to store the data.
 	sectorsToAllocate := int((uint64(offsetWithinSector) + uint64(len(p)) + uint64(f.fp.sectorSizeBytes) - 1) / uint64(f.fp.sectorSizeBytes))
 	firstSector, sectorsAllocated, err := f.fp.sectorAllocator.AllocateContiguous(sectorsToAllocate)
@@ -315,8 +355,21 @@ func (f *blockDeviceBackedFile) writeToNewSectors(p []byte, offsetWithinSector i
 	// Write the first sector separately when we need to introduce
 	// leading zero padding.
 	sector := firstSector
+	sectorIndex := firstSectorIndex
 	if offsetWithinSector > 0 {
 		buf := make([]byte, f.fp.sectorSizeBytes)
+		if offsetWithinSector > 0 {
+			if _, err := f.holeSource.ReadAt(buf[:offsetWithinSector], int64(sectorIndex)*int64(f.fp.sectorSizeBytes)); err != nil {
+				f.fp.sectorAllocator.FreeContiguous(firstSector, sectorsAllocated)
+				return 0, 0, 0, err
+			}
+		}
+		if endWithinSector := offsetWithinSector + len(p); endWithinSector < f.fp.sectorSizeBytes {
+			if _, err := f.holeSource.ReadAt(buf[endWithinSector:], int64(sectorIndex)*int64(f.fp.sectorSizeBytes)+int64(endWithinSector)); err != nil {
+				f.fp.sectorAllocator.FreeContiguous(firstSector, sectorsAllocated)
+				return 0, 0, 0, err
+			}
+		}
 		nWritten := copy(buf[offsetWithinSector:], p)
 		if _, err := f.fp.blockDevice.WriteAt(buf, f.toDeviceOffset(sector, 0)); err != nil {
 			f.fp.sectorAllocator.FreeContiguous(firstSector, sectorsAllocated)
@@ -325,6 +378,7 @@ func (f *blockDeviceBackedFile) writeToNewSectors(p []byte, offsetWithinSector i
 
 		p = p[nWritten:]
 		sector++
+		sectorIndex++
 	}
 
 	// Write as many sectors to the block device as possible.
@@ -336,6 +390,7 @@ func (f *blockDeviceBackedFile) writeToNewSectors(p []byte, offsetWithinSector i
 		}
 		p = p[fullSectorsSize:]
 		sector += uint32(fullSectors)
+		sectorIndex += int(fullSectors)
 	}
 
 	// Write the last sector separately when we need to introduce
@@ -343,6 +398,10 @@ func (f *blockDeviceBackedFile) writeToNewSectors(p []byte, offsetWithinSector i
 	if len(p) > 0 {
 		buf := make([]byte, f.fp.sectorSizeBytes)
 		copy(buf, p)
+		if _, err := f.holeSource.ReadAt(buf[len(p):], int64(sectorIndex)*int64(f.fp.sectorSizeBytes)+int64(len(p))); err != nil {
+			f.fp.sectorAllocator.FreeContiguous(firstSector, sectorsAllocated)
+			return 0, 0, 0, err
+		}
 		if _, err := f.fp.blockDevice.WriteAt(buf, f.toDeviceOffset(sector, 0)); err != nil {
 			f.fp.sectorAllocator.FreeContiguous(firstSector, sectorsAllocated)
 			return 0, 0, 0, err
@@ -374,7 +433,7 @@ func (f *blockDeviceBackedFile) writeToSectors(p []byte, sectorIndex, lastSector
 		// Attempted to write past the end-of-file or within a
 		// hole located at the end of a sparse file. Allocate
 		// space and grow the file.
-		bytesWritten, firstSector, sectorsAllocated, err := f.writeToNewSectors(p, offsetWithinSector)
+		bytesWritten, firstSector, sectorsAllocated, err := f.writeToNewSectors(p, sectorIndex, offsetWithinSector)
 		if err != nil {
 			return 0, err
 		}
@@ -388,7 +447,7 @@ func (f *blockDeviceBackedFile) writeToSectors(p []byte, sectorIndex, lastSector
 	if sector == 0 {
 		// Attempted to write to a hole within a sparse file.
 		// Allocate space and insert sectors into the file.
-		bytesWritten, firstSector, sectorsAllocated, err := f.writeToNewSectors(p, offsetWithinSector)
+		bytesWritten, firstSector, sectorsAllocated, err := f.writeToNewSectors(p, sectorIndex, offsetWithinSector)
 		if err != nil {
 			return 0, err
 		}
