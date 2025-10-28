@@ -338,7 +338,7 @@ func (f *blockDeviceBackedFile) Truncate(size int64) error {
 // writeToNewSectors is used to write data into new sectors. This
 // function is called when holes in a sparse file are filled up or when
 // data is appended to the end of a file.
-func (f *blockDeviceBackedFile) writeToNewSectors(p []byte, offsetWithinSector int) (int, uint32, int, error) {
+func (f *blockDeviceBackedFile) writeToNewSectors(p []byte, firstSectorIndex, offsetWithinSector int) (int, uint32, int, error) {
 	// Allocate space to store the data.
 	sectorsToAllocate := int((uint64(offsetWithinSector) + uint64(len(p)) + uint64(f.fp.sectorSizeBytes) - 1) / uint64(f.fp.sectorSizeBytes))
 	firstSector, sectorsAllocated, err := f.fp.sectorAllocator.AllocateContiguous(sectorsToAllocate)
@@ -355,8 +355,21 @@ func (f *blockDeviceBackedFile) writeToNewSectors(p []byte, offsetWithinSector i
 	// Write the first sector separately when we need to introduce
 	// leading zero padding.
 	sector := firstSector
+	sectorIndex := firstSectorIndex
 	if offsetWithinSector > 0 {
 		buf := make([]byte, f.fp.sectorSizeBytes)
+		if offsetWithinSector > 0 {
+			if _, err := f.holeSource.ReadAt(buf[:offsetWithinSector], int64(sectorIndex)*int64(f.fp.sectorSizeBytes)); err != nil {
+				f.fp.sectorAllocator.FreeContiguous(firstSector, sectorsAllocated)
+				return 0, 0, 0, err
+			}
+		}
+		if endWithinSector := offsetWithinSector + len(p); endWithinSector < f.fp.sectorSizeBytes {
+			if _, err := f.holeSource.ReadAt(buf[endWithinSector:], int64(sectorIndex)*int64(f.fp.sectorSizeBytes)+int64(endWithinSector)); err != nil {
+				f.fp.sectorAllocator.FreeContiguous(firstSector, sectorsAllocated)
+				return 0, 0, 0, err
+			}
+		}
 		nWritten := copy(buf[offsetWithinSector:], p)
 		if _, err := f.fp.blockDevice.WriteAt(buf, f.toDeviceOffset(sector, 0)); err != nil {
 			f.fp.sectorAllocator.FreeContiguous(firstSector, sectorsAllocated)
@@ -365,6 +378,7 @@ func (f *blockDeviceBackedFile) writeToNewSectors(p []byte, offsetWithinSector i
 
 		p = p[nWritten:]
 		sector++
+		sectorIndex++
 	}
 
 	// Write as many sectors to the block device as possible.
@@ -376,6 +390,7 @@ func (f *blockDeviceBackedFile) writeToNewSectors(p []byte, offsetWithinSector i
 		}
 		p = p[fullSectorsSize:]
 		sector += uint32(fullSectors)
+		sectorIndex += int(fullSectors)
 	}
 
 	// Write the last sector separately when we need to introduce
@@ -383,6 +398,10 @@ func (f *blockDeviceBackedFile) writeToNewSectors(p []byte, offsetWithinSector i
 	if len(p) > 0 {
 		buf := make([]byte, f.fp.sectorSizeBytes)
 		copy(buf, p)
+		if _, err := f.holeSource.ReadAt(buf[len(p):], int64(sectorIndex)*int64(f.fp.sectorSizeBytes)+int64(len(p))); err != nil {
+			f.fp.sectorAllocator.FreeContiguous(firstSector, sectorsAllocated)
+			return 0, 0, 0, err
+		}
 		if _, err := f.fp.blockDevice.WriteAt(buf, f.toDeviceOffset(sector, 0)); err != nil {
 			f.fp.sectorAllocator.FreeContiguous(firstSector, sectorsAllocated)
 			return 0, 0, 0, err
@@ -414,7 +433,7 @@ func (f *blockDeviceBackedFile) writeToSectors(p []byte, sectorIndex, lastSector
 		// Attempted to write past the end-of-file or within a
 		// hole located at the end of a sparse file. Allocate
 		// space and grow the file.
-		bytesWritten, firstSector, sectorsAllocated, err := f.writeToNewSectors(p, offsetWithinSector)
+		bytesWritten, firstSector, sectorsAllocated, err := f.writeToNewSectors(p, sectorIndex, offsetWithinSector)
 		if err != nil {
 			return 0, err
 		}
@@ -428,7 +447,7 @@ func (f *blockDeviceBackedFile) writeToSectors(p []byte, sectorIndex, lastSector
 	if sector == 0 {
 		// Attempted to write to a hole within a sparse file.
 		// Allocate space and insert sectors into the file.
-		bytesWritten, firstSector, sectorsAllocated, err := f.writeToNewSectors(p, offsetWithinSector)
+		bytesWritten, firstSector, sectorsAllocated, err := f.writeToNewSectors(p, sectorIndex, offsetWithinSector)
 		if err != nil {
 			return 0, err
 		}
