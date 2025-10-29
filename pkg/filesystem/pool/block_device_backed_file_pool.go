@@ -176,6 +176,9 @@ func (f *blockDeviceBackedFile) GetNextRegionOffset(off int64, regionType filesy
 			// Progress to the next hole in the hole source.
 			holeSourceOffsetBytes, err := f.holeSource.GetNextRegionOffset(off, filesystem.Hole)
 			if err != nil {
+				if err == io.EOF {
+					return off, nil
+				}
 				return 0, err
 			}
 			if holeSourceOffsetBytes < int64(sectorIndex+1)*sectorSizeBytes {
