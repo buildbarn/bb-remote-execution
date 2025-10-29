@@ -57,6 +57,10 @@ func (fp *quotaEnforcingFilePool) NewFile(holeSource HoleSource, size uint64) (f
 	if !fp.filesRemaining.allocate(1) {
 		return nil, status.Error(codes.InvalidArgument, "File count quota reached")
 	}
+	if size > 0 && !fp.bytesRemaining.allocate(size) {
+		fp.filesRemaining.release(1)
+		return nil, status.Error(codes.InvalidArgument, "File size quota reached")
+	}
 	f, err := fp.base.NewFile(holeSource, size)
 	if err != nil {
 		fp.filesRemaining.release(1)
@@ -65,6 +69,7 @@ func (fp *quotaEnforcingFilePool) NewFile(holeSource HoleSource, size uint64) (f
 	return &quotaEnforcingFile{
 		FileReadWriter: f,
 		pool:           fp,
+		size:           size,
 	}, nil
 }
 

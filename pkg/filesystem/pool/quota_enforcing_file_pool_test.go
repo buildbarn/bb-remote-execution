@@ -33,7 +33,7 @@ func testRemainingQuota(t *testing.T, ctrl *gomock.Controller, underlyingPool *m
 	_, err := filePool.NewFile(pool.ZeroHoleSource, 0)
 	require.Equal(t, err, status.Error(codes.InvalidArgument, "File count quota reached"))
 	for i := 0; i < filesRemaining; i++ {
-		underlyingFiles[i].EXPECT().Close().Return(nil)
+		underlyingFiles[i].EXPECT().Close()
 		require.NoError(t, files[i].Close())
 	}
 
@@ -44,11 +44,11 @@ func testRemainingQuota(t *testing.T, ctrl *gomock.Controller, underlyingPool *m
 	f, err := filePool.NewFile(pool.ZeroHoleSource, 0)
 	require.NoError(t, err)
 	if bytesRemaining != 0 {
-		underlyingFile.EXPECT().Truncate(bytesRemaining).Return(nil)
+		underlyingFile.EXPECT().Truncate(bytesRemaining)
 	}
 	require.NoError(t, f.Truncate(bytesRemaining))
 	require.Equal(t, f.Truncate(bytesRemaining+1), status.Error(codes.InvalidArgument, "File size quota reached"))
-	underlyingFile.EXPECT().Close().Return(nil)
+	underlyingFile.EXPECT().Close()
 	require.NoError(t, f.Close())
 }
 
@@ -68,73 +68,95 @@ func TestQuotaEnforcingFilePoolExample(t *testing.T) {
 	testRemainingQuota(t, ctrl, underlyingPool, filePool, 10, 1000)
 
 	// Successfully allocate a file.
-	underlyingFile := mock.NewMockFileReadWriter(ctrl)
-	underlyingPool.EXPECT().NewFile(pool.ZeroHoleSource, uint64(0)).Return(underlyingFile, nil)
-	f, err := filePool.NewFile(pool.ZeroHoleSource, 0)
+	underlyingFile1 := mock.NewMockFileReadWriter(ctrl)
+	underlyingPool.EXPECT().NewFile(pool.ZeroHoleSource, uint64(0)).Return(underlyingFile1, nil)
+	f1, err := filePool.NewFile(pool.ZeroHoleSource, 0)
 	require.NoError(t, err)
 	testRemainingQuota(t, ctrl, underlyingPool, filePool, 9, 1000)
 
 	// Read calls should be forwarded properly.
 	var p [10]byte
-	underlyingFile.EXPECT().ReadAt(p[:], int64(123)).Return(0, io.EOF)
-	n, err := f.ReadAt(p[:], 123)
+	underlyingFile1.EXPECT().ReadAt(p[:], int64(123)).Return(0, io.EOF)
+	n, err := f1.ReadAt(p[:], 123)
 	require.Equal(t, 0, n)
 	require.Equal(t, io.EOF, err)
 	testRemainingQuota(t, ctrl, underlyingPool, filePool, 9, 1000)
 
 	// Writes that would cause the file to grow beyond the maximum
 	// size should be disallowed.
-	n, err = f.WriteAt(p[:], 991)
+	n, err = f1.WriteAt(p[:], 991)
 	require.Equal(t, 0, n)
 	require.Equal(t, err, status.Error(codes.InvalidArgument, "File size quota reached"))
 	testRemainingQuota(t, ctrl, underlyingPool, filePool, 9, 1000)
 
 	// A failed write should initially allocate all of the required
 	// space, but release the full amount once more.
-	underlyingFile.EXPECT().WriteAt(p[:], int64(990)).Return(0, status.Error(codes.Internal, "Cannot write data at all"))
-	n, err = f.WriteAt(p[:], 990)
+	underlyingFile1.EXPECT().WriteAt(p[:], int64(990)).Return(0, status.Error(codes.Internal, "Cannot write data at all"))
+	n, err = f1.WriteAt(p[:], 990)
 	require.Equal(t, 0, n)
 	require.Equal(t, err, status.Error(codes.Internal, "Cannot write data at all"))
 	testRemainingQuota(t, ctrl, underlyingPool, filePool, 9, 1000)
 
 	// A short write should initially allocate all of the required
 	// space, but release the amount of data that was not written.
-	underlyingFile.EXPECT().WriteAt(p[:], int64(990)).Return(7, status.Error(codes.Internal, "Disk died in the middle of the write"))
-	n, err = f.WriteAt(p[:], 990)
+	underlyingFile1.EXPECT().WriteAt(p[:], int64(990)).Return(7, status.Error(codes.Internal, "Disk died in the middle of the write"))
+	n, err = f1.WriteAt(p[:], 990)
 	require.Equal(t, 7, n)
 	require.Equal(t, err, status.Error(codes.Internal, "Disk died in the middle of the write"))
 	testRemainingQuota(t, ctrl, underlyingPool, filePool, 9, 3)
 
 	// I/O error while shrinking file should not cause the quotas to
 	// be affected.
-	underlyingFile.EXPECT().Truncate(int64(123)).Return(status.Error(codes.Internal, "Failed to adjust inode"))
-	require.Equal(t, f.Truncate(123), status.Error(codes.Internal, "Failed to adjust inode"))
+	underlyingFile1.EXPECT().Truncate(int64(123)).Return(status.Error(codes.Internal, "Failed to adjust inode"))
+	require.Equal(t, f1.Truncate(123), status.Error(codes.Internal, "Failed to adjust inode"))
 	testRemainingQuota(t, ctrl, underlyingPool, filePool, 9, 3)
 
 	// Successfully shrinking the file.
-	underlyingFile.EXPECT().Truncate(int64(123)).Return(nil)
-	require.NoError(t, f.Truncate(123))
+	underlyingFile1.EXPECT().Truncate(int64(123))
+	require.NoError(t, f1.Truncate(123))
 	testRemainingQuota(t, ctrl, underlyingPool, filePool, 9, 877)
 
 	// Growing the file past the permitted size should not be
 	// allowed.
-	require.Equal(t, f.Truncate(1001), status.Error(codes.InvalidArgument, "File size quota reached"))
+	require.Equal(t, f1.Truncate(1001), status.Error(codes.InvalidArgument, "File size quota reached"))
 	testRemainingQuota(t, ctrl, underlyingPool, filePool, 9, 877)
 
 	// I/O error while growing file should not cause the quotas to
 	// be affected.
-	underlyingFile.EXPECT().Truncate(int64(1000)).Return(status.Error(codes.Internal, "Failed to adjust inode"))
-	require.Equal(t, f.Truncate(1000), status.Error(codes.Internal, "Failed to adjust inode"))
+	underlyingFile1.EXPECT().Truncate(int64(1000)).Return(status.Error(codes.Internal, "Failed to adjust inode"))
+	require.Equal(t, f1.Truncate(1000), status.Error(codes.Internal, "Failed to adjust inode"))
 	testRemainingQuota(t, ctrl, underlyingPool, filePool, 9, 877)
 
 	// Successfully growing the file.
-	underlyingFile.EXPECT().Truncate(int64(1000)).Return(nil)
-	require.NoError(t, f.Truncate(1000))
+	underlyingFile1.EXPECT().Truncate(int64(1000))
+	require.NoError(t, f1.Truncate(1000))
 	testRemainingQuota(t, ctrl, underlyingPool, filePool, 9, 0)
 
 	// Closing the file should bring the pool back in the initial
 	// state.
-	underlyingFile.EXPECT().Close().Return(nil)
-	require.NoError(t, f.Close())
+	underlyingFile1.EXPECT().Close()
+	require.NoError(t, f1.Close())
+	testRemainingQuota(t, ctrl, underlyingPool, filePool, 10, 1000)
+
+	// Allocating a file with an initially provided size should
+	// cause the remaining size to be adjusted as well.
+	underlyingFile2 := mock.NewMockFileReadWriter(ctrl)
+	underlyingPool.EXPECT().NewFile(pool.ZeroHoleSource, uint64(100)).Return(underlyingFile2, nil)
+	f2, err := filePool.NewFile(pool.ZeroHoleSource, 100)
+	require.NoError(t, err)
+	testRemainingQuota(t, ctrl, underlyingPool, filePool, 9, 900)
+
+	underlyingFile2.EXPECT().Truncate(int64(0))
+	require.NoError(t, f2.Truncate(0))
+	testRemainingQuota(t, ctrl, underlyingPool, filePool, 9, 1000)
+
+	underlyingFile2.EXPECT().Close()
+	require.NoError(t, f2.Close())
+	testRemainingQuota(t, ctrl, underlyingPool, filePool, 10, 1000)
+
+	// It shouldn't be possible to create a file whose size exceeds
+	// the remaining file size quota.
+	_, err = filePool.NewFile(pool.ZeroHoleSource, 1001)
+	require.Equal(t, err, status.Error(codes.InvalidArgument, "File size quota reached"))
 	testRemainingQuota(t, ctrl, underlyingPool, filePool, 10, 1000)
 }
