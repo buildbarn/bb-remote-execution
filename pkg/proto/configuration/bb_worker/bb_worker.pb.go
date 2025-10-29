@@ -436,8 +436,8 @@ type RunnerConfiguration struct {
 	InstanceNamePrefix                           string                                                  `protobuf:"bytes,13,opt,name=instance_name_prefix,json=instanceNamePrefix,proto3" json:"instance_name_prefix,omitempty"`
 	Platform                                     *v2.Platform                                            `protobuf:"bytes,3,opt,name=platform,proto3" json:"platform,omitempty"`
 	SizeClass                                    uint32                                                  `protobuf:"varint,12,opt,name=size_class,json=sizeClass,proto3" json:"size_class,omitempty"`
-	MaximumFilePoolFileCount                     int64                                                   `protobuf:"varint,6,opt,name=maximum_file_pool_file_count,json=maximumFilePoolFileCount,proto3" json:"maximum_file_pool_file_count,omitempty"`
-	MaximumFilePoolSizeBytes                     int64                                                   `protobuf:"varint,7,opt,name=maximum_file_pool_size_bytes,json=maximumFilePoolSizeBytes,proto3" json:"maximum_file_pool_size_bytes,omitempty"`
+	MaximumFilePoolFileCount                     uint64                                                  `protobuf:"varint,6,opt,name=maximum_file_pool_file_count,json=maximumFilePoolFileCount,proto3" json:"maximum_file_pool_file_count,omitempty"`
+	MaximumFilePoolSizeBytes                     uint64                                                  `protobuf:"varint,7,opt,name=maximum_file_pool_size_bytes,json=maximumFilePoolSizeBytes,proto3" json:"maximum_file_pool_size_bytes,omitempty"`
 	WorkerId                                     map[string]string                                       `protobuf:"bytes,8,rep,name=worker_id,json=workerId,proto3" json:"worker_id,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	InputRootCharacterDeviceNodes                []string                                                `protobuf:"bytes,9,rep,name=input_root_character_device_nodes,json=inputRootCharacterDeviceNodes,proto3" json:"input_root_character_device_nodes,omitempty"`
 	CostsPerSecond                               map[string]*resourceusage.MonetaryResourceUsage_Expense `protobuf:"bytes,10,rep,name=costs_per_second,json=costsPerSecond,proto3" json:"costs_per_second,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
@@ -514,14 +514,14 @@ func (x *RunnerConfiguration) GetSizeClass() uint32 {
 	return 0
 }
 
-func (x *RunnerConfiguration) GetMaximumFilePoolFileCount() int64 {
+func (x *RunnerConfiguration) GetMaximumFilePoolFileCount() uint64 {
 	if x != nil {
 		return x.MaximumFilePoolFileCount
 	}
 	return 0
 }
 
-func (x *RunnerConfiguration) GetMaximumFilePoolSizeBytes() int64 {
+func (x *RunnerConfiguration) GetMaximumFilePoolSizeBytes() uint64 {
 	if x != nil {
 		return x.MaximumFilePoolSizeBytes
 	}
@@ -745,8 +745,8 @@ const file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_w
 	"\bplatform\x18\x03 \x01(\v2).build.bazel.remote.execution.v2.PlatformR\bplatform\x12\x1d\n" +
 	"\n" +
 	"size_class\x18\f \x01(\rR\tsizeClass\x12>\n" +
-	"\x1cmaximum_file_pool_file_count\x18\x06 \x01(\x03R\x18maximumFilePoolFileCount\x12>\n" +
-	"\x1cmaximum_file_pool_size_bytes\x18\a \x01(\x03R\x18maximumFilePoolSizeBytes\x12a\n" +
+	"\x1cmaximum_file_pool_file_count\x18\x06 \x01(\x04R\x18maximumFilePoolFileCount\x12>\n" +
+	"\x1cmaximum_file_pool_size_bytes\x18\a \x01(\x04R\x18maximumFilePoolSizeBytes\x12a\n" +
 	"\tworker_id\x18\b \x03(\v2D.buildbarn.configuration.bb_worker.RunnerConfiguration.WorkerIdEntryR\bworkerId\x12H\n" +
 	"!input_root_character_device_nodes\x18\t \x03(\tR\x1dinputRootCharacterDeviceNodes\x12t\n" +
 	"\x10costs_per_second\x18\n" +

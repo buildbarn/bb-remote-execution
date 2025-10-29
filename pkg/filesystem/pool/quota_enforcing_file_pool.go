@@ -13,10 +13,10 @@ import (
 // subtracted/added atomically. It is used to store the number of files
 // and bytes of space available.
 type quotaMetric struct {
-	remaining atomic.Int64
+	remaining atomic.Uint64
 }
 
-func (m *quotaMetric) allocate(v int64) bool {
+func (m *quotaMetric) allocate(v uint64) bool {
 	for {
 		remaining := m.remaining.Load()
 		if remaining < v {
@@ -28,7 +28,7 @@ func (m *quotaMetric) allocate(v int64) bool {
 	}
 }
 
-func (m *quotaMetric) release(v int64) {
+func (m *quotaMetric) release(v uint64) {
 	m.remaining.Add(v)
 }
 
@@ -44,7 +44,7 @@ type quotaEnforcingFilePool struct {
 // FilePool, while also limiting the total size of all files that are
 // extracted. Space is reclaimed by either truncating files or closing
 // them.
-func NewQuotaEnforcingFilePool(base FilePool, maximumFileCount, maximumTotalSize int64) FilePool {
+func NewQuotaEnforcingFilePool(base FilePool, maximumFileCount, maximumTotalSize uint64) FilePool {
 	fp := &quotaEnforcingFilePool{
 		base: base,
 	}
@@ -72,7 +72,7 @@ type quotaEnforcingFile struct {
 	filesystem.FileReadWriter
 
 	pool *quotaEnforcingFilePool
-	size int64
+	size uint64
 }
 
 func (f *quotaEnforcingFile) Close() error {
@@ -88,15 +88,18 @@ func (f *quotaEnforcingFile) Close() error {
 }
 
 func (f *quotaEnforcingFile) Truncate(size int64) error {
-	if size < f.size {
+	if size < 0 {
+		return status.Errorf(codes.InvalidArgument, "Negative truncation size: %d", size)
+	}
+	if uint64(size) < f.size {
 		// File is shrinking.
 		if err := f.FileReadWriter.Truncate(size); err != nil {
 			return err
 		}
-		f.pool.bytesRemaining.release(f.size - size)
-	} else if size > f.size {
+		f.pool.bytesRemaining.release(f.size - uint64(size))
+	} else if uint64(size) > f.size {
 		// File is growing.
-		additionalSpace := size - f.size
+		additionalSpace := uint64(size) - f.size
 		if !f.pool.bytesRemaining.allocate(additionalSpace) {
 			return status.Error(codes.InvalidArgument, "File size quota reached")
 		}
@@ -105,13 +108,16 @@ func (f *quotaEnforcingFile) Truncate(size int64) error {
 			return err
 		}
 	}
-	f.size = size
+	f.size = uint64(size)
 	return nil
 }
 
 func (f *quotaEnforcingFile) WriteAt(p []byte, off int64) (int, error) {
 	// No need to allocate space if the file is not growing.
-	desiredSize := off + int64(len(p))
+	if off < 0 {
+		return 0, status.Errorf(codes.InvalidArgument, "Negative offset: %d", off)
+	}
+	desiredSize := uint64(off) + uint64(len(p))
 	if desiredSize <= f.size {
 		return f.FileReadWriter.WriteAt(p, off)
 	}
@@ -122,9 +128,9 @@ func (f *quotaEnforcingFile) WriteAt(p []byte, off int64) (int, error) {
 		return 0, status.Error(codes.InvalidArgument, "File size quota reached")
 	}
 	n, err := f.FileReadWriter.WriteAt(p, off)
-	actualSize := int64(0)
+	actualSize := uint64(0)
 	if n > 0 {
-		actualSize = off + int64(n)
+		actualSize = uint64(off) + uint64(n)
 	}
 	if actualSize < f.size {
 		actualSize = f.size
