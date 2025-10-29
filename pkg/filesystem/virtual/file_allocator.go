@@ -9,5 +9,5 @@ import "github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 // Files returned by this interface should have a link count of 1, and
 // are opened using the provided share access mask.
 type FileAllocator interface {
-	NewFile(holeSource pool.HoleSource, isExecutable bool, size uint64, shareAccess ShareMask) (LinkableLeaf, Status)
+	NewFile(holeSource pool.HoleSource, isExecutable bool, size uint64, shareAccess ShareMask) (LinkableLeaf, error)
 }

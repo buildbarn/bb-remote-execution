@@ -723,9 +723,10 @@ func (i *inMemoryPrepopulatedDirectory) VirtualOpenChild(ctx context.Context, na
 		respected |= AttributesMaskSizeBytes
 		size = sizeBytes
 	}
-	leaf, s := i.subtree.fileAllocator.NewFile(pool.ZeroHoleSource, isExecutable, size, shareAccess)
-	if s != StatusOK {
-		return nil, 0, ChangeInfo{}, s
+	leaf, err := i.subtree.fileAllocator.NewFile(pool.ZeroHoleSource, isExecutable, size, shareAccess)
+	if err != nil {
+		i.subtree.errorLogger.Log(util.StatusWrapf(err, "Failed to create new file"))
+		return nil, 0, ChangeInfo{}, StatusErrIO
 	}
 
 	// Attach file to the directory.

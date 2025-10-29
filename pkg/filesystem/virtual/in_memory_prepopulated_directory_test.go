@@ -410,8 +410,9 @@ func TestInMemoryPrepopulatedDirectoryInstallHooks(t *testing.T) {
 
 	// Validate that the top-level directory uses both the new file
 	// allocator and error logger.
+	errorLogger2.EXPECT().Log(testutil.EqStatus(t, status.Error(codes.Internal, "Failed to create new file: Disk is full")))
 	fileAllocator2.EXPECT().NewFile(pool.ZeroHoleSource, false, uint64(0), virtual.ShareMaskWrite).
-		Return(nil, virtual.StatusErrIO)
+		Return(nil, status.Error(codes.Internal, "Disk is full"))
 	var attr virtual.Attributes
 	_, _, _, s := d.VirtualOpenChild(
 		ctx,
@@ -428,8 +429,9 @@ func TestInMemoryPrepopulatedDirectoryInstallHooks(t *testing.T) {
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
 	child, err := d.CreateAndEnterPrepopulatedDirectory(path.MustNewComponent("dir"))
 	require.NoError(t, err)
+	errorLogger2.EXPECT().Log(testutil.EqStatus(t, status.Error(codes.Internal, "Failed to create new file: Disk is full")))
 	fileAllocator2.EXPECT().NewFile(pool.ZeroHoleSource, false, uint64(0), virtual.ShareMaskWrite).
-		Return(nil, virtual.StatusErrIO)
+		Return(nil, status.Error(codes.Internal, "Disk is full"))
 	_, _, _, s = child.VirtualOpenChild(
 		ctx,
 		path.MustNewComponent("foo"),
@@ -610,8 +612,9 @@ func TestInMemoryPrepopulatedDirectoryVirtualOpenChildAllocationFailure(t *testi
 	fileAllocator := mock.NewMockFileAllocator(ctrl)
 	symlinkFactory := mock.NewMockSymlinkFactory(ctrl)
 	fileAllocator.EXPECT().NewFile(pool.ZeroHoleSource, false, uint64(0), virtual.ShareMaskWrite).
-		Return(nil, virtual.StatusErrIO)
+		Return(nil, status.Error(codes.Internal, "Disk is full"))
 	errorLogger := mock.NewMockErrorLogger(ctrl)
+	errorLogger.EXPECT().Log(testutil.EqStatus(t, status.Error(codes.Internal, "Failed to create new file: Disk is full")))
 	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
 	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
 	defaultAttributesSetter := mock.NewMockDefaultAttributesSetter(ctrl)
@@ -670,7 +673,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualOpenChildSuccess(t *testing.T) {
 	symlinkFactory := mock.NewMockSymlinkFactory(ctrl)
 	child := mock.NewMockLinkableLeaf(ctrl)
 	fileAllocator.EXPECT().NewFile(pool.ZeroHoleSource, false, uint64(0), virtual.ShareMaskWrite).
-		Return(child, virtual.StatusOK)
+		Return(child, nil)
 	child.EXPECT().VirtualGetAttributes(
 		ctx,
 		virtual.AttributesMaskInodeNumber,

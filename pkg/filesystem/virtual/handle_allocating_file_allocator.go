@@ -18,10 +18,10 @@ func NewHandleAllocatingFileAllocator(base FileAllocator, allocator StatefulHand
 	}
 }
 
-func (fa *handleAllocatingFileAllocator) NewFile(holeSource pool.HoleSource, isExecutable bool, size uint64, shareAccess ShareMask) (LinkableLeaf, Status) {
-	leaf, s := fa.base.NewFile(holeSource, isExecutable, size, shareAccess)
-	if s != StatusOK {
-		return nil, s
+func (fa *handleAllocatingFileAllocator) NewFile(holeSource pool.HoleSource, isExecutable bool, size uint64, shareAccess ShareMask) (LinkableLeaf, error) {
+	leaf, err := fa.base.NewFile(holeSource, isExecutable, size, shareAccess)
+	if err != nil {
+		return nil, err
 	}
-	return fa.allocator.New().AsLinkableLeaf(leaf), StatusOK
+	return fa.allocator.New().AsLinkableLeaf(leaf), nil
 }

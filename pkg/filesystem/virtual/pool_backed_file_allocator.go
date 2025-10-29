@@ -74,11 +74,10 @@ func NewPoolBackedFileAllocator(pool pool.FilePool, errorLogger util.ErrorLogger
 	}
 }
 
-func (fa *poolBackedFileAllocator) NewFile(holeSource pool.HoleSource, isExecutable bool, size uint64, shareAccess ShareMask) (LinkableLeaf, Status) {
+func (fa *poolBackedFileAllocator) NewFile(holeSource pool.HoleSource, isExecutable bool, size uint64, shareAccess ShareMask) (LinkableLeaf, error) {
 	file, err := fa.pool.NewFile(holeSource, size)
 	if err != nil {
-		fa.errorLogger.Log(util.StatusWrapf(err, "Failed to create new file"))
-		return nil, StatusErrIO
+		return nil, err
 	}
 	f := &fileBackedFile{
 		NamedAttributes: fa.namedAttributesFactory.NewNamedAttributes(),
@@ -91,7 +90,7 @@ func (fa *poolBackedFileAllocator) NewFile(holeSource pool.HoleSource, isExecuta
 		cachedDigest:   digest.BadDigest,
 	}
 	f.acquireShareAccessLocked(shareAccess)
-	return f, StatusOK
+	return f, nil
 }
 
 type fileBackedFile struct {
