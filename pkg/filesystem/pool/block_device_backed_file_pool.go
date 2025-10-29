@@ -194,6 +194,17 @@ func (f *blockDeviceBackedFile) GetNextRegionOffset(off int64, regionType filesy
 	}
 }
 
+func (f *blockDeviceBackedFile) readFromHoleSource(p []byte, sectorIndex, offsetWithinSector int) (int, error) {
+	n, err := f.holeSource.ReadAt(p, int64(sectorIndex)*int64(f.fp.sectorSizeBytes)+int64(offsetWithinSector))
+	if err != nil {
+		return n, err
+	}
+	if n != len(p) {
+		return n, status.Errorf(codes.Internal, "Read against hole source file returned %d bytes, while %d bytes were expected", n, len(p))
+	}
+	return n, nil
+}
+
 // readFromSectors performs a single read against the block device. It
 // attempts to read as much data into the output buffer as is possible
 // in a single read operation. If the file is fragmented, multiple reads
@@ -201,27 +212,18 @@ func (f *blockDeviceBackedFile) GetNextRegionOffset(off int64, regionType filesy
 func (f *blockDeviceBackedFile) readFromSectors(p []byte, sectorIndex, lastSectorIndex, offsetWithinSector int) (int, error) {
 	if sectorIndex >= len(f.sectors) {
 		// Attempted to read from a hole located at the
-		// end of the file. Fill up all of the remaining
-		// space with zero bytes.
-		for i := 0; i < len(p); i++ {
-			p[i] = 0
-		}
-		return len(p), nil
+		// end of the file. Redirect the read to the hole
+		// source, which usually produces zeroes.
+		return f.readFromHoleSource(p, sectorIndex, offsetWithinSector)
 	}
 
 	sector, sectorsToRead := f.getSectorsContiguous(sectorIndex, lastSectorIndex)
 	p = f.limitBufferToSectorBoundary(p, sectorsToRead, offsetWithinSector)
 	if sector == 0 {
 		// Attempted to read from a sparse region of the file.
-		// Redirect the read to the hole source, which usually produces zeroes.
-		n, err := f.holeSource.ReadAt(p, f.toDeviceOffset(sector, offsetWithinSector))
-		if err != nil && err != io.EOF {
-			return n, err
-		}
-		if n != len(p) {
-			return n, status.Errorf(codes.Internal, "Read against hole source file returned %d bytes, while %d bytes were expected", n, len(p))
-		}
-		return n, nil
+		// Redirect the read to the hole source, which usually
+		// produces zeroes.
+		return f.readFromHoleSource(p, sectorIndex, offsetWithinSector)
 	}
 
 	// Attempted to read from a region of the file that contains
@@ -362,13 +364,13 @@ func (f *blockDeviceBackedFile) writeToNewSectors(p []byte, firstSectorIndex, of
 	if offsetWithinSector > 0 {
 		buf := make([]byte, f.fp.sectorSizeBytes)
 		if offsetWithinSector > 0 {
-			if _, err := f.holeSource.ReadAt(buf[:offsetWithinSector], int64(sectorIndex)*int64(f.fp.sectorSizeBytes)); err != nil {
+			if _, err := f.readFromHoleSource(buf[:offsetWithinSector], sectorIndex, 0); err != nil {
 				f.fp.sectorAllocator.FreeContiguous(firstSector, sectorsAllocated)
 				return 0, 0, 0, err
 			}
 		}
 		if endWithinSector := offsetWithinSector + len(p); endWithinSector < f.fp.sectorSizeBytes {
-			if _, err := f.holeSource.ReadAt(buf[endWithinSector:], int64(sectorIndex)*int64(f.fp.sectorSizeBytes)+int64(endWithinSector)); err != nil {
+			if _, err := f.readFromHoleSource(buf[endWithinSector:], sectorIndex, endWithinSector); err != nil {
 				f.fp.sectorAllocator.FreeContiguous(firstSector, sectorsAllocated)
 				return 0, 0, 0, err
 			}
@@ -401,7 +403,7 @@ func (f *blockDeviceBackedFile) writeToNewSectors(p []byte, firstSectorIndex, of
 	if len(p) > 0 {
 		buf := make([]byte, f.fp.sectorSizeBytes)
 		copy(buf, p)
-		if _, err := f.holeSource.ReadAt(buf[len(p):], int64(sectorIndex)*int64(f.fp.sectorSizeBytes)+int64(len(p))); err != nil {
+		if _, err := f.readFromHoleSource(buf[len(p):], sectorIndex, len(p)); err != nil {
 			f.fp.sectorAllocator.FreeContiguous(firstSector, sectorsAllocated)
 			return 0, 0, 0, err
 		}
