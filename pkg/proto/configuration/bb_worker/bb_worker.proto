@@ -11,6 +11,7 @@ import "github.com/buildbarn/bb-storage/pkg/proto/configuration/blobstore/blobst
 import "github.com/buildbarn/bb-storage/pkg/proto/configuration/eviction/eviction.proto";
 import "github.com/buildbarn/bb-storage/pkg/proto/configuration/global/global.proto";
 import "github.com/buildbarn/bb-storage/pkg/proto/configuration/grpc/grpc.proto";
+import "github.com/buildbarn/bb-storage/pkg/proto/configuration/http/client/client.proto";
 import "google/protobuf/duration.proto";
 
 option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_worker";
@@ -164,6 +165,14 @@ message ApplicationConfiguration {
   // NOTE: This feature is deprecated, and will be removed after
   // 2026-04-01.
   bool support_legacy_output_files_and_directories = 29;
+
+  // Additional helper processes that the worker needs to call into to
+  // suspend and resume the clocks that are used to enforce the
+  // execution timeout. This can be used to prevent spurious timeouts in
+  // case actions depend on resources that are not part of their input
+  // roots (e.g., other virtual file systems).
+  repeated HttpExecutionTimeoutCompensator http_execution_timeout_compensators =
+      30;
 }
 
 message BuildDirectoryConfiguration {
@@ -463,4 +472,22 @@ message PrefetchingConfiguration {
   // Was 'download_concurrency'. This option has been moved to
   // 'input_download_concurrency' in ApplicationConfiguration.
   reserved 4;
+}
+
+message HttpExecutionTimeoutCompensator {
+  // Configuration of the HTTP client to use when requesting the suspend
+  // and resume URLs.
+  buildbarn.configuration.http.client.Configuration http_client = 1;
+
+  // The URL that is requested to determine whether the clocks that are
+  // used to enforce the execution timeout need to be suspended. The
+  // HTTP server is expected to let the request block until suspension
+  // needs to be performed. The response shall use status "200 OK".
+  string suspend_url = 2;
+
+  // The URL that is requested to determine whether the clocks that are
+  // used to enforce the execution timeout need to be resumed. The HTTP
+  // server is expected to let the request block until resumption needs
+  // to be performed. The response shall use status "200 OK".
+  string resume_url = 3;
 }
