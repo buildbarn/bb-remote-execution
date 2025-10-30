@@ -3,13 +3,20 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "clock",
     srcs = [
+        "http_suspender.go",
         "joined_suspendable.go",
         "suspendable.go",
         "suspendable_clock.go",
     ],
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/clock",
     visibility = ["//visibility:public"],
-    deps = ["@com_github_buildbarn_bb_storage//pkg/clock"],
+    deps = [
+        "@com_github_buildbarn_bb_storage//pkg/clock",
+        "@com_github_buildbarn_bb_storage//pkg/program",
+        "@com_github_buildbarn_bb_storage//pkg/util",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+    ],
 )
 
 go_test(
