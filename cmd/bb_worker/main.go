@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"net/url"
 	"os"
 	"regexp"
@@ -33,6 +34,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/global"
+	http_client "github.com/buildbarn/bb-storage/pkg/http/client"
 	"github.com/buildbarn/bb-storage/pkg/program"
 	"github.com/buildbarn/bb-storage/pkg/random"
 	"github.com/buildbarn/bb-storage/pkg/util"
@@ -172,6 +174,7 @@ func main() {
 		outputUploadConcurrencySemaphore := semaphore.NewWeighted(outputUploadConcurrency)
 
 		testInfrastructureFailureShutdownState := builder.NewTestInfrastructureFailureShutdownState()
+		var suspendables []re_clock.Suspendable
 		for _, buildDirectoryConfiguration := range configuration.BuildDirectories {
 			var virtualBuildDirectory virtual.PrepopulatedDirectory
 			var handleAllocator virtual.StatefulHandleAllocator
@@ -355,18 +358,28 @@ func main() {
 						"cas",
 						"batched_store")
 
+					// Features like the virtual file system
+					// and HTTP execution timeout
+					// compensators require us to use a
+					// clock that can be suspended.
+					executionTimeoutClock := clock.SystemClock
+					var suspendableClock *re_clock.SuspendableClock
+					if virtualBuildDirectory != nil || len(configuration.HttpExecutionTimeoutCompensators) > 0 {
+						suspendableClock = re_clock.NewSuspendableClock(
+							clock.SystemClock,
+							maximumExecutionTimeoutCompensation,
+							time.Second/10,
+						)
+						suspendables = append(suspendables, suspendableClock)
+						executionTimeoutClock = suspendableClock
+					}
+
 					// When the virtual file system is
 					// enabled, we can lazily load the input
 					// root, as opposed to explicitly
 					// instantiating it before every build.
-					var executionTimeoutClock clock.Clock
 					var buildDirectory builder.BuildDirectory
 					if virtualBuildDirectory != nil {
-						suspendableClock := re_clock.NewSuspendableClock(
-							clock.SystemClock,
-							maximumExecutionTimeoutCompensation,
-							time.Second/10)
-						executionTimeoutClock = suspendableClock
 						buildDirectory = builder.NewVirtualBuildDirectory(
 							virtualBuildDirectory,
 							cas.NewSuspendingDirectoryFetcher(
@@ -385,7 +398,6 @@ func main() {
 							clock.SystemClock,
 						)
 					} else {
-						executionTimeoutClock = clock.SystemClock
 						buildDirectory = builder.NewNaiveBuildDirectory(
 							naiveBuildDirectory,
 							directoryFetcher,
@@ -505,6 +517,25 @@ func main() {
 					builder.LaunchWorkerThread(siblingsGroup, buildClient, string(workerName))
 				}
 			}
+		}
+
+		joinedSuspendable := re_clock.NewJoinedSuspendable(suspendables)
+		for i, compensatorConfiguration := range configuration.HttpExecutionTimeoutCompensators {
+			roundTripper, err := http_client.NewRoundTripperFromConfiguration(compensatorConfiguration.HttpClient)
+			if err != nil {
+				return util.StatusWrapf(err, "Failed to create HTTP client for HTTP execution timeout compensator at index %d", i)
+			}
+			re_clock.LaunchHTTPSuspender(
+				dependenciesGroup,
+				joinedSuspendable,
+				&http.Client{
+					Transport: http_client.NewMetricsRoundTripper(roundTripper, "ExecutionTimeoutCompensator"),
+				},
+				compensatorConfiguration.SuspendUrl,
+				compensatorConfiguration.ResumeUrl,
+				util.DefaultErrorLogger,
+				clock.SystemClock,
+			)
 		}
 
 		lifecycleState.MarkReadyAndWait(siblingsGroup)
