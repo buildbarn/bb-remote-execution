@@ -12,6 +12,7 @@ import (
 	"time"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	"github.com/bazelbuild/remote-apis/build/bazel/semver"
 	re_builder "github.com/buildbarn/bb-remote-execution/pkg/builder"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/buildqueuestate"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
@@ -281,6 +282,22 @@ var inMemoryBuildQueueCapabilitiesProvider = capabilities.NewStaticProvider(&rem
 			},
 		},
 	},
+	// Set the low API version to REv2.3:
+	//
+	// - REv2.1 changes the way output paths are declared in Command.
+	// - REv2.2 moves the platform properties from Command to Action.
+	// - REv2.3 changes the way Command.arguments[0] is interpreted.
+	//
+	// For some of these features we still support the old behavior
+	// by enabling configuration options in the scheduler and
+	// worker. However, these options will be removed after
+	// 2026-04-01.
+	//
+	// TODO: Bump the deprecated API version when the legacy options
+	// are removed.
+	DeprecatedApiVersion: &semver.SemVer{Major: 2, Minor: 0},
+	LowApiVersion:        &semver.SemVer{Major: 2, Minor: 3},
+	HighApiVersion:       &semver.SemVer{Major: 2, Minor: 11},
 })
 
 // NewInMemoryBuildQueue creates a new InMemoryBuildQueue that is in the
