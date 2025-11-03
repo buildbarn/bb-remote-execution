@@ -9,7 +9,7 @@ import (
 
 type emptyFilePool struct{}
 
-func (fp emptyFilePool) NewFile(holeSource HoleSource, size uint64) (filesystem.FileReadWriter, error) {
+func (emptyFilePool) NewFile(holeSource HoleSource, size uint64) (filesystem.FileReadWriter, error) {
 	return nil, status.Error(codes.ResourceExhausted, "Cannot create file in empty file pool")
 }
 

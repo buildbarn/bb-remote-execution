@@ -6,11 +6,11 @@ import (
 
 type emptyInitialContentsFetcher struct{}
 
-func (f emptyInitialContentsFetcher) FetchContents(fileReadMonitorFactory FileReadMonitorFactory) (map[path.Component]InitialChild, error) {
+func (emptyInitialContentsFetcher) FetchContents(fileReadMonitorFactory FileReadMonitorFactory) (map[path.Component]InitialChild, error) {
 	return map[path.Component]InitialChild{}, nil
 }
 
-func (f emptyInitialContentsFetcher) VirtualApply(data any) bool {
+func (emptyInitialContentsFetcher) VirtualApply(data any) bool {
 	return false
 }
 

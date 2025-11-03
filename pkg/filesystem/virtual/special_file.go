@@ -37,7 +37,7 @@ func (f *specialFile) VirtualGetAttributes(ctx context.Context, requested Attrib
 	attributes.SetSizeBytes(0)
 }
 
-func (f *specialFile) VirtualReadlink(ctx context.Context) ([]byte, Status) {
+func (specialFile) VirtualReadlink(ctx context.Context) ([]byte, Status) {
 	return nil, StatusErrInval
 }
 

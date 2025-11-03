@@ -20,7 +20,7 @@ type mkdirEmittingDirectory struct {
 	children map[path.Component]*mkdirEmittingDirectory
 }
 
-func (d *mkdirEmittingDirectory) Close() error {
+func (mkdirEmittingDirectory) Close() error {
 	return nil
 }
 

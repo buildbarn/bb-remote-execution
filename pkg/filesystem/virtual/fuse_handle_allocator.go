@@ -140,7 +140,7 @@ func (hn *fuseStatefulHandleAllocation) AsLinkableLeaf(leaf LinkableLeaf) Linkab
 	return l
 }
 
-func (hn *fuseStatefulHandleAllocation) AsLeaf(leaf Leaf) Leaf {
+func (fuseStatefulHandleAllocation) AsLeaf(leaf Leaf) Leaf {
 	panic("Regular leaf objects cannot be used in stateful contexts, as they cannot be linked/unlinked")
 }
 
@@ -244,7 +244,7 @@ func (dh *fuseStatefulDirectoryHandle) NotifyRemoval(name path.Component) {
 	}
 }
 
-func (dh *fuseStatefulDirectoryHandle) Release() {}
+func (fuseStatefulDirectoryHandle) Release() {}
 
 // fuseStatelessDirectory is a decorator for stateless Directory objects
 // that augments the results of VirtualGetAttributes() to contain an
@@ -338,11 +338,11 @@ type fuseStatelessLinkableLeaf struct {
 	inodeNumber uint64
 }
 
-func (l *fuseStatelessLinkableLeaf) Link() Status {
+func (fuseStatelessLinkableLeaf) Link() Status {
 	return StatusOK
 }
 
-func (l *fuseStatelessLinkableLeaf) Unlink() {}
+func (fuseStatelessLinkableLeaf) Unlink() {}
 
 func (l *fuseStatelessLinkableLeaf) injectAttributes(attributes *Attributes) {
 	attributes.SetInodeNumber(l.inodeNumber)

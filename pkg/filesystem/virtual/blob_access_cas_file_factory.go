@@ -58,16 +58,16 @@ type blobAccessCASFile struct {
 	digest  digest.Digest
 }
 
-func (f *blobAccessCASFile) Link() Status {
+func (blobAccessCASFile) Link() Status {
 	// As this file is stateless, we don't need to do any explicit
 	// bookkeeping for hardlinks.
 	return StatusOK
 }
 
-func (f *blobAccessCASFile) Unlink() {
+func (blobAccessCASFile) Unlink() {
 }
 
-func (f *blobAccessCASFile) VirtualAllocate(off, size uint64) Status {
+func (blobAccessCASFile) VirtualAllocate(off, size uint64) Status {
 	return StatusErrWrongType
 }
 
@@ -147,13 +147,13 @@ func (f *blobAccessCASFile) VirtualRead(buf []byte, off uint64) (int, bool, Stat
 	return len(buf), eof, StatusOK
 }
 
-func (f *blobAccessCASFile) VirtualReadlink(ctx context.Context) ([]byte, Status) {
+func (blobAccessCASFile) VirtualReadlink(ctx context.Context) ([]byte, Status) {
 	return nil, StatusErrInval
 }
 
-func (f *blobAccessCASFile) VirtualClose(shareAccess ShareMask) {}
+func (blobAccessCASFile) VirtualClose(shareAccess ShareMask) {}
 
-func (f *blobAccessCASFile) virtualSetAttributesCommon(in *Attributes) Status {
+func (blobAccessCASFile) virtualSetAttributesCommon(in *Attributes) Status {
 	// TODO: chmod() calls against CAS backed files should not be
 	// permitted. Unfortunately, we allowed it in the past. When
 	// using bb_clientd's Bazel Output Service, we see Bazel
@@ -169,7 +169,7 @@ func (f *blobAccessCASFile) virtualSetAttributesCommon(in *Attributes) Status {
 	return StatusOK
 }
 
-func (f *blobAccessCASFile) VirtualWrite(buf []byte, off uint64) (int, Status) {
+func (blobAccessCASFile) VirtualWrite(buf []byte, off uint64) (int, Status) {
 	panic("Request to write to read-only file should have been intercepted")
 }
 

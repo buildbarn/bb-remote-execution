@@ -10,7 +10,7 @@ import (
 
 type toolInvocationIDKeyExtractor struct{}
 
-func (ke toolInvocationIDKeyExtractor) ExtractKey(ctx context.Context, requestMetadata *remoteexecution.RequestMetadata) (Key, error) {
+func (toolInvocationIDKeyExtractor) ExtractKey(ctx context.Context, requestMetadata *remoteexecution.RequestMetadata) (Key, error) {
 	any, err := anypb.New(&remoteexecution.RequestMetadata{
 		ToolInvocationId: requestMetadata.GetToolInvocationId(),
 	})

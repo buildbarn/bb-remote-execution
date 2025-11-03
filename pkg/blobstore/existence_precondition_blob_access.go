@@ -65,4 +65,4 @@ func (eh existencePreconditionErrorHandler) OnError(observedErr error) (buffer.B
 	return nil, observedErr
 }
 
-func (eh existencePreconditionErrorHandler) Done() {}
+func (existencePreconditionErrorHandler) Done() {}

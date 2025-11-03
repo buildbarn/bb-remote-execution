@@ -69,7 +69,7 @@ type resumingErrorHandler struct {
 	suspendable clock.Suspendable
 }
 
-func (eh *resumingErrorHandler) OnError(err error) (buffer.Buffer, error) {
+func (resumingErrorHandler) OnError(err error) (buffer.Buffer, error) {
 	return nil, err
 }
 

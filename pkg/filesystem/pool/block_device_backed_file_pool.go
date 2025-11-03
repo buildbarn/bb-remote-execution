@@ -292,7 +292,7 @@ func (f *blockDeviceBackedFile) truncateSectors(sectorCount int) {
 	}
 }
 
-func (f *blockDeviceBackedFile) Sync() error {
+func (blockDeviceBackedFile) Sync() error {
 	// Because FilePool does not provide any persistency, there is
 	// no need to synchronize any data.
 	return nil

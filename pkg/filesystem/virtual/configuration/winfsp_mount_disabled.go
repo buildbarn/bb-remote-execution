@@ -11,6 +11,6 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func (m *winfspMount) Expose(terminationGroup program.Group, rootDirectory virtual.Directory) error {
+func (winfspMount) Expose(terminationGroup program.Group, rootDirectory virtual.Directory) error {
 	return status.Error(codes.Unimplemented, "WinFSP is not supported on this platform")
 }

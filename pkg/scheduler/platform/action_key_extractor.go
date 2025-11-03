@@ -9,7 +9,7 @@ import (
 
 type actionKeyExtractor struct{}
 
-func (ke actionKeyExtractor) ExtractKey(ctx context.Context, digestFunction digest.Function, action *remoteexecution.Action) (Key, error) {
+func (actionKeyExtractor) ExtractKey(ctx context.Context, digestFunction digest.Function, action *remoteexecution.Action) (Key, error) {
 	return NewKey(digestFunction.GetInstanceName(), action.Platform)
 }
 

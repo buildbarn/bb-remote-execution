@@ -32,7 +32,7 @@ type rootBuildDirectory struct {
 	BuildDirectory
 }
 
-func (d rootBuildDirectory) Close() error {
+func (rootBuildDirectory) Close() error {
 	// Never call Close() on the root directory, as it will be reused.
 	return nil
 }

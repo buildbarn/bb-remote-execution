@@ -8,7 +8,7 @@ import (
 
 type smallestSizeClassStrategyCalculator struct{}
 
-func (sc smallestSizeClassStrategyCalculator) GetStrategies(perSizeClassStatsMap map[uint32]*iscc.PerSizeClassStats, sizeClasses []uint32, originalTimeout time.Duration) []Strategy {
+func (smallestSizeClassStrategyCalculator) GetStrategies(perSizeClassStatsMap map[uint32]*iscc.PerSizeClassStats, sizeClasses []uint32, originalTimeout time.Duration) []Strategy {
 	if len(sizeClasses) <= 1 {
 		return nil
 	}
@@ -20,7 +20,7 @@ func (sc smallestSizeClassStrategyCalculator) GetStrategies(perSizeClassStatsMap
 	}
 }
 
-func (sc smallestSizeClassStrategyCalculator) GetBackgroundExecutionTimeout(perSizeClassStatsMap map[uint32]*iscc.PerSizeClassStats, sizeClasses []uint32, sizeClassIndex int, originalTimeout time.Duration) time.Duration {
+func (smallestSizeClassStrategyCalculator) GetBackgroundExecutionTimeout(perSizeClassStatsMap map[uint32]*iscc.PerSizeClassStats, sizeClasses []uint32, sizeClassIndex int, originalTimeout time.Duration) time.Duration {
 	panic("Background execution should not be performed")
 }
 

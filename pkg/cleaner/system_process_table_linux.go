@@ -16,7 +16,7 @@ import (
 
 type systemProcessTable struct{}
 
-func (pt systemProcessTable) GetProcesses() ([]Process, error) {
+func (systemProcessTable) GetProcesses() ([]Process, error) {
 	// Open procfs.
 	fd, err := unix.Open("/proc", unix.O_DIRECTORY|unix.O_RDONLY, 0)
 	if err != nil {

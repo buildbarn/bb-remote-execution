@@ -121,7 +121,7 @@ func NewNFS40Program(rootDirectory virtual.Directory, openedFilesPool *OpenedFil
 	return p
 }
 
-func (*nfs40Program) NfsV4Nfsproc4Null(ctx context.Context) error {
+func (nfs40Program) NfsV4Nfsproc4Null(ctx context.Context) error {
 	return nil
 }
 
@@ -1066,13 +1066,13 @@ func (s *compoundState) opCreate(ctx context.Context, args *nfsv4.Create4args) n
 	}
 }
 
-func (s *compoundState) opDelegpurge(args *nfsv4.Delegpurge4args) nfsv4.Delegpurge4res {
+func (compoundState) opDelegpurge(args *nfsv4.Delegpurge4args) nfsv4.Delegpurge4res {
 	// This implementation does not support CLAIM_DELEGATE_PREV, so
 	// there is no need to implement DELEGPURGE.
 	return nfsv4.Delegpurge4res{Status: nfsv4.NFS4ERR_NOTSUPP}
 }
 
-func (s *compoundState) opDelegreturn(args *nfsv4.Delegreturn4args) nfsv4.Delegreturn4res {
+func (compoundState) opDelegreturn(args *nfsv4.Delegreturn4args) nfsv4.Delegreturn4res {
 	// This implementation never hands out any delegations to the
 	// client, meaning that any state ID provided to this operation
 	// is invalid.

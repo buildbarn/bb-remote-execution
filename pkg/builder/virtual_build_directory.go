@@ -70,7 +70,7 @@ func (d *virtualBuildDirectory) EnterBuildDirectory(name path.Component) (BuildD
 	}, nil
 }
 
-func (d *virtualBuildDirectory) Close() error {
+func (virtualBuildDirectory) Close() error {
 	// Virtual directories do not need to be released explicitly.
 	return nil
 }

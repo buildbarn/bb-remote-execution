@@ -10,7 +10,7 @@ import (
 
 type correlatedInvocationsIDKeyExtractor struct{}
 
-func (ke correlatedInvocationsIDKeyExtractor) ExtractKey(ctx context.Context, requestMetadata *remoteexecution.RequestMetadata) (Key, error) {
+func (correlatedInvocationsIDKeyExtractor) ExtractKey(ctx context.Context, requestMetadata *remoteexecution.RequestMetadata) (Key, error) {
 	any, err := anypb.New(&remoteexecution.RequestMetadata{
 		CorrelatedInvocationsId: requestMetadata.GetCorrelatedInvocationsId(),
 	})

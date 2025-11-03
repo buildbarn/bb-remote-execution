@@ -74,7 +74,7 @@ func (d *naiveBuildDirectory) EnterUploadableDirectory(name path.Component) (Upl
 	return d.EnterBuildDirectory(name)
 }
 
-func (d *naiveBuildDirectory) InstallHooks(filePool pool.FilePool, errorLogger util.ErrorLogger) {
+func (naiveBuildDirectory) InstallHooks(filePool pool.FilePool, errorLogger util.ErrorLogger) {
 	// Simply ignore the provided hooks, as POSIX offers no way to
 	// install them. This means no quota enforcement and detection
 	// of I/O errors is performed.

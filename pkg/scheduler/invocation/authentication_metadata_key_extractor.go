@@ -11,7 +11,7 @@ import (
 
 type authenticationMetadataKeyExtractor struct{}
 
-func (ke authenticationMetadataKeyExtractor) ExtractKey(ctx context.Context, requestMetadata *remoteexecution.RequestMetadata) (Key, error) {
+func (authenticationMetadataKeyExtractor) ExtractKey(ctx context.Context, requestMetadata *remoteexecution.RequestMetadata) (Key, error) {
 	authenticationMetadata, _ := auth.AuthenticationMetadataFromContext(ctx).GetPublicProto()
 	any, err := anypb.New(authenticationMetadata)
 	if err != nil {

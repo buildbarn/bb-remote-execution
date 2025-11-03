@@ -262,7 +262,7 @@ type channelBackedContext struct {
 
 var _ context.Context = channelBackedContext{}
 
-func (ctx channelBackedContext) Deadline() (time.Time, bool) {
+func (channelBackedContext) Deadline() (time.Time, bool) {
 	var t time.Time
 	return t, false
 }
@@ -280,7 +280,7 @@ func (ctx channelBackedContext) Err() error {
 	}
 }
 
-func (ctx channelBackedContext) Value(key any) any {
+func (channelBackedContext) Value(key any) any {
 	return nil
 }
 
@@ -288,11 +288,11 @@ func (rfs *simpleRawFileSystem) createContext(cancel <-chan struct{}, caller *fu
 	return rfs.authenticator.Authenticate(channelBackedContext{cancel: cancel}, caller)
 }
 
-func (rfs *simpleRawFileSystem) String() string {
+func (simpleRawFileSystem) String() string {
 	return "SimpleRawFileSystem"
 }
 
-func (rfs *simpleRawFileSystem) SetDebug(debug bool) {}
+func (simpleRawFileSystem) SetDebug(debug bool) {}
 
 func (rfs *simpleRawFileSystem) Lookup(cancel <-chan struct{}, header *fuse.InHeader, name string, out *fuse.EntryOut) fuse.Status {
 	ctx, s := rfs.createContext(cancel, &header.Caller)
@@ -554,7 +554,7 @@ func (rfs *simpleRawFileSystem) Access(cancel <-chan struct{}, input *fuse.Acces
 	return fuse.OK
 }
 
-func (rfs *simpleRawFileSystem) GetXAttr(cancel <-chan struct{}, header *fuse.InHeader, attr string, dest []byte) (uint32, fuse.Status) {
+func (simpleRawFileSystem) GetXAttr(cancel <-chan struct{}, header *fuse.InHeader, attr string, dest []byte) (uint32, fuse.Status) {
 	// By returning ENOSYS here, the Linux FUSE driver will set
 	// fuse_conn::no_getxattr. This will completely eliminate
 	// getxattr() calls going forward. More details:
@@ -566,15 +566,15 @@ func (rfs *simpleRawFileSystem) GetXAttr(cancel <-chan struct{}, header *fuse.In
 	return 0, fuse.ENOSYS
 }
 
-func (rfs *simpleRawFileSystem) ListXAttr(cancel <-chan struct{}, header *fuse.InHeader, dest []byte) (uint32, fuse.Status) {
+func (simpleRawFileSystem) ListXAttr(cancel <-chan struct{}, header *fuse.InHeader, dest []byte) (uint32, fuse.Status) {
 	return 0, fuse.ENOSYS
 }
 
-func (rfs *simpleRawFileSystem) SetXAttr(cancel <-chan struct{}, input *fuse.SetXAttrIn, attr string, data []byte) fuse.Status {
+func (simpleRawFileSystem) SetXAttr(cancel <-chan struct{}, input *fuse.SetXAttrIn, attr string, data []byte) fuse.Status {
 	return fuse.ENOSYS
 }
 
-func (rfs *simpleRawFileSystem) RemoveXAttr(cancel <-chan struct{}, header *fuse.InHeader, attr string) fuse.Status {
+func (simpleRawFileSystem) RemoveXAttr(cancel <-chan struct{}, header *fuse.InHeader, attr string) fuse.Status {
 	return fuse.ENOSYS
 }
 
@@ -698,15 +698,15 @@ func (rfs *simpleRawFileSystem) Lseek(cancel <-chan struct{}, in *fuse.LseekIn, 
 	return fuse.OK
 }
 
-func (rfs *simpleRawFileSystem) GetLk(cancel <-chan struct{}, input *fuse.LkIn, out *fuse.LkOut) fuse.Status {
+func (simpleRawFileSystem) GetLk(cancel <-chan struct{}, input *fuse.LkIn, out *fuse.LkOut) fuse.Status {
 	return fuse.ENOSYS
 }
 
-func (rfs *simpleRawFileSystem) SetLk(cancel <-chan struct{}, input *fuse.LkIn) fuse.Status {
+func (simpleRawFileSystem) SetLk(cancel <-chan struct{}, input *fuse.LkIn) fuse.Status {
 	return fuse.ENOSYS
 }
 
-func (rfs *simpleRawFileSystem) SetLkw(cancel <-chan struct{}, input *fuse.LkIn) fuse.Status {
+func (simpleRawFileSystem) SetLkw(cancel <-chan struct{}, input *fuse.LkIn) fuse.Status {
 	return fuse.ENOSYS
 }
 
@@ -732,15 +732,15 @@ func (rfs *simpleRawFileSystem) Write(cancel <-chan struct{}, input *fuse.WriteI
 	return uint32(n), toFUSEStatus(s)
 }
 
-func (rfs *simpleRawFileSystem) CopyFileRange(cancel <-chan struct{}, input *fuse.CopyFileRangeIn) (uint32, fuse.Status) {
+func (simpleRawFileSystem) CopyFileRange(cancel <-chan struct{}, input *fuse.CopyFileRangeIn) (uint32, fuse.Status) {
 	return 0, fuse.ENOTSUP
 }
 
-func (rfs *simpleRawFileSystem) Flush(cancel <-chan struct{}, input *fuse.FlushIn) fuse.Status {
+func (simpleRawFileSystem) Flush(cancel <-chan struct{}, input *fuse.FlushIn) fuse.Status {
 	return fuse.OK
 }
 
-func (rfs *simpleRawFileSystem) Fsync(cancel <-chan struct{}, input *fuse.FsyncIn) fuse.Status {
+func (simpleRawFileSystem) Fsync(cancel <-chan struct{}, input *fuse.FsyncIn) fuse.Status {
 	return fuse.OK
 }
 
@@ -869,13 +869,13 @@ func (rfs *simpleRawFileSystem) ReadDirPlus(cancel <-chan struct{}, input *fuse.
 			&readDirPlusReporter{rfs: rfs, out: out}))
 }
 
-func (rfs *simpleRawFileSystem) ReleaseDir(input *fuse.ReleaseIn) {}
+func (simpleRawFileSystem) ReleaseDir(input *fuse.ReleaseIn) {}
 
-func (rfs *simpleRawFileSystem) FsyncDir(cancel <-chan struct{}, input *fuse.FsyncIn) fuse.Status {
+func (simpleRawFileSystem) FsyncDir(cancel <-chan struct{}, input *fuse.FsyncIn) fuse.Status {
 	return fuse.OK
 }
 
-func (rfs *simpleRawFileSystem) StatFs(cancel <-chan struct{}, input *fuse.InHeader, out *fuse.StatfsOut) fuse.Status {
+func (simpleRawFileSystem) StatFs(cancel <-chan struct{}, input *fuse.InHeader, out *fuse.StatfsOut) fuse.Status {
 	// Announce support for filenames up to 255 bytes in size. This
 	// seems to be the common limit for UNIX file systems. Setting
 	// this value is necessary to make pathconf(path, _PC_NAME_MAX)

@@ -10,7 +10,7 @@ import (
 
 type systemProcessTable struct{}
 
-func (pt systemProcessTable) GetProcesses() ([]Process, error) {
+func (systemProcessTable) GetProcesses() ([]Process, error) {
 	return nil, status.Error(codes.Unimplemented, "Scanning the process table is not supported on this platform")
 }
 

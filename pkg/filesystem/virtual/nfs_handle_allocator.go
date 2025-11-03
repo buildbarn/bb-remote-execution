@@ -232,7 +232,7 @@ func (hn *nfsStatefulHandleAllocation) AsLinkableLeaf(underlyingLeaf LinkableLea
 	return leaf
 }
 
-func (hn *nfsStatefulHandleAllocation) AsLeaf(underlyingLeaf Leaf) Leaf {
+func (nfsStatefulHandleAllocation) AsLeaf(underlyingLeaf Leaf) Leaf {
 	panic("Regular leaf objects cannot be used in stateful contexts, as they cannot be linked/unlinked")
 }
 
@@ -313,7 +313,7 @@ func (hn *nfsStatelessHandleAllocation) AsLinkableLeaf(underlyingLeaf LinkableLe
 	return leaf
 }
 
-func (hn *nfsStatelessHandleAllocation) AsLeaf(underlyingLeaf Leaf) Leaf {
+func (nfsStatelessHandleAllocation) AsLeaf(underlyingLeaf Leaf) Leaf {
 	panic("Regular leaf objects cannot be used in stateless contexts, as they cannot be linked/unlinked")
 }
 
@@ -384,7 +384,7 @@ func (dh *nfsStatefulDirectoryHandle) GetAttributes(requested AttributesMask, at
 	attributes.SetInodeNumber(dh.inodeNumber)
 }
 
-func (dh *nfsStatefulDirectoryHandle) NotifyRemoval(name path.Component) {
+func (nfsStatefulDirectoryHandle) NotifyRemoval(name path.Component) {
 	// Removal notification could be supported using NFSv4.1's
 	// CB_NOTIFY operation. Unfortunately, none of the major client
 	// implementations seem to support it.
@@ -588,11 +588,11 @@ type nfsResolvableLinkableLeaf struct {
 	fileHandle []byte
 }
 
-func (l *nfsResolvableLinkableLeaf) Link() Status {
+func (nfsResolvableLinkableLeaf) Link() Status {
 	return StatusOK
 }
 
-func (l *nfsResolvableLinkableLeaf) Unlink() {}
+func (nfsResolvableLinkableLeaf) Unlink() {}
 
 func (l *nfsResolvableLinkableLeaf) injectAttributes(requested AttributesMask, attributes *Attributes) {
 	setAttributesForFileHandle(l.fileHandle, requested, attributes)

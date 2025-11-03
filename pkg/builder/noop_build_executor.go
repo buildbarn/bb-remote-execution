@@ -40,7 +40,7 @@ func NewNoopBuildExecutor(contentAddressableStorage blobstore.BlobAccess, maximu
 	}
 }
 
-func (be *noopBuildExecutor) CheckReadiness(ctx context.Context) error {
+func (noopBuildExecutor) CheckReadiness(ctx context.Context) error {
 	return nil
 }
 

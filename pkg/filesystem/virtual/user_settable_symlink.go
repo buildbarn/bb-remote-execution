@@ -47,7 +47,7 @@ func NewUserSettableSymlink(buildDirectory *path.Builder) *UserSettableSymlink {
 
 // CheckReadiness returns whether the target of the symbolic link is
 // capable of being mutated.
-func (f *UserSettableSymlink) CheckReadiness(ctx context.Context, request *emptypb.Empty) (*emptypb.Empty, error) {
+func (UserSettableSymlink) CheckReadiness(ctx context.Context, request *emptypb.Empty) (*emptypb.Empty, error) {
 	return &emptypb.Empty{}, nil
 }
 

@@ -11,6 +11,6 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func (m *fuseMount) Expose(terminationGroup program.Group, rootDirectory virtual.Directory) error {
+func (fuseMount) Expose(terminationGroup program.Group, rootDirectory virtual.Directory) error {
 	return status.Error(codes.Unimplemented, "FUSE is not supported on this platform")
 }

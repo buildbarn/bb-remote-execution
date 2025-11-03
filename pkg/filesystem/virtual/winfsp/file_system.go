@@ -473,7 +473,7 @@ func (d *directoryResolver) OnTerminal(name path.Component) (*path.GotSymlink, e
 	return path.OnTerminalViaOnDirectory(d, name)
 }
 
-func (d *directoryResolver) OnUp() (path.ComponentWalker, error) {
+func (directoryResolver) OnUp() (path.ComponentWalker, error) {
 	return nil, windows.STATUS_OBJECT_NAME_NOT_FOUND
 }
 
@@ -481,15 +481,15 @@ func (d *directoryResolver) OnAbsolute() (path.ComponentWalker, error) {
 	return d, nil
 }
 
-func (d *directoryResolver) OnDriveLetter(drive rune) (path.ComponentWalker, error) {
+func (directoryResolver) OnDriveLetter(drive rune) (path.ComponentWalker, error) {
 	return nil, windows.STATUS_OBJECT_NAME_NOT_FOUND
 }
 
-func (d *directoryResolver) OnRelative() (path.ComponentWalker, error) {
+func (directoryResolver) OnRelative() (path.ComponentWalker, error) {
 	return nil, windows.STATUS_OBJECT_NAME_NOT_FOUND
 }
 
-func (d *directoryResolver) OnShare(server, share string) (path.ComponentWalker, error) {
+func (directoryResolver) OnShare(server, share string) (path.ComponentWalker, error) {
 	return nil, windows.STATUS_OBJECT_NAME_NOT_FOUND
 }
 
@@ -507,7 +507,7 @@ func (fs *FileSystem) resolveDirectory(ctx context.Context, name string) (virtua
 	return w.current, nil
 }
 
-func (fs *FileSystem) openOrCreateDir(ctx context.Context, parent virtual.Directory, leafName path.Component, disposition uint32, attributes *virtual.Attributes) (virtual.DirectoryChild, error) {
+func (FileSystem) openOrCreateDir(ctx context.Context, parent virtual.Directory, leafName path.Component, disposition uint32, attributes *virtual.Attributes) (virtual.DirectoryChild, error) {
 	switch disposition {
 	case windows.FILE_OPEN, windows.FILE_OPEN_IF:
 		// Ty and open an existing directory
@@ -544,7 +544,7 @@ func (fs *FileSystem) openOrCreateDir(ctx context.Context, parent virtual.Direct
 }
 
 // openOrCreateFileOrDir opens an existing file or directory, or creates a new file.
-func (fs *FileSystem) openOrCreateFileOrDir(ctx context.Context, parent virtual.Directory, leafName path.Component, disposition uint32, shareMask virtual.ShareMask, createPermissions virtual.Permissions, attributes *virtual.Attributes) (virtual.DirectoryChild, virtual.ShareMask, error) {
+func (FileSystem) openOrCreateFileOrDir(ctx context.Context, parent virtual.Directory, leafName path.Component, disposition uint32, shareMask virtual.ShareMask, createPermissions virtual.Permissions, attributes *virtual.Attributes) (virtual.DirectoryChild, virtual.ShareMask, error) {
 	var createAttributes *virtual.Attributes
 	var existingOptions *virtual.OpenExistingOptions
 
@@ -657,7 +657,7 @@ func (fs *FileSystem) createHandle(ctx context.Context, name string, createOptio
 	return handle, nil
 }
 
-func (fs *FileSystem) createContext() (context.Context, error) {
+func (FileSystem) createContext() (context.Context, error) {
 	// Currently we just return a default context, but this could be extended
 	// in the future to perform some authentication of requests.
 	return context.Background(), nil
@@ -1101,7 +1101,7 @@ func (fs *FileSystem) GetSecurity(ref *ffi.FileSystemRef, handle uintptr) (*wind
 	return toSecurityDescriptor(&attributes)
 }
 
-func (fs *FileSystem) containsReparsePoint(ref *ffi.FileSystemRef, fileName string) bool {
+func (FileSystem) containsReparsePoint(ref *ffi.FileSystemRef, fileName string) bool {
 	found, _, err := ffi.FileSystemFindReparsePoint(ref, fileName)
 	if found && err == nil {
 		return found
@@ -1270,7 +1270,7 @@ func (fs *FileSystem) SetSecurity(ref *ffi.FileSystemRef, handle uintptr, info w
 	return nil
 }
 
-func (fs *FileSystem) DeleteReparsePoint(ref *ffi.FileSystemRef, file uintptr, name string, buffer []byte) error {
+func (FileSystem) DeleteReparsePoint(ref *ffi.FileSystemRef, file uintptr, name string, buffer []byte) error {
 	// We can't support this: we can only support deleting the file, not
 	// deleting the symlink and thus converting it into a regular file.
 	// Thus we do exactly what the WinFSP fuse plugin does.
@@ -1329,7 +1329,7 @@ func (d *relativePathChecker) OnAbsolute() (path.ComponentWalker, error) {
 	return path.VoidComponentWalker, nil
 }
 
-func (d *relativePathChecker) OnDriveLetter(drive rune) (path.ComponentWalker, error) {
+func (relativePathChecker) OnDriveLetter(drive rune) (path.ComponentWalker, error) {
 	return path.VoidComponentWalker, nil
 }
 
@@ -1338,7 +1338,7 @@ func (d *relativePathChecker) OnRelative() (path.ComponentWalker, error) {
 	return path.VoidComponentWalker, nil
 }
 
-func (d *relativePathChecker) OnShare(server, share string) (path.ComponentWalker, error) {
+func (relativePathChecker) OnShare(server, share string) (path.ComponentWalker, error) {
 	return path.VoidComponentWalker, nil
 }
 

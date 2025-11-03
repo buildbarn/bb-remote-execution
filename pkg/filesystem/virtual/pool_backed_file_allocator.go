@@ -451,7 +451,7 @@ func (f *fileBackedFile) VirtualRead(buf []byte, off uint64) (int, bool, Status)
 	return len(buf), eof, StatusOK
 }
 
-func (f *fileBackedFile) VirtualReadlink(ctx context.Context) ([]byte, Status) {
+func (fileBackedFile) VirtualReadlink(ctx context.Context) ([]byte, Status) {
 	return nil, StatusErrInval
 }
 

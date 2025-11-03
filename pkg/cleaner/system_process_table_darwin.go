@@ -14,7 +14,7 @@ import (
 
 type systemProcessTable struct{}
 
-func (pt systemProcessTable) GetProcesses() ([]Process, error) {
+func (systemProcessTable) GetProcesses() ([]Process, error) {
 	kinfoProcs, err := unix.SysctlKinfoProcSlice("kern.proc.all")
 	if err != nil {
 		return nil, util.StatusWrapWithCode(err, codes.Internal, "Failed to obtain process table")

@@ -118,7 +118,7 @@ func (p *nfs41Program) leave() {
 	p.clientsLock.Unlock()
 }
 
-func (*nfs41Program) NfsV4Nfsproc4Null(ctx context.Context) error {
+func (nfs41Program) NfsV4Nfsproc4Null(ctx context.Context) error {
 	return nil
 }
 
@@ -1794,13 +1794,13 @@ func (s *sequenceState) opAccess(ctx context.Context, args *nfsv4.Access4args) n
 	}
 }
 
-func (s *sequenceState) opBackchannelCtl(args *nfsv4.BackchannelCtl4args) nfsv4.BackchannelCtl4res {
+func (sequenceState) opBackchannelCtl(args *nfsv4.BackchannelCtl4args) nfsv4.BackchannelCtl4res {
 	// We don't send any traffic across the backchannel, so there is
 	// nothing in the arguments that needs to be preserved.
 	return nfsv4.BackchannelCtl4res{BcrStatus: nfsv4.NFS4_OK}
 }
 
-func (s *sequenceState) opBindConnToSession(args *nfsv4.BindConnToSession4args) nfsv4.BindConnToSession4res {
+func (sequenceState) opBindConnToSession(args *nfsv4.BindConnToSession4args) nfsv4.BindConnToSession4res {
 	return &nfsv4.BindConnToSession4res_default{BctsrStatus: nfsv4.NFS4ERR_NOT_ONLY_OP}
 }
 
@@ -1887,13 +1887,13 @@ func (s *sequenceState) opCreate(ctx context.Context, args *nfsv4.Create4args) n
 	}
 }
 
-func (s *sequenceState) opDelegPurge(args *nfsv4.Delegpurge4args) nfsv4.Delegpurge4res {
+func (sequenceState) opDelegPurge(args *nfsv4.Delegpurge4args) nfsv4.Delegpurge4res {
 	// This implementation does not support CLAIM_DELEGATE_PREV, so
 	// there is no need to implement DELEGPURGE.
 	return nfsv4.Delegpurge4res{Status: nfsv4.NFS4ERR_NOTSUPP}
 }
 
-func (s *sequenceState) opDelegReturn(args *nfsv4.Delegreturn4args) nfsv4.Delegreturn4res {
+func (sequenceState) opDelegReturn(args *nfsv4.Delegreturn4args) nfsv4.Delegreturn4res {
 	// This implementation never hands out any delegations to the
 	// client, meaning that any state ID provided to this operation
 	// is invalid.
@@ -1938,11 +1938,11 @@ func (s *sequenceState) opGetAttr(ctx context.Context, args *nfsv4.Getattr4args)
 	}
 }
 
-func (s *sequenceState) opGetDeviceInfo(args *nfsv4.Getdeviceinfo4args) nfsv4.Getdeviceinfo4res {
+func (sequenceState) opGetDeviceInfo(args *nfsv4.Getdeviceinfo4args) nfsv4.Getdeviceinfo4res {
 	return &nfsv4.Getdeviceinfo4res_default{GdirStatus: nfsv4.NFS4ERR_NOTSUPP}
 }
 
-func (s *sequenceState) opGetDeviceList(args *nfsv4.Getdevicelist4args) nfsv4.Getdevicelist4res {
+func (sequenceState) opGetDeviceList(args *nfsv4.Getdevicelist4args) nfsv4.Getdevicelist4res {
 	return &nfsv4.Getdevicelist4res_default{GdlrStatus: nfsv4.NFS4ERR_NOTSUPP}
 }
 
@@ -1958,19 +1958,19 @@ func (s *sequenceState) opGetFH() nfsv4.Getfh4res {
 	}
 }
 
-func (s *sequenceState) opGetDirDelegation(args *nfsv4.GetDirDelegation4args) nfsv4.GetDirDelegation4res {
+func (sequenceState) opGetDirDelegation(args *nfsv4.GetDirDelegation4args) nfsv4.GetDirDelegation4res {
 	return &nfsv4.GetDirDelegation4res_default{GddrStatus: nfsv4.NFS4ERR_NOTSUPP}
 }
 
-func (s *sequenceState) opLayoutCommit(args *nfsv4.Layoutcommit4args) nfsv4.Layoutcommit4res {
+func (sequenceState) opLayoutCommit(args *nfsv4.Layoutcommit4args) nfsv4.Layoutcommit4res {
 	return &nfsv4.Layoutcommit4res_default{LocrStatus: nfsv4.NFS4ERR_NOTSUPP}
 }
 
-func (s *sequenceState) opLayoutGet(args *nfsv4.Layoutget4args) nfsv4.Layoutget4res {
+func (sequenceState) opLayoutGet(args *nfsv4.Layoutget4args) nfsv4.Layoutget4res {
 	return &nfsv4.Layoutget4res_default{LogrStatus: nfsv4.NFS4ERR_NOTSUPP}
 }
 
-func (s *sequenceState) opLayoutReturn(args *nfsv4.Layoutreturn4args) nfsv4.Layoutreturn4res {
+func (sequenceState) opLayoutReturn(args *nfsv4.Layoutreturn4args) nfsv4.Layoutreturn4res {
 	return &nfsv4.Layoutreturn4res_default{LorrStatus: nfsv4.NFS4ERR_NOTSUPP}
 }
 
@@ -2516,7 +2516,7 @@ func (s *sequenceState) opReadLink(ctx context.Context) nfsv4.Readlink4res {
 	}
 }
 
-func (s *sequenceState) opReclaimComplete(args *nfsv4.ReclaimComplete4args) nfsv4.ReclaimComplete4res {
+func (sequenceState) opReclaimComplete(args *nfsv4.ReclaimComplete4args) nfsv4.ReclaimComplete4res {
 	return nfsv4.ReclaimComplete4res{RcrStatus: nfsv4.NFS4_OK}
 }
 
@@ -2642,7 +2642,7 @@ func (s *sequenceState) opSecInfoNoName(args *nfsv4.SecinfoNoName4args) nfsv4.Se
 	}
 }
 
-func (s *sequenceState) opSequence(args *nfsv4.Sequence4args) nfsv4.Sequence4res {
+func (sequenceState) opSequence(args *nfsv4.Sequence4args) nfsv4.Sequence4res {
 	return &nfsv4.Sequence4res_default{SrStatus: nfsv4.NFS4ERR_SEQUENCE_POS}
 }
 
@@ -2676,7 +2676,7 @@ func (s *sequenceState) opSetAttr(ctx context.Context, args *nfsv4.Setattr4args)
 	}
 }
 
-func (s *sequenceState) opSetSSV(args *nfsv4.SetSsv4args) nfsv4.SetSsv4res {
+func (sequenceState) opSetSSV(args *nfsv4.SetSsv4args) nfsv4.SetSsv4res {
 	// EXCHANGE_ID always negotiates SP4_NONE, so there should be no
 	// need for clients to call SET_SSV.
 	return &nfsv4.SetSsv4res_default{SsrStatus: nfsv4.NFS4ERR_INVAL}
@@ -2705,7 +2705,7 @@ func (s *sequenceState) opVerify(ctx context.Context, args *nfsv4.Verify4args) n
 	return nfsv4.Verify4res{Status: nfsv4.NFS4_OK}
 }
 
-func (s *sequenceState) opWantDelegation(args *nfsv4.WantDelegation4args) nfsv4.WantDelegation4res {
+func (sequenceState) opWantDelegation(args *nfsv4.WantDelegation4args) nfsv4.WantDelegation4res {
 	return &nfsv4.WantDelegation4res_default{WdrStatus: nfsv4.NFS4ERR_NOTSUPP}
 }
 
