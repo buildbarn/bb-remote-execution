@@ -19,12 +19,12 @@ import (
 // This tool is a drop-in replacement for /usr/bin/python that is only
 // capable of accepting Python stub templates, executing them with the
 // copy of Python that is stored in the input root. It obtains the path
-// of the Python interpreter by extracting the PYTHON_BINARY constant
-// declared in the stub template.
+// of the Python interpreter by extracting the PYTHON_BINARY or
+// PYTHON_BINARY_ACTUAL constant declared in the stub template.
 
 func extractPythonBinary(r io.Reader) string {
 	s := bufio.NewScanner(r)
-	pattern := regexp.MustCompile("^PYTHON_BINARY\\s*=\\s*'(.*)'$")
+	pattern := regexp.MustCompile(`^PYTHON_BINARY(?:_ACTUAL)\s*=\s*['"](.+)['"]$`)
 	for s.Scan() {
 		if match := pattern.FindStringSubmatch(s.Text()); match != nil {
 			return match[1]
@@ -33,7 +33,7 @@ func extractPythonBinary(r io.Reader) string {
 	if err := s.Err(); err != nil {
 		log.Fatal("Failed to read line from Python stub template: ", err)
 	}
-	log.Fatal("Python stub template does not contain a valid PYTHON_BINARY declaration")
+	log.Fatal("Python stub template does not contain a valid PYTHON_BINARY or PYTHON_BINARY_ACTUAL declaration")
 	return ""
 }
 
