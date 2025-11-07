@@ -448,7 +448,6 @@ func main() {
 						int(configuration.MaximumMessageSizeBytes),
 						runnerConfiguration.EnvironmentVariables,
 						configuration.ForceUploadTreesAndDirectories,
-						configuration.SupportLegacyOutputFilesAndDirectories,
 					)
 
 					if prefetchingConfiguration != nil {
