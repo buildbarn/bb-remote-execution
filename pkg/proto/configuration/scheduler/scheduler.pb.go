@@ -231,7 +231,6 @@ type PlatformKeyExtractorConfiguration struct {
 	// Types that are valid to be assigned to Kind:
 	//
 	//	*PlatformKeyExtractorConfiguration_Action
-	//	*PlatformKeyExtractorConfiguration_ActionAndCommand
 	//	*PlatformKeyExtractorConfiguration_Static
 	Kind          isPlatformKeyExtractorConfiguration_Kind `protobuf_oneof:"kind"`
 	unknownFields protoimpl.UnknownFields
@@ -284,15 +283,6 @@ func (x *PlatformKeyExtractorConfiguration) GetAction() *emptypb.Empty {
 	return nil
 }
 
-func (x *PlatformKeyExtractorConfiguration) GetActionAndCommand() *emptypb.Empty {
-	if x != nil {
-		if x, ok := x.Kind.(*PlatformKeyExtractorConfiguration_ActionAndCommand); ok {
-			return x.ActionAndCommand
-		}
-	}
-	return nil
-}
-
 func (x *PlatformKeyExtractorConfiguration) GetStatic() *v2.Platform {
 	if x != nil {
 		if x, ok := x.Kind.(*PlatformKeyExtractorConfiguration_Static); ok {
@@ -310,18 +300,11 @@ type PlatformKeyExtractorConfiguration_Action struct {
 	Action *emptypb.Empty `protobuf:"bytes,1,opt,name=action,proto3,oneof"`
 }
 
-type PlatformKeyExtractorConfiguration_ActionAndCommand struct {
-	ActionAndCommand *emptypb.Empty `protobuf:"bytes,2,opt,name=action_and_command,json=actionAndCommand,proto3,oneof"`
-}
-
 type PlatformKeyExtractorConfiguration_Static struct {
 	Static *v2.Platform `protobuf:"bytes,3,opt,name=static,proto3,oneof"`
 }
 
 func (*PlatformKeyExtractorConfiguration_Action) isPlatformKeyExtractorConfiguration_Kind() {}
-
-func (*PlatformKeyExtractorConfiguration_ActionAndCommand) isPlatformKeyExtractorConfiguration_Kind() {
-}
 
 func (*PlatformKeyExtractorConfiguration_Static) isPlatformKeyExtractorConfiguration_Kind() {}
 
@@ -694,12 +677,11 @@ const file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_sche
 	"\aBackend\x120\n" +
 	"\x14instance_name_prefix\x18\x01 \x01(\tR\x12instanceNamePrefix\x12E\n" +
 	"\bplatform\x18\x02 \x01(\v2).build.bazel.remote.execution.v2.PlatformR\bplatform\x12a\n" +
-	"\raction_router\x18\x03 \x01(\v2<.buildbarn.configuration.scheduler.ActionRouterConfigurationR\factionRouter\"\xea\x01\n" +
+	"\raction_router\x18\x03 \x01(\v2<.buildbarn.configuration.scheduler.ActionRouterConfigurationR\factionRouter\"\xa8\x01\n" +
 	"!PlatformKeyExtractorConfiguration\x120\n" +
-	"\x06action\x18\x01 \x01(\v2\x16.google.protobuf.EmptyH\x00R\x06action\x12F\n" +
-	"\x12action_and_command\x18\x02 \x01(\v2\x16.google.protobuf.EmptyH\x00R\x10actionAndCommand\x12C\n" +
+	"\x06action\x18\x01 \x01(\v2\x16.google.protobuf.EmptyH\x00R\x06action\x12C\n" +
 	"\x06static\x18\x03 \x01(\v2).build.bazel.remote.execution.v2.PlatformH\x00R\x06staticB\x06\n" +
-	"\x04kind\"\xa4\x02\n" +
+	"\x04kindJ\x04\b\x02\x10\x03\"\xa4\x02\n" +
 	"#InvocationKeyExtractorConfiguration\x12F\n" +
 	"\x12tool_invocation_id\x18\x02 \x01(\v2\x16.google.protobuf.EmptyH\x00R\x10toolInvocationId\x12T\n" +
 	"\x19correlated_invocations_id\x18\x03 \x01(\v2\x16.google.protobuf.EmptyH\x00R\x17correlatedInvocationsId\x12Q\n" +
@@ -756,24 +738,23 @@ var file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_schedu
 	8,  // 6: buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration.backends:type_name -> buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration.Backend
 	0,  // 7: buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration.default_action_router:type_name -> buildbarn.configuration.scheduler.ActionRouterConfiguration
 	9,  // 8: buildbarn.configuration.scheduler.PlatformKeyExtractorConfiguration.action:type_name -> google.protobuf.Empty
-	9,  // 9: buildbarn.configuration.scheduler.PlatformKeyExtractorConfiguration.action_and_command:type_name -> google.protobuf.Empty
-	10, // 10: buildbarn.configuration.scheduler.PlatformKeyExtractorConfiguration.static:type_name -> build.bazel.remote.execution.v2.Platform
-	9,  // 11: buildbarn.configuration.scheduler.InvocationKeyExtractorConfiguration.tool_invocation_id:type_name -> google.protobuf.Empty
-	9,  // 12: buildbarn.configuration.scheduler.InvocationKeyExtractorConfiguration.correlated_invocations_id:type_name -> google.protobuf.Empty
-	9,  // 13: buildbarn.configuration.scheduler.InvocationKeyExtractorConfiguration.authentication_metadata:type_name -> google.protobuf.Empty
-	11, // 14: buildbarn.configuration.scheduler.InitialSizeClassAnalyzerConfiguration.default_execution_timeout:type_name -> google.protobuf.Duration
-	11, // 15: buildbarn.configuration.scheduler.InitialSizeClassAnalyzerConfiguration.maximum_execution_timeout:type_name -> google.protobuf.Duration
-	6,  // 16: buildbarn.configuration.scheduler.InitialSizeClassAnalyzerConfiguration.feedback_driven:type_name -> buildbarn.configuration.scheduler.InitialSizeClassFeedbackDrivenAnalyzerConfiguration
-	11, // 17: buildbarn.configuration.scheduler.InitialSizeClassFeedbackDrivenAnalyzerConfiguration.failure_cache_duration:type_name -> google.protobuf.Duration
-	7,  // 18: buildbarn.configuration.scheduler.InitialSizeClassFeedbackDrivenAnalyzerConfiguration.page_rank:type_name -> buildbarn.configuration.scheduler.InitialSizeClassPageRankStrategyCalculatorConfiguration
-	11, // 19: buildbarn.configuration.scheduler.InitialSizeClassPageRankStrategyCalculatorConfiguration.minimum_execution_timeout:type_name -> google.protobuf.Duration
-	10, // 20: buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration.Backend.platform:type_name -> build.bazel.remote.execution.v2.Platform
-	0,  // 21: buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration.Backend.action_router:type_name -> buildbarn.configuration.scheduler.ActionRouterConfiguration
-	22, // [22:22] is the sub-list for method output_type
-	22, // [22:22] is the sub-list for method input_type
-	22, // [22:22] is the sub-list for extension type_name
-	22, // [22:22] is the sub-list for extension extendee
-	0,  // [0:22] is the sub-list for field type_name
+	10, // 9: buildbarn.configuration.scheduler.PlatformKeyExtractorConfiguration.static:type_name -> build.bazel.remote.execution.v2.Platform
+	9,  // 10: buildbarn.configuration.scheduler.InvocationKeyExtractorConfiguration.tool_invocation_id:type_name -> google.protobuf.Empty
+	9,  // 11: buildbarn.configuration.scheduler.InvocationKeyExtractorConfiguration.correlated_invocations_id:type_name -> google.protobuf.Empty
+	9,  // 12: buildbarn.configuration.scheduler.InvocationKeyExtractorConfiguration.authentication_metadata:type_name -> google.protobuf.Empty
+	11, // 13: buildbarn.configuration.scheduler.InitialSizeClassAnalyzerConfiguration.default_execution_timeout:type_name -> google.protobuf.Duration
+	11, // 14: buildbarn.configuration.scheduler.InitialSizeClassAnalyzerConfiguration.maximum_execution_timeout:type_name -> google.protobuf.Duration
+	6,  // 15: buildbarn.configuration.scheduler.InitialSizeClassAnalyzerConfiguration.feedback_driven:type_name -> buildbarn.configuration.scheduler.InitialSizeClassFeedbackDrivenAnalyzerConfiguration
+	11, // 16: buildbarn.configuration.scheduler.InitialSizeClassFeedbackDrivenAnalyzerConfiguration.failure_cache_duration:type_name -> google.protobuf.Duration
+	7,  // 17: buildbarn.configuration.scheduler.InitialSizeClassFeedbackDrivenAnalyzerConfiguration.page_rank:type_name -> buildbarn.configuration.scheduler.InitialSizeClassPageRankStrategyCalculatorConfiguration
+	11, // 18: buildbarn.configuration.scheduler.InitialSizeClassPageRankStrategyCalculatorConfiguration.minimum_execution_timeout:type_name -> google.protobuf.Duration
+	10, // 19: buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration.Backend.platform:type_name -> build.bazel.remote.execution.v2.Platform
+	0,  // 20: buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration.Backend.action_router:type_name -> buildbarn.configuration.scheduler.ActionRouterConfiguration
+	21, // [21:21] is the sub-list for method output_type
+	21, // [21:21] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() {
@@ -789,7 +770,6 @@ func file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_sched
 	}
 	file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[3].OneofWrappers = []any{
 		(*PlatformKeyExtractorConfiguration_Action)(nil),
-		(*PlatformKeyExtractorConfiguration_ActionAndCommand)(nil),
 		(*PlatformKeyExtractorConfiguration_Static)(nil),
 	}
 	file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[4].OneofWrappers = []any{
