@@ -10,15 +10,13 @@ import (
 
 // NewKeyExtractorFromConfiguration creates a new KeyExtractor based on
 // options specified in a configuration file.
-func NewKeyExtractorFromConfiguration(configuration *pb.PlatformKeyExtractorConfiguration, contentAddressableStorage blobstore.BlobAccess, maximumMessageSizeBytes int) (KeyExtractor, error) {
+func NewKeyExtractorFromConfiguration(configuration *pb.PlatformKeyExtractorConfiguration, contentAddressableStorage blobstore.BlobAccess) (KeyExtractor, error) {
 	if configuration == nil {
 		return nil, status.Error(codes.InvalidArgument, "No platform key extractor configuration provided")
 	}
 	switch kind := configuration.Kind.(type) {
 	case *pb.PlatformKeyExtractorConfiguration_Action:
 		return ActionKeyExtractor, nil
-	case *pb.PlatformKeyExtractorConfiguration_ActionAndCommand:
-		return NewActionAndCommandKeyExtractor(contentAddressableStorage, maximumMessageSizeBytes), nil
 	case *pb.PlatformKeyExtractorConfiguration_Static:
 		return NewStaticKeyExtractor(kind.Static), nil
 	default:

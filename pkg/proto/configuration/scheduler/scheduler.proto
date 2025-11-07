@@ -109,22 +109,7 @@ message PlatformKeyExtractorConfiguration {
   oneof kind {
     // Attempt to extract platform properties from the REv2 Action
     // message.
-    //
-    // This is sufficient when exclusively dealing with clients that
-    // implement REv2.2 or later, such as Bazel 4.1.0 and later.
     google.protobuf.Empty action = 1;
-
-    // Attempt to extract platform properties from the REv2 Action
-    // message, and fall back to the Command message in case the Action
-    // message contains no platform properties.
-    //
-    // This is less efficient than only considering the Action message,
-    // but allows requests from clients that implement REv2.1 or earlier
-    // to be respected as well.
-    //
-    // NOTE: This feature is deprecated, and will be removed after
-    // 2026-04-01.
-    google.protobuf.Empty action_and_command = 2;
 
     // Do not respect platform properties from the client's request, but
     // use a static value provided in configuration.
@@ -136,6 +121,12 @@ message PlatformKeyExtractorConfiguration {
     // workers of a newer similar platform.
     build.bazel.remote.execution.v2.Platform static = 3;
   }
+
+  // Was 'action_and_command', which caused it to extract platform
+  // properties from the REv2 Action message, and fall back to the
+  // Command message in case the Action message contains no platform
+  // properties. This was provided to support REv2.1 and earlier.
+  reserved 2;
 }
 
 message InvocationKeyExtractorConfiguration {
