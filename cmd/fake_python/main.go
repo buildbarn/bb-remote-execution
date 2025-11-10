@@ -24,7 +24,7 @@ import (
 
 func extractPythonBinary(r io.Reader) string {
 	s := bufio.NewScanner(r)
-	pattern := regexp.MustCompile(`^PYTHON_BINARY(?:_ACTUAL)\s*=\s*['"](.+)['"]$`)
+	pattern := regexp.MustCompile(`^PYTHON_BINARY(?:_ACTUAL)?\s*=\s*['"](.+)['"]$`)
 	for s.Scan() {
 		if match := pattern.FindStringSubmatch(s.Text()); match != nil {
 			return match[1]
