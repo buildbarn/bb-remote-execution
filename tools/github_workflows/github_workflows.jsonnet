@@ -26,7 +26,7 @@ workflows_template.getWorkflows(
     },
     {
       name: 'Execute WinFSP Integration Tests',
-      run: 'bazel test --platforms=@rules_go//go/toolchain:windows_amd64 //pkg/filesystem/virtual/winfsp:file_system_integration_test',
+      run: 'bazel test //pkg/filesystem/virtual/winfsp:file_system_integration_test',
       'if': "matrix.host.platform_name == 'windows_amd64'",
     },
   ]
