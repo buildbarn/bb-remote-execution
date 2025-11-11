@@ -26,39 +26,31 @@ func TestOutputHierarchyCreation(t *testing.T) {
 	t.Run("AbsoluteWorkingDirectory", func(t *testing.T) {
 		_, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory: "/tmp/hello/../..",
-		}, false)
+		})
 		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Invalid working directory: Path is absolute, while a relative path was expected"), err)
 	})
 
 	t.Run("InvalidWorkingDirectory", func(t *testing.T) {
 		_, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory: "hello/../..",
-		}, false)
+		})
 		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Invalid working directory: Path resolves to a location outside the input root directory"), err)
 	})
 
-	t.Run("AbsoluteOutputDirectory", func(t *testing.T) {
+	t.Run("AbsoluteOutputPath", func(t *testing.T) {
 		_, err := builder.NewOutputHierarchy(&remoteexecution.Command{
-			WorkingDirectory:  ".",
-			OutputDirectories: []string{"/etc/passwd"},
-		}, true)
-		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Invalid output directory \"/etc/passwd\": Path is absolute, while a relative path was expected"), err)
+			WorkingDirectory: ".",
+			OutputPaths:      []string{"/etc/passwd"},
+		})
+		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Invalid output path \"/etc/passwd\": Path is absolute, while a relative path was expected"), err)
 	})
 
-	t.Run("InvalidOutputDirectory", func(t *testing.T) {
-		_, err := builder.NewOutputHierarchy(&remoteexecution.Command{
-			WorkingDirectory:  "hello",
-			OutputDirectories: []string{"../.."},
-		}, true)
-		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Invalid output directory \"../..\": Path resolves to a location outside the input root directory"), err)
-	})
-
-	t.Run("InvalidOutputFile", func(t *testing.T) {
+	t.Run("InvalidOutputPath", func(t *testing.T) {
 		_, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory: "hello",
-			OutputFiles:      []string{".."},
-		}, true)
-		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Output file \"..\" resolves to the input root directory"), err)
+			OutputPaths:      []string{"../.."},
+		})
+		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Invalid output path \"../..\": Path resolves to a location outside the input root directory"), err)
 	})
 }
 
@@ -71,7 +63,7 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 		// No parent directories should be created.
 		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory: ".",
-		}, false)
+		})
 		require.NoError(t, err)
 		require.NoError(t, oh.CreateParentDirectories(root))
 	})
@@ -83,7 +75,7 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 		// not cause any Mkdir() calls.
 		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory: "foo/bar",
-		}, true)
+		})
 		require.NoError(t, err)
 		require.NoError(t, oh.CreateParentDirectories(root))
 	})
@@ -93,49 +85,22 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 		// the root directory. There is thus no need to create
 		// any output directories.
 		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
-			WorkingDirectory:  "foo",
-			OutputDirectories: []string{".."},
-			OutputFiles:       []string{"../file"},
-			OutputPaths:       []string{"../path"},
-		}, false)
+			WorkingDirectory: "foo",
+			OutputPaths:      []string{"../path"},
+		})
 		require.NoError(t, err)
 		require.NoError(t, oh.CreateParentDirectories(root))
 	})
 
-	t.Run("Success", func(t *testing.T) {
-		// Create /foo/bar/baz.
-		root.EXPECT().Mkdir(path.MustNewComponent("foo"), os.FileMode(0o777))
-		foo := mock.NewMockParentPopulatableDirectory(ctrl)
-		root.EXPECT().EnterParentPopulatableDirectory(path.MustNewComponent("foo")).Return(foo, nil)
-		foo.EXPECT().Mkdir(path.MustNewComponent("bar"), os.FileMode(0o777))
-		bar := mock.NewMockParentPopulatableDirectory(ctrl)
-		foo.EXPECT().EnterParentPopulatableDirectory(path.MustNewComponent("bar")).Return(bar, nil)
-		bar.EXPECT().Mkdir(path.MustNewComponent("baz"), os.FileMode(0o777))
-		bar.EXPECT().Close()
-		// Create /foo/qux.
-		foo.EXPECT().Mkdir(path.MustNewComponent("qux"), os.FileMode(0o777))
-		foo.EXPECT().Close()
-
-		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
-			WorkingDirectory:  "foo",
-			OutputDirectories: []string{"bar/baz"},
-			OutputFiles:       []string{"../foo/qux/xyzzy"},
-		}, true)
-		require.NoError(t, err)
-		require.NoError(t, oh.CreateParentDirectories(root))
-	})
-
-	t.Run("SuccessPaths", func(t *testing.T) {
-		// No /foo/bar/baz since OutputPaths is set.
-		// Create /alice.
+	t.Run("DotDot", func(t *testing.T) {
+		// The leading ".." should cause the "alice" directory
+		// to be created within the root directory.
 		root.EXPECT().Mkdir(path.MustNewComponent("alice"), os.FileMode(0o777))
 
 		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
-			WorkingDirectory:  "foo",
-			OutputDirectories: []string{"bar/baz"},
-			OutputFiles:       []string{"../foo/qux/xyzzy"},
-			OutputPaths:       []string{"../alice/bob"},
-		}, false)
+			WorkingDirectory: "foo",
+			OutputPaths:      []string{"../alice/bob"},
+		})
 		require.NoError(t, err)
 		require.NoError(t, oh.CreateParentDirectories(root))
 	})
@@ -151,8 +116,8 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 
 		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory: "foo",
-			OutputFiles:      []string{"bar/baz"},
-		}, true)
+			OutputPaths:      []string{"bar/baz"},
+		})
 		require.NoError(t, err)
 		testutil.RequireEqualStatus(
 			t,
@@ -172,46 +137,8 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 
 		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory: "foo",
-			OutputFiles:      []string{"bar/baz"},
-		}, true)
-		require.NoError(t, err)
-		require.NoError(t, oh.CreateParentDirectories(root))
-	})
-
-	t.Run("MkdirFailureOutput", func(t *testing.T) {
-		// Failure to create a location where an output
-		// directory is expected.
-		root.EXPECT().Mkdir(path.MustNewComponent("foo"), os.FileMode(0o777))
-		foo := mock.NewMockParentPopulatableDirectory(ctrl)
-		root.EXPECT().EnterParentPopulatableDirectory(path.MustNewComponent("foo")).Return(foo, nil)
-		foo.EXPECT().Mkdir(path.MustNewComponent("bar"), os.FileMode(0o777)).Return(status.Error(codes.Internal, "I/O error"))
-		foo.EXPECT().Close()
-
-		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
-			WorkingDirectory:  "foo",
-			OutputDirectories: []string{"bar"},
-		}, true)
-		require.NoError(t, err)
-		testutil.RequireEqualStatus(
-			t,
-			status.Error(codes.Internal, "Failed to create output directory \"foo/bar\": I/O error"),
-			oh.CreateParentDirectories(root))
-	})
-
-	t.Run("MkdirFailureOutputExists", func(t *testing.T) {
-		// This test is identical to the previous, except that
-		// the error is EEXIST. This should not cause a hard
-		// failure.
-		root.EXPECT().Mkdir(path.MustNewComponent("foo"), os.FileMode(0o777))
-		foo := mock.NewMockParentPopulatableDirectory(ctrl)
-		root.EXPECT().EnterParentPopulatableDirectory(path.MustNewComponent("foo")).Return(foo, nil)
-		foo.EXPECT().Mkdir(path.MustNewComponent("bar"), os.FileMode(0o777)).Return(os.ErrExist)
-		foo.EXPECT().Close()
-
-		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
-			WorkingDirectory:  "foo",
-			OutputDirectories: []string{"bar"},
-		}, true)
+			OutputPaths:      []string{"bar/baz"},
+		})
 		require.NoError(t, err)
 		require.NoError(t, oh.CreateParentDirectories(root))
 	})
@@ -225,9 +152,9 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 		foo.EXPECT().Close()
 
 		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
-			WorkingDirectory:  "foo",
-			OutputDirectories: []string{"bar/baz"},
-		}, true)
+			WorkingDirectory: "foo",
+			OutputPaths:      []string{"bar/baz/qux"},
+		})
 		require.NoError(t, err)
 		testutil.RequireEqualStatus(
 			t,
@@ -249,7 +176,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		// should not trigger any I/O.
 		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory: ".",
-		}, false)
+		})
 		require.NoError(t, err)
 		var actionResult remoteexecution.ActionResult
 		require.NoError(
@@ -265,7 +192,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		require.Equal(t, remoteexecution.ActionResult{}, actionResult)
 	})
 
-	testSuccess := func(t *testing.T, command *remoteexecution.Command, expectedResult remoteexecution.ActionResult) {
+	t.Run("Success", func(t *testing.T) {
 		// Declare output directories, files and paths. For each
 		// of these output types, let them match one of the
 		// valid file types.
@@ -391,362 +318,35 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 
 		foo.EXPECT().Close()
 
-		oh, err := builder.NewOutputHierarchy(command, true)
-		require.NoError(t, err)
-		var actionResult remoteexecution.ActionResult
-		require.NoError(
-			t,
-			oh.UploadOutputs(
-				ctx,
-				root,
-				contentAddressableStorage,
-				digestFunction,
-				writableFileUploadDelay,
-				&actionResult,
-				/* forceUploadTreesAndDirectories = */ false))
-		require.Equal(t, expectedResult, actionResult)
-	}
-
-	t.Run("Success", func(t *testing.T) {
-		t.Run("FilesAndDirectories", func(t *testing.T) {
-			testSuccess(t, &remoteexecution.Command{
-				WorkingDirectory: "foo",
-				OutputDirectories: []string{
-					"directory-directory",
-					"../foo/directory-directory",
-					"directory-symlink",
-					"../foo/directory-symlink",
-					"directory-enoent",
-					"../foo/directory-enoent",
-					"path-directory",
-					"../foo/path-directory",
-				},
-				OutputFiles: []string{
-					"file-regular",
-					"../foo/file-regular",
-					"file-executable",
-					"../foo/file-executable",
-					"file-symlink",
-					"../foo/file-symlink",
-					"file-enoent",
-					"../foo/file-enoent",
-					"path-regular",
-					"../foo/path-regular",
-					"path-executable",
-					"../foo/path-executable",
-					"path-symlink",
-					"../foo/path-symlink",
-					"path-enoent",
-					"../foo/path-enoent",
-				},
-			}, remoteexecution.ActionResult{
-				OutputDirectories: []*remoteexecution.OutputDirectory{
-					{
-						Path: "directory-directory",
-						TreeDigest: &remoteexecution.Digest{
-							Hash:      "55aed4acf40a28132fb2d2de2b5962f0",
-							SizeBytes: 184,
-						},
-						IsTopologicallySorted: true,
-					},
-					{
-						Path: "../foo/directory-directory",
-						TreeDigest: &remoteexecution.Digest{
-							Hash:      "55aed4acf40a28132fb2d2de2b5962f0",
-							SizeBytes: 184,
-						},
-						IsTopologicallySorted: true,
-					},
-					{
-						Path: "path-directory",
-						TreeDigest: &remoteexecution.Digest{
-							Hash:      "9dd94c5a4b02914af42e8e6372e0b709",
-							SizeBytes: 2,
-						},
-						IsTopologicallySorted: true,
-					},
-					{
-						Path: "../foo/path-directory",
-						TreeDigest: &remoteexecution.Digest{
-							Hash:      "9dd94c5a4b02914af42e8e6372e0b709",
-							SizeBytes: 2,
-						},
-						IsTopologicallySorted: true,
-					},
-				},
-				OutputDirectorySymlinks: []*remoteexecution.OutputSymlink{
-					{
-						Path:   "directory-symlink",
-						Target: "directory-symlink-target",
-					},
-					{
-						Path:   "../foo/directory-symlink",
-						Target: "directory-symlink-target",
-					},
-				},
-				OutputFiles: []*remoteexecution.OutputFile{
-					{
-						Path: "file-executable",
-						Digest: &remoteexecution.Digest{
-							Hash:      "7590e1b46240ecb5ea65a80db7ee6fae",
-							SizeBytes: 15,
-						},
-						IsExecutable: true,
-					},
-					{
-						Path: "../foo/file-executable",
-						Digest: &remoteexecution.Digest{
-							Hash:      "7590e1b46240ecb5ea65a80db7ee6fae",
-							SizeBytes: 15,
-						},
-						IsExecutable: true,
-					},
-					{
-						Path: "file-regular",
-						Digest: &remoteexecution.Digest{
-							Hash:      "a58c2f2281011ca2e631b39baa1ab657",
-							SizeBytes: 12,
-						},
-					},
-					{
-						Path: "../foo/file-regular",
-						Digest: &remoteexecution.Digest{
-							Hash:      "a58c2f2281011ca2e631b39baa1ab657",
-							SizeBytes: 12,
-						},
-					},
-					{
-						Path: "path-executable",
-						Digest: &remoteexecution.Digest{
-							Hash:      "87729325cd08d300fb0e238a3a8da443",
-							SizeBytes: 15,
-						},
-						IsExecutable: true,
-					},
-					{
-						Path: "../foo/path-executable",
-						Digest: &remoteexecution.Digest{
-							Hash:      "87729325cd08d300fb0e238a3a8da443",
-							SizeBytes: 15,
-						},
-						IsExecutable: true,
-					},
-					{
-						Path: "path-regular",
-						Digest: &remoteexecution.Digest{
-							Hash:      "44206648b7bb2f3b0d2ed0c52ad2e269",
-							SizeBytes: 12,
-						},
-					},
-					{
-						Path: "../foo/path-regular",
-						Digest: &remoteexecution.Digest{
-							Hash:      "44206648b7bb2f3b0d2ed0c52ad2e269",
-							SizeBytes: 12,
-						},
-					},
-				},
-				OutputFileSymlinks: []*remoteexecution.OutputSymlink{
-					{
-						Path:   "file-symlink",
-						Target: "file-symlink-target",
-					},
-					{
-						Path:   "../foo/file-symlink",
-						Target: "file-symlink-target",
-					},
-					{
-						Path:   "path-symlink",
-						Target: "path-symlink-target",
-					},
-					{
-						Path:   "../foo/path-symlink",
-						Target: "path-symlink-target",
-					},
-				},
-			})
-		})
-		t.Run("Paths", func(t *testing.T) {
-			testSuccess(t, &remoteexecution.Command{
-				WorkingDirectory: "foo",
-				OutputPaths: []string{
-					"file-regular",
-					"../foo/file-regular",
-					"file-executable",
-					"../foo/file-executable",
-					"file-symlink",
-					"../foo/file-symlink",
-					"file-enoent",
-					"../foo/file-enoent",
-					"directory-directory",
-					"../foo/directory-directory",
-					"directory-symlink",
-					"../foo/directory-symlink",
-					"directory-enoent",
-					"../foo/directory-enoent",
-					"path-directory",
-					"../foo/path-directory",
-					"path-regular",
-					"../foo/path-regular",
-					"path-executable",
-					"../foo/path-executable",
-					"path-symlink",
-					"../foo/path-symlink",
-					"path-enoent",
-					"../foo/path-enoent",
-				},
-			}, remoteexecution.ActionResult{
-				OutputDirectories: []*remoteexecution.OutputDirectory{
-					{
-						Path: "directory-directory",
-						TreeDigest: &remoteexecution.Digest{
-							Hash:      "55aed4acf40a28132fb2d2de2b5962f0",
-							SizeBytes: 184,
-						},
-						IsTopologicallySorted: true,
-					},
-					{
-						Path: "../foo/directory-directory",
-						TreeDigest: &remoteexecution.Digest{
-							Hash:      "55aed4acf40a28132fb2d2de2b5962f0",
-							SizeBytes: 184,
-						},
-						IsTopologicallySorted: true,
-					},
-					{
-						Path: "path-directory",
-						TreeDigest: &remoteexecution.Digest{
-							Hash:      "9dd94c5a4b02914af42e8e6372e0b709",
-							SizeBytes: 2,
-						},
-						IsTopologicallySorted: true,
-					},
-					{
-						Path: "../foo/path-directory",
-						TreeDigest: &remoteexecution.Digest{
-							Hash:      "9dd94c5a4b02914af42e8e6372e0b709",
-							SizeBytes: 2,
-						},
-						IsTopologicallySorted: true,
-					},
-				},
-				OutputFiles: []*remoteexecution.OutputFile{
-					{
-						Path: "file-executable",
-						Digest: &remoteexecution.Digest{
-							Hash:      "7590e1b46240ecb5ea65a80db7ee6fae",
-							SizeBytes: 15,
-						},
-						IsExecutable: true,
-					},
-					{
-						Path: "../foo/file-executable",
-						Digest: &remoteexecution.Digest{
-							Hash:      "7590e1b46240ecb5ea65a80db7ee6fae",
-							SizeBytes: 15,
-						},
-						IsExecutable: true,
-					},
-					{
-						Path: "file-regular",
-						Digest: &remoteexecution.Digest{
-							Hash:      "a58c2f2281011ca2e631b39baa1ab657",
-							SizeBytes: 12,
-						},
-					},
-					{
-						Path: "../foo/file-regular",
-						Digest: &remoteexecution.Digest{
-							Hash:      "a58c2f2281011ca2e631b39baa1ab657",
-							SizeBytes: 12,
-						},
-					},
-					{
-						Path: "path-executable",
-						Digest: &remoteexecution.Digest{
-							Hash:      "87729325cd08d300fb0e238a3a8da443",
-							SizeBytes: 15,
-						},
-						IsExecutable: true,
-					},
-					{
-						Path: "../foo/path-executable",
-						Digest: &remoteexecution.Digest{
-							Hash:      "87729325cd08d300fb0e238a3a8da443",
-							SizeBytes: 15,
-						},
-						IsExecutable: true,
-					},
-					{
-						Path: "path-regular",
-						Digest: &remoteexecution.Digest{
-							Hash:      "44206648b7bb2f3b0d2ed0c52ad2e269",
-							SizeBytes: 12,
-						},
-					},
-					{
-						Path: "../foo/path-regular",
-						Digest: &remoteexecution.Digest{
-							Hash:      "44206648b7bb2f3b0d2ed0c52ad2e269",
-							SizeBytes: 12,
-						},
-					},
-				},
-				OutputSymlinks: []*remoteexecution.OutputSymlink{
-					{
-						Path:   "directory-symlink",
-						Target: "directory-symlink-target",
-					},
-					{
-						Path:   "../foo/directory-symlink",
-						Target: "directory-symlink-target",
-					},
-					{
-						Path:   "file-symlink",
-						Target: "file-symlink-target",
-					},
-					{
-						Path:   "../foo/file-symlink",
-						Target: "file-symlink-target",
-					},
-					{
-						Path:   "path-symlink",
-						Target: "path-symlink-target",
-					},
-					{
-						Path:   "../foo/path-symlink",
-						Target: "path-symlink-target",
-					},
-				},
-			})
-		})
-	})
-
-	t.Run("RootDirectory", func(t *testing.T) {
-		// Special case: it is also permitted to add the root
-		// directory as an REv2.0 output directory. This
-		// shouldn't cause any Lstat() calls, as the root
-		// directory always exists. It is also impossible to
-		// call Lstat() on it, as that would require us to
-		// traverse upwards.
-		root.EXPECT().ReadDir().Return(nil, nil)
-		contentAddressableStorage.EXPECT().Put(
-			ctx,
-			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "9dd94c5a4b02914af42e8e6372e0b709", 2),
-			gomock.Any()).
-			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
-				m, err := b.ToProto(&remoteexecution.Tree{}, 10000)
-				require.NoError(t, err)
-				testutil.RequireEqualProto(t, &remoteexecution.Tree{
-					Root: &remoteexecution.Directory{},
-				}, m)
-				return nil
-			})
-
 		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
-			WorkingDirectory:  "foo",
-			OutputDirectories: []string{".."},
-		}, true)
+			WorkingDirectory: "foo",
+			OutputPaths: []string{
+				"file-regular",
+				"../foo/file-regular",
+				"file-executable",
+				"../foo/file-executable",
+				"file-symlink",
+				"../foo/file-symlink",
+				"file-enoent",
+				"../foo/file-enoent",
+				"directory-directory",
+				"../foo/directory-directory",
+				"directory-symlink",
+				"../foo/directory-symlink",
+				"directory-enoent",
+				"../foo/directory-enoent",
+				"path-directory",
+				"../foo/path-directory",
+				"path-regular",
+				"../foo/path-regular",
+				"path-executable",
+				"../foo/path-executable",
+				"path-symlink",
+				"../foo/path-symlink",
+				"path-enoent",
+				"../foo/path-enoent",
+			},
+		})
 		require.NoError(t, err)
 		var actionResult remoteexecution.ActionResult
 		require.NoError(
@@ -762,7 +362,31 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		require.Equal(t, remoteexecution.ActionResult{
 			OutputDirectories: []*remoteexecution.OutputDirectory{
 				{
-					Path: "..",
+					Path: "directory-directory",
+					TreeDigest: &remoteexecution.Digest{
+						Hash:      "55aed4acf40a28132fb2d2de2b5962f0",
+						SizeBytes: 184,
+					},
+					IsTopologicallySorted: true,
+				},
+				{
+					Path: "../foo/directory-directory",
+					TreeDigest: &remoteexecution.Digest{
+						Hash:      "55aed4acf40a28132fb2d2de2b5962f0",
+						SizeBytes: 184,
+					},
+					IsTopologicallySorted: true,
+				},
+				{
+					Path: "path-directory",
+					TreeDigest: &remoteexecution.Digest{
+						Hash:      "9dd94c5a4b02914af42e8e6372e0b709",
+						SizeBytes: 2,
+					},
+					IsTopologicallySorted: true,
+				},
+				{
+					Path: "../foo/path-directory",
 					TreeDigest: &remoteexecution.Digest{
 						Hash:      "9dd94c5a4b02914af42e8e6372e0b709",
 						SizeBytes: 2,
@@ -770,12 +394,100 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 					IsTopologicallySorted: true,
 				},
 			},
+			OutputFiles: []*remoteexecution.OutputFile{
+				{
+					Path: "file-executable",
+					Digest: &remoteexecution.Digest{
+						Hash:      "7590e1b46240ecb5ea65a80db7ee6fae",
+						SizeBytes: 15,
+					},
+					IsExecutable: true,
+				},
+				{
+					Path: "../foo/file-executable",
+					Digest: &remoteexecution.Digest{
+						Hash:      "7590e1b46240ecb5ea65a80db7ee6fae",
+						SizeBytes: 15,
+					},
+					IsExecutable: true,
+				},
+				{
+					Path: "file-regular",
+					Digest: &remoteexecution.Digest{
+						Hash:      "a58c2f2281011ca2e631b39baa1ab657",
+						SizeBytes: 12,
+					},
+				},
+				{
+					Path: "../foo/file-regular",
+					Digest: &remoteexecution.Digest{
+						Hash:      "a58c2f2281011ca2e631b39baa1ab657",
+						SizeBytes: 12,
+					},
+				},
+				{
+					Path: "path-executable",
+					Digest: &remoteexecution.Digest{
+						Hash:      "87729325cd08d300fb0e238a3a8da443",
+						SizeBytes: 15,
+					},
+					IsExecutable: true,
+				},
+				{
+					Path: "../foo/path-executable",
+					Digest: &remoteexecution.Digest{
+						Hash:      "87729325cd08d300fb0e238a3a8da443",
+						SizeBytes: 15,
+					},
+					IsExecutable: true,
+				},
+				{
+					Path: "path-regular",
+					Digest: &remoteexecution.Digest{
+						Hash:      "44206648b7bb2f3b0d2ed0c52ad2e269",
+						SizeBytes: 12,
+					},
+				},
+				{
+					Path: "../foo/path-regular",
+					Digest: &remoteexecution.Digest{
+						Hash:      "44206648b7bb2f3b0d2ed0c52ad2e269",
+						SizeBytes: 12,
+					},
+				},
+			},
+			OutputSymlinks: []*remoteexecution.OutputSymlink{
+				{
+					Path:   "directory-symlink",
+					Target: "directory-symlink-target",
+				},
+				{
+					Path:   "../foo/directory-symlink",
+					Target: "directory-symlink-target",
+				},
+				{
+					Path:   "file-symlink",
+					Target: "file-symlink-target",
+				},
+				{
+					Path:   "../foo/file-symlink",
+					Target: "file-symlink-target",
+				},
+				{
+					Path:   "path-symlink",
+					Target: "path-symlink-target",
+				},
+				{
+					Path:   "../foo/path-symlink",
+					Target: "path-symlink-target",
+				},
+			},
 		}, actionResult)
 	})
 
 	t.Run("RootPath", func(t *testing.T) {
-		// Similar to the previous test, it is also permitted to
-		// add the root directory as an REv2.1 output path.
+		// It is permitted to add the root directory as an
+		// output path.
 		root.EXPECT().ReadDir().Return(nil, nil)
 		contentAddressableStorage.EXPECT().Put(
 			ctx,
@@ -793,7 +505,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory: "foo",
 			OutputPaths:      []string{".."},
-		}, false)
+		})
 		require.NoError(t, err)
 		var actionResult remoteexecution.ActionResult
 		require.NoError(
@@ -820,57 +532,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		}, actionResult)
 	})
 
-	t.Run("LstatFailureDirectory", func(t *testing.T) {
-		// Failure to Lstat() an output directory should cause
-		// it to be skipped.
-		root.EXPECT().Lstat(path.MustNewComponent("foo")).Return(filesystem.FileInfo{}, status.Error(codes.Internal, "I/O error"))
-
-		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
-			WorkingDirectory:  "",
-			OutputDirectories: []string{"foo"},
-		}, true)
-		require.NoError(t, err)
-		var actionResult remoteexecution.ActionResult
-		testutil.RequireEqualStatus(
-			t,
-			status.Error(codes.Internal, "Failed to read attributes of output directory \"foo\": I/O error"),
-			oh.UploadOutputs(
-				ctx,
-				root,
-				contentAddressableStorage,
-				digestFunction,
-				writableFileUploadDelay,
-				&actionResult,
-				/* forceUploadTreesAndDirectories = */ false))
-		require.Equal(t, remoteexecution.ActionResult{}, actionResult)
-	})
-
-	t.Run("LstatFailureFile", func(t *testing.T) {
-		// Failure to Lstat() an output file should cause it to
-		// be skipped.
-		root.EXPECT().Lstat(path.MustNewComponent("foo")).Return(filesystem.FileInfo{}, status.Error(codes.Internal, "I/O error"))
-
-		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
-			WorkingDirectory: "",
-			OutputFiles:      []string{"foo"},
-		}, true)
-		require.NoError(t, err)
-		var actionResult remoteexecution.ActionResult
-		testutil.RequireEqualStatus(
-			t,
-			status.Error(codes.Internal, "Failed to read attributes of output file \"foo\": I/O error"),
-			oh.UploadOutputs(
-				ctx,
-				root,
-				contentAddressableStorage,
-				digestFunction,
-				writableFileUploadDelay,
-				&actionResult,
-				/* forceUploadTreesAndDirectories = */ false))
-		require.Equal(t, remoteexecution.ActionResult{}, actionResult)
-	})
-
-	t.Run("LstatFailurePath", func(t *testing.T) {
+	t.Run("LstatFailure", func(t *testing.T) {
 		// Failure to Lstat() an output path should cause it to
 		// be skipped.
 		root.EXPECT().Lstat(path.MustNewComponent("foo")).Return(filesystem.FileInfo{}, status.Error(codes.Internal, "I/O error"))
@@ -878,7 +540,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			WorkingDirectory: "",
 			OutputPaths:      []string{"foo"},
-		}, false)
+		})
 		require.NoError(t, err)
 		var actionResult remoteexecution.ActionResult
 		testutil.RequireEqualStatus(
@@ -992,7 +654,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
 			OutputPaths:           []string{"."},
 			OutputDirectoryFormat: remoteexecution.Command_TREE_AND_DIRECTORY,
-		}, false)
+		})
 		require.NoError(t, err)
 		var actionResult remoteexecution.ActionResult
 		require.NoError(
