@@ -3,6 +3,7 @@ syntax = "proto3";
 package buildbarn.configuration.scheduler;
 
 import "build/bazel/remote/execution/v2/remote_execution.proto";
+import "github.com/buildbarn/bb-storage/pkg/proto/configuration/grpc/grpc.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/empty.proto";
 
@@ -18,6 +19,9 @@ message ActionRouterConfiguration {
     // Demultiplex incoming requests based on the client-provided REv2
     // instance name prefix and platform properties.
     DemultiplexingActionRouterConfiguration demultiplexing = 2;
+
+    // Delegate to a remote service.
+    RemoteActionRouterConfiguration remote = 3;
   }
 }
 
@@ -86,6 +90,18 @@ message DemultiplexingActionRouterConfiguration {
   // backends have matching instance name prefixes and platform
   // properties.
   ActionRouterConfiguration default_action_router = 3;
+}
+
+message RemoteActionRouterConfiguration {
+  // gRPC client configuration.
+  buildbarn.configuration.grpc.ClientConfiguration grpc = 1;
+
+  // The initial size class analyzer that is used. This is performed
+  // locally after receiving the routing decision from the remote service.
+  //
+  // See SimpleActionRouterConfiguration.initial_size_class_analyzer for
+  // details on how to set this field.
+  InitialSizeClassAnalyzerConfiguration initial_size_class_analyzer = 2;
 }
 
 message PlatformKeyExtractorConfiguration {

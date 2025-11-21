@@ -2,11 +2,14 @@ package routing
 
 import (
 	pb "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/scheduler"
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteactionrouter"
 	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/initialsizeclass"
 	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/invocation"
 	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/platform"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/digest"
+	bb_grpc "github.com/buildbarn/bb-storage/pkg/grpc"
+	"github.com/buildbarn/bb-storage/pkg/program"
 	"github.com/buildbarn/bb-storage/pkg/util"
 
 	"google.golang.org/grpc/codes"
@@ -15,7 +18,7 @@ import (
 
 // NewActionRouterFromConfiguration creates an ActionRouter based on
 // options specified in a configuration file.
-func NewActionRouterFromConfiguration(configuration *pb.ActionRouterConfiguration, contentAddressableStorage blobstore.BlobAccess, maximumMessageSizeBytes int, previousExecutionStatsStore initialsizeclass.PreviousExecutionStatsStore) (ActionRouter, error) {
+func NewActionRouterFromConfiguration(configuration *pb.ActionRouterConfiguration, contentAddressableStorage blobstore.BlobAccess, maximumMessageSizeBytes int, previousExecutionStatsStore initialsizeclass.PreviousExecutionStatsStore, grpcClientFactory bb_grpc.ClientFactory, dependenciesGroup program.Group) (ActionRouter, error) {
 	if configuration == nil {
 		return nil, status.Error(codes.InvalidArgument, "No action router configuration provided")
 	}
@@ -43,7 +46,7 @@ func NewActionRouterFromConfiguration(configuration *pb.ActionRouterConfiguratio
 		if err != nil {
 			return nil, util.StatusWrap(err, "Failed to create platform key extractor")
 		}
-		defaultActionRouter, err := NewActionRouterFromConfiguration(kind.Demultiplexing.DefaultActionRouter, contentAddressableStorage, maximumMessageSizeBytes, previousExecutionStatsStore)
+		defaultActionRouter, err := NewActionRouterFromConfiguration(kind.Demultiplexing.DefaultActionRouter, contentAddressableStorage, maximumMessageSizeBytes, previousExecutionStatsStore, grpcClientFactory, dependenciesGroup)
 		if err != nil {
 			return nil, util.StatusWrap(err, "Failed to create default action router")
 		}
@@ -53,7 +56,7 @@ func NewActionRouterFromConfiguration(configuration *pb.ActionRouterConfiguratio
 			if err != nil {
 				return nil, util.StatusWrapf(err, "Invalid instance name prefix %#v", backend.InstanceNamePrefix)
 			}
-			backendActionRouter, err := NewActionRouterFromConfiguration(backend.ActionRouter, contentAddressableStorage, maximumMessageSizeBytes, previousExecutionStatsStore)
+			backendActionRouter, err := NewActionRouterFromConfiguration(backend.ActionRouter, contentAddressableStorage, maximumMessageSizeBytes, previousExecutionStatsStore, grpcClientFactory, dependenciesGroup)
 			if err != nil {
 				return nil, util.StatusWrap(err, "Failed to create demultiplexing action router backend")
 			}
@@ -62,6 +65,16 @@ func NewActionRouterFromConfiguration(configuration *pb.ActionRouterConfiguratio
 			}
 		}
 		return actionRouter, nil
+	case *pb.ActionRouterConfiguration_Remote:
+		client, err := grpcClientFactory.NewClientFromConfiguration(kind.Remote.Grpc, dependenciesGroup)
+		if err != nil {
+			return nil, util.StatusWrap(err, "Failed to create gRPC client for remote action router")
+		}
+		initialSizeClassAnalyzer, err := initialsizeclass.NewAnalyzerFromConfiguration(kind.Remote.InitialSizeClassAnalyzer, previousExecutionStatsStore)
+		if err != nil {
+			return nil, util.StatusWrap(err, "Failed to create initial size class analyzer")
+		}
+		return NewRemoteActionRouter(remoteactionrouter.NewActionRouterClient(client), initialSizeClassAnalyzer), nil
 	default:
 		return nil, status.Error(codes.InvalidArgument, "Configuration did not contain a supported action router type")
 	}
