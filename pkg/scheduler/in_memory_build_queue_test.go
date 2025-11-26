@@ -142,8 +142,10 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 			gomock.Any(),
 			digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
 		).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
+		clock.EXPECT().Now().Return(time.Unix(899, 0))
 		initialSizeClassSelector := mock.NewMockSelector(ctrl)
 		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(action, platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
+		clock.EXPECT().Now().Return(time.Unix(899, 10))
 		initialSizeClassSelector.EXPECT().Abandoned()
 		clock.EXPECT().Now().Return(time.Unix(899, 999999999))
 
@@ -173,10 +175,12 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 			gomock.Any(),
 			digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
 		).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
+		clock.EXPECT().Now().Return(time.Unix(900, 0))
 		initialSizeClassSelector := mock.NewMockSelector(ctrl)
 		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(action, platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
+		clock.EXPECT().Now().Return(time.Unix(900, 10))
 		initialSizeClassSelector.EXPECT().Abandoned()
-		clock.EXPECT().Now().Return(time.Unix(900, 0))
+		clock.EXPECT().Now().Return(time.Unix(900, 20))
 
 		stream, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
 			InstanceName: "main",
@@ -254,8 +258,10 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 		},
 		DoNotCache: true,
 	}
+	clock.EXPECT().Now().Return(time.Unix(1000, 10))
 	initialSizeClassSelector := mock.NewMockSelector(ctrl)
 	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(action, platform.MustNewKey("main", &remoteexecution.Platform{}), nil, initialSizeClassSelector, nil)
+	clock.EXPECT().Now().Return(time.Unix(1000, 20))
 	initialSizeClassLearner := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 		Return(0, 15*time.Minute, 30*time.Minute, initialSizeClassLearner)
@@ -406,13 +412,15 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 	}
 	streams := make([]remoteexecution.Execution_ExecuteClient, 0, len(fakeUUIDs))
 	for _, fakeUUID := range fakeUUIDs {
+		clock.EXPECT().Now().Return(time.Unix(1961, 0))
 		initialSizeClassSelector := mock.NewMockSelector(ctrl)
 		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(action, platform.MustNewKey("main", &remoteexecution.Platform{}), nil, initialSizeClassSelector, nil)
+		clock.EXPECT().Now().Return(time.Unix(1961, 10))
 		initialSizeClassLearner := mock.NewMockLearner(ctrl)
 		initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 			Return(0, 15*time.Minute, 30*time.Minute, initialSizeClassLearner)
 		initialSizeClassLearner.EXPECT().Abandoned()
-		clock.EXPECT().Now().Return(time.Unix(1961, 999999999))
+		clock.EXPECT().Now().Return(time.Unix(1961, 20))
 		timer := mock.NewMockTimer(ctrl)
 		clock.EXPECT().NewTimer(time.Minute).Return(timer, nil)
 		timer.EXPECT().Stop().Return(true)
@@ -445,8 +453,10 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 
 	// After workers are absent for long enough, the corresponding
 	// platform queue is also garbage collected.
+	clock.EXPECT().Now().Return(time.Unix(1961, 30))
 	initialSizeClassSelector = mock.NewMockSelector(ctrl)
 	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(action, platform.MustNewKey("main", &remoteexecution.Platform{}), nil, initialSizeClassSelector, nil)
+	clock.EXPECT().Now().Return(time.Unix(1961, 40))
 	initialSizeClassSelector.EXPECT().Abandoned()
 	clock.EXPECT().Now().Return(time.Unix(1962, 0)).Times(17)
 	stream3, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
@@ -545,9 +555,11 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 	})
 
 	// Let one client enqueue an operation.
+	clock.EXPECT().Now().Return(time.Unix(1000, 10))
 	initialSizeClassSelector1 := mock.NewMockSelector(ctrl)
 	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).
 		Return(action, platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector1, nil)
+	clock.EXPECT().Now().Return(time.Unix(1000, 20))
 	initialSizeClassLearner1 := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector1.EXPECT().Select([]uint32{0}).
 		Return(0, 15*time.Minute, 30*time.Minute, initialSizeClassLearner1)
@@ -584,8 +596,10 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 	// Let a second client enqueue the same action. Due to
 	// deduplication of in-flight actions, it will obtain the same
 	// operation.
+	clock.EXPECT().Now().Return(time.Unix(1070, 10))
 	initialSizeClassSelector2 := mock.NewMockSelector(ctrl)
 	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(action, platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector2, nil)
+	clock.EXPECT().Now().Return(time.Unix(1070, 20))
 	initialSizeClassSelector2.EXPECT().Abandoned()
 	clock.EXPECT().Now().Return(time.Unix(1075, 0))
 	timer2 := mock.NewMockTimer(ctrl)
@@ -793,8 +807,10 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 	})
 
 	// Let one client enqueue an operation.
+	clock.EXPECT().Now().Return(time.Unix(1000, 10))
 	initialSizeClassSelector := mock.NewMockSelector(ctrl)
 	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(action, platform.MustNewKey("main/suffix", platformForTesting), nil, initialSizeClassSelector, nil)
+	clock.EXPECT().Now().Return(time.Unix(1000, 20))
 	initialSizeClassLearner := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 		Return(0, 15*time.Minute, 30*time.Minute, initialSizeClassLearner)
@@ -1014,7 +1030,9 @@ func TestInMemoryBuildQueueKillOperationsOperationName(t *testing.T) {
 
 	// Let one client enqueue an operation.
 	initialSizeClassSelector := mock.NewMockSelector(ctrl)
+	clock.EXPECT().Now().Return(time.Unix(1000, 0))
 	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(action, platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
+	clock.EXPECT().Now().Return(time.Unix(1000, 10))
 	initialSizeClassLearner := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 		Return(0, 15*time.Minute, 30*time.Minute, initialSizeClassLearner)
@@ -1250,7 +1268,9 @@ func TestInMemoryBuildQueueKillOperationsSizeClassQueueWithoutWorkers(t *testing
 
 	// Let one client enqueue an operation.
 	initialSizeClassSelector := mock.NewMockSelector(ctrl)
+	clock.EXPECT().Now().Return(time.Unix(1000, 0))
 	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(action, platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
+	clock.EXPECT().Now().Return(time.Unix(1000, 10))
 	initialSizeClassLearner := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 		Return(0, 15*time.Minute, 30*time.Minute, initialSizeClassLearner)
@@ -1568,7 +1588,9 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 
 	// Enqueue an operation.
 	initialSizeClassSelector := mock.NewMockSelector(ctrl)
+	clock.EXPECT().Now().Return(time.Unix(1000, 0))
 	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(action, platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
+	clock.EXPECT().Now().Return(time.Unix(1000, 10))
 	initialSizeClassLearner := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 		Return(0, 15*time.Minute, 30*time.Minute, initialSizeClassLearner)
@@ -1809,6 +1831,7 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 		requestMetadataBin, err := proto.Marshal(requestMetadata)
 		require.NoError(t, err)
 		initialSizeClassSelector := mock.NewMockSelector(ctrl)
+		clock.EXPECT().Now().Return(time.Unix(1000, 0))
 		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), testutil.EqProto(t, requestMetadata)).Return(
 			action,
 			platform.MustNewKey("main", platformForTesting),
@@ -1816,6 +1839,7 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 			initialSizeClassSelector,
 			nil,
 		)
+		clock.EXPECT().Now().Return(time.Unix(1000, 10))
 
 		initialSizeClassLearner := mock.NewMockLearner(ctrl)
 		initialSizeClassSelector.EXPECT().Select([]uint32{0}).
@@ -2190,6 +2214,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonQueued(t *testing.T) {
 			ToolInvocationId: p.invocationID,
 		})
 		require.NoError(t, err)
+		clock.EXPECT().Now().Return(time.Unix(1000, 0))
 		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), gomock.Any(), testutil.EqProto(t, requestMetadata)).Return(
 			action,
 			platform.MustNewKey("main", platformForTesting),
@@ -2197,6 +2222,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonQueued(t *testing.T) {
 			initialSizeClassSelector,
 			nil,
 		)
+		clock.EXPECT().Now().Return(time.Unix(1000, 10))
 		if i == 0 {
 			initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 				Return(0, 15*time.Minute, 30*time.Minute, initialSizeClassLearner)
@@ -2384,6 +2410,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 		require.NoError(t, err)
 		requestMetadataBin, err := proto.Marshal(requestMetadata)
 		require.NoError(t, err)
+		clock.EXPECT().Now().Return(time.Unix(1000, 0))
 		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), gomock.Any(), testutil.EqProto(t, requestMetadata)).Return(
 			action,
 			platform.MustNewKey("main", platformForTesting),
@@ -2391,6 +2418,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 			initialSizeClassSelector,
 			nil,
 		)
+		clock.EXPECT().Now().Return(time.Unix(1000, 10))
 		if i == 0 {
 			initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 				Return(0, 15*time.Minute, 30*time.Minute, initialSizeClassLearner)
@@ -2584,7 +2612,9 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 		digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
 	).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
 	initialSizeClassSelector := mock.NewMockSelector(ctrl)
+	clock.EXPECT().Now().Return(time.Unix(1000, 0))
 	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(action, platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
+	clock.EXPECT().Now().Return(time.Unix(1000, 10))
 	initialSizeClassLearner := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 		Return(0, 15*time.Minute, 30*time.Minute, initialSizeClassLearner)
@@ -2846,7 +2876,9 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 		digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
 	).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
 	initialSizeClassSelector := mock.NewMockSelector(ctrl)
+	clock.EXPECT().Now().Return(time.Unix(1000, 0))
 	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(action, platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
+	clock.EXPECT().Now().Return(time.Unix(1000, 10))
 	initialSizeClassLearner1 := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{3, 8}).
 		Return(0, 3*time.Minute, 7*time.Minute, initialSizeClassLearner1)
@@ -3201,7 +3233,9 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 		digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
 	).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
 	initialSizeClassSelector := mock.NewMockSelector(ctrl)
+	clock.EXPECT().Now().Return(time.Unix(1000, 0))
 	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(action, platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
+	clock.EXPECT().Now().Return(time.Unix(1000, 10))
 	initialSizeClassLearner1 := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{3, 8}).
 		Return(1, 3*time.Minute, 7*time.Minute, initialSizeClassLearner1)
@@ -3556,6 +3590,7 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 	// The client should immediately receive an EXECUTING update.
 	// There is no need to return QUEUED.
 	initialSizeClassSelector1 := mock.NewMockSelector(ctrl)
+	mockClock.EXPECT().Now().Return(time.Unix(1000, 0))
 	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(
 		action,
 		platform.MustNewKey("", platformForTesting),
@@ -3563,6 +3598,7 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 		initialSizeClassSelector1,
 		nil,
 	)
+	mockClock.EXPECT().Now().Return(time.Unix(1000, 10))
 	initialSizeClassLearner1 := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector1.EXPECT().Select([]uint32{0}).
 		Return(0, 3*time.Minute, 7*time.Minute, initialSizeClassLearner1)
@@ -3717,6 +3753,7 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 	// worker. We want to keep the first worker available for
 	// actions for the same invocation ID.
 	initialSizeClassSelector2 := mock.NewMockSelector(ctrl)
+	mockClock.EXPECT().Now().Return(time.Unix(1000, 0))
 	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(
 		action,
 		platform.MustNewKey("", platformForTesting),
@@ -3724,6 +3761,7 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 		initialSizeClassSelector2,
 		nil,
 	)
+	mockClock.EXPECT().Now().Return(time.Unix(1000, 10))
 	initialSizeClassLearner2 := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector2.EXPECT().Select([]uint32{0}).
 		Return(0, 3*time.Minute, 7*time.Minute, initialSizeClassLearner2)
@@ -3834,6 +3872,7 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 	// worker is associated with an invocation that is least
 	// recently seen.
 	initialSizeClassSelector3 := mock.NewMockSelector(ctrl)
+	mockClock.EXPECT().Now().Return(time.Unix(1000, 0))
 	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(
 		action,
 		platform.MustNewKey("", platformForTesting),
@@ -3841,6 +3880,7 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 		initialSizeClassSelector3,
 		nil,
 	)
+	mockClock.EXPECT().Now().Return(time.Unix(1000, 10))
 	initialSizeClassLearner3 := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector3.EXPECT().Select([]uint32{0}).
 		Return(0, 3*time.Minute, 7*time.Minute, initialSizeClassLearner3)
@@ -3941,6 +3981,7 @@ func TestInMemoryBuildQueueWorkerInvocationStickinessLimit(t *testing.T) {
 		}
 		requestMetadataAny, err := anypb.New(requestMetadata)
 		require.NoError(t, err)
+		clock.EXPECT().Now().Return(time.Unix(1000, 0))
 		initialSizeClassSelector := mock.NewMockSelector(ctrl)
 		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(
 			action,
@@ -3949,6 +3990,7 @@ func TestInMemoryBuildQueueWorkerInvocationStickinessLimit(t *testing.T) {
 			initialSizeClassSelector,
 			nil,
 		)
+		clock.EXPECT().Now().Return(time.Unix(1000, 10))
 		initialSizeClassLearner := mock.NewMockLearner(ctrl)
 		initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 			Return(0, 30*time.Second, time.Minute, initialSizeClassLearner)
@@ -4289,6 +4331,7 @@ func TestInMemoryBuildQueueNestedInvocationsSynchronization(t *testing.T) {
 		}
 		toolInvocationIDAny, err := anypb.New(toolInvocationID)
 		require.NoError(t, err)
+		mockClock.EXPECT().Now().Return(time.Unix(1000, 0))
 		initialSizeClassSelector := mock.NewMockSelector(ctrl)
 		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(
 			action,
@@ -4300,6 +4343,7 @@ func TestInMemoryBuildQueueNestedInvocationsSynchronization(t *testing.T) {
 			initialSizeClassSelector,
 			nil,
 		)
+		mockClock.EXPECT().Now().Return(time.Unix(1000, 10))
 		initialSizeClassLearner := mock.NewMockLearner(ctrl)
 		initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 			Return(0, 30*time.Second, time.Minute, initialSizeClassLearner)

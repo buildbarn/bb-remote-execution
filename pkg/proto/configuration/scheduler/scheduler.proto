@@ -94,7 +94,7 @@ message DemultiplexingActionRouterConfiguration {
 
 message RemoteActionRouterConfiguration {
   // gRPC client configuration.
-  buildbarn.configuration.grpc.ClientConfiguration grpc = 1;
+  buildbarn.configuration.grpc.ClientConfiguration grpc_client = 1;
 
   // The initial size class analyzer that is used. This is performed
   // locally after receiving the routing decision from the remote service.

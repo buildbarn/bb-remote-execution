@@ -8,24 +8,21 @@ import "google/protobuf/any.proto";
 option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/remoteactionrouter";
 
 message RouteActionRequest {
-  build.bazel.remote.execution.v2.DigestFunction.Value digest_function = 1;
+  // The REv2 instance name prefix to operate against.
+  string instance_name_prefix = 1;
 
-  build.bazel.remote.execution.v2.Action action = 2;
+  build.bazel.remote.execution.v2.DigestFunction.Value digest_function = 2;
 
-  build.bazel.remote.execution.v2.RequestMetadata request_metadata = 3;
+  build.bazel.remote.execution.v2.Action action = 3;
+
+  build.bazel.remote.execution.v2.RequestMetadata request_metadata = 4;
 }
 
 message RouteActionResponse {
-  // The updated action. An empty action means no changes were made.
-  optional build.bazel.remote.execution.v2.Action action = 1;
+  // The updated action.
+  build.bazel.remote.execution.v2.Action action = 1;
 
-  // Together with platform this decides the ActionRouter PlatformKey.
-  string instance_name_prefix = 2;
-
-  // Together with instance_name_prefix this decides the ActionRouter PlatformKey.
-  build.bazel.remote.execution.v2.Platform platform = 3;
-
-  // Invocation keys used for fairness grouping.
+  // Invocation keys used for fairness grouping, the first key in the array is most coarse while the last one is most granular.
   repeated google.protobuf.Any invocation_keys = 4;
 }
 

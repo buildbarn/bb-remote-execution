@@ -66,7 +66,7 @@ func NewActionRouterFromConfiguration(configuration *pb.ActionRouterConfiguratio
 		}
 		return actionRouter, nil
 	case *pb.ActionRouterConfiguration_Remote:
-		client, err := grpcClientFactory.NewClientFromConfiguration(kind.Remote.Grpc, dependenciesGroup)
+		client, err := grpcClientFactory.NewClientFromConfiguration(kind.Remote.GrpcClient, dependenciesGroup)
 		if err != nil {
 			return nil, util.StatusWrap(err, "Failed to create gRPC client for remote action router")
 		}

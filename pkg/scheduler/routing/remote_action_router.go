@@ -2,6 +2,7 @@ package routing
 
 import (
 	"context"
+	"errors"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteactionrouter"
@@ -28,32 +29,36 @@ func NewRemoteActionRouter(client remoteactionrouter.ActionRouterClient, initial
 
 func (ar *remoteActionRouter) RouteAction(ctx context.Context, digestFunction digest.Function, action *remoteexecution.Action, requestMetadata *remoteexecution.RequestMetadata) (*remoteexecution.Action, platform.Key, []invocation.Key, initialsizeclass.Selector, error) {
 	response, err := ar.client.RouteAction(ctx, &remoteactionrouter.RouteActionRequest{
-		DigestFunction:  digestFunction.GetEnumValue(),
-		Action:          action,
-		RequestMetadata: requestMetadata,
+		InstanceNamePrefix: digestFunction.GetInstanceName().String(),
+		DigestFunction:     digestFunction.GetEnumValue(),
+		Action:             action,
+		RequestMetadata:    requestMetadata,
 	})
 	if err != nil {
-		return nil, platform.Key{}, nil, nil, util.StatusWrap(err, "Failed calling remote action router service")
+		return nil, platform.Key{}, nil, nil, util.StatusWrap(err, "Failed to route action via remote service")
 	}
 
-	if response.Action != nil {
-		action = response.Action
+	action = response.Action
+	if action == nil {
+		return nil, platform.Key{}, nil, nil, util.StatusWrap(errors.New("nil action"), "Invalid remote action router response")
+	}
+	if action.Platform == nil {
+		return nil, platform.Key{}, nil, nil, util.StatusWrap(errors.New("nil platform"), "Invalid remote action router response")
 	}
 
-	instanceNamePrefix, err := digest.NewInstanceName(response.InstanceNamePrefix)
+	platformKey, err := platform.NewKey(digestFunction.GetInstanceName(), action.Platform)
 	if err != nil {
-		return nil, platform.Key{}, nil, nil, util.StatusWrap(err, "Invalid instance name prefix in remote action router response")
-	}
-	platformKey, err := platform.NewKey(instanceNamePrefix, response.Platform)
-	if err != nil {
-		return nil, platform.Key{}, nil, nil, util.StatusWrap(err, "Invalid platform in remote action router response")
+		return nil, platform.Key{}, nil, nil, util.StatusWrap(err, "Invalid remote action router response: malformed platform")
 	}
 
+	if len(response.InvocationKeys) == 0 {
+		return nil, platform.Key{}, nil, nil, util.StatusWrap(err, "Invalid remote action router response: no invocation keys")
+	}
 	invocationKeys := make([]invocation.Key, 0, len(response.InvocationKeys))
 	for _, anyKey := range response.InvocationKeys {
 		invocationKey, err := invocation.NewKey(anyKey)
 		if err != nil {
-			return nil, platform.Key{}, nil, nil, util.StatusWrap(err, "Invalid invocation key in remote action router response")
+			return nil, platform.Key{}, nil, nil, util.StatusWrap(err, "Invalid remote action router response: malformed invocation key")
 		}
 		invocationKeys = append(invocationKeys, invocationKey)
 	}
