@@ -49,7 +49,7 @@ func LocalAppleXcodeSDKRootResolver(ctx context.Context, developerDirectory, sdk
 				// we should return a retriable error.
 				code = codes.Internal
 			}
-			return "", status.Errorf(code, "xcrun failed with output %#v", stderr)
+			return "", util.StatusWrapfWithCode(err, code, "xcrun failed with output %#v", stderr)
 		}
 		return "", err
 	}
