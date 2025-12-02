@@ -369,6 +369,9 @@ func (bq *InMemoryBuildQueue) RegisterPredeclaredPlatformQueue(instanceNamePrefi
 			return status.Error(codes.InvalidArgument, "Size classes must be provided in sorted order")
 		}
 	}
+	if len(sizeClasses) > 1 && sizeClasses[0] == 0 {
+		return status.Error(codes.InvalidArgument, "If multiple size classes are provided, all size classes must be positive")
+	}
 
 	platformKey, err := platform.NewKey(instanceNamePrefix, platformMessage)
 	if err != nil {
