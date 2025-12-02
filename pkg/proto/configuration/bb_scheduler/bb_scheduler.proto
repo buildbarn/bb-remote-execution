@@ -171,6 +171,26 @@ message PredeclaredPlatformQueueConfiguration {
   // These size class queues will continue to exist, even if they have
   // no workers that synchronize against the scheduler.
   //
+  // A worker's size class denotes its size relative to that of other
+  // workers of the same platform. For example, if some workers have 4
+  // CPU cores and others have 8 CPU cores (thus being twice as fast,
+  // twice as expensive, etc.), one may set this field as follows:
+  //
+  //     sizeClasses: [1, 2]
+  //
+  // However, this prevents adding workers having a number of CPU cores
+  // that is not a multiple of four later on. It is therefore
+  // recommended to let the size classes be equal to the number of CPU
+  // cores:
+  //
+  //     sizeClasses: [4, 8]
+  //
+  // If multiple size classes are used, all of them must be positive. If
+  // only a single size class is used, an exception is made, allowing
+  // the use of size class zero:
+  //
+  //     sizeClasses: [0]
+  //
   // If workers advertise a size class that is not specified here, a
   // size class queue will be created on demand. However, this queue
   // will also disappear if such workers stop synchronizing. Size class
@@ -180,9 +200,7 @@ message PredeclaredPlatformQueueConfiguration {
   // actions that fail on smaller size classes. Altering the largest
   // size class at runtime would be unsound.
   //
-  // Size classes must be specified in increasing order. If all workers
-  // belonging to this platform are of the same size, it is recommended
-  // to set this field to [0].
+  // Size classes must be specified in increasing order.
   repeated uint32 size_classes = 3;
 
   // Was 'initial_size_class_feedback_driven_analyzer'. This option has
