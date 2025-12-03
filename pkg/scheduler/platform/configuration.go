@@ -17,8 +17,6 @@ func NewKeyExtractorFromConfiguration(configuration *pb.PlatformKeyExtractorConf
 	switch kind := configuration.Kind.(type) {
 	case *pb.PlatformKeyExtractorConfiguration_Action:
 		return ActionKeyExtractor, nil
-	case *pb.PlatformKeyExtractorConfiguration_ActionAndCommand:
-		return NewActionAndCommandKeyExtractor(contentAddressableStorage, maximumMessageSizeBytes), nil
 	case *pb.PlatformKeyExtractorConfiguration_Static:
 		return NewStaticKeyExtractor(kind.Static), nil
 	default:
