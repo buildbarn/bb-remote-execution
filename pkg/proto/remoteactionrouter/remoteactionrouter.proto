@@ -8,25 +8,32 @@ import "google/protobuf/any.proto";
 option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/remoteactionrouter";
 
 message RouteActionRequest {
-  // The REv2 instance name prefix to operate against.
-  string instance_name_prefix = 1;
+  // The REv2 instance name to operate against.
+  string instance_name = 1;
 
+  // The digest function that was used to compute the action digest.
   build.bazel.remote.execution.v2.DigestFunction.Value digest_function = 2;
 
+  // The Action that is to be routed.
   build.bazel.remote.execution.v2.Action action = 3;
 
+  // Optional metadata (target id, invocation id, etc..) originating from the
+  // client.
   build.bazel.remote.execution.v2.RequestMetadata request_metadata = 4;
 }
 
 message RouteActionResponse {
   // The updated action.
+  // Remote action router implementations can modify any field, though the
+  // most commonly only modifying Platform properties are modified.
   build.bazel.remote.execution.v2.Action action = 1;
 
-  // Invocation keys used for fairness grouping, the first key in the array is most coarse while the last one is most granular.
+  // Invocation keys used for fairness grouping, the first key in the array is
+  // most coarse while the last one is most granular.
   repeated google.protobuf.Any invocation_keys = 4;
 }
 
-// To make action routing more pluggable bb_scheduler will call into this
+// To make action routing more pluggable bb_scheduler may call into this
 // service allowing it to update the Action and decide the scheduler queue
 // and fairness policy to use.
 service ActionRouter {

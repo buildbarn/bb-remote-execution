@@ -28,7 +28,7 @@ func TestRemoteActionRouter(t *testing.T) {
 	initialSizeClassAnalyzer := mock.NewMockAnalyzer(ctrl)
 	actionRouter := routing.NewRemoteActionRouter(remoteClient, initialSizeClassAnalyzer)
 
-	digestFunction := digest.MustNewFunction("prefix", remoteexecution.DigestFunction_SHA256)
+	digestFunction := digest.MustNewFunction("some-instance", remoteexecution.DigestFunction_SHA256)
 	actionPlatform := &remoteexecution.Platform{
 		Properties: []*remoteexecution.Platform_Property{
 			{Name: "arch", Value: "x86_64"},
@@ -51,10 +51,10 @@ func TestRemoteActionRouter(t *testing.T) {
 		require.NoError(t, err)
 
 		remoteClient.EXPECT().RouteAction(ctx, testutil.EqProto(t, &remoteactionrouter.RouteActionRequest{
-			InstanceNamePrefix: "prefix",
-			DigestFunction:     remoteexecution.DigestFunction_SHA256,
-			Action:             action,
-			RequestMetadata:    requestMetadata,
+			InstanceName:    "some-instance",
+			DigestFunction:  remoteexecution.DigestFunction_SHA256,
+			Action:          action,
+			RequestMetadata: requestMetadata,
 		})).Return(&remoteactionrouter.RouteActionResponse{
 			Action:         action,
 			InvocationKeys: []*anypb.Any{invocationKey},
@@ -72,7 +72,7 @@ func TestRemoteActionRouter(t *testing.T) {
 
 		require.NoError(t, err)
 		require.True(t, testutil.EqProto(t, action).Matches(returnedAction))
-		require.Equal(t, platform.MustNewKey("prefix", actionPlatform), platformKey)
+		require.Equal(t, platform.MustNewKey("some-instance", actionPlatform), platformKey)
 		require.Len(t, invocationKeys, 1)
 		expectedKey, err := invocation.NewKey(invocationKey)
 		require.NoError(t, err)
@@ -82,10 +82,10 @@ func TestRemoteActionRouter(t *testing.T) {
 
 	t.Run("RemoteServiceError", func(t *testing.T) {
 		remoteClient.EXPECT().RouteAction(ctx, testutil.EqProto(t, &remoteactionrouter.RouteActionRequest{
-			InstanceNamePrefix: "prefix",
-			DigestFunction:     remoteexecution.DigestFunction_SHA256,
-			Action:             action,
-			RequestMetadata:    requestMetadata,
+			InstanceName:    "some-instance",
+			DigestFunction:  remoteexecution.DigestFunction_SHA256,
+			Action:          action,
+			RequestMetadata: requestMetadata,
 		})).Return(nil, status.Error(codes.Unavailable, "Remote service unavailable"))
 
 		_, _, _, _, err := actionRouter.RouteAction(
@@ -112,10 +112,10 @@ func TestRemoteActionRouter(t *testing.T) {
 		require.NoError(t, err)
 
 		remoteClient.EXPECT().RouteAction(ctx, testutil.EqProto(t, &remoteactionrouter.RouteActionRequest{
-			InstanceNamePrefix: "prefix",
-			DigestFunction:     remoteexecution.DigestFunction_SHA256,
-			Action:             action,
-			RequestMetadata:    requestMetadata,
+			InstanceName:    "some-instance",
+			DigestFunction:  remoteexecution.DigestFunction_SHA256,
+			Action:          action,
+			RequestMetadata: requestMetadata,
 		})).Return(&remoteactionrouter.RouteActionResponse{
 			Action:         mutatedAction,
 			InvocationKeys: []*anypb.Any{invocationKey},
@@ -152,10 +152,10 @@ func TestRemoteActionRouter(t *testing.T) {
 		require.NoError(t, err)
 
 		remoteClient.EXPECT().RouteAction(ctx, testutil.EqProto(t, &remoteactionrouter.RouteActionRequest{
-			InstanceNamePrefix: "prefix",
-			DigestFunction:     remoteexecution.DigestFunction_SHA256,
-			Action:             action,
-			RequestMetadata:    requestMetadata,
+			InstanceName:    "some-instance",
+			DigestFunction:  remoteexecution.DigestFunction_SHA256,
+			Action:          action,
+			RequestMetadata: requestMetadata,
 		})).Return(&remoteactionrouter.RouteActionResponse{
 			Action:         mutatedAction,
 			InvocationKeys: []*anypb.Any{invocationKey},
@@ -171,15 +171,15 @@ func TestRemoteActionRouter(t *testing.T) {
 			requestMetadata)
 
 		require.NoError(t, err)
-		require.Equal(t, platform.MustNewKey("prefix", mutatedAction.Platform), platformKey)
+		require.Equal(t, platform.MustNewKey("some-instance", mutatedAction.Platform), platformKey)
 	})
 
 	t.Run("NilActionInResponseCausesError", func(t *testing.T) {
 		remoteClient.EXPECT().RouteAction(ctx, testutil.EqProto(t, &remoteactionrouter.RouteActionRequest{
-			InstanceNamePrefix: "prefix",
-			DigestFunction:     remoteexecution.DigestFunction_SHA256,
-			Action:             action,
-			RequestMetadata:    requestMetadata,
+			InstanceName:    "some-instance",
+			DigestFunction:  remoteexecution.DigestFunction_SHA256,
+			Action:          action,
+			RequestMetadata: requestMetadata,
 		})).Return(&remoteactionrouter.RouteActionResponse{
 			Action:         nil,
 			InvocationKeys: nil,
@@ -193,7 +193,7 @@ func TestRemoteActionRouter(t *testing.T) {
 
 		testutil.RequireEqualStatus(
 			t,
-			status.Error(codes.Unknown, "Invalid remote action router response: nil action"),
+			status.Error(codes.Internal, "Remote action router response does not contain an action"),
 			err)
 	})
 }

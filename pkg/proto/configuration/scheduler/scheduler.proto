@@ -20,7 +20,8 @@ message ActionRouterConfiguration {
     // instance name prefix and platform properties.
     DemultiplexingActionRouterConfiguration demultiplexing = 2;
 
-    // Delegate to a remote service.
+    // Delegate action routing to a gRPC service, using the protocol defined
+    // in pkg/protocol/remoteactionrouter/remoteactionrouter.proto.
     RemoteActionRouterConfiguration remote = 3;
   }
 }
