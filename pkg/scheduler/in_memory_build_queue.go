@@ -56,16 +56,6 @@ var (
 		},
 		[]string{"instance_name_prefix", "platform", "size_class", "outcome"})
 
-	inMemoryBuildQueueRequestRoutingDuration = prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Namespace: "buildbarn",
-			Subsystem: "builder",
-			Name:      "in_memory_build_queue_task_routing_duration",
-			Help:      "Time in seconds that that an Execute() request spent in the action router.",
-			Buckets:   util.DecimalExponentialBuckets(-3, 6, 2),
-		},
-		[]string{"instance_name_prefix", "platform"})
-
 	inMemoryBuildQueueInvocationsCreatedTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "buildbarn",
@@ -317,8 +307,6 @@ func NewInMemoryBuildQueue(contentAddressableStorage blobstore.BlobAccess, clock
 	inMemoryBuildQueuePrometheusMetrics.Do(func() {
 		prometheus.MustRegister(inMemoryBuildQueueInFlightDeduplicationsTotal)
 
-		prometheus.MustRegister(inMemoryBuildQueueRequestRoutingDuration)
-
 		prometheus.MustRegister(inMemoryBuildQueueInvocationsCreatedTotal)
 		prometheus.MustRegister(inMemoryBuildQueueInvocationsActivatedTotal)
 		prometheus.MustRegister(inMemoryBuildQueueInvocationsDeactivatedTotal)
@@ -476,12 +464,10 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 	}
 	w3cTraceContext := otel.W3CTraceContextFromContext(ctx)
 
-	routeActionTimeStart := bq.clock.Now()
 	action, platformKey, invocationKeys, initialSizeClassSelector, err := bq.actionRouter.RouteAction(ctx, actionDigest.GetDigestFunction(), action, requestMetadata)
 	if err != nil {
 		return util.StatusWrap(err, "Failed to route action")
 	}
-	inMemoryBuildQueueRequestRoutingDuration.WithLabelValues(platformKey.GetInstanceNamePrefix().String(), platformKey.GetPlatformString()).Observe(float64(bq.clock.Now().Sub(routeActionTimeStart).Seconds()))
 
 	bq.enter(bq.clock.Now())
 	defer bq.leave()
