@@ -35,7 +35,7 @@ message RouteActionResponse {
 
 // To make action routing more pluggable bb_scheduler may call into this
 // service allowing it to update the Action and decide the scheduler queue
-// and fairness policy to use.
+// and invocation keys to use.
 service ActionRouter {
   rpc RouteAction(RouteActionRequest) returns (RouteActionResponse);
 }
