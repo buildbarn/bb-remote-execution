@@ -467,7 +467,7 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 	}
 	w3cTraceContext := otel.W3CTraceContextFromContext(ctx)
 
-	platformKey, invocationKeys, initialSizeClassSelector, err := bq.actionRouter.RouteAction(ctx, actionDigest.GetDigestFunction(), action, requestMetadata)
+	action, platformKey, invocationKeys, initialSizeClassSelector, err := bq.actionRouter.RouteAction(ctx, actionDigest.GetDigestFunction(), action, requestMetadata)
 	if err != nil {
 		return util.StatusWrap(err, "Failed to route action")
 	}

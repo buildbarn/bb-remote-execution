@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//proto:def.bzl", "go_proto_library")
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "remoteactionrouter_proto",
+    srcs = ["remoteactionrouter.proto"],
+    import_prefix = "github.com/buildbarn/bb-remote-execution",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@bazel_remote_apis//build/bazel/remote/execution/v2:remote_execution_proto",
+        "@protobuf//:any_proto",
+    ],
+)
+
+go_proto_library(
+    name = "remoteactionrouter_go_proto",
+    compilers = [
+        "@rules_go//proto:go_proto",
+        "@rules_go//proto:go_grpc_v2",
+    ],
+    importpath = "github.com/buildbarn/bb-remote-execution/pkg/proto/remoteactionrouter",
+    proto = ":remoteactionrouter_proto",
+    visibility = ["//visibility:public"],
+    deps = ["@bazel_remote_apis//build/bazel/remote/execution/v2:remote_execution_go_proto"],
+)
+
+go_library(
+    name = "remoteactionrouter",
+    embed = [":remoteactionrouter_go_proto"],
+    importpath = "github.com/buildbarn/bb-remote-execution/pkg/proto/remoteactionrouter",
+    visibility = ["//visibility:public"],
+)

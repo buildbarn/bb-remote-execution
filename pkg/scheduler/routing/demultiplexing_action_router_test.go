@@ -60,9 +60,9 @@ func TestDemultiplexingActionRouter(t *testing.T) {
 		platformKeyExtractor.EXPECT().ExtractKey(ctx, digestFunction, testutil.EqProto(t, &remoteexecution.Action{})).
 			Return(platform.MustNewKey("", linuxPlatform), nil)
 		defaultActionRouter.EXPECT().RouteAction(ctx, gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{}), testutil.EqProto(t, &remoteexecution.RequestMetadata{})).
-			Return(platform.Key{}, nil, nil, status.Error(codes.Internal, "Got routed to default"))
+			Return(nil, platform.Key{}, nil, nil, status.Error(codes.Internal, "Got routed to default"))
 
-		_, _, _, err := actionRouter.RouteAction(
+		_, _, _, _, err := actionRouter.RouteAction(
 			ctx,
 			digest.MustNewFunction("", remoteexecution.DigestFunction_SHA256),
 			&remoteexecution.Action{},
@@ -77,9 +77,9 @@ func TestDemultiplexingActionRouter(t *testing.T) {
 		platformKeyExtractor.EXPECT().ExtractKey(ctx, digestFunction, testutil.EqProto(t, &remoteexecution.Action{})).
 			Return(platform.MustNewKey("a", linuxPlatform), nil)
 		linuxActionRouter.EXPECT().RouteAction(ctx, gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{}), testutil.EqProto(t, &remoteexecution.RequestMetadata{})).
-			Return(platform.Key{}, nil, nil, status.Error(codes.Internal, "Got routed to Linux"))
+			Return(nil, platform.Key{}, nil, nil, status.Error(codes.Internal, "Got routed to Linux"))
 
-		_, _, _, err := actionRouter.RouteAction(
+		_, _, _, _, err := actionRouter.RouteAction(
 			ctx,
 			digest.MustNewFunction("a", remoteexecution.DigestFunction_SHA256),
 			&remoteexecution.Action{},

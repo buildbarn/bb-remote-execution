@@ -15,6 +15,8 @@ import (
 // acquires locks and enqueues an operation. ActionRouter is responsible
 // for the following things:
 //
+//   - Making any necessary changes to the Action, for example by
+//     updating the execution properties,
 //   - To extract a platform key from the action, so that
 //     InMemoryBuildQueue knows on which workers the action needs to
 //     execute.
@@ -24,5 +26,5 @@ import (
 //   - To create an initial size class selector, which InMemoryBuildQueue
 //     can use to select the appropriate worker size.
 type ActionRouter interface {
-	RouteAction(ctx context.Context, digestFunction digest.Function, action *remoteexecution.Action, requestMetadata *remoteexecution.RequestMetadata) (platform.Key, []invocation.Key, initialsizeclass.Selector, error)
+	RouteAction(ctx context.Context, digestFunction digest.Function, action *remoteexecution.Action, requestMetadata *remoteexecution.RequestMetadata) (*remoteexecution.Action, platform.Key, []invocation.Key, initialsizeclass.Selector, error)
 }
