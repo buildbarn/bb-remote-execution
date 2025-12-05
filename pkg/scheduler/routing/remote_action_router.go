@@ -19,8 +19,9 @@ type remoteActionRouter struct {
 	initialSizeClassAnalyzer initialsizeclass.Analyzer
 }
 
-// NewRemoteActionRouter creates an ActionRouter that delegates routing decisions to a remote gRPC service.
-// Initial size class selection is performed locally using the provided analyzer.
+// NewRemoteActionRouter creates an ActionRouter that delegates routing
+// decisions to a remote gRPC service.  Initial size class selection is
+// performed locally using the provided analyzer.
 func NewRemoteActionRouter(client remoteactionrouter.ActionRouterClient, initialSizeClassAnalyzer initialsizeclass.Analyzer) ActionRouter {
 	return &remoteActionRouter{
 		client:                   client,
@@ -49,7 +50,7 @@ func (ar *remoteActionRouter) RouteAction(ctx context.Context, digestFunction di
 
 	platformKey, err := platform.NewKey(digestFunction.GetInstanceName(), action.Platform)
 	if err != nil {
-		return nil, platform.Key{}, nil, nil, status.Error(codes.Internal, "Malformed platform in remote action router response")
+		return nil, platform.Key{}, nil, nil, util.StatusWrapWithCode(err, status.Error(codes.Internal, "Malformed platform in remote action router response"))
 	}
 
 	if len(response.InvocationKeys) == 0 {
@@ -59,7 +60,7 @@ func (ar *remoteActionRouter) RouteAction(ctx context.Context, digestFunction di
 	for _, anyKey := range response.InvocationKeys {
 		invocationKey, err := invocation.NewKey(anyKey)
 		if err != nil {
-			return nil, platform.Key{}, nil, nil, status.Error(codes.Internal, "Malformed invocation key in remote action router response")
+			return nil, platform.Key{}, nil, nil, util.StatusWrapWithCode(err, status.Error(codes.Internal, "Malformed invocation key in remote action router response"))
 		}
 		invocationKeys = append(invocationKeys, invocationKey)
 	}

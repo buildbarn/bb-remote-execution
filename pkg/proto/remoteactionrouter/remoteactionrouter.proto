@@ -24,8 +24,8 @@ message RouteActionRequest {
 
 message RouteActionResponse {
   // The updated action.
-  // Remote action router implementations can modify any field, though the
-  // most commonly only modifying Platform properties are modified.
+  // Remote action router implementations can modify any field, though usually
+  // only Platform properties are modified.
   build.bazel.remote.execution.v2.Action action = 1;
 
   // Invocation keys used for fairness grouping, the first key in the array is
