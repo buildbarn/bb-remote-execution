@@ -50,7 +50,7 @@ func (ar *remoteActionRouter) RouteAction(ctx context.Context, digestFunction di
 
 	platformKey, err := platform.NewKey(digestFunction.GetInstanceName(), action.Platform)
 	if err != nil {
-		return nil, platform.Key{}, nil, nil, util.StatusWrapWithCode(err, status.Error(codes.Internal, "Malformed platform in remote action router response"))
+		return nil, platform.Key{}, nil, nil, util.StatusWrapWithCode(err, codes.Internal, "Malformed platform in remote action router response")
 	}
 
 	if len(response.InvocationKeys) == 0 {
@@ -60,7 +60,7 @@ func (ar *remoteActionRouter) RouteAction(ctx context.Context, digestFunction di
 	for _, anyKey := range response.InvocationKeys {
 		invocationKey, err := invocation.NewKey(anyKey)
 		if err != nil {
-			return nil, platform.Key{}, nil, nil, util.StatusWrapWithCode(err, status.Error(codes.Internal, "Malformed invocation key in remote action router response"))
+			return nil, platform.Key{}, nil, nil, util.StatusWrapWithCode(err, codes.Internal, "Malformed invocation key in remote action router response")
 		}
 		invocationKeys = append(invocationKeys, invocationKey)
 	}
