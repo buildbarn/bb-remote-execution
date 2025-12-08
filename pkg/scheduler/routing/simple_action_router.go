@@ -32,22 +32,22 @@ func NewSimpleActionRouter(platformKeyExtractor platform.KeyExtractor, invocatio
 	}
 }
 
-func (ar *simpleActionRouter) RouteAction(ctx context.Context, digestFunction digest.Function, action *remoteexecution.Action, requestMetadata *remoteexecution.RequestMetadata) (platform.Key, []invocation.Key, initialsizeclass.Selector, error) {
+func (ar *simpleActionRouter) RouteAction(ctx context.Context, digestFunction digest.Function, action *remoteexecution.Action, requestMetadata *remoteexecution.RequestMetadata) (*remoteexecution.Action, platform.Key, []invocation.Key, initialsizeclass.Selector, error) {
 	platformKey, err := ar.platformKeyExtractor.ExtractKey(ctx, digestFunction, action)
 	if err != nil {
-		return platform.Key{}, nil, nil, util.StatusWrap(err, "Failed to extract platform key")
+		return nil, platform.Key{}, nil, nil, util.StatusWrap(err, "Failed to extract platform key")
 	}
 	invocationKeys := make([]invocation.Key, 0, len(ar.invocationKeyExtractors))
 	for _, invocationKeyExtractor := range ar.invocationKeyExtractors {
 		invocationKey, err := invocationKeyExtractor.ExtractKey(ctx, requestMetadata)
 		if err != nil {
-			return platform.Key{}, nil, nil, util.StatusWrap(err, "Failed to extract invocation key")
+			return nil, platform.Key{}, nil, nil, util.StatusWrap(err, "Failed to extract invocation key")
 		}
 		invocationKeys = append(invocationKeys, invocationKey)
 	}
 	initialSizeClassSelector, err := ar.initialSizeClassAnalyzer.Analyze(ctx, digestFunction, action)
 	if err != nil {
-		return platform.Key{}, nil, nil, util.StatusWrap(err, "Failed to analyze initial size class")
+		return nil, platform.Key{}, nil, nil, util.StatusWrap(err, "Failed to analyze initial size class")
 	}
-	return platformKey, invocationKeys, initialSizeClassSelector, nil
+	return action, platformKey, invocationKeys, initialSizeClassSelector, nil
 }

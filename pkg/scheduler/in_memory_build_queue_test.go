@@ -132,22 +132,18 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 	// soft error code should be returned if this happens not long
 	// after startup, as workers may still appear.
 	t.Run("UnknownPlatformSoft", func(t *testing.T) {
+		action := &remoteexecution.Action{
+			CommandDigest: &remoteexecution.Digest{
+				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
+				SizeBytes: 456,
+			},
+		}
 		contentAddressableStorage.EXPECT().Get(
 			gomock.Any(),
 			digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
-			CommandDigest: &remoteexecution.Digest{
-				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
-				SizeBytes: 456,
-			},
-		}, buffer.UserProvided))
+		).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
 		initialSizeClassSelector := mock.NewMockSelector(ctrl)
-		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
-			CommandDigest: &remoteexecution.Digest{
-				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
-				SizeBytes: 456,
-			},
-		}), nil).Return(platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
+		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(action, platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
 		initialSizeClassSelector.EXPECT().Abandoned()
 		clock.EXPECT().Now().Return(time.Unix(899, 999999999))
 
@@ -167,22 +163,18 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 	// amount of time has passed. We may then start returning a hard
 	// error code.
 	t.Run("UnknownPlatformHard", func(t *testing.T) {
+		action := &remoteexecution.Action{
+			CommandDigest: &remoteexecution.Digest{
+				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
+				SizeBytes: 456,
+			},
+		}
 		contentAddressableStorage.EXPECT().Get(
 			gomock.Any(),
 			digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
-			CommandDigest: &remoteexecution.Digest{
-				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
-				SizeBytes: 456,
-			},
-		}, buffer.UserProvided))
+		).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
 		initialSizeClassSelector := mock.NewMockSelector(ctrl)
-		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
-			CommandDigest: &remoteexecution.Digest{
-				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
-				SizeBytes: 456,
-			},
-		}), nil).Return(platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
+		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(action, platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
 		initialSizeClassSelector.EXPECT().Abandoned()
 		clock.EXPECT().Now().Return(time.Unix(900, 0))
 
@@ -255,14 +247,15 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 	})
 
 	// Let a client enqueue a new operation.
-	initialSizeClassSelector := mock.NewMockSelector(ctrl)
-	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
+	action := &remoteexecution.Action{
 		CommandDigest: &remoteexecution.Digest{
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 			SizeBytes: 456,
 		},
 		DoNotCache: true,
-	}), nil).Return(platform.MustNewKey("main", &remoteexecution.Platform{}), nil, initialSizeClassSelector, nil)
+	}
+	initialSizeClassSelector := mock.NewMockSelector(ctrl)
+	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(action, platform.MustNewKey("main", &remoteexecution.Platform{}), nil, initialSizeClassSelector, nil)
 	initialSizeClassLearner := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 		Return(0, 15*time.Minute, 30*time.Minute, initialSizeClassLearner)
@@ -414,13 +407,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 	streams := make([]remoteexecution.Execution_ExecuteClient, 0, len(fakeUUIDs))
 	for _, fakeUUID := range fakeUUIDs {
 		initialSizeClassSelector := mock.NewMockSelector(ctrl)
-		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
-			CommandDigest: &remoteexecution.Digest{
-				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
-				SizeBytes: 456,
-			},
-			DoNotCache: true,
-		}), nil).Return(platform.MustNewKey("main", &remoteexecution.Platform{}), nil, initialSizeClassSelector, nil)
+		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(action, platform.MustNewKey("main", &remoteexecution.Platform{}), nil, initialSizeClassSelector, nil)
 		initialSizeClassLearner := mock.NewMockLearner(ctrl)
 		initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 			Return(0, 15*time.Minute, 30*time.Minute, initialSizeClassLearner)
@@ -459,13 +446,7 @@ func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 	// After workers are absent for long enough, the corresponding
 	// platform queue is also garbage collected.
 	initialSizeClassSelector = mock.NewMockSelector(ctrl)
-	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
-		CommandDigest: &remoteexecution.Digest{
-			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
-			SizeBytes: 456,
-		},
-		DoNotCache: true,
-	}), nil).Return(platform.MustNewKey("main", &remoteexecution.Platform{}), nil, initialSizeClassSelector, nil)
+	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(action, platform.MustNewKey("main", &remoteexecution.Platform{}), nil, initialSizeClassSelector, nil)
 	initialSizeClassSelector.EXPECT().Abandoned()
 	clock.EXPECT().Now().Return(time.Unix(1962, 0)).Times(17)
 	stream3, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
@@ -566,7 +547,7 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 	// Let one client enqueue an operation.
 	initialSizeClassSelector1 := mock.NewMockSelector(ctrl)
 	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).
-		Return(platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector1, nil)
+		Return(action, platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector1, nil)
 	initialSizeClassLearner1 := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector1.EXPECT().Select([]uint32{0}).
 		Return(0, 15*time.Minute, 30*time.Minute, initialSizeClassLearner1)
@@ -604,12 +585,7 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 	// deduplication of in-flight actions, it will obtain the same
 	// operation.
 	initialSizeClassSelector2 := mock.NewMockSelector(ctrl)
-	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
-		CommandDigest: &remoteexecution.Digest{
-			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
-			SizeBytes: 456,
-		},
-	}), nil).Return(platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector2, nil)
+	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(action, platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector2, nil)
 	initialSizeClassSelector2.EXPECT().Abandoned()
 	clock.EXPECT().Now().Return(time.Unix(1075, 0))
 	timer2 := mock.NewMockTimer(ctrl)
@@ -766,15 +742,16 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	contentAddressableStorage.EXPECT().Get(
-		gomock.Any(),
-		digest.MustNewDigest("main/suffix", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
+	action := &remoteexecution.Action{
 		CommandDigest: &remoteexecution.Digest{
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 			SizeBytes: 456,
 		},
-	}, buffer.UserProvided))
+	}
+	contentAddressableStorage.EXPECT().Get(
+		gomock.Any(),
+		digest.MustNewDigest("main/suffix", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+	).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -817,12 +794,7 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 
 	// Let one client enqueue an operation.
 	initialSizeClassSelector := mock.NewMockSelector(ctrl)
-	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
-		CommandDigest: &remoteexecution.Digest{
-			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
-			SizeBytes: 456,
-		},
-	}), nil).Return(platform.MustNewKey("main/suffix", platformForTesting), nil, initialSizeClassSelector, nil)
+	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(action, platform.MustNewKey("main/suffix", platformForTesting), nil, initialSizeClassSelector, nil)
 	initialSizeClassLearner := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 		Return(0, 15*time.Minute, 30*time.Minute, initialSizeClassLearner)
@@ -989,16 +961,17 @@ func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 func TestInMemoryBuildQueueKillOperationsOperationName(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	contentAddressableStorage.EXPECT().Get(
-		gomock.Any(),
-		digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
+	action := &remoteexecution.Action{
 		CommandDigest: &remoteexecution.Digest{
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 			SizeBytes: 456,
 		},
-	}, buffer.UserProvided))
+	}
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage.EXPECT().Get(
+		gomock.Any(),
+		digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+	).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -1041,12 +1014,7 @@ func TestInMemoryBuildQueueKillOperationsOperationName(t *testing.T) {
 
 	// Let one client enqueue an operation.
 	initialSizeClassSelector := mock.NewMockSelector(ctrl)
-	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
-		CommandDigest: &remoteexecution.Digest{
-			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
-			SizeBytes: 456,
-		},
-	}), nil).Return(platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
+	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(action, platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
 	initialSizeClassLearner := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 		Return(0, 15*time.Minute, 30*time.Minute, initialSizeClassLearner)
@@ -1211,16 +1179,17 @@ func TestInMemoryBuildQueueKillOperationsOperationName(t *testing.T) {
 func TestInMemoryBuildQueueKillOperationsSizeClassQueueWithoutWorkers(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	contentAddressableStorage.EXPECT().Get(
-		gomock.Any(),
-		digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
+	action := &remoteexecution.Action{
 		CommandDigest: &remoteexecution.Digest{
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 			SizeBytes: 456,
 		},
-	}, buffer.UserProvided))
+	}
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage.EXPECT().Get(
+		gomock.Any(),
+		digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+	).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -1281,12 +1250,7 @@ func TestInMemoryBuildQueueKillOperationsSizeClassQueueWithoutWorkers(t *testing
 
 	// Let one client enqueue an operation.
 	initialSizeClassSelector := mock.NewMockSelector(ctrl)
-	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
-		CommandDigest: &remoteexecution.Digest{
-			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
-			SizeBytes: 456,
-		},
-	}), nil).Return(platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
+	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(action, platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
 	initialSizeClassLearner := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 		Return(0, 15*time.Minute, 30*time.Minute, initialSizeClassLearner)
@@ -1438,16 +1402,17 @@ func TestInMemoryBuildQueueIdleWorkerSynchronizationTimeout(t *testing.T) {
 func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	contentAddressableStorage.EXPECT().Get(
-		gomock.Any(),
-		digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
+	action := &remoteexecution.Action{
 		CommandDigest: &remoteexecution.Digest{
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 			SizeBytes: 456,
 		},
-	}, buffer.UserProvided))
+	}
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage.EXPECT().Get(
+		gomock.Any(),
+		digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
+	).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -1603,12 +1568,7 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 
 	// Enqueue an operation.
 	initialSizeClassSelector := mock.NewMockSelector(ctrl)
-	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
-		CommandDigest: &remoteexecution.Digest{
-			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
-			SizeBytes: 456,
-		},
-	}), nil).Return(platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
+	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(action, platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
 	initialSizeClassLearner := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 		Return(0, 15*time.Minute, 30*time.Minute, initialSizeClassLearner)
@@ -1830,15 +1790,16 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 	// deduplication should take place.
 	streams := make([]remoteexecution.Execution_ExecuteClient, 0, 25)
 	for i, p := range operationParameters {
-		contentAddressableStorage.EXPECT().Get(
-			gomock.Any(),
-			digest.MustNewDigest("main", remoteexecution.DigestFunction_MD5, p.actionHash, 123),
-		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
+		action := &remoteexecution.Action{
 			CommandDigest: &remoteexecution.Digest{
 				Hash:      p.commandHash,
 				SizeBytes: 456,
 			},
-		}, buffer.UserProvided))
+		}
+		contentAddressableStorage.EXPECT().Get(
+			gomock.Any(),
+			digest.MustNewDigest("main", remoteexecution.DigestFunction_MD5, p.actionHash, 123),
+		).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
 
 		requestMetadata := &remoteexecution.RequestMetadata{
 			ToolInvocationId: p.invocationID,
@@ -1848,12 +1809,8 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 		requestMetadataBin, err := proto.Marshal(requestMetadata)
 		require.NoError(t, err)
 		initialSizeClassSelector := mock.NewMockSelector(ctrl)
-		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
-			CommandDigest: &remoteexecution.Digest{
-				Hash:      p.commandHash,
-				SizeBytes: 456,
-			},
-		}), testutil.EqProto(t, requestMetadata)).Return(
+		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), testutil.EqProto(t, requestMetadata)).Return(
+			action,
 			platform.MustNewKey("main", platformForTesting),
 			[]invocation.Key{util.Must(invocation.NewKey(requestMetadataAny))},
 			initialSizeClassSelector,
@@ -2212,15 +2169,16 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonQueued(t *testing.T) {
 	}
 	initialSizeClassLearner := mock.NewMockLearner(ctrl)
 	for i, p := range operationParameters {
-		contentAddressableStorage.EXPECT().Get(
-			gomock.Any(),
-			digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA256, "fc96ea0eee854b45950d3a7448332445730886691b992cb7917da0853664f7c2", 123),
-		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
+		action := &remoteexecution.Action{
 			CommandDigest: &remoteexecution.Digest{
 				Hash:      "f7a3ac7c17e535bc9b54ab13dbbb95a52ca1f1edaf9503ce23ccb3eca331a4f5",
 				SizeBytes: 456,
 			},
-		}, buffer.UserProvided))
+		}
+		contentAddressableStorage.EXPECT().Get(
+			gomock.Any(),
+			digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA256, "fc96ea0eee854b45950d3a7448332445730886691b992cb7917da0853664f7c2", 123),
+		).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
 
 		initialSizeClassSelector := mock.NewMockSelector(ctrl)
 		requestMetadata := &remoteexecution.RequestMetadata{
@@ -2233,6 +2191,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonQueued(t *testing.T) {
 		})
 		require.NoError(t, err)
 		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), gomock.Any(), testutil.EqProto(t, requestMetadata)).Return(
+			action,
 			platform.MustNewKey("main", platformForTesting),
 			[]invocation.Key{util.Must(invocation.NewKey(requestMetadataAny))},
 			initialSizeClassSelector,
@@ -2404,16 +2363,17 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 	}
 	initialSizeClassLearner := mock.NewMockLearner(ctrl)
 	for i, p := range operationParameters {
-		contentAddressableStorage.EXPECT().Get(
-			gomock.Any(),
-			digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA256, "fc96ea0eee854b45950d3a7448332445730886691b992cb7917da0853664f7c2", 123),
-		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
+		action := &remoteexecution.Action{
 			CommandDigest: &remoteexecution.Digest{
 				Hash:      "f7a3ac7c17e535bc9b54ab13dbbb95a52ca1f1edaf9503ce23ccb3eca331a4f5",
 				SizeBytes: 456,
 			},
 			Platform: platformForTesting,
-		}, buffer.UserProvided))
+		}
+		contentAddressableStorage.EXPECT().Get(
+			gomock.Any(),
+			digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA256, "fc96ea0eee854b45950d3a7448332445730886691b992cb7917da0853664f7c2", 123),
+		).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
 
 		initialSizeClassSelector := mock.NewMockSelector(ctrl)
 		requestMetadata := &remoteexecution.RequestMetadata{
@@ -2425,6 +2385,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 		requestMetadataBin, err := proto.Marshal(requestMetadata)
 		require.NoError(t, err)
 		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), gomock.Any(), testutil.EqProto(t, requestMetadata)).Return(
+			action,
 			platform.MustNewKey("main", platformForTesting),
 			[]invocation.Key{util.Must(invocation.NewKey(requestMetadataAny))},
 			initialSizeClassSelector,
@@ -2612,22 +2573,18 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 	}, response)
 
 	// Let a client enqueue an operation.
+	action := &remoteexecution.Action{
+		CommandDigest: &remoteexecution.Digest{
+			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
+			SizeBytes: 456,
+		},
+	}
 	contentAddressableStorage.EXPECT().Get(
 		gomock.Any(),
 		digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
-		CommandDigest: &remoteexecution.Digest{
-			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
-			SizeBytes: 456,
-		},
-	}, buffer.UserProvided))
+	).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
 	initialSizeClassSelector := mock.NewMockSelector(ctrl)
-	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
-		CommandDigest: &remoteexecution.Digest{
-			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
-			SizeBytes: 456,
-		},
-	}), nil).Return(platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
+	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(action, platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
 	initialSizeClassLearner := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{0}).
 		Return(0, 15*time.Minute, 30*time.Minute, initialSizeClassLearner)
@@ -2878,22 +2835,18 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 
 	// Let a client enqueue a new operation, which we'll schedule on
 	// the smaller size class.
+	action := &remoteexecution.Action{
+		CommandDigest: &remoteexecution.Digest{
+			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
+			SizeBytes: 456,
+		},
+	}
 	contentAddressableStorage.EXPECT().Get(
 		gomock.Any(),
 		digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
-		CommandDigest: &remoteexecution.Digest{
-			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
-			SizeBytes: 456,
-		},
-	}, buffer.UserProvided))
+	).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
 	initialSizeClassSelector := mock.NewMockSelector(ctrl)
-	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
-		CommandDigest: &remoteexecution.Digest{
-			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
-			SizeBytes: 456,
-		},
-	}), nil).Return(platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
+	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(action, platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
 	initialSizeClassLearner1 := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{3, 8}).
 		Return(0, 3*time.Minute, 7*time.Minute, initialSizeClassLearner1)
@@ -3237,22 +3190,18 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 
 	// Let a client enqueue a new operation, which we'll initially
 	// schedule on the largest size class.
+	action := &remoteexecution.Action{
+		CommandDigest: &remoteexecution.Digest{
+			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
+			SizeBytes: 456,
+		},
+	}
 	contentAddressableStorage.EXPECT().Get(
 		gomock.Any(),
 		digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-	).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
-		CommandDigest: &remoteexecution.Digest{
-			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
-			SizeBytes: 456,
-		},
-	}, buffer.UserProvided))
+	).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
 	initialSizeClassSelector := mock.NewMockSelector(ctrl)
-	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, &remoteexecution.Action{
-		CommandDigest: &remoteexecution.Digest{
-			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
-			SizeBytes: 456,
-		},
-	}), nil).Return(platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
+	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(action, platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
 	initialSizeClassLearner1 := mock.NewMockLearner(ctrl)
 	initialSizeClassSelector.EXPECT().Select([]uint32{3, 8}).
 		Return(1, 3*time.Minute, 7*time.Minute, initialSizeClassLearner1)
@@ -3608,6 +3557,7 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 	// There is no need to return QUEUED.
 	initialSizeClassSelector1 := mock.NewMockSelector(ctrl)
 	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(
+		action,
 		platform.MustNewKey("", platformForTesting),
 		[]invocation.Key{util.Must(invocation.NewKey(invocationID1))},
 		initialSizeClassSelector1,
@@ -3768,6 +3718,7 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 	// actions for the same invocation ID.
 	initialSizeClassSelector2 := mock.NewMockSelector(ctrl)
 	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(
+		action,
 		platform.MustNewKey("", platformForTesting),
 		[]invocation.Key{util.Must(invocation.NewKey(invocationID2))},
 		initialSizeClassSelector2,
@@ -3884,6 +3835,7 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 	// recently seen.
 	initialSizeClassSelector3 := mock.NewMockSelector(ctrl)
 	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(
+		action,
 		platform.MustNewKey("", platformForTesting),
 		[]invocation.Key{util.Must(invocation.NewKey(invocationID3))},
 		initialSizeClassSelector3,
@@ -3991,6 +3943,7 @@ func TestInMemoryBuildQueueWorkerInvocationStickinessLimit(t *testing.T) {
 		require.NoError(t, err)
 		initialSizeClassSelector := mock.NewMockSelector(ctrl)
 		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(
+			action,
 			platform.MustNewKey("", platformForTesting),
 			[]invocation.Key{util.Must(invocation.NewKey(requestMetadataAny))},
 			initialSizeClassSelector,
@@ -4230,7 +4183,7 @@ func TestInMemoryBuildQueueAuthorization(t *testing.T) {
 
 		initialSizeClassSelector := mock.NewMockSelector(ctrl)
 		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).
-			Return(platform.MustNewKey("beepboop", &remoteexecution.Platform{}), nil, initialSizeClassSelector, nil)
+			Return(action, platform.MustNewKey("beepboop", &remoteexecution.Platform{}), nil, initialSizeClassSelector, nil)
 
 		initialSizeClassLearner := mock.NewMockLearner(ctrl)
 		initialSizeClassSelector.EXPECT().Select([]uint32{0}).
@@ -4338,6 +4291,7 @@ func TestInMemoryBuildQueueNestedInvocationsSynchronization(t *testing.T) {
 		require.NoError(t, err)
 		initialSizeClassSelector := mock.NewMockSelector(ctrl)
 		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(
+			action,
 			platform.MustNewKey("", platformForTesting),
 			[]invocation.Key{
 				util.Must(invocation.NewKey(correlatedInvocationsIDAny)),
