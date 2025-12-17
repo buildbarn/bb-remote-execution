@@ -108,16 +108,48 @@ func (m *nfsv4Mount) mount(terminationGroup program.Group, rpcServer *rpcserver.
 	if !ok {
 		return status.Error(codes.InvalidArgument, "Darwin specific NFSv4 server configuration options not provided")
 	}
-
-	// Expose the NFSv4 server on a UNIX socket.
 	osConfiguration := darwinConfiguration.Darwin
-	if err := os.Remove(osConfiguration.SocketPath); err != nil && !os.IsNotExist(err) {
-		return util.StatusWrapf(err, "Could not remove stale socket for NFSv4 server %#v", osConfiguration.SocketPath)
+
+	// Expose the NFSv4 server.
+	var sock net.Listener
+	var socketType string
+	var serverAddress string
+	var tcpAddr *net.TCPAddr
+
+	switch transport := osConfiguration.Transport.(type) {
+	case *pb.NFSv4DarwinMountConfiguration_SocketPath:
+		if err := os.Remove(transport.SocketPath); err != nil && !os.IsNotExist(err) {
+			return util.StatusWrapf(err, "Could not remove stale socket for NFSv4 server %#v", transport.SocketPath)
+		}
+		var err error
+		sock, err = net.Listen("unix", transport.SocketPath)
+		if err != nil {
+			return util.StatusWrap(err, "Failed to create listening socket for NFSv4 server")
+		}
+		// "ticotsord" is the X/Open Transport Interface (XTI)
+		// equivalent of AF_LOCAL with SOCK_STREAM.
+		socketType = "ticotsord"
+		serverAddress = transport.SocketPath
+
+	case *pb.NFSv4DarwinMountConfiguration_TcpAddress:
+		var err error
+		sock, err = net.Listen("tcp", transport.TcpAddress)
+		if err != nil {
+			return util.StatusWrapf(err, "Failed to create TCP listener for NFSv4 server on %#v", transport.TcpAddress)
+		}
+		socketType = "tcp"
+		tcpAddr = sock.Addr().(*net.TCPAddr)
+		if tcpAddr.IP.IsUnspecified() {
+			// Binding to all interfaces; use loopback for the kernel to connect.
+			serverAddress = "127.0.0.1"
+		} else {
+			serverAddress = tcpAddr.IP.String()
+		}
+
+	default:
+		return status.Error(codes.InvalidArgument, "No transport configuration provided")
 	}
-	sock, err := net.Listen("unix", osConfiguration.SocketPath)
-	if err != nil {
-		return util.StatusWrap(err, "Failed to create listening socket for NFSv4 server")
-	}
+
 	// TODO: Run this as part of the program.Group, so that it gets
 	// cleaned up upon shutdown.
 	go func() {
@@ -181,24 +213,30 @@ func (m *nfsv4Mount) mount(terminationGroup program.Group, rpcServer *rpcserver.
 	attrMask[0] |= (1 << nfs_sys_prot.NFS_MATTR_ATTRCACHE_DIR_MIN) | (1 << nfs_sys_prot.NFS_MATTR_ATTRCACHE_DIR_MAX)
 	writeAttributeCachingDuration(&m.childDirectoriesAttributeCaching, &attrVals)
 
-	// "ticotsord" is the X/Open Transport Interface (XTI)
-	// equivalent of AF_LOCAL with SOCK_STREAM.
 	attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_SOCKET_TYPE
-	nfs_sys_prot.WriteNfsMattrSocketType(&attrVals, "ticotsord")
+	nfs_sys_prot.WriteNfsMattrSocketType(&attrVals, socketType)
+
+	// For TCP transport, set NFS_PORT before FS_LOCATIONS.
+	if tcpAddr != nil {
+		attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_NFS_PORT
+		nfs_sys_prot.WriteNfsMattrNfsPort(&attrVals, uint32(tcpAddr.Port))
+	}
 
 	attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_FS_LOCATIONS
 	fsLocations := nfs_sys_prot.NfsFsLocations{
 		NfslLocation: []nfs_sys_prot.NfsFsLocation{{
 			NfslServer: []nfs_sys_prot.NfsFsServer{{
 				NfssName:    m.fsName,
-				NfssAddress: []string{osConfiguration.SocketPath},
+				NfssAddress: []string{serverAddress},
 			}},
 		}},
 	}
 	fsLocations.WriteTo(&attrVals)
 
-	attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_LOCAL_NFS_PORT
-	nfs_sys_prot.WriteNfsMattrLocalNfsPort(&attrVals, osConfiguration.SocketPath)
+	if tcpAddr == nil {
+		attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_LOCAL_NFS_PORT
+		nfs_sys_prot.WriteNfsMattrLocalNfsPort(&attrVals, serverAddress)
+	}
 
 	if m.leavesAttributeCaching == NoAttributeCaching {
 		attrMask[1] |= 1 << (nfs_sys_prot.NFS_MATTR_READLINK_NOCACHE - 32)

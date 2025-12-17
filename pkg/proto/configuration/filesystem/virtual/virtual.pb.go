@@ -372,10 +372,14 @@ func (*NFSv4MountConfiguration_Darwin) isNFSv4MountConfiguration_OperatingSystem
 func (*NFSv4MountConfiguration_Linux) isNFSv4MountConfiguration_OperatingSystem() {}
 
 type NFSv4DarwinMountConfiguration struct {
-	state           protoimpl.MessageState  `protogen:"open.v1"`
-	SocketPath      string                  `protobuf:"bytes,1,opt,name=socket_path,json=socketPath,proto3" json:"socket_path,omitempty"`
-	AccessCacheSize uint32                  `protobuf:"varint,4,opt,name=access_cache_size,json=accessCacheSize,proto3" json:"access_cache_size,omitempty"`
-	MinorVersion    *wrapperspb.UInt32Value `protobuf:"bytes,5,opt,name=minor_version,json=minorVersion,proto3" json:"minor_version,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Transport:
+	//
+	//	*NFSv4DarwinMountConfiguration_SocketPath
+	//	*NFSv4DarwinMountConfiguration_TcpAddress
+	Transport       isNFSv4DarwinMountConfiguration_Transport `protobuf_oneof:"transport"`
+	AccessCacheSize uint32                                    `protobuf:"varint,4,opt,name=access_cache_size,json=accessCacheSize,proto3" json:"access_cache_size,omitempty"`
+	MinorVersion    *wrapperspb.UInt32Value                   `protobuf:"bytes,5,opt,name=minor_version,json=minorVersion,proto3" json:"minor_version,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -410,9 +414,27 @@ func (*NFSv4DarwinMountConfiguration) Descriptor() ([]byte, []int) {
 	return file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_filesystem_virtual_virtual_proto_rawDescGZIP(), []int{3}
 }
 
+func (x *NFSv4DarwinMountConfiguration) GetTransport() isNFSv4DarwinMountConfiguration_Transport {
+	if x != nil {
+		return x.Transport
+	}
+	return nil
+}
+
 func (x *NFSv4DarwinMountConfiguration) GetSocketPath() string {
 	if x != nil {
-		return x.SocketPath
+		if x, ok := x.Transport.(*NFSv4DarwinMountConfiguration_SocketPath); ok {
+			return x.SocketPath
+		}
+	}
+	return ""
+}
+
+func (x *NFSv4DarwinMountConfiguration) GetTcpAddress() string {
+	if x != nil {
+		if x, ok := x.Transport.(*NFSv4DarwinMountConfiguration_TcpAddress); ok {
+			return x.TcpAddress
+		}
 	}
 	return ""
 }
@@ -430,6 +452,22 @@ func (x *NFSv4DarwinMountConfiguration) GetMinorVersion() *wrapperspb.UInt32Valu
 	}
 	return nil
 }
+
+type isNFSv4DarwinMountConfiguration_Transport interface {
+	isNFSv4DarwinMountConfiguration_Transport()
+}
+
+type NFSv4DarwinMountConfiguration_SocketPath struct {
+	SocketPath string `protobuf:"bytes,1,opt,name=socket_path,json=socketPath,proto3,oneof"`
+}
+
+type NFSv4DarwinMountConfiguration_TcpAddress struct {
+	TcpAddress string `protobuf:"bytes,6,opt,name=tcp_address,json=tcpAddress,proto3,oneof"`
+}
+
+func (*NFSv4DarwinMountConfiguration_SocketPath) isNFSv4DarwinMountConfiguration_Transport() {}
+
+func (*NFSv4DarwinMountConfiguration_TcpAddress) isNFSv4DarwinMountConfiguration_Transport() {}
 
 type NFSv4LinuxMountConfiguration struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -571,12 +609,15 @@ const file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_file
 	"\x13enforced_lease_time\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\x11enforcedLeaseTime\x12K\n" +
 	"\x14announced_lease_time\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\x12announcedLeaseTime\x12\x87\x01\n" +
 	"\x15system_authentication\x18\x04 \x01(\v2R.buildbarn.configuration.filesystem.virtual.RPCv2SystemAuthenticationConfigurationR\x14systemAuthenticationB\x12\n" +
-	"\x10operating_system\"\xbb\x01\n" +
-	"\x1dNFSv4DarwinMountConfiguration\x12\x1f\n" +
-	"\vsocket_path\x18\x01 \x01(\tR\n" +
-	"socketPath\x12*\n" +
+	"\x10operating_system\"\xed\x01\n" +
+	"\x1dNFSv4DarwinMountConfiguration\x12!\n" +
+	"\vsocket_path\x18\x01 \x01(\tH\x00R\n" +
+	"socketPath\x12!\n" +
+	"\vtcp_address\x18\x06 \x01(\tH\x00R\n" +
+	"tcpAddress\x12*\n" +
 	"\x11access_cache_size\x18\x04 \x01(\rR\x0faccessCacheSize\x12A\n" +
-	"\rminor_version\x18\x05 \x01(\v2\x1c.google.protobuf.UInt32ValueR\fminorVersionJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04\"C\n" +
+	"\rminor_version\x18\x05 \x01(\v2\x1c.google.protobuf.UInt32ValueR\fminorVersionB\v\n" +
+	"\ttransportJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04\"C\n" +
 	"\x1cNFSv4LinuxMountConfiguration\x12#\n" +
 	"\rmount_options\x18\x01 \x03(\tR\fmountOptions\"\xba\x02\n" +
 	"&RPCv2SystemAuthenticationConfiguration\x12n\n" +
@@ -652,6 +693,10 @@ func file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_files
 	file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_filesystem_virtual_virtual_proto_msgTypes[2].OneofWrappers = []any{
 		(*NFSv4MountConfiguration_Darwin)(nil),
 		(*NFSv4MountConfiguration_Linux)(nil),
+	}
+	file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_filesystem_virtual_virtual_proto_msgTypes[3].OneofWrappers = []any{
+		(*NFSv4DarwinMountConfiguration_SocketPath)(nil),
+		(*NFSv4DarwinMountConfiguration_TcpAddress)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
