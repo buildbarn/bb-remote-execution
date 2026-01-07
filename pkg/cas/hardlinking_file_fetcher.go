@@ -2,6 +2,7 @@ package cas
 
 import (
 	"context"
+	"errors"
 	"os"
 	"sync"
 
@@ -97,6 +98,11 @@ func (ff *hardlinkingFileFetcher) GetFile(ctx context.Context, blobDigest digest
 		select {
 		case <-d.wait:
 			if d.err != nil {
+				// If the download failed due to context cancellation,
+				// and our context is still valid, retry with our context.
+				if ctx.Err() == nil && errors.Is(d.err, context.Canceled) {
+					return ff.GetFile(ctx, blobDigest, directory, name, isExecutable)
+				}
 				return d.err
 			}
 			// The download should have placed the file in the cache.
@@ -117,6 +123,26 @@ func (ff *hardlinkingFileFetcher) GetFile(ctx context.Context, blobDigest digest
 	d = &download{wait: make(chan struct{})}
 	ff.downloads[key] = d
 	ff.downloadsLock.Unlock()
+
+	// Check cache again in case another download completed between our initial
+	// tryLinkFromCache() call and acquiring the download lock.
+	wasMissing, err = ff.tryLinkFromCache(key, directory, name)
+	if err == nil {
+		// File appeared in cache, no download needed.
+		ff.downloadsLock.Lock()
+		delete(ff.downloads, key)
+		ff.downloadsLock.Unlock()
+		close(d.wait)
+		return nil
+	} else if !wasMissing {
+		// tryLinkFromCache had a real error (not just missing).
+		ff.downloadsLock.Lock()
+		d.err = err
+		delete(ff.downloads, key)
+		ff.downloadsLock.Unlock()
+		close(d.wait)
+		return err
+	}
 
 	downloadErr := ff.base.GetFile(ctx, blobDigest, directory, name, isExecutable)
 	if downloadErr == nil {
@@ -163,8 +189,9 @@ func (ff *hardlinkingFileFetcher) GetFile(ctx context.Context, blobDigest digest
 }
 
 // tryLinkFromCache attempts to create a hardlink from the cache to a
-// file in the build directory. The first return value is whether the
-// file was present in the cache's bookkeeping, but missing on disk.
+// file in the build directory. The first return value indicates whether
+// a download is needed: true if the file is not in the cache bookkeeping,
+// or if it was in bookkeeping but missing on disk.
 func (ff *hardlinkingFileFetcher) tryLinkFromCache(key string, directory filesystem.Directory, name path.Component) (bool, error) {
 	ff.filesLock.RLock()
 	_, ok := ff.filesSize[key]
