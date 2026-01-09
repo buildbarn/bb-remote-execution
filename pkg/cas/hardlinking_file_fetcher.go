@@ -2,7 +2,6 @@ package cas
 
 import (
 	"context"
-	"errors"
 	"os"
 	"sync"
 
@@ -29,12 +28,7 @@ type hardlinkingFileFetcher struct {
 	evictionSet  eviction.Set[string]
 
 	downloadsLock sync.Mutex
-	downloads     map[string]*download
-}
-
-type download struct {
-	wait chan struct{}
-	err  error
+	downloads     map[string]<-chan struct{}
 }
 
 // NewHardlinkingFileFetcher is an adapter for FileFetcher that stores
@@ -53,7 +47,7 @@ func NewHardlinkingFileFetcher(base FileFetcher, cacheDirectory filesystem.Direc
 
 		evictionSet: evictionSet,
 
-		downloads: map[string]*download{},
+		downloads: map[string]<-chan struct{}{},
 	}
 }
 
@@ -91,56 +85,44 @@ func (ff *hardlinkingFileFetcher) GetFile(ctx context.Context, blobDigest digest
 
 	// A download is required. Let's see if one is already in progress.
 	ff.downloadsLock.Lock()
-	d, ok := ff.downloads[key]
+	wait, ok := ff.downloads[key]
 	if ok {
 		// A download is already in progress. Wait for it to finish.
 		ff.downloadsLock.Unlock()
 		select {
-		case <-d.wait:
-			if d.err != nil {
-				// If the download failed due to context cancellation,
-				// and our context is still valid, retry with our context.
-				if ctx.Err() == nil && errors.Is(d.err, context.Canceled) {
-					return ff.GetFile(ctx, blobDigest, directory, name, isExecutable)
-				}
-				return d.err
-			}
-			// The download should have placed the file in the cache.
-			// Try linking from the cache one more time.
-			wasMissingAfterWait, errAfterWait := ff.tryLinkFromCache(key, directory, name)
-			if errAfterWait == nil {
+		case <-wait:
+			// Try linking from cache. If missing (download failed or
+			// other issue), retry GetFile which will attempt a new download.
+			wasMissing, err := ff.tryLinkFromCache(key, directory, name)
+			if err == nil {
 				return nil
-			} else if wasMissingAfterWait {
-				return util.StatusWrapfWithCode(errAfterWait, codes.Internal, "Failed to link from cache for %#v after download", key)
+			} else if wasMissing {
+				return ff.GetFile(ctx, blobDigest, directory, name, isExecutable)
 			}
-			return errAfterWait
+			return err
 		case <-ctx.Done():
 			return util.StatusFromContext(ctx)
 		}
 	}
 
 	// Start a new download.
-	d = &download{wait: make(chan struct{})}
-	ff.downloads[key] = d
+	newWait := make(chan struct{})
+	ff.downloads[key] = newWait
 	ff.downloadsLock.Unlock()
+
+	defer func() {
+		ff.downloadsLock.Lock()
+		delete(ff.downloads, key)
+		ff.downloadsLock.Unlock()
+		close(newWait)
+	}()
 
 	// Check cache again in case another download completed between our initial
 	// tryLinkFromCache() call and acquiring the download lock.
 	wasMissing, err = ff.tryLinkFromCache(key, directory, name)
 	if err == nil {
-		// File appeared in cache, no download needed.
-		ff.downloadsLock.Lock()
-		delete(ff.downloads, key)
-		ff.downloadsLock.Unlock()
-		close(d.wait)
 		return nil
 	} else if !wasMissing {
-		// tryLinkFromCache had a real error (not just missing).
-		ff.downloadsLock.Lock()
-		d.err = err
-		delete(ff.downloads, key)
-		ff.downloadsLock.Unlock()
-		close(d.wait)
 		return err
 	}
 
@@ -177,13 +159,6 @@ func (ff *hardlinkingFileFetcher) GetFile(ctx context.Context, blobDigest digest
 		}
 		ff.filesLock.Unlock()
 	}
-
-	// Unblock waiters.
-	ff.downloadsLock.Lock()
-	d.err = downloadErr
-	delete(ff.downloads, key)
-	ff.downloadsLock.Unlock()
-	close(d.wait)
 
 	return downloadErr
 }
