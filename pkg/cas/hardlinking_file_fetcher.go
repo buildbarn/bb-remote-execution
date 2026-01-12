@@ -75,37 +75,34 @@ func (ff *hardlinkingFileFetcher) GetFile(ctx context.Context, blobDigest digest
 		key += "-x"
 	}
 
-	// If the file is present in the cache, hardlink it to the destination.
-	wasMissing, err := ff.tryLinkFromCache(key, directory, name)
-	if err == nil {
-		return nil
-	} else if !wasMissing {
-		return err
-	}
-
-	// A download is required. Let's see if one is already in progress.
-	ff.downloadsLock.Lock()
-	wait, ok := ff.downloads[key]
-	if ok {
-		// A download is already in progress. Wait for it to finish.
-		ff.downloadsLock.Unlock()
-		select {
-		case <-wait:
-			// Try linking from cache. If missing (download failed or
-			// other issue), retry GetFile which will attempt a new download.
-			wasMissing, err := ff.tryLinkFromCache(key, directory, name)
-			if err == nil {
-				return nil
-			} else if wasMissing {
-				return ff.GetFile(ctx, blobDigest, directory, name, isExecutable)
-			}
+	for {
+		// If the file is present in the cache, hardlink it to the destination.
+		if err := ff.tryLinkFromCache(key, directory, name); err == nil {
+			return nil
+		} else if !os.IsNotExist(err) {
 			return err
-		case <-ctx.Done():
-			return util.StatusFromContext(ctx)
 		}
-	}
 
-	// Start a new download.
+		// A download is required. Let's see if one is already in progress.
+		ff.downloadsLock.Lock()
+		wait, ok := ff.downloads[key]
+		if ok {
+			// A download is already in progress. Wait for it to finish.
+			ff.downloadsLock.Unlock()
+			select {
+			case <-wait:
+				// Download finished. Loop back to try linking from
+				// cache. If missing (download failed or other issue),
+				// we'll attempt a new download.
+				continue
+			case <-ctx.Done():
+				return util.StatusFromContext(ctx)
+			}
+		}
+
+		// Start a new download.
+		break
+	}
 	newWait := make(chan struct{})
 	ff.downloads[key] = newWait
 	ff.downloadsLock.Unlock()
@@ -119,10 +116,9 @@ func (ff *hardlinkingFileFetcher) GetFile(ctx context.Context, blobDigest digest
 
 	// Check cache again in case another download completed between our initial
 	// tryLinkFromCache() call and acquiring the download lock.
-	wasMissing, err = ff.tryLinkFromCache(key, directory, name)
-	if err == nil {
+	if err := ff.tryLinkFromCache(key, directory, name); err == nil {
 		return nil
-	} else if !wasMissing {
+	} else if !os.IsNotExist(err) {
 		return err
 	}
 
@@ -149,7 +145,7 @@ func (ff *hardlinkingFileFetcher) GetFile(ctx context.Context, blobDigest digest
 				}
 			}
 			ff.evictionLock.Unlock()
-		} else if wasMissing {
+		} else {
 			// The file was already part of our bookkeeping,
 			// but was missing on disk. Repair this by adding
 			// a link to the newly downloaded file.
@@ -164,15 +160,15 @@ func (ff *hardlinkingFileFetcher) GetFile(ctx context.Context, blobDigest digest
 }
 
 // tryLinkFromCache attempts to create a hardlink from the cache to a
-// file in the build directory. The first return value indicates whether
-// a download is needed: true if the file is not in the cache bookkeeping,
-// or if it was in bookkeeping but missing on disk.
-func (ff *hardlinkingFileFetcher) tryLinkFromCache(key string, directory filesystem.Directory, name path.Component) (bool, error) {
+// file in the build directory. It returns os.ErrNotExist if the file
+// is not in the cache bookkeeping, or if it was in bookkeeping but
+// missing on disk.
+func (ff *hardlinkingFileFetcher) tryLinkFromCache(key string, directory filesystem.Directory, name path.Component) error {
 	ff.filesLock.RLock()
 	_, ok := ff.filesSize[key]
 	ff.filesLock.RUnlock()
 	if !ok {
-		return true, os.ErrNotExist
+		return os.ErrNotExist
 	}
 
 	ff.evictionLock.Lock()
@@ -181,13 +177,13 @@ func (ff *hardlinkingFileFetcher) tryLinkFromCache(key string, directory filesys
 
 	if err := ff.cacheDirectory.Link(path.MustNewComponent(key), directory, name); err == nil {
 		// Successfully hardlinked the file to its destination.
-		return false, nil
+		return nil
 	} else if !os.IsNotExist(err) {
-		return false, util.StatusWrapfWithCode(err, codes.Internal, "Failed to create hardlink to cached file %#v", key)
+		return util.StatusWrapfWithCode(err, codes.Internal, "Failed to create hardlink to cached file %#v", key)
 	}
 
 	// The file was part of the cache, even though it did not
 	// exist on disk. Some other process may have tampered with
 	// the cache directory's contents.
-	return true, os.ErrNotExist
+	return os.ErrNotExist
 }
