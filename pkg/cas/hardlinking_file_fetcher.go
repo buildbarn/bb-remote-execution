@@ -122,41 +122,38 @@ func (ff *hardlinkingFileFetcher) GetFile(ctx context.Context, blobDigest digest
 		return err
 	}
 
-	downloadErr := ff.base.GetFile(ctx, blobDigest, directory, name, isExecutable)
-	if downloadErr == nil {
-		// The file was downloaded successfully. Place it into the
-		// cache, so that successive calls may use it.
-		ff.filesLock.Lock()
-		if _, ok := ff.filesSize[key]; !ok {
-			ff.evictionLock.Lock()
-
-			// Remove old files from the cache if necessary.
-			sizeBytes := blobDigest.GetSizeBytes()
-			if err := ff.makeSpace(sizeBytes); err != nil {
-				downloadErr = err
-			} else {
-				// Hardlink the file into the cache.
-				if err := directory.Link(name, ff.cacheDirectory, path.MustNewComponent(key)); err != nil && !os.IsExist(err) {
-					downloadErr = util.StatusWrapfWithCode(err, codes.Internal, "Failed to add cached file %#v", key)
-				} else {
-					ff.evictionSet.Insert(key)
-					ff.filesSize[key] = sizeBytes
-					ff.filesTotalSize += sizeBytes
-				}
-			}
-			ff.evictionLock.Unlock()
-		} else {
-			// The file was already part of our bookkeeping,
-			// but was missing on disk. Repair this by adding
-			// a link to the newly downloaded file.
-			if err := directory.Link(name, ff.cacheDirectory, path.MustNewComponent(key)); err != nil && !os.IsExist(err) {
-				downloadErr = util.StatusWrapfWithCode(err, codes.Internal, "Failed to repair cached file %#v", key)
-			}
-		}
-		ff.filesLock.Unlock()
+	// Download the file at the intended location.
+	if err := ff.base.GetFile(ctx, blobDigest, directory, name, isExecutable); err != nil {
+		return err
 	}
 
-	return downloadErr
+	ff.filesLock.Lock()
+	defer ff.filesLock.Unlock()
+	if _, ok := ff.filesSize[key]; !ok {
+		ff.evictionLock.Lock()
+		defer ff.evictionLock.Unlock()
+
+		// Remove old files from the cache if necessary.
+		sizeBytes := blobDigest.GetSizeBytes()
+		if err := ff.makeSpace(sizeBytes); err != nil {
+			return err
+		}
+
+		// Hardlink the file into the cache.
+		if err := directory.Link(name, ff.cacheDirectory, path.MustNewComponent(key)); err != nil && !os.IsExist(err) {
+			return util.StatusWrapfWithCode(err, codes.Internal, "Failed to add cached file %#v", key)
+		}
+		ff.evictionSet.Insert(key)
+		ff.filesSize[key] = sizeBytes
+		ff.filesTotalSize += sizeBytes
+	} else {
+		// Even though the file is part of our bookkeeping, we
+		// observed it didn't exist. Repair this inconsistency.
+		if err := directory.Link(name, ff.cacheDirectory, path.MustNewComponent(key)); err != nil && !os.IsExist(err) {
+			return util.StatusWrapfWithCode(err, codes.Internal, "Failed to repair cached file %#v", key)
+		}
+	}
+	return nil
 }
 
 // tryLinkFromCache attempts to create a hardlink from the cache to a
