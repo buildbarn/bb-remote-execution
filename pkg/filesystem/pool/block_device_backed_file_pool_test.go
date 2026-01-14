@@ -10,7 +10,6 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/stretchr/testify/require"
-
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -23,9 +22,25 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 	blockDevice := mock.NewMockBlockDevice(ctrl)
 	sectorAllocator := mock.NewMockSectorAllocator(ctrl)
 	filePool := pool.NewBlockDeviceBackedFilePool(blockDevice, sectorAllocator, 16)
+	freedSectors := make([]uint32, 0, 16)
+	sectorAllocator.EXPECT().FreeList(gomock.Any()).DoAndReturn(func(sectors []uint32) {
+		toFree := make([]uint32, 0, len(sectors))
+		for _, s := range sectors {
+			if s != 0 {
+				freedSectors = append(freedSectors, s)
+			}
+		}
+		freedSectors = append(freedSectors, toFree...)
+	}).AnyTimes()
+	sectorAllocator.EXPECT().FreeContiguous(gomock.Any(), gomock.Any()).DoAndReturn(func(firstSector uint32, count int) {
+		for i := range uint32(count) {
+			freedSectors = append(freedSectors, firstSector+i)
+		}
+	}).AnyTimes()
 
 	t.Run("ReadEmptyFile", func(t *testing.T) {
 		// Test that reads on an empty file work as expected.
+		freedSectors = freedSectors[:0]
 		holeSource := mock.NewMockHoleSource(ctrl)
 		f, err := filePool.NewFile(holeSource, 0)
 		require.NoError(t, err)
@@ -52,12 +67,14 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 		require.Equal(t, io.EOF, err)
 
 		holeSource.EXPECT().Close()
+		require.Equal(t, []uint32{}, freedSectors)
 		require.NoError(t, f.Close())
 	})
 
 	t.Run("Truncate", func(t *testing.T) {
 		holeSource := mock.NewMockHoleSource(ctrl)
 		f, err := filePool.NewFile(holeSource, 0)
+		freedSectors = freedSectors[:0]
 		require.NoError(t, err)
 
 		// Invalid size.
@@ -113,9 +130,9 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 
 		// Continuing to shrink the file should eventually cause
 		// the final sector to be released.
-		sectorAllocator.EXPECT().FreeList([]uint32{5})
 		holeSource.EXPECT().Truncate(int64(80))
 		require.NoError(t, f.Truncate(80))
+		require.Equal(t, []uint32{5}, freedSectors)
 
 		holeSource.EXPECT().Close()
 		require.NoError(t, f.Close())
@@ -124,6 +141,7 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 	t.Run("WritesAndReadOnSingleSector", func(t *testing.T) {
 		holeSource := mock.NewMockHoleSource(ctrl)
 		f, err := filePool.NewFile(holeSource, 0)
+		freedSectors = freedSectors[:0]
 		require.NoError(t, err)
 
 		// The initial write to a sector should cause the full
@@ -165,14 +183,15 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 		require.Equal(t, io.EOF, err)
 		require.Equal(t, []byte("\x00\x00Hello\x00world"), buf[:n])
 
-		sectorAllocator.EXPECT().FreeList([]uint32{12})
 		holeSource.EXPECT().Close()
 		require.NoError(t, f.Close())
+		require.Equal(t, []uint32{12}, freedSectors)
 	})
 
 	t.Run("WriteFragmentation", func(t *testing.T) {
 		holeSource := mock.NewMockHoleSource(ctrl)
 		f, err := filePool.NewFile(holeSource, 0)
+		freedSectors = freedSectors[:0]
 		require.NoError(t, err)
 
 		// Simulate the case where 137 bytes of data needs to be
@@ -210,12 +229,13 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 		require.Equal(t, 137, n)
 		require.NoError(t, err)
 
-		sectorAllocator.EXPECT().FreeList([]uint32{0, 0, 75, 76, 77, 21, 22, 23, 24, 105, 106, 40})
 		holeSource.EXPECT().Close()
 		require.NoError(t, f.Close())
+		require.Equal(t, []uint32{75, 76, 77, 21, 22, 23, 24, 105, 106, 40}, freedSectors)
 	})
 
 	t.Run("WriteSectorAllocatorFailure", func(t *testing.T) {
+		freedSectors = freedSectors[:0]
 		holeSource := mock.NewMockHoleSource(ctrl)
 		f, err := filePool.NewFile(holeSource, 0)
 		require.NoError(t, err)
@@ -237,14 +257,15 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 		require.Equal(t, 6, n)
 		require.Equal(t, status.Error(codes.ResourceExhausted, "Out of storage space"), err)
 
-		sectorAllocator.EXPECT().FreeList([]uint32{0, 0, 75})
 		holeSource.EXPECT().Close()
 		require.NoError(t, f.Close())
+		require.Equal(t, []uint32{75}, freedSectors)
 	})
 
 	t.Run("WriteIOFailure", func(t *testing.T) {
 		holeSource := mock.NewMockHoleSource(ctrl)
 		f, err := filePool.NewFile(holeSource, 0)
+		freedSectors = freedSectors[:0]
 		require.NoError(t, err)
 
 		// Write failures to freshly allocator sectors should
@@ -260,21 +281,21 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 
 		sectorAllocator.EXPECT().AllocateContiguous(4).Return(uint32(39), 1, nil)
 		blockDevice.EXPECT().WriteAt([]byte("ipsum dolor sit "), int64(608)).Return(0, status.Error(codes.Internal, "Disk failure"))
-		sectorAllocator.EXPECT().FreeContiguous(uint32(39), 1)
 
 		n, err := f.WriteAt([]byte("Lorem ipsum dolor sit amet, consectetur adipiscing elit."), 42)
 		require.Equal(t, 6, n)
 		require.Equal(t, status.Error(codes.Internal, "Disk failure"), err)
 
-		sectorAllocator.EXPECT().FreeList([]uint32{0, 0, 75})
 		holeSource.EXPECT().Close()
 		require.NoError(t, f.Close())
+		require.Equal(t, []uint32{39, 75}, freedSectors)
 	})
 
 	t.Run("GetNextRegionOffset", func(t *testing.T) {
 		// Test the behavior on empty files.
 		holeSource := mock.NewMockHoleSource(ctrl)
 		f, err := filePool.NewFile(holeSource, 0)
+		freedSectors = freedSectors[:0]
 		require.NoError(t, err)
 
 		_, err = f.GetNextRegionOffset(-1, filesystem.Data)
@@ -335,6 +356,7 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 		nextOffset, err = f.GetNextRegionOffset(128, filesystem.Data)
 		require.NoError(t, err)
 		require.Equal(t, int64(128), nextOffset)
+		holeSource.EXPECT().GetNextRegionOffset(int64(128), filesystem.Hole).Return(int64(0), io.EOF)
 		nextOffset, err = f.GetNextRegionOffset(128, filesystem.Hole)
 		require.NoError(t, err)
 		require.Equal(t, int64(128+5), nextOffset)
@@ -342,6 +364,7 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 		nextOffset, err = f.GetNextRegionOffset(128+4, filesystem.Data)
 		require.NoError(t, err)
 		require.Equal(t, int64(128+4), nextOffset)
+		holeSource.EXPECT().GetNextRegionOffset(int64(128+4), filesystem.Hole).Return(int64(0), io.EOF)
 		nextOffset, err = f.GetNextRegionOffset(128+4, filesystem.Hole)
 		require.NoError(t, err)
 		require.Equal(t, int64(128+5), nextOffset)
@@ -357,7 +380,7 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 		nextOffset, err = f.GetNextRegionOffset(128, filesystem.Data)
 		require.NoError(t, err)
 		require.Equal(t, int64(128), nextOffset)
-		holeSource.EXPECT().GetNextRegionOffset(int64(128+16), filesystem.Hole).Return(int64(0), io.EOF)
+		holeSource.EXPECT().GetNextRegionOffset(int64(128), filesystem.Hole).Return(int64(0), io.EOF)
 		nextOffset, err = f.GetNextRegionOffset(128, filesystem.Hole)
 		require.NoError(t, err)
 		require.Equal(t, int64(128+16), nextOffset)
@@ -383,9 +406,9 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 		_, err = f.GetNextRegionOffset(384, filesystem.Hole)
 		require.Equal(t, io.EOF, err)
 
-		sectorAllocator.EXPECT().FreeList([]uint32{0, 0, 0, 0, 0, 0, 0, 0, 5})
 		holeSource.EXPECT().Close()
 		require.NoError(t, f.Close())
+		require.Equal(t, []uint32{5}, freedSectors)
 	})
 
 	t.Run("WriteAt", func(t *testing.T) {
@@ -395,5 +418,43 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 
 		_, err = f.WriteAt([]byte{0}, -1)
 		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Negative write offset: -1"), err)
+	})
+
+	t.Run("VeryLargeFile", func(t *testing.T) {
+		holeSource := mock.NewMockHoleSource(ctrl)
+		f, err := filePool.NewFile(holeSource, math.MaxInt64)
+		require.NoError(t, err)
+		freedSectors = freedSectors[:0]
+		// WriteAt
+		sectorAllocator.EXPECT().AllocateContiguous(2).Return(uint32(7), 2, nil)
+		holeSource.EXPECT().ReadAt(make([]byte, 15), int64(math.MaxInt64-31)).Return(15, nil)
+		holeSource.EXPECT().ReadAt(make([]byte, 12), int64(math.MaxInt64-11)).Return(12, nil)
+		blockDevice.EXPECT().WriteAt([]byte("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00H"), int64(16*(7-1))).Return(16, nil)
+		blockDevice.EXPECT().WriteAt([]byte("ello\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"), int64(16*(8-1))).Return(16, nil)
+		n, err := f.WriteAt([]byte("Hello"), math.MaxInt64-16)
+		require.Equal(t, 0, n)
+		require.Error(t, err)
+		require.Equal(t, []uint32{7, 8}, freedSectors)
+		// GetNextRegionOffset for hole
+		holeSource.EXPECT().GetNextRegionOffset(int64(math.MaxInt64-1), filesystem.Hole).Return(int64(0), io.EOF)
+		offset, err := f.GetNextRegionOffset(math.MaxInt64-1, filesystem.Hole)
+		require.NoError(t, err)
+		require.Equal(t, int64(math.MaxInt64-1), offset)
+		// GetNextRegionOffset for data
+		holeSource.EXPECT().GetNextRegionOffset(int64(math.MaxInt64-1), filesystem.Data).Return(int64(0), io.EOF)
+		offset, err = f.GetNextRegionOffset(math.MaxInt64-1, filesystem.Data)
+		require.Equal(t, io.EOF, err)
+		require.Equal(t, int64(0), offset)
+		// ReadAt
+		buffer := make([]byte, 10)
+		holeSource.EXPECT().ReadAt(make([]byte, 10), int64(math.MaxInt64-11)).Return(10, nil)
+		n, err = f.ReadAt(buffer, math.MaxInt64-11)
+		require.Equal(t, 10, n)
+		require.NoError(t, err)
+		require.Equal(t, make([]byte, 10), buffer)
+		// Truncate
+		holeSource.EXPECT().Truncate(int64(math.MaxInt64 - 10)).Return(nil)
+		err = f.Truncate(math.MaxInt64 - 10)
+		require.NoError(t, err)
 	})
 }

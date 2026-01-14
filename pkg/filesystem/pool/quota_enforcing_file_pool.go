@@ -1,42 +1,16 @@
 package pool
 
 import (
-	"sync/atomic"
-
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-// quotaMetric is a simple 64-bit counter from/to which can be
-// subtracted/added atomically. It is used to store the number of files
-// and bytes of space available.
-type quotaMetric struct {
-	remaining atomic.Uint64
-}
-
-func (m *quotaMetric) allocate(v uint64) bool {
-	for {
-		remaining := m.remaining.Load()
-		if remaining < v {
-			return false
-		}
-		if m.remaining.CompareAndSwap(remaining, remaining-v) {
-			return true
-		}
-	}
-}
-
-func (m *quotaMetric) release(v uint64) {
-	m.remaining.Add(v)
-}
-
 type quotaEnforcingFilePool struct {
 	base FilePool
 
 	filesRemaining quotaMetric
-	bytesRemaining quotaMetric
 }
 
 // NewQuotaEnforcingFilePool creates a FilePool that enforces disk
@@ -44,22 +18,18 @@ type quotaEnforcingFilePool struct {
 // FilePool, while also limiting the total size of all files that are
 // extracted. Space is reclaimed by either truncating files or closing
 // them.
-func NewQuotaEnforcingFilePool(base FilePool, maximumFileCount, maximumTotalSize uint64) FilePool {
+func NewQuotaEnforcingFilePool(base FilePool, maximumFileCount int64) FilePool {
 	fp := &quotaEnforcingFilePool{
-		base: base,
+		base:           base,
+		filesRemaining: quotaMetric{},
 	}
-	fp.filesRemaining.remaining.Store(maximumFileCount)
-	fp.bytesRemaining.remaining.Store(maximumTotalSize)
+	fp.filesRemaining.init(maximumFileCount)
 	return fp
 }
 
 func (fp *quotaEnforcingFilePool) NewFile(holeSource HoleSource, size uint64) (filesystem.FileReadWriter, error) {
 	if !fp.filesRemaining.allocate(1) {
 		return nil, status.Error(codes.InvalidArgument, "File count quota reached")
-	}
-	if size > 0 && !fp.bytesRemaining.allocate(size) {
-		fp.filesRemaining.release(1)
-		return nil, status.Error(codes.InvalidArgument, "File size quota reached")
 	}
 	f, err := fp.base.NewFile(holeSource, size)
 	if err != nil {
@@ -69,7 +39,6 @@ func (fp *quotaEnforcingFilePool) NewFile(holeSource HoleSource, size uint64) (f
 	return &quotaEnforcingFile{
 		FileReadWriter: f,
 		pool:           fp,
-		size:           size,
 	}, nil
 }
 
@@ -77,72 +46,13 @@ type quotaEnforcingFile struct {
 	filesystem.FileReadWriter
 
 	pool *quotaEnforcingFilePool
-	size uint64
 }
 
 func (f *quotaEnforcingFile) Close() error {
 	// Close underlying file.
 	err := f.FileReadWriter.Close()
 	f.FileReadWriter = nil
-
 	// Release associated resources.
 	f.pool.filesRemaining.release(1)
-	f.pool.bytesRemaining.release(f.size)
-	f.pool = nil
 	return err
-}
-
-func (f *quotaEnforcingFile) Truncate(size int64) error {
-	if size < 0 {
-		return status.Errorf(codes.InvalidArgument, "Negative truncation size: %d", size)
-	}
-	if uint64(size) < f.size {
-		// File is shrinking.
-		if err := f.FileReadWriter.Truncate(size); err != nil {
-			return err
-		}
-		f.pool.bytesRemaining.release(f.size - uint64(size))
-	} else if uint64(size) > f.size {
-		// File is growing.
-		additionalSpace := uint64(size) - f.size
-		if !f.pool.bytesRemaining.allocate(additionalSpace) {
-			return status.Error(codes.InvalidArgument, "File size quota reached")
-		}
-		if err := f.FileReadWriter.Truncate(size); err != nil {
-			f.pool.bytesRemaining.release(additionalSpace)
-			return err
-		}
-	}
-	f.size = uint64(size)
-	return nil
-}
-
-func (f *quotaEnforcingFile) WriteAt(p []byte, off int64) (int, error) {
-	// No need to allocate space if the file is not growing.
-	if off < 0 {
-		return 0, status.Errorf(codes.InvalidArgument, "Negative offset: %d", off)
-	}
-	desiredSize := uint64(off) + uint64(len(p))
-	if desiredSize <= f.size {
-		return f.FileReadWriter.WriteAt(p, off)
-	}
-
-	// File is growing. Allocate space prior to writing. Release it,
-	// potentially partially, upon failure.
-	if !f.pool.bytesRemaining.allocate(desiredSize - f.size) {
-		return 0, status.Error(codes.InvalidArgument, "File size quota reached")
-	}
-	n, err := f.FileReadWriter.WriteAt(p, off)
-	actualSize := uint64(0)
-	if n > 0 {
-		actualSize = uint64(off) + uint64(n)
-	}
-	if actualSize < f.size {
-		actualSize = f.size
-	}
-	if actualSize < desiredSize {
-		f.pool.bytesRemaining.release(desiredSize - actualSize)
-	}
-	f.size = actualSize
-	return n, err
 }
