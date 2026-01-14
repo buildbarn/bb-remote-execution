@@ -76,6 +76,8 @@ func TestHardlinkingFileFetcher(t *testing.T) {
 	// should fall back to downloading and reinserting the file.
 	cacheDirectory.EXPECT().Link(path.MustNewComponent("3-8b1a9953c4611296a827abf8c47804d7-5-x"), buildDirectory, path.MustNewComponent("hello.txt")).
 		Return(syscall.ENOENT)
+	cacheDirectory.EXPECT().Link(path.MustNewComponent("3-8b1a9953c4611296a827abf8c47804d7-5-x"), buildDirectory, path.MustNewComponent("hello.txt")).
+		Return(syscall.ENOENT)
 	baseFileFetcher.EXPECT().GetFile(ctx, blobDigest1, buildDirectory, path.MustNewComponent("hello.txt"), false)
 	buildDirectory.EXPECT().Link(path.MustNewComponent("hello.txt"), cacheDirectory, path.MustNewComponent("3-8b1a9953c4611296a827abf8c47804d7-5-x"))
 	require.NoError(
@@ -86,6 +88,8 @@ func TestHardlinkingFileFetcher(t *testing.T) {
 	// EEXIST errors should be ignored in that case.
 	cacheDirectory.EXPECT().Link(path.MustNewComponent("3-8b1a9953c4611296a827abf8c47804d7-5-x"), buildDirectory, path.MustNewComponent("hello.txt")).
 		Return(syscall.ENOENT)
+	cacheDirectory.EXPECT().Link(path.MustNewComponent("3-8b1a9953c4611296a827abf8c47804d7-5-x"), buildDirectory, path.MustNewComponent("hello.txt")).
+		Return(syscall.ENOENT)
 	baseFileFetcher.EXPECT().GetFile(ctx, blobDigest1, buildDirectory, path.MustNewComponent("hello.txt"), false)
 	buildDirectory.EXPECT().Link(path.MustNewComponent("hello.txt"), cacheDirectory, path.MustNewComponent("3-8b1a9953c4611296a827abf8c47804d7-5-x")).
 		Return(os.ErrExist)
@@ -94,6 +98,8 @@ func TestHardlinkingFileFetcher(t *testing.T) {
 		fileFetcher.GetFile(ctx, blobDigest1, buildDirectory, path.MustNewComponent("hello.txt"), false))
 
 	// Errors other than EEXIST should be propagated as usual.
+	cacheDirectory.EXPECT().Link(path.MustNewComponent("3-8b1a9953c4611296a827abf8c47804d7-5-x"), buildDirectory, path.MustNewComponent("hello.txt")).
+		Return(syscall.ENOENT)
 	cacheDirectory.EXPECT().Link(path.MustNewComponent("3-8b1a9953c4611296a827abf8c47804d7-5-x"), buildDirectory, path.MustNewComponent("hello.txt")).
 		Return(syscall.ENOENT)
 	baseFileFetcher.EXPECT().GetFile(ctx, blobDigest1, buildDirectory, path.MustNewComponent("hello.txt"), false)
