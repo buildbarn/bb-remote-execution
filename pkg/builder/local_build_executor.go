@@ -2,6 +2,7 @@ package builder
 
 import (
 	"context"
+	"log"
 	"os"
 	"sync"
 	"time"
@@ -116,7 +117,11 @@ func (be *localBuildExecutor) CheckReadiness(ctx context.Context) error {
 	if err != nil {
 		return util.StatusWrap(err, "Failed to get build directory")
 	}
-	defer buildDirectory.Close()
+	defer func() {
+		if err := buildDirectory.Close(); err != nil {
+			log.Printf("Failed to close build directory %s: %s", buildDirectoryPath.GetUNIXString(), err)
+		}
+	}()
 
 	// Create a useless directory inside the build directory. The
 	// runner will validate that it exists.
@@ -168,6 +173,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool pool.FilePoo
 			attachErrorToExecuteResponse(
 				response,
 				util.StatusWrap(err, "Failed to close build directory"))
+			log.Printf("Failed to close build directory %s: %s", buildDirectoryPath.GetUNIXString(), err)
 		}
 	}()
 
