@@ -4,6 +4,7 @@
 package configuration
 
 import (
+	"context"
 	"time"
 
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual"
@@ -99,9 +100,16 @@ func (m *fuseMount) Expose(terminationGroup program.Group, rootDirectory virtual
 	if err != nil {
 		return util.StatusWrap(err, "Failed to create FUSE server")
 	}
-	// TODO: Run this as part of the program.Group, so that it gets
-	// cleaned up upon shutdown.
+
 	go server.Serve()
+
+	terminationGroup.Go(func(ctx context.Context, siblingsGroup, dependenciesGroup program.Group) error {
+		<-ctx.Done()
+		if err := server.Unmount(); err != nil {
+			return util.StatusWrapf(err, "Failed to unmount %#v", m.mountPath)
+		}
+		return nil
+	})
 
 	// Adjust configuration options that can only be set after the
 	// FUSE server has been launched.
