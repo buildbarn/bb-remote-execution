@@ -3,7 +3,6 @@ package builder
 import (
 	"context"
 	"io"
-	"math"
 
 	"github.com/buildbarn/bb-remote-execution/pkg/cas"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
@@ -172,11 +171,14 @@ func (d *naiveBuildDirectory) UploadFile(ctx context.Context, name path.Componen
 	if err != nil {
 		return digest.BadDigest, err
 	}
+	sizeBytes, err := file.Len()
+	if err != nil {
+		return digest.BadDigest, err
+	}
 
 	// Walk through the file to compute the digest.
-	digestGenerator := digestFunction.NewGenerator(math.MaxInt64)
-	sizeBytes, err := io.Copy(digestGenerator, io.NewSectionReader(file, 0, math.MaxInt64))
-	if err != nil {
+	digestGenerator := digestFunction.NewGenerator(sizeBytes)
+	if _, err := io.Copy(digestGenerator, io.NewSectionReader(file, 0, sizeBytes)); err != nil {
 		file.Close()
 		return digest.BadDigest, util.StatusWrap(err, "Failed to compute file digest")
 	}

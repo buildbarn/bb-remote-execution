@@ -194,6 +194,10 @@ func (f *blockDeviceBackedFile) GetNextRegionOffset(off int64, regionType filesy
 	}
 }
 
+func (f *blockDeviceBackedFile) Len() (int64, error) {
+	return int64(f.sizeBytes), nil
+}
+
 func (f *blockDeviceBackedFile) readFromHoleSource(p []byte, sectorIndex, offsetWithinSector int) (int, error) {
 	n, err := f.holeSource.ReadAt(p, int64(sectorIndex)*int64(f.fp.sectorSizeBytes)+int64(offsetWithinSector))
 	if err != nil {

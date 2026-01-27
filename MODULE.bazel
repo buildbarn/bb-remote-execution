@@ -19,13 +19,13 @@ bazel_dep(name = "toolchains_llvm", version = "1.5.0")
 
 git_override(
     module_name = "bazel_remote_apis",
-    commit = "3860ca2d3e559d487b7d4ad07aa2a4a08d7624da",
+    commit = "b02e15a6d354e2fb553216132ccec79f3f5b39cb",
     remote = "https://github.com/bazelbuild/remote-apis.git",
 )
 
 git_override(
     module_name = "com_github_buildbarn_bb_storage",
-    commit = "faf8fe60ecd0453a128383dee1a270ac6c161c3c",
+    commit = "797be97c5d2c216dafb4c4345e24003952c71561",
     remote = "https://github.com/buildbarn/bb-storage.git",
 )
 
@@ -64,7 +64,6 @@ go_deps.from_file(go_mod = "//:go.mod")
 use_repo(
     go_deps,
     "cc_mvdan_gofumpt",
-    "com_github_aegistudio_go_winfsp",
     "com_github_bazelbuild_buildtools",
     "com_github_golang_protobuf",
     "com_github_google_uuid",
@@ -74,6 +73,7 @@ use_repo(
     "com_github_prometheus_client_golang",
     "com_github_spf13_pflag",
     "com_github_stretchr_testify",
+    "com_github_winfsp_go_winfsp",
     "com_google_cloud_go_longrunning",
     "io_opentelemetry_go_otel",
     "io_opentelemetry_go_otel_trace",

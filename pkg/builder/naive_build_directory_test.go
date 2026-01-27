@@ -474,6 +474,7 @@ func TestNaiveBuildDirectoryUploadFile(t *testing.T) {
 		file := mock.NewMockFileReader(ctrl)
 		buildDirectory.EXPECT().OpenRead(path.MustNewComponent("hello")).Return(file, nil)
 		gomock.InOrder(
+			file.EXPECT().Len().Return(int64(10), nil),
 			file.EXPECT().ReadAt(gomock.Any(), int64(0)).DoAndReturn(
 				func(p []byte, off int64) (int, error) {
 					return 0, status.Error(codes.Unavailable, "Disk on fire")
@@ -490,9 +491,10 @@ func TestNaiveBuildDirectoryUploadFile(t *testing.T) {
 		file := mock.NewMockFileReader(ctrl)
 		buildDirectory.EXPECT().OpenRead(path.MustNewComponent("hello")).Return(file, nil)
 		gomock.InOrder(
+			file.EXPECT().Len().Return(int64(11), nil),
 			file.EXPECT().ReadAt(gomock.Any(), int64(0)).DoAndReturn(
 				func(p []byte, off int64) (int, error) {
-					require.Greater(t, len(p), 11)
+					require.Len(t, p, 11)
 					copy(p, "Hello world")
 					return 11, io.EOF
 				}),
@@ -523,9 +525,10 @@ func TestNaiveBuildDirectoryUploadFile(t *testing.T) {
 		file := mock.NewMockFileReader(ctrl)
 		buildDirectory.EXPECT().OpenRead(path.MustNewComponent("hello")).Return(file, nil)
 		gomock.InOrder(
+			file.EXPECT().Len().Return(int64(11), nil),
 			file.EXPECT().ReadAt(gomock.Any(), int64(0)).DoAndReturn(
 				func(p []byte, off int64) (int, error) {
-					require.Greater(t, len(p), 11)
+					require.Len(t, p, 11)
 					copy(p, "Hello world")
 					return 11, io.EOF
 				}),

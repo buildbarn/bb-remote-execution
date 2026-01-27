@@ -10,8 +10,6 @@ import (
 	"time"
 	"unsafe"
 
-	ffi "github.com/aegistudio/go-winfsp"
-	"github.com/aegistudio/go-winfsp/filetime"
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual/winfsp"
@@ -19,6 +17,8 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/windowsext"
 	"github.com/stretchr/testify/require"
+	ffi "github.com/winfsp/go-winfsp"
+	"github.com/winfsp/go-winfsp/filetime"
 
 	"golang.org/x/sys/windows"
 
