@@ -14,7 +14,6 @@ import (
 	"strings"
 	"testing"
 
-	ffi "github.com/aegistudio/go-winfsp"
 	"github.com/bazelbuild/rules_go/go/runfiles"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual"
@@ -25,6 +24,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/program"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/stretchr/testify/require"
+	ffi "github.com/winfsp/go-winfsp"
 
 	"golang.org/x/sys/windows"
 )

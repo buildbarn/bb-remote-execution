@@ -21,7 +21,10 @@ import (
 //   - Truncate() can be used to remove data at the end of the HoleSource.
 //     Subsequent attempts to read data must return null bytes.
 type HoleSource interface {
-	filesystem.FileReader
+	io.Closer
+	io.ReaderAt
+
+	GetNextRegionOffset(offset int64, regionType filesystem.RegionType) (int64, error)
 	Truncate(int64) error
 }
 

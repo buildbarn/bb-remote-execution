@@ -3,7 +3,6 @@ package virtual
 import (
 	"context"
 	"io"
-	"math"
 	"sync"
 	"syscall"
 	"time"
@@ -228,8 +227,9 @@ func (f *fileBackedFile) updateCachedDigest(digestFunction digest.Function, froz
 	}
 
 	// If not, compute a new digest.
-	digestGenerator := digestFunction.NewGenerator(math.MaxInt64)
-	if _, err := io.Copy(digestGenerator, io.NewSectionReader(frozenFile, 0, math.MaxInt64)); err != nil {
+	sizeBytes := int64(f.size)
+	digestGenerator := digestFunction.NewGenerator(sizeBytes)
+	if _, err := io.Copy(digestGenerator, io.NewSectionReader(frozenFile, 0, sizeBytes)); err != nil {
 		return digest.BadDigest, util.StatusWrapWithCode(err, codes.Internal, "Failed to compute file digest")
 	}
 	newDigest := digestGenerator.Sum()
@@ -558,6 +558,14 @@ func (ff *frozenFileBackedFile) GetNextRegionOffset(offset int64, regionType fil
 	defer f.lock.Unlock()
 
 	return f.file.GetNextRegionOffset(offset, regionType)
+}
+
+func (ff *frozenFileBackedFile) Len() (int64, error) {
+	f := ff.file
+	f.lock.Lock()
+	defer f.lock.Unlock()
+
+	return int64(f.size), nil
 }
 
 func (ff *frozenFileBackedFile) ReadAt(b []byte, off int64) (int, error) {
