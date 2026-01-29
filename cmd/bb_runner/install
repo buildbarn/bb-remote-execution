@@ -8,7 +8,5 @@ echo "$*"
 # it will use /bb.
 dest="${1:-/bb}"
 
-cp /bb_runner /tini "${dest}"
-
 # Create a file that indicates that installation has finished.
 touch "${dest}/installed"

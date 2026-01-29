@@ -133,24 +133,6 @@ http_archive(
     urls = ["https://github.com/twbs/bootstrap/releases/download/v5.1.0/bootstrap-5.1.0-dist.zip"],
 )
 
-http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
-
-http_file(
-    name = "com_github_krallin_tini_tini_static_amd64",
-    downloaded_file_path = "tini",
-    executable = True,
-    sha256 = "c5b0666b4cb676901f90dfcb37106783c5fe2077b04590973b885950611b30ee",
-    urls = ["https://github.com/krallin/tini/releases/download/v0.19.0/tini-static-amd64"],
-)
-
-http_file(
-    name = "com_github_krallin_tini_tini_static_arm64",
-    downloaded_file_path = "tini",
-    executable = True,
-    sha256 = "eae1d3aa50c48fb23b8cbdf4e369d0910dfc538566bfd09df89a774aa84a48b9",
-    urls = ["https://github.com/krallin/tini/releases/download/v0.19.0/tini-static-arm64"],
-)
-
 llvm = use_extension("@toolchains_llvm//toolchain/extensions:llvm.bzl", "llvm", dev_dependency = True)
 llvm.toolchain(
     llvm_version = "17.0.6",

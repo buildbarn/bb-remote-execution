@@ -54,20 +54,6 @@ pkg_tar(
 )
 
 pkg_tar(
-    name = "tini_layer",
-    srcs = select({
-        "@rules_go//go/platform:amd64": [
-            "@com_github_krallin_tini_tini_static_amd64//file",
-        ],
-        "@rules_go//go/platform:arm64": [
-            "@com_github_krallin_tini_tini_static_arm64//file",
-        ],
-    }),
-    tags = ["manual"],
-    visibility = ["//visibility:public"],
-)
-
-pkg_tar(
     name = "install_layer",
     srcs = ["install"],
     visibility = ["//visibility:public"],
@@ -82,7 +68,6 @@ oci_image(
     tars = [
         ":install_layer",
         ":bb_runner_layer",
-        ":tini_layer",
     ],
 )
 
