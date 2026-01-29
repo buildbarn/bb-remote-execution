@@ -1,0 +1,35 @@
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@com_github_buildbarn_bb_storage//tools:container.bzl", "container_push_official", "multiarch_go_image")
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "bb_runner_installer_lib",
+    srcs = ["main.go"],
+    embedsrcs = ["bb_runner"],
+    importpath = "github.com/buildbarn/bb-remote-execution/cmd/bb_runner_installer",
+    visibility = ["//visibility:private"],
+)
+
+go_binary(
+    name = "bb_runner_installer",
+    embed = [":bb_runner_installer_lib"],
+    pure = "on",
+    visibility = ["//visibility:public"],
+)
+
+multiarch_go_image(
+    name = "bb_runner_installer_container",
+    binary = ":bb_runner_installer",
+)
+
+container_push_official(
+    name = "bb_runner_installer_container_push",
+    component = "bb-runner-installer",
+    image = ":bb_runner_installer_container",
+)
+
+copy_file(
+    name = "bb_runner_copy",
+    src = "//cmd/bb_runner",
+    out = "bb_runner",
+)

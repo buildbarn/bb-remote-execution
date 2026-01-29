@@ -980,8 +980,8 @@
             },
             {
                "if": "matrix.host.upload",
-               "name": "Push container bb_runner:bb_runner_installer",
-               "run": "bazel run --stamp //cmd/bb_runner:bb_runner_installer_container_push"
+               "name": "Push container bb_runner_installer:bb_runner_installer",
+               "run": "bazel run --stamp //cmd/bb_runner_installer:bb_runner_installer_container_push"
             },
             {
                "if": "matrix.host.upload",
