@@ -1,21 +1,19 @@
 module(name = "com_github_buildbarn_bb_remote_execution")
 
-bazel_dep(name = "aspect_bazel_lib", version = "2.21.2")
-bazel_dep(name = "aspect_rules_js", version = "2.8.1")
+bazel_dep(name = "aspect_bazel_lib", version = "2.22.5")
+bazel_dep(name = "aspect_rules_js", version = "2.9.2")
 bazel_dep(name = "bazel_remote_apis", version = "0.0.0")
+bazel_dep(name = "bazel_skylib", version = "1.9.0")
 bazel_dep(name = "com_github_buildbarn_bb_storage")
 bazel_dep(name = "com_github_buildbarn_go_xdr")
 bazel_dep(name = "gazelle", version = "0.47.0")
-bazel_dep(name = "googleapis", version = "0.0.0-20251104-53af3b72")
+bazel_dep(name = "googleapis", version = "0.0.0-20260109-6145b5ff")
 bazel_dep(name = "platforms", version = "1.0.0")
-bazel_dep(name = "toolchains_protoc", version = "0.6.0")  # must come BEFORE protobuf so the toolchain registration wins
-bazel_dep(name = "protobuf", version = "33.0")
+bazel_dep(name = "protobuf", version = "33.4")
 bazel_dep(name = "rules_go", version = "0.59.0")
 bazel_dep(name = "rules_jsonnet", version = "0.7.2")
-bazel_dep(name = "rules_oci", version = "2.2.6")
-bazel_dep(name = "rules_pkg", version = "1.1.0")
 bazel_dep(name = "rules_proto", version = "7.1.0")
-bazel_dep(name = "toolchains_llvm", version = "1.5.0")
+bazel_dep(name = "toolchains_llvm", version = "1.6.0")
 
 git_override(
     module_name = "bazel_remote_apis",
@@ -25,7 +23,7 @@ git_override(
 
 git_override(
     module_name = "com_github_buildbarn_bb_storage",
-    commit = "797be97c5d2c216dafb4c4345e24003952c71561",
+    commit = "7c615f65d679ba471470babec66fccfa3c98917d",
     remote = "https://github.com/buildbarn/bb-storage.git",
 )
 
@@ -33,6 +31,11 @@ git_override(
     module_name = "com_github_buildbarn_go_xdr",
     commit = "236788cf9e8948a1e8875c7dd243e2be180cdfd7",
     remote = "https://github.com/buildbarn/go-xdr.git",
+)
+
+single_version_override(
+    module_name = "jsonnet_go",
+    patches = ["//:patches/jsonnet_go/bazel-9.diff"],
 )
 
 git_override(
@@ -54,10 +57,6 @@ single_version_override(
     module_name = "toolchains_llvm",
     patches = ["//:patches/toolchains_llvm/non-root.diff"],
 )
-
-# Match protobuf above, until it ships a pre-built binary toolchain itself
-protoc = use_extension("@toolchains_protoc//protoc:extensions.bzl", "protoc")
-protoc.toolchain(version = "v33.0")
 
 go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 go_deps.from_file(go_mod = "//:go.mod")
@@ -133,24 +132,6 @@ http_archive(
     urls = ["https://github.com/twbs/bootstrap/releases/download/v5.1.0/bootstrap-5.1.0-dist.zip"],
 )
 
-http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
-
-http_file(
-    name = "com_github_krallin_tini_tini_static_amd64",
-    downloaded_file_path = "tini",
-    executable = True,
-    sha256 = "c5b0666b4cb676901f90dfcb37106783c5fe2077b04590973b885950611b30ee",
-    urls = ["https://github.com/krallin/tini/releases/download/v0.19.0/tini-static-amd64"],
-)
-
-http_file(
-    name = "com_github_krallin_tini_tini_static_arm64",
-    downloaded_file_path = "tini",
-    executable = True,
-    sha256 = "eae1d3aa50c48fb23b8cbdf4e369d0910dfc538566bfd09df89a774aa84a48b9",
-    urls = ["https://github.com/krallin/tini/releases/download/v0.19.0/tini-static-arm64"],
-)
-
 llvm = use_extension("@toolchains_llvm//toolchain/extensions:llvm.bzl", "llvm", dev_dependency = True)
 llvm.toolchain(
     llvm_version = "17.0.6",
@@ -163,18 +144,6 @@ npm.npm_translate_lock(
     pnpm_lock = "//:pnpm-lock.yaml",
 )
 use_repo(npm, "com_github_buildbarn_bb_remote_execution_npm")
-
-oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
-oci.pull(
-    name = "busybox",
-    digest = "sha256:97e3873d1f61ba651b632e4755fc52e1d90c9f6e4f01d9b720f37af5efed17e5",  # 1.36.1-uclibc
-    image = "docker.io/library/busybox",
-    platforms = [
-        "linux/amd64",
-        "linux/arm64/v8",
-    ],
-)
-use_repo(oci, "busybox", "busybox_linux_amd64", "busybox_linux_arm64_v8")
 
 http_archive(
     name = "com_github_winfsp_winfsp_tests",

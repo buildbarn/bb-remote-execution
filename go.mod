@@ -13,10 +13,10 @@ replace cel.dev/expr => cel.dev/expr v0.24.0
 
 require (
 	cloud.google.com/go/longrunning v0.8.0
-	github.com/bazelbuild/buildtools v0.0.0-20260121081817-bbf01ec6cb49
+	github.com/bazelbuild/buildtools v0.0.0-20260129154529-227805bae286
 	github.com/bazelbuild/remote-apis v0.0.0-20260120202631-b02e15a6d354
 	github.com/bazelbuild/rules_go v0.59.0
-	github.com/buildbarn/bb-storage v0.0.0-20260127050344-797be97c5d2c
+	github.com/buildbarn/bb-storage v0.0.0-20260129210602-7c615f65d679
 	github.com/buildbarn/go-xdr v0.0.0-20240702182809-236788cf9e89
 	github.com/golang/protobuf v1.5.4
 	github.com/google/uuid v1.6.0
@@ -33,7 +33,7 @@ require (
 	golang.org/x/lint v0.0.0-20241112194109-818c5a804067
 	golang.org/x/sync v0.19.0
 	golang.org/x/sys v0.40.0
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260126211449-d11affda4bed
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260128011058-8636f8732409
 	google.golang.org/grpc v1.78.0
 	google.golang.org/protobuf v1.36.11
 	mvdan.cc/gofumpt v0.9.2
@@ -47,7 +47,7 @@ require (
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	cloud.google.com/go/iam v1.5.3 // indirect
 	cloud.google.com/go/monitoring v1.24.3 // indirect
-	cloud.google.com/go/storage v1.59.1 // indirect
+	cloud.google.com/go/storage v1.59.2 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.31.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.55.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.55.0 // indirect
@@ -65,7 +65,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.17 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.17 // indirect
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.95.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.96.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.30.9 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.13 // indirect
@@ -92,7 +92,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.16.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
-	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.5 // indirect
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.6 // indirect
 	github.com/jhump/protoreflect/v2 v2.0.0-beta.2 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/klauspost/compress v1.18.3 // indirect
@@ -126,10 +126,10 @@ require (
 	golang.org/x/text v0.33.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	golang.org/x/tools v0.41.0 // indirect
-	google.golang.org/api v0.262.0 // indirect
-	google.golang.org/genproto v0.0.0-20260126211449-d11affda4bed // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20260126211449-d11affda4bed // indirect
-	google.golang.org/genproto/googleapis/bytestream v0.0.0-20260126211449-d11affda4bed // indirect
+	google.golang.org/api v0.264.0 // indirect
+	google.golang.org/genproto v0.0.0-20260128011058-8636f8732409 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20260128011058-8636f8732409 // indirect
+	google.golang.org/genproto/googleapis/bytestream v0.0.0-20260128011058-8636f8732409 // indirect
 	google.golang.org/grpc/security/advancedtls v1.0.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect

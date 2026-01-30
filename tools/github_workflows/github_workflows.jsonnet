@@ -13,7 +13,7 @@ workflows_template.getWorkflows(
   [
     'bb_noop_worker:bb_noop_worker',
     'bb_runner:bb_runner_bare',
-    'bb_runner:bb_runner_installer',
+    'bb_runner_installer:bb_runner_installer',
     'bb_scheduler:bb_scheduler',
     'bb_worker:bb_worker',
   ],
