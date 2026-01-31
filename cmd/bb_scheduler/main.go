@@ -92,7 +92,7 @@ func main() {
 		// Create an action router that is responsible for analyzing
 		// incoming execution requests and determining how they are
 		// scheduled.
-		actionRouter, err := routing.NewActionRouterFromConfiguration(configuration.ActionRouter, contentAddressableStorage, int(configuration.MaximumMessageSizeBytes), previousExecutionStatsStore, grpcClientFactory, dependenciesGroup)
+		actionRouter, err := routing.NewActionRouterFromConfiguration(configuration.ActionRouter, contentAddressableStorage, previousExecutionStatsStore, grpcClientFactory, dependenciesGroup)
 		if err != nil {
 			return util.StatusWrap(err, "Failed to create action router")
 		}
