@@ -19,7 +19,7 @@ type handleAllocatingSymlinkFactory struct {
 // the symbolic link to become part of the file handle, which is
 // undesirable. In the case of NFS we want these nodes to be explicitly
 // tracked, using an invisible link count.
-func NewHandleAllocatingSymlinkFactory(base SymlinkFactory, allocation StatelessHandleAllocation, pathFormat path.Format) SymlinkFactory {
+func NewHandleAllocatingSymlinkFactory(base SymlinkFactory, allocation StatelessHandleAllocation) SymlinkFactory {
 	return &handleAllocatingSymlinkFactory{
 		base:       base,
 		allocator:  allocation.AsStatelessAllocator(),

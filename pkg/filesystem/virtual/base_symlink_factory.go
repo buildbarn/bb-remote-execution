@@ -9,19 +9,30 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 )
 
-type symlinkFactory struct{}
-
-func (symlinkFactory) LookupSymlink(target path.Parser) (LinkableLeaf, error) {
-	return symlink{target: target}, nil
+type baseSymlinkFactory struct {
+	defaultAttributesSetter DefaultAttributesSetter
 }
 
-// BaseSymlinkFactory can be used to create simple immutable symlink nodes.
-var BaseSymlinkFactory SymlinkFactory = symlinkFactory{}
+func (f *baseSymlinkFactory) LookupSymlink(target path.Parser) (LinkableLeaf, error) {
+	return symlink{
+		defaultAttributesSetter: f.defaultAttributesSetter,
+		target:                  target,
+	}, nil
+}
+
+// NewBaseSymlinkFactory creates a SymlinkFactory that can be used to create
+// simple immutable symlink nodes.
+func NewBaseSymlinkFactory(defaultAttributesSetter DefaultAttributesSetter) SymlinkFactory {
+	return &baseSymlinkFactory{
+		defaultAttributesSetter: defaultAttributesSetter,
+	}
+}
 
 type symlink struct {
 	placeholderFile
 
-	target path.Parser
+	defaultAttributesSetter DefaultAttributesSetter
+	target                  path.Parser
 }
 
 func (f symlink) readlinkString() (string, error) {
@@ -33,6 +44,7 @@ func (f symlink) readlinkString() (string, error) {
 }
 
 func (f symlink) VirtualGetAttributes(ctx context.Context, requested AttributesMask, attributes *Attributes) {
+	f.defaultAttributesSetter(requested, attributes)
 	attributes.SetChangeID(0)
 	attributes.SetFileType(filesystem.FileTypeSymlink)
 	attributes.SetHasNamedAttributes(false)

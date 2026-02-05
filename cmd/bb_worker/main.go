@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -182,7 +183,6 @@ func main() {
 		for _, buildDirectoryConfiguration := range configuration.BuildDirectories {
 			var virtualBuildDirectory virtual.PrepopulatedDirectory
 			var handleAllocator virtual.StatefulHandleAllocator
-			var symlinkFactory virtual.SymlinkFactory
 			var characterDeviceFactory virtual.CharacterDeviceFactory
 			var naiveBuildDirectory filesystem.DirectoryCloser
 			var fileFetcher cas.FileFetcher
@@ -223,11 +223,6 @@ func main() {
 					normalizer = virtual.CaseInsensitiveComponentNormalizer
 				}
 
-				symlinkFactory = virtual.NewHandleAllocatingSymlinkFactory(
-					virtual.BaseSymlinkFactory,
-					handleAllocator.New(),
-					path.LocalFormat,
-				)
 				characterDeviceFactory = virtual.NewHandleAllocatingCharacterDeviceFactory(
 					virtual.BaseCharacterDeviceFactory,
 					handleAllocator.New())
@@ -245,7 +240,7 @@ func main() {
 						),
 						handleAllocator,
 					),
-					symlinkFactory,
+					virtual.NewErrorSymlinkFactory(errors.New("Symlinks outside build directory not allowed")),
 					util.DefaultErrorLogger,
 					handleAllocator,
 					initialContentsSorter,
@@ -394,7 +389,6 @@ func main() {
 							re_blobstore.NewSuspendingBlobAccess(
 								contentAddressableStorageWriter,
 								suspendableClock),
-							symlinkFactory,
 							characterDeviceFactory,
 							handleAllocator,
 							/* defaultAttributesSetter = */ func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
