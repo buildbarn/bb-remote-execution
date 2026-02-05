@@ -25,7 +25,6 @@ type StringMatcher func(s string) bool
 // inMemoryFilesystem contains state that is shared across all
 // inMemoryPrepopulatedDirectory objects that form a single hierarchy.
 type inMemoryFilesystem struct {
-	symlinkFactory          SymlinkFactory
 	statefulHandleAllocator StatefulHandleAllocator
 	initialContentsSorter   Sorter
 	hiddenFilesMatcher      StringMatcher
@@ -44,6 +43,7 @@ type inMemoryFilesystem struct {
 type inMemorySubtree struct {
 	filesystem              *inMemoryFilesystem
 	fileAllocator           FileAllocator
+	symlinkFactory          SymlinkFactory
 	errorLogger             util.ErrorLogger
 	defaultAttributesSetter DefaultAttributesSetter
 	namedAttributesFactory  NamedAttributesFactory
@@ -52,7 +52,6 @@ type inMemorySubtree struct {
 func newInMemorySubtree(fileAllocator FileAllocator, symlinkFactory SymlinkFactory, errorLogger util.ErrorLogger, handleAllocator StatefulHandleAllocator, initialContentsSorter Sorter, hiddenFilesMatcher StringMatcher, clock clock.Clock, normalizer ComponentNormalizer, defaultAttributesSetter DefaultAttributesSetter, namedAttributesFactory NamedAttributesFactory) *inMemorySubtree {
 	return &inMemorySubtree{
 		filesystem: &inMemoryFilesystem{
-			symlinkFactory:          symlinkFactory,
 			statefulHandleAllocator: handleAllocator,
 			initialContentsSorter:   initialContentsSorter,
 			hiddenFilesMatcher:      hiddenFilesMatcher,
@@ -60,6 +59,7 @@ func newInMemorySubtree(fileAllocator FileAllocator, symlinkFactory SymlinkFacto
 			clock:                   clock,
 		},
 		fileAllocator:           fileAllocator,
+		symlinkFactory:          symlinkFactory,
 		errorLogger:             errorLogger,
 		defaultAttributesSetter: defaultAttributesSetter,
 		namedAttributesFactory:  namedAttributesFactory,
@@ -529,13 +529,14 @@ func (i *inMemoryPrepopulatedDirectory) postRemoveChildren(entries *inMemoryDire
 	}
 }
 
-func (i *inMemoryPrepopulatedDirectory) InstallHooks(fileAllocator FileAllocator, errorLogger util.ErrorLogger, defaultAttributesSetter DefaultAttributesSetter, namedAttributesFactory NamedAttributesFactory) {
+func (i *inMemoryPrepopulatedDirectory) InstallHooks(fileAllocator FileAllocator, symlinkFactory SymlinkFactory, errorLogger util.ErrorLogger, defaultAttributesSetter DefaultAttributesSetter, namedAttributesFactory NamedAttributesFactory) {
 	i.lock.Lock()
 	defer i.lock.Unlock()
 
 	i.subtree = &inMemorySubtree{
 		filesystem:              i.subtree.filesystem,
 		fileAllocator:           fileAllocator,
+		symlinkFactory:          symlinkFactory,
 		errorLogger:             errorLogger,
 		defaultAttributesSetter: defaultAttributesSetter,
 		namedAttributesFactory:  namedAttributesFactory,
@@ -1121,7 +1122,7 @@ func (i *inMemoryPrepopulatedDirectory) VirtualSymlink(ctx context.Context, poin
 	if s := contents.virtualMayAttach(normalizedLinkName); s != StatusOK {
 		return nil, ChangeInfo{}, s
 	}
-	child := i.subtree.filesystem.symlinkFactory.LookupSymlink(pointedTo)
+	child := i.subtree.symlinkFactory.LookupSymlink(pointedTo)
 	changeIDBefore := contents.changeID
 	contents.attach(i.subtree, linkName, normalizedLinkName, inMemoryDirectoryChild{}.FromLeaf(child))
 
