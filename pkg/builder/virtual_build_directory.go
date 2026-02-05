@@ -110,6 +110,7 @@ func (d *virtualBuildDirectory) InstallHooks(filePool pool.FilePool, errorLogger
 			),
 			do.handleAllocator,
 		),
+		do.symlinkFactory,
 		errorLogger,
 		do.defaultAttributesSetter,
 		namedAttributesFactory,

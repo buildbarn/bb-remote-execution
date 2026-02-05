@@ -219,16 +219,16 @@ func main() {
 					normalizer = virtual.CaseInsensitiveComponentNormalizer
 				}
 
-				symlinkFactory = virtual.NewHandleAllocatingSymlinkFactory(
-					virtual.BaseSymlinkFactory,
-					handleAllocator.New())
-				characterDeviceFactory = virtual.NewHandleAllocatingCharacterDeviceFactory(
-					virtual.BaseCharacterDeviceFactory,
-					handleAllocator.New())
 				defaultAttributesSetter := func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
 					// No need to set ownership attributes
 					// on the top-level directory.
 				}
+				symlinkFactory = virtual.NewHandleAllocatingSymlinkFactory(
+					virtual.NewBaseSymlinkFactory(defaultAttributesSetter),
+					handleAllocator.New())
+				characterDeviceFactory = virtual.NewHandleAllocatingCharacterDeviceFactory(
+					virtual.BaseCharacterDeviceFactory,
+					handleAllocator.New())
 				virtualBuildDirectory = virtual.NewInMemoryPrepopulatedDirectory(
 					virtual.NewHandleAllocatingFileAllocator(
 						virtual.NewPoolBackedFileAllocator(
@@ -343,6 +343,13 @@ func main() {
 				}
 				runnerClient := runner_pb.NewRunnerClient(runnerConnection)
 
+				defaultAttributesSetter := func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+					attributes.SetOwnerUserID(runnerConfiguration.BuildDirectoryOwnerUserId)
+					attributes.SetOwnerGroupID(runnerConfiguration.BuildDirectoryOwnerGroupId)
+				}
+				symlinkFactory := virtual.NewHandleAllocatingSymlinkFactory(
+					virtual.NewBaseSymlinkFactory(defaultAttributesSetter),
+					handleAllocator.New())
 				for threadID := uint64(0); threadID < runnerConfiguration.Concurrency; threadID++ {
 					// Per-worker separate writer of the Content
 					// Addressable Storage that batches writes after
@@ -391,10 +398,7 @@ func main() {
 							symlinkFactory,
 							characterDeviceFactory,
 							handleAllocator,
-							/* defaultAttributesSetter = */ func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
-								attributes.SetOwnerUserID(runnerConfiguration.BuildDirectoryOwnerUserId)
-								attributes.SetOwnerGroupID(runnerConfiguration.BuildDirectoryOwnerGroupId)
-							},
+							defaultAttributesSetter,
 							clock.SystemClock,
 						)
 					} else {
