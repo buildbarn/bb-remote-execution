@@ -26,7 +26,7 @@
             {
                "if": "matrix.host.upload",
                "name": "linux_amd64: copy bb_noop_worker",
-               "run": "rm -f bb_noop_worker && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_amd64 //cmd/bb_noop_worker $(pwd)/bb_noop_worker"
+               "run": "rm -f bb_noop_worker.linux_amd64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_amd64 //cmd/bb_noop_worker $(pwd)/bb_noop_worker.linux_amd64"
             },
             {
                "if": "matrix.host.upload",
@@ -34,13 +34,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_noop_worker.linux_amd64",
-                  "path": "bb_noop_worker"
+                  "path": "bb_noop_worker.linux_amd64"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "linux_amd64: copy bb_runner",
-               "run": "rm -f bb_runner && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_amd64 //cmd/bb_runner $(pwd)/bb_runner"
+               "run": "rm -f bb_runner.linux_amd64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_amd64 //cmd/bb_runner $(pwd)/bb_runner.linux_amd64"
             },
             {
                "if": "matrix.host.upload",
@@ -48,13 +48,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_runner.linux_amd64",
-                  "path": "bb_runner"
+                  "path": "bb_runner.linux_amd64"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "linux_amd64: copy bb_scheduler",
-               "run": "rm -f bb_scheduler && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_amd64 //cmd/bb_scheduler $(pwd)/bb_scheduler"
+               "run": "rm -f bb_scheduler.linux_amd64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_amd64 //cmd/bb_scheduler $(pwd)/bb_scheduler.linux_amd64"
             },
             {
                "if": "matrix.host.upload",
@@ -62,13 +62,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_scheduler.linux_amd64",
-                  "path": "bb_scheduler"
+                  "path": "bb_scheduler.linux_amd64"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "linux_amd64: copy bb_virtual_tmp",
-               "run": "rm -f bb_virtual_tmp && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_amd64 //cmd/bb_virtual_tmp $(pwd)/bb_virtual_tmp"
+               "run": "rm -f bb_virtual_tmp.linux_amd64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_amd64 //cmd/bb_virtual_tmp $(pwd)/bb_virtual_tmp.linux_amd64"
             },
             {
                "if": "matrix.host.upload",
@@ -76,13 +76,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_virtual_tmp.linux_amd64",
-                  "path": "bb_virtual_tmp"
+                  "path": "bb_virtual_tmp.linux_amd64"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "linux_amd64: copy bb_worker",
-               "run": "rm -f bb_worker && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_amd64 //cmd/bb_worker $(pwd)/bb_worker"
+               "run": "rm -f bb_worker.linux_amd64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_amd64 //cmd/bb_worker $(pwd)/bb_worker.linux_amd64"
             },
             {
                "if": "matrix.host.upload",
@@ -90,13 +90,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_worker.linux_amd64",
-                  "path": "bb_worker"
+                  "path": "bb_worker.linux_amd64"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "linux_amd64: copy fake_python",
-               "run": "rm -f fake_python && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_amd64 //cmd/fake_python $(pwd)/fake_python"
+               "run": "rm -f fake_python.linux_amd64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_amd64 //cmd/fake_python $(pwd)/fake_python.linux_amd64"
             },
             {
                "if": "matrix.host.upload",
@@ -104,13 +104,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "fake_python.linux_amd64",
-                  "path": "fake_python"
+                  "path": "fake_python.linux_amd64"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "linux_amd64: copy fake_xcrun",
-               "run": "rm -f fake_xcrun && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_amd64 //cmd/fake_xcrun $(pwd)/fake_xcrun"
+               "run": "rm -f fake_xcrun.linux_amd64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_amd64 //cmd/fake_xcrun $(pwd)/fake_xcrun.linux_amd64"
             },
             {
                "if": "matrix.host.upload",
@@ -118,7 +118,7 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "fake_xcrun.linux_amd64",
-                  "path": "fake_xcrun"
+                  "path": "fake_xcrun.linux_amd64"
                }
             },
             {
@@ -129,7 +129,7 @@
             {
                "if": "matrix.host.upload",
                "name": "linux_amd64_v3: copy bb_noop_worker",
-               "run": "rm -f bb_noop_worker && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_amd64_v3 //cmd/bb_noop_worker $(pwd)/bb_noop_worker"
+               "run": "rm -f bb_noop_worker.linux_amd64_v3 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_amd64_v3 //cmd/bb_noop_worker $(pwd)/bb_noop_worker.linux_amd64_v3"
             },
             {
                "if": "matrix.host.upload",
@@ -137,13 +137,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_noop_worker.linux_amd64_v3",
-                  "path": "bb_noop_worker"
+                  "path": "bb_noop_worker.linux_amd64_v3"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "linux_amd64_v3: copy bb_runner",
-               "run": "rm -f bb_runner && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_amd64_v3 //cmd/bb_runner $(pwd)/bb_runner"
+               "run": "rm -f bb_runner.linux_amd64_v3 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_amd64_v3 //cmd/bb_runner $(pwd)/bb_runner.linux_amd64_v3"
             },
             {
                "if": "matrix.host.upload",
@@ -151,13 +151,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_runner.linux_amd64_v3",
-                  "path": "bb_runner"
+                  "path": "bb_runner.linux_amd64_v3"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "linux_amd64_v3: copy bb_scheduler",
-               "run": "rm -f bb_scheduler && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_amd64_v3 //cmd/bb_scheduler $(pwd)/bb_scheduler"
+               "run": "rm -f bb_scheduler.linux_amd64_v3 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_amd64_v3 //cmd/bb_scheduler $(pwd)/bb_scheduler.linux_amd64_v3"
             },
             {
                "if": "matrix.host.upload",
@@ -165,13 +165,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_scheduler.linux_amd64_v3",
-                  "path": "bb_scheduler"
+                  "path": "bb_scheduler.linux_amd64_v3"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "linux_amd64_v3: copy bb_virtual_tmp",
-               "run": "rm -f bb_virtual_tmp && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_amd64_v3 //cmd/bb_virtual_tmp $(pwd)/bb_virtual_tmp"
+               "run": "rm -f bb_virtual_tmp.linux_amd64_v3 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_amd64_v3 //cmd/bb_virtual_tmp $(pwd)/bb_virtual_tmp.linux_amd64_v3"
             },
             {
                "if": "matrix.host.upload",
@@ -179,13 +179,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_virtual_tmp.linux_amd64_v3",
-                  "path": "bb_virtual_tmp"
+                  "path": "bb_virtual_tmp.linux_amd64_v3"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "linux_amd64_v3: copy bb_worker",
-               "run": "rm -f bb_worker && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_amd64_v3 //cmd/bb_worker $(pwd)/bb_worker"
+               "run": "rm -f bb_worker.linux_amd64_v3 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_amd64_v3 //cmd/bb_worker $(pwd)/bb_worker.linux_amd64_v3"
             },
             {
                "if": "matrix.host.upload",
@@ -193,13 +193,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_worker.linux_amd64_v3",
-                  "path": "bb_worker"
+                  "path": "bb_worker.linux_amd64_v3"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "linux_amd64_v3: copy fake_python",
-               "run": "rm -f fake_python && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_amd64_v3 //cmd/fake_python $(pwd)/fake_python"
+               "run": "rm -f fake_python.linux_amd64_v3 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_amd64_v3 //cmd/fake_python $(pwd)/fake_python.linux_amd64_v3"
             },
             {
                "if": "matrix.host.upload",
@@ -207,13 +207,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "fake_python.linux_amd64_v3",
-                  "path": "fake_python"
+                  "path": "fake_python.linux_amd64_v3"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "linux_amd64_v3: copy fake_xcrun",
-               "run": "rm -f fake_xcrun && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_amd64_v3 //cmd/fake_xcrun $(pwd)/fake_xcrun"
+               "run": "rm -f fake_xcrun.linux_amd64_v3 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_amd64_v3 //cmd/fake_xcrun $(pwd)/fake_xcrun.linux_amd64_v3"
             },
             {
                "if": "matrix.host.upload",
@@ -221,7 +221,7 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "fake_xcrun.linux_amd64_v3",
-                  "path": "fake_xcrun"
+                  "path": "fake_xcrun.linux_amd64_v3"
                }
             },
             {
@@ -232,7 +232,7 @@
             {
                "if": "matrix.host.upload",
                "name": "linux_386: copy bb_noop_worker",
-               "run": "rm -f bb_noop_worker && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_386 //cmd/bb_noop_worker $(pwd)/bb_noop_worker"
+               "run": "rm -f bb_noop_worker.linux_386 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_386 //cmd/bb_noop_worker $(pwd)/bb_noop_worker.linux_386"
             },
             {
                "if": "matrix.host.upload",
@@ -240,13 +240,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_noop_worker.linux_386",
-                  "path": "bb_noop_worker"
+                  "path": "bb_noop_worker.linux_386"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "linux_386: copy bb_runner",
-               "run": "rm -f bb_runner && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_386 //cmd/bb_runner $(pwd)/bb_runner"
+               "run": "rm -f bb_runner.linux_386 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_386 //cmd/bb_runner $(pwd)/bb_runner.linux_386"
             },
             {
                "if": "matrix.host.upload",
@@ -254,13 +254,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_runner.linux_386",
-                  "path": "bb_runner"
+                  "path": "bb_runner.linux_386"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "linux_386: copy bb_scheduler",
-               "run": "rm -f bb_scheduler && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_386 //cmd/bb_scheduler $(pwd)/bb_scheduler"
+               "run": "rm -f bb_scheduler.linux_386 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_386 //cmd/bb_scheduler $(pwd)/bb_scheduler.linux_386"
             },
             {
                "if": "matrix.host.upload",
@@ -268,13 +268,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_scheduler.linux_386",
-                  "path": "bb_scheduler"
+                  "path": "bb_scheduler.linux_386"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "linux_386: copy bb_virtual_tmp",
-               "run": "rm -f bb_virtual_tmp && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_386 //cmd/bb_virtual_tmp $(pwd)/bb_virtual_tmp"
+               "run": "rm -f bb_virtual_tmp.linux_386 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_386 //cmd/bb_virtual_tmp $(pwd)/bb_virtual_tmp.linux_386"
             },
             {
                "if": "matrix.host.upload",
@@ -282,13 +282,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_virtual_tmp.linux_386",
-                  "path": "bb_virtual_tmp"
+                  "path": "bb_virtual_tmp.linux_386"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "linux_386: copy bb_worker",
-               "run": "rm -f bb_worker && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_386 //cmd/bb_worker $(pwd)/bb_worker"
+               "run": "rm -f bb_worker.linux_386 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_386 //cmd/bb_worker $(pwd)/bb_worker.linux_386"
             },
             {
                "if": "matrix.host.upload",
@@ -296,13 +296,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_worker.linux_386",
-                  "path": "bb_worker"
+                  "path": "bb_worker.linux_386"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "linux_386: copy fake_python",
-               "run": "rm -f fake_python && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_386 //cmd/fake_python $(pwd)/fake_python"
+               "run": "rm -f fake_python.linux_386 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_386 //cmd/fake_python $(pwd)/fake_python.linux_386"
             },
             {
                "if": "matrix.host.upload",
@@ -310,13 +310,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "fake_python.linux_386",
-                  "path": "fake_python"
+                  "path": "fake_python.linux_386"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "linux_386: copy fake_xcrun",
-               "run": "rm -f fake_xcrun && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_386 //cmd/fake_xcrun $(pwd)/fake_xcrun"
+               "run": "rm -f fake_xcrun.linux_386 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_386 //cmd/fake_xcrun $(pwd)/fake_xcrun.linux_386"
             },
             {
                "if": "matrix.host.upload",
@@ -324,7 +324,7 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "fake_xcrun.linux_386",
-                  "path": "fake_xcrun"
+                  "path": "fake_xcrun.linux_386"
                }
             },
             {
@@ -335,7 +335,7 @@
             {
                "if": "matrix.host.upload",
                "name": "linux_arm: copy bb_noop_worker",
-               "run": "rm -f bb_noop_worker && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_arm //cmd/bb_noop_worker $(pwd)/bb_noop_worker"
+               "run": "rm -f bb_noop_worker.linux_arm && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_arm //cmd/bb_noop_worker $(pwd)/bb_noop_worker.linux_arm"
             },
             {
                "if": "matrix.host.upload",
@@ -343,13 +343,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_noop_worker.linux_arm",
-                  "path": "bb_noop_worker"
+                  "path": "bb_noop_worker.linux_arm"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "linux_arm: copy bb_runner",
-               "run": "rm -f bb_runner && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_arm //cmd/bb_runner $(pwd)/bb_runner"
+               "run": "rm -f bb_runner.linux_arm && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_arm //cmd/bb_runner $(pwd)/bb_runner.linux_arm"
             },
             {
                "if": "matrix.host.upload",
@@ -357,13 +357,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_runner.linux_arm",
-                  "path": "bb_runner"
+                  "path": "bb_runner.linux_arm"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "linux_arm: copy bb_scheduler",
-               "run": "rm -f bb_scheduler && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_arm //cmd/bb_scheduler $(pwd)/bb_scheduler"
+               "run": "rm -f bb_scheduler.linux_arm && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_arm //cmd/bb_scheduler $(pwd)/bb_scheduler.linux_arm"
             },
             {
                "if": "matrix.host.upload",
@@ -371,13 +371,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_scheduler.linux_arm",
-                  "path": "bb_scheduler"
+                  "path": "bb_scheduler.linux_arm"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "linux_arm: copy bb_virtual_tmp",
-               "run": "rm -f bb_virtual_tmp && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_arm //cmd/bb_virtual_tmp $(pwd)/bb_virtual_tmp"
+               "run": "rm -f bb_virtual_tmp.linux_arm && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_arm //cmd/bb_virtual_tmp $(pwd)/bb_virtual_tmp.linux_arm"
             },
             {
                "if": "matrix.host.upload",
@@ -385,13 +385,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_virtual_tmp.linux_arm",
-                  "path": "bb_virtual_tmp"
+                  "path": "bb_virtual_tmp.linux_arm"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "linux_arm: copy bb_worker",
-               "run": "rm -f bb_worker && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_arm //cmd/bb_worker $(pwd)/bb_worker"
+               "run": "rm -f bb_worker.linux_arm && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_arm //cmd/bb_worker $(pwd)/bb_worker.linux_arm"
             },
             {
                "if": "matrix.host.upload",
@@ -399,13 +399,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_worker.linux_arm",
-                  "path": "bb_worker"
+                  "path": "bb_worker.linux_arm"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "linux_arm: copy fake_python",
-               "run": "rm -f fake_python && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_arm //cmd/fake_python $(pwd)/fake_python"
+               "run": "rm -f fake_python.linux_arm && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_arm //cmd/fake_python $(pwd)/fake_python.linux_arm"
             },
             {
                "if": "matrix.host.upload",
@@ -413,13 +413,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "fake_python.linux_arm",
-                  "path": "fake_python"
+                  "path": "fake_python.linux_arm"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "linux_arm: copy fake_xcrun",
-               "run": "rm -f fake_xcrun && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_arm //cmd/fake_xcrun $(pwd)/fake_xcrun"
+               "run": "rm -f fake_xcrun.linux_arm && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_arm //cmd/fake_xcrun $(pwd)/fake_xcrun.linux_arm"
             },
             {
                "if": "matrix.host.upload",
@@ -427,7 +427,7 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "fake_xcrun.linux_arm",
-                  "path": "fake_xcrun"
+                  "path": "fake_xcrun.linux_arm"
                }
             },
             {
@@ -438,7 +438,7 @@
             {
                "if": "matrix.host.upload",
                "name": "linux_arm64: copy bb_noop_worker",
-               "run": "rm -f bb_noop_worker && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_arm64 //cmd/bb_noop_worker $(pwd)/bb_noop_worker"
+               "run": "rm -f bb_noop_worker.linux_arm64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_arm64 //cmd/bb_noop_worker $(pwd)/bb_noop_worker.linux_arm64"
             },
             {
                "if": "matrix.host.upload",
@@ -446,13 +446,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_noop_worker.linux_arm64",
-                  "path": "bb_noop_worker"
+                  "path": "bb_noop_worker.linux_arm64"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "linux_arm64: copy bb_runner",
-               "run": "rm -f bb_runner && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_arm64 //cmd/bb_runner $(pwd)/bb_runner"
+               "run": "rm -f bb_runner.linux_arm64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_arm64 //cmd/bb_runner $(pwd)/bb_runner.linux_arm64"
             },
             {
                "if": "matrix.host.upload",
@@ -460,13 +460,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_runner.linux_arm64",
-                  "path": "bb_runner"
+                  "path": "bb_runner.linux_arm64"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "linux_arm64: copy bb_scheduler",
-               "run": "rm -f bb_scheduler && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_arm64 //cmd/bb_scheduler $(pwd)/bb_scheduler"
+               "run": "rm -f bb_scheduler.linux_arm64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_arm64 //cmd/bb_scheduler $(pwd)/bb_scheduler.linux_arm64"
             },
             {
                "if": "matrix.host.upload",
@@ -474,13 +474,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_scheduler.linux_arm64",
-                  "path": "bb_scheduler"
+                  "path": "bb_scheduler.linux_arm64"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "linux_arm64: copy bb_virtual_tmp",
-               "run": "rm -f bb_virtual_tmp && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_arm64 //cmd/bb_virtual_tmp $(pwd)/bb_virtual_tmp"
+               "run": "rm -f bb_virtual_tmp.linux_arm64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_arm64 //cmd/bb_virtual_tmp $(pwd)/bb_virtual_tmp.linux_arm64"
             },
             {
                "if": "matrix.host.upload",
@@ -488,13 +488,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_virtual_tmp.linux_arm64",
-                  "path": "bb_virtual_tmp"
+                  "path": "bb_virtual_tmp.linux_arm64"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "linux_arm64: copy bb_worker",
-               "run": "rm -f bb_worker && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_arm64 //cmd/bb_worker $(pwd)/bb_worker"
+               "run": "rm -f bb_worker.linux_arm64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_arm64 //cmd/bb_worker $(pwd)/bb_worker.linux_arm64"
             },
             {
                "if": "matrix.host.upload",
@@ -502,13 +502,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_worker.linux_arm64",
-                  "path": "bb_worker"
+                  "path": "bb_worker.linux_arm64"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "linux_arm64: copy fake_python",
-               "run": "rm -f fake_python && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_arm64 //cmd/fake_python $(pwd)/fake_python"
+               "run": "rm -f fake_python.linux_arm64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_arm64 //cmd/fake_python $(pwd)/fake_python.linux_arm64"
             },
             {
                "if": "matrix.host.upload",
@@ -516,13 +516,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "fake_python.linux_arm64",
-                  "path": "fake_python"
+                  "path": "fake_python.linux_arm64"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "linux_arm64: copy fake_xcrun",
-               "run": "rm -f fake_xcrun && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_arm64 //cmd/fake_xcrun $(pwd)/fake_xcrun"
+               "run": "rm -f fake_xcrun.linux_arm64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:linux_arm64 //cmd/fake_xcrun $(pwd)/fake_xcrun.linux_arm64"
             },
             {
                "if": "matrix.host.upload",
@@ -530,7 +530,7 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "fake_xcrun.linux_arm64",
-                  "path": "fake_xcrun"
+                  "path": "fake_xcrun.linux_arm64"
                }
             },
             {
@@ -541,7 +541,7 @@
             {
                "if": "matrix.host.upload",
                "name": "darwin_amd64: copy bb_noop_worker",
-               "run": "rm -f bb_noop_worker && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:darwin_amd64 //cmd/bb_noop_worker $(pwd)/bb_noop_worker"
+               "run": "rm -f bb_noop_worker.darwin_amd64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:darwin_amd64 //cmd/bb_noop_worker $(pwd)/bb_noop_worker.darwin_amd64"
             },
             {
                "if": "matrix.host.upload",
@@ -549,13 +549,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_noop_worker.darwin_amd64",
-                  "path": "bb_noop_worker"
+                  "path": "bb_noop_worker.darwin_amd64"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "darwin_amd64: copy bb_runner",
-               "run": "rm -f bb_runner && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:darwin_amd64 //cmd/bb_runner $(pwd)/bb_runner"
+               "run": "rm -f bb_runner.darwin_amd64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:darwin_amd64 //cmd/bb_runner $(pwd)/bb_runner.darwin_amd64"
             },
             {
                "if": "matrix.host.upload",
@@ -563,13 +563,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_runner.darwin_amd64",
-                  "path": "bb_runner"
+                  "path": "bb_runner.darwin_amd64"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "darwin_amd64: copy bb_scheduler",
-               "run": "rm -f bb_scheduler && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:darwin_amd64 //cmd/bb_scheduler $(pwd)/bb_scheduler"
+               "run": "rm -f bb_scheduler.darwin_amd64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:darwin_amd64 //cmd/bb_scheduler $(pwd)/bb_scheduler.darwin_amd64"
             },
             {
                "if": "matrix.host.upload",
@@ -577,13 +577,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_scheduler.darwin_amd64",
-                  "path": "bb_scheduler"
+                  "path": "bb_scheduler.darwin_amd64"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "darwin_amd64: copy bb_virtual_tmp",
-               "run": "rm -f bb_virtual_tmp && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:darwin_amd64 //cmd/bb_virtual_tmp $(pwd)/bb_virtual_tmp"
+               "run": "rm -f bb_virtual_tmp.darwin_amd64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:darwin_amd64 //cmd/bb_virtual_tmp $(pwd)/bb_virtual_tmp.darwin_amd64"
             },
             {
                "if": "matrix.host.upload",
@@ -591,13 +591,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_virtual_tmp.darwin_amd64",
-                  "path": "bb_virtual_tmp"
+                  "path": "bb_virtual_tmp.darwin_amd64"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "darwin_amd64: copy bb_worker",
-               "run": "rm -f bb_worker && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:darwin_amd64 //cmd/bb_worker $(pwd)/bb_worker"
+               "run": "rm -f bb_worker.darwin_amd64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:darwin_amd64 //cmd/bb_worker $(pwd)/bb_worker.darwin_amd64"
             },
             {
                "if": "matrix.host.upload",
@@ -605,13 +605,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_worker.darwin_amd64",
-                  "path": "bb_worker"
+                  "path": "bb_worker.darwin_amd64"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "darwin_amd64: copy fake_python",
-               "run": "rm -f fake_python && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:darwin_amd64 //cmd/fake_python $(pwd)/fake_python"
+               "run": "rm -f fake_python.darwin_amd64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:darwin_amd64 //cmd/fake_python $(pwd)/fake_python.darwin_amd64"
             },
             {
                "if": "matrix.host.upload",
@@ -619,13 +619,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "fake_python.darwin_amd64",
-                  "path": "fake_python"
+                  "path": "fake_python.darwin_amd64"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "darwin_amd64: copy fake_xcrun",
-               "run": "rm -f fake_xcrun && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:darwin_amd64 //cmd/fake_xcrun $(pwd)/fake_xcrun"
+               "run": "rm -f fake_xcrun.darwin_amd64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:darwin_amd64 //cmd/fake_xcrun $(pwd)/fake_xcrun.darwin_amd64"
             },
             {
                "if": "matrix.host.upload",
@@ -633,7 +633,7 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "fake_xcrun.darwin_amd64",
-                  "path": "fake_xcrun"
+                  "path": "fake_xcrun.darwin_amd64"
                }
             },
             {
@@ -644,7 +644,7 @@
             {
                "if": "matrix.host.upload",
                "name": "darwin_arm64: copy bb_noop_worker",
-               "run": "rm -f bb_noop_worker && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:darwin_arm64 //cmd/bb_noop_worker $(pwd)/bb_noop_worker"
+               "run": "rm -f bb_noop_worker.darwin_arm64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:darwin_arm64 //cmd/bb_noop_worker $(pwd)/bb_noop_worker.darwin_arm64"
             },
             {
                "if": "matrix.host.upload",
@@ -652,13 +652,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_noop_worker.darwin_arm64",
-                  "path": "bb_noop_worker"
+                  "path": "bb_noop_worker.darwin_arm64"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "darwin_arm64: copy bb_runner",
-               "run": "rm -f bb_runner && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:darwin_arm64 //cmd/bb_runner $(pwd)/bb_runner"
+               "run": "rm -f bb_runner.darwin_arm64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:darwin_arm64 //cmd/bb_runner $(pwd)/bb_runner.darwin_arm64"
             },
             {
                "if": "matrix.host.upload",
@@ -666,13 +666,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_runner.darwin_arm64",
-                  "path": "bb_runner"
+                  "path": "bb_runner.darwin_arm64"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "darwin_arm64: copy bb_scheduler",
-               "run": "rm -f bb_scheduler && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:darwin_arm64 //cmd/bb_scheduler $(pwd)/bb_scheduler"
+               "run": "rm -f bb_scheduler.darwin_arm64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:darwin_arm64 //cmd/bb_scheduler $(pwd)/bb_scheduler.darwin_arm64"
             },
             {
                "if": "matrix.host.upload",
@@ -680,13 +680,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_scheduler.darwin_arm64",
-                  "path": "bb_scheduler"
+                  "path": "bb_scheduler.darwin_arm64"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "darwin_arm64: copy bb_virtual_tmp",
-               "run": "rm -f bb_virtual_tmp && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:darwin_arm64 //cmd/bb_virtual_tmp $(pwd)/bb_virtual_tmp"
+               "run": "rm -f bb_virtual_tmp.darwin_arm64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:darwin_arm64 //cmd/bb_virtual_tmp $(pwd)/bb_virtual_tmp.darwin_arm64"
             },
             {
                "if": "matrix.host.upload",
@@ -694,13 +694,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_virtual_tmp.darwin_arm64",
-                  "path": "bb_virtual_tmp"
+                  "path": "bb_virtual_tmp.darwin_arm64"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "darwin_arm64: copy bb_worker",
-               "run": "rm -f bb_worker && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:darwin_arm64 //cmd/bb_worker $(pwd)/bb_worker"
+               "run": "rm -f bb_worker.darwin_arm64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:darwin_arm64 //cmd/bb_worker $(pwd)/bb_worker.darwin_arm64"
             },
             {
                "if": "matrix.host.upload",
@@ -708,13 +708,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_worker.darwin_arm64",
-                  "path": "bb_worker"
+                  "path": "bb_worker.darwin_arm64"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "darwin_arm64: copy fake_python",
-               "run": "rm -f fake_python && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:darwin_arm64 //cmd/fake_python $(pwd)/fake_python"
+               "run": "rm -f fake_python.darwin_arm64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:darwin_arm64 //cmd/fake_python $(pwd)/fake_python.darwin_arm64"
             },
             {
                "if": "matrix.host.upload",
@@ -722,13 +722,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "fake_python.darwin_arm64",
-                  "path": "fake_python"
+                  "path": "fake_python.darwin_arm64"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "darwin_arm64: copy fake_xcrun",
-               "run": "rm -f fake_xcrun && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:darwin_arm64 //cmd/fake_xcrun $(pwd)/fake_xcrun"
+               "run": "rm -f fake_xcrun.darwin_arm64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:darwin_arm64 //cmd/fake_xcrun $(pwd)/fake_xcrun.darwin_arm64"
             },
             {
                "if": "matrix.host.upload",
@@ -736,7 +736,7 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "fake_xcrun.darwin_arm64",
-                  "path": "fake_xcrun"
+                  "path": "fake_xcrun.darwin_arm64"
                }
             },
             {
@@ -747,7 +747,7 @@
             {
                "if": "matrix.host.upload",
                "name": "freebsd_amd64: copy bb_noop_worker",
-               "run": "rm -f bb_noop_worker && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:freebsd_amd64 //cmd/bb_noop_worker $(pwd)/bb_noop_worker"
+               "run": "rm -f bb_noop_worker.freebsd_amd64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:freebsd_amd64 //cmd/bb_noop_worker $(pwd)/bb_noop_worker.freebsd_amd64"
             },
             {
                "if": "matrix.host.upload",
@@ -755,13 +755,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_noop_worker.freebsd_amd64",
-                  "path": "bb_noop_worker"
+                  "path": "bb_noop_worker.freebsd_amd64"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "freebsd_amd64: copy bb_runner",
-               "run": "rm -f bb_runner && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:freebsd_amd64 //cmd/bb_runner $(pwd)/bb_runner"
+               "run": "rm -f bb_runner.freebsd_amd64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:freebsd_amd64 //cmd/bb_runner $(pwd)/bb_runner.freebsd_amd64"
             },
             {
                "if": "matrix.host.upload",
@@ -769,13 +769,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_runner.freebsd_amd64",
-                  "path": "bb_runner"
+                  "path": "bb_runner.freebsd_amd64"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "freebsd_amd64: copy bb_scheduler",
-               "run": "rm -f bb_scheduler && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:freebsd_amd64 //cmd/bb_scheduler $(pwd)/bb_scheduler"
+               "run": "rm -f bb_scheduler.freebsd_amd64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:freebsd_amd64 //cmd/bb_scheduler $(pwd)/bb_scheduler.freebsd_amd64"
             },
             {
                "if": "matrix.host.upload",
@@ -783,13 +783,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_scheduler.freebsd_amd64",
-                  "path": "bb_scheduler"
+                  "path": "bb_scheduler.freebsd_amd64"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "freebsd_amd64: copy bb_virtual_tmp",
-               "run": "rm -f bb_virtual_tmp && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:freebsd_amd64 //cmd/bb_virtual_tmp $(pwd)/bb_virtual_tmp"
+               "run": "rm -f bb_virtual_tmp.freebsd_amd64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:freebsd_amd64 //cmd/bb_virtual_tmp $(pwd)/bb_virtual_tmp.freebsd_amd64"
             },
             {
                "if": "matrix.host.upload",
@@ -797,13 +797,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_virtual_tmp.freebsd_amd64",
-                  "path": "bb_virtual_tmp"
+                  "path": "bb_virtual_tmp.freebsd_amd64"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "freebsd_amd64: copy bb_worker",
-               "run": "rm -f bb_worker && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:freebsd_amd64 //cmd/bb_worker $(pwd)/bb_worker"
+               "run": "rm -f bb_worker.freebsd_amd64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:freebsd_amd64 //cmd/bb_worker $(pwd)/bb_worker.freebsd_amd64"
             },
             {
                "if": "matrix.host.upload",
@@ -811,13 +811,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_worker.freebsd_amd64",
-                  "path": "bb_worker"
+                  "path": "bb_worker.freebsd_amd64"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "freebsd_amd64: copy fake_python",
-               "run": "rm -f fake_python && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:freebsd_amd64 //cmd/fake_python $(pwd)/fake_python"
+               "run": "rm -f fake_python.freebsd_amd64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:freebsd_amd64 //cmd/fake_python $(pwd)/fake_python.freebsd_amd64"
             },
             {
                "if": "matrix.host.upload",
@@ -825,13 +825,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "fake_python.freebsd_amd64",
-                  "path": "fake_python"
+                  "path": "fake_python.freebsd_amd64"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "freebsd_amd64: copy fake_xcrun",
-               "run": "rm -f fake_xcrun && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:freebsd_amd64 //cmd/fake_xcrun $(pwd)/fake_xcrun"
+               "run": "rm -f fake_xcrun.freebsd_amd64 && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:freebsd_amd64 //cmd/fake_xcrun $(pwd)/fake_xcrun.freebsd_amd64"
             },
             {
                "if": "matrix.host.upload",
@@ -839,7 +839,7 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "fake_xcrun.freebsd_amd64",
-                  "path": "fake_xcrun"
+                  "path": "fake_xcrun.freebsd_amd64"
                }
             },
             {
@@ -850,7 +850,7 @@
             {
                "if": "matrix.host.upload",
                "name": "windows_amd64: copy bb_noop_worker",
-               "run": "rm -f bb_noop_worker.exe && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:windows_amd64 //cmd/bb_noop_worker $(pwd)/bb_noop_worker.exe"
+               "run": "rm -f bb_noop_worker.windows_amd64.exe && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:windows_amd64 //cmd/bb_noop_worker $(pwd)/bb_noop_worker.windows_amd64.exe"
             },
             {
                "if": "matrix.host.upload",
@@ -858,13 +858,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_noop_worker.windows_amd64",
-                  "path": "bb_noop_worker.exe"
+                  "path": "bb_noop_worker.windows_amd64.exe"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "windows_amd64: copy bb_runner",
-               "run": "rm -f bb_runner.exe && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:windows_amd64 //cmd/bb_runner $(pwd)/bb_runner.exe"
+               "run": "rm -f bb_runner.windows_amd64.exe && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:windows_amd64 //cmd/bb_runner $(pwd)/bb_runner.windows_amd64.exe"
             },
             {
                "if": "matrix.host.upload",
@@ -872,13 +872,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_runner.windows_amd64",
-                  "path": "bb_runner.exe"
+                  "path": "bb_runner.windows_amd64.exe"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "windows_amd64: copy bb_scheduler",
-               "run": "rm -f bb_scheduler.exe && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:windows_amd64 //cmd/bb_scheduler $(pwd)/bb_scheduler.exe"
+               "run": "rm -f bb_scheduler.windows_amd64.exe && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:windows_amd64 //cmd/bb_scheduler $(pwd)/bb_scheduler.windows_amd64.exe"
             },
             {
                "if": "matrix.host.upload",
@@ -886,13 +886,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_scheduler.windows_amd64",
-                  "path": "bb_scheduler.exe"
+                  "path": "bb_scheduler.windows_amd64.exe"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "windows_amd64: copy bb_virtual_tmp",
-               "run": "rm -f bb_virtual_tmp.exe && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:windows_amd64 //cmd/bb_virtual_tmp $(pwd)/bb_virtual_tmp.exe"
+               "run": "rm -f bb_virtual_tmp.windows_amd64.exe && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:windows_amd64 //cmd/bb_virtual_tmp $(pwd)/bb_virtual_tmp.windows_amd64.exe"
             },
             {
                "if": "matrix.host.upload",
@@ -900,13 +900,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_virtual_tmp.windows_amd64",
-                  "path": "bb_virtual_tmp.exe"
+                  "path": "bb_virtual_tmp.windows_amd64.exe"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "windows_amd64: copy bb_worker",
-               "run": "rm -f bb_worker.exe && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:windows_amd64 //cmd/bb_worker $(pwd)/bb_worker.exe"
+               "run": "rm -f bb_worker.windows_amd64.exe && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:windows_amd64 //cmd/bb_worker $(pwd)/bb_worker.windows_amd64.exe"
             },
             {
                "if": "matrix.host.upload",
@@ -914,13 +914,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "bb_worker.windows_amd64",
-                  "path": "bb_worker.exe"
+                  "path": "bb_worker.windows_amd64.exe"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "windows_amd64: copy fake_python",
-               "run": "rm -f fake_python.exe && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:windows_amd64 //cmd/fake_python $(pwd)/fake_python.exe"
+               "run": "rm -f fake_python.windows_amd64.exe && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:windows_amd64 //cmd/fake_python $(pwd)/fake_python.windows_amd64.exe"
             },
             {
                "if": "matrix.host.upload",
@@ -928,13 +928,13 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "fake_python.windows_amd64",
-                  "path": "fake_python.exe"
+                  "path": "fake_python.windows_amd64.exe"
                }
             },
             {
                "if": "matrix.host.upload",
                "name": "windows_amd64: copy fake_xcrun",
-               "run": "rm -f fake_xcrun.exe && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:windows_amd64 //cmd/fake_xcrun $(pwd)/fake_xcrun.exe"
+               "run": "rm -f fake_xcrun.windows_amd64.exe && bazel run --run_under cp --platforms=@com_github_buildbarn_bb_storage//tools/platforms:windows_amd64 //cmd/fake_xcrun $(pwd)/fake_xcrun.windows_amd64.exe"
             },
             {
                "if": "matrix.host.upload",
@@ -942,7 +942,7 @@
                "uses": "actions/upload-artifact@v4",
                "with": {
                   "name": "fake_xcrun.windows_amd64",
-                  "path": "fake_xcrun.exe"
+                  "path": "fake_xcrun.windows_amd64.exe"
                }
             },
             {
@@ -1039,6 +1039,49 @@
             {
                "name": "Golint",
                "run": "bazel run @org_golang_x_lint//golint -- -set_exit_status $(pwd)/..."
+            }
+         ]
+      },
+      "publish": {
+         "name": "publish",
+         "needs": [
+            "build_and_test"
+         ],
+         "runs-on": "ubuntu-latest",
+         "steps": [
+            {
+               "name": "Checkout the repository",
+               "uses": "actions/checkout@v4 "
+            },
+            {
+               "name": "Download release artifacts",
+               "uses": "actions/download-artifact@v4",
+               "with": {
+                  "merge-multiple": true,
+                  "path": "assets"
+               }
+            },
+            {
+               "name": "Calculate shasum",
+               "run": "shasum -a 256 assets/* > sha256"
+            },
+            {
+               "name": "Set release Git user",
+               "run": "git config --global user.email \"41898282+github-actions[bot]@users.noreply.github.com\"\ngit config --global user.name \"github-actions[bot]\"\n"
+            },
+            {
+               "id": "create_tag",
+               "name": "Generate tag",
+               "run": "BUILD_SCM_REVISION=$(git rev-parse --short HEAD)\nBUILD_SCM_TIMESTAMP=$(TZ=UTC date --date \"@$(git show -s --format=%ct HEAD)\" +%Y%m%dT%H%M%SZ)\nRELEASE_TAG=\"${BUILD_SCM_TIMESTAMP}-${BUILD_SCM_REVISION}\"\ngit tag $RELEASE_TAG\ngit push --follow-tags\necho \"release_tag=$RELEASE_TAG\" >> $GITHUB_OUTPUT\n"
+            },
+            {
+               "name": "Create GitHub release and upload artifacts",
+               "uses": "softprops/action-gh-release@v2",
+               "with": {
+                  "files": "assets/*\nsha256\n",
+                  "make_latest": true,
+                  "tag_name": "${{ steps.create_tag.outputs.release_tag }}"
+               }
             }
          ]
       }
