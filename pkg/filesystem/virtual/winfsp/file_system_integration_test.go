@@ -92,7 +92,7 @@ func createWinFSPMountForTest(t *testing.T, terminationGroup program.Group, case
 				handleAllocator,
 			),
 			virtual.NewHandleAllocatingSymlinkFactory(
-				virtual.BaseSymlinkFactory,
+				virtual.NewBaseSymlinkFactory(defaultAttributesSetter),
 				handleAllocator.New(),
 			),
 			util.DefaultErrorLogger,
