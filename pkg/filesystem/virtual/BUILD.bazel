@@ -26,6 +26,8 @@ go_library(
         "leaf.go",
         "linkable_leaf.go",
         "named_attributes_factory.go",
+        "native_symlink_target_unix.go",
+        "native_symlink_target_windows.go",
         "nfs_handle_allocator.go",
         "node.go",
         "permissions.go",

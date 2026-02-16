@@ -28,6 +28,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/proto/iscc"
 	"github.com/buildbarn/bb-storage/pkg/random"
 	"github.com/buildbarn/bb-storage/pkg/util"
+	bb_zstd "github.com/buildbarn/bb-storage/pkg/zstd"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 
@@ -63,7 +64,8 @@ func main() {
 			configuration.ContentAddressableStorage,
 			blobstore_configuration.NewCASBlobAccessCreator(
 				grpcClientFactory,
-				int(configuration.MaximumMessageSizeBytes)))
+				int(configuration.MaximumMessageSizeBytes),
+				bb_zstd.NewPoolFromConfiguration(nil)))
 		if err != nil {
 			return util.StatusWrap(err, "Failed to create Content Adddressable Storage")
 		}

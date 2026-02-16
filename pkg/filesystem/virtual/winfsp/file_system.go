@@ -1352,17 +1352,17 @@ func getReparsePointForLeaf(ctx context.Context, leaf virtual.Leaf, buffer []byt
 		return 0, nil
 	}
 
-	// Parse the path to determine if it's absolute
+	// Symlink targets are stored in native (Windows) format, so
+	// we can pass them directly to FillSymlinkReparseBuffer.
 	w := relativePathChecker{}
 	if err := path.Resolve(path.LocalFormat.NewParser(string(target)), &w); err != nil {
 		return 0, err
 	}
-	var flags int
+	var flags uint32
 	if w.isRelative {
-		flags = windowsext.SYMLINK_FLAG_RELATIVE
+		flags = uint32(windowsext.SYMLINK_FLAG_RELATIVE)
 	}
-
-	return FillSymlinkReparseBuffer(string(target), uint32(flags), buffer)
+	return FillSymlinkReparseBuffer(string(target), flags, buffer)
 }
 
 func (fs *FileSystem) GetReparsePoint(ref *ffi.FileSystemRef, file uintptr, name string, buffer []byte) (int, error) {

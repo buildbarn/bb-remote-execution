@@ -16,6 +16,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/global"
 	"github.com/buildbarn/bb-storage/pkg/program"
 	"github.com/buildbarn/bb-storage/pkg/util"
+	bb_zstd "github.com/buildbarn/bb-storage/pkg/zstd"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -48,7 +49,8 @@ func main() {
 			configuration.ContentAddressableStorage,
 			blobstore_configuration.NewCASBlobAccessCreator(
 				grpcClientFactory,
-				int(configuration.MaximumMessageSizeBytes)))
+				int(configuration.MaximumMessageSizeBytes),
+				bb_zstd.NewPoolFromConfiguration(nil)))
 		if err != nil {
 			return util.StatusWrap(err, "Failed to create Content Adddressable Storage")
 		}

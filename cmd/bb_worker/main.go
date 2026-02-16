@@ -38,6 +38,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/program"
 	"github.com/buildbarn/bb-storage/pkg/random"
 	"github.com/buildbarn/bb-storage/pkg/util"
+	bb_zstd "github.com/buildbarn/bb-storage/pkg/zstd"
 	"github.com/google/uuid"
 
 	"golang.org/x/sync/semaphore"
@@ -88,7 +89,8 @@ func main() {
 			dependenciesGroup,
 			configuration.Blobstore,
 			grpcClientFactory,
-			int(configuration.MaximumMessageSizeBytes))
+			int(configuration.MaximumMessageSizeBytes),
+			bb_zstd.NewPoolFromConfiguration(nil))
 		if err != nil {
 			return err
 		}

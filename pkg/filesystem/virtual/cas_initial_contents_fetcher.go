@@ -110,7 +110,14 @@ func (icf *casInitialContentsFetcher) fetchContentsUnwrapped(fileReadMonitorFact
 			return nil, status.Errorf(codes.InvalidArgument, "Directory contains multiple children named %#v", entry.Name)
 		}
 
-		leaf := icf.options.symlinkFactory.LookupSymlink([]byte(entry.Target))
+		// REv2 symlink targets use UNIX path separators. Convert
+		// to the native platform format so that the stored bytes
+		// can be returned verbatim by VirtualReadlink.
+		target, err := nativeSymlinkTarget(entry.Target)
+		if err != nil {
+			return nil, util.StatusWrapf(err, "Failed to normalize target of symlink %#v", entry.Name)
+		}
+		leaf := icf.options.symlinkFactory.LookupSymlink(target)
 		children[component] = InitialChild{}.FromLeaf(leaf)
 		leavesToUnlink = append(leavesToUnlink, leaf)
 	}
