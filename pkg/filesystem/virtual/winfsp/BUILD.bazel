@@ -74,6 +74,7 @@ go_test(
             "//pkg/proto/configuration/filesystem/virtual",
             "@com_github_buildbarn_bb_storage//pkg/blockdevice",
             "@com_github_buildbarn_bb_storage//pkg/clock",
+            "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
             "@com_github_buildbarn_bb_storage//pkg/program",
             "@com_github_buildbarn_bb_storage//pkg/util",
             "@com_github_stretchr_testify//require",
