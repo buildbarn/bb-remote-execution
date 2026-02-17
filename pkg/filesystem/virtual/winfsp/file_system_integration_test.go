@@ -21,6 +21,7 @@ import (
 	virtual_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem/virtual"
 	"github.com/buildbarn/bb-storage/pkg/blockdevice"
 	"github.com/buildbarn/bb-storage/pkg/clock"
+	bb_path "github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/program"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/stretchr/testify/require"
@@ -39,7 +40,7 @@ func findFreeDriveLetter() (string, error) {
 	return "", fmt.Errorf("no free drive letters available")
 }
 
-func createWinFSPMountForTest(t *testing.T, terminationGroup program.Group, caseSensitive bool) (string, blockdevice.BlockDevice) {
+func createWinFSPForTest(t *testing.T, terminationGroup program.Group, caseSensitive bool) (string, blockdevice.BlockDevice, virtual_configuration.Mount, virtual.Directory) {
 	// We can't run winfsp-tests at a directory path due to
 	// https://github.com/winfsp/winfsp/issues/279. Instead find a free drive
 	// letter and run it there instead.
@@ -75,38 +76,41 @@ func createWinFSPMountForTest(t *testing.T, terminationGroup program.Group, case
 
 	// Create a virtual directory to hold new files.
 	defaultAttributesSetter := func(requested virtual.AttributesMask, attributes *virtual.Attributes) {}
-	err = mount.Expose(
-		terminationGroup,
-		virtual.NewInMemoryPrepopulatedDirectory(
-			virtual.NewHandleAllocatingFileAllocator(
-				virtual.NewPoolBackedFileAllocator(
-					pool.NewBlockDeviceBackedFilePool(
-						bd,
-						pool.NewBitmapSectorAllocator(uint32(sectorCount)),
-						sectorSizeBytes,
-					),
-					util.DefaultErrorLogger,
-					defaultAttributesSetter,
-					virtual.NoNamedAttributesFactory,
+	rootDir := virtual.NewInMemoryPrepopulatedDirectory(
+		virtual.NewHandleAllocatingFileAllocator(
+			virtual.NewPoolBackedFileAllocator(
+				pool.NewBlockDeviceBackedFilePool(
+					bd,
+					pool.NewBitmapSectorAllocator(uint32(sectorCount)),
+					sectorSizeBytes,
 				),
-				handleAllocator,
+				util.DefaultErrorLogger,
+				defaultAttributesSetter,
+				virtual.NoNamedAttributesFactory,
 			),
-			virtual.NewHandleAllocatingSymlinkFactory(
-				virtual.BaseSymlinkFactory,
-				handleAllocator.New(),
-			),
-			util.DefaultErrorLogger,
 			handleAllocator,
-			sort.Sort,
-			func(s string) bool { return false },
-			clock.SystemClock,
-			normalizer,
-			defaultAttributesSetter,
-			virtual.NoNamedAttributesFactory,
 		),
+		virtual.NewHandleAllocatingSymlinkFactory(
+			virtual.BaseSymlinkFactory,
+			handleAllocator.New(),
+		),
+		util.DefaultErrorLogger,
+		handleAllocator,
+		sort.Sort,
+		func(s string) bool { return false },
+		clock.SystemClock,
+		normalizer,
+		defaultAttributesSetter,
+		virtual.NoNamedAttributesFactory,
 	)
-	require.NoError(t, err, "Failed to expose mount point")
 
+	return vfsPath, bd, mount, rootDir
+}
+
+func createWinFSPMountForTest(t *testing.T, terminationGroup program.Group, caseSensitive bool) (string, blockdevice.BlockDevice) {
+	vfsPath, bd, mount, rootDir := createWinFSPForTest(t, terminationGroup, caseSensitive)
+	err := mount.Expose(terminationGroup, rootDir)
+	require.NoError(t, err, "Failed to expose mount point")
 	return vfsPath, bd
 }
 
@@ -411,6 +415,112 @@ func TestWinFSPFileSystemGetSecurityByNameIntegration(t *testing.T) {
 			)
 			require.NoError(t, err)
 			require.NotNil(t, sd)
+		})
+
+		return nil
+	})
+}
+
+func TestWinFSPFileSystemStatFollowsSymlink(t *testing.T) {
+	program.RunLocal(context.Background(), func(ctx context.Context, siblingsGroup, dependenciesGroup program.Group) error {
+		// Pre-populate the virtual directory through the VFS API
+		// (not os.Symlink).
+		vfsPath, bd, mount, rootDir := createWinFSPForTest(t, dependenciesGroup, false)
+		defer bd.Close()
+
+		// Build a pnpm-style node_modules layout through the VFS
+		// API with chained symlinks.
+		var attrs virtual.Attributes
+
+		// The real directory.
+		storeDir, _, s := rootDir.VirtualMkdir(
+			bb_path.MustNewComponent("store"), 0, &attrs)
+		require.Equal(t, virtual.StatusOK, s)
+		_, _, s = storeDir.VirtualMkdir(
+			bb_path.MustNewComponent("pkg"), 0, &attrs)
+		require.Equal(t, virtual.StatusOK, s)
+
+		// Single symlink: store-link -> store/pkg.
+		_, _, s = rootDir.VirtualSymlink(
+			ctx,
+			[]byte("store/pkg"),
+			bb_path.MustNewComponent("store-link"),
+			0, &attrs)
+		require.Equal(t, virtual.StatusOK, s)
+
+		// Create node_modules/.pnpm/pkg@1.0.0/node_modules/.
+		nmDir, _, s := rootDir.VirtualMkdir(
+			bb_path.MustNewComponent("node_modules"), 0, &attrs)
+		require.Equal(t, virtual.StatusOK, s)
+		pnpmDir, _, s := nmDir.VirtualMkdir(
+			bb_path.MustNewComponent(".pnpm"), 0, &attrs)
+		require.Equal(t, virtual.StatusOK, s)
+		pkgVerDir, _, s := pnpmDir.VirtualMkdir(
+			bb_path.MustNewComponent("pkg@1.0.0"), 0, &attrs)
+		require.Equal(t, virtual.StatusOK, s)
+		innerNmDir, _, s := pkgVerDir.VirtualMkdir(
+			bb_path.MustNewComponent("node_modules"), 0, &attrs)
+		require.Equal(t, virtual.StatusOK, s)
+
+		// Inner symlink.
+		_, _, s = innerNmDir.VirtualSymlink(
+			ctx,
+			[]byte("../../../../store/pkg"),
+			bb_path.MustNewComponent("pkg"),
+			0, &attrs)
+		require.Equal(t, virtual.StatusOK, s)
+
+		// Outer symlink.
+		_, _, s = nmDir.VirtualSymlink(
+			ctx,
+			[]byte(".pnpm/pkg@1.0.0/node_modules/pkg"),
+			bb_path.MustNewComponent("pkg"),
+			0, &attrs)
+		require.Equal(t, virtual.StatusOK, s)
+
+		require.NoError(t, mount.Expose(dependenciesGroup, rootDir))
+
+		// Write a file into the real directory after mounting.
+		testContent := []byte(`{"name":"pkg"}`)
+		require.NoError(t, os.WriteFile(
+			filepath.Join(vfsPath, "store", "pkg", "package.json"),
+			testContent, 0o644,
+		))
+
+		t.Run("SingleSymlink", func(t *testing.T) {
+			singleSymlinkPath := filepath.Join(vfsPath, "store-link")
+			info, err := os.Stat(singleSymlinkPath)
+			require.NoError(t, err)
+			require.True(t, info.IsDir())
+
+			content, err := os.ReadFile(filepath.Join(singleSymlinkPath, "package.json"))
+			require.NoError(t, err)
+			require.Equal(t, testContent, content)
+		})
+
+		t.Run("ChainedSymlinks", func(t *testing.T) {
+			symlinkPath := filepath.Join(vfsPath, "node_modules", "pkg")
+
+			info, err := os.Lstat(symlinkPath)
+			require.NoError(t, err)
+			require.NotZero(t, info.Mode()&os.ModeSymlink)
+
+			target, err := os.Readlink(symlinkPath)
+			require.NoError(t, err)
+			require.Equal(t, `.pnpm\pkg@1.0.0\node_modules\pkg`, target)
+
+			info, err = os.Stat(symlinkPath)
+			require.NoError(t, err)
+			require.True(t, info.IsDir())
+
+			content, err := os.ReadFile(filepath.Join(symlinkPath, "package.json"))
+			require.NoError(t, err)
+			require.Equal(t, testContent, content)
+
+			entries, err := os.ReadDir(symlinkPath)
+			require.NoError(t, err)
+			require.Len(t, entries, 1)
+			require.Equal(t, "package.json", entries[0].Name())
 		})
 
 		return nil
