@@ -22,10 +22,8 @@ import (
 // OutputNode is a node in a directory hierarchy that contains one or
 // more locations where output directories and files are expected.
 type outputNode struct {
-	directoriesToUpload map[path.Component][]string
-	filesToUpload       map[path.Component][]string
-	pathsToUpload       map[path.Component][]string
-	subdirectories      map[path.Component]*outputNode
+	pathsToUpload  map[path.Component][]string
+	subdirectories map[path.Component]*outputNode
 }
 
 func (on *outputNode) getSubdirectoryNames() []path.Component {
@@ -51,10 +49,8 @@ func sortToUpload(m map[path.Component][]string) []path.Component {
 // expected.
 func newOutputDirectory() *outputNode {
 	return &outputNode{
-		directoriesToUpload: map[path.Component][]string{},
-		filesToUpload:       map[path.Component][]string{},
-		pathsToUpload:       map[path.Component][]string{},
-		subdirectories:      map[path.Component]*outputNode{},
+		pathsToUpload:  map[path.Component][]string{},
+		subdirectories: map[path.Component]*outputNode{},
 	}
 }
 
@@ -70,7 +66,7 @@ func (on *outputNode) createParentDirectories(d ParentPopulatableDirectory, dPat
 		}
 
 		// Recurse if we need to create one or more directories within.
-		if child := on.subdirectories[name]; len(child.subdirectories) > 0 || len(child.directoriesToUpload) > 0 {
+		if child := on.subdirectories[name]; len(child.subdirectories) > 0 {
 			childDirectory, err := d.EnterParentPopulatableDirectory(name)
 			if err != nil {
 				return util.StatusWrapf(err, "Failed to enter output parent directory %#v", childPath.GetUNIXString())
@@ -82,28 +78,6 @@ func (on *outputNode) createParentDirectories(d ParentPopulatableDirectory, dPat
 			}
 		}
 	}
-
-	// Although REv2 explicitly documents that only parents of
-	// output directories are created (i.e., not the output
-	// directory itself), Bazel changed its behaviour and now
-	// creates output directories when using local execution. See
-	// these issues for details:
-	//
-	// https://github.com/bazelbuild/bazel/issues/6262
-	// https://github.com/bazelbuild/bazel/issues/6393
-	//
-	// Considering that the 'output_directories' field is deprecated
-	// in REv2.1 anyway, be consistent with Bazel's local execution.
-	// Once Bazel switches to REv2.1, it will be forced to solve
-	// this matter in a protocol conforming way.
-	for _, name := range sortToUpload(on.directoriesToUpload) {
-		if _, ok := on.subdirectories[name]; !ok {
-			childPath := dPath.Append(name)
-			if err := d.Mkdir(name, 0o777); err != nil && !os.IsExist(err) {
-				return util.StatusWrapf(err, "Failed to create output directory %#v", childPath.GetUNIXString())
-			}
-		}
-	}
 	return nil
 }
 
@@ -111,46 +85,8 @@ func (on *outputNode) createParentDirectories(d ParentPopulatableDirectory, dPat
 // OutputHierarchy.UploadOutputs() to upload output directories and
 // files from the locations where they are expected.
 func (on *outputNode) uploadOutputs(s *uploadOutputsState, d UploadableDirectory, dPath *path.Trace) {
-	// Upload REv2.0 output directories that are expected to be
-	// present in this directory.
-	for _, component := range sortToUpload(on.directoriesToUpload) {
-		childPath := dPath.Append(component)
-		paths := on.directoriesToUpload[component]
-		if fileInfo, err := d.Lstat(component); err == nil {
-			switch fileType := fileInfo.Type(); fileType {
-			case filesystem.FileTypeDirectory:
-				s.uploadOutputDirectory(d, component, childPath, paths)
-			case filesystem.FileTypeSymlink:
-				s.uploadOutputSymlink(d, component, childPath, &s.actionResult.OutputDirectorySymlinks, paths)
-			default:
-				s.saveError(status.Errorf(codes.InvalidArgument, "Output directory %#v is not a directory or symlink", childPath.GetUNIXString()))
-			}
-		} else if !os.IsNotExist(err) {
-			s.saveError(util.StatusWrapf(err, "Failed to read attributes of output directory %#v", childPath.GetUNIXString()))
-		}
-	}
-
-	// Upload REv2.0 output files that are expected to be present in
-	// this directory.
-	for _, component := range sortToUpload(on.filesToUpload) {
-		childPath := dPath.Append(component)
-		paths := on.filesToUpload[component]
-		if fileInfo, err := d.Lstat(component); err == nil {
-			switch fileType := fileInfo.Type(); fileType {
-			case filesystem.FileTypeRegularFile:
-				s.uploadOutputFile(d, component, childPath, fileInfo.IsExecutable(), paths)
-			case filesystem.FileTypeSymlink:
-				s.uploadOutputSymlink(d, component, childPath, &s.actionResult.OutputFileSymlinks, paths)
-			default:
-				s.saveError(status.Errorf(codes.InvalidArgument, "Output file %#v is not a regular file or symlink", childPath.GetUNIXString()))
-			}
-		} else if !os.IsNotExist(err) {
-			s.saveError(util.StatusWrapf(err, "Failed to read attributes of output file %#v", childPath.GetUNIXString()))
-		}
-	}
-
-	// Upload REv2.1 output paths that are expected to be present in
-	// this directory.
+	// Upload output paths that are expected to be present in this
+	// directory.
 	for _, component := range sortToUpload(on.pathsToUpload) {
 		childPath := dPath.Append(component)
 		paths := on.pathsToUpload[component]
@@ -468,7 +404,7 @@ type OutputHierarchy struct {
 // NewOutputHierarchy creates a new OutputHierarchy that uses the
 // working directory and the output paths specified in an REv2 Command
 // message.
-func NewOutputHierarchy(command *remoteexecution.Command, supportLegacyOutputFilesAndDirectories bool) (*OutputHierarchy, error) {
+func NewOutputHierarchy(command *remoteexecution.Command) (*OutputHierarchy, error) {
 	var workingDirectory outputNodePath
 	if err := path.Resolve(path.UNIXFormat.NewParser(command.WorkingDirectory), path.NewRelativeScopeWalker(&workingDirectory)); err != nil {
 		return nil, util.StatusWrap(err, "Invalid working directory")
@@ -480,44 +416,14 @@ func NewOutputHierarchy(command *remoteexecution.Command, supportLegacyOutputFil
 			command.OutputDirectoryFormat == remoteexecution.Command_TREE_AND_DIRECTORY,
 	}
 
-	if len(command.OutputPaths) == 0 {
-		// Register REv2.0 output directories.
-		for _, outputDirectory := range command.OutputDirectories {
-			if !supportLegacyOutputFilesAndDirectories {
-				return nil, status.Error(codes.Unimplemented, "Command specifies output paths using REv2.0's output_files field, which is deprecated and not enabled on this worker")
-			}
-			if on, name, err := oh.lookup(workingDirectory, outputDirectory); err != nil {
-				return nil, util.StatusWrapf(err, "Invalid output directory %#v", outputDirectory)
-			} else if on == nil {
-				oh.rootsToUpload = append(oh.rootsToUpload, outputDirectory)
-			} else {
-				on.directoriesToUpload[*name] = append(on.directoriesToUpload[*name], outputDirectory)
-			}
-		}
-
-		// Register REv2.0 output files.
-		for _, outputFile := range command.OutputFiles {
-			if !supportLegacyOutputFilesAndDirectories {
-				return nil, status.Error(codes.Unimplemented, "Command specifies output paths using REv2.0's output_files field, which is deprecated and not enabled on this worker")
-			}
-			if on, name, err := oh.lookup(workingDirectory, outputFile); err != nil {
-				return nil, util.StatusWrapf(err, "Invalid output file %#v", outputFile)
-			} else if on == nil {
-				return nil, status.Errorf(codes.InvalidArgument, "Output file %#v resolves to the input root directory", outputFile)
-			} else {
-				on.filesToUpload[*name] = append(on.filesToUpload[*name], outputFile)
-			}
-		}
-	} else {
-		// Register REv2.1 output paths.
-		for _, outputPath := range command.OutputPaths {
-			if on, name, err := oh.lookup(workingDirectory, outputPath); err != nil {
-				return nil, util.StatusWrapf(err, "Invalid output path %#v", outputPath)
-			} else if on == nil {
-				oh.rootsToUpload = append(oh.rootsToUpload, outputPath)
-			} else {
-				on.pathsToUpload[*name] = append(on.pathsToUpload[*name], outputPath)
-			}
+	// Register output paths.
+	for _, outputPath := range command.OutputPaths {
+		if on, name, err := oh.lookup(workingDirectory, outputPath); err != nil {
+			return nil, util.StatusWrapf(err, "Invalid output path %#v", outputPath)
+		} else if on == nil {
+			oh.rootsToUpload = append(oh.rootsToUpload, outputPath)
+		} else {
+			on.pathsToUpload[*name] = append(on.pathsToUpload[*name], outputPath)
 		}
 	}
 	return oh, nil
