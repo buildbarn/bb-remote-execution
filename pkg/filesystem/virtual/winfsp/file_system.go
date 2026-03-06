@@ -1318,30 +1318,6 @@ func FillSymlinkReparseBuffer(target string, flags uint32, buffer []byte) (int, 
 	return requiredSize, nil
 }
 
-type relativePathChecker struct {
-	isRelative bool
-}
-
-func (d *relativePathChecker) OnAbsolute() (path.ComponentWalker, error) {
-	// This counts as relative as it's interpreted as relative to the
-	// current drive.
-	d.isRelative = true
-	return path.VoidComponentWalker, nil
-}
-
-func (relativePathChecker) OnDriveLetter(drive rune) (path.ComponentWalker, error) {
-	return path.VoidComponentWalker, nil
-}
-
-func (d *relativePathChecker) OnRelative() (path.ComponentWalker, error) {
-	d.isRelative = true
-	return path.VoidComponentWalker, nil
-}
-
-func (relativePathChecker) OnShare(server, share string) (path.ComponentWalker, error) {
-	return path.VoidComponentWalker, nil
-}
-
 func getReparsePointForLeaf(ctx context.Context, leaf virtual.Leaf, buffer []byte) (int, error) {
 	target, status := leaf.VirtualReadlink(ctx)
 	if status != virtual.StatusOK {
@@ -1352,17 +1328,27 @@ func getReparsePointForLeaf(ctx context.Context, leaf virtual.Leaf, buffer []byt
 		return 0, nil
 	}
 
-	// Parse the path to determine if it's absolute
-	w := relativePathChecker{}
-	if err := path.Resolve(path.LocalFormat.NewParser(string(target)), &w); err != nil {
+	// Normalize to backslashes. After reparse resolution the
+	// I/O manager re-issues the request with the substituted
+	// path. FspFileSystemFindReparsePoint splits on backslashes
+	// only, so forward slashes cause it to misidentify the
+	// reparse point's depth, breaking chained symlinks.
+	targetParser := path.LocalFormat.NewParser(string(target))
+	cleanPathBuilder, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
+	if err := path.Resolve(targetParser, scopeWalker); err != nil {
 		return 0, err
 	}
-	var flags int
-	if w.isRelative {
-		flags = windowsext.SYMLINK_FLAG_RELATIVE
+	var flags uint32
+	switch cleanPathBuilder.WindowsPathKind() {
+	case path.WindowsPathKindRelative, path.WindowsPathKindDriveRelative:
+		flags = uint32(windowsext.SYMLINK_FLAG_RELATIVE)
+	case path.WindowsPathKindAbsolute:
 	}
-
-	return FillSymlinkReparseBuffer(string(target), uint32(flags), buffer)
+	targetStr, err := cleanPathBuilder.GetWindowsString(path.WindowsPathFormatStandard)
+	if err != nil {
+		return 0, err
+	}
+	return FillSymlinkReparseBuffer(targetStr, flags, buffer)
 }
 
 func (fs *FileSystem) GetReparsePoint(ref *ffi.FileSystemRef, file uintptr, name string, buffer []byte) (int, error) {
