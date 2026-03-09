@@ -33,24 +33,23 @@ const (
 )
 
 type ApplicationConfiguration struct {
-	state                                  protoimpl.MessageState                    `protogen:"open.v1"`
-	Blobstore                              *blobstore.BlobstoreConfiguration         `protobuf:"bytes,1,opt,name=blobstore,proto3" json:"blobstore,omitempty"`
-	BrowserUrl                             string                                    `protobuf:"bytes,2,opt,name=browser_url,json=browserUrl,proto3" json:"browser_url,omitempty"`
-	MaximumMessageSizeBytes                int64                                     `protobuf:"varint,6,opt,name=maximum_message_size_bytes,json=maximumMessageSizeBytes,proto3" json:"maximum_message_size_bytes,omitempty"`
-	Scheduler                              *grpc.ClientConfiguration                 `protobuf:"bytes,8,opt,name=scheduler,proto3" json:"scheduler,omitempty"`
-	Global                                 *global.Configuration                     `protobuf:"bytes,19,opt,name=global,proto3" json:"global,omitempty"`
-	BuildDirectories                       []*BuildDirectoryConfiguration            `protobuf:"bytes,20,rep,name=build_directories,json=buildDirectories,proto3" json:"build_directories,omitempty"`
-	FilePool                               *filesystem.FilePoolConfiguration         `protobuf:"bytes,22,opt,name=file_pool,json=filePool,proto3" json:"file_pool,omitempty"`
-	CompletedActionLoggers                 []*CompletedActionLoggingConfiguration    `protobuf:"bytes,23,rep,name=completed_action_loggers,json=completedActionLoggers,proto3" json:"completed_action_loggers,omitempty"`
-	OutputUploadConcurrency                int64                                     `protobuf:"varint,24,opt,name=output_upload_concurrency,json=outputUploadConcurrency,proto3" json:"output_upload_concurrency,omitempty"`
-	DirectoryCache                         *cas.CachingDirectoryFetcherConfiguration `protobuf:"bytes,25,opt,name=directory_cache,json=directoryCache,proto3" json:"directory_cache,omitempty"`
-	Prefetching                            *PrefetchingConfiguration                 `protobuf:"bytes,26,opt,name=prefetching,proto3" json:"prefetching,omitempty"`
-	ForceUploadTreesAndDirectories         bool                                      `protobuf:"varint,27,opt,name=force_upload_trees_and_directories,json=forceUploadTreesAndDirectories,proto3" json:"force_upload_trees_and_directories,omitempty"`
-	InputDownloadConcurrency               int64                                     `protobuf:"varint,28,opt,name=input_download_concurrency,json=inputDownloadConcurrency,proto3" json:"input_download_concurrency,omitempty"`
-	SupportLegacyOutputFilesAndDirectories bool                                      `protobuf:"varint,29,opt,name=support_legacy_output_files_and_directories,json=supportLegacyOutputFilesAndDirectories,proto3" json:"support_legacy_output_files_and_directories,omitempty"`
-	HttpExecutionTimeoutCompensators       []*HttpExecutionTimeoutCompensator        `protobuf:"bytes,30,rep,name=http_execution_timeout_compensators,json=httpExecutionTimeoutCompensators,proto3" json:"http_execution_timeout_compensators,omitempty"`
-	unknownFields                          protoimpl.UnknownFields
-	sizeCache                              protoimpl.SizeCache
+	state                            protoimpl.MessageState                    `protogen:"open.v1"`
+	Blobstore                        *blobstore.BlobstoreConfiguration         `protobuf:"bytes,1,opt,name=blobstore,proto3" json:"blobstore,omitempty"`
+	BrowserUrl                       string                                    `protobuf:"bytes,2,opt,name=browser_url,json=browserUrl,proto3" json:"browser_url,omitempty"`
+	MaximumMessageSizeBytes          int64                                     `protobuf:"varint,6,opt,name=maximum_message_size_bytes,json=maximumMessageSizeBytes,proto3" json:"maximum_message_size_bytes,omitempty"`
+	Scheduler                        *grpc.ClientConfiguration                 `protobuf:"bytes,8,opt,name=scheduler,proto3" json:"scheduler,omitempty"`
+	Global                           *global.Configuration                     `protobuf:"bytes,19,opt,name=global,proto3" json:"global,omitempty"`
+	BuildDirectories                 []*BuildDirectoryConfiguration            `protobuf:"bytes,20,rep,name=build_directories,json=buildDirectories,proto3" json:"build_directories,omitempty"`
+	FilePool                         *filesystem.FilePoolConfiguration         `protobuf:"bytes,22,opt,name=file_pool,json=filePool,proto3" json:"file_pool,omitempty"`
+	CompletedActionLoggers           []*CompletedActionLoggingConfiguration    `protobuf:"bytes,23,rep,name=completed_action_loggers,json=completedActionLoggers,proto3" json:"completed_action_loggers,omitempty"`
+	OutputUploadConcurrency          int64                                     `protobuf:"varint,24,opt,name=output_upload_concurrency,json=outputUploadConcurrency,proto3" json:"output_upload_concurrency,omitempty"`
+	DirectoryCache                   *cas.CachingDirectoryFetcherConfiguration `protobuf:"bytes,25,opt,name=directory_cache,json=directoryCache,proto3" json:"directory_cache,omitempty"`
+	Prefetching                      *PrefetchingConfiguration                 `protobuf:"bytes,26,opt,name=prefetching,proto3" json:"prefetching,omitempty"`
+	ForceUploadTreesAndDirectories   bool                                      `protobuf:"varint,27,opt,name=force_upload_trees_and_directories,json=forceUploadTreesAndDirectories,proto3" json:"force_upload_trees_and_directories,omitempty"`
+	InputDownloadConcurrency         int64                                     `protobuf:"varint,28,opt,name=input_download_concurrency,json=inputDownloadConcurrency,proto3" json:"input_download_concurrency,omitempty"`
+	HttpExecutionTimeoutCompensators []*HttpExecutionTimeoutCompensator        `protobuf:"bytes,30,rep,name=http_execution_timeout_compensators,json=httpExecutionTimeoutCompensators,proto3" json:"http_execution_timeout_compensators,omitempty"`
+	unknownFields                    protoimpl.UnknownFields
+	sizeCache                        protoimpl.SizeCache
 }
 
 func (x *ApplicationConfiguration) Reset() {
@@ -172,13 +171,6 @@ func (x *ApplicationConfiguration) GetInputDownloadConcurrency() int64 {
 		return x.InputDownloadConcurrency
 	}
 	return 0
-}
-
-func (x *ApplicationConfiguration) GetSupportLegacyOutputFilesAndDirectories() bool {
-	if x != nil {
-		return x.SupportLegacyOutputFilesAndDirectories
-	}
-	return false
 }
 
 func (x *ApplicationConfiguration) GetHttpExecutionTimeoutCompensators() []*HttpExecutionTimeoutCompensator {
@@ -770,8 +762,7 @@ var File_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_wor
 
 const file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_worker_bb_worker_proto_rawDesc = "" +
 	"\n" +
-	"Zgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_worker/bb_worker.proto\x12!buildbarn.configuration.bb_worker\x1a6build/bazel/remote/execution/v2/remote_execution.proto\x1aNgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/cas/cas.proto\x1a\\github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem/filesystem.proto\x1aagithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem/virtual/virtual.proto\x1aTgithub.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage/resourceusage.proto\x1aQgithub.com/buildbarn/bb-storage/pkg/proto/configuration/blobstore/blobstore.proto\x1aOgithub.com/buildbarn/bb-storage/pkg/proto/configuration/eviction/eviction.proto\x1aKgithub.com/buildbarn/bb-storage/pkg/proto/configuration/global/global.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/grpc/grpc.proto\x1aPgithub.com/buildbarn/bb-storage/pkg/proto/configuration/http/client/client.proto\x1a\x1egoogle/protobuf/duration.proto\"\xd1\n" +
-	"\n" +
+	"Zgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_worker/bb_worker.proto\x12!buildbarn.configuration.bb_worker\x1a6build/bazel/remote/execution/v2/remote_execution.proto\x1aNgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/cas/cas.proto\x1a\\github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem/filesystem.proto\x1aagithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem/virtual/virtual.proto\x1aTgithub.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage/resourceusage.proto\x1aQgithub.com/buildbarn/bb-storage/pkg/proto/configuration/blobstore/blobstore.proto\x1aOgithub.com/buildbarn/bb-storage/pkg/proto/configuration/eviction/eviction.proto\x1aKgithub.com/buildbarn/bb-storage/pkg/proto/configuration/global/global.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/grpc/grpc.proto\x1aPgithub.com/buildbarn/bb-storage/pkg/proto/configuration/http/client/client.proto\x1a\x1egoogle/protobuf/duration.proto\"\xfa\t\n" +
 	"\x18ApplicationConfiguration\x12W\n" +
 	"\tblobstore\x18\x01 \x01(\v29.buildbarn.configuration.blobstore.BlobstoreConfigurationR\tblobstore\x12\x1f\n" +
 	"\vbrowser_url\x18\x02 \x01(\tR\n" +
@@ -786,10 +777,9 @@ const file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_w
 	"\x0fdirectory_cache\x18\x19 \x01(\v2A.buildbarn.configuration.cas.CachingDirectoryFetcherConfigurationR\x0edirectoryCache\x12]\n" +
 	"\vprefetching\x18\x1a \x01(\v2;.buildbarn.configuration.bb_worker.PrefetchingConfigurationR\vprefetching\x12J\n" +
 	"\"force_upload_trees_and_directories\x18\x1b \x01(\bR\x1eforceUploadTreesAndDirectories\x12<\n" +
-	"\x1ainput_download_concurrency\x18\x1c \x01(\x03R\x18inputDownloadConcurrency\x12[\n" +
-	"+support_legacy_output_files_and_directories\x18\x1d \x01(\bR&supportLegacyOutputFilesAndDirectories\x12\x91\x01\n" +
+	"\x1ainput_download_concurrency\x18\x1c \x01(\x03R\x18inputDownloadConcurrency\x12\x91\x01\n" +
 	"#http_execution_timeout_compensators\x18\x1e \x03(\v2B.buildbarn.configuration.bb_worker.HttpExecutionTimeoutCompensatorR httpExecutionTimeoutCompensatorsJ\x04\b\t\x10\n" +
-	"J\x04\b\f\x10\rJ\x04\b\x10\x10\x11J\x04\b\x12\x10\x13J\x04\b\x15\x10\x16\"\xbd\x02\n" +
+	"J\x04\b\f\x10\rJ\x04\b\x10\x10\x11J\x04\b\x12\x10\x13J\x04\b\x15\x10\x16J\x04\b\x1d\x10\x1e\"\xbd\x02\n" +
 	"\x1bBuildDirectoryConfiguration\x12^\n" +
 	"\x06native\x18\x01 \x01(\v2D.buildbarn.configuration.bb_worker.NativeBuildDirectoryConfigurationH\x00R\x06native\x12a\n" +
 	"\avirtual\x18\x02 \x01(\v2E.buildbarn.configuration.bb_worker.VirtualBuildDirectoryConfigurationH\x00R\avirtual\x12P\n" +
