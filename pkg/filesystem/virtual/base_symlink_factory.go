@@ -13,19 +13,30 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-type symlinkFactory struct{}
-
-func (symlinkFactory) LookupSymlink(target []byte) LinkableLeaf {
-	return symlink{target: target}
+type symlinkFactory struct {
+	defaultAttributesSetter DefaultAttributesSetter
 }
 
-// BaseSymlinkFactory can be used to create simple immutable symlink nodes.
-var BaseSymlinkFactory SymlinkFactory = symlinkFactory{}
+func (f *symlinkFactory) LookupSymlink(target []byte) LinkableLeaf {
+	return symlink{
+		defaultAttributesSetter: f.defaultAttributesSetter,
+		target:                  target,
+	}
+}
+
+// NewBaseSymlinkFactory creates a SymlinkFactory that can be used to create
+// simple immutable symlink nodes.
+func NewBaseSymlinkFactory(defaultAttributesSetter DefaultAttributesSetter) SymlinkFactory {
+	return &symlinkFactory{
+		defaultAttributesSetter: defaultAttributesSetter,
+	}
+}
 
 type symlink struct {
 	placeholderFile
 
-	target []byte
+	defaultAttributesSetter DefaultAttributesSetter
+	target                  []byte
 }
 
 func (f symlink) readlinkParser() (path.Parser, error) {
@@ -48,6 +59,7 @@ func (f symlink) readlinkString() (string, error) {
 }
 
 func (f symlink) VirtualGetAttributes(ctx context.Context, requested AttributesMask, attributes *Attributes) {
+	f.defaultAttributesSetter(requested, attributes)
 	attributes.SetChangeID(0)
 	attributes.SetFileType(filesystem.FileTypeSymlink)
 	attributes.SetHasNamedAttributes(false)
