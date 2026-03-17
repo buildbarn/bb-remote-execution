@@ -26,7 +26,7 @@ workflows_template.getWorkflows(
     },
     {
       name: 'Execute WinFSP Integration Tests',
-      run: 'bazel test //pkg/filesystem/virtual/winfsp:file_system_integration_test',
+      run: 'bazel test --test_output=errors //pkg/filesystem/virtual/winfsp:file_system_integration_test',
       'if': "matrix.host.platform_name == 'windows_amd64'",
     },
   ]

@@ -6,6 +6,7 @@ import (
 	pb "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem/virtual"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/eviction"
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/jmespath"
 	"github.com/buildbarn/bb-storage/pkg/program"
 	"github.com/buildbarn/bb-storage/pkg/random"
@@ -111,6 +112,7 @@ func (m *nfsv4Mount) Expose(terminationGroup program.Group, rootDirectory virtua
 			clock.SystemClock,
 			enforcedLeaseTime.AsDuration(),
 			announcedLeaseTime.AsDuration(),
+			path.LocalFormat,
 		),
 		nfsv4.NewNFS40Program(
 			rootDirectory,
@@ -121,6 +123,7 @@ func (m *nfsv4Mount) Expose(terminationGroup program.Group, rootDirectory virtua
 			clock.SystemClock,
 			enforcedLeaseTime.AsDuration(),
 			announcedLeaseTime.AsDuration(),
+			path.LocalFormat,
 		),
 	})
 

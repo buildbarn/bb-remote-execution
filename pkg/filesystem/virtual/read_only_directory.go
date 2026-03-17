@@ -60,7 +60,7 @@ func (ReadOnlyDirectory) VirtualSetAttributes(ctx context.Context, in *Attribute
 
 // VirtualSymlink is an implementation of the symlink() system call that
 // treats the target directory as being read-only.
-func (ReadOnlyDirectory) VirtualSymlink(ctx context.Context, pointedTo []byte, linkName path.Component, requested AttributesMask, out *Attributes) (Leaf, ChangeInfo, Status) {
+func (ReadOnlyDirectory) VirtualSymlink(ctx context.Context, pointedTo path.Parser, linkName path.Component, requested AttributesMask, out *Attributes) (Leaf, ChangeInfo, Status) {
 	return nil, ChangeInfo{}, StatusErrROFS
 }
 

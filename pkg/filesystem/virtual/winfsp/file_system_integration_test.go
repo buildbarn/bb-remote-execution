@@ -14,13 +14,18 @@ import (
 	"strings"
 	"testing"
 
+	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/bazelbuild/rules_go/go/runfiles"
+	"github.com/buildbarn/bb-remote-execution/pkg/cas"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual"
 	virtual_configuration "github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual/configuration"
 	virtual_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem/virtual"
 	"github.com/buildbarn/bb-storage/pkg/blockdevice"
 	"github.com/buildbarn/bb-storage/pkg/clock"
+	"github.com/buildbarn/bb-storage/pkg/digest"
+	bb_filesystem "github.com/buildbarn/bb-storage/pkg/filesystem"
+	bb_path "github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/program"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/stretchr/testify/require"
@@ -39,7 +44,7 @@ func findFreeDriveLetter() (string, error) {
 	return "", fmt.Errorf("no free drive letters available")
 }
 
-func createWinFSPMountForTest(t *testing.T, terminationGroup program.Group, caseSensitive bool) (string, blockdevice.BlockDevice) {
+func createWinFSPForTest(t *testing.T, terminationGroup program.Group, caseSensitive bool) (string, blockdevice.BlockDevice, virtual_configuration.Mount, virtual.PrepopulatedDirectory, virtual.SymlinkFactory) {
 	// We can't run winfsp-tests at a directory path due to
 	// https://github.com/winfsp/winfsp/issues/279. Instead find a free drive
 	// letter and run it there instead.
@@ -75,38 +80,43 @@ func createWinFSPMountForTest(t *testing.T, terminationGroup program.Group, case
 
 	// Create a virtual directory to hold new files.
 	defaultAttributesSetter := func(requested virtual.AttributesMask, attributes *virtual.Attributes) {}
-	err = mount.Expose(
-		terminationGroup,
-		virtual.NewInMemoryPrepopulatedDirectory(
-			virtual.NewHandleAllocatingFileAllocator(
-				virtual.NewPoolBackedFileAllocator(
-					pool.NewBlockDeviceBackedFilePool(
-						bd,
-						pool.NewBitmapSectorAllocator(uint32(sectorCount)),
-						sectorSizeBytes,
-					),
-					util.DefaultErrorLogger,
-					defaultAttributesSetter,
-					virtual.NoNamedAttributesFactory,
-				),
-				handleAllocator,
-			),
-			virtual.NewHandleAllocatingSymlinkFactory(
-				virtual.BaseSymlinkFactory,
-				handleAllocator.New(),
-			),
-			util.DefaultErrorLogger,
-			handleAllocator,
-			sort.Sort,
-			func(s string) bool { return false },
-			clock.SystemClock,
-			normalizer,
-			defaultAttributesSetter,
-			virtual.NoNamedAttributesFactory,
-		),
+	symlinkFactory := virtual.NewHandleAllocatingSymlinkFactory(
+		virtual.BaseSymlinkFactory,
+		handleAllocator.New(),
+		bb_path.LocalFormat,
 	)
-	require.NoError(t, err, "Failed to expose mount point")
+	rootDir := virtual.NewInMemoryPrepopulatedDirectory(
+		virtual.NewHandleAllocatingFileAllocator(
+			virtual.NewPoolBackedFileAllocator(
+				pool.NewBlockDeviceBackedFilePool(
+					bd,
+					pool.NewBitmapSectorAllocator(uint32(sectorCount)),
+					sectorSizeBytes,
+				),
+				util.DefaultErrorLogger,
+				defaultAttributesSetter,
+				virtual.NoNamedAttributesFactory,
+			),
+			handleAllocator,
+		),
+		symlinkFactory,
+		util.DefaultErrorLogger,
+		handleAllocator,
+		sort.Sort,
+		func(s string) bool { return false },
+		clock.SystemClock,
+		normalizer,
+		defaultAttributesSetter,
+		virtual.NoNamedAttributesFactory,
+	)
 
+	return vfsPath, bd, mount, rootDir, symlinkFactory
+}
+
+func createWinFSPMountForTest(t *testing.T, terminationGroup program.Group, caseSensitive bool) (string, blockdevice.BlockDevice) {
+	vfsPath, bd, mount, rootDir, _ := createWinFSPForTest(t, terminationGroup, caseSensitive)
+	err := mount.Expose(terminationGroup, rootDir)
+	require.NoError(t, err, "Failed to expose mount point")
 	return vfsPath, bd
 }
 
@@ -492,6 +502,163 @@ func TestWinFSPFileSystemCasePreserving(t *testing.T) {
 				require.Contains(t, foundNames, item.name)
 			}
 		})
+
+		return nil
+	})
+}
+
+// staticDirectoryWalker is a simple DirectoryWalker that returns a
+// fixed Directory proto.
+type staticDirectoryWalker struct {
+	directory *remoteexecution.Directory
+}
+
+func (w *staticDirectoryWalker) GetDirectory(ctx context.Context) (*remoteexecution.Directory, error) {
+	return w.directory, nil
+}
+
+func (staticDirectoryWalker) GetChild(d digest.Digest) cas.DirectoryWalker {
+	return &staticDirectoryWalker{}
+}
+
+func (staticDirectoryWalker) GetDescription() string {
+	return "static test directory"
+}
+
+func (staticDirectoryWalker) GetContainingDigest() digest.Digest {
+	return digest.MustNewDigest("test", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0)
+}
+
+func TestWinFSPFileSystemStatFollowsSymlink(t *testing.T) {
+	program.RunLocal(context.Background(), func(ctx context.Context, siblingsGroup, dependenciesGroup program.Group) error {
+		vfsPath, bd, mount, rootDir, symlinkFactory := createWinFSPForTest(t, dependenciesGroup, false)
+		defer bd.Close()
+
+		// Build a pnpm-style node_modules layout with chained
+		// symlinks. Symlinks are created through the CAS
+		// ingestion path (NewCASInitialContentsFetcher) so that
+		// their UNIX-formatted targets from the REv2 proto are
+		// normalized to native Windows format.
+		digestFunction := digest.MustNewFunction("test", remoteexecution.DigestFunction_SHA256)
+		noopFileReadMonitorFactory := virtual.FileReadMonitorFactory(
+			func(name bb_path.Component) virtual.FileReadMonitor {
+				return func() {}
+			})
+
+		// Helper to create a chain of nested directories.
+		mkdirs := func(parent virtual.PrepopulatedDirectory, names ...string) virtual.PrepopulatedDirectory {
+			for _, name := range names {
+				child, err := parent.CreateAndEnterPrepopulatedDirectory(bb_path.MustNewComponent(name))
+				require.NoError(t, err)
+				parent = child
+			}
+			return parent
+		}
+
+		// Helper to create symlink children via the CAS
+		// ingestion path, so that UNIX-formatted targets from
+		// the REv2 proto are normalized to native Windows format.
+		addCASSymlinks := func(parent virtual.PrepopulatedDirectory, symlinks []*remoteexecution.SymlinkNode) {
+			children, err := virtual.NewCASInitialContentsFetcher(
+				ctx,
+				&staticDirectoryWalker{directory: &remoteexecution.Directory{
+					Symlinks: symlinks,
+				}},
+				nil, symlinkFactory, digestFunction,
+			).FetchContents(noopFileReadMonitorFactory)
+			require.NoError(t, err)
+			require.NoError(t, parent.CreateChildren(children, false))
+		}
+
+		// store/pkg — the real directory.
+		mkdirs(rootDir, "store", "pkg")
+
+		addCASSymlinks(rootDir, []*remoteexecution.SymlinkNode{
+			{Name: "store-link", Target: "store/pkg"},
+		})
+
+		nmDir := mkdirs(rootDir, "node_modules")
+		innerNmDir := mkdirs(nmDir, ".pnpm", "pkg@1.0.0", "node_modules")
+		addCASSymlinks(innerNmDir, []*remoteexecution.SymlinkNode{
+			{Name: "pkg", Target: "../../../../store/pkg"},
+		})
+		addCASSymlinks(nmDir, []*remoteexecution.SymlinkNode{
+			{Name: "pkg", Target: ".pnpm/pkg@1.0.0/node_modules/pkg"},
+		})
+
+		require.NoError(t, mount.Expose(dependenciesGroup, rootDir))
+
+		// Write a file into the real directory after mounting.
+		testContent := []byte(`{"name":"pkg"}`)
+		require.NoError(t, os.WriteFile(
+			filepath.Join(vfsPath, "store", "pkg", "package.json"),
+			testContent, 0o644,
+		))
+
+		t.Run("SingleSymlink", func(t *testing.T) {
+			singleSymlinkPath := filepath.Join(vfsPath, "store-link")
+			info, err := os.Stat(singleSymlinkPath)
+			require.NoError(t, err)
+			require.True(t, info.IsDir())
+
+			content, err := os.ReadFile(filepath.Join(singleSymlinkPath, "package.json"))
+			require.NoError(t, err)
+			require.Equal(t, testContent, content)
+		})
+
+		t.Run("ChainedSymlinks", func(t *testing.T) {
+			symlinkPath := filepath.Join(vfsPath, "node_modules", "pkg")
+
+			info, err := os.Lstat(symlinkPath)
+			require.NoError(t, err)
+			require.NotZero(t, info.Mode()&os.ModeSymlink)
+
+			target, err := os.Readlink(symlinkPath)
+			require.NoError(t, err)
+			require.Equal(t, `.pnpm\pkg@1.0.0\node_modules\pkg`, target)
+
+			info, err = os.Stat(symlinkPath)
+			require.NoError(t, err)
+			require.True(t, info.IsDir())
+
+			content, err := os.ReadFile(filepath.Join(symlinkPath, "package.json"))
+			require.NoError(t, err)
+			require.Equal(t, testContent, content)
+
+			entries, err := os.ReadDir(symlinkPath)
+			require.NoError(t, err)
+			require.Len(t, entries, 1)
+			require.Equal(t, "package.json", entries[0].Name())
+		})
+
+		return nil
+	})
+}
+
+// This replicates what bb_runner does when it opens the WinFSP mount via
+// filesystem.NewLocalDirectory and then enters subdirectories.
+func TestWinFSPFileSystemCheckReadiness(t *testing.T) {
+	program.RunLocal(context.Background(), func(ctx context.Context, siblingsGroup, dependenciesGroup program.Group) error {
+		vfsPath, bd := createWinFSPMountForTest(t, dependenciesGroup, false)
+		defer bd.Close()
+
+		// Create the directory structure that the build executor
+		// would create: <mount>/17/check_readiness
+		slotDir := filepath.Join(vfsPath, "17")
+		require.NoError(t, os.Mkdir(slotDir, 0o777))
+		require.NoError(t, os.Mkdir(filepath.Join(slotDir, "check_readiness"), 0o777))
+
+		dir, err := bb_filesystem.NewLocalDirectory(bb_path.LocalFormat.NewParser(vfsPath + `\`))
+		require.NoError(t, err, "Failed to open WinFSP mount root via NewLocalDirectory")
+		defer dir.Close()
+
+		child, err := dir.EnterDirectory(bb_path.MustNewComponent("17"))
+		require.NoError(t, err, "Failed to enter subdirectory '17'")
+		defer child.Close()
+
+		info, err := child.Lstat(bb_path.MustNewComponent("check_readiness"))
+		require.NoError(t, err, "Failed to stat 'check_readiness'")
+		require.True(t, info.Type() == bb_filesystem.FileTypeDirectory)
 
 		return nil
 	})

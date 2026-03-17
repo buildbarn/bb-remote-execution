@@ -51,7 +51,7 @@ func main() {
 		if err := path.Resolve(path.UNIXFormat.NewParser(configuration.BuildDirectoryPath), scopeWalker); err != nil {
 			return util.StatusWrap(err, "Failed to resolve build directory path")
 		}
-		userSettableSymlink := virtual.NewUserSettableSymlink(buildDirectory)
+		userSettableSymlink := virtual.NewUserSettableSymlink(buildDirectory, path.UNIXFormat.NewParser("/invalid"))
 
 		// Expose the symbolic link through a virtual file system.
 		mount, handleAllocator, err := virtual_configuration.NewMountFromConfiguration(

@@ -1314,8 +1314,13 @@ func TestWinFSPFileSystemGetReparsePointByName(t *testing.T) {
 		})
 
 		// Mock readlink
-		target := []byte("target.txt")
-		symlink.EXPECT().VirtualReadlink(gomock.Any()).Return(target, virtual.StatusOK)
+		symlink.EXPECT().VirtualGetAttributes(
+			gomock.Any(),
+			virtual.AttributesMaskSymlinkTarget,
+			gomock.Any(),
+		).Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
+			attributes.SetSymlinkTarget(path.WindowsFormat.NewParser("target.txt"))
+		})
 
 		buffer := make([]byte, 1024)
 		bytesWritten, err := fs.GetReparsePointByName(ref, "\\symlink.txt", false, buffer)
@@ -1374,8 +1379,13 @@ func TestWinFSPFileSystemGetReparsePoint(t *testing.T) {
 		handle, err := fs.Open(ref, "\\symlink.txt", dispositionToOptions(windows.FILE_OPEN_IF), windows.FILE_READ_DATA, &info)
 		require.NoError(t, err)
 
-		target := []byte("relative_target.txt")
-		symlink.EXPECT().VirtualReadlink(gomock.Any()).Return(target, virtual.StatusOK)
+		symlink.EXPECT().VirtualGetAttributes(
+			gomock.Any(),
+			virtual.AttributesMaskSymlinkTarget,
+			gomock.Any(),
+		).Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
+			attributes.SetSymlinkTarget(path.WindowsFormat.NewParser("relative_target.txt"))
+		})
 
 		buffer := make([]byte, 1024)
 		bytesWritten, err := fs.GetReparsePoint(ref, handle, "\\symlink.txt", buffer)
@@ -1409,8 +1419,13 @@ func TestWinFSPFileSystemGetReparsePoint(t *testing.T) {
 		handle, err := fs.Open(ref, "\\abs_symlink.txt", dispositionToOptions(windows.FILE_OPEN_IF), windows.FILE_READ_DATA, &info)
 		require.NoError(t, err)
 
-		target := []byte("C:\\absolute\\target.txt")
-		symlink.EXPECT().VirtualReadlink(gomock.Any()).Return(target, virtual.StatusOK)
+		symlink.EXPECT().VirtualGetAttributes(
+			gomock.Any(),
+			virtual.AttributesMaskSymlinkTarget,
+			gomock.Any(),
+		).Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
+			attributes.SetSymlinkTarget(path.WindowsFormat.NewParser("C:\\absolute\\target.txt"))
+		})
 
 		buffer := make([]byte, 1024)
 		bytesWritten, err := fs.GetReparsePoint(ref, handle, "\\abs_symlink.txt", buffer)
@@ -1419,7 +1434,7 @@ func TestWinFSPFileSystemGetReparsePoint(t *testing.T) {
 
 		actualTarget, flags, err := extractSymlinkReparseTarget(buffer[:bytesWritten])
 		require.NoError(t, err)
-		require.Equal(t, "C:\\absolute\\target.txt", string(actualTarget))
+		require.Equal(t, `\??\C:\absolute\target.txt`, string(actualTarget))
 		require.Equal(t, uint32(0), flags)
 	})
 
@@ -1444,12 +1459,16 @@ func TestWinFSPFileSystemGetReparsePoint(t *testing.T) {
 		handle, err := fs.Open(ref, "\\regular.txt", dispositionToOptions(windows.FILE_OPEN_IF), windows.FILE_READ_DATA, &info)
 		require.NoError(t, err)
 
-		regularFile.EXPECT().VirtualReadlink(gomock.Any()).Return(nil, virtual.StatusErrSymlink)
+		regularFile.EXPECT().VirtualGetAttributes(
+			gomock.Any(),
+			virtual.AttributesMaskSymlinkTarget,
+			gomock.Any(),
+		)
 
 		buffer := make([]byte, 1024)
 		_, err = fs.GetReparsePoint(ref, handle, "\\regular.txt", buffer)
 		require.Error(t, err)
-		require.Equal(t, windows.STATUS_REPARSE, err)
+		require.Equal(t, windows.STATUS_INVALID_PARAMETER, err)
 	})
 }
 
@@ -1956,11 +1975,17 @@ func TestWinFSPFileSystemSymlinkCreation(t *testing.T) {
 
 		rootDirectory.EXPECT().VirtualSymlink(
 			gomock.Any(),
-			[]byte(targetPath),
+			gomock.Any(),
 			path.MustNewComponent("symlink.txt"),
 			virtual.AttributesMaskFileType,
 			gomock.Any(),
-		).DoAndReturn(func(ctx context.Context, target []byte, name path.Component, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Leaf, virtual.ChangeInfo, virtual.Status) {
+		).DoAndReturn(func(ctx context.Context, target path.Parser, name path.Component, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Leaf, virtual.ChangeInfo, virtual.Status) {
+			targetBuilder, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
+			require.NoError(t, path.Resolve(target, scopeWalker))
+			targetStr, err := path.LocalFormat.GetString(targetBuilder)
+			require.NoError(t, err)
+			require.Equal(t, targetPath, targetStr)
+
 			out.SetFileType(filesystem.FileTypeSymlink)
 			out.SetInodeNumber(1101)
 			out.SetPermissions(virtual.PermissionsRead)
@@ -2014,11 +2039,17 @@ func TestWinFSPFileSystemSymlinkCreation(t *testing.T) {
 
 		rootDirectory.EXPECT().VirtualSymlink(
 			gomock.Any(),
-			[]byte(targetPath),
+			gomock.Any(),
 			path.MustNewComponent("abs_symlink.txt"),
 			virtual.AttributesMaskFileType,
 			gomock.Any(),
-		).DoAndReturn(func(ctx context.Context, target []byte, name path.Component, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Leaf, virtual.ChangeInfo, virtual.Status) {
+		).DoAndReturn(func(ctx context.Context, target path.Parser, name path.Component, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Leaf, virtual.ChangeInfo, virtual.Status) {
+			targetBuilder, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
+			require.NoError(t, path.Resolve(target, scopeWalker))
+			targetStr, err := path.LocalFormat.GetString(targetBuilder)
+			require.NoError(t, err)
+			require.Equal(t, targetPath, targetStr)
+
 			out.SetFileType(filesystem.FileTypeSymlink)
 			out.SetInodeNumber(1103)
 			out.SetPermissions(virtual.PermissionsRead)

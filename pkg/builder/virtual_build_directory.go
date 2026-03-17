@@ -194,12 +194,17 @@ func (d *virtualBuildDirectory) Readlink(name path.Component) (path.Parser, erro
 	if err != nil {
 		return nil, err
 	}
-	if _, leaf := child.GetPair(); leaf != nil {
-		p := virtual.ApplyReadlink{}
-		if !child.GetNode().VirtualApply(&p) {
-			panic("build directory contains leaves that don't handle ApplyReadlink")
-		}
-		return p.Target, p.Err
+
+	_, leaf := child.GetPair()
+	if leaf == nil {
+		return nil, syscall.EISDIR
 	}
-	return nil, syscall.EISDIR
+
+	var attributes virtual.Attributes
+	leaf.VirtualGetAttributes(context.TODO(), virtual.AttributesMaskSymlinkTarget, &attributes)
+	symlinkTarget, ok := attributes.GetSymlinkTarget()
+	if !ok {
+		return nil, syscall.EINVAL
+	}
+	return symlinkTarget, nil
 }

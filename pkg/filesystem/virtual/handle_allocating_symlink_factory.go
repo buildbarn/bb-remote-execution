@@ -1,5 +1,9 @@
 package virtual
 
+import (
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
+)
+
 type handleAllocatingSymlinkFactory struct {
 	base      SymlinkFactory
 	allocator StatelessHandleAllocator
@@ -14,15 +18,23 @@ type handleAllocatingSymlinkFactory struct {
 // the symbolic link to become part of the file handle, which is
 // undesirable. In the case of NFS we want these nodes to be explicitly
 // tracked, using an invisible link count.
-func NewHandleAllocatingSymlinkFactory(base SymlinkFactory, allocation StatelessHandleAllocation) SymlinkFactory {
+func NewHandleAllocatingSymlinkFactory(base SymlinkFactory, allocation StatelessHandleAllocation, pathFormat path.Format) SymlinkFactory {
 	return &handleAllocatingSymlinkFactory{
 		base:      base,
 		allocator: allocation.AsStatelessAllocator(),
 	}
 }
 
-func (sf *handleAllocatingSymlinkFactory) LookupSymlink(target []byte) LinkableLeaf {
+func (sf *handleAllocatingSymlinkFactory) LookupSymlink(target path.Parser) (LinkableLeaf, error) {
+	builder, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
+	if err := path.Resolve(target, scopeWalker); err != nil {
+		return nil, err
+	}
+	symlink, err := sf.base.LookupSymlink(target)
+	if err != nil {
+		return nil, err
+	}
 	return sf.allocator.
-		New(ByteSliceID(target)).
-		AsLinkableLeaf(sf.base.LookupSymlink(target))
+		New(ByteSliceID([]byte(builder.GetUNIXString()))).
+		AsLinkableLeaf(symlink), nil
 }

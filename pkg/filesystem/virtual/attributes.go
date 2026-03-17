@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
+	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 )
 
 // AttributesMask is a bitmask of status attributes that need to be
@@ -51,7 +52,12 @@ const (
 	// bits of set_mode).
 	AttributesMaskPermissions
 	// AttributesMaskSizeBytes requests the file size (st_size).
+	// When requested, this field should be set for all types of
+	// files, except for symbolic links.
 	AttributesMaskSizeBytes
+	// AttributesMaskSymlinkTarget requests the target of a symbolic
+	// link.
+	AttributesMaskSymlinkTarget
 )
 
 // Attributes of a file, normally requested through stat() or readdir().
@@ -72,6 +78,7 @@ type Attributes struct {
 	ownerUserID                     uint32
 	permissions                     Permissions
 	sizeBytes                       uint64
+	symlinkTarget                   path.Parser
 }
 
 // GetChangeID returns the change ID, which clients can use to determine
@@ -262,5 +269,17 @@ func (a *Attributes) GetSizeBytes() (uint64, bool) {
 func (a *Attributes) SetSizeBytes(sizeBytes uint64) *Attributes {
 	a.sizeBytes = sizeBytes
 	a.fieldsPresent |= AttributesMaskSizeBytes
+	return a
+}
+
+// GetSymlinkTarget returns the target of a symbolic link.
+func (a *Attributes) GetSymlinkTarget() (path.Parser, bool) {
+	return a.symlinkTarget, a.fieldsPresent&AttributesMaskSymlinkTarget != 0
+}
+
+// SetSymlinkTarget sets the target of a symbolic link.
+func (a *Attributes) SetSymlinkTarget(symlinkTarget path.Parser) *Attributes {
+	a.symlinkTarget = symlinkTarget
+	a.fieldsPresent |= AttributesMaskSymlinkTarget
 	return a
 }

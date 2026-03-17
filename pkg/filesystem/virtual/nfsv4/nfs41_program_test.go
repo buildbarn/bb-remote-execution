@@ -145,6 +145,7 @@ func TestNFS41ProgramCompound_OP_CLOSE(t *testing.T) {
 		clock,
 		/* enforcedLeaseTime = */ 2*time.Minute,
 		/* announcedLeaseTime = */ time.Minute,
+		path.UNIXFormat,
 	)
 
 	clock.EXPECT().Now().Return(time.Unix(1000, 0)).Times(2)
@@ -911,6 +912,7 @@ func TestNFS41ProgramCompound_OP_CREATE_SESSION(t *testing.T) {
 		clock,
 		/* enforcedLeaseTime = */ 2*time.Minute,
 		/* announcedLeaseTime = */ time.Minute,
+		path.UNIXFormat,
 	)
 
 	t.Run("NotOnlyOperation", func(t *testing.T) {
@@ -1272,6 +1274,7 @@ func TestNFS41ProgramCompound_OP_DESTROY_CLIENTID(t *testing.T) {
 		clock,
 		/* enforcedLeaseTime = */ 2*time.Minute,
 		/* announcedLeaseTime = */ time.Minute,
+		path.UNIXFormat,
 	)
 
 	t.Run("StaleClientID", func(t *testing.T) {
@@ -1408,6 +1411,7 @@ func TestNFS41ProgramCompound_OP_DESTROY_SESSION(t *testing.T) {
 		clock,
 		/* enforcedLeaseTime = */ 2*time.Minute,
 		/* announcedLeaseTime = */ time.Minute,
+		path.UNIXFormat,
 	)
 
 	t.Run("BadSession", func(t *testing.T) {
@@ -1645,6 +1649,7 @@ func TestNFS41ProgramCompound_OP_EXCHANGE_ID(t *testing.T) {
 		clock,
 		/* enforcedLeaseTime = */ 2*time.Minute,
 		/* announcedLeaseTime = */ time.Minute,
+		path.UNIXFormat,
 	)
 
 	t.Run("NotOnlyOperation", func(t *testing.T) {
@@ -1939,6 +1944,7 @@ func TestNFS41ProgramCompound_OP_OPEN(t *testing.T) {
 		clock,
 		/* enforcedLeaseTime = */ 2*time.Minute,
 		/* announcedLeaseTime = */ time.Minute,
+		path.UNIXFormat,
 	)
 
 	clock.EXPECT().Now().Return(time.Unix(1000, 0)).Times(2)
@@ -2533,6 +2539,7 @@ func TestNFS41ProgramCompound_OP_OPEN_DOWNGRADE(t *testing.T) {
 		clock,
 		/* enforcedLeaseTime = */ 2*time.Minute,
 		/* announcedLeaseTime = */ time.Minute,
+		path.UNIXFormat,
 	)
 
 	clock.EXPECT().Now().Return(time.Unix(1000, 0)).Times(2)
@@ -3693,6 +3700,7 @@ func TestNFS41ProgramCompound_OP_SEQUENCE(t *testing.T) {
 		clock,
 		/* enforcedLeaseTime = */ 2*time.Minute,
 		/* announcedLeaseTime = */ time.Minute,
+		path.UNIXFormat,
 	)
 
 	t.Run("BadSession", func(t *testing.T) {
@@ -4449,6 +4457,7 @@ func TestNFS41ProgramCompound_OP_TEST_STATEID(t *testing.T) {
 		clock,
 		/* enforcedLeaseTime = */ 2*time.Minute,
 		/* announcedLeaseTime = */ time.Minute,
+		path.UNIXFormat,
 	)
 
 	// The remainder of the test assumes the presence of a session.

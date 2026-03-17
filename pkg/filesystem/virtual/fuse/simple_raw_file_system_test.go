@@ -592,7 +592,7 @@ func TestSimpleRawFileSystemSymlink(t *testing.T) {
 	t.Run("Failure", func(t *testing.T) {
 		rootDirectory.EXPECT().VirtualSymlink(
 			gomock.Any(),
-			[]byte("target"),
+			gomock.Any(),
 			path.MustNewComponent("symlink"),
 			fuse.AttributesMaskForFUSEAttr,
 			gomock.Any(),
@@ -609,11 +609,15 @@ func TestSimpleRawFileSystemSymlink(t *testing.T) {
 		symlink := mock.NewMockVirtualLeaf(ctrl)
 		rootDirectory.EXPECT().VirtualSymlink(
 			gomock.Any(),
-			[]byte("target"),
+			gomock.Any(),
 			path.MustNewComponent("symlink"),
 			fuse.AttributesMaskForFUSEAttr,
 			gomock.Any(),
-		).DoAndReturn(func(ctx context.Context, pointedTo []byte, linkName path.Component, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Leaf, virtual.ChangeInfo, virtual.Status) {
+		).DoAndReturn(func(ctx context.Context, pointedTo path.Parser, linkName path.Component, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Leaf, virtual.ChangeInfo, virtual.Status) {
+			pointedToBuilder, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
+			require.NoError(t, path.Resolve(pointedTo, scopeWalker))
+			require.Equal(t, "target", pointedToBuilder.GetUNIXString())
+
 			out.SetFileType(filesystem.FileTypeSymlink)
 			out.SetInodeNumber(123)
 			out.SetLinkCount(1)
@@ -641,7 +645,10 @@ func TestSimpleRawFileSystemSymlink(t *testing.T) {
 
 		// Future calls of the node should be forwarded to the
 		// right symlink instance.
-		symlink.EXPECT().VirtualReadlink(gomock.Any()).Return([]byte("target"), virtual.StatusOK)
+		symlink.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskSymlinkTarget, gomock.Any()).DoAndReturn(
+			func(ctx context.Context, requested virtual.AttributesMask, out *virtual.Attributes) {
+				out.SetSymlinkTarget(path.UNIXFormat.NewParser("target"))
+			})
 
 		target, s := rfs.Readlink(nil, &go_fuse.InHeader{NodeId: 123})
 		require.Equal(t, go_fuse.OK, s)
@@ -1190,22 +1197,18 @@ func TestSimpleRawFileSystemReadlink(t *testing.T) {
 		},
 	}, entryOut)
 
-	t.Run("IOError", func(t *testing.T) {
-		symlink.EXPECT().VirtualReadlink(gomock.Any()).Return(nil, virtual.StatusErrIO)
-
-		_, s := rfs.Readlink(nil, &go_fuse.InHeader{NodeId: 2})
-		require.Equal(t, go_fuse.EIO, s)
-	})
-
 	t.Run("WrongFileType", func(t *testing.T) {
-		symlink.EXPECT().VirtualReadlink(gomock.Any()).Return(nil, virtual.StatusErrInval)
+		symlink.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskSymlinkTarget, gomock.Any())
 
 		_, s := rfs.Readlink(nil, &go_fuse.InHeader{NodeId: 2})
 		require.Equal(t, go_fuse.EINVAL, s)
 	})
 
 	t.Run("Success", func(t *testing.T) {
-		symlink.EXPECT().VirtualReadlink(gomock.Any()).Return([]byte("target"), virtual.StatusOK)
+		symlink.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskSymlinkTarget, gomock.Any()).DoAndReturn(
+			func(ctx context.Context, requested virtual.AttributesMask, out *virtual.Attributes) {
+				out.SetSymlinkTarget(path.UNIXFormat.NewParser("target"))
+			})
 
 		target, s := rfs.Readlink(nil, &go_fuse.InHeader{NodeId: 2})
 		require.Equal(t, go_fuse.OK, s)

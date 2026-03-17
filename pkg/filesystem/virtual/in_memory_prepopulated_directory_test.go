@@ -1689,7 +1689,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualSymlink(t *testing.T) {
 			Return(nil, status.Error(codes.Internal, "Network error"))
 		errorLogger.EXPECT().Log(testutil.EqStatus(t, status.Error(codes.Internal, "Failed to initialize directory: Network error")))
 
-		_, _, s := childDirectory.VirtualSymlink(ctx, []byte("target"), path.MustNewComponent("symlink"), 0, &virtual.Attributes{})
+		_, _, s := childDirectory.VirtualSymlink(ctx, path.UNIXFormat.NewParser("target"), path.MustNewComponent("symlink"), 0, &virtual.Attributes{})
 		require.Equal(t, virtual.StatusErrIO, s)
 	})
 
@@ -1701,13 +1701,14 @@ func TestInMemoryPrepopulatedDirectoryVirtualSymlink(t *testing.T) {
 			path.MustNewComponent("existing_file"): virtual.InitialChild{}.FromLeaf(existingFile),
 		}, false))
 
-		_, _, s := d.VirtualSymlink(ctx, []byte("target"), path.MustNewComponent("existing_file"), 0, &virtual.Attributes{})
+		_, _, s := d.VirtualSymlink(ctx, path.UNIXFormat.NewParser("target"), path.MustNewComponent("existing_file"), 0, &virtual.Attributes{})
 		require.Equal(t, virtual.StatusErrExist, s)
 	})
 
 	t.Run("Success", func(t *testing.T) {
 		leaf := mock.NewMockLinkableLeaf(ctrl)
-		symlinkFactory.EXPECT().LookupSymlink([]byte("target")).Return(leaf)
+		targetPathParser := path.UNIXFormat.NewParser("target")
+		symlinkFactory.EXPECT().LookupSymlink(targetPathParser).Return(leaf, nil)
 		leaf.EXPECT().VirtualGetAttributes(
 			ctx,
 			virtual.AttributesMaskInodeNumber,
@@ -1717,7 +1718,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualSymlink(t *testing.T) {
 		})
 
 		var out virtual.Attributes
-		actualLeaf, changeInfo, s := d.VirtualSymlink(ctx, []byte("target"), path.MustNewComponent("symlink"), virtual.AttributesMaskInodeNumber, &out)
+		actualLeaf, changeInfo, s := d.VirtualSymlink(ctx, targetPathParser, path.MustNewComponent("symlink"), virtual.AttributesMaskInodeNumber, &out)
 		require.Equal(t, virtual.StatusOK, s)
 		require.NotNil(t, actualLeaf)
 		require.Equal(t, virtual.ChangeInfo{

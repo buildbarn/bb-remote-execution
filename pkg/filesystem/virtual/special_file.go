@@ -2,7 +2,6 @@ package virtual
 
 import (
 	"context"
-	"syscall"
 
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/bazeloutputservice"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
@@ -37,10 +36,6 @@ func (f *specialFile) VirtualGetAttributes(ctx context.Context, requested Attrib
 	attributes.SetSizeBytes(0)
 }
 
-func (specialFile) VirtualReadlink(ctx context.Context) ([]byte, Status) {
-	return nil, StatusErrInval
-}
-
 func (f *specialFile) VirtualSetAttributes(ctx context.Context, in *Attributes, requested AttributesMask, out *Attributes) Status {
 	if _, ok := in.GetSizeBytes(); ok {
 		return StatusErrInval
@@ -51,8 +46,6 @@ func (f *specialFile) VirtualSetAttributes(ctx context.Context, in *Attributes, 
 
 func (f *specialFile) VirtualApply(data any) bool {
 	switch p := data.(type) {
-	case *ApplyReadlink:
-		p.Err = syscall.EINVAL
 	case *ApplyGetBazelOutputServiceStat:
 		p.Stat = &bazeloutputservice.BatchStatResponse_Stat{}
 	case *ApplyAppendOutputPathPersistencyDirectoryNode:
