@@ -1,0 +1,11 @@
+diff --git antlr/impl.bzl antlr/impl.bzl
+index 326f02f..8727e2d 100644
+--- antlr/impl.bzl
++++ antlr/impl.bzl
+@@ -1,5 +1,6 @@
+ """The common ANTLR rule implementation."""
+ 
++load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
+ load(":lang.bzl", "C", "CPP", "GO", "OBJC", "PYTHON", "PYTHON2", "PYTHON3")
+ 
+ AntlrInfo = provider(

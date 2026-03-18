@@ -17,6 +17,7 @@ import (
 	global "github.com/buildbarn/bb-storage/pkg/proto/configuration/global"
 	grpc "github.com/buildbarn/bb-storage/pkg/proto/configuration/grpc"
 	client "github.com/buildbarn/bb-storage/pkg/proto/configuration/http/client"
+	zstd "github.com/buildbarn/bb-storage/pkg/proto/configuration/zstd"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
@@ -49,6 +50,7 @@ type ApplicationConfiguration struct {
 	InputDownloadConcurrency               int64                                     `protobuf:"varint,28,opt,name=input_download_concurrency,json=inputDownloadConcurrency,proto3" json:"input_download_concurrency,omitempty"`
 	SupportLegacyOutputFilesAndDirectories bool                                      `protobuf:"varint,29,opt,name=support_legacy_output_files_and_directories,json=supportLegacyOutputFilesAndDirectories,proto3" json:"support_legacy_output_files_and_directories,omitempty"`
 	HttpExecutionTimeoutCompensators       []*HttpExecutionTimeoutCompensator        `protobuf:"bytes,30,rep,name=http_execution_timeout_compensators,json=httpExecutionTimeoutCompensators,proto3" json:"http_execution_timeout_compensators,omitempty"`
+	ZstdPool                               *zstd.PoolConfiguration                   `protobuf:"bytes,31,opt,name=zstd_pool,json=zstdPool,proto3" json:"zstd_pool,omitempty"`
 	unknownFields                          protoimpl.UnknownFields
 	sizeCache                              protoimpl.SizeCache
 }
@@ -184,6 +186,13 @@ func (x *ApplicationConfiguration) GetSupportLegacyOutputFilesAndDirectories() b
 func (x *ApplicationConfiguration) GetHttpExecutionTimeoutCompensators() []*HttpExecutionTimeoutCompensator {
 	if x != nil {
 		return x.HttpExecutionTimeoutCompensators
+	}
+	return nil
+}
+
+func (x *ApplicationConfiguration) GetZstdPool() *zstd.PoolConfiguration {
+	if x != nil {
+		return x.ZstdPool
 	}
 	return nil
 }
@@ -770,8 +779,7 @@ var File_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_wor
 
 const file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_worker_bb_worker_proto_rawDesc = "" +
 	"\n" +
-	"Zgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_worker/bb_worker.proto\x12!buildbarn.configuration.bb_worker\x1a6build/bazel/remote/execution/v2/remote_execution.proto\x1aNgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/cas/cas.proto\x1a\\github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem/filesystem.proto\x1aagithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem/virtual/virtual.proto\x1aTgithub.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage/resourceusage.proto\x1aQgithub.com/buildbarn/bb-storage/pkg/proto/configuration/blobstore/blobstore.proto\x1aOgithub.com/buildbarn/bb-storage/pkg/proto/configuration/eviction/eviction.proto\x1aKgithub.com/buildbarn/bb-storage/pkg/proto/configuration/global/global.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/grpc/grpc.proto\x1aPgithub.com/buildbarn/bb-storage/pkg/proto/configuration/http/client/client.proto\x1a\x1egoogle/protobuf/duration.proto\"\xd1\n" +
-	"\n" +
+	"Zgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_worker/bb_worker.proto\x12!buildbarn.configuration.bb_worker\x1a6build/bazel/remote/execution/v2/remote_execution.proto\x1aNgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/cas/cas.proto\x1a\\github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem/filesystem.proto\x1aagithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem/virtual/virtual.proto\x1aTgithub.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage/resourceusage.proto\x1aQgithub.com/buildbarn/bb-storage/pkg/proto/configuration/blobstore/blobstore.proto\x1aOgithub.com/buildbarn/bb-storage/pkg/proto/configuration/eviction/eviction.proto\x1aKgithub.com/buildbarn/bb-storage/pkg/proto/configuration/global/global.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/grpc/grpc.proto\x1aPgithub.com/buildbarn/bb-storage/pkg/proto/configuration/http/client/client.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/zstd/zstd.proto\x1a\x1egoogle/protobuf/duration.proto\"\x9f\v\n" +
 	"\x18ApplicationConfiguration\x12W\n" +
 	"\tblobstore\x18\x01 \x01(\v29.buildbarn.configuration.blobstore.BlobstoreConfigurationR\tblobstore\x12\x1f\n" +
 	"\vbrowser_url\x18\x02 \x01(\tR\n" +
@@ -788,7 +796,8 @@ const file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_w
 	"\"force_upload_trees_and_directories\x18\x1b \x01(\bR\x1eforceUploadTreesAndDirectories\x12<\n" +
 	"\x1ainput_download_concurrency\x18\x1c \x01(\x03R\x18inputDownloadConcurrency\x12[\n" +
 	"+support_legacy_output_files_and_directories\x18\x1d \x01(\bR&supportLegacyOutputFilesAndDirectories\x12\x91\x01\n" +
-	"#http_execution_timeout_compensators\x18\x1e \x03(\v2B.buildbarn.configuration.bb_worker.HttpExecutionTimeoutCompensatorR httpExecutionTimeoutCompensatorsJ\x04\b\t\x10\n" +
+	"#http_execution_timeout_compensators\x18\x1e \x03(\v2B.buildbarn.configuration.bb_worker.HttpExecutionTimeoutCompensatorR httpExecutionTimeoutCompensators\x12L\n" +
+	"\tzstd_pool\x18\x1f \x01(\v2/.buildbarn.configuration.zstd.PoolConfigurationR\bzstdPoolJ\x04\b\t\x10\n" +
 	"J\x04\b\f\x10\rJ\x04\b\x10\x10\x11J\x04\b\x12\x10\x13J\x04\b\x15\x10\x16\"\xbd\x02\n" +
 	"\x1bBuildDirectoryConfiguration\x12^\n" +
 	"\x06native\x18\x01 \x01(\v2D.buildbarn.configuration.bb_worker.NativeBuildDirectoryConfigurationH\x00R\x06native\x12a\n" +
@@ -881,13 +890,14 @@ var file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_wor
 	(*global.Configuration)(nil),                        // 13: buildbarn.configuration.global.Configuration
 	(*filesystem.FilePoolConfiguration)(nil),            // 14: buildbarn.configuration.filesystem.FilePoolConfiguration
 	(*cas.CachingDirectoryFetcherConfiguration)(nil),    // 15: buildbarn.configuration.cas.CachingDirectoryFetcherConfiguration
-	(eviction.CacheReplacementPolicy)(0),                // 16: buildbarn.configuration.eviction.CacheReplacementPolicy
-	(*virtual.MountConfiguration)(nil),                  // 17: buildbarn.configuration.filesystem.virtual.MountConfiguration
-	(*durationpb.Duration)(nil),                         // 18: google.protobuf.Duration
-	(*v2.Platform)(nil),                                 // 19: build.bazel.remote.execution.v2.Platform
-	(*blobstore.BlobAccessConfiguration)(nil),           // 20: buildbarn.configuration.blobstore.BlobAccessConfiguration
-	(*client.Configuration)(nil),                        // 21: buildbarn.configuration.http.client.Configuration
-	(*resourceusage.MonetaryResourceUsage_Expense)(nil), // 22: buildbarn.resourceusage.MonetaryResourceUsage.Expense
+	(*zstd.PoolConfiguration)(nil),                      // 16: buildbarn.configuration.zstd.PoolConfiguration
+	(eviction.CacheReplacementPolicy)(0),                // 17: buildbarn.configuration.eviction.CacheReplacementPolicy
+	(*virtual.MountConfiguration)(nil),                  // 18: buildbarn.configuration.filesystem.virtual.MountConfiguration
+	(*durationpb.Duration)(nil),                         // 19: google.protobuf.Duration
+	(*v2.Platform)(nil),                                 // 20: build.bazel.remote.execution.v2.Platform
+	(*blobstore.BlobAccessConfiguration)(nil),           // 21: buildbarn.configuration.blobstore.BlobAccessConfiguration
+	(*client.Configuration)(nil),                        // 22: buildbarn.configuration.http.client.Configuration
+	(*resourceusage.MonetaryResourceUsage_Expense)(nil), // 23: buildbarn.resourceusage.MonetaryResourceUsage.Expense
 }
 var file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_worker_bb_worker_proto_depIdxs = []int32{
 	11, // 0: buildbarn.configuration.bb_worker.ApplicationConfiguration.blobstore:type_name -> buildbarn.configuration.blobstore.BlobstoreConfiguration
@@ -899,27 +909,28 @@ var file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_wor
 	15, // 6: buildbarn.configuration.bb_worker.ApplicationConfiguration.directory_cache:type_name -> buildbarn.configuration.cas.CachingDirectoryFetcherConfiguration
 	6,  // 7: buildbarn.configuration.bb_worker.ApplicationConfiguration.prefetching:type_name -> buildbarn.configuration.bb_worker.PrefetchingConfiguration
 	7,  // 8: buildbarn.configuration.bb_worker.ApplicationConfiguration.http_execution_timeout_compensators:type_name -> buildbarn.configuration.bb_worker.HttpExecutionTimeoutCompensator
-	2,  // 9: buildbarn.configuration.bb_worker.BuildDirectoryConfiguration.native:type_name -> buildbarn.configuration.bb_worker.NativeBuildDirectoryConfiguration
-	3,  // 10: buildbarn.configuration.bb_worker.BuildDirectoryConfiguration.virtual:type_name -> buildbarn.configuration.bb_worker.VirtualBuildDirectoryConfiguration
-	4,  // 11: buildbarn.configuration.bb_worker.BuildDirectoryConfiguration.runners:type_name -> buildbarn.configuration.bb_worker.RunnerConfiguration
-	16, // 12: buildbarn.configuration.bb_worker.NativeBuildDirectoryConfiguration.cache_replacement_policy:type_name -> buildbarn.configuration.eviction.CacheReplacementPolicy
-	17, // 13: buildbarn.configuration.bb_worker.VirtualBuildDirectoryConfiguration.mount:type_name -> buildbarn.configuration.filesystem.virtual.MountConfiguration
-	18, // 14: buildbarn.configuration.bb_worker.VirtualBuildDirectoryConfiguration.maximum_execution_timeout_compensation:type_name -> google.protobuf.Duration
-	18, // 15: buildbarn.configuration.bb_worker.VirtualBuildDirectoryConfiguration.maximum_writable_file_upload_delay:type_name -> google.protobuf.Duration
-	12, // 16: buildbarn.configuration.bb_worker.RunnerConfiguration.endpoint:type_name -> buildbarn.configuration.grpc.ClientConfiguration
-	19, // 17: buildbarn.configuration.bb_worker.RunnerConfiguration.platform:type_name -> build.bazel.remote.execution.v2.Platform
-	8,  // 18: buildbarn.configuration.bb_worker.RunnerConfiguration.worker_id:type_name -> buildbarn.configuration.bb_worker.RunnerConfiguration.WorkerIdEntry
-	9,  // 19: buildbarn.configuration.bb_worker.RunnerConfiguration.costs_per_second:type_name -> buildbarn.configuration.bb_worker.RunnerConfiguration.CostsPerSecondEntry
-	10, // 20: buildbarn.configuration.bb_worker.RunnerConfiguration.environment_variables:type_name -> buildbarn.configuration.bb_worker.RunnerConfiguration.EnvironmentVariablesEntry
-	12, // 21: buildbarn.configuration.bb_worker.CompletedActionLoggingConfiguration.client:type_name -> buildbarn.configuration.grpc.ClientConfiguration
-	20, // 22: buildbarn.configuration.bb_worker.PrefetchingConfiguration.file_system_access_cache:type_name -> buildbarn.configuration.blobstore.BlobAccessConfiguration
-	21, // 23: buildbarn.configuration.bb_worker.HttpExecutionTimeoutCompensator.http_client:type_name -> buildbarn.configuration.http.client.Configuration
-	22, // 24: buildbarn.configuration.bb_worker.RunnerConfiguration.CostsPerSecondEntry.value:type_name -> buildbarn.resourceusage.MonetaryResourceUsage.Expense
-	25, // [25:25] is the sub-list for method output_type
-	25, // [25:25] is the sub-list for method input_type
-	25, // [25:25] is the sub-list for extension type_name
-	25, // [25:25] is the sub-list for extension extendee
-	0,  // [0:25] is the sub-list for field type_name
+	16, // 9: buildbarn.configuration.bb_worker.ApplicationConfiguration.zstd_pool:type_name -> buildbarn.configuration.zstd.PoolConfiguration
+	2,  // 10: buildbarn.configuration.bb_worker.BuildDirectoryConfiguration.native:type_name -> buildbarn.configuration.bb_worker.NativeBuildDirectoryConfiguration
+	3,  // 11: buildbarn.configuration.bb_worker.BuildDirectoryConfiguration.virtual:type_name -> buildbarn.configuration.bb_worker.VirtualBuildDirectoryConfiguration
+	4,  // 12: buildbarn.configuration.bb_worker.BuildDirectoryConfiguration.runners:type_name -> buildbarn.configuration.bb_worker.RunnerConfiguration
+	17, // 13: buildbarn.configuration.bb_worker.NativeBuildDirectoryConfiguration.cache_replacement_policy:type_name -> buildbarn.configuration.eviction.CacheReplacementPolicy
+	18, // 14: buildbarn.configuration.bb_worker.VirtualBuildDirectoryConfiguration.mount:type_name -> buildbarn.configuration.filesystem.virtual.MountConfiguration
+	19, // 15: buildbarn.configuration.bb_worker.VirtualBuildDirectoryConfiguration.maximum_execution_timeout_compensation:type_name -> google.protobuf.Duration
+	19, // 16: buildbarn.configuration.bb_worker.VirtualBuildDirectoryConfiguration.maximum_writable_file_upload_delay:type_name -> google.protobuf.Duration
+	12, // 17: buildbarn.configuration.bb_worker.RunnerConfiguration.endpoint:type_name -> buildbarn.configuration.grpc.ClientConfiguration
+	20, // 18: buildbarn.configuration.bb_worker.RunnerConfiguration.platform:type_name -> build.bazel.remote.execution.v2.Platform
+	8,  // 19: buildbarn.configuration.bb_worker.RunnerConfiguration.worker_id:type_name -> buildbarn.configuration.bb_worker.RunnerConfiguration.WorkerIdEntry
+	9,  // 20: buildbarn.configuration.bb_worker.RunnerConfiguration.costs_per_second:type_name -> buildbarn.configuration.bb_worker.RunnerConfiguration.CostsPerSecondEntry
+	10, // 21: buildbarn.configuration.bb_worker.RunnerConfiguration.environment_variables:type_name -> buildbarn.configuration.bb_worker.RunnerConfiguration.EnvironmentVariablesEntry
+	12, // 22: buildbarn.configuration.bb_worker.CompletedActionLoggingConfiguration.client:type_name -> buildbarn.configuration.grpc.ClientConfiguration
+	21, // 23: buildbarn.configuration.bb_worker.PrefetchingConfiguration.file_system_access_cache:type_name -> buildbarn.configuration.blobstore.BlobAccessConfiguration
+	22, // 24: buildbarn.configuration.bb_worker.HttpExecutionTimeoutCompensator.http_client:type_name -> buildbarn.configuration.http.client.Configuration
+	23, // 25: buildbarn.configuration.bb_worker.RunnerConfiguration.CostsPerSecondEntry.value:type_name -> buildbarn.resourceusage.MonetaryResourceUsage.Expense
+	26, // [26:26] is the sub-list for method output_type
+	26, // [26:26] is the sub-list for method input_type
+	26, // [26:26] is the sub-list for extension type_name
+	26, // [26:26] is the sub-list for extension extendee
+	0,  // [0:26] is the sub-list for field type_name
 }
 
 func init() {

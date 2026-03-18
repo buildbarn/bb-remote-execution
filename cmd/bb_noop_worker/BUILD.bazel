@@ -18,6 +18,7 @@ go_library(
         "@com_github_buildbarn_bb_storage//pkg/global",
         "@com_github_buildbarn_bb_storage//pkg/program",
         "@com_github_buildbarn_bb_storage//pkg/util",
+        "@com_github_buildbarn_bb_storage//pkg/zstd",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//status",
     ],
