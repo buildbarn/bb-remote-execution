@@ -4,6 +4,7 @@ bazel_dep(name = "aspect_bazel_lib", version = "2.22.5")
 bazel_dep(name = "aspect_rules_js", version = "3.0.1")
 bazel_dep(name = "bazel_remote_apis", version = "0.0.0")
 bazel_dep(name = "bazel_skylib", version = "1.9.0")
+bazel_dep(name = "cel-spec", version = "0.25.1")
 bazel_dep(name = "com_github_buildbarn_bb_storage")
 bazel_dep(name = "com_github_buildbarn_go_xdr")
 bazel_dep(name = "gazelle", version = "0.47.0")
@@ -23,7 +24,7 @@ git_override(
 
 git_override(
     module_name = "com_github_buildbarn_bb_storage",
-    commit = "6002cad335378bbdcdda4225d47c7dc2c08a6d94",
+    commit = "dc342e1799d72bd927ffc0af1f429e7044118b07",
     remote = "https://github.com/buildbarn/bb-storage.git",
 )
 
@@ -44,6 +45,7 @@ git_override(
     patches = [
         "//:patches/rules_antlr/antlr-4.10.diff",
         "//:patches/rules_antlr/bzlmod.diff",
+        "//:patches/rules_antlr/load.diff",
     ],
     remote = "https://github.com/marcohu/rules_antlr.git",
 )
@@ -57,6 +59,9 @@ single_version_override(
     module_name = "toolchains_llvm",
     patches = ["//:patches/toolchains_llvm/non-root.diff"],
 )
+
+go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk")
+go_sdk.from_file(go_mod = "//:go.mod")
 
 go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 go_deps.from_file(go_mod = "//:go.mod")

@@ -16,6 +16,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/global"
 	"github.com/buildbarn/bb-storage/pkg/program"
 	"github.com/buildbarn/bb-storage/pkg/util"
+	"github.com/buildbarn/bb-storage/pkg/zstd"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -43,12 +44,16 @@ func main() {
 		// Storage access. This worker loads Command objects from the
 		// Content Addressable Storage (CAS), as those may contain error
 		// message templates that this worker respects.
+		zstdPool := zstd.NewPoolFromConfiguration(configuration.ZstdPool)
 		info, err := blobstore_configuration.NewBlobAccessFromConfiguration(
 			dependenciesGroup,
 			configuration.ContentAddressableStorage,
 			blobstore_configuration.NewCASBlobAccessCreator(
 				grpcClientFactory,
-				int(configuration.MaximumMessageSizeBytes)))
+				int(configuration.MaximumMessageSizeBytes),
+				zstdPool,
+			),
+		)
 		if err != nil {
 			return util.StatusWrap(err, "Failed to create Content Adddressable Storage")
 		}

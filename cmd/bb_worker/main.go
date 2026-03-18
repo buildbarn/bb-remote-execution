@@ -38,6 +38,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/program"
 	"github.com/buildbarn/bb-storage/pkg/random"
 	"github.com/buildbarn/bb-storage/pkg/util"
+	"github.com/buildbarn/bb-storage/pkg/zstd"
 	"github.com/google/uuid"
 
 	"golang.org/x/sync/semaphore"
@@ -84,11 +85,14 @@ func main() {
 		}
 
 		// Storage access.
+		zstdPool := zstd.NewPoolFromConfiguration(configuration.ZstdPool)
 		globalContentAddressableStorage, actionCache, err := blobstore_configuration.NewCASAndACBlobAccessFromConfiguration(
 			dependenciesGroup,
 			configuration.Blobstore,
 			grpcClientFactory,
-			int(configuration.MaximumMessageSizeBytes))
+			int(configuration.MaximumMessageSizeBytes),
+			zstdPool,
+		)
 		if err != nil {
 			return err
 		}

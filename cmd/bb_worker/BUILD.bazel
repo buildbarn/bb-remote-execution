@@ -35,6 +35,7 @@ go_library(
         "@com_github_buildbarn_bb_storage//pkg/program",
         "@com_github_buildbarn_bb_storage//pkg/random",
         "@com_github_buildbarn_bb_storage//pkg/util",
+        "@com_github_buildbarn_bb_storage//pkg/zstd",
         "@com_github_google_uuid//:uuid",
         "@io_opentelemetry_go_otel//:otel",
         "@org_golang_google_grpc//codes",
