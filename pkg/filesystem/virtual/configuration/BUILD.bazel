@@ -22,6 +22,7 @@ go_library(
         "//pkg/proto/configuration/filesystem/virtual",
         "@com_github_buildbarn_bb_storage//pkg/clock",
         "@com_github_buildbarn_bb_storage//pkg/eviction",
+        "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
         "@com_github_buildbarn_bb_storage//pkg/jmespath",
         "@com_github_buildbarn_bb_storage//pkg/program",
         "@com_github_buildbarn_bb_storage//pkg/random",

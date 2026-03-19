@@ -31,7 +31,8 @@ const (
 		virtual.AttributesMaskOwnerGroupID |
 		virtual.AttributesMaskOwnerUserID |
 		virtual.AttributesMaskPermissions |
-		virtual.AttributesMaskSizeBytes
+		virtual.AttributesMaskSizeBytes |
+		virtual.AttributesMaskSymlinkTarget
 	// AttributesMaskForFUSEDirEntry is the attributes mask to use
 	// for VirtualReadDir() to populate all relevant fields of
 	// fuse.DirEntry.
@@ -183,11 +184,18 @@ func populateAttr(attributes *virtual.Attributes, out *fuse.Attr) {
 	}
 	out.Mode |= uint32(permissions.ToMode())
 
-	sizeBytes, ok := attributes.GetSizeBytes()
-	if !ok {
+	if sizeBytes, ok := attributes.GetSizeBytes(); ok {
+		out.Size = sizeBytes
+	} else if symlinkTarget, ok := attributes.GetSymlinkTarget(); ok {
+		pathBuilder, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
+		if err := path.Resolve(symlinkTarget, scopeWalker); err == nil {
+			out.Size = uint64(len(pathBuilder.GetUNIXString()))
+		} else {
+			out.Size = 1
+		}
+	} else {
 		panic("Attributes do not contain mandatory size attribute")
 	}
-	out.Size = sizeBytes
 }
 
 func populateEntryOut(attributes *virtual.Attributes, out *fuse.EntryOut) {
@@ -499,7 +507,7 @@ func (rfs *simpleRawFileSystem) Symlink(cancel <-chan struct{}, header *fuse.InH
 	rfs.nodeLock.RUnlock()
 
 	var attributes virtual.Attributes
-	child, _, vs := i.VirtualSymlink(ctx, []byte(pointedTo), path.MustNewComponent(linkName), AttributesMaskForFUSEAttr, &attributes)
+	child, _, vs := i.VirtualSymlink(ctx, path.UNIXFormat.NewParser(pointedTo), path.MustNewComponent(linkName), AttributesMaskForFUSEAttr, &attributes)
 	if vs != virtual.StatusOK {
 		return toFUSEStatus(vs)
 	}
@@ -517,8 +525,17 @@ func (rfs *simpleRawFileSystem) Readlink(cancel <-chan struct{}, header *fuse.In
 	i := rfs.getLeafLocked(header.NodeId)
 	rfs.nodeLock.RUnlock()
 
-	target, vs := i.VirtualReadlink(ctx)
-	return target, toFUSEStatus(vs)
+	var attributes virtual.Attributes
+	i.VirtualGetAttributes(ctx, virtual.AttributesMaskSymlinkTarget, &attributes)
+	symlinkTarget, ok := attributes.GetSymlinkTarget()
+	if !ok {
+		return nil, fuse.EINVAL
+	}
+	pathBuilder, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
+	if err := path.Resolve(symlinkTarget, scopeWalker); err != nil {
+		return nil, fuse.EIO
+	}
+	return []byte(pathBuilder.GetUNIXString()), fuse.OK
 }
 
 func (rfs *simpleRawFileSystem) Access(cancel <-chan struct{}, input *fuse.AccessIn) fuse.Status {

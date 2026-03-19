@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual"
 	"github.com/buildbarn/bb-storage/pkg/clock"
@@ -68,6 +69,7 @@ type nfs40Program struct {
 	clock              clock.Clock
 	enforcedLeaseTime  time.Duration
 	announcedLeaseTime nfsv4.NfsLease4
+	pathFormat         path.Format
 
 	lock                         sync.Mutex
 	now                          time.Time
@@ -84,7 +86,16 @@ type nfs40Program struct {
 // NewNFS40Program creates an nfsv4.Nfs4Program that forwards all
 // operations to a virtual file system. It implements most of the
 // features of NFSv4.0.
-func NewNFS40Program(rootDirectory virtual.Directory, openedFilesPool *OpenedFilesPool, randomNumberGenerator random.SingleThreadedGenerator, rebootVerifier nfsv4.Verifier4, stateIDOtherPrefix [stateIDOtherPrefixLength]byte, clock clock.Clock, enforcedLeaseTime, announcedLeaseTime time.Duration) nfsv4.Nfs4Program {
+func NewNFS40Program(
+	rootDirectory virtual.Directory,
+	openedFilesPool *OpenedFilesPool,
+	randomNumberGenerator random.SingleThreadedGenerator,
+	rebootVerifier nfsv4.Verifier4,
+	stateIDOtherPrefix [stateIDOtherPrefixLength]byte,
+	clock clock.Clock,
+	enforcedLeaseTime, announcedLeaseTime time.Duration,
+	pathFormat path.Format,
+) nfsv4.Nfs4Program {
 	nfs40ProgramPrometheusMetrics.Do(func() {
 		prometheus.MustRegister(nfs40ProgramOpenOwnersCreated)
 		prometheus.MustRegister(nfs40ProgramOpenOwnersRemoved)
@@ -106,6 +117,7 @@ func NewNFS40Program(rootDirectory virtual.Directory, openedFilesPool *OpenedFil
 		clock:              clock,
 		enforcedLeaseTime:  enforcedLeaseTime,
 		announcedLeaseTime: nfsv4.NfsLease4(announcedLeaseTime.Seconds()),
+		pathFormat:         pathFormat,
 
 		randomNumberGenerator:        randomNumberGenerator,
 		clientsByLongID:              map[string]*nfs40ClientState{},
@@ -584,12 +596,18 @@ func (p *nfs40Program) writeAttributes(attributes *virtual.Attributes, attrReque
 			nfsv4.WriteChangeid4(w, attributes.GetChangeID())
 		}
 		if b := uint32(1 << nfsv4.FATTR4_SIZE); f&b != 0 {
-			sizeBytes, ok := attributes.GetSizeBytes()
-			if !ok {
+			s |= b
+			if sizeBytes, ok := attributes.GetSizeBytes(); ok {
+				nfsv4.WriteUint64T(w, sizeBytes)
+			} else if symlinkTarget, ok := attributes.GetSymlinkTarget(); ok {
+				if link, ok := pathParserToLinktext4(symlinkTarget, p.pathFormat); ok {
+					nfsv4.WriteUint64T(w, uint64(len(link)))
+				} else {
+					nfsv4.WriteUint64T(w, 1)
+				}
+			} else {
 				panic("FATTR4_SIZE is a required attribute")
 			}
-			s |= b
-			nfsv4.WriteUint64T(w, sizeBytes)
 		}
 		if b := uint32(1 << nfsv4.FATTR4_LINK_SUPPORT); f&b != 0 {
 			s |= b
@@ -1043,8 +1061,17 @@ func (s *compoundState) opCreate(ctx context.Context, args *nfsv4.Create4args) n
 		leaf, changeInfo, vs = currentDirectory.VirtualMknod(ctx, name, filesystem.FileTypeFIFO, virtual.AttributesMaskFileHandle, &attributes)
 		fileHandle.node = virtual.DirectoryChild{}.FromLeaf(leaf)
 	case *nfsv4.Createtype4_NF4LNK:
+		if !utf8.Valid(objectType.Linkdata) {
+			return &nfsv4.Create4res_default{Status: nfsv4.NFS4ERR_BADCHAR}
+		}
 		var leaf virtual.Leaf
-		leaf, changeInfo, vs = currentDirectory.VirtualSymlink(ctx, objectType.Linkdata, name, virtual.AttributesMaskFileHandle, &attributes)
+		leaf, changeInfo, vs = currentDirectory.VirtualSymlink(
+			ctx,
+			path.UNIXFormat.NewParser(string(objectType.Linkdata)),
+			name,
+			virtual.AttributesMaskFileHandle,
+			&attributes,
+		)
 		fileHandle.node = virtual.DirectoryChild{}.FromLeaf(leaf)
 	case *nfsv4.Createtype4_NF4SOCK:
 		var leaf virtual.Leaf
@@ -1919,13 +1946,19 @@ func (s *compoundState) opReadlink(ctx context.Context) nfsv4.Readlink4res {
 		}
 		return &nfsv4.Readlink4res_default{Status: st}
 	}
-	target, vs := currentLeaf.VirtualReadlink(ctx)
-	if vs != virtual.StatusOK {
-		return &nfsv4.Readlink4res_default{Status: toNFSv4Status(vs)}
+	var attributes virtual.Attributes
+	currentLeaf.VirtualGetAttributes(ctx, virtual.AttributesMaskSymlinkTarget, &attributes)
+	targetParser, ok := attributes.GetSymlinkTarget()
+	if !ok {
+		return &nfsv4.Readlink4res_default{Status: nfsv4.NFS4ERR_INVAL}
+	}
+	link, ok := pathParserToLinktext4(targetParser, s.program.pathFormat)
+	if !ok {
+		return &nfsv4.Readlink4res_default{Status: nfsv4.NFS4ERR_IO}
 	}
 	return &nfsv4.Readlink4res_NFS4_OK{
 		Resok4: nfsv4.Readlink4resok{
-			Link: target,
+			Link: link,
 		},
 	}
 }
@@ -3074,7 +3107,7 @@ func attrRequestToAttributesMask(attrRequest nfsv4.Bitmap4) virtual.AttributesMa
 			attributesMask |= virtual.AttributesMaskChangeID
 		}
 		if f&uint32(1<<nfsv4.FATTR4_SIZE) != 0 {
-			attributesMask |= virtual.AttributesMaskSizeBytes
+			attributesMask |= virtual.AttributesMaskSizeBytes | virtual.AttributesMaskSymlinkTarget
 		}
 		if f&uint32(1<<nfsv4.FATTR4_NAMED_ATTR) != 0 {
 			attributesMask |= virtual.AttributesMaskHasNamedAttributes
@@ -3339,4 +3372,18 @@ func timeToNfstime4(t time.Time) nfsv4.Nfstime4 {
 		Seconds:  nanos / 1e9,
 		Nseconds: uint32(nanos % 1e9),
 	}
+}
+
+// pathParsertoLinktext4 converts the target of a symbolic link to its
+// NFSv4 equivalent.
+func pathParserToLinktext4(pathParser path.Parser, pathFormat path.Format) (nfsv4.Linktext4, bool) {
+	pathBuilder, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
+	if err := path.Resolve(pathParser, scopeWalker); err != nil {
+		return nil, false
+	}
+	pathString, err := pathFormat.GetString(pathBuilder)
+	if err != nil {
+		return nil, false
+	}
+	return nfsv4.Linktext4(pathString), true
 }

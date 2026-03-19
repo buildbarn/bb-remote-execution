@@ -212,7 +212,13 @@ func TestCASInitialContentsFetcherFetchContents(t *testing.T) {
 			gomock.Any(),
 		).Return(fileLeaf)
 		symlinkLeaf := mock.NewMockLinkableLeaf(ctrl)
-		symlinkFactory.EXPECT().LookupSymlink([]byte("target")).Return(symlinkLeaf)
+		symlinkFactory.EXPECT().LookupSymlink(gomock.Any()).
+			DoAndReturn(func(targetParser path.Parser) (virtual.LinkableLeaf, error) {
+				targetBuilder, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
+				require.NoError(t, path.Resolve(targetParser, scopeWalker))
+				require.Equal(t, "target", targetBuilder.GetUNIXString())
+				return symlinkLeaf, nil
+			})
 
 		children, err := initialContentsFetcher.FetchContents(fileReadMonitorFactory.Call)
 		require.NoError(t, err)

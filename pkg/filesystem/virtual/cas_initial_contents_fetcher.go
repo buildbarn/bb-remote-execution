@@ -110,7 +110,10 @@ func (icf *casInitialContentsFetcher) fetchContentsUnwrapped(fileReadMonitorFact
 			return nil, status.Errorf(codes.InvalidArgument, "Directory contains multiple children named %#v", entry.Name)
 		}
 
-		leaf := icf.options.symlinkFactory.LookupSymlink([]byte(entry.Target))
+		leaf, err := icf.options.symlinkFactory.LookupSymlink(path.UNIXFormat.NewParser(entry.Target))
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "Failed to look up symlink named %#v", entry.Name)
+		}
 		children[component] = InitialChild{}.FromLeaf(leaf)
 		leavesToUnlink = append(leavesToUnlink, leaf)
 	}

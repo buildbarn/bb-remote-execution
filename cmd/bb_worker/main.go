@@ -225,7 +225,9 @@ func main() {
 
 				symlinkFactory = virtual.NewHandleAllocatingSymlinkFactory(
 					virtual.BaseSymlinkFactory,
-					handleAllocator.New())
+					handleAllocator.New(),
+					path.LocalFormat,
+				)
 				characterDeviceFactory = virtual.NewHandleAllocatingCharacterDeviceFactory(
 					virtual.BaseCharacterDeviceFactory,
 					handleAllocator.New())

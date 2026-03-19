@@ -25,9 +25,10 @@ type UserSettableSymlink struct {
 	placeholderFile
 
 	buildDirectory *path.Builder
+	defaultTarget  path.Parser
 
 	lock     sync.Mutex
-	targets  map[string][]byte
+	targets  map[string]path.Parser
 	changeID uint64
 }
 
@@ -38,10 +39,12 @@ var (
 
 // NewUserSettableSymlink creates a UserSettableSymlink that doesn't
 // have any targets configured.
-func NewUserSettableSymlink(buildDirectory *path.Builder) *UserSettableSymlink {
+func NewUserSettableSymlink(buildDirectory *path.Builder, defaultTarget path.Parser) *UserSettableSymlink {
 	return &UserSettableSymlink{
 		buildDirectory: buildDirectory,
-		targets:        map[string][]byte{},
+		defaultTarget:  defaultTarget,
+
+		targets: map[string]path.Parser{},
 	}
 }
 
@@ -61,10 +64,9 @@ func (f *UserSettableSymlink) InstallTemporaryDirectory(ctx context.Context, req
 	if err := path.Resolve(path.UNIXFormat.NewParser(request.TemporaryDirectory), scopeWalker); err != nil {
 		return nil, err
 	}
-	target := []byte(temporaryDirectory.GetUNIXString())
 
 	f.lock.Lock()
-	f.targets[key] = target
+	f.targets[key] = temporaryDirectory
 	f.lock.Unlock()
 	return &emptypb.Empty{}, nil
 }
@@ -76,7 +78,7 @@ func (f *UserSettableSymlink) VirtualGetAttributes(ctx context.Context, requeste
 	attributes.SetHasNamedAttributes(false)
 	attributes.SetPermissions(PermissionsRead | PermissionsWrite | PermissionsExecute)
 
-	if requested&(AttributesMaskChangeID|AttributesMaskSizeBytes) != 0 {
+	if requested&(AttributesMaskChangeID|AttributesMaskSymlinkTarget) != 0 {
 		var key string
 		if requested&AttributesMaskSizeBytes != 0 {
 			publicAuthenticationMetadata, _ := auth.AuthenticationMetadataFromContext(ctx).GetPublicProto()
@@ -92,26 +94,13 @@ func (f *UserSettableSymlink) VirtualGetAttributes(ctx context.Context, requeste
 			attributes.SetChangeID(f.changeID)
 			f.changeID++
 		}
-		if requested&AttributesMaskSizeBytes != 0 {
-			attributes.SetSizeBytes(uint64(len(f.targets[key])))
+		target := f.targets[key]
+		if target == nil {
+			target = f.defaultTarget
 		}
+		attributes.SetSymlinkTarget(target)
 		f.lock.Unlock()
 	}
-}
-
-// VirtualReadlink returns the target of the symbolic link for the
-// calling user.
-func (f *UserSettableSymlink) VirtualReadlink(ctx context.Context) ([]byte, Status) {
-	publicAuthenticationMetadata, _ := auth.AuthenticationMetadataFromContext(ctx).GetPublicProto()
-	key := protojson.Format(publicAuthenticationMetadata)
-
-	f.lock.Lock()
-	defer f.lock.Unlock()
-
-	if target, ok := f.targets[key]; ok {
-		return target, StatusOK
-	}
-	return nil, StatusErrNoEnt
 }
 
 // VirtualSetAttributes adjusts the attributes of the symbolic link.

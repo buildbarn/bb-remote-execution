@@ -22,7 +22,7 @@ import (
 func TestUserSettableSymlink(t *testing.T) {
 	buildDirectory, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
 	require.NoError(t, path.Resolve(path.UNIXFormat.NewParser("/var/build"), scopeWalker))
-	symlink := virtual.NewUserSettableSymlink(buildDirectory)
+	symlink := virtual.NewUserSettableSymlink(buildDirectory, path.UNIXFormat.NewParser("/invalid"))
 
 	ctx1 := auth.NewContextWithAuthenticationMetadata(
 		context.Background(),
@@ -59,26 +59,6 @@ func TestUserSettableSymlink(t *testing.T) {
 		})
 	})
 
-	t.Run("VirtualReadlink", func(t *testing.T) {
-		// The target returned by the symbolic link depends on
-		// the authentication metadata that is provided.
-
-		t.Run("UnknownUser", func(t *testing.T) {
-			_, s := symlink.VirtualReadlink(context.Background())
-			require.Equal(t, virtual.StatusErrNoEnt, s)
-		})
-
-		t.Run("Success", func(t *testing.T) {
-			target1, s := symlink.VirtualReadlink(ctx1)
-			require.Equal(t, virtual.StatusOK, s)
-			require.Equal(t, []byte("/var/build/125/tmp"), target1)
-
-			target2, s := symlink.VirtualReadlink(ctx2)
-			require.Equal(t, virtual.StatusOK, s)
-			require.Equal(t, []byte("/var/build/4857/tmp"), target2)
-		})
-	})
-
 	t.Run("VirtualGetAttributes", func(t *testing.T) {
 		// The size of the symbolic link depends on the user
 		// that requests it. As VirtualGetAttributes() can't
@@ -90,40 +70,71 @@ func TestUserSettableSymlink(t *testing.T) {
 			virtual.AttributesMaskFileType |
 			virtual.AttributesMaskHasNamedAttributes |
 			virtual.AttributesMaskPermissions |
-			virtual.AttributesMaskSizeBytes
+			virtual.AttributesMaskSizeBytes |
+			virtual.AttributesMaskSymlinkTarget
 
 		t.Run("UnknownUser", func(t *testing.T) {
 			var attributes virtual.Attributes
 			symlink.VirtualGetAttributes(context.Background(), requestedAttributes, &attributes)
-			require.Equal(t, *(&virtual.Attributes{}).
-				SetChangeID(0).
-				SetFileType(filesystem.FileTypeSymlink).
-				SetHasNamedAttributes(false).
-				SetPermissions(virtual.PermissionsRead | virtual.PermissionsWrite | virtual.PermissionsExecute).
-				SetSizeBytes(0),
-				attributes)
+
+			symlinkTarget, ok := attributes.GetSymlinkTarget()
+			require.True(t, ok)
+			symlinkTargetBuilder, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
+			require.NoError(t, path.Resolve(symlinkTarget, scopeWalker))
+			require.Equal(t, "/invalid", symlinkTargetBuilder.GetUNIXString())
+
+			require.Equal(
+				t,
+				*(&virtual.Attributes{}).
+					SetChangeID(0).
+					SetFileType(filesystem.FileTypeSymlink).
+					SetHasNamedAttributes(false).
+					SetPermissions(virtual.PermissionsRead | virtual.PermissionsWrite | virtual.PermissionsExecute).
+					SetSymlinkTarget(symlinkTarget),
+				attributes,
+			)
 		})
 
 		t.Run("Success", func(t *testing.T) {
 			var attributes1 virtual.Attributes
 			symlink.VirtualGetAttributes(ctx1, requestedAttributes, &attributes1)
-			require.Equal(t, *(&virtual.Attributes{}).
-				SetChangeID(1).
-				SetFileType(filesystem.FileTypeSymlink).
-				SetHasNamedAttributes(false).
-				SetPermissions(virtual.PermissionsRead | virtual.PermissionsWrite | virtual.PermissionsExecute).
-				SetSizeBytes(18),
-				attributes1)
+
+			symlinkTarget1, ok := attributes1.GetSymlinkTarget()
+			require.True(t, ok)
+			symlinkTargetBuilder1, scopeWalker1 := path.EmptyBuilder.Join(path.VoidScopeWalker)
+			require.NoError(t, path.Resolve(symlinkTarget1, scopeWalker1))
+			require.Equal(t, "/var/build/125/tmp", symlinkTargetBuilder1.GetUNIXString())
+
+			require.Equal(
+				t,
+				*(&virtual.Attributes{}).
+					SetChangeID(1).
+					SetFileType(filesystem.FileTypeSymlink).
+					SetHasNamedAttributes(false).
+					SetPermissions(virtual.PermissionsRead | virtual.PermissionsWrite | virtual.PermissionsExecute).
+					SetSymlinkTarget(symlinkTarget1),
+				attributes1,
+			)
 
 			var attributes2 virtual.Attributes
 			symlink.VirtualGetAttributes(ctx2, requestedAttributes, &attributes2)
-			require.Equal(t, *(&virtual.Attributes{}).
-				SetChangeID(2).
-				SetFileType(filesystem.FileTypeSymlink).
-				SetHasNamedAttributes(false).
-				SetPermissions(virtual.PermissionsRead | virtual.PermissionsWrite | virtual.PermissionsExecute).
-				SetSizeBytes(19),
-				attributes2)
+
+			symlinkTarget2, ok := attributes2.GetSymlinkTarget()
+			require.True(t, ok)
+			symlinkTargetBuilder2, scopeWalker2 := path.EmptyBuilder.Join(path.VoidScopeWalker)
+			require.NoError(t, path.Resolve(symlinkTarget2, scopeWalker2))
+			require.Equal(t, "/var/build/4857/tmp", symlinkTargetBuilder2.GetUNIXString())
+
+			require.Equal(
+				t,
+				*(&virtual.Attributes{}).
+					SetChangeID(2).
+					SetFileType(filesystem.FileTypeSymlink).
+					SetHasNamedAttributes(false).
+					SetPermissions(virtual.PermissionsRead | virtual.PermissionsWrite | virtual.PermissionsExecute).
+					SetSymlinkTarget(symlinkTarget2),
+				attributes2,
+			)
 		})
 	})
 }

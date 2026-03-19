@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 	"sync"
-	"syscall"
 	"time"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
@@ -348,8 +347,6 @@ func (f *fileBackedFile) VirtualGetAttributes(ctx context.Context, requested Att
 
 func (f *fileBackedFile) VirtualApply(data any) bool {
 	switch p := data.(type) {
-	case *ApplyReadlink:
-		p.Err = syscall.EINVAL
 	case *ApplyUploadFile:
 		p.Digest, p.Err = f.uploadFile(p.Context, p.ContentAddressableStorage, p.DigestFunction, p.WritableFileUploadDelay)
 	case *ApplyGetBazelOutputServiceStat:
@@ -449,10 +446,6 @@ func (f *fileBackedFile) VirtualRead(buf []byte, off uint64) (int, bool, Status)
 		}
 	}
 	return len(buf), eof, StatusOK
-}
-
-func (fileBackedFile) VirtualReadlink(ctx context.Context) ([]byte, Status) {
-	return nil, StatusErrInval
 }
 
 func (f *fileBackedFile) VirtualClose(shareAccess ShareMask) {

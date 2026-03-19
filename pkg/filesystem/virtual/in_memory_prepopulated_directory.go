@@ -1108,7 +1108,7 @@ func (i *inMemoryPrepopulatedDirectory) VirtualSetAttributes(ctx context.Context
 	return StatusOK
 }
 
-func (i *inMemoryPrepopulatedDirectory) VirtualSymlink(ctx context.Context, pointedTo []byte, linkName path.Component, requested AttributesMask, out *Attributes) (Leaf, ChangeInfo, Status) {
+func (i *inMemoryPrepopulatedDirectory) VirtualSymlink(ctx context.Context, pointedTo path.Parser, linkName path.Component, requested AttributesMask, out *Attributes) (Leaf, ChangeInfo, Status) {
 	i.lock.Lock()
 	defer i.lock.Unlock()
 
@@ -1121,7 +1121,11 @@ func (i *inMemoryPrepopulatedDirectory) VirtualSymlink(ctx context.Context, poin
 	if s := contents.virtualMayAttach(normalizedLinkName); s != StatusOK {
 		return nil, ChangeInfo{}, s
 	}
-	child := i.subtree.filesystem.symlinkFactory.LookupSymlink(pointedTo)
+	child, err := i.subtree.filesystem.symlinkFactory.LookupSymlink(pointedTo)
+	if err != nil {
+		i.subtree.errorLogger.Log(util.StatusWrapf(err, "Failed to create new symlink"))
+		return nil, ChangeInfo{}, StatusErrIO
+	}
 	changeIDBefore := contents.changeID
 	contents.attach(i.subtree, linkName, normalizedLinkName, inMemoryDirectoryChild{}.FromLeaf(child))
 

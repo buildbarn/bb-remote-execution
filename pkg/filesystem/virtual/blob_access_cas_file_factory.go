@@ -2,7 +2,6 @@ package virtual
 
 import (
 	"context"
-	"syscall"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/bazeloutputservice"
@@ -73,8 +72,6 @@ func (blobAccessCASFile) VirtualAllocate(off, size uint64) Status {
 
 func (f *blobAccessCASFile) virtualApplyCommon(data any) bool {
 	switch p := data.(type) {
-	case *ApplyReadlink:
-		p.Err = syscall.EINVAL
 	case *ApplyUploadFile:
 		// This file is already backed by the Content Addressable
 		// Storage. There is thus no need to upload it once again.
@@ -145,10 +142,6 @@ func (f *blobAccessCASFile) VirtualRead(buf []byte, off uint64) (int, bool, Stat
 		}
 	}
 	return len(buf), eof, StatusOK
-}
-
-func (blobAccessCASFile) VirtualReadlink(ctx context.Context) ([]byte, Status) {
-	return nil, StatusErrInval
 }
 
 func (blobAccessCASFile) VirtualClose(shareAccess ShareMask) {}

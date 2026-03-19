@@ -39,14 +39,6 @@ func GetFileInfo(name path.Component, node Node) filesystem.FileInfo {
 		permissions&PermissionsExecute != 0)
 }
 
-// ApplyReadlink is an operation for VirtualApply that returns the
-// target of a symbolic link in parsed form.
-type ApplyReadlink struct {
-	// Outputs.
-	Target path.Parser
-	Err    error
-}
-
 // ApplyUploadFile is an operation for VirtualApply that uploads the
 // contents of a file into the Content Addressable Storage and returns
 // the resulting object's digest.

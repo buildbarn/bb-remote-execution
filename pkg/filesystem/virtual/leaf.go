@@ -52,7 +52,6 @@ type Leaf interface {
 	VirtualSeek(offset uint64, regionType filesystem.RegionType) (*uint64, Status)
 	VirtualOpenSelf(ctx context.Context, shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status
 	VirtualRead(buf []byte, offset uint64) (n int, eof bool, s Status)
-	VirtualReadlink(ctx context.Context) ([]byte, Status)
 	VirtualClose(shareAccess ShareMask)
 	VirtualWrite(buf []byte, offset uint64) (int, Status)
 }

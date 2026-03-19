@@ -1343,9 +1343,11 @@ func (relativePathChecker) OnShare(server, share string) (path.ComponentWalker, 
 }
 
 func getReparsePointForLeaf(ctx context.Context, leaf virtual.Leaf, buffer []byte) (int, error) {
-	target, status := leaf.VirtualReadlink(ctx)
-	if status != virtual.StatusOK {
-		return 0, toNTStatus(status)
+	var attributesOut virtual.Attributes
+	leaf.VirtualGetAttributes(ctx, virtual.AttributesMaskSymlinkTarget, &attributesOut)
+	target, ok := attributesOut.GetSymlinkTarget()
+	if !ok {
+		return 0, windows.STATUS_INVALID_PARAMETER
 	}
 	if buffer == nil {
 		// Then we were just interested in knowing if this was a reparse point.
@@ -1354,15 +1356,26 @@ func getReparsePointForLeaf(ctx context.Context, leaf virtual.Leaf, buffer []byt
 
 	// Parse the path to determine if it's absolute
 	w := relativePathChecker{}
-	if err := path.Resolve(path.LocalFormat.NewParser(string(target)), &w); err != nil {
+	targetBuilder, scopeWalker := path.EmptyBuilder.Join(&w)
+	if err := path.Resolve(target, scopeWalker); err != nil {
 		return 0, err
 	}
-	var flags int
+
 	if w.isRelative {
-		flags = windowsext.SYMLINK_FLAG_RELATIVE
+		targetStr, err := path.LocalFormat.GetString(targetBuilder)
+		if err != nil {
+			return 0, err
+		}
+		return FillSymlinkReparseBuffer(targetStr, uint32(windowsext.SYMLINK_FLAG_RELATIVE), buffer)
 	}
 
-	return FillSymlinkReparseBuffer(string(target), uint32(flags), buffer)
+	// Absolute symlinks require the NT object namespace prefix
+	// (\??\) in SubstituteName for Windows to resolve them.
+	targetStr, err := targetBuilder.GetWindowsString(path.WindowsPathFormatDevicePath)
+	if err != nil {
+		return 0, err
+	}
+	return FillSymlinkReparseBuffer(targetStr, 0, buffer)
 }
 
 func (fs *FileSystem) GetReparsePoint(ref *ffi.FileSystemRef, file uintptr, name string, buffer []byte) (int, error) {
@@ -1440,7 +1453,7 @@ func (fs *FileSystem) SetReparsePoint(ref *ffi.FileSystemRef, handle uintptr, na
 			return toNTStatus(s)
 		}
 		var outAttributes virtual.Attributes
-		if _, _, s := node.parent.VirtualSymlink(ctx, []byte(targetPath), node.name, virtual.AttributesMaskFileType, &outAttributes); s != virtual.StatusOK {
+		if _, _, s := node.parent.VirtualSymlink(ctx, path.LocalFormat.NewParser(targetPath), node.name, virtual.AttributesMaskFileType, &outAttributes); s != virtual.StatusOK {
 			return toNTStatus(s)
 		}
 
