@@ -80,7 +80,7 @@ func (f *UserSettableSymlink) VirtualGetAttributes(ctx context.Context, requeste
 
 	if requested&(AttributesMaskChangeID|AttributesMaskSymlinkTarget) != 0 {
 		var key string
-		if requested&AttributesMaskSizeBytes != 0 {
+		if requested&AttributesMaskSymlinkTarget != 0 {
 			publicAuthenticationMetadata, _ := auth.AuthenticationMetadataFromContext(ctx).GetPublicProto()
 			key = protojson.Format(publicAuthenticationMetadata)
 		}

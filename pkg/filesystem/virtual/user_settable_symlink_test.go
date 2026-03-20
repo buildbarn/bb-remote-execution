@@ -70,7 +70,6 @@ func TestUserSettableSymlink(t *testing.T) {
 			virtual.AttributesMaskFileType |
 			virtual.AttributesMaskHasNamedAttributes |
 			virtual.AttributesMaskPermissions |
-			virtual.AttributesMaskSizeBytes |
 			virtual.AttributesMaskSymlinkTarget
 
 		t.Run("UnknownUser", func(t *testing.T) {
