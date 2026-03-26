@@ -287,14 +287,7 @@ var inMemoryBuildQueueCapabilitiesProvider = capabilities.NewStaticProvider(&rem
 	// - REv2.1 changes the way output paths are declared in Command.
 	// - REv2.2 moves the platform properties from Command to Action.
 	// - REv2.3 changes the way Command.arguments[0] is interpreted.
-	//
-	// We should set the deprecated API version to REv2.3 as well,
-	// as we always process Commands.arguments[0] according to the
-	// new semantics. However, that would break compatibility with
-	// Bazel 8.x and below.
-	//
-	// TODO: Bump the deprecated API version to REv2.3 on 2028-01-01.
-	DeprecatedApiVersion: &semver.SemVer{Major: 2, Minor: 2},
+	DeprecatedApiVersion: &semver.SemVer{Major: 2, Minor: 3},
 	LowApiVersion:        &semver.SemVer{Major: 2, Minor: 3},
 	HighApiVersion:       &semver.SemVer{Major: 2, Minor: 12},
 })
