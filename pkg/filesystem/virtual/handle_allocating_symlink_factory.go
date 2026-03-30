@@ -5,8 +5,9 @@ import (
 )
 
 type handleAllocatingSymlinkFactory struct {
-	base      SymlinkFactory
-	allocator StatelessHandleAllocator
+	base       SymlinkFactory
+	allocator  StatelessHandleAllocator
+	pathFormat path.Format
 }
 
 // NewHandleAllocatingSymlinkFactory is a decorator for SymlinkFactory
@@ -20,8 +21,9 @@ type handleAllocatingSymlinkFactory struct {
 // tracked, using an invisible link count.
 func NewHandleAllocatingSymlinkFactory(base SymlinkFactory, allocation StatelessHandleAllocation, pathFormat path.Format) SymlinkFactory {
 	return &handleAllocatingSymlinkFactory{
-		base:      base,
-		allocator: allocation.AsStatelessAllocator(),
+		base:       base,
+		allocator:  allocation.AsStatelessAllocator(),
+		pathFormat: pathFormat,
 	}
 }
 
@@ -30,11 +32,15 @@ func (sf *handleAllocatingSymlinkFactory) LookupSymlink(target path.Parser) (Lin
 	if err := path.Resolve(target, scopeWalker); err != nil {
 		return nil, err
 	}
+	targetStr, err := sf.pathFormat.GetString(builder)
+	if err != nil {
+		return nil, err
+	}
 	symlink, err := sf.base.LookupSymlink(target)
 	if err != nil {
 		return nil, err
 	}
 	return sf.allocator.
-		New(ByteSliceID([]byte(builder.GetUNIXString()))).
+		New(ByteSliceID([]byte(targetStr))).
 		AsLinkableLeaf(symlink), nil
 }
