@@ -81,7 +81,7 @@ func createWinFSPForTest(t *testing.T, terminationGroup program.Group, caseSensi
 	// Create a virtual directory to hold new files.
 	defaultAttributesSetter := func(requested virtual.AttributesMask, attributes *virtual.Attributes) {}
 	symlinkFactory := virtual.NewHandleAllocatingSymlinkFactory(
-		virtual.BaseSymlinkFactory,
+		virtual.NewBaseSymlinkFactory(defaultAttributesSetter),
 		handleAllocator.New(),
 		bb_path.LocalFormat,
 	)

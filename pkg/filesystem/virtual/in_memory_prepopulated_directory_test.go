@@ -404,9 +404,10 @@ func TestInMemoryPrepopulatedDirectoryInstallHooks(t *testing.T) {
 	defaultAttributesSetter1 := mock.NewMockDefaultAttributesSetter(ctrl)
 	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator1, symlinkFactory1, errorLogger1, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString, clock.SystemClock, virtual.CaseSensitiveComponentNormalizer, defaultAttributesSetter1.Call, virtual.NoNamedAttributesFactory)
 	fileAllocator2 := mock.NewMockFileAllocator(ctrl)
+	symlinkFactory2 := mock.NewMockSymlinkFactory(ctrl)
 	errorLogger2 := mock.NewMockErrorLogger(ctrl)
 	defaultAttributesSetter2 := mock.NewMockDefaultAttributesSetter(ctrl)
-	d.InstallHooks(fileAllocator2, errorLogger2, defaultAttributesSetter2.Call, virtual.NoNamedAttributesFactory)
+	d.InstallHooks(fileAllocator2, symlinkFactory2, errorLogger2, defaultAttributesSetter2.Call, virtual.NoNamedAttributesFactory)
 
 	// Validate that the top-level directory uses both the new file
 	// allocator and error logger.
@@ -423,6 +424,27 @@ func TestInMemoryPrepopulatedDirectoryInstallHooks(t *testing.T) {
 		virtual.AttributesMask(0),
 		&attr)
 	require.Equal(t, virtual.StatusErrIO, s)
+
+	// Validate that symlinks uses the new symlink allocator
+	// and error logger as well.
+	symlinkLeaf := mock.NewMockLinkableLeaf(ctrl)
+	symlinkFactory2.EXPECT().LookupSymlink(path.UNIXFormat.NewParser("target")).Return(symlinkLeaf, nil)
+	symlinkLeaf.EXPECT().VirtualGetAttributes(
+		ctx,
+		virtual.AttributesMaskInodeNumber,
+		gomock.Any(),
+	).Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
+		attributes.SetInodeNumber(3)
+	})
+	var out virtual.Attributes
+	actualLeaf, changeInfo, s := d.VirtualSymlink(ctx, path.UNIXFormat.NewParser("target"), path.MustNewComponent("symlink"), virtual.AttributesMaskInodeNumber, &out)
+	require.Equal(t, virtual.StatusOK, s)
+	require.NotNil(t, actualLeaf)
+	require.Equal(t, virtual.ChangeInfo{
+		Before: 0,
+		After:  1,
+	}, changeInfo)
+	require.Equal(t, (&virtual.Attributes{}).SetInodeNumber(3), &out)
 
 	// Validate that a subdirectory uses the new file allocator
 	// and error logger as well.
@@ -1703,6 +1725,14 @@ func TestInMemoryPrepopulatedDirectoryVirtualSymlink(t *testing.T) {
 
 		_, _, s := d.VirtualSymlink(ctx, path.UNIXFormat.NewParser("target"), path.MustNewComponent("existing_file"), 0, &virtual.Attributes{})
 		require.Equal(t, virtual.StatusErrExist, s)
+	})
+
+	t.Run("FailingSymlinkFactory", func(t *testing.T) {
+		targetPathParser := path.UNIXFormat.NewParser("target")
+		symlinkFactory.EXPECT().LookupSymlink(targetPathParser).Return(nil, status.Error(codes.Internal, "Not allowed"))
+		errorLogger.EXPECT().Log(testutil.EqStatus(t, status.Error(codes.Internal, "Failed to create new symlink: Not allowed")))
+		_, _, s := d.VirtualSymlink(ctx, targetPathParser, path.MustNewComponent("symlink"), 0, &virtual.Attributes{})
+		require.Equal(t, virtual.StatusErrIO, s)
 	})
 
 	t.Run("Success", func(t *testing.T) {

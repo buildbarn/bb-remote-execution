@@ -15,6 +15,7 @@ go_library(
         "component_normalizer.go",
         "directory.go",
         "empty_initial_contents_fetcher.go",
+        "error_symlink_factory.go",
         "file_allocator.go",
         "fuse_handle_allocator.go",
         "handle_allocating_file_allocator.go",

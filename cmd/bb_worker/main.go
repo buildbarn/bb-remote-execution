@@ -182,7 +182,6 @@ func main() {
 		for _, buildDirectoryConfiguration := range configuration.BuildDirectories {
 			var virtualBuildDirectory virtual.PrepopulatedDirectory
 			var handleAllocator virtual.StatefulHandleAllocator
-			var symlinkFactory virtual.SymlinkFactory
 			var characterDeviceFactory virtual.CharacterDeviceFactory
 			var naiveBuildDirectory filesystem.DirectoryCloser
 			var fileFetcher cas.FileFetcher
@@ -223,11 +222,6 @@ func main() {
 					normalizer = virtual.CaseInsensitiveComponentNormalizer
 				}
 
-				symlinkFactory = virtual.NewHandleAllocatingSymlinkFactory(
-					virtual.BaseSymlinkFactory,
-					handleAllocator.New(),
-					path.LocalFormat,
-				)
 				characterDeviceFactory = virtual.NewHandleAllocatingCharacterDeviceFactory(
 					virtual.BaseCharacterDeviceFactory,
 					handleAllocator.New())
@@ -245,7 +239,7 @@ func main() {
 						),
 						handleAllocator,
 					),
-					symlinkFactory,
+					virtual.NewErrorSymlinkFactory(status.Error(codes.PermissionDenied, "Symlink outside build directory")),
 					util.DefaultErrorLogger,
 					handleAllocator,
 					initialContentsSorter,
@@ -337,6 +331,18 @@ func main() {
 					return err
 				}
 
+				defaultAttributesSetter := func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+					attributes.SetOwnerUserID(runnerConfiguration.BuildDirectoryOwnerUserId)
+					attributes.SetOwnerGroupID(runnerConfiguration.BuildDirectoryOwnerGroupId)
+				}
+				symlinkFactory := virtual.NewHandleAllocatingSymlinkFactory(
+					// Symlinks are not modified but rather replaced when changed.
+					// Therefore, it is safe to set the user as owner.
+					virtual.NewBaseSymlinkFactory(defaultAttributesSetter),
+					handleAllocator.New(),
+					path.LocalFormat,
+				)
+
 				// Execute commands using a separate runner process. Due to the
 				// interaction between threads, forking and execve() returning
 				// ETXTBSY, concurrent execution of build actions can only be
@@ -397,10 +403,7 @@ func main() {
 							symlinkFactory,
 							characterDeviceFactory,
 							handleAllocator,
-							/* defaultAttributesSetter = */ func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
-								attributes.SetOwnerUserID(runnerConfiguration.BuildDirectoryOwnerUserId)
-								attributes.SetOwnerGroupID(runnerConfiguration.BuildDirectoryOwnerGroupId)
-							},
+							defaultAttributesSetter,
 							clock.SystemClock,
 						)
 					} else {
