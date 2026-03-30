@@ -293,7 +293,7 @@ var inMemoryBuildQueueCapabilitiesProvider = capabilities.NewStaticProvider(&rem
 	// new semantics. However, that would break compatibility with
 	// Bazel 8.x and below.
 	//
-	// TODO: Bump the deprecated API version to REv2.3 on 2027-07-01.
+	// TODO: Bump the deprecated API version to REv2.3 on 2028-01-01.
 	DeprecatedApiVersion: &semver.SemVer{Major: 2, Minor: 2},
 	LowApiVersion:        &semver.SemVer{Major: 2, Minor: 3},
 	HighApiVersion:       &semver.SemVer{Major: 2, Minor: 12},
