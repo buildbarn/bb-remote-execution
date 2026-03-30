@@ -23,6 +23,7 @@ import (
 type virtualBuildDirectoryOptions struct {
 	directoryFetcher          cas.DirectoryFetcher
 	contentAddressableStorage blobstore.BlobAccess
+	symlinkFactory            virtual.SymlinkFactory
 	characterDeviceFactory    virtual.CharacterDeviceFactory
 	handleAllocator           virtual.StatefulHandleAllocator
 	defaultAttributesSetter   virtual.DefaultAttributesSetter
@@ -39,12 +40,20 @@ type virtualBuildDirectory struct {
 // input root explicitly, it calls PrepopulatedDirectory.CreateChildren
 // to add special file and directory nodes whose contents are read on
 // demand.
-func NewVirtualBuildDirectory(directory virtual.PrepopulatedDirectory, directoryFetcher cas.DirectoryFetcher, contentAddressableStorage blobstore.BlobAccess, characterDeviceFactory virtual.CharacterDeviceFactory, handleAllocator virtual.StatefulHandleAllocator, defaultAttributesSetter virtual.DefaultAttributesSetter, clock clock.Clock) BuildDirectory {
+func NewVirtualBuildDirectory(directory virtual.PrepopulatedDirectory, directoryFetcher cas.DirectoryFetcher, contentAddressableStorage blobstore.BlobAccess, characterDeviceFactory virtual.CharacterDeviceFactory, handleAllocator virtual.StatefulHandleAllocator, defaultAttributesSetter virtual.DefaultAttributesSetter, pathFormat path.Format, clock clock.Clock) BuildDirectory {
+	symlinkFactory := virtual.NewHandleAllocatingSymlinkFactory(
+		// Symlinks are not modified but rather replaced when changed.
+		// Therefore, it is safe to set the user as owner.
+		virtual.NewBaseSymlinkFactory(defaultAttributesSetter),
+		handleAllocator.New(),
+		pathFormat,
+	)
 	return &virtualBuildDirectory{
 		PrepopulatedDirectory: directory,
 		options: &virtualBuildDirectoryOptions{
 			directoryFetcher:          directoryFetcher,
 			contentAddressableStorage: contentAddressableStorage,
+			symlinkFactory:            symlinkFactory,
 			characterDeviceFactory:    characterDeviceFactory,
 			handleAllocator:           handleAllocator,
 			defaultAttributesSetter:   defaultAttributesSetter,
@@ -93,10 +102,7 @@ func (d *virtualBuildDirectory) InstallHooks(filePool pool.FilePool, errorLogger
 			),
 			do.handleAllocator,
 		),
-		virtual.NewHandleAllocatingSymlinkFactory(
-			virtual.NewBaseSymlinkFactory(do.defaultAttributesSetter),
-			do.handleAllocator.New(),
-		),
+		do.symlinkFactory,
 		errorLogger,
 		do.handleAllocator,
 		do.clock,
@@ -111,10 +117,7 @@ func (d *virtualBuildDirectory) InstallHooks(filePool pool.FilePool, errorLogger
 			),
 			do.handleAllocator,
 		),
-		virtual.NewHandleAllocatingSymlinkFactory(
-			virtual.NewBaseSymlinkFactory(do.defaultAttributesSetter),
-			do.handleAllocator.New(),
-		),
+		do.symlinkFactory,
 		errorLogger,
 		do.defaultAttributesSetter,
 		namedAttributesFactory,
@@ -131,12 +134,7 @@ func (d *virtualBuildDirectory) MergeDirectoryContents(ctx context.Context, erro
 				d.options.contentAddressableStorage,
 				errorLogger),
 			d.options.handleAllocator.New()),
-		virtual.NewHandleAllocatingSymlinkFactory(
-			// Symlinks are not modified but rather replaced when changed.
-			// Therefore, it is safe to set the user as owner.
-			virtual.NewBaseSymlinkFactory(d.options.defaultAttributesSetter),
-			d.options.handleAllocator.New(),
-		),
+		d.options.symlinkFactory,
 		digest.GetDigestFunction())
 	if monitor != nil {
 		initialContentsFetcher = virtual.NewAccessMonitoringInitialContentsFetcher(initialContentsFetcher, monitor)

@@ -1,8 +1,6 @@
 package virtual
 
 import (
-	"log"
-
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 )
 
@@ -15,7 +13,7 @@ type errorSymlinkFactory struct {
 // creation.
 func NewErrorSymlinkFactory(err error) SymlinkFactory {
 	if err == nil {
-		log.Fatal("Attempted to create error symlink factory with nil error")
+		panic("Attempted to create error symlink factory with nil error")
 	}
 	return &errorSymlinkFactory{
 		err: err,

@@ -15,8 +15,8 @@ type baseSymlinkFactory struct {
 
 func (f *baseSymlinkFactory) LookupSymlink(target path.Parser) (LinkableLeaf, error) {
 	return symlink{
-		defaultAttributesSetter: f.defaultAttributesSetter,
-		target:                  target,
+		factory: f,
+		target:  target,
 	}, nil
 }
 
@@ -31,8 +31,8 @@ func NewBaseSymlinkFactory(defaultAttributesSetter DefaultAttributesSetter) Syml
 type symlink struct {
 	placeholderFile
 
-	defaultAttributesSetter DefaultAttributesSetter
-	target                  path.Parser
+	factory *baseSymlinkFactory
+	target  path.Parser
 }
 
 func (f symlink) readlinkString() (string, error) {
@@ -44,7 +44,7 @@ func (f symlink) readlinkString() (string, error) {
 }
 
 func (f symlink) VirtualGetAttributes(ctx context.Context, requested AttributesMask, attributes *Attributes) {
-	f.defaultAttributesSetter(requested, attributes)
+	f.factory.defaultAttributesSetter(requested, attributes)
 	attributes.SetChangeID(0)
 	attributes.SetFileType(filesystem.FileTypeSymlink)
 	attributes.SetHasNamedAttributes(false)

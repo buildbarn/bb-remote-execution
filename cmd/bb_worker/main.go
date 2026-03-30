@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -240,7 +239,7 @@ func main() {
 						),
 						handleAllocator,
 					),
-					virtual.NewErrorSymlinkFactory(errors.New("Symlinks outside build directory not allowed")),
+					virtual.NewErrorSymlinkFactory(status.Error(codes.PermissionDenied, "Symlink outside build directory")),
 					util.DefaultErrorLogger,
 					handleAllocator,
 					initialContentsSorter,
@@ -395,6 +394,7 @@ func main() {
 								attributes.SetOwnerUserID(runnerConfiguration.BuildDirectoryOwnerUserId)
 								attributes.SetOwnerGroupID(runnerConfiguration.BuildDirectoryOwnerGroupId)
 							},
+							path.LocalFormat,
 							clock.SystemClock,
 						)
 					} else {
