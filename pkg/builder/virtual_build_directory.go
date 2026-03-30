@@ -40,14 +40,7 @@ type virtualBuildDirectory struct {
 // input root explicitly, it calls PrepopulatedDirectory.CreateChildren
 // to add special file and directory nodes whose contents are read on
 // demand.
-func NewVirtualBuildDirectory(directory virtual.PrepopulatedDirectory, directoryFetcher cas.DirectoryFetcher, contentAddressableStorage blobstore.BlobAccess, characterDeviceFactory virtual.CharacterDeviceFactory, handleAllocator virtual.StatefulHandleAllocator, defaultAttributesSetter virtual.DefaultAttributesSetter, pathFormat path.Format, clock clock.Clock) BuildDirectory {
-	symlinkFactory := virtual.NewHandleAllocatingSymlinkFactory(
-		// Symlinks are not modified but rather replaced when changed.
-		// Therefore, it is safe to set the user as owner.
-		virtual.NewBaseSymlinkFactory(defaultAttributesSetter),
-		handleAllocator.New(),
-		pathFormat,
-	)
+func NewVirtualBuildDirectory(directory virtual.PrepopulatedDirectory, directoryFetcher cas.DirectoryFetcher, contentAddressableStorage blobstore.BlobAccess, symlinkFactory virtual.SymlinkFactory, characterDeviceFactory virtual.CharacterDeviceFactory, handleAllocator virtual.StatefulHandleAllocator, defaultAttributesSetter virtual.DefaultAttributesSetter, clock clock.Clock) BuildDirectory {
 	return &virtualBuildDirectory{
 		PrepopulatedDirectory: directory,
 		options: &virtualBuildDirectoryOptions{
