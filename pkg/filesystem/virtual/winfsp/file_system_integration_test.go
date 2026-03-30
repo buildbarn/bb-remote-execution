@@ -83,6 +83,7 @@ func createWinFSPForTest(t *testing.T, terminationGroup program.Group, caseSensi
 	symlinkFactory := virtual.NewHandleAllocatingSymlinkFactory(
 		virtual.NewBaseSymlinkFactory(defaultAttributesSetter),
 		handleAllocator.New(),
+		bb_path.LocalFormat,
 	)
 	rootDir := virtual.NewInMemoryPrepopulatedDirectory(
 		virtual.NewHandleAllocatingFileAllocator(
