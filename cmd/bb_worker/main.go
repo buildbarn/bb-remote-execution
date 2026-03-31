@@ -331,17 +331,21 @@ func main() {
 					return err
 				}
 
-				defaultAttributesSetter := func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
-					attributes.SetOwnerUserID(runnerConfiguration.BuildDirectoryOwnerUserId)
-					attributes.SetOwnerGroupID(runnerConfiguration.BuildDirectoryOwnerGroupId)
+				var defaultAttributesSetter virtual.DefaultAttributesSetter
+				var symlinkFactory virtual.SymlinkFactory
+				if virtualBuildDirectory != nil {
+					defaultAttributesSetter = func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+						attributes.SetOwnerUserID(runnerConfiguration.BuildDirectoryOwnerUserId)
+						attributes.SetOwnerGroupID(runnerConfiguration.BuildDirectoryOwnerGroupId)
+					}
+					symlinkFactory = virtual.NewHandleAllocatingSymlinkFactory(
+						// Symlinks are not modified but rather replaced when changed.
+						// Therefore, it is safe to set the user as owner.
+						virtual.NewBaseSymlinkFactory(defaultAttributesSetter),
+						handleAllocator.New(),
+						path.LocalFormat,
+					)
 				}
-				symlinkFactory := virtual.NewHandleAllocatingSymlinkFactory(
-					// Symlinks are not modified but rather replaced when changed.
-					// Therefore, it is safe to set the user as owner.
-					virtual.NewBaseSymlinkFactory(defaultAttributesSetter),
-					handleAllocator.New(),
-					path.LocalFormat,
-				)
 
 				// Execute commands using a separate runner process. Due to the
 				// interaction between threads, forking and execve() returning
