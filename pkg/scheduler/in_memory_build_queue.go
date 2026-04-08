@@ -659,7 +659,7 @@ func (bq *InMemoryBuildQueue) Synchronize(ctx context.Context, request *remotewo
 		// Prevent the worker from being garbage collected while
 		// synchronization is happening.
 		if !w.cleanupKey.isActive() {
-			return nil, status.Error(codes.ResourceExhausted, "Worker is already synchronizing with the scheduler")
+			return nil, status.Error(codes.ResourceExhausted, "A worker with the same worker ID is already synchronizing with the scheduler")
 		}
 		bq.cleanupQueue.remove(w.cleanupKey)
 	} else {
