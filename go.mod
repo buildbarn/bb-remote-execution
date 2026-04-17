@@ -1,6 +1,6 @@
 module github.com/buildbarn/bb-remote-execution
 
-go 1.26.1
+go 1.26.2
 
 // rules_go doesn't support gomock's package mode.
 replace go.uber.org/mock => go.uber.org/mock v0.4.0
