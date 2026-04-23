@@ -214,19 +214,30 @@ message NFSv4MountConfiguration {
 }
 
 message NFSv4DarwinMountConfiguration {
-  // Path on which to bind the UNIX socket of the NFSv4 server. The
-  // kernel will connect to this socket when mounting.
-  //
-  // NOTE: No facilities are provided to set the ownership or
-  // permissions on the socket file. On most operating systems, the
-  // socket file will have mode 0777. How the mode is interpreted when
-  // changed is inconsistent between operating systems. Some require the
-  // socket to be writable in order to connect, while others ignore the
-  // permissions altogether.
-  //
-  // It is therefore strongly advised that socket files are placed
-  // inside directories that have access controls set up properly.
-  string socket_path = 1;
+  // Transport configuration for the NFSv4 server.
+  oneof transport {
+    // Path on which to bind the UNIX socket of the NFSv4 server. The
+    // kernel will connect to this socket when mounting.
+    //
+    // NOTE: No facilities are provided to set the ownership or
+    // permissions on the socket file. On most operating systems, the
+    // socket file will have mode 0777. How the mode is interpreted when
+    // changed is inconsistent between operating systems. Some require the
+    // socket to be writable in order to connect, while others ignore the
+    // permissions altogether.
+    //
+    // It is therefore strongly advised that socket files are placed
+    // inside directories that have access controls set up properly.
+    string socket_path = 1;
+
+    // TCP address on which to bind the NFSv4 server (e.g.,
+    // "localhost:2049", "127.0.0.1:2049", or ":2049"). The kernel will
+    // connect to this address when mounting.
+    //
+    // If a wildcard address is specified (e.g., ":2049" or
+    // "0.0.0.0:2049"), the kernel will connect via loopback.
+    string tcp_address = 6;
+  }
 
   // Was 'minimum_directories_attribute_cache_timeout' and
   // 'maximum_directories_attribute_cache_timeout'. These options are
