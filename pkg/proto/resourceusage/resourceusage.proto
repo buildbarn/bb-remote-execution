@@ -126,3 +126,74 @@ message InputRootResourceUsage {
   // Addressable Storage (CAS).
   uint64 files_read = 3;
 }
+
+// Resource usage metrics collected from cgroup v2 files by bb_runner.
+//
+// Fields represent the difference between samples taken before
+// the action started and after it completed, unless noted otherwise.
+//
+// PSI total values are exported by Linux in microseconds, but stored
+// here as durations. To express a PSI duration as a percentage, divide
+// it by the action's execution duration from
+// ActionResult.execution_metadata. For example:
+//
+//   psi_cpu_some_percent = psi_cpu_some / (
+//       execution_completed_timestamp - execution_start_timestamp) * 100
+//
+// See:
+// https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html#memory-interface-files
+// https://www.kernel.org/doc/html/latest/accounting/psi.html#psi
+message CgroupResourceUsage {
+  // memory.events/low: Number of times the cgroup was reclaimed under
+  // high memory pressure even though it was below memory.low.
+  int64 memory_events_low = 1;
+
+  // memory.events/high: Number of times cgroup processes were
+  // throttled and routed to direct reclaim after exceeding memory.high.
+  int64 memory_events_high = 2;
+
+  // memory.events/max: Number of times the cgroup was about to exceed
+  // memory.max.
+  int64 memory_events_max = 3;
+
+  // memory.events/oom: Number of times allocation was about to fail
+  // because the cgroup reached its memory limit.
+  int64 memory_events_oom = 4;
+
+  // memory.events/oom_kill: Number of processes in the cgroup killed
+  // by any OOM killer.
+  int64 memory_events_oom_kill = 5;
+
+  // memory.events/oom_group_kill: Number of group OOM kills. Zero if
+  // the running kernel does not expose this memory.events key.
+  int64 memory_events_oom_group_kill = 6;
+
+  // memory.peak: Peak memory usage in bytes since resetting
+  // memory.peak at action start. Zero if memory.peak reset/read is
+  // unavailable.
+  int64 memory_peak_bytes = 7;
+
+  // memory.pressure/some total: Memory PSI stall time with at least
+  // one task stalled on memory.
+  google.protobuf.Duration psi_memory_some = 8;
+
+  // memory.pressure/full total: Memory PSI stall time with all
+  // non-idle tasks stalled on memory.
+  google.protobuf.Duration psi_memory_full = 9;
+
+  // cpu.pressure/some total: CPU PSI stall time with at least one task
+  // waiting for CPU.
+  google.protobuf.Duration psi_cpu_some = 10;
+
+  // cpu.pressure/full total: CPU PSI stall time with all non-idle
+  // tasks waiting for CPU.
+  google.protobuf.Duration psi_cpu_full = 11;
+
+  // io.pressure/some total: I/O PSI stall time with at least one task
+  // stalled on I/O.
+  google.protobuf.Duration psi_io_some = 12;
+
+  // io.pressure/full total: I/O PSI stall time with all non-idle
+  // tasks stalled on I/O.
+  google.protobuf.Duration psi_io_full = 13;
+}

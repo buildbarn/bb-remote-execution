@@ -12,6 +12,7 @@ import (
 	re_clock "github.com/buildbarn/bb-remote-execution/pkg/clock"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
+	"github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage"
 	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
@@ -792,6 +793,151 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 			},
 		},
 	}, executeResponse)
+}
+
+func TestLocalBuildExecutorReportsCgroupOOMKill(t *testing.T) {
+	for _, testCase := range []struct {
+		name         string
+		cgroupUsage  *resourceusage.CgroupResourceUsage
+		wantExitCode int32
+		wantMessage  string
+		wantStatus   error
+	}{
+		{
+			name: "memory limit OOM kill with zero runner exit code",
+			cgroupUsage: &resourceusage.CgroupResourceUsage{
+				MemoryEventsOom:     1,
+				MemoryEventsOomKill: 1,
+			},
+			wantExitCode: 1,
+			wantMessage:  "Action failed due to out of memory: cgroup memory limit was reached and a process was OOM-killed",
+		},
+		{
+			name: "external OOM kill with zero runner exit code",
+			cgroupUsage: &resourceusage.CgroupResourceUsage{
+				MemoryEventsOomKill: 1,
+			},
+			wantStatus: status.Error(codes.Unavailable, "An action process was OOM-killed without the action reaching its cgroup memory limit"),
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			ctrl, ctx := gomock.WithContext(context.Background(), t)
+
+			resourceUsage, err := anypb.New(testCase.cgroupUsage)
+			require.NoError(t, err)
+
+			contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+			contentAddressableStorage.EXPECT().Get(
+				gomock.Any(),
+				digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000002", 234),
+			).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
+				Arguments: []string{"clang"},
+			}, buffer.UserProvided))
+
+			buildDirectory := mock.NewMockBuildDirectory(ctrl)
+			buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
+			actionDigest := digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000001", 123)
+			buildDirectoryCreator.EXPECT().GetBuildDirectory(ctx, &actionDigest).
+				Return(buildDirectory, nil, nil)
+			filePool := mock.NewMockFilePool(ctrl)
+			monitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
+			buildDirectory.EXPECT().InstallHooks(filePool, gomock.Any())
+			buildDirectory.EXPECT().Mkdir(path.MustNewComponent("root"), os.FileMode(0o777))
+			inputRootDirectory := mock.NewMockBuildDirectory(ctrl)
+			buildDirectory.EXPECT().EnterBuildDirectory(path.MustNewComponent("root")).Return(inputRootDirectory, nil)
+			inputRootDirectory.EXPECT().MergeDirectoryContents(
+				ctx,
+				gomock.Any(),
+				digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000003", 345),
+				monitor,
+			).Return(nil)
+			buildDirectory.EXPECT().Mkdir(path.MustNewComponent("tmp"), os.FileMode(0o777))
+			buildDirectory.EXPECT().Mkdir(path.MustNewComponent("server_logs"), os.FileMode(0o777))
+
+			runner := mock.NewMockRunnerClient(ctrl)
+			runner.EXPECT().Run(gomock.Any(), &runner_pb.RunRequest{
+				Arguments:            []string{"clang"},
+				EnvironmentVariables: map[string]string{},
+				WorkingDirectory:     "",
+				StdoutPath:           "stdout",
+				StderrPath:           "stderr",
+				InputRootDirectory:   "root",
+				TemporaryDirectory:   "tmp",
+				ServerLogsDirectory:  "server_logs",
+			}).Return(&runner_pb.RunResponse{
+				ExitCode:      0,
+				ResourceUsage: []*anypb.Any{resourceUsage},
+			}, nil)
+			inputRootDirectory.EXPECT().Close()
+			emptyDigest := digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0)
+			buildDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("stdout"), gomock.Any(), gomock.Any()).Return(emptyDigest, nil)
+			buildDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("stderr"), gomock.Any(), gomock.Any()).Return(emptyDigest, nil)
+			serverLogsDirectory := mock.NewMockUploadableDirectory(ctrl)
+			buildDirectory.EXPECT().EnterUploadableDirectory(path.MustNewComponent("server_logs")).Return(serverLogsDirectory, nil)
+			serverLogsDirectory.EXPECT().ReadDir()
+			serverLogsDirectory.EXPECT().Close()
+			buildDirectory.EXPECT().Close()
+
+			clock := mock.NewMockClock(ctrl)
+			clock.EXPECT().NewContextWithTimeout(gomock.Any(), time.Hour).DoAndReturn(func(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+				return context.WithCancel(parent)
+			})
+			clock.EXPECT().NewContextWithTimeout(gomock.Any(), 10*time.Second).DoAndReturn(func(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+				return parent, func() {}
+			})
+			localBuildExecutor := builder.NewLocalBuildExecutor(
+				contentAddressableStorage,
+				buildDirectoryCreator,
+				runner,
+				clock,
+				/* maximumWritableFileUploadDelay = */ 10*time.Second,
+				/* inputRootCharacterDevices = */ nil,
+				/* maximumMessageSizeBytes = */ 10000,
+				/* environmentVariables = */ map[string]string{},
+				/* forceUploadTreesAndDirectories = */ false,
+			)
+
+			metadata := make(chan *remoteworker.CurrentState_Executing, 10)
+			executeResponse := localBuildExecutor.Execute(
+				ctx,
+				filePool,
+				monitor,
+				digest.MustNewFunction("ubuntu1804", remoteexecution.DigestFunction_SHA256),
+				&remoteworker.DesiredState_Executing{
+					ActionDigest: &remoteexecution.Digest{
+						Hash:      "0000000000000000000000000000000000000000000000000000000000000001",
+						SizeBytes: 123,
+					},
+					Action: &remoteexecution.Action{
+						CommandDigest: &remoteexecution.Digest{
+							Hash:      "0000000000000000000000000000000000000000000000000000000000000002",
+							SizeBytes: 234,
+						},
+						InputRootDigest: &remoteexecution.Digest{
+							Hash:      "0000000000000000000000000000000000000000000000000000000000000003",
+							SizeBytes: 345,
+						},
+						Timeout: &durationpb.Duration{Seconds: 3600},
+					},
+				},
+				metadata,
+			)
+
+			expectedResponse := &remoteexecution.ExecuteResponse{
+				Result: &remoteexecution.ActionResult{
+					ExitCode: testCase.wantExitCode,
+					ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
+						AuxiliaryMetadata: []*anypb.Any{resourceUsage},
+					},
+				},
+				Message: testCase.wantMessage,
+			}
+			if testCase.wantStatus != nil {
+				expectedResponse.Status = status.Convert(testCase.wantStatus).Proto()
+			}
+			testutil.RequireEqualProto(t, expectedResponse, executeResponse)
+		})
+	}
 }
 
 func TestLocalBuildExecutorCachingInvalidTimeout(t *testing.T) {

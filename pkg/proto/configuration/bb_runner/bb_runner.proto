@@ -135,4 +135,13 @@ message ApplicationConfiguration {
   // https://github.com/bazelbuild/bazel/blob/master/src/main/java/com/google/devtools/build/lib/exec/local/XcodeLocalEnvProvider.java
   // https://www.smileykeith.com/2021/03/08/locking-xcode-in-bazel/
   map<string, string> apple_xcode_developer_directories = 14;
+
+  // Sample cgroup v2 resource usage counters around each action.
+  //
+  // This should only be enabled when the bb_runner process has an exclusive
+  // cgroup for action execution. If multiple runners or actions share the
+  // cgroup, the sampled counter deltas include unrelated work and are
+  // misleading. When this is enabled, bb_runner fails actions with
+  // codes.Internal if it detects multiple actions running concurrently.
+  bool assume_exclusive_cgroup = 15;
 }

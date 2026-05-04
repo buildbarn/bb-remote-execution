@@ -39,6 +39,7 @@ type ApplicationConfiguration struct {
 	SymlinkTemporaryDirectories    []string                                  `protobuf:"bytes,12,rep,name=symlink_temporary_directories,json=symlinkTemporaryDirectories,proto3" json:"symlink_temporary_directories,omitempty"`
 	RunCommandCleaner              []string                                  `protobuf:"bytes,13,rep,name=run_command_cleaner,json=runCommandCleaner,proto3" json:"run_command_cleaner,omitempty"`
 	AppleXcodeDeveloperDirectories map[string]string                         `protobuf:"bytes,14,rep,name=apple_xcode_developer_directories,json=appleXcodeDeveloperDirectories,proto3" json:"apple_xcode_developer_directories,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	AssumeExclusiveCgroup          bool                                      `protobuf:"varint,15,opt,name=assume_exclusive_cgroup,json=assumeExclusiveCgroup,proto3" json:"assume_exclusive_cgroup,omitempty"`
 	unknownFields                  protoimpl.UnknownFields
 	sizeCache                      protoimpl.SizeCache
 }
@@ -164,11 +165,18 @@ func (x *ApplicationConfiguration) GetAppleXcodeDeveloperDirectories() map[strin
 	return nil
 }
 
+func (x *ApplicationConfiguration) GetAssumeExclusiveCgroup() bool {
+	if x != nil {
+		return x.AssumeExclusiveCgroup
+	}
+	return false
+}
+
 var File_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_runner_bb_runner_proto protoreflect.FileDescriptor
 
 const file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_runner_bb_runner_proto_rawDesc = "" +
 	"\n" +
-	"Zgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_runner/bb_runner.proto\x12!buildbarn.configuration.bb_runner\x1a^github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/credentials/credentials.proto\x1aKgithub.com/buildbarn/bb-storage/pkg/proto/configuration/global/global.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/grpc/grpc.proto\"\xf3\b\n" +
+	"Zgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_runner/bb_runner.proto\x12!buildbarn.configuration.bb_runner\x1a^github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/credentials/credentials.proto\x1aKgithub.com/buildbarn/bb-storage/pkg/proto/configuration/global/global.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/grpc/grpc.proto\"\xab\t\n" +
 	"\x18ApplicationConfiguration\x120\n" +
 	"\x14build_directory_path\x18\x01 \x01(\tR\x12buildDirectoryPath\x12T\n" +
 	"\fgrpc_servers\x18\x02 \x03(\v21.buildbarn.configuration.grpc.ServerConfigurationR\vgrpcServers\x12>\n" +
@@ -183,7 +191,8 @@ const file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_r
 	"\x0frun_commands_as\x18\v \x01(\v2A.buildbarn.configuration.credentials.UNIXCredentialsConfigurationR\rrunCommandsAs\x12B\n" +
 	"\x1dsymlink_temporary_directories\x18\f \x03(\tR\x1bsymlinkTemporaryDirectories\x12.\n" +
 	"\x13run_command_cleaner\x18\r \x03(\tR\x11runCommandCleaner\x12\xaa\x01\n" +
-	"!apple_xcode_developer_directories\x18\x0e \x03(\v2_.buildbarn.configuration.bb_runner.ApplicationConfiguration.AppleXcodeDeveloperDirectoriesEntryR\x1eappleXcodeDeveloperDirectories\x1aQ\n" +
+	"!apple_xcode_developer_directories\x18\x0e \x03(\v2_.buildbarn.configuration.bb_runner.ApplicationConfiguration.AppleXcodeDeveloperDirectoriesEntryR\x1eappleXcodeDeveloperDirectories\x126\n" +
+	"\x17assume_exclusive_cgroup\x18\x0f \x01(\bR\x15assumeExclusiveCgroup\x1aQ\n" +
 	"#AppleXcodeDeveloperDirectoriesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\t\x10\n" +
