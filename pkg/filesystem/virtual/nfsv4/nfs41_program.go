@@ -16,7 +16,6 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/random"
 	"github.com/buildbarn/go-xdr/pkg/protocols/nfsv4"
-	"github.com/buildbarn/go-xdr/pkg/protocols/rpcv2"
 	"github.com/buildbarn/go-xdr/pkg/runtime"
 )
 
@@ -50,6 +49,7 @@ type nfs41Program struct {
 	enforcedLeaseTime  time.Duration
 	announcedLeaseTime nfsv4.NfsLease4
 	pathFormat         path.Format
+	securityFlavors    []nfsv4.Secinfo4
 
 	clientsLock                  sync.Mutex
 	now                          time.Time
@@ -74,6 +74,7 @@ func NewNFS41Program(
 	clock clock.Clock,
 	enforcedLeaseTime, announcedLeaseTime time.Duration,
 	pathFormat path.Format,
+	securityFlavors []nfsv4.Secinfo4,
 ) nfsv4.Nfs4Program {
 	var attributes virtual.Attributes
 	rootDirectory.VirtualGetAttributes(context.Background(), virtual.AttributesMaskFileHandle, &attributes)
@@ -91,6 +92,7 @@ func NewNFS41Program(
 		enforcedLeaseTime:  enforcedLeaseTime,
 		announcedLeaseTime: nfsv4.NfsLease4(announcedLeaseTime.Seconds()),
 		pathFormat:         pathFormat,
+		securityFlavors:    securityFlavors,
 
 		randomNumberGenerator:        randomNumberGenerator,
 		clientsByOwnerID:             map[string]*nfs41ClientState{},
@@ -2630,9 +2632,6 @@ func (s *sequenceState) opSecInfo(ctx context.Context, args *nfsv4.Secinfo4args)
 	// NFS4ERR_WRONGSEC is returned from another NFS operation. In
 	// practice, we even see it being called if no such error was
 	// returned.
-	//
-	// Because this NFS server is intended to be used for loopback
-	// purposes only, simply announce the use of AUTH_NONE.
 	currentDirectory, st := s.currentFileHandle.getDirectory()
 	if st != nfsv4.NFS4_OK {
 		return &nfsv4.Secinfo4res_default{Status: st}
@@ -2655,13 +2654,7 @@ func (s *sequenceState) opSecInfo(ctx context.Context, args *nfsv4.Secinfo4args)
 	//
 	// More details: RFC 8881, section 2.6.3.1.1.8.
 	s.currentFileHandle = nfs41FileHandle{}
-	return &nfsv4.Secinfo4res_NFS4_OK{
-		Resok4: []nfsv4.Secinfo4{
-			&nfsv4.Secinfo4_default{
-				Flavor: rpcv2.AUTH_NONE,
-			},
-		},
-	}
+	return &nfsv4.Secinfo4res_NFS4_OK{Resok4: s.program.securityFlavors}
 }
 
 func (s *sequenceState) opSecInfoNoName(args *nfsv4.SecinfoNoName4args) nfsv4.SecinfoNoName4res {
@@ -2670,13 +2663,7 @@ func (s *sequenceState) opSecInfoNoName(args *nfsv4.SecinfoNoName4args) nfsv4.Se
 	}
 
 	s.currentFileHandle = nfs41FileHandle{}
-	return &nfsv4.Secinfo4res_NFS4_OK{
-		Resok4: []nfsv4.Secinfo4{
-			&nfsv4.Secinfo4_default{
-				Flavor: rpcv2.AUTH_NONE,
-			},
-		},
-	}
+	return &nfsv4.Secinfo4res_NFS4_OK{Resok4: s.program.securityFlavors}
 }
 
 func (sequenceState) opSequence(args *nfsv4.Sequence4args) nfsv4.Sequence4res {

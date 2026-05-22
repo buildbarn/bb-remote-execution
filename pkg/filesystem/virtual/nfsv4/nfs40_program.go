@@ -16,7 +16,6 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/random"
 	"github.com/buildbarn/go-xdr/pkg/protocols/nfsv4"
-	"github.com/buildbarn/go-xdr/pkg/protocols/rpcv2"
 	"github.com/buildbarn/go-xdr/pkg/runtime"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -74,6 +73,7 @@ type nfs40Program struct {
 	enforcedLeaseTime  time.Duration
 	announcedLeaseTime nfsv4.NfsLease4
 	pathFormat         path.Format
+	securityFlavors    []nfsv4.Secinfo4
 
 	lock                         sync.Mutex
 	now                          time.Time
@@ -99,6 +99,7 @@ func NewNFS40Program(
 	clock clock.Clock,
 	enforcedLeaseTime, announcedLeaseTime time.Duration,
 	pathFormat path.Format,
+	securityFlavors []nfsv4.Secinfo4,
 ) nfsv4.Nfs4Program {
 	nfs40ProgramPrometheusMetrics.Do(func() {
 		prometheus.MustRegister(nfs40ProgramOpenOwnersCreated)
@@ -122,6 +123,7 @@ func NewNFS40Program(
 		enforcedLeaseTime:  enforcedLeaseTime,
 		announcedLeaseTime: nfsv4.NfsLease4(announcedLeaseTime.Seconds()),
 		pathFormat:         pathFormat,
+		securityFlavors:    securityFlavors,
 
 		randomNumberGenerator:        randomNumberGenerator,
 		clientsByLongID:              map[string]*nfs40ClientState{},
@@ -2102,9 +2104,6 @@ func (s *compoundState) opSecinfo(ctx context.Context, args *nfsv4.Secinfo4args)
 	// NFS4ERR_WRONGSEC is returned from another NFS operation. In
 	// practice, we even see it being called if no such error was
 	// returned.
-	//
-	// Because this NFS server is intended to be used for loopback
-	// purposes only, simply announce the use of AUTH_NONE.
 	currentDirectory, st := s.currentFileHandle.getDirectory()
 	if st != nfsv4.NFS4_OK {
 		return &nfsv4.Secinfo4res_default{Status: st}
@@ -2116,13 +2115,7 @@ func (s *compoundState) opSecinfo(ctx context.Context, args *nfsv4.Secinfo4args)
 	if _, vs := currentDirectory.VirtualLookup(ctx, name, 0, &virtual.Attributes{}); vs != virtual.StatusOK {
 		return &nfsv4.Secinfo4res_default{Status: toNFSv4Status(vs)}
 	}
-	return &nfsv4.Secinfo4res_NFS4_OK{
-		Resok4: []nfsv4.Secinfo4{
-			&nfsv4.Secinfo4_default{
-				Flavor: rpcv2.AUTH_NONE,
-			},
-		},
-	}
+	return &nfsv4.Secinfo4res_NFS4_OK{Resok4: s.program.securityFlavors}
 }
 
 func (s *compoundState) opSetattr(ctx context.Context, args *nfsv4.Setattr4args) nfsv4.Setattr4res {

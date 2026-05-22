@@ -12,6 +12,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/random"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	nfsv4_xdr "github.com/buildbarn/go-xdr/pkg/protocols/nfsv4"
+	"github.com/buildbarn/go-xdr/pkg/protocols/rpcv2"
 	"github.com/buildbarn/go-xdr/pkg/rpcserver"
 
 	"google.golang.org/grpc/codes"
@@ -114,6 +115,7 @@ func (m *nfsv4Mount) Expose(terminationGroup program.Group, rootDirectory virtua
 			enforcedLeaseTime.AsDuration(),
 			announcedLeaseTime.AsDuration(),
 			path.LocalFormat,
+			[]nfsv4_xdr.Secinfo4{&nfsv4_xdr.Secinfo4_default{Flavor: rpcv2.AUTH_NONE}},
 		),
 		nfsv4.NewNFS40Program(
 			rootDirectory,
@@ -125,6 +127,7 @@ func (m *nfsv4Mount) Expose(terminationGroup program.Group, rootDirectory virtua
 			enforcedLeaseTime.AsDuration(),
 			announcedLeaseTime.AsDuration(),
 			path.LocalFormat,
+			[]nfsv4_xdr.Secinfo4{&nfsv4_xdr.Secinfo4_default{Flavor: rpcv2.AUTH_NONE}},
 		),
 	})
 
