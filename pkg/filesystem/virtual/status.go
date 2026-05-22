@@ -62,4 +62,8 @@ const (
 	// StatusErrXDev indicates an attempt to do an operation, such
 	// as linking, that inappropriately crosses a boundary.
 	StatusErrXDev
+	// StatusErrNameTooLong indicates that a path component or path
+	// length exceeded the filesystem's limit (POSIX ENAMETOOLONG /
+	// NFS4ERR_NAMETOOLONG).
+	StatusErrNameTooLong
 )

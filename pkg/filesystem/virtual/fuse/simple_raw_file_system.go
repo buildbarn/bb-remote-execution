@@ -54,6 +54,8 @@ func toFUSEStatus(s virtual.Status) fuse.Status {
 		return fuse.EIO
 	case virtual.StatusErrIsDir:
 		return fuse.EISDIR
+	case virtual.StatusErrNameTooLong:
+		return fuse.Status(syscall.ENAMETOOLONG)
 	case virtual.StatusErrNoEnt:
 		return fuse.ENOENT
 	case virtual.StatusErrNotDir:

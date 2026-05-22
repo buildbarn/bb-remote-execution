@@ -186,6 +186,8 @@ func toNTStatus(status virtual.Status) windows.NTStatus {
 		return windows.STATUS_UNEXPECTED_IO_ERROR
 	case virtual.StatusErrIsDir:
 		return windows.STATUS_FILE_IS_A_DIRECTORY
+	case virtual.StatusErrNameTooLong:
+		return windows.STATUS_NAME_TOO_LONG
 	case virtual.StatusErrNoEnt:
 		return windows.STATUS_OBJECT_NAME_NOT_FOUND
 	case virtual.StatusErrNotDir:

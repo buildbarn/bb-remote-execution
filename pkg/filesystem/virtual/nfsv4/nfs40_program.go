@@ -2478,6 +2478,8 @@ func toNFSv4Status(s virtual.Status) nfsv4.Nfsstat4 {
 		return nfsv4.NFS4ERR_WRONG_TYPE
 	case virtual.StatusErrXDev:
 		return nfsv4.NFS4ERR_XDEV
+	case virtual.StatusErrNameTooLong:
+		return nfsv4.NFS4ERR_NAMETOOLONG
 	default:
 		panic("Unknown status")
 	}
