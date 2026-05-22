@@ -3,7 +3,6 @@ package virtual
 import (
 	"context"
 
-	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 )
 
@@ -56,9 +55,18 @@ type Directory interface {
 	// VirtualMkdir creates an empty directory within the current
 	// directory.
 	VirtualMkdir(ctx context.Context, name path.Component, requested AttributesMask, attributes *Attributes) (Directory, ChangeInfo, Status)
-	// VirtualMknod creates a character FIFO or UNIX domain socket
-	// within the current directory.
-	VirtualMknod(ctx context.Context, name path.Component, fileType filesystem.FileType, requested AttributesMask, attributes *Attributes) (Leaf, ChangeInfo, Status)
+	// VirtualMknod creates a special file (FIFO, UNIX domain socket,
+	// block device or character device) within the current
+	// directory. The createAttributes carry what the caller wants on
+	// the new file (file type, mode, owner, group, raw device
+	// number); the implementation is free to honour or reject any
+	// subset. The created file's actual attributes are written to
+	// createdFileAttributes (those bits requested by `requested`).
+	//
+	// Implementations that don't support a given file type — e.g.,
+	// bb's loopback in-memory directories rejecting block / character
+	// devices — should return StatusErrPerm.
+	VirtualMknod(ctx context.Context, name path.Component, createAttributes *Attributes, requested AttributesMask, createdFileAttributes *Attributes) (Leaf, ChangeInfo, Status)
 	// VirtualReadDir reports files and directories stored within
 	// the directory.
 	VirtualReadDir(ctx context.Context, firstCookie uint64, requested AttributesMask, reporter DirectoryEntryReporter) Status

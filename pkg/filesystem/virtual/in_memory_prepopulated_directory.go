@@ -879,7 +879,22 @@ func (i *inMemoryPrepopulatedDirectory) VirtualMkdir(ctx context.Context, name p
 	}, StatusOK
 }
 
-func (i *inMemoryPrepopulatedDirectory) VirtualMknod(ctx context.Context, name path.Component, fileType filesystem.FileType, requested AttributesMask, out *Attributes) (Leaf, ChangeInfo, Status) {
+func (i *inMemoryPrepopulatedDirectory) VirtualMknod(ctx context.Context, name path.Component, createAttributes *Attributes, requested AttributesMask, out *Attributes) (Leaf, ChangeInfo, Status) {
+	// In-memory directories are loopback-only and never own real
+	// device-node entries on a host filesystem. Reject block and
+	// character device creation outright: even if a build action
+	// could request one over NFS, materialising it inside the
+	// loopback tree would have no useful semantic and the security
+	// posture of "build actions can mknod arbitrary devices" is
+	// undesirable.
+	fileType := createAttributes.GetFileType()
+	switch fileType {
+	case filesystem.FileTypeFIFO, filesystem.FileTypeSocket:
+		// allowed
+	default:
+		return nil, ChangeInfo{}, StatusErrPerm
+	}
+
 	i.lock.Lock()
 	defer i.lock.Unlock()
 

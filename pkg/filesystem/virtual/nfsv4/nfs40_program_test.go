@@ -1377,11 +1377,12 @@ func TestNFS40ProgramCompound_OP_CREATE(t *testing.T) {
 		rootDirectory.EXPECT().VirtualMknod(
 			ctx,
 			path.MustNewComponent("socket"),
-			filesystem.FileTypeSocket,
+			gomock.Any(),
 			virtual.AttributesMaskFileHandle,
 			gomock.Any(),
-		).DoAndReturn(func(ctx context.Context, name path.Component, fileType filesystem.FileType, requested virtual.AttributesMask, attributes *virtual.Attributes) (virtual.Leaf, virtual.ChangeInfo, virtual.Status) {
-			attributes.SetFileHandle([]byte{0xe0, 0x45, 0x9a, 0xca, 0x4f, 0x67, 0x7c, 0xaa})
+		).DoAndReturn(func(ctx context.Context, name path.Component, createAttributes *virtual.Attributes, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Leaf, virtual.ChangeInfo, virtual.Status) {
+			require.Equal(t, filesystem.FileTypeSocket, createAttributes.GetFileType())
+			out.SetFileHandle([]byte{0xe0, 0x45, 0x9a, 0xca, 0x4f, 0x67, 0x7c, 0xaa})
 			return leaf, virtual.ChangeInfo{
 				Before: 0xf46dd045aaf43210,
 				After:  0xc687134057752dbb,
@@ -1440,11 +1441,12 @@ func TestNFS40ProgramCompound_OP_CREATE(t *testing.T) {
 		rootDirectory.EXPECT().VirtualMknod(
 			ctx,
 			path.MustNewComponent("fifo"),
-			filesystem.FileTypeFIFO,
+			gomock.Any(),
 			virtual.AttributesMaskFileHandle,
 			gomock.Any(),
-		).DoAndReturn(func(ctx context.Context, name path.Component, fileType filesystem.FileType, requested virtual.AttributesMask, attributes *virtual.Attributes) (virtual.Leaf, virtual.ChangeInfo, virtual.Status) {
-			attributes.SetFileHandle([]byte{0x73, 0x9c, 0x31, 0x40, 0x63, 0x49, 0xbb, 0x09})
+		).DoAndReturn(func(ctx context.Context, name path.Component, createAttributes *virtual.Attributes, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Leaf, virtual.ChangeInfo, virtual.Status) {
+			require.Equal(t, filesystem.FileTypeFIFO, createAttributes.GetFileType())
+			out.SetFileHandle([]byte{0x73, 0x9c, 0x31, 0x40, 0x63, 0x49, 0xbb, 0x09})
 			return leaf, virtual.ChangeInfo{
 				Before: 0x1e80315f7745fc50,
 				After:  0xe280a823543ce5ac,

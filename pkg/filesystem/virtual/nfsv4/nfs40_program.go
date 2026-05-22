@@ -581,6 +581,7 @@ func (p *nfs40Program) writeAttributes(attributes *virtual.Attributes, attrReque
 					(1 << (nfsv4.FATTR4_NUMLINKS - 32)) |
 					(1 << (nfsv4.FATTR4_OWNER - 32)) |
 					(1 << (nfsv4.FATTR4_OWNER_GROUP - 32)) |
+					(1 << (nfsv4.FATTR4_RAWDEV - 32)) |
 					(1 << (nfsv4.FATTR4_TIME_ACCESS - 32)) |
 					(1 << (nfsv4.FATTR4_TIME_ACCESS_SET - 32)) |
 					(1 << (nfsv4.FATTR4_TIME_METADATA - 32)) |
@@ -688,13 +689,30 @@ func (p *nfs40Program) writeAttributes(attributes *virtual.Attributes, attrReque
 			}
 			nfsv4.WriteUtf8strMixed(w, v)
 		}
+		if b := uint32(1 << (nfsv4.FATTR4_RAWDEV - 32)); f&b != 0 {
+			s |= b
+			var sd nfsv4.Specdata4
+			if devNum, ok := attributes.GetDeviceNumber(); ok {
+				maj, min := devNum.ToMajorMinor()
+				sd = nfsv4.Specdata4{Specdata1: maj, Specdata2: min}
+			}
+			sd.WriteTo(w)
+		}
 		if b := uint32(1 << (nfsv4.FATTR4_TIME_ACCESS - 32)); f&b != 0 {
 			s |= b
-			deterministicNfstime4.WriteTo(w)
+			t := deterministicNfstime4
+			if lastAccessTime, ok := attributes.GetLastAccessTime(); ok {
+				t = timeToNfstime4(lastAccessTime)
+			}
+			t.WriteTo(w)
 		}
 		if b := uint32(1 << (nfsv4.FATTR4_TIME_METADATA - 32)); f&b != 0 {
 			s |= b
-			deterministicNfstime4.WriteTo(w)
+			t := deterministicNfstime4
+			if lastStatusChangeTime, ok := attributes.GetLastStatusChangeTime(); ok {
+				t = timeToNfstime4(lastStatusChangeTime)
+			}
+			t.WriteTo(w)
 		}
 		if b := uint32(1 << (nfsv4.FATTR4_TIME_MODIFY - 32)); f&b != 0 {
 			s |= b
@@ -1049,41 +1067,64 @@ func (s *compoundState) opCreate(ctx context.Context, args *nfsv4.Create4args) n
 		return &nfsv4.Create4res_default{Status: st}
 	}
 
-	var attributes virtual.Attributes
+	var createAttributes virtual.Attributes
+	if st := fattr4ToAttributes(&args.Createattrs, &createAttributes); st != nfsv4.NFS4_OK {
+		return &nfsv4.Create4res_default{Status: st}
+	}
+	var actualAttributes virtual.Attributes
 	var changeInfo virtual.ChangeInfo
 	var fileHandle nfs40FileHandle
 	var vs virtual.Status
 	switch objectType := args.Objtype.(type) {
-	case *nfsv4.Createtype4_NF4BLK, *nfsv4.Createtype4_NF4CHR:
-		// Character and block devices can only be provided as
-		// part of input roots, if workers are set up to provide
-		// them. They can't be created through the virtual file
-		// system.
-		return &nfsv4.Create4res_default{Status: nfsv4.NFS4ERR_PERM}
+	case *nfsv4.Createtype4_NF4BLK:
+		createAttributes.SetFileType(filesystem.FileTypeBlockDevice)
+		createAttributes.SetDeviceNumber(filesystem.NewDeviceNumberFromMajorMinor(objectType.Devdata.Specdata1, objectType.Devdata.Specdata2))
+		var leaf virtual.Leaf
+		leaf, changeInfo, vs = currentDirectory.VirtualMknod(ctx, name, &createAttributes, virtual.AttributesMaskFileHandle, &actualAttributes)
+		fileHandle.node = virtual.DirectoryChild{}.FromLeaf(leaf)
+	case *nfsv4.Createtype4_NF4CHR:
+		createAttributes.SetFileType(filesystem.FileTypeCharacterDevice)
+		createAttributes.SetDeviceNumber(filesystem.NewDeviceNumberFromMajorMinor(objectType.Devdata.Specdata1, objectType.Devdata.Specdata2))
+		var leaf virtual.Leaf
+		leaf, changeInfo, vs = currentDirectory.VirtualMknod(ctx, name, &createAttributes, virtual.AttributesMaskFileHandle, &actualAttributes)
+		fileHandle.node = virtual.DirectoryChild{}.FromLeaf(leaf)
 	case *nfsv4.Createtype4_NF4DIR:
+		// VirtualMkdir's signature doesn't yet split create vs created
+		// attributes the way VirtualMknod does. Pass createAttributes
+		// as the OUT struct so an impl that inspects the inbound state
+		// (mode / owner / group from CREATE) keeps working — the
+		// impl is expected to overwrite OUT with the new directory's
+		// actual attributes before returning.
 		var directory virtual.Directory
-		directory, changeInfo, vs = currentDirectory.VirtualMkdir(ctx, name, virtual.AttributesMaskFileHandle, &attributes)
+		directory, changeInfo, vs = currentDirectory.VirtualMkdir(ctx, name, virtual.AttributesMaskFileHandle, &createAttributes)
+		actualAttributes = createAttributes
 		fileHandle.node = virtual.DirectoryChild{}.FromDirectory(directory)
 	case *nfsv4.Createtype4_NF4FIFO:
+		createAttributes.SetFileType(filesystem.FileTypeFIFO)
 		var leaf virtual.Leaf
-		leaf, changeInfo, vs = currentDirectory.VirtualMknod(ctx, name, filesystem.FileTypeFIFO, virtual.AttributesMaskFileHandle, &attributes)
+		leaf, changeInfo, vs = currentDirectory.VirtualMknod(ctx, name, &createAttributes, virtual.AttributesMaskFileHandle, &actualAttributes)
 		fileHandle.node = virtual.DirectoryChild{}.FromLeaf(leaf)
 	case *nfsv4.Createtype4_NF4LNK:
 		if !utf8.Valid(objectType.Linkdata) {
 			return &nfsv4.Create4res_default{Status: nfsv4.NFS4ERR_BADCHAR}
 		}
+		// See NF4DIR above: VirtualSymlink's signature doesn't yet
+		// split create vs created attributes; pass createAttributes
+		// as OUT so impls that read IN state from it still work.
 		var leaf virtual.Leaf
 		leaf, changeInfo, vs = currentDirectory.VirtualSymlink(
 			ctx,
 			path.UNIXFormat.NewParser(string(objectType.Linkdata)),
 			name,
 			virtual.AttributesMaskFileHandle,
-			&attributes,
+			&createAttributes,
 		)
+		actualAttributes = createAttributes
 		fileHandle.node = virtual.DirectoryChild{}.FromLeaf(leaf)
 	case *nfsv4.Createtype4_NF4SOCK:
+		createAttributes.SetFileType(filesystem.FileTypeSocket)
 		var leaf virtual.Leaf
-		leaf, changeInfo, vs = currentDirectory.VirtualMknod(ctx, name, filesystem.FileTypeSocket, virtual.AttributesMaskFileHandle, &attributes)
+		leaf, changeInfo, vs = currentDirectory.VirtualMknod(ctx, name, &createAttributes, virtual.AttributesMaskFileHandle, &actualAttributes)
 		fileHandle.node = virtual.DirectoryChild{}.FromLeaf(leaf)
 	default:
 		return &nfsv4.Create4res_default{Status: nfsv4.NFS4ERR_BADTYPE}
@@ -1091,7 +1132,7 @@ func (s *compoundState) opCreate(ctx context.Context, args *nfsv4.Create4args) n
 	if vs != virtual.StatusOK {
 		return &nfsv4.Create4res_default{Status: toNFSv4Status(vs)}
 	}
-	fileHandle.handle = attributes.GetFileHandle()
+	fileHandle.handle = actualAttributes.GetFileHandle()
 
 	s.currentFileHandle = fileHandle
 	return &nfsv4.Create4res_NFS4_OK{
@@ -1881,7 +1922,7 @@ func (s *compoundState) opRead(ctx context.Context, args *nfsv4.Read4args) nfsv4
 	defer cleanup()
 
 	buf := make([]byte, args.Count)
-	n, eof, vs := currentLeaf.VirtualRead(buf, args.Offset)
+	n, eof, vs := currentLeaf.VirtualRead(ctx, buf, args.Offset)
 	if vs != virtual.StatusOK {
 		return &nfsv4.Read4res_default{Status: toNFSv4Status(vs)}
 	}
@@ -3136,6 +3177,15 @@ func attrRequestToAttributesMask(attrRequest nfsv4.Bitmap4) virtual.AttributesMa
 		if f&uint32(1<<(nfsv4.FATTR4_OWNER_GROUP-32)) != 0 {
 			attributesMask |= virtual.AttributesMaskOwnerGroupID
 		}
+		if f&uint32(1<<(nfsv4.FATTR4_RAWDEV-32)) != 0 {
+			attributesMask |= virtual.AttributesMaskDeviceNumber
+		}
+		if f&uint32(1<<(nfsv4.FATTR4_TIME_ACCESS-32)) != 0 {
+			attributesMask |= virtual.AttributesMaskLastAccessTime
+		}
+		if f&uint32(1<<(nfsv4.FATTR4_TIME_METADATA-32)) != 0 {
+			attributesMask |= virtual.AttributesMaskLastStatusChangeTime
+		}
 		if f&uint32(1<<(nfsv4.FATTR4_TIME_MODIFY-32)) != 0 {
 			attributesMask |= virtual.AttributesMaskLastDataModificationTime
 		}
@@ -3430,6 +3480,9 @@ func nfsv4NewComponent(name string) (path.Component, nfsv4.Nfsstat4) {
 		// Name that is invalid for this implementation.
 		return path.Component{}, nfsv4.NFS4ERR_BADNAME
 	}
+	// NAME_MAX (and other implementation-specific length bounds) is
+	// enforced by the Directory implementation; it surfaces back as
+	// StatusErrNameTooLong → NFS4ERR_NAMETOOLONG via toNFSv4Status.
 	return component, nfsv4.NFS4_OK
 }
 

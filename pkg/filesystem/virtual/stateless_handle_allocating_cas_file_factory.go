@@ -1,6 +1,7 @@
 package virtual
 
 import (
+	"context"
 	"io"
 	"sync"
 
@@ -80,7 +81,7 @@ func (l *readMonitoringLinkableLeaf) reportRead() {
 	l.monitor = nil
 }
 
-func (l *readMonitoringLinkableLeaf) VirtualRead(buf []byte, off uint64) (int, bool, Status) {
+func (l *readMonitoringLinkableLeaf) VirtualRead(ctx context.Context, buf []byte, off uint64) (int, bool, Status) {
 	l.once.Do(l.reportRead)
-	return l.LinkableLeaf.VirtualRead(buf, off)
+	return l.LinkableLeaf.VirtualRead(ctx, buf, off)
 }

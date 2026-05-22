@@ -43,15 +43,13 @@ func (o *OpenExistingOptions) ToAttributesMask() (m AttributesMask) {
 // Leaf node that is exposed through FUSE using SimpleRawFileSystem, or
 // through NFSv4. Examples of leaf nodes are regular files, sockets,
 // FIFOs, symbolic links and devices.
-//
-// TODO: Should all methods take an instance of Context?
 type Leaf interface {
 	Node
 
-	VirtualAllocate(off, size uint64) Status
-	VirtualSeek(offset uint64, regionType filesystem.RegionType) (*uint64, Status)
+	VirtualAllocate(ctx context.Context, off, size uint64) Status
+	VirtualSeek(ctx context.Context, offset uint64, regionType filesystem.RegionType) (*uint64, Status)
 	VirtualOpenSelf(ctx context.Context, shareAccess ShareMask, options *OpenExistingOptions, requested AttributesMask, attributes *Attributes) Status
-	VirtualRead(buf []byte, offset uint64) (n int, eof bool, s Status)
+	VirtualRead(ctx context.Context, buf []byte, offset uint64) (n int, eof bool, s Status)
 	VirtualClose(shareAccess ShareMask)
 	VirtualWrite(ctx context.Context, buf []byte, offset uint64) (int, Status)
 }

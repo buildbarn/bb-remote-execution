@@ -431,8 +431,10 @@ func (rfs *simpleRawFileSystem) Mknod(cancel <-chan struct{}, input *fuse.MknodI
 		return fuse.EPERM
 	}
 
+	var createAttributes virtual.Attributes
+	createAttributes.SetFileType(fileType)
 	var attributes virtual.Attributes
-	child, _, vs := i.VirtualMknod(ctx, path.MustNewComponent(name), fileType, AttributesMaskForFUSEAttr, &attributes)
+	child, _, vs := i.VirtualMknod(ctx, path.MustNewComponent(name), &createAttributes, AttributesMaskForFUSEAttr, &attributes)
 	if vs != virtual.StatusOK {
 		return toFUSEStatus(vs)
 	}
@@ -700,18 +702,26 @@ func (rfs *simpleRawFileSystem) Open(cancel <-chan struct{}, input *fuse.OpenIn,
 }
 
 func (rfs *simpleRawFileSystem) Read(cancel <-chan struct{}, input *fuse.ReadIn, buf []byte) (fuse.ReadResult, fuse.Status) {
+	ctx, s := rfs.createContext(cancel, &input.Caller)
+	if s != fuse.OK {
+		return nil, s
+	}
 	rfs.nodeLock.RLock()
 	i := rfs.getLeafLocked(input.NodeId)
 	rfs.nodeLock.RUnlock()
 
-	nRead, _, s := i.VirtualRead(buf, input.Offset)
-	if s != virtual.StatusOK {
-		return nil, toFUSEStatus(s)
+	nRead, _, vs := i.VirtualRead(ctx, buf, input.Offset)
+	if vs != virtual.StatusOK {
+		return nil, toFUSEStatus(vs)
 	}
 	return fuse.ReadResultData(buf[:nRead]), fuse.OK
 }
 
 func (rfs *simpleRawFileSystem) Lseek(cancel <-chan struct{}, in *fuse.LseekIn, out *fuse.LseekOut) fuse.Status {
+	ctx, s := rfs.createContext(cancel, &in.Caller)
+	if s != fuse.OK {
+		return s
+	}
 	rfs.nodeLock.RLock()
 	i := rfs.getLeafLocked(in.NodeId)
 	rfs.nodeLock.RUnlock()
@@ -726,9 +736,9 @@ func (rfs *simpleRawFileSystem) Lseek(cancel <-chan struct{}, in *fuse.LseekIn, 
 		panic("Requests for other seek modes should have been intercepted")
 	}
 
-	offset, s := i.VirtualSeek(in.Offset, regionType)
-	if s != virtual.StatusOK {
-		return toFUSEStatus(s)
+	offset, vs := i.VirtualSeek(ctx, in.Offset, regionType)
+	if vs != virtual.StatusOK {
+		return toFUSEStatus(vs)
 	}
 	if offset == nil {
 		return fuse.Status(syscall.ENXIO)
@@ -788,11 +798,15 @@ func (simpleRawFileSystem) Fsync(cancel <-chan struct{}, input *fuse.FsyncIn) fu
 }
 
 func (rfs *simpleRawFileSystem) Fallocate(cancel <-chan struct{}, input *fuse.FallocateIn) fuse.Status {
+	ctx, s := rfs.createContext(cancel, &input.Caller)
+	if s != fuse.OK {
+		return s
+	}
 	rfs.nodeLock.RLock()
 	i := rfs.getLeafLocked(input.NodeId)
 	rfs.nodeLock.RUnlock()
 
-	return toFUSEStatus(i.VirtualAllocate(input.Offset, input.Length))
+	return toFUSEStatus(i.VirtualAllocate(ctx, input.Offset, input.Length))
 }
 
 func (rfs *simpleRawFileSystem) OpenDir(cancel <-chan struct{}, input *fuse.OpenIn, out *fuse.OpenOut) fuse.Status {

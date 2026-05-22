@@ -3,7 +3,6 @@ package virtual
 import (
 	"context"
 
-	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 )
 
@@ -35,7 +34,7 @@ func (ReadOnlyDirectory) VirtualMkdir(ctx context.Context, name path.Component, 
 
 // VirtualMknod is an implementation of the mknod() system call that
 // treats the target directory as being read-only.
-func (ReadOnlyDirectory) VirtualMknod(ctx context.Context, name path.Component, fileType filesystem.FileType, requested AttributesMask, out *Attributes) (Leaf, ChangeInfo, Status) {
+func (ReadOnlyDirectory) VirtualMknod(ctx context.Context, name path.Component, createAttributes *Attributes, requested AttributesMask, createdFileAttributes *Attributes) (Leaf, ChangeInfo, Status) {
 	return nil, ChangeInfo{}, StatusErrROFS
 }
 

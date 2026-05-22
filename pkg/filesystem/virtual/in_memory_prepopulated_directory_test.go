@@ -1099,8 +1099,10 @@ func TestInMemoryPrepopulatedDirectoryVirtualMknodExists(t *testing.T) {
 	require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialChild{
 		path.MustNewComponent("dir"): virtual.InitialChild{}.FromDirectory(virtual.EmptyInitialContentsFetcher),
 	}, false))
+	var createAttr virtual.Attributes
+	createAttr.SetFileType(filesystem.FileTypeFIFO)
 	var attr virtual.Attributes
-	_, _, s := d.VirtualMknod(ctx, path.MustNewComponent("dir"), filesystem.FileTypeFIFO, virtual.AttributesMask(0), &attr)
+	_, _, s := d.VirtualMknod(ctx, path.MustNewComponent("dir"), &createAttr, virtual.AttributesMask(0), &attr)
 	require.Equal(t, virtual.StatusErrExist, s)
 }
 
@@ -1120,8 +1122,10 @@ func TestInMemoryPrepopulatedDirectoryVirtualMknodSuccess(t *testing.T) {
 	handleAllocator.EXPECT().New().Return(fifoHandleAllocation)
 	fifoHandleAllocation.EXPECT().AsLinkableLeaf(gomock.Any()).
 		DoAndReturn(func(leaf virtual.LinkableLeaf) virtual.LinkableLeaf { return leaf })
+	var fifoCreateAttr virtual.Attributes
+	fifoCreateAttr.SetFileType(filesystem.FileTypeFIFO)
 	var fifoAttr virtual.Attributes
-	fifoNode, changeInfo, s := d.VirtualMknod(ctx, path.MustNewComponent("fifo"), filesystem.FileTypeFIFO, specialFileAttributesMask, &fifoAttr)
+	fifoNode, changeInfo, s := d.VirtualMknod(ctx, path.MustNewComponent("fifo"), &fifoCreateAttr, specialFileAttributesMask, &fifoAttr)
 	require.Equal(t, virtual.StatusOK, s)
 	require.NotNil(t, fifoNode)
 	require.Equal(t, virtual.ChangeInfo{
@@ -1143,8 +1147,10 @@ func TestInMemoryPrepopulatedDirectoryVirtualMknodSuccess(t *testing.T) {
 	handleAllocator.EXPECT().New().Return(socketHandleAllocation)
 	socketHandleAllocation.EXPECT().AsLinkableLeaf(gomock.Any()).
 		DoAndReturn(func(leaf virtual.LinkableLeaf) virtual.LinkableLeaf { return leaf })
+	var socketCreateAttr virtual.Attributes
+	socketCreateAttr.SetFileType(filesystem.FileTypeSocket)
 	var socketAttr virtual.Attributes
-	socketNode, changeInfo, s := d.VirtualMknod(ctx, path.MustNewComponent("socket"), filesystem.FileTypeSocket, specialFileAttributesMask, &socketAttr)
+	socketNode, changeInfo, s := d.VirtualMknod(ctx, path.MustNewComponent("socket"), &socketCreateAttr, specialFileAttributesMask, &socketAttr)
 	require.Equal(t, virtual.StatusOK, s)
 	require.NotNil(t, socketNode)
 	require.Equal(t, virtual.ChangeInfo{
@@ -1178,6 +1184,31 @@ func TestInMemoryPrepopulatedDirectoryVirtualMknodSuccess(t *testing.T) {
 	reporter.EXPECT().ReportEntry(uint64(1), path.MustNewComponent("fifo"), virtual.DirectoryChild{}.FromLeaf(fifoNode), &fifoAttr).Return(true)
 	reporter.EXPECT().ReportEntry(uint64(2), path.MustNewComponent("socket"), virtual.DirectoryChild{}.FromLeaf(socketNode), &socketAttr).Return(true)
 	require.Equal(t, virtual.StatusOK, d.VirtualReadDir(ctx, 0, specialFileAttributesMask, reporter))
+}
+
+func TestInMemoryPrepopulatedDirectoryVirtualMknodDeviceRejected(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+
+	fileAllocator := mock.NewMockFileAllocator(ctrl)
+	symlinkFactory := mock.NewMockSymlinkFactory(ctrl)
+	errorLogger := mock.NewMockErrorLogger(ctrl)
+	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
+	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
+	defaultAttributesSetter := mock.NewMockDefaultAttributesSetter(ctrl)
+	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString, clock.SystemClock, virtual.CaseSensitiveComponentNormalizer, defaultAttributesSetter.Call, virtual.NoNamedAttributesFactory)
+
+	// Block and character device creation is not supported on
+	// loopback in-memory directories.
+	for _, ft := range []filesystem.FileType{
+		filesystem.FileTypeBlockDevice,
+		filesystem.FileTypeCharacterDevice,
+	} {
+		var createAttr virtual.Attributes
+		createAttr.SetFileType(ft)
+		var attr virtual.Attributes
+		_, _, s := d.VirtualMknod(ctx, path.MustNewComponent("dev"), &createAttr, virtual.AttributesMask(0), &attr)
+		require.Equal(t, virtual.StatusErrPerm, s)
+	}
 }
 
 func TestInMemoryPrepopulatedDirectoryVirtualReadDir(t *testing.T) {

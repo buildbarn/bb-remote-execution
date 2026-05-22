@@ -22,7 +22,7 @@ func (placeholderFile) Link() Status {
 func (placeholderFile) Unlink() {
 }
 
-func (placeholderFile) VirtualAllocate(off, size uint64) Status {
+func (placeholderFile) VirtualAllocate(ctx context.Context, off, size uint64) Status {
 	return StatusErrWrongType
 }
 
@@ -35,11 +35,11 @@ func (placeholderFile) VirtualOpenSelf(ctx context.Context, shareAccess ShareMas
 	return StatusErrSymlink
 }
 
-func (placeholderFile) VirtualRead(buf []byte, offset uint64) (int, bool, Status) {
+func (placeholderFile) VirtualRead(ctx context.Context, buf []byte, offset uint64) (int, bool, Status) {
 	panic("Request to read from special file should have been intercepted")
 }
 
-func (placeholderFile) VirtualSeek(offset uint64, regionType filesystem.RegionType) (*uint64, Status) {
+func (placeholderFile) VirtualSeek(ctx context.Context, offset uint64, regionType filesystem.RegionType) (*uint64, Status) {
 	panic("Request to seek on special file should have been intercepted")
 }
 

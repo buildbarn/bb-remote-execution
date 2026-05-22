@@ -66,7 +66,7 @@ func (blobAccessCASFile) Link() Status {
 func (blobAccessCASFile) Unlink() {
 }
 
-func (blobAccessCASFile) VirtualAllocate(off, size uint64) Status {
+func (blobAccessCASFile) VirtualAllocate(ctx context.Context, off, size uint64) Status {
 	return StatusErrWrongType
 }
 
@@ -114,7 +114,7 @@ func (f *blobAccessCASFile) virtualGetAttributesCommon(attributes *Attributes) {
 	attributes.SetSizeBytes(uint64(f.digest.GetSizeBytes()))
 }
 
-func (f *blobAccessCASFile) VirtualSeek(offset uint64, regionType filesystem.RegionType) (*uint64, Status) {
+func (f *blobAccessCASFile) VirtualSeek(ctx context.Context, offset uint64, regionType filesystem.RegionType) (*uint64, Status) {
 	sizeBytes := uint64(f.digest.GetSizeBytes())
 	switch regionType {
 	case filesystem.Data:
@@ -132,7 +132,7 @@ func (f *blobAccessCASFile) VirtualSeek(offset uint64, regionType filesystem.Reg
 	}
 }
 
-func (f *blobAccessCASFile) VirtualRead(buf []byte, off uint64) (int, bool, Status) {
+func (f *blobAccessCASFile) VirtualRead(ctx context.Context, buf []byte, off uint64) (int, bool, Status) {
 	size := uint64(f.digest.GetSizeBytes())
 	buf, eof := BoundReadToFileSize(buf, off, size)
 	if len(buf) > 0 {

@@ -425,7 +425,9 @@ func TestSimpleRawFileSystemMknod(t *testing.T) {
 
 	t.Run("Failure", func(t *testing.T) {
 		// An mknod() call for a socket that is denied.
-		rootDirectory.EXPECT().VirtualMknod(gomock.Any(), path.MustNewComponent("hello"), filesystem.FileTypeSocket, fuse.AttributesMaskForFUSEAttr, gomock.Any()).
+		var expectedCreateAttrs virtual.Attributes
+		expectedCreateAttrs.SetFileType(filesystem.FileTypeSocket)
+		rootDirectory.EXPECT().VirtualMknod(gomock.Any(), path.MustNewComponent("hello"), &expectedCreateAttrs, fuse.AttributesMaskForFUSEAttr, gomock.Any()).
 			Return(nil, virtual.ChangeInfo{}, virtual.StatusErrPerm)
 
 		var entryOut go_fuse.EntryOut
@@ -441,8 +443,10 @@ func TestSimpleRawFileSystemMknod(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		// An mknod() call for a FIFO that succeeds.
 		childLeaf := mock.NewMockVirtualLeaf(ctrl)
-		rootDirectory.EXPECT().VirtualMknod(gomock.Any(), path.MustNewComponent("hello"), filesystem.FileTypeFIFO, fuse.AttributesMaskForFUSEAttr, gomock.Any()).DoAndReturn(
-			func(ctx context.Context, name path.Component, fileType filesystem.FileType, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Leaf, virtual.ChangeInfo, virtual.Status) {
+		var expectedCreateAttrs virtual.Attributes
+		expectedCreateAttrs.SetFileType(filesystem.FileTypeFIFO)
+		rootDirectory.EXPECT().VirtualMknod(gomock.Any(), path.MustNewComponent("hello"), &expectedCreateAttrs, fuse.AttributesMaskForFUSEAttr, gomock.Any()).DoAndReturn(
+			func(ctx context.Context, name path.Component, createAttributes *virtual.Attributes, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Leaf, virtual.ChangeInfo, virtual.Status) {
 				out.SetFileType(filesystem.FileTypeFIFO)
 				out.SetInodeNumber(123)
 				out.SetLinkCount(1)

@@ -836,7 +836,7 @@ func (fs *FileSystem) Overwrite(ref *ffi.FileSystemRef, handle uintptr, winfspAt
 }
 
 func (fs *FileSystem) Read(ref *ffi.FileSystemRef, handle uintptr, buffer []byte, offset uint64) (int, error) {
-	_, err := fs.createContext()
+	ctx, err := fs.createContext()
 	if err != nil {
 		return 0, err
 	}
@@ -845,7 +845,7 @@ func (fs *FileSystem) Read(ref *ffi.FileSystemRef, handle uintptr, buffer []byte
 	if err != nil {
 		return 0, err
 	}
-	read, eof, status := file.VirtualRead(buffer, offset)
+	read, eof, status := file.VirtualRead(ctx, buffer, offset)
 	if status != virtual.StatusOK {
 		return read, toNTStatus(status)
 	}
