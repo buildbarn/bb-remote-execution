@@ -582,8 +582,10 @@ func (p *nfs40Program) writeAttributes(attributes *virtual.Attributes, attrReque
 					(1 << (nfsv4.FATTR4_OWNER - 32)) |
 					(1 << (nfsv4.FATTR4_OWNER_GROUP - 32)) |
 					(1 << (nfsv4.FATTR4_TIME_ACCESS - 32)) |
+					(1 << (nfsv4.FATTR4_TIME_ACCESS_SET - 32)) |
 					(1 << (nfsv4.FATTR4_TIME_METADATA - 32)) |
-					(1 << (nfsv4.FATTR4_TIME_MODIFY - 32)),
+					(1 << (nfsv4.FATTR4_TIME_MODIFY - 32)) |
+					(1 << (nfsv4.FATTR4_TIME_MODIFY_SET - 32)),
 			})
 		}
 		if b := uint32(1 << nfsv4.FATTR4_TYPE); f&b != 0 {
@@ -3267,6 +3269,15 @@ func (r *readdirReporter) ReportEntry(nextCookie uint64, name path.Component, ch
 // fattr4ToAttributes converts a client-provided NFSv4 fattr4 to a set
 // of virtual file system attributes. Only attributes that are both
 // writable and supported by this implementation are accepted.
+//
+// FATTR4_TIME_ACCESS_SET / FATTR4_TIME_MODIFY_SET requests that use
+// the SET_TO_SERVER_TIME4 arm are encoded by writing a zero
+// time.Time into the regular LastAccessTime / LastDataModificationTime
+// field; consumers detect this via time.IsZero() and substitute their
+// own current time (e.g., UTIME_NOW on utimensat). The sentinel
+// preserves the discriminant POSIX needs to apply utimensat
+// permission rules differently between explicit-time (owner only)
+// and UTIME_NOW (owner OR write permission).
 func fattr4ToAttributes(in *nfsv4.Fattr4, out *virtual.Attributes) nfsv4.Nfsstat4 {
 	r := bytes.NewBuffer(in.AttrVals)
 	if len(in.Attrmask) > 0 {
@@ -3288,7 +3299,9 @@ func fattr4ToAttributes(in *nfsv4.Fattr4, out *virtual.Attributes) nfsv4.Nfsstat
 		f := in.Attrmask[1]
 		if f&^((1<<(nfsv4.FATTR4_MODE-32))|
 			(1<<(nfsv4.FATTR4_OWNER-32))|
-			(1<<(nfsv4.FATTR4_OWNER_GROUP-32))) != 0 {
+			(1<<(nfsv4.FATTR4_OWNER_GROUP-32))|
+			(1<<(nfsv4.FATTR4_TIME_ACCESS_SET-32))|
+			(1<<(nfsv4.FATTR4_TIME_MODIFY_SET-32))) != 0 {
 			return nfsv4.NFS4ERR_ATTRNOTSUPP
 		}
 		if f&(1<<(nfsv4.FATTR4_MODE-32)) != 0 {
@@ -3300,6 +3313,34 @@ func fattr4ToAttributes(in *nfsv4.Fattr4, out *virtual.Attributes) nfsv4.Nfsstat
 		}
 		if f&((1<<(nfsv4.FATTR4_OWNER-32))|(1<<(nfsv4.FATTR4_OWNER_GROUP-32))) != 0 {
 			return nfsv4.NFS4ERR_PERM
+		}
+		if f&(1<<(nfsv4.FATTR4_TIME_ACCESS_SET-32)) != 0 {
+			st, _, err := nfsv4.ReadFattr4TimeAccessSet(r)
+			if err != nil {
+				return nfsv4.NFS4ERR_BADXDR
+			}
+			switch v := st.(type) {
+			case *nfsv4.Settime4_SET_TO_CLIENT_TIME4:
+				out.SetLastAccessTime(time.Unix(v.Time.Seconds, int64(v.Time.Nseconds)))
+			default:
+				// SET_TO_SERVER_TIME4: write a zero time.Time as
+				// the "use server time" sentinel; consumers
+				// detect via IsZero() and substitute their own
+				// current time (e.g., UTIME_NOW).
+				out.SetLastAccessTime(time.Time{})
+			}
+		}
+		if f&(1<<(nfsv4.FATTR4_TIME_MODIFY_SET-32)) != 0 {
+			st, _, err := nfsv4.ReadFattr4TimeModifySet(r)
+			if err != nil {
+				return nfsv4.NFS4ERR_BADXDR
+			}
+			switch v := st.(type) {
+			case *nfsv4.Settime4_SET_TO_CLIENT_TIME4:
+				out.SetLastDataModificationTime(time.Unix(v.Time.Seconds, int64(v.Time.Nseconds)))
+			default:
+				out.SetLastDataModificationTime(time.Time{})
+			}
 		}
 	}
 	for i := 2; i < len(in.Attrmask); i++ {

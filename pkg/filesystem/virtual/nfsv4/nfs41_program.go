@@ -419,8 +419,10 @@ func (p *nfs41Program) writeAttributes(attributes *virtual.Attributes, attrReque
 					(1 << (nfsv4.FATTR4_OWNER - 32)) |
 					(1 << (nfsv4.FATTR4_OWNER_GROUP - 32)) |
 					(1 << (nfsv4.FATTR4_TIME_ACCESS - 32)) |
+					(1 << (nfsv4.FATTR4_TIME_ACCESS_SET - 32)) |
 					(1 << (nfsv4.FATTR4_TIME_METADATA - 32)) |
-					(1 << (nfsv4.FATTR4_TIME_MODIFY - 32)),
+					(1 << (nfsv4.FATTR4_TIME_MODIFY - 32)) |
+					(1 << (nfsv4.FATTR4_TIME_MODIFY_SET - 32)),
 				1 << (nfsv4.FATTR4_SUPPATTR_EXCLCREAT - 64),
 			})
 		}
