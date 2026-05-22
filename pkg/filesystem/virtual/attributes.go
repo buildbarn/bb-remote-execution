@@ -37,9 +37,15 @@ const (
 	// This attribute only needs to be provided by regular files and
 	// directories, as NFSv4 uses distinct file types for those.
 	AttributesMaskIsInNamedAttributeDirectory
+	// AttributesMaskLastAccessTime requests the last access time
+	// (st_atim).
+	AttributesMaskLastAccessTime
 	// AttributesMaskLastDataModificationTime requests the last data
 	// modification time (st_mtim).
 	AttributesMaskLastDataModificationTime
+	// AttributesMaskLastStatusChangeTime requests the last status
+	// change time (st_ctim).
+	AttributesMaskLastStatusChangeTime
 	// AttributesMaskLinkCount requests the link count (st_nlink).
 	AttributesMaskLinkCount
 	// AttributesMaskOwnerGroupID requests the ID of the group that
@@ -72,7 +78,9 @@ type Attributes struct {
 	hasNamedAttributes              bool
 	inodeNumber                     uint64
 	isInsideNamedAttributeDirectory bool
+	lastAccessTime                  time.Time
 	lastDataModificationTime        time.Time
+	lastStatusChangeTime            time.Time
 	linkCount                       uint32
 	ownerGroupID                    uint32
 	ownerUserID                     uint32
@@ -195,6 +203,18 @@ func (a *Attributes) SetIsInNamedAttributeDirectory(isInsideNamedAttributeDirect
 	return a
 }
 
+// GetLastAccessTime returns the last access time (st_atim).
+func (a *Attributes) GetLastAccessTime() (time.Time, bool) {
+	return a.lastAccessTime, a.fieldsPresent&AttributesMaskLastAccessTime != 0
+}
+
+// SetLastAccessTime sets the last access time (st_atim).
+func (a *Attributes) SetLastAccessTime(lastAccessTime time.Time) *Attributes {
+	a.lastAccessTime = lastAccessTime
+	a.fieldsPresent |= AttributesMaskLastAccessTime
+	return a
+}
+
 // GetLastDataModificationTime returns the last data modification time
 // (st_mtim).
 func (a *Attributes) GetLastDataModificationTime() (time.Time, bool) {
@@ -206,6 +226,18 @@ func (a *Attributes) GetLastDataModificationTime() (time.Time, bool) {
 func (a *Attributes) SetLastDataModificationTime(lastDataModificationTime time.Time) *Attributes {
 	a.lastDataModificationTime = lastDataModificationTime
 	a.fieldsPresent |= AttributesMaskLastDataModificationTime
+	return a
+}
+
+// GetLastStatusChangeTime returns the last status change time (st_ctim).
+func (a *Attributes) GetLastStatusChangeTime() (time.Time, bool) {
+	return a.lastStatusChangeTime, a.fieldsPresent&AttributesMaskLastStatusChangeTime != 0
+}
+
+// SetLastStatusChangeTime sets the last status change time (st_ctim).
+func (a *Attributes) SetLastStatusChangeTime(lastStatusChangeTime time.Time) *Attributes {
+	a.lastStatusChangeTime = lastStatusChangeTime
+	a.fieldsPresent |= AttributesMaskLastStatusChangeTime
 	return a
 }
 
