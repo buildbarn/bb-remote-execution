@@ -974,13 +974,13 @@ func (p *nfs41Program) opSequence(ctx context.Context, args *nfsv4.Sequence4args
 				})
 				result.status = res.RcrStatus
 			case *nfsv4.NfsArgop4_OP_REMOVE:
-				res := state.opRemove(&op.Opremove)
+				res := state.opRemove(ctx, &op.Opremove)
 				result.resArray = append(result.resArray, &nfsv4.NfsResop4_OP_REMOVE{
 					Opremove: res,
 				})
 				result.status = res.GetStatus()
 			case *nfsv4.NfsArgop4_OP_RENAME:
-				res := state.opRename(&op.Oprename)
+				res := state.opRename(ctx, &op.Oprename)
 				result.resArray = append(result.resArray, &nfsv4.NfsResop4_OP_RENAME{
 					Oprename: res,
 				})
@@ -1878,7 +1878,7 @@ func (s *sequenceState) opCreate(ctx context.Context, args *nfsv4.Create4args) n
 		return &nfsv4.Create4res_default{Status: nfsv4.NFS4ERR_PERM}
 	case *nfsv4.Createtype4_NF4DIR:
 		var directory virtual.Directory
-		directory, changeInfo, vs = currentDirectory.VirtualMkdir(name, virtual.AttributesMaskFileHandle, &attributes)
+		directory, changeInfo, vs = currentDirectory.VirtualMkdir(ctx, name, virtual.AttributesMaskFileHandle, &attributes)
 		fileHandle.node = virtual.DirectoryChild{}.FromDirectory(directory)
 	case *nfsv4.Createtype4_NF4FIFO:
 		var leaf virtual.Leaf
@@ -2557,7 +2557,7 @@ func (sequenceState) opReclaimComplete(args *nfsv4.ReclaimComplete4args) nfsv4.R
 	return nfsv4.ReclaimComplete4res{RcrStatus: nfsv4.NFS4_OK}
 }
 
-func (s *sequenceState) opRename(args *nfsv4.Rename4args) nfsv4.Rename4res {
+func (s *sequenceState) opRename(ctx context.Context, args *nfsv4.Rename4args) nfsv4.Rename4res {
 	oldDirectory, st := s.savedFileHandle.getDirectory()
 	if st != nfsv4.NFS4_OK {
 		return &nfsv4.Rename4res_default{Status: st}
@@ -2575,7 +2575,7 @@ func (s *sequenceState) opRename(args *nfsv4.Rename4args) nfsv4.Rename4res {
 		return &nfsv4.Rename4res_default{Status: nfsv4.NFS4ERR_BADNAME}
 	}
 
-	oldChangeInfo, newChangeInfo, vs := oldDirectory.VirtualRename(oldName, newDirectory, newName)
+	oldChangeInfo, newChangeInfo, vs := oldDirectory.VirtualRename(ctx, oldName, newDirectory, newName)
 	if vs != virtual.StatusOK {
 		return &nfsv4.Rename4res_default{Status: toNFSv4Status(vs)}
 	}
@@ -2587,7 +2587,7 @@ func (s *sequenceState) opRename(args *nfsv4.Rename4args) nfsv4.Rename4res {
 	}
 }
 
-func (s *sequenceState) opRemove(args *nfsv4.Remove4args) nfsv4.Remove4res {
+func (s *sequenceState) opRemove(ctx context.Context, args *nfsv4.Remove4args) nfsv4.Remove4res {
 	currentDirectory, st := s.currentFileHandle.getDirectory()
 	if st != nfsv4.NFS4_OK {
 		return &nfsv4.Remove4res_default{Status: st}
@@ -2597,7 +2597,7 @@ func (s *sequenceState) opRemove(args *nfsv4.Remove4args) nfsv4.Remove4res {
 		return &nfsv4.Remove4res_default{Status: st}
 	}
 
-	changeInfo, vs := currentDirectory.VirtualRemove(name, true, true)
+	changeInfo, vs := currentDirectory.VirtualRemove(ctx, name, true, true)
 	if vs != virtual.StatusOK {
 		return &nfsv4.Remove4res_default{Status: toNFSv4Status(vs)}
 	}
@@ -2753,7 +2753,7 @@ func (s *sequenceState) opWrite(ctx context.Context, args *nfsv4.Write4args) nfs
 	}
 	defer cleanup()
 
-	n, vs := currentLeaf.VirtualWrite(args.Data, args.Offset)
+	n, vs := currentLeaf.VirtualWrite(ctx, args.Data, args.Offset)
 	if vs != virtual.StatusOK {
 		return &nfsv4.Write4res_default{Status: toNFSv4Status(vs)}
 	}

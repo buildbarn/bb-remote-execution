@@ -55,7 +55,7 @@ type Directory interface {
 	VirtualLookup(ctx context.Context, name path.Component, requested AttributesMask, out *Attributes) (DirectoryChild, Status)
 	// VirtualMkdir creates an empty directory within the current
 	// directory.
-	VirtualMkdir(name path.Component, requested AttributesMask, attributes *Attributes) (Directory, ChangeInfo, Status)
+	VirtualMkdir(ctx context.Context, name path.Component, requested AttributesMask, attributes *Attributes) (Directory, ChangeInfo, Status)
 	// VirtualMknod creates a character FIFO or UNIX domain socket
 	// within the current directory.
 	VirtualMknod(ctx context.Context, name path.Component, fileType filesystem.FileType, requested AttributesMask, attributes *Attributes) (Leaf, ChangeInfo, Status)
@@ -64,12 +64,12 @@ type Directory interface {
 	VirtualReadDir(ctx context.Context, firstCookie uint64, requested AttributesMask, reporter DirectoryEntryReporter) Status
 	// VirtualRename renames a file stored in the current directory,
 	// potentially moving it to another directory.
-	VirtualRename(oldName path.Component, newDirectory Directory, newName path.Component) (ChangeInfo, ChangeInfo, Status)
+	VirtualRename(ctx context.Context, oldName path.Component, newDirectory Directory, newName path.Component) (ChangeInfo, ChangeInfo, Status)
 	// VirtualRemove removes an empty directory or leaf node stored
 	// within the current directory. Depending on the parameters,
 	// this method behaves like rmdir(), unlink() or a mixture of
 	// the two. The latter is needed by NFSv4.
-	VirtualRemove(name path.Component, removeDirectory, removeLeaf bool) (ChangeInfo, Status)
+	VirtualRemove(ctx context.Context, name path.Component, removeDirectory, removeLeaf bool) (ChangeInfo, Status)
 	// VirtualSymlink creates a symbolic link within the current
 	// directory.
 	VirtualSymlink(ctx context.Context, pointedTo path.Parser, linkName path.Component, requested AttributesMask, attributes *Attributes) (Leaf, ChangeInfo, Status)

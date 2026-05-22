@@ -853,7 +853,7 @@ func (i *inMemoryPrepopulatedDirectory) VirtualLookup(ctx context.Context, name 
 	return DirectoryChild{}, StatusErrNoEnt
 }
 
-func (i *inMemoryPrepopulatedDirectory) VirtualMkdir(name path.Component, requested AttributesMask, out *Attributes) (Directory, ChangeInfo, Status) {
+func (i *inMemoryPrepopulatedDirectory) VirtualMkdir(ctx context.Context, name path.Component, requested AttributesMask, out *Attributes) (Directory, ChangeInfo, Status) {
 	i.lock.Lock()
 	defer i.lock.Unlock()
 
@@ -957,7 +957,7 @@ func (i *inMemoryPrepopulatedDirectory) VirtualReadDir(ctx context.Context, firs
 	return StatusOK
 }
 
-func (i *inMemoryPrepopulatedDirectory) VirtualRename(oldName path.Component, newDirectory Directory, newName path.Component) (ChangeInfo, ChangeInfo, Status) {
+func (i *inMemoryPrepopulatedDirectory) VirtualRename(ctx context.Context, oldName path.Component, newDirectory Directory, newName path.Component) (ChangeInfo, ChangeInfo, Status) {
 	iOld := i
 	iNew, ok := newDirectory.(*inMemoryPrepopulatedDirectory)
 	if !ok {
@@ -1060,7 +1060,7 @@ func (i *inMemoryPrepopulatedDirectory) VirtualRename(oldName path.Component, ne
 		}, StatusOK
 }
 
-func (i *inMemoryPrepopulatedDirectory) VirtualRemove(name path.Component, removeDirectory, removeLeaf bool) (ChangeInfo, Status) {
+func (i *inMemoryPrepopulatedDirectory) VirtualRemove(ctx context.Context, name path.Component, removeDirectory, removeLeaf bool) (ChangeInfo, Status) {
 	lockPile := re_sync.LockPile{}
 	defer lockPile.UnlockAll()
 	lockPile.Lock(&i.lock)

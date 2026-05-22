@@ -43,7 +43,7 @@ func (placeholderFile) VirtualSeek(offset uint64, regionType filesystem.RegionTy
 	panic("Request to seek on special file should have been intercepted")
 }
 
-func (placeholderFile) VirtualWrite(buf []byte, off uint64) (int, Status) {
+func (placeholderFile) VirtualWrite(ctx context.Context, buf []byte, off uint64) (int, Status) {
 	panic("Request to write to symbolic link should have been intercepted")
 }
 

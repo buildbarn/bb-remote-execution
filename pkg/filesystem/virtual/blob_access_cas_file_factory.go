@@ -162,7 +162,7 @@ func (blobAccessCASFile) virtualSetAttributesCommon(in *Attributes) Status {
 	return StatusOK
 }
 
-func (blobAccessCASFile) VirtualWrite(buf []byte, off uint64) (int, Status) {
+func (blobAccessCASFile) VirtualWrite(ctx context.Context, buf []byte, off uint64) (int, Status) {
 	panic("Request to write to read-only file should have been intercepted")
 }
 

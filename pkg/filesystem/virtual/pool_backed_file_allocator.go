@@ -503,7 +503,7 @@ func (f *fileBackedFile) VirtualSetAttributes(ctx context.Context, in *Attribute
 	return StatusOK
 }
 
-func (f *fileBackedFile) VirtualWrite(buf []byte, offset uint64) (int, Status) {
+func (f *fileBackedFile) VirtualWrite(ctx context.Context, buf []byte, offset uint64) (int, Status) {
 	f.lockMutatingData()
 	defer f.lock.Unlock()
 
