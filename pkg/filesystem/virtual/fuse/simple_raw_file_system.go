@@ -390,8 +390,11 @@ func (rfs *simpleRawFileSystem) SetAttr(cancel <-chan struct{}, input *fuse.SetA
 	rfs.nodeLock.RUnlock()
 
 	var attributesIn virtual.Attributes
-	if input.Valid&(fuse.FATTR_UID|fuse.FATTR_GID) != 0 {
-		return fuse.EPERM
+	if input.Valid&fuse.FATTR_UID != 0 {
+		attributesIn.SetOwnerUserID(input.Uid)
+	}
+	if input.Valid&fuse.FATTR_GID != 0 {
+		attributesIn.SetOwnerGroupID(input.Gid)
 	}
 	if input.Valid&fuse.FATTR_MODE != 0 {
 		attributesIn.SetPermissions(virtual.NewPermissionsFromMode(input.Mode))

@@ -108,6 +108,14 @@ func (f *UserSettableSymlink) VirtualSetAttributes(ctx context.Context, in *Attr
 	if _, ok := in.GetSizeBytes(); ok {
 		return StatusErrInval
 	}
+	// User-settable symlinks don't track ownership; reject chown
+	// rather than silently accepting it.
+	if _, ok := in.GetOwnerUserID(); ok {
+		return StatusErrPerm
+	}
+	if _, ok := in.GetOwnerGroupID(); ok {
+		return StatusErrPerm
+	}
 	f.VirtualGetAttributes(ctx, requested, out)
 	return StatusOK
 }

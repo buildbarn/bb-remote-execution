@@ -3311,8 +3311,35 @@ func fattr4ToAttributes(in *nfsv4.Fattr4, out *virtual.Attributes) nfsv4.Nfsstat
 			}
 			out.SetPermissions(virtual.NewPermissionsFromMode(mode))
 		}
-		if f&((1<<(nfsv4.FATTR4_OWNER-32))|(1<<(nfsv4.FATTR4_OWNER_GROUP-32))) != 0 {
-			return nfsv4.NFS4ERR_PERM
+		if f&(1<<(nfsv4.FATTR4_OWNER-32)) != 0 {
+			// RFC 7530 §5.8.2.21 / RFC 8881 §5.9: FATTR4_OWNER is
+			// "user@domain" form. The corresponding emission code
+			// in writeAttributes already only writes numeric uid as
+			// a decimal string, so we accept the same form on parse
+			// for round-trip symmetry. Textual name@domain
+			// resolution would require an injectable resolver and
+			// is not currently supported.
+			owner, _, err := nfsv4.ReadUtf8strMixed(r)
+			if err != nil {
+				return nfsv4.NFS4ERR_BADXDR
+			}
+			uid, err := strconv.ParseUint(string(owner), 10, 32)
+			if err != nil {
+				return nfsv4.NFS4ERR_BADOWNER
+			}
+			out.SetOwnerUserID(uint32(uid))
+		}
+		if f&(1<<(nfsv4.FATTR4_OWNER_GROUP-32)) != 0 {
+			// See FATTR4_OWNER above for the numeric-only rationale.
+			group, _, err := nfsv4.ReadUtf8strMixed(r)
+			if err != nil {
+				return nfsv4.NFS4ERR_BADXDR
+			}
+			gid, err := strconv.ParseUint(string(group), 10, 32)
+			if err != nil {
+				return nfsv4.NFS4ERR_BADOWNER
+			}
+			out.SetOwnerGroupID(uint32(gid))
 		}
 		if f&(1<<(nfsv4.FATTR4_TIME_ACCESS_SET-32)) != 0 {
 			st, _, err := nfsv4.ReadFattr4TimeAccessSet(r)

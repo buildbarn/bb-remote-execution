@@ -56,6 +56,14 @@ func (f symlink) VirtualSetAttributes(ctx context.Context, in *Attributes, reque
 	if _, ok := in.GetSizeBytes(); ok {
 		return StatusErrInval
 	}
+	// Symlinks created here don't track ownership; reject chown
+	// rather than silently accepting it.
+	if _, ok := in.GetOwnerUserID(); ok {
+		return StatusErrPerm
+	}
+	if _, ok := in.GetOwnerGroupID(); ok {
+		return StatusErrPerm
+	}
 	f.VirtualGetAttributes(ctx, requested, out)
 	return StatusOK
 }

@@ -156,6 +156,15 @@ func (blobAccessCASFile) virtualSetAttributesCommon(in *Attributes) Status {
 			return StatusErrPerm
 		}
 	*/
+	// CAS-backed files don't track ownership; reject chown rather
+	// than silently accepting it. The NFSv4 protocol layer used to
+	// gate this — per review feedback the rejection now lives here.
+	if _, ok := in.GetOwnerUserID(); ok {
+		return StatusErrPerm
+	}
+	if _, ok := in.GetOwnerGroupID(); ok {
+		return StatusErrPerm
+	}
 	if _, ok := in.GetSizeBytes(); ok {
 		return StatusErrAccess
 	}

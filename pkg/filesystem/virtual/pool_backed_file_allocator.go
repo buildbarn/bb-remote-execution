@@ -480,6 +480,14 @@ func (f *fileBackedFile) virtualTruncate(size uint64) Status {
 }
 
 func (f *fileBackedFile) VirtualSetAttributes(ctx context.Context, in *Attributes, requested AttributesMask, out *Attributes) Status {
+	// Pool-backed regular files don't track ownership; reject chown
+	// rather than silently accepting it.
+	if _, ok := in.GetOwnerUserID(); ok {
+		return StatusErrPerm
+	}
+	if _, ok := in.GetOwnerGroupID(); ok {
+		return StatusErrPerm
+	}
 	sizeBytes, hasSizeBytes := in.GetSizeBytes()
 	if hasSizeBytes {
 		f.lockMutatingData()

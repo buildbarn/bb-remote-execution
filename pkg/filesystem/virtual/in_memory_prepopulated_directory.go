@@ -1105,6 +1105,16 @@ func (i *inMemoryPrepopulatedDirectory) VirtualSetAttributes(ctx context.Context
 	if _, ok := in.GetSizeBytes(); ok {
 		return StatusErrInval
 	}
+	// In-memory directories don't track ownership; reject chown
+	// rather than silently accepting it. The NFSv4 protocol layer
+	// used to gate this — per review feedback the rejection now
+	// lives in each implementation that doesn't support chown.
+	if _, ok := in.GetOwnerUserID(); ok {
+		return StatusErrPerm
+	}
+	if _, ok := in.GetOwnerGroupID(); ok {
+		return StatusErrPerm
+	}
 	i.VirtualGetAttributes(ctx, requested, out)
 	return StatusOK
 }
