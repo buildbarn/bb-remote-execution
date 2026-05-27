@@ -215,7 +215,8 @@ func (s *uploadOutputsState) uploadOutputDirectoryEntered(d UploadableDirectory,
 						TreeDigest:            treeDigest.GetProto(),
 						IsTopologicallySorted: true,
 						RootDirectoryDigest:   rootDirectoryDigestProto,
-					})
+					},
+				)
 			}
 		}
 	} else {
@@ -245,7 +246,8 @@ func (s *uploadOutputsState) uploadOutputFile(d UploadableDirectory, name path.C
 					Path:         path,
 					Digest:       digest.GetProto(),
 					IsExecutable: isExecutable,
-				})
+				},
+			)
 		}
 	} else {
 		s.saveError(util.StatusWrapf(err, "Failed to store output file %#v", childPath.GetUNIXString()))
@@ -265,7 +267,8 @@ func (s *uploadOutputsState) uploadOutputSymlink(d UploadableDirectory, name pat
 					&remoteexecution.OutputSymlink{
 						Path:   path,
 						Target: target,
-					})
+					},
+				)
 			}
 		} else {
 			s.saveError(util.StatusWrapf(err, "Failed to resolve target of output symlink %#v", childPath.GetUNIXString()))

@@ -30,7 +30,8 @@ func TestFeedbackDrivenAnalyzer(t *testing.T) {
 	clock := mock.NewMockClock(ctrl)
 	actionTimeoutExtractor := initialsizeclass.NewActionTimeoutExtractor(
 		30*time.Minute,
-		60*time.Minute)
+		60*time.Minute,
+	)
 	strategyCalculator := mock.NewMockStrategyCalculator(ctrl)
 	analyzer := initialsizeclass.NewFeedbackDrivenAnalyzer(
 		store,
@@ -39,7 +40,8 @@ func TestFeedbackDrivenAnalyzer(t *testing.T) {
 		actionTimeoutExtractor,
 		/* failureCacheDuration = */ 24*time.Hour,
 		strategyCalculator,
-		/* historySize = */ 5)
+		/* historySize = */ 5,
+	)
 
 	exampleDigestFunction := digest.MustNewFunction("hello", remoteexecution.DigestFunction_MD5)
 	exampleAction := &remoteexecution.Action{
@@ -322,7 +324,8 @@ func TestFeedbackDrivenAnalyzer(t *testing.T) {
 					},
 				}, &stats)
 				return 80 * time.Second
-			})
+			},
+		)
 
 		sizeClassIndex2, expectedDuration2, timeout2, learner2 := learner1.Succeeded(42*time.Second, []uint32{1, 2, 4, 8})
 		require.NotNil(t, learner2)

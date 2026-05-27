@@ -69,5 +69,7 @@ func main() {
 		syscall.Exec(
 			pythonPath,
 			append([]string{pythonPath}, os.Args[1:]...),
-			os.Environ()))
+			os.Environ(),
+		),
+	)
 }

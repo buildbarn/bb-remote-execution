@@ -43,7 +43,8 @@ func TestFilePoolStatsBuildExecutorExample(t *testing.T) {
 		monitor,
 		digest.MustNewFunction("hello", remoteexecution.DigestFunction_MD5),
 		request,
-		gomock.Any()).DoAndReturn(func(ctx context.Context, filePool pool.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+		gomock.Any(),
+	).DoAndReturn(func(ctx context.Context, filePool pool.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 		f1, err := filePool.NewFile(pool.ZeroHoleSource, 0)
 		require.NoError(t, err)
 		require.NoError(t, f1.Truncate(5))
@@ -106,7 +107,8 @@ func TestFilePoolStatsBuildExecutorExample(t *testing.T) {
 		monitor,
 		digest.MustNewFunction("hello", remoteexecution.DigestFunction_MD5),
 		request,
-		executionStateUpdates)
+		executionStateUpdates,
+	)
 
 	// Validate the execute response, which should now contain the
 	// file pool resource usage statistics.

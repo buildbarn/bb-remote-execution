@@ -36,14 +36,16 @@ var (
 			Subsystem: "nfsv4",
 			Name:      "nfs40_program_open_owners_created_total",
 			Help:      "Number of open-owners created through NFSv4 OPEN operations.",
-		})
+		},
+	)
 	nfs40ProgramOpenOwnersRemoved = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Namespace: "buildbarn",
 			Subsystem: "nfsv4",
 			Name:      "nfs40_program_open_owners_removed_total",
 			Help:      "Number of open-owners removed due to inactivity.",
-		})
+		},
+	)
 
 	nfs40ProgramOpenOwnerFilesCreated = prometheus.NewCounter(
 		prometheus.CounterOpts{
@@ -51,14 +53,16 @@ var (
 			Subsystem: "nfsv4",
 			Name:      "nfs40_program_open_owner_files_created_total",
 			Help:      "Number of open-owner files created through NFSv4 OPEN operations.",
-		})
+		},
+	)
 	nfs40ProgramOpenOwnerFilesRemoved = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Namespace: "buildbarn",
 			Subsystem: "nfsv4",
 			Name:      "nfs40_program_open_owner_files_removed_total",
 			Help:      "Number of open-owner files removed, either through NFSv4 CLOSE operations or due to inactivity on the open-owner.",
-		})
+		},
+	)
 )
 
 type nfs40Program struct {
@@ -1591,7 +1595,8 @@ func (s *compoundState) txOpen(ctx context.Context, args *nfsv4.Open4args, oos *
 			createAttributes,
 			existingOptions,
 			virtual.AttributesMaskFileHandle,
-			&attributes)
+			&attributes,
+		)
 		if vs != virtual.StatusOK {
 			return &nfsv4.Open4res_default{Status: toNFSv4Status(vs)}
 		}

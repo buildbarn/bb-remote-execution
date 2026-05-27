@@ -18,7 +18,8 @@ var (
 			Name:      "program_compound_operations_total",
 			Help:      "Number of operations provided as part of calls to NFSv4 COMPOUND.",
 		},
-		[]string{"operation", "status"})
+		[]string{"operation", "status"},
+	)
 	programCompoundOperationsOK map[nfsv4.NfsOpnum4]prometheus.Counter
 )
 

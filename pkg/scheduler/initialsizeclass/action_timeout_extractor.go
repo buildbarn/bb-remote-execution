@@ -43,7 +43,8 @@ func (e ActionTimeoutExtractor) ExtractTimeout(action *remoteexecution.Action) (
 			codes.InvalidArgument,
 			"Execution timeout of %s is outside permitted range [0s, %s]",
 			executionTimeout,
-			e.maximumExecutionTimeout)
+			e.maximumExecutionTimeout,
+		)
 	}
 	return executionTimeout, nil
 }

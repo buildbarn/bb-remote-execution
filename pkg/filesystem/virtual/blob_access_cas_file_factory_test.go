@@ -36,7 +36,8 @@ func TestBlobAccessCASFileFactoryVirtualSeek(t *testing.T) {
 	casFileFactory := virtual.NewBlobAccessCASFileFactory(
 		ctx,
 		contentAddressableStorage,
-		errorLogger)
+		errorLogger,
+	)
 
 	digest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "8b1a9953c4611296a827abf8c47804d7", 123)
 	f := casFileFactory.LookupFile(digest, false, nil)
@@ -51,7 +52,8 @@ func TestBlobAccessCASFileFactoryVirtualSeek(t *testing.T) {
 			SetIsInNamedAttributeDirectory(false).
 			SetPermissions(virtual.PermissionsRead).
 			SetSizeBytes(123),
-		&out)
+		&out,
+	)
 
 	t.Run("SEEK_DATA", func(t *testing.T) {
 		offset, s := f.VirtualSeek(0, filesystem.Data)
@@ -88,7 +90,8 @@ func TestBlobAccessCASFileFactoryGetContainingDigests(t *testing.T) {
 	casFileFactory := virtual.NewBlobAccessCASFileFactory(
 		ctx,
 		contentAddressableStorage,
-		errorLogger)
+		errorLogger,
+	)
 
 	digest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "d7ac2672607ba20a44d01d03a6685b24", 400)
 	f := casFileFactory.LookupFile(digest, true, nil)
@@ -103,7 +106,8 @@ func TestBlobAccessCASFileFactoryGetContainingDigests(t *testing.T) {
 			SetIsInNamedAttributeDirectory(false).
 			SetPermissions(virtual.PermissionsRead|virtual.PermissionsExecute).
 			SetSizeBytes(400),
-		&out)
+		&out,
+	)
 
 	p := virtual.ApplyGetContainingDigests{}
 	require.True(t, f.VirtualApply(&p))
@@ -118,7 +122,8 @@ func TestBlobAccessCASFileFactoryGetBazelOutputServiceStat(t *testing.T) {
 	casFileFactory := virtual.NewBlobAccessCASFileFactory(
 		ctx,
 		contentAddressableStorage,
-		errorLogger)
+		errorLogger,
+	)
 
 	digest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "8b1a9953c4611296a827abf8c47804d7", 123)
 	f := casFileFactory.LookupFile(digest, false, nil)
@@ -133,7 +138,8 @@ func TestBlobAccessCASFileFactoryGetBazelOutputServiceStat(t *testing.T) {
 			SetIsInNamedAttributeDirectory(false).
 			SetPermissions(virtual.PermissionsRead).
 			SetSizeBytes(123),
-		&out)
+		&out,
+	)
 
 	// We should return the digest of the file as well. There is no
 	// need to perform any I/O, as the digest is already embedded in
@@ -168,7 +174,8 @@ func TestBlobAccessCASFileFactoryAppendOutputPathPersistencyDirectoryNode(t *tes
 	casFileFactory := virtual.NewBlobAccessCASFileFactory(
 		ctx,
 		contentAddressableStorage,
-		errorLogger)
+		errorLogger,
+	)
 
 	digest1 := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "8b1a9953c4611296a827abf8c47804d7", 123)
 	f1 := casFileFactory.LookupFile(digest1, false, nil)
@@ -183,7 +190,8 @@ func TestBlobAccessCASFileFactoryAppendOutputPathPersistencyDirectoryNode(t *tes
 			SetIsInNamedAttributeDirectory(false).
 			SetPermissions(virtual.PermissionsRead).
 			SetSizeBytes(123),
-		&out1)
+		&out1,
+	)
 
 	digest2 := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "0282d25bf4aefdb9cb50ccc78d974f0a", 456)
 	f2 := casFileFactory.LookupFile(digest2, true, nil)
@@ -198,7 +206,8 @@ func TestBlobAccessCASFileFactoryAppendOutputPathPersistencyDirectoryNode(t *tes
 			SetIsInNamedAttributeDirectory(false).
 			SetPermissions(virtual.PermissionsRead|virtual.PermissionsExecute).
 			SetSizeBytes(456),
-		&out2)
+		&out2,
+	)
 
 	var directory outputpathpersistency.Directory
 	require.True(t, f1.VirtualApply(&virtual.ApplyAppendOutputPathPersistencyDirectoryNode{

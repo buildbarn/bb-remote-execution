@@ -58,14 +58,16 @@ func TestDecomposedDirectoryWalker(t *testing.T) {
 		require.Equal(
 			t,
 			"Directory \"3-6884a9e20905b512d1122a2b1ad8ba16-123-example\"",
-			parentDirectoryWalker.GetDescription())
+			parentDirectoryWalker.GetDescription(),
+		)
 	})
 
 	t.Run("ParentGetContainingDigest", func(t *testing.T) {
 		require.Equal(
 			t,
 			parentDigest,
-			parentDirectoryWalker.GetContainingDigest())
+			parentDirectoryWalker.GetContainingDigest(),
+		)
 	})
 
 	childDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "4df5f448a5e6b3c41e6aae7a8a9832aa", 456)
@@ -86,13 +88,15 @@ func TestDecomposedDirectoryWalker(t *testing.T) {
 		require.Equal(
 			t,
 			"Directory \"3-4df5f448a5e6b3c41e6aae7a8a9832aa-456-example\"",
-			childDirectoryWalker.GetDescription())
+			childDirectoryWalker.GetDescription(),
+		)
 	})
 
 	t.Run("ChildGetContainingDigest", func(t *testing.T) {
 		require.Equal(
 			t,
 			childDigest,
-			childDirectoryWalker.GetContainingDigest())
+			childDirectoryWalker.GetContainingDigest(),
+		)
 	})
 }

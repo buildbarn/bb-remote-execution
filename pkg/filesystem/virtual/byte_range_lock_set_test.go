@@ -61,7 +61,8 @@ func TestByteRangeLockSet(t *testing.T) {
 			End:   16,
 			Owner: 'B',
 			Type:  virtual.ByteRangeLockTypeLockedExclusive,
-		}))
+		}),
+	)
 	require.Equal(
 		t,
 		&virtual.ByteRangeLock[rune]{
@@ -75,7 +76,8 @@ func TestByteRangeLockSet(t *testing.T) {
 			End:   12,
 			Owner: 'B',
 			Type:  virtual.ByteRangeLockTypeLockedShared,
-		}))
+		}),
+	)
 	require.Nil(t, ls.Test(&virtual.ByteRangeLock[rune]{
 		Start: 14,
 		End:   16,

@@ -85,13 +85,16 @@ func main() {
 				isccConfiguration,
 				blobstore_configuration.NewISCCBlobAccessCreator(
 					grpcClientFactory,
-					int(configuration.MaximumMessageSizeBytes)))
+					int(configuration.MaximumMessageSizeBytes),
+				),
+			)
 			if err != nil {
 				return util.StatusWrap(err, "Failed to create Initial Size Class Cache")
 			}
 			previousExecutionStatsStore = re_blobstore.NewBlobAccessMutableProtoStore[iscc.PreviousExecutionStats](
 				info.BlobAccess,
-				int(configuration.MaximumMessageSizeBytes))
+				int(configuration.MaximumMessageSizeBytes),
+			)
 		}
 
 		// Create an action router that is responsible for analyzing
@@ -151,7 +154,8 @@ func main() {
 			executeAuthorizer,
 			modifyDrainsAuthorizer,
 			killOperationsAuthorizer,
-			synchronizeAuthorizer)
+			synchronizeAuthorizer,
+		)
 
 		// Create predeclared platform queues.
 		for _, platformQueue := range configuration.PredeclaredPlatformQueues {
@@ -185,7 +189,8 @@ func main() {
 			func(s grpc.ServiceRegistrar) {
 				remoteexecution.RegisterCapabilitiesServer(
 					s,
-					capabilities.NewServer(buildQueue))
+					capabilities.NewServer(buildQueue),
+				)
 				remoteexecution.RegisterExecutionServer(s, buildQueue)
 			},
 			siblingsGroup,

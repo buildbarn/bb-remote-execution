@@ -194,7 +194,9 @@ func (d *naiveBuildDirectory) UploadFile(ctx context.Context, name path.Componen
 		buffer.NewCASBufferFromReader(
 			blobDigest,
 			newSectionReadCloser(file, 0, sizeBytes),
-			buffer.UserProvided)); err != nil {
+			buffer.UserProvided,
+		),
+	); err != nil {
 		return digest.BadDigest, util.StatusWrap(err, "Failed to upload file")
 	}
 	return blobDigest, nil

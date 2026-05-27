@@ -649,7 +649,8 @@ func (rfs *simpleRawFileSystem) Create(cancel <-chan struct{}, input *fuse.Creat
 		(&virtual.Attributes{}).SetPermissions(virtual.NewPermissionsFromMode(input.Mode)),
 		existingOptions,
 		AttributesMaskForFUSEAttr,
-		&openedFileAttributes)
+		&openedFileAttributes,
+	)
 	if vs != virtual.StatusOK {
 		return toFUSEStatus(vs)
 	}
@@ -839,7 +840,9 @@ func (rfs *simpleRawFileSystem) ReadDir(cancel <-chan struct{}, input *fuse.Read
 			ctx,
 			offset-dotDotEntriesCount,
 			AttributesMaskForFUSEDirEntry,
-			&readDirReporter{out: out}))
+			&readDirReporter{out: out},
+		),
+	)
 }
 
 type readDirPlusReporter struct {
@@ -883,7 +886,9 @@ func (rfs *simpleRawFileSystem) ReadDirPlus(cancel <-chan struct{}, input *fuse.
 			ctx,
 			offset-dotDotEntriesCount,
 			AttributesMaskForFUSEAttr,
-			&readDirPlusReporter{rfs: rfs, out: out}))
+			&readDirPlusReporter{rfs: rfs, out: out},
+		),
+	)
 }
 
 func (simpleRawFileSystem) ReleaseDir(input *fuse.ReleaseIn) {}

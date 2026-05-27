@@ -158,7 +158,8 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 		blockDevice.EXPECT().ReadAt(gomock.Len(13), int64(176)).DoAndReturn(
 			func(p []byte, off int64) (int, error) {
 				return copy(p, []byte("\x00\x00Hello\x00world")), nil
-			})
+			},
+		)
 		var buf [16]byte
 		n, err = f.ReadAt(buf[:], 0)
 		require.Equal(t, 13, n)
@@ -206,7 +207,8 @@ func TestBlockDeviceBackedFilePool(t *testing.T) {
 		n, err := f.WriteAt([]byte(
 			"Lorem ipsum dolor sit amet, consectetur adipiscing elit. "+
 				"Suspendisse quis mollis eros, sit amet pellentesque lectus. "+
-				"Quisque non ex nisl."), 42)
+				"Quisque non ex nisl.",
+		), 42)
 		require.Equal(t, 137, n)
 		require.NoError(t, err)
 

@@ -42,7 +42,8 @@ func TestPathExistenceCheckingRunner(t *testing.T) {
 		testutil.RequirePrefixedStatus(
 			t,
 			status.Errorf(codes.Unavailable, "Path %#v: ", readinessCheckingFilename),
-			err)
+			err,
+		)
 	})
 
 	t.Run("NotReadyRun", func(t *testing.T) {
@@ -56,7 +57,8 @@ func TestPathExistenceCheckingRunner(t *testing.T) {
 		testutil.RequirePrefixedStatus(
 			t,
 			status.Errorf(codes.Unavailable, "One or more required files disappeared during execution: Path %#v: ", readinessCheckingFilename),
-			err)
+			err,
+		)
 	})
 
 	// Create the file used for readiness checking and repeat the

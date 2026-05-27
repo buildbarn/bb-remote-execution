@@ -27,7 +27,8 @@ func TestSystemAuthenticator(t *testing.T) {
 		_, _, s := authenticator.Authenticate(
 			ctx,
 			&rpcv2.OpaqueAuth{Flavor: rpcv2.AUTH_NONE},
-			&rpcv2.OpaqueAuth{Flavor: rpcv2.AUTH_NONE})
+			&rpcv2.OpaqueAuth{Flavor: rpcv2.AUTH_NONE},
+		)
 		require.Equal(t, rpcv2.AUTH_BADCRED, s)
 	})
 
@@ -36,7 +37,8 @@ func TestSystemAuthenticator(t *testing.T) {
 		_, _, s := authenticator.Authenticate(
 			ctx,
 			&rpcv2.OpaqueAuth{Flavor: rpcv2.AUTH_SYS},
-			&rpcv2.OpaqueAuth{Flavor: rpcv2.AUTH_NONE})
+			&rpcv2.OpaqueAuth{Flavor: rpcv2.AUTH_NONE},
+		)
 		require.Equal(t, rpcv2.AUTH_BADCRED, s)
 	})
 
@@ -67,7 +69,8 @@ func TestSystemAuthenticator(t *testing.T) {
 					0xf2, 0x61, 0x9e, 0xca,
 				},
 			},
-			&rpcv2.OpaqueAuth{Flavor: rpcv2.AUTH_NONE})
+			&rpcv2.OpaqueAuth{Flavor: rpcv2.AUTH_NONE},
+		)
 		require.Equal(t, rpcv2.AUTH_BADCRED, s)
 	})
 
@@ -80,7 +83,8 @@ func TestSystemAuthenticator(t *testing.T) {
 				Flavor: rpcv2.AUTH_SHORT,
 				Body:   []byte{1, 2, 3},
 			},
-			&rpcv2.OpaqueAuth{Flavor: rpcv2.AUTH_NONE})
+			&rpcv2.OpaqueAuth{Flavor: rpcv2.AUTH_NONE},
+		)
 		require.Equal(t, rpcv2.AUTH_BADCRED, s)
 	})
 
@@ -100,7 +104,8 @@ func TestSystemAuthenticator(t *testing.T) {
 					0xbb, 0xe1, 0xd6, 0x1f, 0x37, 0x42, 0xb2, 0x42,
 				},
 			},
-			&rpcv2.OpaqueAuth{Flavor: rpcv2.AUTH_NONE})
+			&rpcv2.OpaqueAuth{Flavor: rpcv2.AUTH_NONE},
+		)
 		require.Equal(t, rpcv2.AUTH_REJECTEDCRED, s)
 	})
 
@@ -131,7 +136,8 @@ func TestSystemAuthenticator(t *testing.T) {
 					0x00, 0x00, 0x00, 0x14,
 				},
 			},
-			&rpcv2.OpaqueAuth{Flavor: rpcv2.AUTH_NONE})
+			&rpcv2.OpaqueAuth{Flavor: rpcv2.AUTH_NONE},
+		)
 		require.Equal(t, rpcv2.AUTH_OK, s)
 		metadata1, _ := auth.AuthenticationMetadataFromContext(ctx1).GetPublicProto()
 		testutil.RequireEqualProto(t, &auth_pb.AuthenticationMetadata{
@@ -173,7 +179,8 @@ func TestSystemAuthenticator(t *testing.T) {
 					0xb5, 0xc3, 0xdc, 0xe2, 0x4d, 0x7b, 0x07, 0x69,
 				},
 			},
-			&rpcv2.OpaqueAuth{Flavor: rpcv2.AUTH_NONE})
+			&rpcv2.OpaqueAuth{Flavor: rpcv2.AUTH_NONE},
+		)
 		require.Equal(t, rpcv2.AUTH_OK, s)
 		metadata2, _ := auth.AuthenticationMetadataFromContext(ctx2).GetPublicProto()
 		testutil.RequireEqualProto(t, &auth_pb.AuthenticationMetadata{

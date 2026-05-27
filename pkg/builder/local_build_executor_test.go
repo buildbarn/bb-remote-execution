@@ -71,7 +71,8 @@ func TestLocalBuildExecutorInvalidActionDigest(t *testing.T) {
 				Timeout: &durationpb.Duration{Seconds: 3600},
 			},
 		},
-		metadata)
+		metadata,
+	)
 	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
@@ -113,7 +114,8 @@ func TestLocalBuildExecutorMissingAction(t *testing.T) {
 				SizeBytes: 7,
 			},
 		},
-		metadata)
+		metadata,
+	)
 	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
@@ -165,7 +167,8 @@ func TestLocalBuildExecutorBuildDirectoryCreatorFailedFailed(t *testing.T) {
 				Timeout: &durationpb.Duration{Seconds: 3600},
 			},
 		},
-		metadata)
+		metadata,
+	)
 	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
@@ -230,7 +233,8 @@ func TestLocalBuildExecutorInputRootPopulationFailed(t *testing.T) {
 				Timeout: &durationpb.Duration{Seconds: 3600},
 			},
 		},
-		metadata)
+		metadata,
+	)
 	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
@@ -310,7 +314,8 @@ func TestLocalBuildExecutorOutputDirectoryCreationFailure(t *testing.T) {
 				Timeout: &durationpb.Duration{Seconds: 3600},
 			},
 		},
-		metadata)
+		metadata,
+	)
 	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
@@ -375,7 +380,8 @@ func TestLocalBuildExecutorMissingCommand(t *testing.T) {
 				Timeout: &durationpb.Duration{Seconds: 3600},
 			},
 		},
-		metadata)
+		metadata,
+	)
 	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
@@ -401,14 +407,17 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
 	buildDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("stdout"), gomock.Any(), gomock.Any()).Return(
 		digest.MustNewDigest("nintendo64", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000005", 567),
-		nil)
+		nil,
+	)
 	buildDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("stderr"), gomock.Any(), gomock.Any()).Return(
 		digest.MustNewDigest("nintendo64", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000006", 678),
-		nil)
+		nil,
+	)
 	contentAddressableStorage.EXPECT().Put(
 		ctx,
 		digest.MustNewDigest("nintendo64", remoteexecution.DigestFunction_SHA256, "102b51b9765a56a3e899f7cf0ee38e5251f9c503b357b330a49183eb7b155604", 2),
-		gomock.Any()).
+		gomock.Any(),
+	).
 		DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 			m, err := b.ToProto(&remoteexecution.Tree{}, 10000)
 			require.NoError(t, err)
@@ -505,7 +514,8 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 				Timeout: &durationpb.Duration{Seconds: 3600},
 			},
 		},
-		metadata)
+		metadata,
+	)
 	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			OutputDirectories: []*remoteexecution.OutputDirectory{
@@ -617,22 +627,26 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
 	buildDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("stdout"), gomock.Any(), gomock.Any()).Return(
 		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000005", 567),
-		nil)
+		nil,
+	)
 	buildDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("stderr"), gomock.Any(), gomock.Any()).Return(
 		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000006", 678),
-		nil)
+		nil,
+	)
 	helloUploadableDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("hello.pic.d"), gomock.Any(), gomock.Any()).Return(
 		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000007", 789),
-		nil)
+		nil,
+	)
 	helloUploadableDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("hello.pic.o"), gomock.Any(), gomock.Any()).Return(
 		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000008", 890),
-		nil)
+		nil,
+	)
 
 	// Command execution.
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	actionDigest := digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000001", 123)
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(ctx, &actionDigest).
-		Return(buildDirectory, ((*path.Trace)(nil)).Append(path.MustNewComponent("0000000000000000")), nil)
+		Return(buildDirectory, (*path.Trace)(nil).Append(path.MustNewComponent("0000000000000000")), nil)
 	filePool := mock.NewMockFilePool(ctrl)
 	monitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
 	buildDirectory.EXPECT().InstallHooks(filePool, gomock.Any())
@@ -650,7 +664,8 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 	inputRootDevDirectory.EXPECT().Mknod(
 		path.MustNewComponent("null"),
 		os.FileMode(os.ModeDevice|os.ModeCharDevice|0o666),
-		filesystem.NewDeviceNumberFromMajorMinor(1, 3))
+		filesystem.NewDeviceNumberFromMajorMinor(1, 3),
+	)
 	inputRootDevDirectory.EXPECT().Close()
 	buildDirectory.EXPECT().Mkdir(path.MustNewComponent("tmp"), os.FileMode(0o777))
 	buildDirectory.EXPECT().Mkdir(path.MustNewComponent("server_logs"), os.FileMode(0o777))
@@ -742,7 +757,8 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 			},
 			AuxiliaryMetadata: []*anypb.Any{requestMetadata},
 		},
-		metadata)
+		metadata,
+	)
 	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			OutputFiles: []*remoteexecution.OutputFile{
@@ -822,7 +838,8 @@ func TestLocalBuildExecutorCachingInvalidTimeout(t *testing.T) {
 				},
 			},
 		},
-		metadata)
+		metadata,
+	)
 	testutil.RequirePrefixedStatus(t, status.Error(codes.InvalidArgument, "Invalid execution timeout: "), status.ErrorProto(executeResponse.Status))
 }
 
@@ -840,10 +857,12 @@ func TestLocalBuildExecutorInputRootIOFailureDuringExecution(t *testing.T) {
 	}, buffer.UserProvided))
 	buildDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("stdout"), gomock.Any(), gomock.Any()).Return(
 		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000005", 567),
-		nil)
+		nil,
+	)
 	buildDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("stderr"), gomock.Any(), gomock.Any()).Return(
 		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000006", 678),
-		nil)
+		nil,
+	)
 
 	// Build environment.
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
@@ -941,7 +960,8 @@ func TestLocalBuildExecutorInputRootIOFailureDuringExecution(t *testing.T) {
 				},
 			},
 		},
-		metadata)
+		metadata,
+	)
 	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			StdoutDigest: &remoteexecution.Digest{
@@ -972,10 +992,12 @@ func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 	}, buffer.UserProvided))
 	buildDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("stdout"), gomock.Any(), gomock.Any()).Return(
 		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000005", 567),
-		nil)
+		nil,
+	)
 	buildDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("stderr"), gomock.Any(), gomock.Any()).Return(
 		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000006", 678),
-		nil)
+		nil,
+	)
 
 	// Build environment.
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
@@ -1026,7 +1048,8 @@ func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 	}, nil)
 	serverLogsDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("kernel_log"), gomock.Any(), gomock.Any()).Return(
 		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "53855840865bc43fa60c2e25383165017cfc3c2243541f8e6c648f5fbd374eb5", 1200),
-		nil)
+		nil,
+	)
 	serverLogsDirectory.EXPECT().Close()
 	buildDirectory.EXPECT().Close()
 	clock := mock.NewMockClock(ctrl)
@@ -1071,7 +1094,8 @@ func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 				Timeout: &durationpb.Duration{Seconds: 3600},
 			},
 		},
-		metadata)
+		metadata,
+	)
 	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			StdoutDigest: &remoteexecution.Digest{
@@ -1168,7 +1192,8 @@ func TestLocalBuildExecutorCharacterDeviceNodeCreationFailed(t *testing.T) {
 				Timeout: &durationpb.Duration{Seconds: 3600},
 			},
 		},
-		metadata)
+		metadata,
+	)
 	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
 		Result: &remoteexecution.ActionResult{
 			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},

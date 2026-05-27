@@ -43,9 +43,10 @@ func TestSharedBuildDirectoryCreatorMkdirFailure(t *testing.T) {
 	baseBuildDirectory := mock.NewMockBuildDirectory(ctrl)
 	actionDigest := digest.MustNewDigest("debian8", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0)
 	baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(ctx, &actionDigest).
-		Return(baseBuildDirectory, ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory")), nil)
+		Return(baseBuildDirectory, (*path.Trace)(nil).Append(path.MustNewComponent("base-directory")), nil)
 	baseBuildDirectory.EXPECT().Mkdir(path.MustNewComponent("e3b0c44298fc1c14"), os.FileMode(0o777)).Return(
-		status.Error(codes.AlreadyExists, "Directory already exists"))
+		status.Error(codes.AlreadyExists, "Directory already exists"),
+	)
 	baseBuildDirectory.EXPECT().Close()
 
 	var nextParallelActionID atomic.Uint64
@@ -62,7 +63,7 @@ func TestSharedBuildDirectoryCreatorEnterBuildDirectoryFailure(t *testing.T) {
 	baseBuildDirectory := mock.NewMockBuildDirectory(ctrl)
 	actionDigest := digest.MustNewDigest("debian8", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0)
 	baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(ctx, &actionDigest).
-		Return(baseBuildDirectory, ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory")), nil)
+		Return(baseBuildDirectory, (*path.Trace)(nil).Append(path.MustNewComponent("base-directory")), nil)
 	baseBuildDirectory.EXPECT().Mkdir(path.MustNewComponent("e3b0c44298fc1c14"), os.FileMode(0o777))
 	baseBuildDirectory.EXPECT().EnterBuildDirectory(path.MustNewComponent("e3b0c44298fc1c14")).Return(nil, status.Error(codes.ResourceExhausted, "Out of file descriptors"))
 	baseBuildDirectory.EXPECT().Remove(path.MustNewComponent("e3b0c44298fc1c14"))
@@ -80,7 +81,7 @@ func TestSharedBuildDirectoryCreatorCloseChildFailure(t *testing.T) {
 	// Directory closure errors should be propagated.
 	baseBuildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	baseBuildDirectory := mock.NewMockBuildDirectory(ctrl)
-	baseBuildDirectoryPath := ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory"))
+	baseBuildDirectoryPath := (*path.Trace)(nil).Append(path.MustNewComponent("base-directory"))
 	actionDigest := digest.MustNewDigest("debian8", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0)
 	baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(ctx, &actionDigest).
 		Return(baseBuildDirectory, baseBuildDirectoryPath, nil)
@@ -107,7 +108,7 @@ func TestSharedBuildDirectoryCreatorRemoveAllFailure(t *testing.T) {
 	// indicate problems with the infrastructure.
 	baseBuildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	baseBuildDirectory := mock.NewMockBuildDirectory(ctrl)
-	baseBuildDirectoryPath := ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory"))
+	baseBuildDirectoryPath := (*path.Trace)(nil).Append(path.MustNewComponent("base-directory"))
 	actionDigest := digest.MustNewDigest("debian8", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0)
 	baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(ctx, &actionDigest).
 		Return(baseBuildDirectory, baseBuildDirectoryPath, nil)
@@ -135,7 +136,7 @@ func TestSharedBuildDirectoryCreatorCloseParentFailure(t *testing.T) {
 	// responsible for injecting more detailed errors.
 	baseBuildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	baseBuildDirectory := mock.NewMockBuildDirectory(ctrl)
-	baseBuildDirectoryPath := ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory"))
+	baseBuildDirectoryPath := (*path.Trace)(nil).Append(path.MustNewComponent("base-directory"))
 	actionDigest := digest.MustNewDigest("debian8", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0)
 	baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(ctx, &actionDigest).
 		Return(baseBuildDirectory, baseBuildDirectoryPath, nil)
@@ -162,7 +163,7 @@ func TestSharedBuildDirectoryCreatorSuccessNotParallel(t *testing.T) {
 	// action digest.
 	baseBuildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	baseBuildDirectory := mock.NewMockBuildDirectory(ctrl)
-	baseBuildDirectoryPath := ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory"))
+	baseBuildDirectoryPath := (*path.Trace)(nil).Append(path.MustNewComponent("base-directory"))
 	actionDigest := digest.MustNewDigest("debian8", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0)
 	baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(ctx, &actionDigest).
 		Return(baseBuildDirectory, baseBuildDirectoryPath, nil)
@@ -186,7 +187,7 @@ func TestSharedBuildDirectoryCreatorMkdirSuccessParallel(t *testing.T) {
 
 	baseBuildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	baseBuildDirectory := mock.NewMockBuildDirectory(ctrl)
-	baseBuildDirectoryPath := ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory"))
+	baseBuildDirectoryPath := (*path.Trace)(nil).Append(path.MustNewComponent("base-directory"))
 	var nextParallelActionID atomic.Uint64
 	buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(baseBuildDirectoryCreator, &nextParallelActionID)
 
@@ -195,7 +196,8 @@ func TestSharedBuildDirectoryCreatorMkdirSuccessParallel(t *testing.T) {
 	baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(ctx, nil).
 		Return(baseBuildDirectory, baseBuildDirectoryPath, nil)
 	baseBuildDirectory.EXPECT().Mkdir(path.MustNewComponent("1"), os.FileMode(0o777)).Return(
-		status.Error(codes.Internal, "Foo"))
+		status.Error(codes.Internal, "Foo"),
+	)
 	baseBuildDirectory.EXPECT().Close()
 	_, _, err := buildDirectoryCreator.GetBuildDirectory(ctx, nil)
 	testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to create build directory \"base-directory/1\": Foo"), err)
@@ -203,7 +205,8 @@ func TestSharedBuildDirectoryCreatorMkdirSuccessParallel(t *testing.T) {
 	baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(ctx, nil).
 		Return(baseBuildDirectory, baseBuildDirectoryPath, nil)
 	baseBuildDirectory.EXPECT().Mkdir(path.MustNewComponent("2"), os.FileMode(0o777)).Return(
-		status.Error(codes.Internal, "Foo"))
+		status.Error(codes.Internal, "Foo"),
+	)
 	baseBuildDirectory.EXPECT().Close()
 	_, _, err = buildDirectoryCreator.GetBuildDirectory(ctx, nil)
 	testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to create build directory \"base-directory/2\": Foo"), err)

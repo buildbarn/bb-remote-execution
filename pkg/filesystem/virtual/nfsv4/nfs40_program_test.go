@@ -533,7 +533,8 @@ func TestNFS40ProgramCompound_OP_CLOSE(t *testing.T) {
 			0xf5, 0x47, 0xa8, 0x88,
 			0x74, 0x62, 0xab, 0x46,
 			0x26, 0x1d, 0x14, 0x7f,
-		})
+		},
+	)
 
 	t.Run("UnconfirmedStateID", func(t *testing.T) {
 		// CLOSE can't be called against an open-owner that
@@ -596,7 +597,8 @@ func TestNFS40ProgramCompound_OP_CLOSE(t *testing.T) {
 			0xf5, 0x47, 0xa8, 0x88,
 			0x74, 0x62, 0xab, 0x46,
 			0x26, 0x1d, 0x14, 0x7f,
-		})
+		},
+	)
 
 	t.Run("OldStateID", func(t *testing.T) {
 		// Can't call CLOSE on a state ID from the past.
@@ -2923,7 +2925,8 @@ func TestNFS40ProgramCompound_OP_OPEN(t *testing.T) {
 					0x5c, 0x71, 0xa6, 0x0d,
 					0xe3, 0x12, 0x33, 0xb2,
 					0x43, 0xda, 0x5f, 0xaf,
-				})
+				},
+			)
 
 			clock.EXPECT().Now().Return(time.Unix(1006, 0))
 			leaf.EXPECT().VirtualClose(virtual.ShareMaskRead)
@@ -2991,7 +2994,8 @@ func TestNFS40ProgramCompound_OP_OPEN(t *testing.T) {
 				0x5c, 0x71, 0xa6, 0x0d,
 				0xe2, 0x73, 0x1b, 0xe6,
 				0x3b, 0x79, 0x04, 0x81,
-			})
+			},
+		)
 		clock.EXPECT().Now().Return(time.Unix(1010, 0))
 		openConfirmForTesting(
 			ctx,
@@ -3004,7 +3008,8 @@ func TestNFS40ProgramCompound_OP_OPEN(t *testing.T) {
 				0x5c, 0x71, 0xa6, 0x0d,
 				0xe2, 0x73, 0x1b, 0xe6,
 				0x3b, 0x79, 0x04, 0x81,
-			})
+			},
+		)
 
 		t.Run("MismatchingDelegateType", func(t *testing.T) {
 			// When calling CLAIM_PREVIOUS, the client must
@@ -3419,7 +3424,8 @@ func TestNFS40ProgramCompound_OP_OPEN_CONFIRM(t *testing.T) {
 				0xfa, 0xc3, 0xf7, 0x18,
 				0x80, 0x57, 0x5b, 0x95,
 				0x08, 0x16, 0x41, 0x0a,
-			})
+			},
+		)
 
 		for i := int64(0); i < 10; i++ {
 			clock.EXPECT().Now().Return(time.Unix(1004+i, 0))
@@ -3434,7 +3440,8 @@ func TestNFS40ProgramCompound_OP_OPEN_CONFIRM(t *testing.T) {
 					0xfa, 0xc3, 0xf7, 0x18,
 					0x80, 0x57, 0x5b, 0x95,
 					0x08, 0x16, 0x41, 0x0a,
-				})
+				},
+			)
 		}
 	})
 
@@ -3627,7 +3634,8 @@ func TestNFS40ProgramCompound_OP_OPEN_DOWNGRADE(t *testing.T) {
 			0x2c, 0xa4, 0xce, 0xdc,
 			0xfd, 0x2b, 0x5f, 0x18,
 			0xe7, 0x2d, 0xf9, 0x61,
-		})
+		},
+	)
 
 	clock.EXPECT().Now().Return(time.Unix(1006, 0))
 	openConfirmForTesting(
@@ -3641,7 +3649,8 @@ func TestNFS40ProgramCompound_OP_OPEN_DOWNGRADE(t *testing.T) {
 			0x2c, 0xa4, 0xce, 0xdc,
 			0xfd, 0x2b, 0x5f, 0x18,
 			0xe7, 0x2d, 0xf9, 0x61,
-		})
+		},
+	)
 
 	t.Run("Upgrade", func(t *testing.T) {
 		// It's not permitted to use OPEN_DOWNGRADE to upgrade
@@ -4440,7 +4449,8 @@ func TestNFS40ProgramCompound_OP_READ(t *testing.T) {
 		gomock.InOrder(
 			leaf.EXPECT().VirtualOpenSelf(ctx, virtual.ShareMaskRead, &virtual.OpenExistingOptions{}, virtual.AttributesMask(0), gomock.Any()),
 			leaf.EXPECT().VirtualRead(gomock.Len(100), uint64(1000)).Return(0, false, virtual.StatusErrIO),
-			leaf.EXPECT().VirtualClose(virtual.ShareMaskRead))
+			leaf.EXPECT().VirtualClose(virtual.ShareMaskRead),
+		)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "read",
@@ -4486,7 +4496,8 @@ func TestNFS40ProgramCompound_OP_READ(t *testing.T) {
 				DoAndReturn(func(buf []byte, offset uint64) (int, bool, virtual.Status) {
 					return copy(buf, "Hello"), true, virtual.StatusOK
 				}),
-			leaf.EXPECT().VirtualClose(virtual.ShareMaskRead))
+			leaf.EXPECT().VirtualClose(virtual.ShareMaskRead),
+		)
 
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "read",
@@ -4549,7 +4560,8 @@ func TestNFS40ProgramCompound_OP_READ(t *testing.T) {
 			0x55, 0xc7, 0xc6, 0xa0,
 			0xe0, 0x17, 0x83, 0x9c,
 			0x17, 0x7d, 0xa2, 0x16,
-		})
+		},
+	)
 
 	t.Run("UnconfirmedStateID", func(t *testing.T) {
 		// The state ID belongs to an open-owner that has not
@@ -4613,7 +4625,8 @@ func TestNFS40ProgramCompound_OP_READ(t *testing.T) {
 			0x55, 0xc7, 0xc6, 0xa0,
 			0xe0, 0x17, 0x83, 0x9c,
 			0x17, 0x7d, 0xa2, 0x16,
-		})
+		},
+	)
 
 	t.Run("OldStateID", func(t *testing.T) {
 		// The OPEN_CONFIRM call above increased the sequence ID
@@ -5210,7 +5223,8 @@ func TestNFS40ProgramCompound_OP_READDIR(t *testing.T) {
 				(&virtual.Attributes{}).
 					SetFileType(filesystem.FileTypeRegularFile).
 					SetInodeNumber(123).
-					SetIsInNamedAttributeDirectory(false)))
+					SetIsInNamedAttributeDirectory(false),
+			))
 			return virtual.StatusOK
 		})
 
@@ -5265,7 +5279,8 @@ func TestNFS40ProgramCompound_OP_READDIR(t *testing.T) {
 				(&virtual.Attributes{}).
 					SetFileType(filesystem.FileTypeRegularFile).
 					SetInodeNumber(123).
-					SetIsInNamedAttributeDirectory(false)))
+					SetIsInNamedAttributeDirectory(false),
+			))
 			return virtual.StatusOK
 		})
 
@@ -5615,7 +5630,8 @@ func TestNFS40ProgramCompound_OP_RELEASE_LOCKOWNER(t *testing.T) {
 			0xab, 0x4f, 0xf6, 0x1c,
 			0x1e, 0x72, 0x2a, 0xe1,
 			0x85, 0x8e, 0x31, 0x01,
-		})
+		},
+	)
 	clock.EXPECT().Now().Return(time.Unix(1006, 0))
 	openConfirmForTesting(
 		ctx,
@@ -5628,7 +5644,8 @@ func TestNFS40ProgramCompound_OP_RELEASE_LOCKOWNER(t *testing.T) {
 			0xab, 0x4f, 0xf6, 0x1c,
 			0x1e, 0x72, 0x2a, 0xe1,
 			0x85, 0x8e, 0x31, 0x01,
-		})
+		},
+	)
 
 	clock.EXPECT().Now().Return(time.Unix(1008, 0))
 	randomNumberGeneratorExpectRead(randomNumberGenerator, []byte{0xe8, 0xef, 0xf4, 0x3d, 0x9b, 0x99, 0x0e, 0xf1})
@@ -7111,7 +7128,8 @@ func TestNFS40ProgramCompound_OP_SETCLIENTID_CONFIRM(t *testing.T) {
 			0xdb, 0xd3, 0xb5, 0x41,
 			0xc3, 0x2f, 0x5c, 0x62,
 			0xf5, 0xdc, 0x60, 0x3e,
-		})
+		},
+	)
 
 	t.Run("Idempotence", func(t *testing.T) {
 		// Sending the same confirmation as before should cause

@@ -29,7 +29,8 @@ func TestCASInitialContentsFetcherFetchContents(t *testing.T) {
 		directoryWalker,
 		casFileFactory,
 		symlinkFactory,
-		digest.MustNewFunction("hello", remoteexecution.DigestFunction_MD5))
+		digest.MustNewFunction("hello", remoteexecution.DigestFunction_MD5),
+	)
 
 	t.Run("DirectoryWalkerFailure", func(t *testing.T) {
 		// Errors from the backend should be propagated.
@@ -253,7 +254,8 @@ func TestCASInitialContentsFetcherGetContainingDigests(t *testing.T) {
 		directoryWalker,
 		casFileFactory,
 		symlinkFactory,
-		digest.MustNewFunction("hello", remoteexecution.DigestFunction_MD5))
+		digest.MustNewFunction("hello", remoteexecution.DigestFunction_MD5),
+	)
 
 	t.Run("DirectoryWalkerFailure", func(t *testing.T) {
 		// Errors from the backend should be propagated.
@@ -385,6 +387,7 @@ func TestCASInitialContentsFetcherGetContainingDigests(t *testing.T) {
 				Add(digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "c0607941dd5b3ca8e175a1bfbfd1c0ea", 789)).
 				Add(digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "19dc69325bd8dfcd75cefbb6144ea3bb", 42)).
 				Build(),
-			p.ContainingDigests)
+			p.ContainingDigests,
+		)
 	})
 }

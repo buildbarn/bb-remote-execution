@@ -31,7 +31,8 @@ func TestSimpleRawFileSystemAccess(t *testing.T) {
 		rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskPermissions, gomock.Any()).DoAndReturn(
 			func(ctx context.Context, requested virtual.AttributesMask, out *virtual.Attributes) {
 				out.SetPermissions(virtual.PermissionsWrite | virtual.PermissionsExecute)
-			})
+			},
+		)
 
 		require.Equal(t, go_fuse.EACCES, rfs.Access(nil, &go_fuse.AccessIn{
 			InHeader: go_fuse.InHeader{
@@ -45,7 +46,8 @@ func TestSimpleRawFileSystemAccess(t *testing.T) {
 		rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskPermissions, gomock.Any()).DoAndReturn(
 			func(ctx context.Context, requested virtual.AttributesMask, out *virtual.Attributes) {
 				out.SetPermissions(virtual.PermissionsRead | virtual.PermissionsWrite | virtual.PermissionsExecute)
-			})
+			},
+		)
 
 		require.Equal(t, go_fuse.OK, rfs.Access(nil, &go_fuse.AccessIn{
 			InHeader: go_fuse.InHeader{
@@ -88,7 +90,8 @@ func TestSimpleRawFileSystemLookup(t *testing.T) {
 				out.SetPermissions(virtual.PermissionsExecute)
 				out.SetSizeBytes(2048)
 				return virtual.DirectoryChild{}.FromDirectory(childDirectory), virtual.StatusOK
-			})
+			},
+		)
 
 		var entryOut go_fuse.EntryOut
 		require.Equal(t, go_fuse.OK, rfs.Lookup(nil, &go_fuse.InHeader{
@@ -128,7 +131,8 @@ func TestSimpleRawFileSystemLookup(t *testing.T) {
 				out.SetPermissions(virtual.PermissionsRead)
 				out.SetSizeBytes(1300)
 				return virtual.DirectoryChild{}.FromLeaf(childFile), virtual.StatusOK
-			})
+			},
+		)
 
 		var entryOut go_fuse.EntryOut
 		require.Equal(t, go_fuse.OK, rfs.Lookup(nil, &go_fuse.InHeader{
@@ -165,7 +169,8 @@ func TestSimpleRawFileSystemForget(t *testing.T) {
 					out.SetPermissions(virtual.PermissionsExecute)
 					out.SetSizeBytes(2048)
 					return virtual.DirectoryChild{}.FromDirectory(childDirectory), virtual.StatusOK
-				})
+				},
+			)
 
 			var entryOut go_fuse.EntryOut
 			require.Equal(t, go_fuse.OK, rfs.Lookup(nil, &go_fuse.InHeader{
@@ -191,7 +196,8 @@ func TestSimpleRawFileSystemForget(t *testing.T) {
 				out.SetLinkCount(4)
 				out.SetPermissions(virtual.PermissionsRead | virtual.PermissionsExecute)
 				out.SetSizeBytes(2048)
-			})
+			},
+		)
 
 		var directoryAttrOut go_fuse.AttrOut
 		require.Equal(t, go_fuse.OK, rfs.GetAttr(nil, &go_fuse.GetAttrIn{
@@ -229,7 +235,8 @@ func TestSimpleRawFileSystemForget(t *testing.T) {
 					out.SetPermissions(virtual.PermissionsRead)
 					out.SetSizeBytes(42)
 					return virtual.DirectoryChild{}.FromLeaf(childFile), virtual.StatusOK
-				})
+				},
+			)
 
 			var entryOut go_fuse.EntryOut
 			require.Equal(t, go_fuse.OK, rfs.Lookup(nil, &go_fuse.InHeader{
@@ -255,7 +262,8 @@ func TestSimpleRawFileSystemForget(t *testing.T) {
 				out.SetLinkCount(1)
 				out.SetPermissions(virtual.PermissionsRead | virtual.PermissionsExecute)
 				out.SetSizeBytes(5)
-			})
+			},
+		)
 
 		var fileAttrOut go_fuse.AttrOut
 		require.Equal(t, go_fuse.OK, rfs.GetAttr(nil, &go_fuse.GetAttrIn{
@@ -293,7 +301,8 @@ func TestSimpleRawFileSystemGetAttr(t *testing.T) {
 				out.SetLinkCount(7)
 				out.SetPermissions(virtual.PermissionsExecute)
 				out.SetSizeBytes(12)
-			})
+			},
+		)
 
 		var attrOut go_fuse.AttrOut
 		require.Equal(t, go_fuse.OK, rfs.GetAttr(nil, &go_fuse.GetAttrIn{
@@ -443,7 +452,8 @@ func TestSimpleRawFileSystemMknod(t *testing.T) {
 					Before: 41,
 					After:  42,
 				}, virtual.StatusOK
-			})
+			},
+		)
 
 		var entryOut go_fuse.EntryOut
 		require.Equal(t, go_fuse.OK, rfs.Mknod(nil, &go_fuse.MknodIn{
@@ -499,7 +509,8 @@ func TestSimpleRawFileSystemMkdir(t *testing.T) {
 					Before: 13,
 					After:  14,
 				}, virtual.StatusOK
-			})
+			},
+		)
 
 		var entryOut go_fuse.EntryOut
 		require.Equal(t, go_fuse.OK, rfs.Mkdir(nil, &go_fuse.MkdirIn{
@@ -648,7 +659,8 @@ func TestSimpleRawFileSystemSymlink(t *testing.T) {
 		symlink.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskSymlinkTarget, gomock.Any()).DoAndReturn(
 			func(ctx context.Context, requested virtual.AttributesMask, out *virtual.Attributes) {
 				out.SetSymlinkTarget(path.UNIXFormat.NewParser("target"))
-			})
+			},
+		)
 
 		target, s := rfs.Readlink(nil, &go_fuse.InHeader{NodeId: 123})
 		require.Equal(t, go_fuse.OK, s)
@@ -720,7 +732,8 @@ func TestSimpleRawFileSystemOpenDir(t *testing.T) {
 		rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskPermissions, gomock.Any()).DoAndReturn(
 			func(ctx context.Context, requested virtual.AttributesMask, out *virtual.Attributes) {
 				out.SetPermissions(virtual.PermissionsExecute)
-			})
+			},
+		)
 
 		require.Equal(t, go_fuse.EACCES, rfs.OpenDir(nil, &go_fuse.OpenIn{
 			InHeader: go_fuse.InHeader{
@@ -744,7 +757,8 @@ func TestSimpleRawFileSystemReadDir(t *testing.T) {
 	rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskPermissions, gomock.Any()).DoAndReturn(
 		func(ctx context.Context, requested virtual.AttributesMask, out *virtual.Attributes) {
 			out.SetPermissions(virtual.PermissionsRead)
-		})
+		},
+	)
 
 	var openOut go_fuse.OpenOut
 	require.Equal(t, go_fuse.OK, rfs.OpenDir(nil, &go_fuse.OpenIn{
@@ -797,21 +811,24 @@ func TestSimpleRawFileSystemReadDir(t *testing.T) {
 				virtual.DirectoryChild{}.FromDirectory(mock.NewMockVirtualDirectory(ctrl)),
 				(&virtual.Attributes{}).
 					SetFileType(filesystem.FileTypeDirectory).
-					SetInodeNumber(27)))
+					SetInodeNumber(27),
+			))
 			require.True(t, reporter.ReportEntry(
 				uint64(2),
 				path.MustNewComponent("file"),
 				virtual.DirectoryChild{}.FromLeaf(mock.NewMockVirtualLeaf(ctrl)),
 				(&virtual.Attributes{}).
 					SetFileType(filesystem.FileTypeRegularFile).
-					SetInodeNumber(42)))
+					SetInodeNumber(42),
+			))
 			require.True(t, reporter.ReportEntry(
 				uint64(3),
 				path.MustNewComponent("symlink"),
 				virtual.DirectoryChild{}.FromLeaf(mock.NewMockVirtualLeaf(ctrl)),
 				(&virtual.Attributes{}).
 					SetFileType(filesystem.FileTypeSymlink).
-					SetInodeNumber(83)))
+					SetInodeNumber(83),
+			))
 			return virtual.StatusOK
 		})
 		entryList := mock.NewMockReadDirEntryList(ctrl)
@@ -863,7 +880,8 @@ func TestSimpleRawFileSystemReadDir(t *testing.T) {
 				virtual.DirectoryChild{}.FromDirectory(mock.NewMockVirtualDirectory(ctrl)),
 				(&virtual.Attributes{}).
 					SetFileType(filesystem.FileTypeDirectory).
-					SetInodeNumber(27)))
+					SetInodeNumber(27),
+			))
 			return virtual.StatusOK
 		})
 		entryList := mock.NewMockReadDirEntryList(ctrl)
@@ -902,7 +920,8 @@ func TestSimpleRawFileSystemReadDir(t *testing.T) {
 				virtual.DirectoryChild{}.FromDirectory(mock.NewMockVirtualDirectory(ctrl)),
 				(&virtual.Attributes{}).
 					SetFileType(filesystem.FileTypeDirectory).
-					SetInodeNumber(27)))
+					SetInodeNumber(27),
+			))
 			return virtual.StatusOK
 		})
 		entryList := mock.NewMockReadDirEntryList(ctrl)
@@ -936,7 +955,8 @@ func TestSimpleRawFileSystemReadDir(t *testing.T) {
 				virtual.DirectoryChild{}.FromDirectory(mock.NewMockVirtualDirectory(ctrl)),
 				(&virtual.Attributes{}).
 					SetFileType(filesystem.FileTypeDirectory).
-					SetInodeNumber(27)))
+					SetInodeNumber(27),
+			))
 			return virtual.StatusOK
 		})
 		entryList := mock.NewMockReadDirEntryList(ctrl)
@@ -975,7 +995,8 @@ func TestSimpleRawFileSystemReadDirPlus(t *testing.T) {
 	rootDirectory.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskPermissions, gomock.Any()).DoAndReturn(
 		func(ctx context.Context, requested virtual.AttributesMask, out *virtual.Attributes) {
 			out.SetPermissions(virtual.PermissionsRead)
-		})
+		},
+	)
 
 	var openOut go_fuse.OpenOut
 	require.Equal(t, go_fuse.OK, rfs.OpenDir(nil, &go_fuse.OpenIn{
@@ -1035,7 +1056,8 @@ func TestSimpleRawFileSystemReadDirPlus(t *testing.T) {
 					SetInodeNumber(2).
 					SetLinkCount(12).
 					SetPermissions(virtual.PermissionsExecute).
-					SetSizeBytes(4096)))
+					SetSizeBytes(4096),
+			))
 			require.True(t, reporter.ReportEntry(
 				uint64(2),
 				path.MustNewComponent("file"),
@@ -1045,7 +1067,8 @@ func TestSimpleRawFileSystemReadDirPlus(t *testing.T) {
 					SetInodeNumber(3).
 					SetLinkCount(4).
 					SetPermissions(0).
-					SetSizeBytes(8192)))
+					SetSizeBytes(8192),
+			))
 			return virtual.StatusOK
 		})
 		entryList := mock.NewMockReadDirPlusEntryList(ctrl)
@@ -1107,7 +1130,8 @@ func TestSimpleRawFileSystemReadDirPlus(t *testing.T) {
 				out.SetLinkCount(12)
 				out.SetPermissions(virtual.PermissionsExecute)
 				out.SetSizeBytes(4096)
-			})
+			},
+		)
 		childLeaf.EXPECT().VirtualGetAttributes(gomock.Any(), fuse.AttributesMaskForFUSEAttr, gomock.Any()).DoAndReturn(
 			func(ctx context.Context, requested virtual.AttributesMask, out *virtual.Attributes) {
 				out.SetFileType(filesystem.FileTypeRegularFile)
@@ -1115,7 +1139,8 @@ func TestSimpleRawFileSystemReadDirPlus(t *testing.T) {
 				out.SetLinkCount(4)
 				out.SetPermissions(0)
 				out.SetSizeBytes(8192)
-			})
+			},
+		)
 
 		// The entries returned by ReadDirPlus() have been
 		// registered automatically, meaning they can be
@@ -1181,7 +1206,8 @@ func TestSimpleRawFileSystemReadlink(t *testing.T) {
 			out.SetPermissions(virtual.PermissionsRead | virtual.PermissionsWrite | virtual.PermissionsExecute)
 			out.SetSizeBytes(6)
 			return virtual.DirectoryChild{}.FromLeaf(symlink), virtual.StatusOK
-		})
+		},
+	)
 
 	var entryOut go_fuse.EntryOut
 	require.Equal(t, go_fuse.OK, rfs.Lookup(nil, &go_fuse.InHeader{
@@ -1208,7 +1234,8 @@ func TestSimpleRawFileSystemReadlink(t *testing.T) {
 		symlink.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskSymlinkTarget, gomock.Any()).DoAndReturn(
 			func(ctx context.Context, requested virtual.AttributesMask, out *virtual.Attributes) {
 				out.SetSymlinkTarget(path.UNIXFormat.NewParser("target"))
-			})
+			},
+		)
 
 		target, s := rfs.Readlink(nil, &go_fuse.InHeader{NodeId: 2})
 		require.Equal(t, go_fuse.OK, s)
@@ -1289,7 +1316,8 @@ func TestSimpleRawFileSystemInit(t *testing.T) {
 				out.SetPermissions(virtual.PermissionsExecute)
 				out.SetSizeBytes(1200)
 				return virtual.DirectoryChild{}.FromDirectory(childDirectory), virtual.StatusOK
-			})
+			},
+		)
 
 		var entryOut go_fuse.EntryOut
 		require.Equal(t, go_fuse.OK, rfs.Lookup(nil, &go_fuse.InHeader{

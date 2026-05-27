@@ -87,7 +87,8 @@ func (m *nfsv4Mount) Expose(terminationGroup program.Group, rootDirectory virtua
 		authenticator = nfsv4.NewSystemAuthenticator(
 			compiledExpression,
 			int(systemAuthentication.MaximumCacheSize),
-			eviction.NewMetricsSet(evictionSet, "SystemAuthenticator"))
+			eviction.NewMetricsSet(evictionSet, "SystemAuthenticator"),
+		)
 	}
 
 	// Create a single server that is capable of accepting both

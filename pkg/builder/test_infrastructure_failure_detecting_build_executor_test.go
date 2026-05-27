@@ -25,7 +25,8 @@ func TestTestInfrastructureFailureDetectingBuildExecutor(t *testing.T) {
 	buildExecutor := builder.NewTestInfrastructureFailureDetectingBuildExecutor(
 		baseBuildExecutor,
 		builder.NewTestInfrastructureFailureShutdownState(),
-		/* maximumConsecutiveFailures = */ 5)
+		/* maximumConsecutiveFailures = */ 5,
+	)
 
 	// Common values used by the tests below.
 	filePool := mock.NewMockFilePool(ctrl)

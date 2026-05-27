@@ -62,7 +62,8 @@ func TestStaticDirectoryVirtualOpenChild(t *testing.T) {
 			nil,
 			&virtual.OpenExistingOptions{},
 			virtual.AttributesMaskInodeNumber,
-			&out)
+			&out,
+		)
 		require.Equal(t, virtual.StatusErrNoEnt, s)
 	})
 
@@ -77,7 +78,8 @@ func TestStaticDirectoryVirtualOpenChild(t *testing.T) {
 			(&virtual.Attributes{}).SetPermissions(virtual.PermissionsRead|virtual.PermissionsWrite),
 			&virtual.OpenExistingOptions{},
 			virtual.AttributesMaskInodeNumber,
-			&out)
+			&out,
+		)
 		require.Equal(t, virtual.StatusErrROFS, s)
 	})
 
@@ -92,7 +94,8 @@ func TestStaticDirectoryVirtualOpenChild(t *testing.T) {
 			(&virtual.Attributes{}).SetPermissions(virtual.PermissionsRead|virtual.PermissionsWrite),
 			nil,
 			virtual.AttributesMaskInodeNumber,
-			&out)
+			&out,
+		)
 		require.Equal(t, virtual.StatusErrExist, s)
 	})
 
@@ -107,7 +110,8 @@ func TestStaticDirectoryVirtualOpenChild(t *testing.T) {
 			(&virtual.Attributes{}).SetPermissions(virtual.PermissionsRead|virtual.PermissionsWrite),
 			&virtual.OpenExistingOptions{},
 			virtual.AttributesMaskInodeNumber,
-			&out)
+			&out,
+		)
 		require.Equal(t, virtual.StatusErrIsDir, s)
 	})
 }
@@ -128,7 +132,8 @@ func TestStaticDirectoryVirtualReadDir(t *testing.T) {
 		childA.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskInodeNumber, gomock.Any()).Do(
 			func(ctx context.Context, requested virtual.AttributesMask, out *virtual.Attributes) {
 				out.SetInodeNumber(123)
-			})
+			},
+		)
 		reporter.EXPECT().ReportEntry(
 			uint64(1),
 			path.MustNewComponent("a"),
@@ -138,7 +143,8 @@ func TestStaticDirectoryVirtualReadDir(t *testing.T) {
 		childB.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskInodeNumber, gomock.Any()).Do(
 			func(ctx context.Context, requested virtual.AttributesMask, out *virtual.Attributes) {
 				out.SetInodeNumber(456)
-			})
+			},
+		)
 		reporter.EXPECT().ReportEntry(
 			uint64(2),
 			path.MustNewComponent("b"),
@@ -149,7 +155,8 @@ func TestStaticDirectoryVirtualReadDir(t *testing.T) {
 		require.Equal(
 			t,
 			virtual.StatusOK,
-			d.VirtualReadDir(ctx, 0, virtual.AttributesMaskInodeNumber, reporter))
+			d.VirtualReadDir(ctx, 0, virtual.AttributesMaskInodeNumber, reporter),
+		)
 	})
 
 	t.Run("NoSpace", func(t *testing.T) {
@@ -158,7 +165,8 @@ func TestStaticDirectoryVirtualReadDir(t *testing.T) {
 		childA.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskInodeNumber, gomock.Any()).Do(
 			func(ctx context.Context, requested virtual.AttributesMask, out *virtual.Attributes) {
 				out.SetInodeNumber(123)
-			})
+			},
+		)
 		reporter.EXPECT().ReportEntry(
 			uint64(1),
 			path.MustNewComponent("a"),
@@ -169,7 +177,8 @@ func TestStaticDirectoryVirtualReadDir(t *testing.T) {
 		require.Equal(
 			t,
 			virtual.StatusOK,
-			d.VirtualReadDir(ctx, 0, virtual.AttributesMaskInodeNumber, reporter))
+			d.VirtualReadDir(ctx, 0, virtual.AttributesMaskInodeNumber, reporter),
+		)
 	})
 
 	t.Run("Partial", func(t *testing.T) {
@@ -178,7 +187,8 @@ func TestStaticDirectoryVirtualReadDir(t *testing.T) {
 		childB.EXPECT().VirtualGetAttributes(ctx, virtual.AttributesMaskInodeNumber, gomock.Any()).Do(
 			func(ctx context.Context, requested virtual.AttributesMask, out *virtual.Attributes) {
 				out.SetInodeNumber(456)
-			})
+			},
+		)
 		reporter.EXPECT().ReportEntry(
 			uint64(2),
 			path.MustNewComponent("b"),
@@ -189,7 +199,8 @@ func TestStaticDirectoryVirtualReadDir(t *testing.T) {
 		require.Equal(
 			t,
 			virtual.StatusOK,
-			d.VirtualReadDir(ctx, 1, virtual.AttributesMaskInodeNumber, reporter))
+			d.VirtualReadDir(ctx, 1, virtual.AttributesMaskInodeNumber, reporter),
+		)
 	})
 
 	t.Run("AtEOF", func(t *testing.T) {
@@ -199,7 +210,8 @@ func TestStaticDirectoryVirtualReadDir(t *testing.T) {
 		require.Equal(
 			t,
 			virtual.StatusOK,
-			d.VirtualReadDir(ctx, 2, virtual.AttributesMaskInodeNumber, reporter))
+			d.VirtualReadDir(ctx, 2, virtual.AttributesMaskInodeNumber, reporter),
+		)
 	})
 
 	t.Run("BeyondEOF", func(t *testing.T) {
@@ -210,7 +222,8 @@ func TestStaticDirectoryVirtualReadDir(t *testing.T) {
 		require.Equal(
 			t,
 			virtual.StatusOK,
-			d.VirtualReadDir(ctx, 3, virtual.AttributesMaskInodeNumber, reporter))
+			d.VirtualReadDir(ctx, 3, virtual.AttributesMaskInodeNumber, reporter),
+		)
 	})
 }
 

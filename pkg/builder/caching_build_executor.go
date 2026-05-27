@@ -66,7 +66,8 @@ func (be *cachingBuildExecutor) Execute(ctx context.Context, filePool pool.FileP
 				ActionDigest:    actionDigest.GetProto(),
 				ExecuteResponse: response,
 			},
-			actionDigest.GetDigestFunction()); err == nil {
+			actionDigest.GetDigestFunction(),
+		); err == nil {
 			response.Message = "Action details (uncached result): " + re_util.GetBrowserURL(be.browserURL, "historical_execute_response", historicalExecuteResponseDigest)
 		} else {
 			attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to store historical execute response"))

@@ -27,7 +27,8 @@ func TestHandleAllocatingCharacterDeviceFactory(t *testing.T) {
 		})
 	characterDeviceFactory := virtual.NewHandleAllocatingCharacterDeviceFactory(
 		baseCharacterDeviceFactory,
-		rootHandleAllocation)
+		rootHandleAllocation,
+	)
 
 	t.Run("Lookup", func(t *testing.T) {
 		// Look up /dev/null (on Linux: major 1, minor 3).

@@ -122,7 +122,8 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 		testutil.RequireEqualStatus(
 			t,
 			status.Error(codes.Internal, "Failed to create output parent directory \"foo/bar\": I/O error"),
-			oh.CreateParentDirectories(root))
+			oh.CreateParentDirectories(root),
+		)
 	})
 
 	t.Run("MkdirFailureParentExists", func(t *testing.T) {
@@ -159,7 +160,8 @@ func TestOutputHierarchyCreateParentDirectories(t *testing.T) {
 		testutil.RequireEqualStatus(
 			t,
 			status.Error(codes.Internal, "Failed to enter output parent directory \"foo/bar\": I/O error"),
-			oh.CreateParentDirectories(root))
+			oh.CreateParentDirectories(root),
+		)
 	})
 }
 
@@ -188,7 +190,9 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 				digestFunction,
 				writableFileUploadDelay,
 				&actionResult,
-				/* forceUploadTreesAndDirectories = */ false))
+				/* forceUploadTreesAndDirectories = */ false,
+			),
+		)
 		require.Equal(t, remoteexecution.ActionResult{}, actionResult)
 	})
 
@@ -252,7 +256,8 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		contentAddressableStorage.EXPECT().Put(
 			ctx,
 			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "55aed4acf40a28132fb2d2de2b5962f0", 184),
-			gomock.Any()).
+			gomock.Any(),
+		).
 			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 				m, err := b.ToProto(&remoteexecution.Tree{}, 10000)
 				require.NoError(t, err)
@@ -306,7 +311,8 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		contentAddressableStorage.EXPECT().Put(
 			ctx,
 			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "9dd94c5a4b02914af42e8e6372e0b709", 2),
-			gomock.Any()).
+			gomock.Any(),
+		).
 			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 				m, err := b.ToProto(&remoteexecution.Tree{}, 10000)
 				require.NoError(t, err)
@@ -358,7 +364,9 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 				digestFunction,
 				writableFileUploadDelay,
 				&actionResult,
-				/* forceUploadTreesAndDirectories = */ false))
+				/* forceUploadTreesAndDirectories = */ false,
+			),
+		)
 		require.Equal(t, remoteexecution.ActionResult{
 			OutputDirectories: []*remoteexecution.OutputDirectory{
 				{
@@ -492,7 +500,8 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		contentAddressableStorage.EXPECT().Put(
 			ctx,
 			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "9dd94c5a4b02914af42e8e6372e0b709", 2),
-			gomock.Any()).
+			gomock.Any(),
+		).
 			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 				m, err := b.ToProto(&remoteexecution.Tree{}, 10000)
 				require.NoError(t, err)
@@ -517,7 +526,9 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 				digestFunction,
 				writableFileUploadDelay,
 				&actionResult,
-				/* forceUploadTreesAndDirectories = */ false))
+				/* forceUploadTreesAndDirectories = */ false,
+			),
+		)
 		require.Equal(t, remoteexecution.ActionResult{
 			OutputDirectories: []*remoteexecution.OutputDirectory{
 				{
@@ -553,7 +564,9 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 				digestFunction,
 				writableFileUploadDelay,
 				&actionResult,
-				/* forceUploadTreesAndDirectories = */ false))
+				/* forceUploadTreesAndDirectories = */ false,
+			),
+		)
 		require.Equal(t, remoteexecution.ActionResult{}, actionResult)
 	})
 
@@ -618,7 +631,8 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		contentAddressableStorage.EXPECT().Put(
 			ctx,
 			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "aa5a55cc8d4d32abd00adf5dd1ed93b5", 193),
-			gomock.Any()).
+			gomock.Any(),
+		).
 			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 				m, err := b.ToProto(&remoteexecution.Tree{}, 10000)
 				require.NoError(t, err)
@@ -633,7 +647,8 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		contentAddressableStorage.EXPECT().Put(
 			ctx,
 			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "f782fc2043b00886534aee47de8c522a", 120),
-			gomock.Any()).
+			gomock.Any(),
+		).
 			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 				m, err := b.ToProto(&remoteexecution.Directory{}, 10000)
 				require.NoError(t, err)
@@ -643,7 +658,8 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		contentAddressableStorage.EXPECT().Put(
 			ctx,
 			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "460270223db29e8867bad29c658c1395", 69),
-			gomock.Any()).
+			gomock.Any(),
+		).
 			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 				m, err := b.ToProto(&remoteexecution.Directory{}, 10000)
 				require.NoError(t, err)
@@ -666,7 +682,9 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 				digestFunction,
 				writableFileUploadDelay,
 				&actionResult,
-				/* forceUploadTreesAndDirectories = */ false))
+				/* forceUploadTreesAndDirectories = */ false,
+			),
+		)
 		testutil.RequireEqualProto(t, &remoteexecution.ActionResult{
 			OutputDirectories: []*remoteexecution.OutputDirectory{{
 				Path: ".",

@@ -70,7 +70,8 @@ func TestTracingBuildExecutor(t *testing.T) {
 			executionStateUpdates <- running
 			executionStateUpdates <- uploadingOutputs
 			return response
-		})
+		},
+	)
 
 	span := mock.NewMockSpan(ctrl)
 	tracer.EXPECT().Start(ctx, "BuildExecutor.Execute", trace.WithAttributes(

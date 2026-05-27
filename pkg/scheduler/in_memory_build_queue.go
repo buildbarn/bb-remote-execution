@@ -54,7 +54,8 @@ var (
 			Name:      "in_memory_build_queue_in_flight_deduplications_total",
 			Help:      "Number of times an Execute() request of a cacheable action was performed, and whether it was in-flight deduplicated against an existing task.",
 		},
-		[]string{"instance_name_prefix", "platform", "size_class", "outcome"})
+		[]string{"instance_name_prefix", "platform", "size_class", "outcome"},
+	)
 
 	inMemoryBuildQueueInvocationsCreatedTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -63,7 +64,8 @@ var (
 			Name:      "in_memory_build_queue_invocations_created_total",
 			Help:      "Number of times an invocation object was created by creating a size class queue or scheduling a task through Execute().",
 		},
-		[]string{"instance_name_prefix", "platform", "size_class", "depth"})
+		[]string{"instance_name_prefix", "platform", "size_class", "depth"},
+	)
 	inMemoryBuildQueueInvocationsActivatedTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "buildbarn",
@@ -71,7 +73,8 @@ var (
 			Name:      "in_memory_build_queue_invocations_activated_total",
 			Help:      "Number of times an invocation object transitioned from being idle to having queued or executing operations.",
 		},
-		[]string{"instance_name_prefix", "platform", "size_class", "depth"})
+		[]string{"instance_name_prefix", "platform", "size_class", "depth"},
+	)
 	inMemoryBuildQueueInvocationsDeactivatedTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "buildbarn",
@@ -79,7 +82,8 @@ var (
 			Name:      "in_memory_build_queue_invocations_deactivated_total",
 			Help:      "Number of times an invocation object transitioned from having queued or executing operations to being idle.",
 		},
-		[]string{"instance_name_prefix", "platform", "size_class", "depth"})
+		[]string{"instance_name_prefix", "platform", "size_class", "depth"},
+	)
 	inMemoryBuildQueueInvocationsRemovedTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "buildbarn",
@@ -87,7 +91,8 @@ var (
 			Name:      "in_memory_build_queue_invocations_removed_total",
 			Help:      "Number of times an invocation object was removed.",
 		},
-		[]string{"instance_name_prefix", "platform", "size_class", "depth"})
+		[]string{"instance_name_prefix", "platform", "size_class", "depth"},
+	)
 
 	inMemoryBuildQueueTasksScheduledTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -96,7 +101,8 @@ var (
 			Name:      "in_memory_build_queue_tasks_scheduled_total",
 			Help:      "Number of times tasks were scheduled, either by calling Execute() or through initial size class selection retries.",
 		},
-		[]string{"instance_name_prefix", "platform", "size_class", "assignment", "do_not_cache"})
+		[]string{"instance_name_prefix", "platform", "size_class", "assignment", "do_not_cache"},
+	)
 	inMemoryBuildQueueTasksQueuedDurationSeconds = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
@@ -105,7 +111,8 @@ var (
 			Help:      "Time in seconds that tasks were queued before executing.",
 			Buckets:   util.DecimalExponentialBuckets(-3, 6, 2),
 		},
-		[]string{"instance_name_prefix", "platform", "size_class"})
+		[]string{"instance_name_prefix", "platform", "size_class"},
+	)
 	inMemoryBuildQueueTasksExecutingDurationSeconds = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
@@ -114,7 +121,8 @@ var (
 			Help:      "Time in seconds that tasks were executing before completing.",
 			Buckets:   util.DecimalExponentialBuckets(-3, 6, 2),
 		},
-		[]string{"instance_name_prefix", "platform", "size_class", "result", "grpc_code"})
+		[]string{"instance_name_prefix", "platform", "size_class", "result", "grpc_code"},
+	)
 	inMemoryBuildQueueTasksExecutingRetries = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
@@ -123,7 +131,8 @@ var (
 			Help:      "Number of times that tasks were retried before completing.",
 			Buckets:   prometheus.LinearBuckets(0, 1, 11),
 		},
-		[]string{"instance_name_prefix", "platform", "size_class", "result", "grpc_code"})
+		[]string{"instance_name_prefix", "platform", "size_class", "result", "grpc_code"},
+	)
 	inMemoryBuildQueueTasksCompletedDurationSeconds = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
@@ -132,7 +141,8 @@ var (
 			Help:      "Time in seconds that tasks were completed before being removed.",
 			Buckets:   util.DecimalExponentialBuckets(-3, 6, 2),
 		},
-		[]string{"instance_name_prefix", "platform", "size_class"})
+		[]string{"instance_name_prefix", "platform", "size_class"},
+	)
 
 	inMemoryBuildQueueWorkersCreatedTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -141,7 +151,8 @@ var (
 			Name:      "in_memory_build_queue_workers_created_total",
 			Help:      "Number of workers created by Synchronize().",
 		},
-		[]string{"instance_name_prefix", "platform", "size_class"})
+		[]string{"instance_name_prefix", "platform", "size_class"},
+	)
 	inMemoryBuildQueueWorkersTerminatingTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "buildbarn",
@@ -149,7 +160,8 @@ var (
 			Name:      "in_memory_build_queue_workers_terminating_total",
 			Help:      "Number of workers that have entered the terminating state.",
 		},
-		[]string{"instance_name_prefix", "platform", "size_class"})
+		[]string{"instance_name_prefix", "platform", "size_class"},
+	)
 	inMemoryBuildQueueWorkersRemovedTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "buildbarn",
@@ -157,7 +169,8 @@ var (
 			Name:      "in_memory_build_queue_workers_removed_total",
 			Help:      "Number of workers removed due to expiration.",
 		},
-		[]string{"instance_name_prefix", "platform", "size_class", "state"})
+		[]string{"instance_name_prefix", "platform", "size_class", "state"},
+	)
 
 	inMemoryBuildQueueWorkerInvocationStickinessRetained = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
@@ -167,7 +180,8 @@ var (
 			Help:      "How many levels of worker invocation stickiness were respected, as configured through worker_invocation_stickiness_limits.",
 			Buckets:   prometheus.LinearBuckets(0, 1, 11),
 		},
-		[]string{"instance_name_prefix", "platform", "size_class"})
+		[]string{"instance_name_prefix", "platform", "size_class"},
+	)
 )
 
 // InMemoryBuildQueueConfiguration contains all the tunable settings of
@@ -1544,7 +1558,8 @@ func (scq *sizeClassQueue) remove(bq *InMemoryBuildQueue) {
 		status.New(
 			codes.Unavailable,
 			"Workers for this instance name, platform and size class disappeared while task was queued",
-		).Proto())
+		).Proto(),
+	)
 	scq.invocationsMetrics[0].removedTotal.Inc()
 
 	delete(bq.sizeClassQueues, scq.getKey())
@@ -1643,7 +1658,8 @@ func (scq *sizeClassQueue) incrementInvocationsCreatedTotal(depth int) {
 				activatedTotal:   inMemoryBuildQueueInvocationsActivatedTotal.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr, depthStr),
 				deactivatedTotal: inMemoryBuildQueueInvocationsDeactivatedTotal.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr, depthStr),
 				removedTotal:     inMemoryBuildQueueInvocationsRemovedTotal.WithLabelValues(instanceNamePrefix, platformStr, sizeClassStr, depthStr),
-			})
+			},
+		)
 	}
 
 	scq.invocationsMetrics[depth].createdTotal.Inc()
@@ -2038,7 +2054,8 @@ func (i *invocation) cancelAllQueuedOperations(bq *InMemoryBuildQueue, status *s
 		i.queuedOperations[i.queuedOperations.Len()-1].task.complete(
 			bq,
 			&remoteexecution.ExecuteResponse{Status: status},
-			/* completedByWorker = */ false)
+			/* completedByWorker = */ false,
+		)
 	}
 }
 
@@ -2540,7 +2557,8 @@ func (t *task) complete(bq *InMemoryBuildQueue, executeResponse *remoteexecution
 		executionMetadata := actionResult.GetExecutionMetadata()
 		backgroundSizeClassIndex, backgroundExpectedDuration, backgroundTimeout, backgroundInitialSizeClassLearner := t.initialSizeClassLearner.Succeeded(
 			executionMetadata.GetVirtualExecutionDuration().AsDuration(),
-			pq.sizeClasses)
+			pq.sizeClasses,
+		)
 		t.initialSizeClassLearner = nil
 		if backgroundInitialSizeClassLearner != nil {
 			if pq.maximumQueuedBackgroundLearningOperations == 0 {
@@ -2752,7 +2770,8 @@ func (w *worker) dequeue(scq *sizeClassQueue) {
 		heapRemoveOrFix(
 			&i.parent.idleSynchronizingWorkersChildren,
 			i.idleSynchronizingWorkersChildrenIndex,
-			len(i.idleSynchronizingWorkers)+i.idleSynchronizingWorkersChildren.Len())
+			len(i.idleSynchronizingWorkers)+i.idleSynchronizingWorkersChildren.Len(),
+		)
 		i = i.parent
 	}
 	w.wakeup = nil
@@ -3063,7 +3082,8 @@ func (w *worker) getCurrentOrNextTask(ctx context.Context, bq *InMemoryBuildQueu
 				codes.Internal,
 				"Attempted to execute task %d times, but it never completed. This task may cause worker %s to crash.",
 				t.retryCount+1,
-				newWorkerKey(workerID)).Proto(),
+				newWorkerKey(workerID),
+			).Proto(),
 		}, false)
 	}
 	return w.getNextTask(ctx, bq, scq, workerID, preferBeingIdle)

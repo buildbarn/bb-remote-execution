@@ -36,7 +36,8 @@ func GetFileInfo(name path.Component, node Node) filesystem.FileInfo {
 	return filesystem.NewFileInfo(
 		name,
 		attributes.GetFileType(),
-		permissions&PermissionsExecute != 0)
+		permissions&PermissionsExecute != 0,
+	)
 }
 
 // ApplyUploadFile is an operation for VirtualApply that uploads the

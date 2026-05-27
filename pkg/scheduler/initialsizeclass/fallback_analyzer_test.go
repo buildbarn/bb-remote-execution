@@ -18,7 +18,9 @@ func TestFallbackAnalyzer(t *testing.T) {
 	analyzer := initialsizeclass.NewFallbackAnalyzer(
 		initialsizeclass.NewActionTimeoutExtractor(
 			30*time.Minute,
-			60*time.Minute))
+			60*time.Minute,
+		),
+	)
 
 	exampleDigestFunction := digest.MustNewFunction("hello", remoteexecution.DigestFunction_MD5)
 	exampleAction := &remoteexecution.Action{

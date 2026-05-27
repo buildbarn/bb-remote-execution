@@ -543,7 +543,8 @@ func TestLocalRunnerRun(t *testing.T) {
 		testutil.RequireEqualStatus(
 			t,
 			status.Error(codes.InvalidArgument, "Failed to open stdout path \"hello/../../../../../../etc/passwd\": Path resolves to a location outside the build directory"),
-			err)
+			err,
+		)
 	})
 
 	// TODO: Improve testing coverage of LocalRunner.

@@ -26,7 +26,8 @@ func TestDefaultAttributesInjectingRawFileSystem(t *testing.T) {
 		&go_fuse.Attr{
 			Atime: 1596207097,
 			Mtime: 1596207531,
-		})
+		},
+	)
 
 	t.Run("Lookup", func(t *testing.T) {
 		// Lookup() is an example of an operation that returns
@@ -50,7 +51,8 @@ func TestDefaultAttributesInjectingRawFileSystem(t *testing.T) {
 		require.Equal(
 			t,
 			go_fuse.OK,
-			rfs.Lookup(nil, &go_fuse.InHeader{NodeId: 5}, "hello", &entryOut))
+			rfs.Lookup(nil, &go_fuse.InHeader{NodeId: 5}, "hello", &entryOut),
+		)
 		require.Equal(
 			t,
 			go_fuse.EntryOut{
@@ -68,7 +70,8 @@ func TestDefaultAttributesInjectingRawFileSystem(t *testing.T) {
 					Mtime: 123,
 				},
 			},
-			entryOut)
+			entryOut,
+		)
 	})
 
 	t.Run("GetAttr", func(t *testing.T) {
@@ -91,7 +94,8 @@ func TestDefaultAttributesInjectingRawFileSystem(t *testing.T) {
 		require.Equal(
 			t,
 			go_fuse.OK,
-			rfs.GetAttr(nil, &go_fuse.GetAttrIn{InHeader: go_fuse.InHeader{NodeId: 5}}, &attrOut))
+			rfs.GetAttr(nil, &go_fuse.GetAttrIn{InHeader: go_fuse.InHeader{NodeId: 5}}, &attrOut),
+		)
 		require.Equal(
 			t,
 			go_fuse.AttrOut{
@@ -106,7 +110,8 @@ func TestDefaultAttributesInjectingRawFileSystem(t *testing.T) {
 					Mtime: 123,
 				},
 			},
-			attrOut)
+			attrOut,
+		)
 	})
 
 	t.Run("ReadDirPlus", func(t *testing.T) {
@@ -170,7 +175,8 @@ func TestDefaultAttributesInjectingRawFileSystem(t *testing.T) {
 		require.Equal(
 			t,
 			go_fuse.OK,
-			rfs.ReadDirPlus(nil, &go_fuse.ReadIn{InHeader: go_fuse.InHeader{NodeId: 5}}, entryList))
+			rfs.ReadDirPlus(nil, &go_fuse.ReadIn{InHeader: go_fuse.InHeader{NodeId: 5}}, entryList),
+		)
 		require.Equal(
 			t,
 			go_fuse.EntryOut{
@@ -188,7 +194,8 @@ func TestDefaultAttributesInjectingRawFileSystem(t *testing.T) {
 					Mtime: 123,
 				},
 			},
-			entry1)
+			entry1,
+		)
 		require.Equal(
 			t,
 			go_fuse.EntryOut{
@@ -206,6 +213,7 @@ func TestDefaultAttributesInjectingRawFileSystem(t *testing.T) {
 					Mtime: 123,
 				},
 			},
-			entry2)
+			entry2,
+		)
 	})
 }

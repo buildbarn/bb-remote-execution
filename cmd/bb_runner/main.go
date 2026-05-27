@@ -46,7 +46,8 @@ func main() {
 		buildDirectory := re_filesystem.NewLazyDirectory(
 			func() (filesystem.DirectoryCloser, error) {
 				return filesystem.NewLocalDirectory(buildDirectoryPath)
-			})
+			},
+		)
 
 		sysProcAttr, processTableCleaningUserID, err := credentials.GetSysProcAttrFromConfiguration(configuration.RunCommandsAs)
 		if err != nil {
@@ -67,7 +68,8 @@ func main() {
 			buildDirectory,
 			buildDirectoryPath,
 			commandCreator,
-			configuration.SetTmpdirEnvironmentVariable)
+			configuration.SetTmpdirEnvironmentVariable,
+		)
 
 		// Let bb_runner replace temporary directories with symbolic
 		// links pointing to the temporary directory set up by
@@ -102,7 +104,10 @@ func main() {
 						func(process *cleaner.Process) bool {
 							return process.UserID == processTableCleaningUserID &&
 								process.CreationTime.After(startupTime)
-						})))
+						},
+					),
+				),
+			)
 		}
 
 		// Clean temporary directories, so that files left behind by
@@ -121,13 +126,16 @@ func main() {
 				cleaners,
 				cleaner.NewCommandRunningCleaner(
 					configuration.RunCommandCleaner[0],
-					configuration.RunCommandCleaner[1:]))
+					configuration.RunCommandCleaner[1:],
+				),
+			)
 		}
 
 		if len(cleaners) > 0 {
 			r = runner.NewCleanRunner(
 				r,
-				cleaner.NewIdleInvoker(cleaner.NewChainedCleaner(cleaners)))
+				cleaner.NewIdleInvoker(cleaner.NewChainedCleaner(cleaners)),
+			)
 		}
 
 		// Paths that need to be present for the worker to be healthy.
@@ -144,7 +152,9 @@ func main() {
 				r,
 				configuration.AppleXcodeDeveloperDirectories,
 				runner.NewCachingAppleXcodeSDKRootResolver(
-					runner.LocalAppleXcodeSDKRootResolver))
+					runner.LocalAppleXcodeSDKRootResolver,
+				),
+			)
 		}
 
 		if err := bb_grpc.NewServersFromConfigurationAndServe(

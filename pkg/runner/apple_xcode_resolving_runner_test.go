@@ -27,7 +27,8 @@ func TestAppleXcodeResolvingRunner(t *testing.T) {
 			"13.4.1.13F100": "/Applications/Xcode13.app/Contents/Developer",
 			"14.2.0.14C18":  "/Applications/Xcode14.app/Contents/Developer",
 		},
-		sdkRootResolver.Call)
+		sdkRootResolver.Call,
+	)
 
 	response := &runner_pb.RunResponse{
 		ExitCode: 123,

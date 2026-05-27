@@ -44,7 +44,8 @@ func TestStatelessHandleAllocatingCASFileFactory(t *testing.T) {
 					// Digest.
 					"1-bc126902a442931481d7f89552a41b1891cf06dd8d3675062eede66d104d97b4-123-hello"+
 					// Executable flag.
-					"\x00"), idBuf.Bytes())
+					"\x00",
+			), idBuf.Bytes())
 			return leafHandleAllocation
 		})
 		leafHandleAllocation.EXPECT().AsLinkableLeaf(underlyingLeaf).Return(wrappedLeaf)
@@ -73,7 +74,8 @@ func TestStatelessHandleAllocatingCASFileFactory(t *testing.T) {
 					// Digest.
 					"3-c8a4ddfcd3a5a0caf4cc1d64883df421-456-foobar"+
 					// Executable flag.
-					"\x01"), idBuf.Bytes())
+					"\x01",
+			), idBuf.Bytes())
 			return leafHandleAllocation
 		})
 		leafHandleAllocation.EXPECT().AsLinkableLeaf(underlyingLeaf).Return(wrappedLeaf)
@@ -106,7 +108,8 @@ func TestStatelessHandleAllocatingCASFileFactory(t *testing.T) {
 					// Digest.
 					"3-1234fc8071156282a346e0563ef92b6f-123-foobar"+
 					// Executable flag.
-					"\x01"), idBuf.Bytes())
+					"\x01",
+			), idBuf.Bytes())
 			return leafHandleAllocation
 		})
 		var monitoringLeaf virtual.LinkableLeaf

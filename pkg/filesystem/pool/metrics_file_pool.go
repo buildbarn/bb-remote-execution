@@ -16,14 +16,16 @@ var (
 			Subsystem: "filesystem",
 			Name:      "file_pool_files_created_total",
 			Help:      "Number of times a file was created that is backed by a file pool.",
-		})
+		},
+	)
 	filePoolFilesClosed = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Namespace: "buildbarn",
 			Subsystem: "filesystem",
 			Name:      "file_pool_files_closed_total",
 			Help:      "Number of times a file was closed that is backed by a file pool.",
-		})
+		},
+	)
 )
 
 type metricsFilePool struct {

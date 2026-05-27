@@ -32,7 +32,8 @@ func TestSuspendingBlobAccess(t *testing.T) {
 		gomock.InOrder(
 			suspendable.EXPECT().Suspend(),
 			baseBlobAccess.EXPECT().Get(ctx, exampleDigest).
-				Return(buffer.NewCASBufferFromReader(exampleDigest, r, buffer.UserProvided)))
+				Return(buffer.NewCASBufferFromReader(exampleDigest, r, buffer.UserProvided)),
+		)
 
 		b := blobAccess.Get(ctx, exampleDigest)
 
@@ -41,7 +42,8 @@ func TestSuspendingBlobAccess(t *testing.T) {
 				return copy(p, "Hello"), io.EOF
 			}),
 			r.EXPECT().Close(),
-			suspendable.EXPECT().Resume())
+			suspendable.EXPECT().Resume(),
+		)
 
 		data, err := b.ToByteSlice(1000)
 		require.NoError(t, err)
@@ -55,7 +57,8 @@ func TestSuspendingBlobAccess(t *testing.T) {
 		gomock.InOrder(
 			suspendable.EXPECT().Suspend(),
 			baseBlobAccess.EXPECT().GetFromComposite(ctx, exampleDigest, llDigest, blobSlicer).
-				Return(buffer.NewCASBufferFromReader(llDigest, r, buffer.UserProvided)))
+				Return(buffer.NewCASBufferFromReader(llDigest, r, buffer.UserProvided)),
+		)
 
 		b := blobAccess.GetFromComposite(ctx, exampleDigest, llDigest, blobSlicer)
 
@@ -64,7 +67,8 @@ func TestSuspendingBlobAccess(t *testing.T) {
 				return copy(p, "ll"), io.EOF
 			}),
 			r.EXPECT().Close(),
-			suspendable.EXPECT().Resume())
+			suspendable.EXPECT().Resume(),
+		)
 
 		data, err := b.ToByteSlice(1000)
 		require.NoError(t, err)
@@ -80,8 +84,10 @@ func TestSuspendingBlobAccess(t *testing.T) {
 					require.NoError(t, err)
 					require.Equal(t, []byte("Hello"), data)
 					return nil
-				}),
-			suspendable.EXPECT().Resume())
+				},
+			),
+			suspendable.EXPECT().Resume(),
+		)
 
 		require.NoError(t, blobAccess.Put(ctx, exampleDigest, buffer.NewValidatedBufferFromByteSlice([]byte("Hello"))))
 	})
@@ -90,7 +96,8 @@ func TestSuspendingBlobAccess(t *testing.T) {
 		gomock.InOrder(
 			suspendable.EXPECT().Suspend(),
 			baseBlobAccess.EXPECT().FindMissing(ctx, digest.EmptySet).Return(digest.EmptySet, nil),
-			suspendable.EXPECT().Resume())
+			suspendable.EXPECT().Resume(),
+		)
 
 		missing, err := blobAccess.FindMissing(ctx, digest.EmptySet)
 		require.NoError(t, err)
@@ -103,7 +110,8 @@ func TestSuspendingBlobAccess(t *testing.T) {
 			baseBlobAccess.EXPECT().GetCapabilities(ctx, exampleInstanceName).Return(&remoteexecution.ServerCapabilities{
 				CacheCapabilities: &remoteexecution.CacheCapabilities{},
 			}, nil),
-			suspendable.EXPECT().Resume())
+			suspendable.EXPECT().Resume(),
+		)
 
 		serverCapabilities, err := blobAccess.GetCapabilities(ctx, exampleInstanceName)
 		require.NoError(t, err)

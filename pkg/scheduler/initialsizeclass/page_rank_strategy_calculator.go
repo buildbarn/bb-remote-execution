@@ -19,7 +19,8 @@ var (
 			Name:      "page_rank_strategy_calculator_convergence_iterations",
 			Help:      "Number of iterations matrix multiplication was performed until convergence.",
 			Buckets:   prometheus.ExponentialBuckets(1.0, 2.0, 11),
-		})
+		},
+	)
 )
 
 type pageRankStrategyCalculator struct {

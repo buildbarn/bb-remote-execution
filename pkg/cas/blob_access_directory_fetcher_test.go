@@ -165,7 +165,8 @@ func TestBlobAccessDirectoryFetcherGetTreeChildDirectory(t *testing.T) {
 		_, err := directoryFetcher.GetTreeChildDirectory(
 			ctx,
 			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "5959bc9570aa7909a09163bb2201f4af", 100000),
-			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "2c09e7b2ad516c4cd9fc5c244ae08794", 100))
+			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "2c09e7b2ad516c4cd9fc5c244ae08794", 100),
+		)
 		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Tree exceeds the maximum permitted size of 10000 bytes"), err)
 	})
 
@@ -188,7 +189,8 @@ func TestBlobAccessDirectoryFetcherGetTreeChildDirectory(t *testing.T) {
 		_, err := directoryFetcher.GetTreeChildDirectory(
 			ctx,
 			treeDigest,
-			directoryDigest)
+			directoryDigest,
+		)
 		testutil.RequireEqualStatus(t, status.Error(codes.Internal, "I/O error"), err)
 	})
 
@@ -209,7 +211,8 @@ func TestBlobAccessDirectoryFetcherGetTreeChildDirectory(t *testing.T) {
 		_, err := directoryFetcher.GetTreeChildDirectory(
 			ctx,
 			treeDigest,
-			directoryDigest)
+			directoryDigest,
+		)
 		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Field with number 10 at offset 0 has type 4, while 2 was expected"), err)
 	})
 
@@ -230,7 +233,8 @@ func TestBlobAccessDirectoryFetcherGetTreeChildDirectory(t *testing.T) {
 		_, err := directoryFetcher.GetTreeChildDirectory(
 			ctx,
 			treeDigest,
-			directoryDigest)
+			directoryDigest,
+		)
 		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Buffer has checksum b85d6fb9ef4260dcf1ce0a1b0bff80d3, while ceb78ab91c6d580aceea6618dd6fc5cc was expected"), err)
 	})
 
@@ -312,28 +316,32 @@ func TestBlobAccessDirectoryFetcherGetTreeChildDirectory(t *testing.T) {
 		fetchedDirectory, err := directoryFetcher.GetTreeChildDirectory(
 			ctx,
 			treeDigest,
-			rootDirectoryDigest)
+			rootDirectoryDigest,
+		)
 		require.NoError(t, err)
 		testutil.RequireEqualProto(t, rootDirectory, fetchedDirectory)
 
 		fetchedDirectory, err = directoryFetcher.GetTreeChildDirectory(
 			ctx,
 			treeDigest,
-			childDirectory1Digest)
+			childDirectory1Digest,
+		)
 		require.NoError(t, err)
 		testutil.RequireEqualProto(t, childDirectory1, fetchedDirectory)
 
 		fetchedDirectory, err = directoryFetcher.GetTreeChildDirectory(
 			ctx,
 			treeDigest,
-			childDirectory2Digest)
+			childDirectory2Digest,
+		)
 		require.NoError(t, err)
 		testutil.RequireEqualProto(t, childDirectory2, fetchedDirectory)
 
 		_, err = directoryFetcher.GetTreeChildDirectory(
 			ctx,
 			treeDigest,
-			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "cb572cb90e637d1eb64c5358aa398b5e", 400))
+			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "cb572cb90e637d1eb64c5358aa398b5e", 400),
+		)
 		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Requested child directory is not contained in the tree"), err)
 	})
 }

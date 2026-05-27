@@ -31,13 +31,15 @@ func NewExistencePreconditionBlobAccess(blobAccess blobstore.BlobAccess) blobsto
 func (ba *existencePreconditionBlobAccess) Get(ctx context.Context, digest digest.Digest) buffer.Buffer {
 	return buffer.WithErrorHandler(
 		ba.BlobAccess.Get(ctx, digest),
-		existencePreconditionErrorHandler{digest: digest})
+		existencePreconditionErrorHandler{digest: digest},
+	)
 }
 
 func (ba *existencePreconditionBlobAccess) GetFromComposite(ctx context.Context, parentDigest, childDigest digest.Digest, slicer slicing.BlobSlicer) buffer.Buffer {
 	return buffer.WithErrorHandler(
 		ba.BlobAccess.GetFromComposite(ctx, parentDigest, childDigest, slicer),
-		existencePreconditionErrorHandler{digest: parentDigest})
+		existencePreconditionErrorHandler{digest: parentDigest},
+	)
 }
 
 type existencePreconditionErrorHandler struct {
@@ -56,7 +58,8 @@ func (eh existencePreconditionErrorHandler) OnError(observedErr error) (buffer.B
 							GetByteStreamReadPath(remoteexecution.Compressor_IDENTITY),
 					},
 				},
-			})
+			},
+		)
 		if err != nil {
 			return nil, err
 		}

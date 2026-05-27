@@ -2278,7 +2278,8 @@ func (s *sequenceState) opOpen(ctx context.Context, args *nfsv4.Open4args) nfsv4
 			createAttributes,
 			existingOptions,
 			virtual.AttributesMaskFileHandle,
-			&attributes)
+			&attributes,
+		)
 		if vs != virtual.StatusOK {
 			return &nfsv4.Open4res_default{Status: toNFSv4Status(vs)}
 		}

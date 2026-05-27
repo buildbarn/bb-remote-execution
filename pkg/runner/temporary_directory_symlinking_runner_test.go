@@ -153,7 +153,8 @@ func TestTemporaryDirectorySymlinkingRunnerCheckReadiness(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, filepath.FromSlash("/worker/build/a/tmp"), symlinkTarget)
 				return response, nil
-			})
+			},
+		)
 
 		observedResponse, err := runner.Run(ctx, request)
 		require.NoError(t, err)

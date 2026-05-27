@@ -93,13 +93,15 @@ func TestNaiveBuildDirectorySuccess(t *testing.T) {
 		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "9999999999999999999999999999999999999999999999999999999999999999", 512),
 		gomock.Any(),
 		path.MustNewComponent("non-executable"),
-		false).Return(nil)
+		false,
+	).Return(nil)
 	fileFetcher.EXPECT().GetFile(
 		gomock.Any(),
 		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", 512),
 		gomock.Any(),
 		path.MustNewComponent("executable"),
-		true).Return(nil)
+		true,
+	).Return(nil)
 	buildDirectory.EXPECT().Symlink(gomock.Any(), path.MustNewComponent("link-to-executable")).
 		Do(func(targetParser path.Parser, name path.Component) {
 			targetPath, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
@@ -113,7 +115,8 @@ func TestNaiveBuildDirectorySuccess(t *testing.T) {
 		ctx,
 		errorLogger,
 		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42),
-		nil)
+		nil,
+	)
 	require.NoError(t, err)
 }
 
@@ -135,7 +138,8 @@ func TestNaiveBuildDirectoryInputRootNotInStorage(t *testing.T) {
 		ctx,
 		errorLogger,
 		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42),
-		nil)
+		nil,
+	)
 	testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to obtain input directory \".\": Storage is offline"), err)
 }
 
@@ -181,7 +185,8 @@ func TestNaiveBuildDirectoryMissingInputDirectoryDigest(t *testing.T) {
 		ctx,
 		errorLogger,
 		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42),
-		nil)
+		nil,
+	)
 	testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Failed to extract digest for input directory \"Hello/World\": No digest provided"), err)
 }
 
@@ -232,7 +237,8 @@ func TestNaiveBuildDirectoryDirectoryCreationFailure(t *testing.T) {
 		ctx,
 		errorLogger,
 		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42),
-		nil)
+		nil,
+	)
 	testutil.RequireEqualStatus(t, status.Error(codes.DataLoss, "Failed to create input directory \"Hello/World\": Disk on fire"), err)
 }
 
@@ -284,7 +290,8 @@ func TestNaiveBuildDirectoryDirectoryEnterDirectoryFailure(t *testing.T) {
 		ctx,
 		errorLogger,
 		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42),
-		nil)
+		nil,
+	)
 	testutil.RequireEqualStatus(t, status.Error(codes.PermissionDenied, "Failed to enter input directory \"Hello/World\": Thou shalt not pass!"), err)
 }
 
@@ -330,7 +337,8 @@ func TestNaiveBuildDirectoryMissingInputFileDigest(t *testing.T) {
 		ctx,
 		errorLogger,
 		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42),
-		nil)
+		nil,
+	)
 	testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Failed to extract digest for input file \"Hello/World\": No digest provided"), err)
 }
 
@@ -377,7 +385,8 @@ func TestNaiveBuildDirectoryFileCreationFailure(t *testing.T) {
 		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 87),
 		gomock.Any(),
 		path.MustNewComponent("World"),
-		false).Return(status.Error(codes.DataLoss, "Disk on fire"))
+		false,
+	).Return(status.Error(codes.DataLoss, "Disk on fire"))
 	helloDirectory.EXPECT().Close()
 	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, semaphore.NewWeighted(1), contentAddressableStorage)
@@ -386,7 +395,8 @@ func TestNaiveBuildDirectoryFileCreationFailure(t *testing.T) {
 		ctx,
 		errorLogger,
 		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42),
-		nil)
+		nil,
+	)
 	testutil.RequireEqualStatus(t, status.Error(codes.DataLoss, "Failed to obtain input file \"Hello/World\": Disk on fire"), err)
 }
 
@@ -440,7 +450,8 @@ func TestNaiveBuildDirectorySymlinkCreationFailure(t *testing.T) {
 		ctx,
 		errorLogger,
 		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42),
-		nil)
+		nil,
+	)
 	testutil.RequireEqualStatus(t, status.Error(codes.Unimplemented, "Failed to create input symlink \"Hello/World\": This filesystem does not support symbolic links"), err)
 }
 
@@ -478,8 +489,10 @@ func TestNaiveBuildDirectoryUploadFile(t *testing.T) {
 			file.EXPECT().ReadAt(gomock.Any(), int64(0)).DoAndReturn(
 				func(p []byte, off int64) (int, error) {
 					return 0, status.Error(codes.Unavailable, "Disk on fire")
-				}),
-			file.EXPECT().Close().Return(nil))
+				},
+			),
+			file.EXPECT().Close().Return(nil),
+		)
 
 		_, err := inputRootPopulator.UploadFile(ctx, path.MustNewComponent("hello"), digestFunction, writableFileUploadDelay)
 		testutil.RequireEqualStatus(t, status.Error(codes.Unavailable, "Failed to compute file digest: Disk on fire"), err)
@@ -497,20 +510,24 @@ func TestNaiveBuildDirectoryUploadFile(t *testing.T) {
 					require.Len(t, p, 11)
 					copy(p, "Hello world")
 					return 11, io.EOF
-				}),
+				},
+			),
 			file.EXPECT().ReadAt(gomock.Any(), int64(0)).DoAndReturn(
 				func(p []byte, off int64) (int, error) {
 					require.Greater(t, len(p), 9)
 					copy(p, "Different")
 					return 9, io.EOF
-				}),
-			file.EXPECT().Close().Return(nil))
+				},
+			),
+			file.EXPECT().Close().Return(nil),
+		)
 		contentAddressableStorage.EXPECT().Put(ctx, helloWorldDigest, gomock.Any()).DoAndReturn(
 			func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 				_, err := b.ToByteSlice(100)
 				testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Buffer is 9 bytes in size, while 11 bytes were expected"), err)
 				return err
-			})
+			},
+		)
 
 		_, err := inputRootPopulator.UploadFile(ctx, path.MustNewComponent("hello"), digestFunction, writableFileUploadDelay)
 		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Failed to upload file: Buffer is 9 bytes in size, while 11 bytes were expected"), err)
@@ -531,21 +548,25 @@ func TestNaiveBuildDirectoryUploadFile(t *testing.T) {
 					require.Len(t, p, 11)
 					copy(p, "Hello world")
 					return 11, io.EOF
-				}),
+				},
+			),
 			file.EXPECT().ReadAt(gomock.Any(), int64(0)).DoAndReturn(
 				func(p []byte, off int64) (int, error) {
 					require.Len(t, p, 11)
 					copy(p, "Hello world")
 					return 11, nil
-				}),
-			file.EXPECT().Close().Return(nil))
+				},
+			),
+			file.EXPECT().Close().Return(nil),
+		)
 		contentAddressableStorage.EXPECT().Put(ctx, helloWorldDigest, gomock.Any()).DoAndReturn(
 			func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 				data, err := b.ToByteSlice(100)
 				require.NoError(t, err)
 				require.Equal(t, []byte("Hello world"), data)
 				return nil
-			})
+			},
+		)
 
 		digest, err := inputRootPopulator.UploadFile(ctx, path.MustNewComponent("hello"), digestFunction, writableFileUploadDelay)
 		require.NoError(t, err)

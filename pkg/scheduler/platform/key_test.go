@@ -86,7 +86,8 @@ func TestKey(t *testing.T) {
 		require.Equal(
 			t,
 			"{\"properties\":[{\"name\":\"cpu\",\"value\":\"i386\"},{\"name\":\"cpu\",\"value\":\"x86_64\"},{\"name\":\"os\",\"value\":\"linux\"}]}",
-			k.GetPlatformString())
+			k.GetPlatformString(),
+		)
 		testutil.RequireEqualProto(t, &buildqueuestate.PlatformQueueName{
 			InstanceNamePrefix: "a",
 			Platform: &remoteexecution.Platform{

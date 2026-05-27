@@ -41,7 +41,8 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 		fileSystemAccessCache,
 		/* maximumMessageSizeBytes = */ 10000,
 		/* bloomFilterBitsPerElement = */ 10,
-		/* bloomFilterMaximumSizeBytes = */ 1000)
+		/* bloomFilterMaximumSizeBytes = */ 1000,
+	)
 
 	filePool := mock.NewMockFilePool(ctrl)
 	baseMonitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
@@ -73,7 +74,9 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 				baseMonitor,
 				digestFunction,
 				&remoteworker.DesiredState_Executing{},
-				executionStateUpdates))
+				executionStateUpdates,
+			),
+		)
 	})
 
 	// The request that will be used in the tests below, and the
@@ -132,7 +135,9 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 				baseMonitor,
 				digestFunction,
 				exampleRequest,
-				executionStateUpdates))
+				executionStateUpdates,
+			),
+		)
 	})
 
 	t.Run("ExecutionFailure", func(t *testing.T) {
@@ -168,7 +173,9 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 				baseMonitor,
 				digestFunction,
 				exampleRequest,
-				executionStateUpdates))
+				executionStateUpdates,
+			),
+		)
 	})
 
 	t.Run("FSACGetError", func(t *testing.T) {
@@ -211,7 +218,9 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 				baseMonitor,
 				digestFunction,
 				exampleRequest,
-				executionStateUpdates))
+				executionStateUpdates,
+			),
+		)
 	})
 
 	t.Run("DirectoryFetcherGetError", func(t *testing.T) {
@@ -258,7 +267,9 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 				baseMonitor,
 				digestFunction,
 				exampleRequest,
-				executionStateUpdates))
+				executionStateUpdates,
+			),
+		)
 	})
 
 	t.Run("ContentAddressableStorageGetError", func(t *testing.T) {
@@ -317,7 +328,9 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 				baseMonitor,
 				digestFunction,
 				exampleRequest,
-				executionStateUpdates))
+				executionStateUpdates,
+			),
+		)
 	})
 
 	t.Run("FSACPutError", func(t *testing.T) {
@@ -364,7 +377,9 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 				baseMonitor,
 				digestFunction,
 				exampleRequest,
-				executionStateUpdates))
+				executionStateUpdates,
+			),
+		)
 	})
 
 	t.Run("FSACPutSkipped", func(t *testing.T) {
@@ -403,7 +418,9 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 				baseMonitor,
 				digestFunction,
 				exampleRequest,
-				executionStateUpdates))
+				executionStateUpdates,
+			),
+		)
 	})
 
 	t.Run("FSACPutSuccess", func(t *testing.T) {
@@ -461,6 +478,8 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 				baseMonitor,
 				digestFunction,
 				exampleRequest,
-				executionStateUpdates))
+				executionStateUpdates,
+			),
+		)
 	})
 }

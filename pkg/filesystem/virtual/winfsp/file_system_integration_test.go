@@ -62,7 +62,8 @@ func createWinFSPForTest(t *testing.T, terminationGroup program.Group, caseSensi
 		/* rootDirectory = */ virtual_configuration.LongAttributeCaching,
 		/* childDirectories = */ virtual_configuration.LongAttributeCaching,
 		/* leaves = */ virtual_configuration.NoAttributeCaching,
-		caseSensitive)
+		caseSensitive,
+	)
 	require.NoError(t, err, "Failed to create WinFSP mount")
 
 	// Create a block device to store new files.
@@ -543,7 +544,8 @@ func TestWinFSPFileSystemStatFollowsSymlink(t *testing.T) {
 		noopFileReadMonitorFactory := virtual.FileReadMonitorFactory(
 			func(name bb_path.Component) virtual.FileReadMonitor {
 				return func() {}
-			})
+			},
+		)
 
 		// Helper to create a chain of nested directories.
 		mkdirs := func(parent virtual.PrepopulatedDirectory, names ...string) virtual.PrepopulatedDirectory {

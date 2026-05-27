@@ -71,7 +71,8 @@ func TestPoolBackedFileAllocatorGetBazelOutputServiceStat(t *testing.T) {
 	underlyingFile.EXPECT().ReadAt(gomock.Any(), int64(0)).DoAndReturn(
 		func(p []byte, off int64) (int, error) {
 			return copy(p, "Hello"), io.EOF
-		})
+		},
+	)
 	p = virtual.ApplyGetBazelOutputServiceStat{
 		DigestFunction: &digestFunction1,
 	}
@@ -121,7 +122,8 @@ func TestPoolBackedFileAllocatorGetBazelOutputServiceStat(t *testing.T) {
 	underlyingFile.EXPECT().ReadAt(gomock.Any(), int64(0)).DoAndReturn(
 		func(p []byte, off int64) (int, error) {
 			return copy(p, "Hello world"), io.EOF
-		})
+		},
+	)
 	p = virtual.ApplyGetBazelOutputServiceStat{
 		DigestFunction: &digestFunction1,
 	}
@@ -147,7 +149,8 @@ func TestPoolBackedFileAllocatorGetBazelOutputServiceStat(t *testing.T) {
 	underlyingFile.EXPECT().ReadAt(gomock.Any(), int64(0)).DoAndReturn(
 		func(p []byte, off int64) (int, error) {
 			return copy(p, "Hello world"), io.EOF
-		})
+		},
+	)
 	digestFunction2 := digest.MustNewFunction("Hello", remoteexecution.DigestFunction_SHA256)
 	p = virtual.ApplyGetBazelOutputServiceStat{
 		DigestFunction: &digestFunction2,
@@ -220,7 +223,8 @@ func TestPoolBackedFileAllocatorVirtualSeek(t *testing.T) {
 		ctx,
 		(&virtual.Attributes{}).SetSizeBytes(1000),
 		0,
-		&virtual.Attributes{}))
+		&virtual.Attributes{},
+	))
 
 	t.Run("Failure", func(t *testing.T) {
 		// I/O errors on the file should be captured.
@@ -288,7 +292,8 @@ func TestPoolBackedFileAllocatorVirtualOpenSelfStaleAfterUnlink(t *testing.T) {
 	require.Equal(
 		t,
 		virtual.StatusErrStale,
-		f.VirtualOpenSelf(ctx, virtual.ShareMaskRead, &virtual.OpenExistingOptions{}, 0, &virtual.Attributes{}))
+		f.VirtualOpenSelf(ctx, virtual.ShareMaskRead, &virtual.OpenExistingOptions{}, 0, &virtual.Attributes{}),
+	)
 }
 
 // This test is the same as the above, except that the file reference
@@ -314,7 +319,8 @@ func TestPoolBackedFileAllocatorVirtualOpenSelfStaleAfterClose(t *testing.T) {
 	require.Equal(
 		t,
 		virtual.StatusErrStale,
-		f.VirtualOpenSelf(ctx, virtual.ShareMaskRead, &virtual.OpenExistingOptions{}, 0, &virtual.Attributes{}))
+		f.VirtualOpenSelf(ctx, virtual.ShareMaskRead, &virtual.OpenExistingOptions{}, 0, &virtual.Attributes{}),
+	)
 }
 
 func TestPoolBackedFileAllocatorVirtualRead(t *testing.T) {
@@ -374,7 +380,8 @@ func TestPoolBackedFileAllocatorVirtualRead(t *testing.T) {
 		underlyingFile.EXPECT().ReadAt(gomock.Len(3), int64(2)).DoAndReturn(
 			func(p []byte, off int64) (int, error) {
 				return copy(p, "llo"), io.EOF
-			})
+			},
+		)
 
 		var p [10]byte
 		n, eof, s := f.VirtualRead(p[:], 2)
@@ -415,7 +422,8 @@ func TestPoolBackedFileAllocatorFUSETruncateFailure(t *testing.T) {
 		ctx,
 		(&virtual.Attributes{}).SetSizeBytes(42),
 		0,
-		&virtual.Attributes{}))
+		&virtual.Attributes{},
+	))
 	f.VirtualClose(virtual.ShareMaskWrite)
 	f.Unlink()
 }
@@ -532,7 +540,8 @@ func TestPoolBackedFileAllocatorUploadFile(t *testing.T) {
 						ctx,
 						(&virtual.Attributes{}).SetSizeBytes(123),
 						0,
-						&virtual.Attributes{}))
+						&virtual.Attributes{},
+					))
 					close(a2)
 				}()
 
@@ -545,7 +554,8 @@ func TestPoolBackedFileAllocatorUploadFile(t *testing.T) {
 							Truncate: true,
 						},
 						0,
-						&virtual.Attributes{}))
+						&virtual.Attributes{},
+					))
 					f.VirtualClose(virtual.ShareMaskWrite)
 					close(a3)
 				}()
@@ -566,7 +576,8 @@ func TestPoolBackedFileAllocatorUploadFile(t *testing.T) {
 					ctx,
 					(&virtual.Attributes{}).SetPermissions(virtual.PermissionsRead|virtual.PermissionsWrite|virtual.PermissionsExecute),
 					0,
-					&virtual.Attributes{}))
+					&virtual.Attributes{},
+				))
 
 				underlyingFile.EXPECT().Truncate(int64(123)).MinTimes(1).MaxTimes(2)
 				underlyingFile.EXPECT().Truncate(int64(0))
@@ -644,7 +655,9 @@ func TestPoolBackedFileAllocatorVirtualClose(t *testing.T) {
 				virtual.ShareMaskRead,
 				&virtual.OpenExistingOptions{},
 				0,
-				&virtual.Attributes{}))
+				&virtual.Attributes{},
+			),
+		)
 	}
 	for i := 0; i < 10; i++ {
 		require.Equal(
@@ -655,7 +668,9 @@ func TestPoolBackedFileAllocatorVirtualClose(t *testing.T) {
 				virtual.ShareMaskRead|virtual.ShareMaskWrite,
 				&virtual.OpenExistingOptions{},
 				0,
-				&virtual.Attributes{}))
+				&virtual.Attributes{},
+			),
+		)
 	}
 
 	// Unlinking the file should not cause the underlying file to be

@@ -28,12 +28,14 @@ func TestUserSettableSymlink(t *testing.T) {
 		context.Background(),
 		util.Must(auth.NewAuthenticationMetadataFromProto(&auth_pb.AuthenticationMetadata{
 			Public: structpb.NewStringValue("user1"),
-		})))
+		})),
+	)
 	ctx2 := auth.NewContextWithAuthenticationMetadata(
 		context.Background(),
 		util.Must(auth.NewAuthenticationMetadataFromProto(&auth_pb.AuthenticationMetadata{
 			Public: structpb.NewStringValue("user2"),
-		})))
+		})),
+	)
 
 	t.Run("InstallTemporaryDirectory", func(t *testing.T) {
 		// Attempt to set some symlink target paths for the

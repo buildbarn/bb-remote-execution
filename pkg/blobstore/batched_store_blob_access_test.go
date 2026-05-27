@@ -36,7 +36,8 @@ func TestBatchedStoreBlobAccessSuccess(t *testing.T) {
 		"default",
 		remoteexecution.DigestFunction_MD5,
 		"d41d8cd98f00b204e9800998ecf8427e",
-		0)
+		0,
+	)
 	for i := 0; i < 10; i++ {
 		require.NoError(t, blobAccess.Put(ctx, digestEmpty, buffer.NewValidatedBufferFromByteSlice(nil)))
 	}
@@ -45,7 +46,8 @@ func TestBatchedStoreBlobAccessSuccess(t *testing.T) {
 		"default",
 		remoteexecution.DigestFunction_MD5,
 		"8b1a9953c4611296a827abf8c47804d7",
-		5)
+		5,
+	)
 	for i := 0; i < 10; i++ {
 		require.NoError(t, blobAccess.Put(ctx, digestHello, buffer.NewValidatedBufferFromByteSlice([]byte("Hello"))))
 	}
@@ -54,35 +56,42 @@ func TestBatchedStoreBlobAccessSuccess(t *testing.T) {
 	// blobs to be flushed.
 	baseBlobAccess.EXPECT().FindMissing(
 		ctx,
-		digest.NewSetBuilder().Add(digestHello).Add(digestEmpty).Build()).Return(
-		digest.NewSetBuilder().Add(digestHello).Build(), nil)
+		digest.NewSetBuilder().Add(digestHello).Add(digestEmpty).Build(),
+	).Return(
+		digest.NewSetBuilder().Add(digestHello).Build(), nil,
+	)
 	baseBlobAccess.EXPECT().Put(gomock.Any(), digestHello, gomock.Any()).DoAndReturn(
 		func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 			data, err := b.ToByteSlice(100)
 			require.NoError(t, err)
 			require.Equal(t, []byte("Hello"), data)
 			return nil
-		})
+		},
+	)
 
 	digestGoodbye := digest.MustNewDigest(
 		"default",
 		remoteexecution.DigestFunction_MD5,
 		"6fc422233a40a75a1f028e11c3cd1140",
-		7)
+		7,
+	)
 	require.NoError(t, blobAccess.Put(ctx, digestGoodbye, buffer.NewValidatedBufferFromByteSlice([]byte("Goodbye"))))
 
 	// Flushing should cause the third blob to be written.
 	baseBlobAccess.EXPECT().FindMissing(
 		ctx,
-		digest.NewSetBuilder().Add(digestGoodbye).Build()).Return(
-		digest.NewSetBuilder().Add(digestGoodbye).Build(), nil)
+		digest.NewSetBuilder().Add(digestGoodbye).Build(),
+	).Return(
+		digest.NewSetBuilder().Add(digestGoodbye).Build(), nil,
+	)
 	baseBlobAccess.EXPECT().Put(gomock.Any(), digestGoodbye, gomock.Any()).DoAndReturn(
 		func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 			data, err := b.ToByteSlice(100)
 			require.NoError(t, err)
 			require.Equal(t, []byte("Goodbye"), data)
 			return nil
-		})
+		},
+	)
 
 	require.NoError(t, flush(ctx))
 
@@ -107,7 +116,8 @@ func TestBatchedStoreBlobAccessFailure(t *testing.T) {
 		"default",
 		remoteexecution.DigestFunction_MD5,
 		"d41d8cd98f00b204e9800998ecf8427e",
-		0)
+		0,
+	)
 	for i := 0; i < 10; i++ {
 		require.NoError(t, blobAccess.Put(ctx, digestEmpty, buffer.NewValidatedBufferFromByteSlice(nil)))
 	}
@@ -116,7 +126,8 @@ func TestBatchedStoreBlobAccessFailure(t *testing.T) {
 		"default",
 		remoteexecution.DigestFunction_MD5,
 		"8b1a9953c4611296a827abf8c47804d7",
-		5)
+		5,
+	)
 	for i := 0; i < 10; i++ {
 		require.NoError(t, blobAccess.Put(ctx, digestHello, buffer.NewValidatedBufferFromByteSlice([]byte("Hello"))))
 	}
@@ -127,8 +138,10 @@ func TestBatchedStoreBlobAccessFailure(t *testing.T) {
 	// flushed.
 	baseBlobAccess.EXPECT().FindMissing(
 		ctx,
-		digest.NewSetBuilder().Add(digestHello).Add(digestEmpty).Build()).Return(
-		digest.NewSetBuilder().Add(digestHello).Build(), nil)
+		digest.NewSetBuilder().Add(digestHello).Add(digestEmpty).Build(),
+	).Return(
+		digest.NewSetBuilder().Add(digestHello).Build(), nil,
+	)
 	baseBlobAccess.EXPECT().Put(
 		gomock.Any(), digestHello, gomock.Any(),
 	).DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
@@ -142,18 +155,21 @@ func TestBatchedStoreBlobAccessFailure(t *testing.T) {
 		"default",
 		remoteexecution.DigestFunction_MD5,
 		"6fc422233a40a75a1f028e11c3cd1140",
-		7)
+		7,
+	)
 	testutil.RequireEqualStatus(
 		t,
 		status.Error(codes.Internal, "Failed to store previous blob 3-8b1a9953c4611296a827abf8c47804d7-5-default: Storage backend on fire"),
-		blobAccess.Put(ctx, digestGoodbye, buffer.NewValidatedBufferFromByteSlice([]byte("Goodbye"))))
+		blobAccess.Put(ctx, digestGoodbye, buffer.NewValidatedBufferFromByteSlice([]byte("Goodbye"))),
+	)
 
 	// Future requests to store blobs should be discarded
 	// immediately, returning same error.
 	testutil.RequireEqualStatus(
 		t,
 		status.Error(codes.Internal, "Failed to store previous blob 3-8b1a9953c4611296a827abf8c47804d7-5-default: Storage backend on fire"),
-		blobAccess.Put(ctx, digestGoodbye, buffer.NewValidatedBufferFromByteSlice([]byte("Goodbye"))))
+		blobAccess.Put(ctx, digestGoodbye, buffer.NewValidatedBufferFromByteSlice([]byte("Goodbye"))),
+	)
 
 	// Flushing should not cause any requests on the backend, due to
 	// it being in the error state. It should return the error that
@@ -161,7 +177,8 @@ func TestBatchedStoreBlobAccessFailure(t *testing.T) {
 	testutil.RequireEqualStatus(
 		t,
 		status.Error(codes.Internal, "Failed to store previous blob 3-8b1a9953c4611296a827abf8c47804d7-5-default: Storage backend on fire"),
-		flush(ctx))
+		flush(ctx),
+	)
 
 	// Successive stores and flushes should be functional once again.
 	require.NoError(t, blobAccess.Put(ctx, digestGoodbye, buffer.NewValidatedBufferFromByteSlice([]byte("Goodbye"))))

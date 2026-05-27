@@ -67,7 +67,8 @@ func (m *nfsv4Mount) mount(terminationGroup program.Group, rpcServer *rpcserver.
 				},
 				osConfiguration.MountOptions...,
 			),
-			","),
+			",",
+		),
 	); err != nil {
 		return util.StatusWrap(err, "Mounting NFS volume failed")
 	}

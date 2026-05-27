@@ -27,7 +27,8 @@ var (
 			Help:      "Amount of time spent per operation on raw file system objects, in seconds.",
 			Buckets:   util.DecimalExponentialBuckets(-3, 6, 2),
 		},
-		[]string{"operation", "status_code"})
+		[]string{"operation", "status_code"},
+	)
 	rawFileSystemCallbacks = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "buildbarn",
@@ -35,7 +36,8 @@ var (
 			Name:      "raw_file_system_callbacks_total",
 			Help:      "Total number of callbacks invoked by raw file system objects.",
 		},
-		[]string{"callback", "status_code"})
+		[]string{"callback", "status_code"},
+	)
 )
 
 // operationHistogram holds references to Prometheus metrics for a single

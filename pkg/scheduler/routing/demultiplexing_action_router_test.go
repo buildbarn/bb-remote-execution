@@ -49,7 +49,8 @@ func TestDemultiplexingActionRouter(t *testing.T) {
 	testutil.RequireEqualStatus(
 		t,
 		status.Error(codes.AlreadyExists, "An action router with the same instance name prefix and platform already exists"),
-		actionRouter.RegisterActionRouter(util.Must(digest.NewInstanceName("a")), linuxPlatform, unusedActionRouter))
+		actionRouter.RegisterActionRouter(util.Must(digest.NewInstanceName("a")), linuxPlatform, unusedActionRouter),
+	)
 
 	t.Run("DefaultActionRouter", func(t *testing.T) {
 		// Even though the platform properties indicate Linux,
@@ -66,7 +67,8 @@ func TestDemultiplexingActionRouter(t *testing.T) {
 			ctx,
 			digest.MustNewFunction("", remoteexecution.DigestFunction_SHA256),
 			&remoteexecution.Action{},
-			&remoteexecution.RequestMetadata{})
+			&remoteexecution.RequestMetadata{},
+		)
 		testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Got routed to default"), err)
 	})
 
@@ -83,7 +85,8 @@ func TestDemultiplexingActionRouter(t *testing.T) {
 			ctx,
 			digest.MustNewFunction("a", remoteexecution.DigestFunction_SHA256),
 			&remoteexecution.Action{},
-			&remoteexecution.RequestMetadata{})
+			&remoteexecution.RequestMetadata{},
+		)
 		testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Got routed to Linux"), err)
 	})
 }

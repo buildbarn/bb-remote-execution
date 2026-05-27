@@ -325,7 +325,8 @@ func (l *largestBackgroundLearner) Succeeded(duration time.Duration, sizeClasses
 				perSizeClassStatsMap,
 				sizeClasses,
 				i,
-				l.largestTimeout)
+				l.largestTimeout,
+			)
 			return i,
 				getExpectedExecutionDuration(perSizeClassStatsMap, l.smallerSizeClass, smallerTimeout),
 				smallerTimeout,

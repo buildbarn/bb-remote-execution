@@ -27,7 +27,8 @@ func NewAnalyzerFromConfiguration(configuration *pb.InitialSizeClassAnalyzerConf
 	}
 	actionTimeoutExtractor := NewActionTimeoutExtractor(
 		defaultExecutionTimeout.AsDuration(),
-		maximumExecutionTimeout.AsDuration())
+		maximumExecutionTimeout.AsDuration(),
+	)
 
 	if fdConfiguration := configuration.FeedbackDriven; fdConfiguration != nil {
 		if previousExecutionStatsStore == nil {
@@ -48,7 +49,8 @@ func NewAnalyzerFromConfiguration(configuration *pb.InitialSizeClassAnalyzerConf
 				minimumExecutionTimeout.AsDuration(),
 				pageRankConfiguration.AcceptableExecutionTimeIncreaseExponent,
 				pageRankConfiguration.SmallerSizeClassExecutionTimeoutMultiplier,
-				pageRankConfiguration.MaximumConvergenceError)
+				pageRankConfiguration.MaximumConvergenceError,
+			)
 		}
 
 		return NewFeedbackDrivenAnalyzer(
@@ -58,7 +60,8 @@ func NewAnalyzerFromConfiguration(configuration *pb.InitialSizeClassAnalyzerConf
 			actionTimeoutExtractor,
 			failureCacheDuration.AsDuration(),
 			strategyCalculator,
-			int(fdConfiguration.HistorySize)), nil
+			int(fdConfiguration.HistorySize),
+		), nil
 	}
 	return NewFallbackAnalyzer(actionTimeoutExtractor), nil
 }

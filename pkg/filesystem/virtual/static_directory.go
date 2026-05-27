@@ -81,7 +81,7 @@ func (d *staticDirectory) VirtualLookup(ctx context.Context, name path.Component
 	}); i < len(d.entries) && d.entries[i].normalizedName == normalizedName {
 		child := d.entries[i].child
 		child.GetNode().VirtualGetAttributes(ctx, requested, out)
-		return (child), StatusOK
+		return child, StatusOK
 	}
 	return DirectoryChild{}, StatusErrNoEnt
 }

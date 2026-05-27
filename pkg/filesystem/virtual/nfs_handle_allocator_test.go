@@ -40,7 +40,8 @@ func TestNFSHandleAllocator(t *testing.T) {
 			(&virtual.Attributes{}).
 				SetFileHandle(fileHandle).
 				SetInodeNumber(0xfccd1fc99a8c3425),
-			&attr)
+			&attr,
+		)
 
 		// The directory should be resolvable.
 		resolvedChild, s := handleAllocator.ResolveHandle(bytes.NewBuffer(fileHandle))
@@ -83,7 +84,8 @@ func TestNFSHandleAllocator(t *testing.T) {
 				SetInodeNumber(0xa44671c491369d36).
 				SetLinkCount(17).
 				SetSizeBytes(42),
-			&attr)
+			&attr,
+		)
 
 		// The directory should be resolvable.
 		resolvedChild, s := handleAllocator.ResolveHandle(bytes.NewBuffer(fileHandle))
@@ -115,7 +117,8 @@ func TestNFSHandleAllocator(t *testing.T) {
 				SetInodeNumber(0xf999bb2fd22421d8).
 				SetLinkCount(1).
 				SetSizeBytes(42),
-			&attr1)
+			&attr1,
+		)
 
 		// The leaf should be resolvable.
 		resolvedChild, s := handleAllocator.ResolveHandle(bytes.NewBuffer(fileHandle))
@@ -136,7 +139,8 @@ func TestNFSHandleAllocator(t *testing.T) {
 				SetInodeNumber(0xf999bb2fd22421d8).
 				SetLinkCount(2).
 				SetSizeBytes(42),
-			&attr2)
+			&attr2,
+		)
 
 		// Unlinking it twice should cause the underlying leaf
 		// node to be unlinked. It should then no longer be
@@ -155,7 +159,8 @@ func TestNFSHandleAllocator(t *testing.T) {
 				SetInodeNumber(0xf999bb2fd22421d8).
 				SetLinkCount(0).
 				SetSizeBytes(42),
-			&attr3)
+			&attr3,
+		)
 
 		_, s = handleAllocator.ResolveHandle(bytes.NewBuffer(fileHandle))
 		require.Equal(t, virtual.StatusErrStale, s)
@@ -174,7 +179,8 @@ func TestNFSHandleAllocator(t *testing.T) {
 				SetInodeNumber(0xf999bb2fd22421d8).
 				SetLinkCount(0).
 				SetSizeBytes(42),
-			&attr4)
+			&attr4,
+		)
 	})
 
 	t.Run("StatelessLinkableLeaf", func(t *testing.T) {
@@ -213,7 +219,8 @@ func TestNFSHandleAllocator(t *testing.T) {
 				SetInodeNumber(0x2fac04c71c5c810f).
 				SetLinkCount(virtual.StatelessLeafLinkCount).
 				SetSizeBytes(123),
-			&attr1)
+			&attr1,
+		)
 
 		// The leaf should be resolvable.
 		resolvedChild, s := handleAllocator.ResolveHandle(bytes.NewBuffer(fileHandle))
@@ -234,7 +241,8 @@ func TestNFSHandleAllocator(t *testing.T) {
 				SetInodeNumber(0x2fac04c71c5c810f).
 				SetLinkCount(virtual.StatelessLeafLinkCount).
 				SetSizeBytes(123),
-			&attr2)
+			&attr2,
+		)
 
 		// Unlinking it twice should cause the underlying leaf
 		// node to be unlinked. It should then no longer be
@@ -253,7 +261,8 @@ func TestNFSHandleAllocator(t *testing.T) {
 				SetInodeNumber(0x2fac04c71c5c810f).
 				SetLinkCount(virtual.StatelessLeafLinkCount).
 				SetSizeBytes(123),
-			&attr3)
+			&attr3,
+		)
 
 		_, s = handleAllocator.ResolveHandle(bytes.NewBuffer(fileHandle))
 		require.Equal(t, virtual.StatusErrStale, s)
@@ -272,6 +281,7 @@ func TestNFSHandleAllocator(t *testing.T) {
 				SetInodeNumber(0x2fac04c71c5c810f).
 				SetLinkCount(virtual.StatelessLeafLinkCount).
 				SetSizeBytes(123),
-			&attr4)
+			&attr4,
+		)
 	})
 }

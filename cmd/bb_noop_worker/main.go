@@ -80,13 +80,15 @@ func main() {
 			builder.NewNoopBuildExecutor(
 				contentAddressableStorage,
 				int(configuration.MaximumMessageSizeBytes),
-				browserURL),
+				browserURL,
+			),
 			pool.EmptyFilePool,
 			clock.SystemClock,
 			configuration.WorkerId,
 			instanceNamePrefix,
 			configuration.Platform,
-			0)
+			0,
+		)
 		builder.LaunchWorkerThread(siblingsGroup, buildClient, "noop")
 
 		lifecycleState.MarkReadyAndWait(siblingsGroup)

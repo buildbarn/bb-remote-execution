@@ -17,7 +17,8 @@ import (
 func TestActionTimeoutExtractor(t *testing.T) {
 	actionTimeoutExtractor := initialsizeclass.NewActionTimeoutExtractor(
 		/* defaultExecutionTimeout = */ time.Hour,
-		/* maximumExecutionTimeout = */ 2*time.Hour)
+		/* maximumExecutionTimeout = */ 2*time.Hour,
+	)
 
 	t.Run("DefaultExecutionTimeout", func(t *testing.T) {
 		// Specifying no timeout should yield the default.

@@ -79,7 +79,8 @@ func getExecutionClient(t *testing.T, buildQueue builder.BuildQueue) remoteexecu
 		grpc.WithDialer(func(string, time.Duration) (net.Conn, error) {
 			return conn.Dial()
 		}),
-		grpc.WithInsecure())
+		grpc.WithInsecure(),
+	)
 	require.NoError(t, err)
 	return remoteexecution.NewExecutionClient(client)
 }
@@ -1831,14 +1832,16 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 			metadata.AppendToOutgoingContext(
 				ctx,
 				"build.bazel.remote.execution.v2.requestmetadata-bin",
-				string(requestMetadataBin)),
+				string(requestMetadataBin),
+			),
 			&remoteexecution.ExecuteRequest{
 				InstanceName: "main",
 				ActionDigest: &remoteexecution.Digest{
 					Hash:      p.actionHash,
 					SizeBytes: 123,
 				},
-			})
+			},
+		)
 		require.NoError(t, err)
 		streams = append(streams, stream)
 		update, err := stream.Recv()
@@ -2215,14 +2218,16 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonQueued(t *testing.T) {
 			metadata.AppendToOutgoingContext(
 				ctxWithCancel,
 				"build.bazel.remote.execution.v2.requestmetadata-bin",
-				string(requestMetadataBin)),
+				string(requestMetadataBin),
+			),
 			&remoteexecution.ExecuteRequest{
 				InstanceName: "main",
 				ActionDigest: &remoteexecution.Digest{
 					Hash:      "fc96ea0eee854b45950d3a7448332445730886691b992cb7917da0853664f7c2",
 					SizeBytes: 123,
 				},
-			})
+			},
+		)
 		require.NoError(t, err)
 		update, err := stream.Recv()
 		require.NoError(t, err)
@@ -2409,14 +2414,16 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 			metadata.AppendToOutgoingContext(
 				ctxWithCancel,
 				"build.bazel.remote.execution.v2.requestmetadata-bin",
-				string(requestMetadataBin)),
+				string(requestMetadataBin),
+			),
 			&remoteexecution.ExecuteRequest{
 				InstanceName: "main",
 				ActionDigest: &remoteexecution.Digest{
 					Hash:      "fc96ea0eee854b45950d3a7448332445730886691b992cb7917da0853664f7c2",
 					SizeBytes: 123,
 				},
-			})
+			},
+		)
 		require.NoError(t, err)
 		update, err := stream.Recv()
 		require.NoError(t, err)
@@ -2601,7 +2608,8 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 				Hash:      "da39a3ee5e6b4b0d3255bfef95601890afd80709",
 				SizeBytes: 123,
 			},
-		})
+		},
+	)
 	require.NoError(t, err)
 	update, err := stream.Recv()
 	require.NoError(t, err)
@@ -2777,7 +2785,8 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 		/* workerInvocationStickinessLimits = */ nil,
 		/* maximumQueuedBackgroundLearningOperations = */ 0,
 		/* backgroundLearningOperationPriority = */ 0,
-		/* sizeClasses = */ []uint32{8}))
+		/* sizeClasses = */ []uint32{8},
+	))
 
 	// Workers with a higher size class should be rejected, as no
 	// requests will end up getting sent to them.
@@ -3153,7 +3162,8 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 		/* workerInvocationStickinessLimits = */ nil,
 		/* maximumQueuedBackgroundLearningOperations = */ 10,
 		/* backgroundLearningOperationPriority = */ 100,
-		/* sizeClasses = */ []uint32{8}))
+		/* sizeClasses = */ []uint32{8},
+	))
 
 	clock.EXPECT().Now().Return(time.Unix(1002, 0))
 	response, err := buildQueue.Synchronize(ctx, &remoteworker.SynchronizeRequest{
@@ -3900,7 +3910,8 @@ func TestInMemoryBuildQueueWorkerInvocationStickinessLimit(t *testing.T) {
 		/* workerInvocationStickinessLimits = */ []time.Duration{3 * time.Second},
 		/* maximumQueuedBackgroundLearningOperations = */ 10,
 		/* backgroundLearningOperationPriority = */ 100,
-		/* sizeClasses = */ []uint32{0}))
+		/* sizeClasses = */ []uint32{0},
+	))
 
 	operationParameters := []struct {
 		operationName    string
@@ -4163,7 +4174,8 @@ func TestInMemoryBuildQueueAuthorization(t *testing.T) {
 			/* workerInvocationStickinessLimits = */ nil,
 			/* maximumQueuedBackgroundLearningOperations = */ 0,
 			/* backgroundLearningOperationPriority = */ 0,
-			/* sizeClasses = */ []uint32{0})
+			/* sizeClasses = */ []uint32{0},
+		)
 
 		// Allow the Execute
 		authorizer.EXPECT().Authorize(gomock.Any(), []digest.InstanceName{beepboop}).Return([]error{nil})
@@ -4248,7 +4260,8 @@ func TestInMemoryBuildQueueNestedInvocationsSynchronization(t *testing.T) {
 		/* workerInvocationStickinessLimits = */ nil,
 		/* maximumQueuedBackgroundLearningOperations = */ 0,
 		/* backgroundLearningOperationPriority = */ 0,
-		/* sizeClasses = */ []uint32{0}))
+		/* sizeClasses = */ []uint32{0},
+	))
 
 	// Create ten workers. Let all of them complete a task that
 	// belonged to the same correlated invocations ID, but a

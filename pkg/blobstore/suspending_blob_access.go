@@ -34,14 +34,16 @@ func (ba *suspendingBlobAccess) Get(ctx context.Context, digest digest.Digest) b
 	ba.suspendable.Suspend()
 	return buffer.WithErrorHandler(
 		ba.base.Get(ctx, digest),
-		&resumingErrorHandler{suspendable: ba.suspendable})
+		&resumingErrorHandler{suspendable: ba.suspendable},
+	)
 }
 
 func (ba *suspendingBlobAccess) GetFromComposite(ctx context.Context, parentDigest, childDigest digest.Digest, slicer slicing.BlobSlicer) buffer.Buffer {
 	ba.suspendable.Suspend()
 	return buffer.WithErrorHandler(
 		ba.base.GetFromComposite(ctx, parentDigest, childDigest, slicer),
-		&resumingErrorHandler{suspendable: ba.suspendable})
+		&resumingErrorHandler{suspendable: ba.suspendable},
+	)
 }
 
 func (ba *suspendingBlobAccess) Put(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {

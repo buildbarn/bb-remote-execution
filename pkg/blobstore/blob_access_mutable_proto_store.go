@@ -25,21 +25,24 @@ var (
 			Subsystem: "blobstore",
 			Name:      "blob_access_mutable_proto_handles_created_total",
 			Help:      "Number of mutable Protobuf message handles that were created during Get()",
-		})
+		},
+	)
 	blobAccessMutableProtoHandlesDestroyed = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Namespace: "buildbarn",
 			Subsystem: "blobstore",
 			Name:      "blob_access_mutable_proto_handles_destroyed_total",
 			Help:      "Number of mutable Protobuf message handles that were destroyed",
-		})
+		},
+	)
 	blobAccessMutableProtoHandlesDequeued = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Namespace: "buildbarn",
 			Subsystem: "blobstore",
 			Name:      "blob_access_mutable_proto_handles_dequeued_total",
 			Help:      "Number of mutable Protobuf message handles that were dequeued for writing during Get()",
-		})
+		},
+	)
 
 	blobAccessMutableProtoHandlesQueued = prometheus.NewCounter(
 		prometheus.CounterOpts{
@@ -47,7 +50,8 @@ var (
 			Subsystem: "blobstore",
 			Name:      "blob_access_mutable_proto_handles_queued_total",
 			Help:      "Number of mutable Protobuf message handles that were queued for writing",
-		})
+		},
+	)
 )
 
 type blobAccessMutableProtoStore[T any, TProto interface {

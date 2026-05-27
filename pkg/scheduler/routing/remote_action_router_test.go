@@ -68,7 +68,8 @@ func TestRemoteActionRouter(t *testing.T) {
 			ctx,
 			digestFunction,
 			action,
-			requestMetadata)
+			requestMetadata,
+		)
 
 		require.NoError(t, err)
 		require.True(t, testutil.EqProto(t, action).Matches(returnedAction))
@@ -92,12 +93,14 @@ func TestRemoteActionRouter(t *testing.T) {
 			ctx,
 			digestFunction,
 			action,
-			requestMetadata)
+			requestMetadata,
+		)
 
 		testutil.RequireEqualStatus(
 			t,
 			status.Error(codes.Unavailable, "Failed to route action via remote service: Remote service unavailable"),
-			err)
+			err,
+		)
 	})
 
 	t.Run("CanMutateAction", func(t *testing.T) {
@@ -129,7 +132,8 @@ func TestRemoteActionRouter(t *testing.T) {
 			ctx,
 			digestFunction,
 			action,
-			requestMetadata)
+			requestMetadata,
+		)
 
 		require.NoError(t, err)
 		require.Equal(t, mutatedAction, returnedAction)
@@ -168,7 +172,8 @@ func TestRemoteActionRouter(t *testing.T) {
 			ctx,
 			digestFunction,
 			action,
-			requestMetadata)
+			requestMetadata,
+		)
 
 		require.NoError(t, err)
 		require.Equal(t, platform.MustNewKey("some-instance", mutatedAction.Platform), platformKey)
@@ -189,11 +194,13 @@ func TestRemoteActionRouter(t *testing.T) {
 			ctx,
 			digestFunction,
 			action,
-			requestMetadata)
+			requestMetadata,
+		)
 
 		testutil.RequireEqualStatus(
 			t,
 			status.Error(codes.Internal, "Remote action router response does not contain an action"),
-			err)
+			err,
+		)
 	})
 }

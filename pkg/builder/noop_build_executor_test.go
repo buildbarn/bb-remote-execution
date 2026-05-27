@@ -30,7 +30,8 @@ func TestNoopBuildExecutor(t *testing.T) {
 			Scheme: "http",
 			Host:   "example.com",
 			Path:   "/some/sub/directory/",
-		})
+		},
+	)
 
 	t.Run("NoActionDigest", func(t *testing.T) {
 		// The client needs to provide an Action digest, so that
@@ -51,7 +52,9 @@ func TestNoopBuildExecutor(t *testing.T) {
 				monitor,
 				digest.MustNewFunction("build", remoteexecution.DigestFunction_MD5),
 				&remoteworker.DesiredState_Executing{},
-				make(chan *remoteworker.CurrentState_Executing, 10)))
+				make(chan *remoteworker.CurrentState_Executing, 10),
+			),
+		)
 	})
 
 	t.Run("InvalidActionDigest", func(t *testing.T) {
@@ -82,7 +85,9 @@ func TestNoopBuildExecutor(t *testing.T) {
 						},
 					},
 				},
-				make(chan *remoteworker.CurrentState_Executing, 10)))
+				make(chan *remoteworker.CurrentState_Executing, 10),
+			),
+		)
 	})
 
 	t.Run("InvalidTemplate", func(t *testing.T) {
@@ -124,7 +129,9 @@ func TestNoopBuildExecutor(t *testing.T) {
 						},
 					},
 				},
-				make(chan *remoteworker.CurrentState_Executing, 10)))
+				make(chan *remoteworker.CurrentState_Executing, 10),
+			),
+		)
 	})
 
 	t.Run("SuccessDefaultTemplate", func(t *testing.T) {
@@ -159,7 +166,9 @@ func TestNoopBuildExecutor(t *testing.T) {
 						},
 					},
 				},
-				make(chan *remoteworker.CurrentState_Executing, 10)))
+				make(chan *remoteworker.CurrentState_Executing, 10),
+			),
+		)
 	})
 
 	t.Run("SuccessCustomTemplate", func(t *testing.T) {
@@ -205,6 +214,8 @@ func TestNoopBuildExecutor(t *testing.T) {
 						},
 					},
 				},
-				make(chan *remoteworker.CurrentState_Executing, 10)))
+				make(chan *remoteworker.CurrentState_Executing, 10),
+			),
+		)
 	})
 }

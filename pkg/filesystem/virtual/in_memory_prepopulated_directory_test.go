@@ -422,7 +422,8 @@ func TestInMemoryPrepopulatedDirectoryInstallHooks(t *testing.T) {
 		(&virtual.Attributes{}).SetPermissions(virtual.PermissionsRead|virtual.PermissionsWrite),
 		nil,
 		virtual.AttributesMask(0),
-		&attr)
+		&attr,
+	)
 	require.Equal(t, virtual.StatusErrIO, s)
 
 	// Validate that symlinks uses the new symlink allocator
@@ -461,7 +462,8 @@ func TestInMemoryPrepopulatedDirectoryInstallHooks(t *testing.T) {
 		(&virtual.Attributes{}).SetPermissions(virtual.PermissionsRead|virtual.PermissionsWrite),
 		nil,
 		virtual.AttributesMask(0),
-		&attr)
+		&attr,
+	)
 	require.Equal(t, virtual.StatusErrIO, s)
 }
 
@@ -594,7 +596,8 @@ func TestInMemoryPrepopulatedDirectoryVirtualOpenChildFileExists(t *testing.T) {
 		(&virtual.Attributes{}).SetPermissions(virtual.PermissionsRead|virtual.PermissionsWrite),
 		nil,
 		virtual.AttributesMask(0),
-		&attr)
+		&attr,
+	)
 	require.Equal(t, virtual.StatusErrExist, s)
 }
 
@@ -624,7 +627,8 @@ func TestInMemoryPrepopulatedDirectoryVirtualOpenChildDirectoryExists(t *testing
 		(&virtual.Attributes{}).SetPermissions(virtual.PermissionsRead|virtual.PermissionsWrite),
 		nil,
 		virtual.AttributesMask(0),
-		&attr)
+		&attr,
+	)
 	require.Equal(t, virtual.StatusErrExist, s)
 }
 
@@ -652,7 +656,8 @@ func TestInMemoryPrepopulatedDirectoryVirtualOpenChildAllocationFailure(t *testi
 		(&virtual.Attributes{}).SetPermissions(virtual.PermissionsRead|virtual.PermissionsWrite),
 		nil,
 		virtual.AttributesMask(0),
-		&attr)
+		&attr,
+	)
 	require.Equal(t, virtual.StatusErrIO, s)
 }
 
@@ -684,7 +689,8 @@ func TestInMemoryPrepopulatedDirectoryVirtualOpenChildInRemovedDirectory(t *test
 		(&virtual.Attributes{}).SetPermissions(virtual.PermissionsRead|virtual.PermissionsWrite),
 		nil,
 		virtual.AttributesMask(0),
-		&attr)
+		&attr,
+	)
 	require.Equal(t, virtual.StatusErrNoEnt, s)
 }
 
@@ -727,7 +733,8 @@ func TestInMemoryPrepopulatedDirectoryVirtualOpenChildSuccess(t *testing.T) {
 		(&virtual.Attributes{}).SetPermissions(virtual.PermissionsRead|virtual.PermissionsWrite),
 		nil,
 		virtual.AttributesMaskInodeNumber,
-		&attr)
+		&attr,
+	)
 	require.Equal(t, virtual.StatusOK, s)
 	require.Equal(t, child, newChild)
 	require.Equal(t, virtual.AttributesMaskPermissions, respected)
@@ -781,7 +788,8 @@ func TestInMemoryPrepopulatedDirectoryVirtualGetAttributes(t *testing.T) {
 			SetOwnerUserID(1000).
 			SetPermissions(virtual.PermissionsRead | virtual.PermissionsWrite | virtual.PermissionsExecute).
 			SetSizeBytes(0),
-		attr1)
+		attr1,
+	)
 }
 
 func TestInMemoryPrepopulatedDirectoryVirtualLinkExists(t *testing.T) {
@@ -958,7 +966,8 @@ func TestInMemoryPrepopulatedDirectoryVirtualLookup(t *testing.T) {
 				SetOwnerUserID(1000).
 				SetPermissions(virtual.PermissionsRead | virtual.PermissionsWrite | virtual.PermissionsExecute).
 				SetSizeBytes(0),
-			attr)
+			attr,
+		)
 
 		newDirectory, newLeaf := newChild.GetPair()
 		require.NotNil(t, newDirectory)
@@ -1069,7 +1078,8 @@ func TestInMemoryPrepopulatedDirectoryVirtualMkdir(t *testing.T) {
 				SetOwnerUserID(1000).
 				SetPermissions(virtual.PermissionsRead | virtual.PermissionsWrite | virtual.PermissionsExecute).
 				SetSizeBytes(0),
-			out)
+			out,
+		)
 	})
 }
 
@@ -1126,7 +1136,8 @@ func TestInMemoryPrepopulatedDirectoryVirtualMknodSuccess(t *testing.T) {
 			SetFileType(filesystem.FileTypeFIFO).
 			SetHasNamedAttributes(false).
 			SetSizeBytes(0),
-		fifoAttr)
+		fifoAttr,
+	)
 
 	socketHandleAllocation := mock.NewMockStatefulHandleAllocation(ctrl)
 	handleAllocator.EXPECT().New().Return(socketHandleAllocation)
@@ -1148,7 +1159,8 @@ func TestInMemoryPrepopulatedDirectoryVirtualMknodSuccess(t *testing.T) {
 			SetFileType(filesystem.FileTypeSocket).
 			SetHasNamedAttributes(false).
 			SetSizeBytes(0),
-		socketAttr)
+		socketAttr,
+	)
 
 	// Check whether the devices are reported properly using the
 	// native ReadDir() method.

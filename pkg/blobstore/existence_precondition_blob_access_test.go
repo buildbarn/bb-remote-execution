@@ -130,13 +130,15 @@ func TestExistencePreconditionBlobAccessPutNotFound(t *testing.T) {
 	bottomBlobAccess.EXPECT().Put(
 		ctx,
 		digest.MustNewDigest("ubuntu1604", remoteexecution.DigestFunction_MD5, "89d5739baabbbe65be35cbe61c88e06d", 6),
-		gomock.Any()).DoAndReturn(
+		gomock.Any(),
+	).DoAndReturn(
 		func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 			data, err := b.ToByteSlice(100)
 			require.NoError(t, err)
 			require.Equal(t, []byte("Foobar"), data)
 			return status.Error(codes.NotFound, "Storage backend not found")
-		})
+		},
+	)
 
 	// Unlike for Get(), the error should be passed through
 	// unmodified. This adapter should only alter the results of
@@ -144,7 +146,8 @@ func TestExistencePreconditionBlobAccessPutNotFound(t *testing.T) {
 	err := blobstore.NewExistencePreconditionBlobAccess(bottomBlobAccess).Put(
 		ctx,
 		digest.MustNewDigest("ubuntu1604", remoteexecution.DigestFunction_MD5, "89d5739baabbbe65be35cbe61c88e06d", 6),
-		buffer.NewValidatedBufferFromByteSlice([]byte("Foobar")))
+		buffer.NewValidatedBufferFromByteSlice([]byte("Foobar")),
+	)
 	s := status.Convert(err)
 	require.Equal(t, codes.NotFound, s.Code())
 	require.Equal(t, "Storage backend not found", s.Message())

@@ -22,12 +22,13 @@ var (
 		Name:      "completed_action_logger_completed_actions_acknowledged_total",
 		Help:      "Number of Completed Actions that the remote server responded to.",
 	})
-	completedActionLoggerCompletedActionsLogged = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "buildbarn",
-		Subsystem: "builder",
-		Name:      "completed_action_logger_completed_actions_logged_total",
-		Help:      "Number of Completed Actions that were queued to be sent to a remote server or discarded.",
-	},
+	completedActionLoggerCompletedActionsLogged = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "buildbarn",
+			Subsystem: "builder",
+			Name:      "completed_action_logger_completed_actions_logged_total",
+			Help:      "Number of Completed Actions that were queued to be sent to a remote server or discarded.",
+		},
 		[]string{"result"},
 	)
 	completedActionLoggerCompletedActionsLoggedQueued    = completedActionLoggerCompletedActionsLogged.WithLabelValues("Queued")

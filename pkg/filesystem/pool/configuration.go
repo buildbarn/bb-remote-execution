@@ -34,7 +34,8 @@ func NewFilePoolFromConfiguration(configuration *pb.FilePoolConfiguration) (File
 		filePool = NewBlockDeviceBackedFilePool(
 			blockDevice,
 			NewBitmapSectorAllocator(uint32(sectorCount)),
-			sectorSizeBytes)
+			sectorSizeBytes,
+		)
 	default:
 		return nil, status.Error(codes.InvalidArgument, "Configuration did not contain a supported file pool backend")
 	}

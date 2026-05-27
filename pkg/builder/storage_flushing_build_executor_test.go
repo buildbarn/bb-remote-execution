@@ -107,7 +107,8 @@ func TestStorageFlushingBuildExecutor(t *testing.T) {
 		testutil.RequireEqualProto(
 			t,
 			response,
-			buildExecutor.Execute(ctx, filePool, monitor, digestFunction, request, updates))
+			buildExecutor.Execute(ctx, filePool, monitor, digestFunction, request, updates),
+		)
 	})
 
 	// When flushing fails, some of the outputs may not have ended
@@ -139,6 +140,7 @@ func TestStorageFlushingBuildExecutor(t *testing.T) {
 				Status:  status.New(codes.Internal, "Failed to flush blobs to storage").Proto(),
 				Message: "Uncached action result: http://....",
 			},
-			buildExecutor.Execute(ctx, filePool, monitor, digestFunction, request, updates))
+			buildExecutor.Execute(ctx, filePool, monitor, digestFunction, request, updates),
+		)
 	})
 }

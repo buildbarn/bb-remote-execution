@@ -26,7 +26,8 @@ var (
 			Name:      "demultiplexing_action_router_requests_total",
 			Help:      "Number of actions that were routed using the demultiplexing action router.",
 		},
-		[]string{"instance_name_prefix", "platform"})
+		[]string{"instance_name_prefix", "platform"},
+	)
 )
 
 type demultiplexingActionRouterEntry struct {

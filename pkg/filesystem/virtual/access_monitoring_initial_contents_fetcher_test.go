@@ -22,7 +22,8 @@ func TestAccessMonitoringInitialContentsFetcher(t *testing.T) {
 	rootUnreadDirectoryMonitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
 	initialContentsFetcher := virtual.NewAccessMonitoringInitialContentsFetcher(
 		baseInitialContentsFetcher,
-		rootUnreadDirectoryMonitor)
+		rootUnreadDirectoryMonitor,
+	)
 
 	t.Run("FetchContentsFailed", func(t *testing.T) {
 		// If fetching the initial contents of a directory

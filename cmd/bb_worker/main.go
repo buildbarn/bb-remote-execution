@@ -106,7 +106,9 @@ func main() {
 				prefetchingConfiguration.FileSystemAccessCache,
 				blobstore_configuration.NewFSACBlobAccessCreator(
 					grpcClientFactory,
-					int(configuration.MaximumMessageSizeBytes)))
+					int(configuration.MaximumMessageSizeBytes),
+				),
+			)
 			if err != nil {
 				return util.StatusWrap(err, "Failed to create File System Access Cache")
 			}
@@ -122,7 +124,9 @@ func main() {
 			cas.NewBlobAccessDirectoryFetcher(
 				globalContentAddressableStorage,
 				/* maximumDirectorySizeBytes = */ int(configuration.MaximumMessageSizeBytes),
-				/* maximumTreeSizeBytes = */ 0))
+				/* maximumTreeSizeBytes = */ 0,
+			),
+		)
 		if err != nil {
 			return util.StatusWrap(err, "Failed to create caching directory fetcher")
 		}
@@ -198,7 +202,8 @@ func main() {
 					/* rootDirectory = */ virtual_configuration.ShortAttributeCaching,
 					/* childDirectories = */ virtual_configuration.LongAttributeCaching,
 					/* leaves = */ virtual_configuration.LongAttributeCaching,
-					!backend.Virtual.CaseInsensitive)
+					!backend.Virtual.CaseInsensitive,
+				)
 				if err != nil {
 					return util.StatusWrap(err, "Failed to create build directory mount")
 				}
@@ -224,7 +229,8 @@ func main() {
 
 				characterDeviceFactory = virtual.NewHandleAllocatingCharacterDeviceFactory(
 					virtual.BaseCharacterDeviceFactory,
-					handleAllocator.New())
+					handleAllocator.New(),
+				)
 				defaultAttributesSetter := func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
 					// No need to set ownership attributes
 					// on the top-level directory.
@@ -300,7 +306,8 @@ func main() {
 					cacheDirectory,
 					int(nativeConfiguration.MaximumCacheFileCount),
 					nativeConfiguration.MaximumCacheSizeBytes,
-					eviction.NewMetricsSet(evictionSet, "HardlinkingFileFetcher"))
+					eviction.NewMetricsSet(evictionSet, "HardlinkingFileFetcher"),
+				)
 
 				// Using a native file system requires us to
 				// hold on to file descriptors while uploading
@@ -326,7 +333,8 @@ func main() {
 				// devices that need to be available within the
 				// input root.
 				inputRootCharacterDevices, err := getInputRootCharacterDevices(
-					runnerConfiguration.InputRootCharacterDeviceNodes)
+					runnerConfiguration.InputRootCharacterDeviceNodes,
+				)
 				if err != nil {
 					return err
 				}
@@ -367,12 +375,14 @@ func main() {
 						globalContentAddressableStorage,
 						digest.KeyWithoutInstance,
 						uploadBatchSize,
-						outputUploadConcurrencySemaphore)
+						outputUploadConcurrencySemaphore,
+					)
 					contentAddressableStorageWriter = blobstore.NewMetricsBlobAccess(
 						contentAddressableStorageWriter,
 						clock.SystemClock,
 						"cas",
-						"batched_store")
+						"batched_store",
+					)
 
 					// Features like the virtual file system
 					// and HTTP execution timeout
@@ -400,10 +410,12 @@ func main() {
 							virtualBuildDirectory,
 							cas.NewSuspendingDirectoryFetcher(
 								directoryFetcher,
-								suspendableClock),
+								suspendableClock,
+							),
 							re_blobstore.NewSuspendingBlobAccess(
 								contentAddressableStorageWriter,
-								suspendableClock),
+								suspendableClock,
+							),
 							symlinkFactory,
 							characterDeviceFactory,
 							handleAllocator,
@@ -416,7 +428,8 @@ func main() {
 							directoryFetcher,
 							fileFetcher,
 							inputDownloadConcurrencySemaphore,
-							contentAddressableStorageWriter)
+							contentAddressableStorageWriter,
+						)
 					}
 
 					// Create a per-action subdirectory in
@@ -430,8 +443,10 @@ func main() {
 					buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(
 						builder.NewCleanBuildDirectoryCreator(
 							builder.NewRootBuildDirectoryCreator(buildDirectory),
-							buildDirectoryIdleInvoker),
-						&sharedBuildDirectoryNextParallelActionID)
+							buildDirectoryIdleInvoker,
+						),
+						&sharedBuildDirectoryNextParallelActionID,
+					)
 
 					workerID := map[string]string{}
 					if runnerConfiguration.Concurrency > 1 {
@@ -466,7 +481,8 @@ func main() {
 							fileSystemAccessCache,
 							int(configuration.MaximumMessageSizeBytes),
 							int(prefetchingConfiguration.BloomFilterBitsPerPath),
-							int(prefetchingConfiguration.BloomFilterMaximumSizeBytes))
+							int(prefetchingConfiguration.BloomFilterMaximumSizeBytes),
+						)
 					}
 
 					buildExecutor = builder.NewMetricsBuildExecutor(
@@ -474,9 +490,13 @@ func main() {
 							builder.NewTimestampedBuildExecutor(
 								builder.NewStorageFlushingBuildExecutor(
 									buildExecutor,
-									contentAddressableStorageFlusher),
+									contentAddressableStorageFlusher,
+								),
 								clock.SystemClock,
-								string(workerName))))
+								string(workerName),
+							),
+						),
+					)
 
 					if len(runnerConfiguration.CostsPerSecond) > 0 {
 						buildExecutor = builder.NewCostComputingBuildExecutor(buildExecutor, runnerConfiguration.CostsPerSecond)
@@ -486,28 +506,33 @@ func main() {
 						buildExecutor = builder.NewTestInfrastructureFailureDetectingBuildExecutor(
 							buildExecutor,
 							testInfrastructureFailureShutdownState,
-							maximumConsecutiveFailures)
+							maximumConsecutiveFailures,
+						)
 					}
 
 					buildExecutor = builder.NewCachingBuildExecutor(
 						buildExecutor,
 						globalContentAddressableStorage,
 						actionCache,
-						browserURL)
+						browserURL,
+					)
 
 					for _, remoteCompletedActionLogger := range remoteCompletedActionLoggers {
 						buildExecutor = builder.NewCompletedActionLoggingBuildExecutor(
 							buildExecutor,
 							uuid.NewRandom,
 							remoteCompletedActionLogger.logger,
-							remoteCompletedActionLogger.instanceNamePatcher)
+							remoteCompletedActionLogger.instanceNamePatcher,
+						)
 					}
 
 					buildExecutor = builder.NewTracingBuildExecutor(
 						builder.NewLoggingBuildExecutor(
 							buildExecutor,
-							browserURL),
-						tracerProvider)
+							browserURL,
+						),
+						tracerProvider,
+					)
 
 					instanceNamePrefix, err := digest.NewInstanceName(runnerConfiguration.InstanceNamePrefix)
 					if err != nil {
@@ -520,12 +545,14 @@ func main() {
 						pool.NewQuotaEnforcingFilePool(
 							filePool,
 							runnerConfiguration.MaximumFilePoolFileCount,
-							runnerConfiguration.MaximumFilePoolSizeBytes),
+							runnerConfiguration.MaximumFilePoolSizeBytes,
+						),
 						clock.SystemClock,
 						workerID,
 						instanceNamePrefix,
 						runnerConfiguration.Platform,
-						runnerConfiguration.SizeClass)
+						runnerConfiguration.SizeClass,
+					)
 					builder.LaunchWorkerThread(siblingsGroup, buildClient, string(workerName))
 				}
 			}

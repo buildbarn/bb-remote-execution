@@ -23,7 +23,8 @@ func TestFilteringProcessTable(t *testing.T) {
 		func(process *cleaner.Process) bool {
 			return process.UserID == 123 &&
 				process.CreationTime.After(time.Unix(1500000000, 0))
-		})
+		},
+	)
 
 	t.Run("Failure", func(t *testing.T) {
 		baseProcessTable.EXPECT().GetProcesses().Return(nil, status.Error(codes.Internal, "Out of memory"))

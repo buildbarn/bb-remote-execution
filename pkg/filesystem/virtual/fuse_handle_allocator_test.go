@@ -37,7 +37,8 @@ func TestFUSEHandleAllocator(t *testing.T) {
 		require.Equal(
 			t,
 			(&virtual.Attributes{}).SetInodeNumber(0xfccd1fc99a8c3425),
-			&attr)
+			&attr,
+		)
 
 		// Removal notifications should be forwarded, to the
 		// FUSE server, containing the inode number of the
@@ -72,7 +73,8 @@ func TestFUSEHandleAllocator(t *testing.T) {
 				SetInodeNumber(0xa44671c491369d36).
 				SetLinkCount(17).
 				SetSizeBytes(42),
-			&attr)
+			&attr,
+		)
 	})
 
 	t.Run("StatefulLinkableLeaf", func(t *testing.T) {
@@ -95,7 +97,8 @@ func TestFUSEHandleAllocator(t *testing.T) {
 				SetInodeNumber(0xf999bb2fd22421d8).
 				SetLinkCount(1).
 				SetSizeBytes(42),
-			&attr1)
+			&attr1,
+		)
 
 		// Hardlinking it should cause the link count to be
 		// increased.
@@ -109,7 +112,8 @@ func TestFUSEHandleAllocator(t *testing.T) {
 				SetInodeNumber(0xf999bb2fd22421d8).
 				SetLinkCount(2).
 				SetSizeBytes(42),
-			&attr2)
+			&attr2,
+		)
 
 		// Unlinking it twice should cause the underlying leaf
 		// node to be unlinked.
@@ -125,7 +129,8 @@ func TestFUSEHandleAllocator(t *testing.T) {
 				SetInodeNumber(0xf999bb2fd22421d8).
 				SetLinkCount(0).
 				SetSizeBytes(42),
-			&attr3)
+			&attr3,
+		)
 
 		// Attempting to link it again should fail, as files
 		// cannot be brought back after being unlinked.
@@ -139,7 +144,8 @@ func TestFUSEHandleAllocator(t *testing.T) {
 				SetInodeNumber(0xf999bb2fd22421d8).
 				SetLinkCount(0).
 				SetSizeBytes(42),
-			&attr4)
+			&attr4,
+		)
 	})
 
 	t.Run("StatelessLinkableLeaf", func(t *testing.T) {
@@ -171,7 +177,8 @@ func TestFUSEHandleAllocator(t *testing.T) {
 				SetInodeNumber(0x2fac04c71c5c810f).
 				SetLinkCount(virtual.StatelessLeafLinkCount).
 				SetSizeBytes(123),
-			&attr1)
+			&attr1,
+		)
 
 		// Hardlinking should have no effect.
 		require.Equal(t, virtual.StatusOK, wrappedLeaf.Link())
@@ -184,7 +191,8 @@ func TestFUSEHandleAllocator(t *testing.T) {
 				SetInodeNumber(0x2fac04c71c5c810f).
 				SetLinkCount(virtual.StatelessLeafLinkCount).
 				SetSizeBytes(123),
-			&attr2)
+			&attr2,
+		)
 
 		// Unlinking also has no effect.
 		wrappedLeaf.Unlink()
@@ -198,6 +206,7 @@ func TestFUSEHandleAllocator(t *testing.T) {
 				SetInodeNumber(0x2fac04c71c5c810f).
 				SetLinkCount(virtual.StatelessLeafLinkCount).
 				SetSizeBytes(123),
-			&attr3)
+			&attr3,
+		)
 	})
 }

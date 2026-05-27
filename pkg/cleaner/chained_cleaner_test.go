@@ -31,7 +31,8 @@ func TestChainedCleaner(t *testing.T) {
 			status.Error(codes.Internal, "Failed to clean process table"),
 			cleaner.NewChainedCleaner([]cleaner.Cleaner{
 				cleaner1.Call,
-			})(ctx))
+			})(ctx),
+		)
 	})
 
 	t.Run("SingleSuccess", func(t *testing.T) {
@@ -54,7 +55,8 @@ func TestChainedCleaner(t *testing.T) {
 		gomock.InOrder(
 			cleaner1.EXPECT().Call(ctx),
 			cleaner2.EXPECT().Call(ctx).Return(status.Error(codes.Internal, "Failed to clean process table")),
-			cleaner3.EXPECT().Call(ctx).Return(status.Error(codes.Internal, "Failed to clean directory")))
+			cleaner3.EXPECT().Call(ctx).Return(status.Error(codes.Internal, "Failed to clean directory")),
+		)
 
 		testutil.RequireEqualStatus(
 			t,
@@ -63,7 +65,8 @@ func TestChainedCleaner(t *testing.T) {
 				cleaner1.Call,
 				cleaner2.Call,
 				cleaner3.Call,
-			})(ctx))
+			})(ctx),
+		)
 	})
 
 	t.Run("MultipleSuccess", func(t *testing.T) {
@@ -73,7 +76,8 @@ func TestChainedCleaner(t *testing.T) {
 		gomock.InOrder(
 			cleaner1.EXPECT().Call(ctx),
 			cleaner2.EXPECT().Call(ctx),
-			cleaner3.EXPECT().Call(ctx))
+			cleaner3.EXPECT().Call(ctx),
+		)
 
 		require.NoError(t, cleaner.NewChainedCleaner([]cleaner.Cleaner{
 			cleaner1.Call,

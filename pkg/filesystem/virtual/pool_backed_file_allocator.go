@@ -32,14 +32,16 @@ var (
 			Name:      "pool_backed_file_allocator_writable_file_upload_delay_seconds",
 			Help:      "The amount of time uploading a pool-backed file to the Content Addressable Storage was delayed, waiting for writable file descriptors to be closed.",
 			Buckets:   util.DecimalExponentialBuckets(-3, 6, 2),
-		})
+		},
+	)
 	poolBackedFileAllocatorWritableFileUploadDelayTimeouts = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Namespace: "buildbarn",
 			Subsystem: "virtual",
 			Name:      "pool_backed_file_allocator_writable_file_upload_delay_timeouts_total",
 			Help:      "Total number times the contents of a pool-backed file were uploaded into the Content Addressable Storage while one or more writable file descriptors were present, due to the maximum permitted delay being reached.",
-		})
+		},
+	)
 )
 
 type poolBackedFileAllocator struct {
@@ -255,7 +257,8 @@ func (f *fileBackedFile) uploadFile(ctx context.Context, contentAddressableStora
 	if err := contentAddressableStorage.Put(
 		ctx,
 		blobDigest,
-		buffer.NewValidatedBufferFromReaderAt(frozenFile, blobDigest.GetSizeBytes())); err != nil {
+		buffer.NewValidatedBufferFromReaderAt(frozenFile, blobDigest.GetSizeBytes()),
+	); err != nil {
 		return digest.BadDigest, util.StatusWrap(err, "Failed to upload file")
 	}
 	return blobDigest, nil

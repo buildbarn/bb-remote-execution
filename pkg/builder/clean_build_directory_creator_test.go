@@ -57,11 +57,11 @@ func TestCleanBuildDirectoryCreator(t *testing.T) {
 		baseCleaner.EXPECT().Call(ctx)
 		baseBuildDirectory := mock.NewMockBuildDirectory(ctrl)
 		baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(ctx, &actionDigest).
-			Return(baseBuildDirectory, ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory")), nil)
+			Return(baseBuildDirectory, (*path.Trace)(nil).Append(path.MustNewComponent("base-directory")), nil)
 
 		buildDirectory, buildDirectoryPath, err := buildDirectoryCreator.GetBuildDirectory(ctx, &actionDigest)
 		require.NoError(t, err)
-		require.Equal(t, ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory")), buildDirectoryPath)
+		require.Equal(t, (*path.Trace)(nil).Append(path.MustNewComponent("base-directory")), buildDirectoryPath)
 
 		// Validate that calls against the directory are forwarded.
 		baseBuildDirectory.EXPECT().Mkdir(path.MustNewComponent("hello"), os.FileMode(0o700))
@@ -78,7 +78,8 @@ func TestCleanBuildDirectoryCreator(t *testing.T) {
 		testutil.RequireEqualStatus(
 			t,
 			status.Error(codes.Internal, "Failed to flush data"),
-			buildDirectory.Close())
+			buildDirectory.Close(),
+		)
 	})
 
 	t.Run("CleanerReleaseFailure", func(t *testing.T) {
@@ -86,11 +87,11 @@ func TestCleanBuildDirectoryCreator(t *testing.T) {
 		baseCleaner.EXPECT().Call(ctx)
 		baseBuildDirectory := mock.NewMockBuildDirectory(ctrl)
 		baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(ctx, &actionDigest).
-			Return(baseBuildDirectory, ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory")), nil)
+			Return(baseBuildDirectory, (*path.Trace)(nil).Append(path.MustNewComponent("base-directory")), nil)
 
 		buildDirectory, buildDirectoryPath, err := buildDirectoryCreator.GetBuildDirectory(ctx, &actionDigest)
 		require.NoError(t, err)
-		require.Equal(t, ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory")), buildDirectoryPath)
+		require.Equal(t, (*path.Trace)(nil).Append(path.MustNewComponent("base-directory")), buildDirectoryPath)
 
 		// Cleanup failures at the end of a build should also be
 		// propagated properly.
@@ -100,7 +101,8 @@ func TestCleanBuildDirectoryCreator(t *testing.T) {
 		testutil.RequireEqualStatus(
 			t,
 			status.Error(codes.Internal, "Failed to clean after releasing build directory: Failed to remove files"),
-			buildDirectory.Close())
+			buildDirectory.Close(),
+		)
 	})
 
 	t.Run("CloseSuccess", func(t *testing.T) {
@@ -108,11 +110,11 @@ func TestCleanBuildDirectoryCreator(t *testing.T) {
 		baseCleaner.EXPECT().Call(ctx)
 		baseBuildDirectory := mock.NewMockBuildDirectory(ctrl)
 		baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(ctx, &actionDigest).
-			Return(baseBuildDirectory, ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory")), nil)
+			Return(baseBuildDirectory, (*path.Trace)(nil).Append(path.MustNewComponent("base-directory")), nil)
 
 		buildDirectory, buildDirectoryPath, err := buildDirectoryCreator.GetBuildDirectory(ctx, &actionDigest)
 		require.NoError(t, err)
-		require.Equal(t, ((*path.Trace)(nil)).Append(path.MustNewComponent("base-directory")), buildDirectoryPath)
+		require.Equal(t, (*path.Trace)(nil).Append(path.MustNewComponent("base-directory")), buildDirectoryPath)
 
 		// Let both releasing of the build directory and running
 		// the cleaner succeed.

@@ -138,7 +138,8 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool pool.FilePoo
 	if err := action.Timeout.CheckValid(); err != nil {
 		attachErrorToExecuteResponse(
 			response,
-			util.StatusWrapWithCode(err, codes.InvalidArgument, "Invalid execution timeout"))
+			util.StatusWrapWithCode(err, codes.InvalidArgument, "Invalid execution timeout"),
+		)
 		return response
 	}
 	executionTimeout := action.Timeout.AsDuration()
@@ -157,7 +158,8 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool pool.FilePoo
 	if err != nil {
 		attachErrorToExecuteResponse(
 			response,
-			util.StatusWrap(err, "Failed to acquire build environment"))
+			util.StatusWrap(err, "Failed to acquire build environment"),
+		)
 		return response
 	}
 	defer func() {
@@ -165,7 +167,8 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool pool.FilePoo
 		if err != nil {
 			attachErrorToExecuteResponse(
 				response,
-				util.StatusWrap(err, "Failed to close build directory"))
+				util.StatusWrap(err, "Failed to close build directory"),
+			)
 		}
 	}()
 
@@ -187,14 +190,16 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool pool.FilePoo
 	if err := buildDirectory.Mkdir(inputRootDirectoryComponent, 0o777); err != nil {
 		attachErrorToExecuteResponse(
 			response,
-			util.StatusWrap(err, "Failed to create input root directory"))
+			util.StatusWrap(err, "Failed to create input root directory"),
+		)
 		return response
 	}
 	inputRootDirectory, err := buildDirectory.EnterBuildDirectory(inputRootDirectoryComponent)
 	if err != nil {
 		attachErrorToExecuteResponse(
 			response,
-			util.StatusWrap(err, "Failed to enter input root directory"))
+			util.StatusWrap(err, "Failed to enter input root directory"),
+		)
 		return response
 	}
 	defer inputRootDirectory.Close()
@@ -203,7 +208,8 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool pool.FilePoo
 	if err != nil {
 		attachErrorToExecuteResponse(
 			response,
-			util.StatusWrap(err, "Failed to extract digest for input root"))
+			util.StatusWrap(err, "Failed to extract digest for input root"),
+		)
 		return response
 	}
 	if err := inputRootDirectory.MergeDirectoryContents(ctx, &ioErrorCapturer, inputRootDigest, monitor); err != nil {
@@ -249,14 +255,16 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool pool.FilePoo
 	if err := buildDirectory.Mkdir(temporaryDirectoryComponent, 0o777); err != nil {
 		attachErrorToExecuteResponse(
 			response,
-			util.StatusWrap(err, "Failed to create temporary directory inside build directory"))
+			util.StatusWrap(err, "Failed to create temporary directory inside build directory"),
+		)
 		return response
 	}
 
 	if err := buildDirectory.Mkdir(serverLogsDirectoryComponent, 0o777); err != nil {
 		attachErrorToExecuteResponse(
 			response,
-			util.StatusWrap(err, "Failed to create server logs directory inside build directory"))
+			util.StatusWrap(err, "Failed to create server logs directory inside build directory"),
+		)
 		return response
 	}
 

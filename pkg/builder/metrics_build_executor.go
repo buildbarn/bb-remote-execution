@@ -29,7 +29,8 @@ var (
 			Help:      "Amount of time spent per build execution stage, in seconds.",
 			Buckets:   util.DecimalExponentialBuckets(-3, 6, 2),
 		},
-		[]string{"result", "grpc_code", "stage"})
+		[]string{"result", "grpc_code", "stage"},
+	)
 	buildExecutorVirtualExecutionDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
@@ -38,7 +39,8 @@ var (
 			Help:      "Amount of time the execution timeout was compensated, in seconds.",
 			Buckets:   util.DecimalExponentialBuckets(-3, 6, 2),
 		},
-		[]string{"result", "grpc_code"})
+		[]string{"result", "grpc_code"},
+	)
 
 	// Metrics for FilePoolResourceUsage.
 	buildExecutorFilePoolFilesCreated = prometheus.NewHistogramVec(
@@ -49,7 +51,8 @@ var (
 			Help:      "Number of files created by a build action.",
 			Buckets:   util.DecimalExponentialBuckets(0, 6, 2),
 		},
-		[]string{"result", "grpc_code"})
+		[]string{"result", "grpc_code"},
+	)
 	buildExecutorFilePoolFilesCountPeak = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
@@ -58,7 +61,8 @@ var (
 			Help:      "Peak number of files created by a build action.",
 			Buckets:   util.DecimalExponentialBuckets(0, 6, 2),
 		},
-		[]string{"result", "grpc_code"})
+		[]string{"result", "grpc_code"},
+	)
 	buildExecutorFilePoolFilesSizeBytesPeak = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
@@ -67,7 +71,8 @@ var (
 			Help:      "Peak size of files created by a build action, in bytes.",
 			Buckets:   prometheus.ExponentialBuckets(1.0, 2.0, 33),
 		},
-		[]string{"result", "grpc_code"})
+		[]string{"result", "grpc_code"},
+	)
 	buildExecutorFilePoolFilesOperationsCount = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
@@ -76,7 +81,8 @@ var (
 			Help:      "Number of file pool operations performed by build actions.",
 			Buckets:   util.DecimalExponentialBuckets(0, 6, 2),
 		},
-		[]string{"result", "grpc_code", "operation"})
+		[]string{"result", "grpc_code", "operation"},
+	)
 	buildExecutorFilePoolFilesOperationsSizeBytes = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
@@ -85,7 +91,8 @@ var (
 			Help:      "Total size of file pool operations performed by build actions, in bytes.",
 			Buckets:   prometheus.ExponentialBuckets(1.0, 2.0, 33),
 		},
-		[]string{"result", "grpc_code", "operation"})
+		[]string{"result", "grpc_code", "operation"},
+	)
 
 	// Metrics for InputRootResourceUsage.
 	buildExecutorInputRootDirectoriesResolved = prometheus.NewHistogramVec(
@@ -96,7 +103,8 @@ var (
 			Help:      "Number of directories in the input root for which directory nodes in the virtual file system were instantiated.",
 			Buckets:   util.DecimalExponentialBuckets(0, 6, 2),
 		},
-		[]string{"result", "grpc_code"})
+		[]string{"result", "grpc_code"},
+	)
 	buildExecutorInputRootDirectoriesRead = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
@@ -105,7 +113,8 @@ var (
 			Help:      "Number of directories in the input root whose contents were read from the Content Addressable Storage (CAS).",
 			Buckets:   util.DecimalExponentialBuckets(0, 6, 2),
 		},
-		[]string{"result", "grpc_code"})
+		[]string{"result", "grpc_code"},
+	)
 	buildExecutorInputRootFilesRead = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
@@ -114,7 +123,8 @@ var (
 			Help:      "Number of files in the input root whose contents were read from the Content Addressable Storage (CAS).",
 			Buckets:   util.DecimalExponentialBuckets(0, 6, 2),
 		},
-		[]string{"result", "grpc_code"})
+		[]string{"result", "grpc_code"},
+	)
 
 	// Metrics for POSIXResourceUsage.
 	buildExecutorPOSIXUserTime = prometheus.NewHistogramVec(
@@ -125,7 +135,8 @@ var (
 			Help:      "Amount of time spent in userspace by build actions, in seconds.",
 			Buckets:   util.DecimalExponentialBuckets(-3, 6, 2),
 		},
-		[]string{"result", "grpc_code"})
+		[]string{"result", "grpc_code"},
+	)
 	buildExecutorPOSIXSystemTime = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
@@ -134,7 +145,8 @@ var (
 			Help:      "Amount of time spent in kernelspace by build actions, in seconds.",
 			Buckets:   util.DecimalExponentialBuckets(-3, 6, 2),
 		},
-		[]string{"result", "grpc_code"})
+		[]string{"result", "grpc_code"},
+	)
 	buildExecutorPOSIXMaximumResidentSetSize = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
@@ -143,7 +155,8 @@ var (
 			Help:      "Maximum resident set size of build actions, in bytes.",
 			Buckets:   prometheus.ExponentialBuckets(1024.0, 2.0, 23),
 		},
-		[]string{"result", "grpc_code"})
+		[]string{"result", "grpc_code"},
+	)
 	buildExecutorPOSIXPageReclaims = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
@@ -152,7 +165,8 @@ var (
 			Help:      "Number of page reclaims caused by build actions.",
 			Buckets:   util.DecimalExponentialBuckets(0, 9, 2),
 		},
-		[]string{"result", "grpc_code"})
+		[]string{"result", "grpc_code"},
+	)
 	buildExecutorPOSIXPageFaults = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
@@ -161,7 +175,8 @@ var (
 			Help:      "Number of page faults caused by build actions.",
 			Buckets:   util.DecimalExponentialBuckets(0, 9, 2),
 		},
-		[]string{"result", "grpc_code"})
+		[]string{"result", "grpc_code"},
+	)
 	buildExecutorPOSIXSwaps = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
@@ -170,7 +185,8 @@ var (
 			Help:      "Number of swaps caused by build actions.",
 			Buckets:   util.DecimalExponentialBuckets(0, 9, 2),
 		},
-		[]string{"result", "grpc_code"})
+		[]string{"result", "grpc_code"},
+	)
 	buildExecutorPOSIXBlockInputOperations = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
@@ -179,7 +195,8 @@ var (
 			Help:      "Number of block input operations performed by build actions.",
 			Buckets:   util.DecimalExponentialBuckets(0, 9, 2),
 		},
-		[]string{"result", "grpc_code"})
+		[]string{"result", "grpc_code"},
+	)
 	buildExecutorPOSIXBlockOutputOperations = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
@@ -188,7 +205,8 @@ var (
 			Help:      "Number of block output operations performed by build actions.",
 			Buckets:   util.DecimalExponentialBuckets(0, 9, 2),
 		},
-		[]string{"result", "grpc_code"})
+		[]string{"result", "grpc_code"},
+	)
 	buildExecutorPOSIXMessagesSent = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
@@ -197,7 +215,8 @@ var (
 			Help:      "Number of messages sent by build actions.",
 			Buckets:   util.DecimalExponentialBuckets(0, 9, 2),
 		},
-		[]string{"result", "grpc_code"})
+		[]string{"result", "grpc_code"},
+	)
 	buildExecutorPOSIXMessagesReceived = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
@@ -206,7 +225,8 @@ var (
 			Help:      "Number of messages received by build actions.",
 			Buckets:   util.DecimalExponentialBuckets(0, 9, 2),
 		},
-		[]string{"result", "grpc_code"})
+		[]string{"result", "grpc_code"},
+	)
 	buildExecutorPOSIXSignalsReceived = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
@@ -215,7 +235,8 @@ var (
 			Help:      "Number of signals received by build actions.",
 			Buckets:   util.DecimalExponentialBuckets(0, 6, 2),
 		},
-		[]string{"result", "grpc_code"})
+		[]string{"result", "grpc_code"},
+	)
 	buildExecutorPOSIXVoluntaryContextSwitches = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
@@ -224,7 +245,8 @@ var (
 			Help:      "Number of voluntary context switches caused by build actions.",
 			Buckets:   util.DecimalExponentialBuckets(0, 9, 2),
 		},
-		[]string{"result", "grpc_code"})
+		[]string{"result", "grpc_code"},
+	)
 	buildExecutorPOSIXInvoluntaryContextSwitches = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "buildbarn",
@@ -233,7 +255,8 @@ var (
 			Help:      "Number of involuntary context switches caused by build actions.",
 			Buckets:   util.DecimalExponentialBuckets(0, 9, 2),
 		},
-		[]string{"result", "grpc_code"})
+		[]string{"result", "grpc_code"},
+	)
 )
 
 type metricsBuildExecutor struct {
@@ -300,16 +323,20 @@ func (be *metricsBuildExecutor) Execute(ctx context.Context, filePool pool.FileP
 	metadata := response.Result.ExecutionMetadata
 	observeTimestampDelta(
 		buildExecutorDurationSeconds.WithLabelValues(result, grpcCode, "FetchingInputs"),
-		metadata.InputFetchStartTimestamp, metadata.InputFetchCompletedTimestamp)
+		metadata.InputFetchStartTimestamp, metadata.InputFetchCompletedTimestamp,
+	)
 	observeTimestampDelta(
 		buildExecutorDurationSeconds.WithLabelValues(result, grpcCode, "Running"),
-		metadata.ExecutionStartTimestamp, metadata.ExecutionCompletedTimestamp)
+		metadata.ExecutionStartTimestamp, metadata.ExecutionCompletedTimestamp,
+	)
 	observeTimestampDelta(
 		buildExecutorDurationSeconds.WithLabelValues(result, grpcCode, "UploadingOutputs"),
-		metadata.OutputUploadStartTimestamp, metadata.OutputUploadCompletedTimestamp)
+		metadata.OutputUploadStartTimestamp, metadata.OutputUploadCompletedTimestamp,
+	)
 	observeDuration(
 		buildExecutorVirtualExecutionDuration.WithLabelValues(result, grpcCode),
-		metadata.VirtualExecutionDuration)
+		metadata.VirtualExecutionDuration,
+	)
 
 	for _, auxiliaryMetadata := range metadata.AuxiliaryMetadata {
 		var filePool resourceusage.FilePoolResourceUsage

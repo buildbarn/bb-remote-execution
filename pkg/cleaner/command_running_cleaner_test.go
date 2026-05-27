@@ -21,7 +21,8 @@ func TestCommandRunningCleaner(t *testing.T) {
 		testutil.RequireEqualStatus(
 			t,
 			status.Error(codes.Internal, "Failed to run cleaning command: exit status 1"),
-			cleaner.NewCommandRunningCleaner("false", nil)(ctx))
+			cleaner.NewCommandRunningCleaner("false", nil)(ctx),
+		)
 	})
 
 	t.Run("Success", func(t *testing.T) {

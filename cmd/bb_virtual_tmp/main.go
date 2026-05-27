@@ -60,7 +60,8 @@ func main() {
 			/* rootDirectory = */ virtual_configuration.LongAttributeCaching,
 			/* childDirectories = */ virtual_configuration.LongAttributeCaching,
 			/* leaves = */ virtual_configuration.NoAttributeCaching,
-			/* caseSensitive = */ true)
+			/* caseSensitive = */ true,
+		)
 		if err != nil {
 			return util.StatusWrap(err, "Failed to create virtual file system mount")
 		}
@@ -70,7 +71,9 @@ func main() {
 				virtual.NewStaticDirectory(virtual.CaseSensitiveComponentNormalizer, map[path.Component]virtual.DirectoryChild{
 					path.MustNewComponent("tmp"): virtual.DirectoryChild{}.
 						FromLeaf(handleAllocator.New().AsLinkableLeaf(userSettableSymlink)),
-				}))); err != nil {
+				}),
+			),
+		); err != nil {
 			return util.StatusWrap(err, "Failed to expose virtual file system mount")
 		}
 

@@ -50,7 +50,8 @@ func TestCachingBuildExecutorCachedSuccess(t *testing.T) {
 	actionCache.EXPECT().Put(
 		ctx,
 		digest.MustNewDigest("freebsd12", remoteexecution.DigestFunction_SHA256, "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c", 11),
-		gomock.Any()).
+		gomock.Any(),
+	).
 		DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 			actionResult, err := b.ToProto(&remoteexecution.ActionResult{}, 10000)
 			require.NoError(t, err)
@@ -103,7 +104,8 @@ func TestCachingBuildExecutorCachedSuccessExplicitOK(t *testing.T) {
 	actionCache.EXPECT().Put(
 		ctx,
 		digest.MustNewDigest("freebsd12", remoteexecution.DigestFunction_SHA256, "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c", 11),
-		gomock.Any()).
+		gomock.Any(),
+	).
 		DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 			actionResult, err := b.ToProto(&remoteexecution.ActionResult{}, 10000)
 			require.NoError(t, err)
@@ -161,7 +163,8 @@ func TestCachingBuildExecutorCachedSuccessNonZeroExitCode(t *testing.T) {
 	contentAddressableStorage.EXPECT().Put(
 		ctx,
 		digest.MustNewDigest("freebsd12", remoteexecution.DigestFunction_SHA256, "bb1107706f3aa379d68aa61062f56d99d24a667ec18d5756fb6df1ba9baa1fdc", 93),
-		gomock.Any()).
+		gomock.Any(),
+	).
 		DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 			historicalExecuteResponse, err := b.ToProto(&cas_proto.HistoricalExecuteResponse{}, 10000)
 			require.NoError(t, err)
@@ -224,7 +227,8 @@ func TestCachingBuildExecutorCachedStorageFailure(t *testing.T) {
 	actionCache.EXPECT().Put(
 		ctx,
 		digest.MustNewDigest("freebsd12", remoteexecution.DigestFunction_SHA256, "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c", 11),
-		gomock.Any()).
+		gomock.Any(),
+	).
 		DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 			actionResult, err := b.ToProto(&remoteexecution.ActionResult{}, 10000)
 			require.NoError(t, err)
@@ -275,7 +279,8 @@ func TestCachingBuildExecutorUncachedDoNotCache(t *testing.T) {
 	contentAddressableStorage.EXPECT().Put(
 		ctx,
 		digest.MustNewDigest("freebsd12", remoteexecution.DigestFunction_SHA256, "5ed2d5720b99f5575542bb4f89e84b5e00e34ab652292974fdb814ab7dc3c92e", 89),
-		gomock.Any()).
+		gomock.Any(),
+	).
 		DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 			historicalExecuteResponse, err := b.ToProto(&cas_proto.HistoricalExecuteResponse{}, 10000)
 			require.NoError(t, err)
@@ -336,7 +341,8 @@ func TestCachingBuildExecutorUncachedError(t *testing.T) {
 	contentAddressableStorage.EXPECT().Put(
 		ctx,
 		digest.MustNewDigest("freebsd12", remoteexecution.DigestFunction_SHA256, "a6e4f00dd21540b0b653dcd195b3d54ea4c0b3ca679cf6a69eb7b0dbd378c2cc", 126),
-		gomock.Any()).
+		gomock.Any(),
+	).
 		DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 			historicalExecuteResponse, err := b.ToProto(&cas_proto.HistoricalExecuteResponse{}, 10000)
 			require.NoError(t, err)
@@ -399,7 +405,8 @@ func TestCachingBuildExecutorUncachedStorageFailure(t *testing.T) {
 	contentAddressableStorage.EXPECT().Put(
 		ctx,
 		digest.MustNewDigest("freebsd12", remoteexecution.DigestFunction_SHA256, "a6e4f00dd21540b0b653dcd195b3d54ea4c0b3ca679cf6a69eb7b0dbd378c2cc", 126),
-		gomock.Any()).
+		gomock.Any(),
+	).
 		DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
 			historicalExecuteResponse, err := b.ToProto(&cas_proto.HistoricalExecuteResponse{}, 10000)
 			require.NoError(t, err)

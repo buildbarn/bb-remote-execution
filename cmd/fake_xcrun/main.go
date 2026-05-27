@@ -46,6 +46,8 @@ func main() {
 			syscall.Exec(
 				utilityPath,
 				append([]string{utilityPath}, args[1:]...),
-				os.Environ()))
+				os.Environ(),
+			),
+		)
 	}
 }

@@ -125,10 +125,13 @@ func (d *virtualBuildDirectory) MergeDirectoryContents(ctx context.Context, erro
 			virtual.NewBlobAccessCASFileFactory(
 				ctx,
 				d.options.contentAddressableStorage,
-				errorLogger),
-			d.options.handleAllocator.New()),
+				errorLogger,
+			),
+			d.options.handleAllocator.New(),
+		),
 		d.options.symlinkFactory,
-		digest.GetDigestFunction())
+		digest.GetDigestFunction(),
+	)
 	if monitor != nil {
 		initialContentsFetcher = virtual.NewAccessMonitoringInitialContentsFetcher(initialContentsFetcher, monitor)
 	}

@@ -37,7 +37,8 @@ func TestHardlinkingFileFetcher(t *testing.T) {
 	require.Equal(
 		t,
 		status.Error(codes.Internal, "Server not reachable"),
-		fileFetcher.GetFile(ctx, blobDigest1, buildDirectory, path.MustNewComponent("hello.txt"), false))
+		fileFetcher.GetFile(ctx, blobDigest1, buildDirectory, path.MustNewComponent("hello.txt"), false),
+	)
 
 	// Failing to link the file into the cache should not cause the
 	// file to become cached immediately.
@@ -47,21 +48,24 @@ func TestHardlinkingFileFetcher(t *testing.T) {
 	testutil.RequireEqualStatus(
 		t,
 		status.Error(codes.Internal, "Failed to add cached file \"3-8b1a9953c4611296a827abf8c47804d7-5-x\": input/output error"),
-		fileFetcher.GetFile(ctx, blobDigest1, buildDirectory, path.MustNewComponent("hello.txt"), false))
+		fileFetcher.GetFile(ctx, blobDigest1, buildDirectory, path.MustNewComponent("hello.txt"), false),
+	)
 
 	// Successfully link the file into the cache.
 	baseFileFetcher.EXPECT().GetFile(ctx, blobDigest1, buildDirectory, path.MustNewComponent("hello.txt"), false)
 	buildDirectory.EXPECT().Link(path.MustNewComponent("hello.txt"), cacheDirectory, path.MustNewComponent("3-8b1a9953c4611296a827abf8c47804d7-5-x"))
 	require.NoError(
 		t,
-		fileFetcher.GetFile(ctx, blobDigest1, buildDirectory, path.MustNewComponent("hello.txt"), false))
+		fileFetcher.GetFile(ctx, blobDigest1, buildDirectory, path.MustNewComponent("hello.txt"), false),
+	)
 
 	// Once the file is cached, hardlinks should be made in the
 	// opposite direction.
 	cacheDirectory.EXPECT().Link(path.MustNewComponent("3-8b1a9953c4611296a827abf8c47804d7-5-x"), buildDirectory, path.MustNewComponent("hello.txt"))
 	require.NoError(
 		t,
-		fileFetcher.GetFile(ctx, blobDigest1, buildDirectory, path.MustNewComponent("hello.txt"), false))
+		fileFetcher.GetFile(ctx, blobDigest1, buildDirectory, path.MustNewComponent("hello.txt"), false),
+	)
 
 	// Failure when accessing a cached file.
 	cacheDirectory.EXPECT().Link(path.MustNewComponent("3-8b1a9953c4611296a827abf8c47804d7-5-x"), buildDirectory, path.MustNewComponent("hello.txt")).
@@ -69,7 +73,8 @@ func TestHardlinkingFileFetcher(t *testing.T) {
 	testutil.RequireEqualStatus(
 		t,
 		status.Error(codes.Internal, "Failed to create hardlink to cached file \"3-8b1a9953c4611296a827abf8c47804d7-5-x\": input/output error"),
-		fileFetcher.GetFile(ctx, blobDigest1, buildDirectory, path.MustNewComponent("hello.txt"), false))
+		fileFetcher.GetFile(ctx, blobDigest1, buildDirectory, path.MustNewComponent("hello.txt"), false),
+	)
 
 	// Recover from the case where the cache directory gets cleaned
 	// up by another process. If hardlinking returns ENOENT, we
@@ -82,7 +87,8 @@ func TestHardlinkingFileFetcher(t *testing.T) {
 	buildDirectory.EXPECT().Link(path.MustNewComponent("hello.txt"), cacheDirectory, path.MustNewComponent("3-8b1a9953c4611296a827abf8c47804d7-5-x"))
 	require.NoError(
 		t,
-		fileFetcher.GetFile(ctx, blobDigest1, buildDirectory, path.MustNewComponent("hello.txt"), false))
+		fileFetcher.GetFile(ctx, blobDigest1, buildDirectory, path.MustNewComponent("hello.txt"), false),
+	)
 
 	// The above may happen in multiple threads at the same time.
 	// EEXIST errors should be ignored in that case.
@@ -95,7 +101,8 @@ func TestHardlinkingFileFetcher(t *testing.T) {
 		Return(os.ErrExist)
 	require.NoError(
 		t,
-		fileFetcher.GetFile(ctx, blobDigest1, buildDirectory, path.MustNewComponent("hello.txt"), false))
+		fileFetcher.GetFile(ctx, blobDigest1, buildDirectory, path.MustNewComponent("hello.txt"), false),
+	)
 
 	// Errors other than EEXIST should be propagated as usual.
 	cacheDirectory.EXPECT().Link(path.MustNewComponent("3-8b1a9953c4611296a827abf8c47804d7-5-x"), buildDirectory, path.MustNewComponent("hello.txt")).
@@ -108,7 +115,8 @@ func TestHardlinkingFileFetcher(t *testing.T) {
 	testutil.RequireEqualStatus(
 		t,
 		status.Error(codes.Internal, "Failed to repair cached file \"3-8b1a9953c4611296a827abf8c47804d7-5-x\": input/output error"),
-		fileFetcher.GetFile(ctx, blobDigest1, buildDirectory, path.MustNewComponent("hello.txt"), false))
+		fileFetcher.GetFile(ctx, blobDigest1, buildDirectory, path.MustNewComponent("hello.txt"), false),
+	)
 
 	blobDigest2 := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "6fc422233a40a75a1f028e11c3cd1140", 7)
 
@@ -120,7 +128,8 @@ func TestHardlinkingFileFetcher(t *testing.T) {
 	testutil.RequireEqualStatus(
 		t,
 		status.Error(codes.Internal, "Failed to remove cached file \"3-8b1a9953c4611296a827abf8c47804d7-5-x\": input/output error"),
-		fileFetcher.GetFile(ctx, blobDigest2, buildDirectory, path.MustNewComponent("goodbye.txt"), false))
+		fileFetcher.GetFile(ctx, blobDigest2, buildDirectory, path.MustNewComponent("goodbye.txt"), false),
+	)
 
 	// ENOENT errors when removing files should be tolerated. It
 	// simply means that files in the cache directory were cleaned
@@ -131,5 +140,6 @@ func TestHardlinkingFileFetcher(t *testing.T) {
 	buildDirectory.EXPECT().Link(path.MustNewComponent("goodbye.txt"), cacheDirectory, path.MustNewComponent("3-6fc422233a40a75a1f028e11c3cd1140-7-x"))
 	require.NoError(
 		t,
-		fileFetcher.GetFile(ctx, blobDigest2, buildDirectory, path.MustNewComponent("goodbye.txt"), false))
+		fileFetcher.GetFile(ctx, blobDigest2, buildDirectory, path.MustNewComponent("goodbye.txt"), false),
+	)
 }

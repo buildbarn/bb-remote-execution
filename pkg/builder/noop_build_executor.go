@@ -46,7 +46,8 @@ func (noopBuildExecutor) CheckReadiness(ctx context.Context) error {
 
 var defaultNoopErrorMessageTemplate = template.Must(
 	template.New("NoopBuildExecutor").
-		Parse("Action has been uploaded, but will not be executed. Action details: {{ .ActionURL }}"))
+		Parse("Action has been uploaded, but will not be executed. Action details: {{ .ActionURL }}"),
+)
 
 func (be *noopBuildExecutor) Execute(ctx context.Context, filePool pool.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
 	// Obtain action digest, which can be embedded in the error message.

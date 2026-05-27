@@ -26,7 +26,8 @@ func TestDirectoryCleaner(t *testing.T) {
 		testutil.RequireEqualStatus(
 			t,
 			status.Error(codes.Internal, "Failed to clean directory \"/tmp\": permission denied"),
-			cleaner.NewDirectoryCleaner(directory, "/tmp")(ctx))
+			cleaner.NewDirectoryCleaner(directory, "/tmp")(ctx),
+		)
 	})
 
 	t.Run("Success", func(t *testing.T) {

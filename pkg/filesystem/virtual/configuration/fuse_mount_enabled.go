@@ -87,15 +87,18 @@ func (m *fuseMount) Expose(terminationGroup program.Group, rootDirectory virtual
 				fuse.NewSimpleRawFileSystem(
 					rootDirectory,
 					m.handleAllocator.RegisterRemovalNotifier,
-					authenticator),
+					authenticator,
+				),
 				directoryEntryValidity,
 				inodeAttributeValidity,
 				&go_fuse.Attr{
 					Atime: deterministicTimestamp,
 					Ctime: deterministicTimestamp,
 					Mtime: deterministicTimestamp,
-				}),
-			clock.SystemClock),
+				},
+			),
+			clock.SystemClock,
+		),
 		m.mountPath,
 		mountOptions,
 	)

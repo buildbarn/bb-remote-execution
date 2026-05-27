@@ -87,7 +87,9 @@ func (bc *BuildClient) startExecution(executionRequest *remoteworker.DesiredStat
 	ctx, bc.executionCancellation = context.WithCancel(
 		otel.NewContextWithW3CTraceContext(
 			context.Background(),
-			executionRequest.W3CTraceContext))
+			executionRequest.W3CTraceContext,
+		),
+	)
 	updates := make(chan *remoteworker.CurrentState_Executing, 10)
 	bc.executionUpdates = updates
 	go func() {
@@ -97,7 +99,8 @@ func (bc *BuildClient) startExecution(executionRequest *remoteworker.DesiredStat
 			nil,
 			digestFunction,
 			executionRequest,
-			updates)
+			updates,
+		)
 		updates <- &remoteworker.CurrentState_Executing{
 			ActionDigest: executionRequest.ActionDigest,
 			ExecutionState: &remoteworker.CurrentState_Executing_Completed{
