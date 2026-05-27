@@ -136,7 +136,7 @@ func (icf *casInitialContentsFetcher) VirtualApply(data any) bool {
 		gatherer := casContainingDigestsGatherer{
 			context:             p.Context,
 			digestFunction:      icf.options.digestFunction,
-			digests:             digest.NewSetBuilder(),
+			digests:             digest.NewSetBuilder(0),
 			directoriesGathered: map[digest.Digest]struct{}{},
 		}
 		if err := gatherer.traverse(icf.directoryWalker); err == nil {

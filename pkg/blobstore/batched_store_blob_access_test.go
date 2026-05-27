@@ -56,9 +56,9 @@ func TestBatchedStoreBlobAccessSuccess(t *testing.T) {
 	// blobs to be flushed.
 	baseBlobAccess.EXPECT().FindMissing(
 		ctx,
-		digest.NewSetBuilder().Add(digestHello).Add(digestEmpty).Build(),
+		digest.NewSetBuilder(2).Add(digestHello).Add(digestEmpty).Build(),
 	).Return(
-		digest.NewSetBuilder().Add(digestHello).Build(), nil,
+		digest.NewSetBuilder(1).Add(digestHello).Build(), nil,
 	)
 	baseBlobAccess.EXPECT().Put(gomock.Any(), digestHello, gomock.Any()).DoAndReturn(
 		func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
@@ -80,9 +80,9 @@ func TestBatchedStoreBlobAccessSuccess(t *testing.T) {
 	// Flushing should cause the third blob to be written.
 	baseBlobAccess.EXPECT().FindMissing(
 		ctx,
-		digest.NewSetBuilder().Add(digestGoodbye).Build(),
+		digest.NewSetBuilder(1).Add(digestGoodbye).Build(),
 	).Return(
-		digest.NewSetBuilder().Add(digestGoodbye).Build(), nil,
+		digest.NewSetBuilder(1).Add(digestGoodbye).Build(), nil,
 	)
 	baseBlobAccess.EXPECT().Put(gomock.Any(), digestGoodbye, gomock.Any()).DoAndReturn(
 		func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
@@ -138,9 +138,9 @@ func TestBatchedStoreBlobAccessFailure(t *testing.T) {
 	// flushed.
 	baseBlobAccess.EXPECT().FindMissing(
 		ctx,
-		digest.NewSetBuilder().Add(digestHello).Add(digestEmpty).Build(),
+		digest.NewSetBuilder(2).Add(digestHello).Add(digestEmpty).Build(),
 	).Return(
-		digest.NewSetBuilder().Add(digestHello).Build(), nil,
+		digest.NewSetBuilder(1).Add(digestHello).Build(), nil,
 	)
 	baseBlobAccess.EXPECT().Put(
 		gomock.Any(), digestHello, gomock.Any(),
@@ -182,7 +182,7 @@ func TestBatchedStoreBlobAccessFailure(t *testing.T) {
 
 	// Successive stores and flushes should be functional once again.
 	require.NoError(t, blobAccess.Put(ctx, digestGoodbye, buffer.NewValidatedBufferFromByteSlice([]byte("Goodbye"))))
-	baseBlobAccess.EXPECT().FindMissing(ctx, digest.NewSetBuilder().Add(digestGoodbye).Build()).Return(digest.EmptySet, nil)
+	baseBlobAccess.EXPECT().FindMissing(ctx, digest.NewSetBuilder(1).Add(digestGoodbye).Build()).Return(digest.EmptySet, nil)
 	require.NoError(t, flush(ctx))
 }
 

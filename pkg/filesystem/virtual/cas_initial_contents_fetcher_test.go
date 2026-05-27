@@ -381,7 +381,7 @@ func TestCASInitialContentsFetcherGetContainingDigests(t *testing.T) {
 		require.NoError(t, p.Err)
 		require.Equal(
 			t,
-			digest.NewSetBuilder().
+			digest.NewSetBuilder(4).
 				Add(directoryDigest).
 				Add(childDirectoryDigest).
 				Add(digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "c0607941dd5b3ca8e175a1bfbfd1c0ea", 789)).

@@ -67,7 +67,7 @@ func (ba *batchedStoreBlobAccess) flushLocked(ctx context.Context) {
 	}()
 
 	// Determine which blobs are missing.
-	digests := digest.NewSetBuilder()
+	digests := digest.NewSetBuilder(len(ba.pendingPutOperations))
 	for _, pendingPutOperation := range ba.pendingPutOperations {
 		digests.Add(pendingPutOperation.digest)
 	}
