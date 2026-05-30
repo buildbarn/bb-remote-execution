@@ -433,6 +433,7 @@ func (rfs *simpleRawFileSystem) Mknod(cancel <-chan struct{}, input *fuse.MknodI
 
 	var createAttributes virtual.Attributes
 	createAttributes.SetFileType(fileType)
+	createAttributes.SetPermissions(virtual.NewPermissionsFromMode(input.Mode & 0o7777))
 	var attributes virtual.Attributes
 	child, _, vs := i.VirtualMknod(ctx, path.MustNewComponent(name), &createAttributes, AttributesMaskForFUSEAttr, &attributes)
 	if vs != virtual.StatusOK {
@@ -451,8 +452,10 @@ func (rfs *simpleRawFileSystem) Mkdir(cancel <-chan struct{}, input *fuse.MkdirI
 	i := rfs.getDirectoryLocked(input.NodeId)
 	rfs.nodeLock.RUnlock()
 
+	var createAttributes virtual.Attributes
+	createAttributes.SetPermissions(virtual.NewPermissionsFromMode(input.Mode & 0o7777))
 	var attributes virtual.Attributes
-	child, _, vs := i.VirtualMkdir(ctx, path.MustNewComponent(name), AttributesMaskForFUSEAttr, &attributes)
+	child, _, vs := i.VirtualMkdir(ctx, path.MustNewComponent(name), &createAttributes, AttributesMaskForFUSEAttr, &attributes)
 	if vs != virtual.StatusOK {
 		return toFUSEStatus(vs)
 	}

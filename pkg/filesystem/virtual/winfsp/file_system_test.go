@@ -1483,10 +1483,12 @@ func TestWinFSPFileSystemDirectoryCreation(t *testing.T) {
 	t.Run("CreateNewDirectory", func(t *testing.T) {
 		// Simulate creating a new directory
 		rootDirectory.EXPECT().VirtualMkdir(
+			gomock.Any(),
 			path.MustNewComponent("newdir"),
+			&virtual.Attributes{},
 			winfsp.AttributesMaskForWinFSPAttr,
 			gomock.Any(),
-		).DoAndReturn(func(name path.Component, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Directory, virtual.ChangeInfo, virtual.Status) {
+		).DoAndReturn(func(ctx context.Context, name path.Component, createAttributes *virtual.Attributes, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Directory, virtual.ChangeInfo, virtual.Status) {
 			out.SetFileType(filesystem.FileTypeDirectory)
 			out.SetInodeNumber(900)
 			out.SetPermissions(virtual.PermissionsExecute | virtual.PermissionsRead | virtual.PermissionsWrite)
@@ -1516,10 +1518,12 @@ func TestWinFSPFileSystemDirectoryCreation(t *testing.T) {
 	t.Run("CreateDirectoryAlreadyExists", func(t *testing.T) {
 		// Try to create a directory that already exists
 		rootDirectory.EXPECT().VirtualMkdir(
+			gomock.Any(),
 			path.MustNewComponent("existingdir"),
+			&virtual.Attributes{},
 			winfsp.AttributesMaskForWinFSPAttr,
 			gomock.Any(),
-		).DoAndReturn(func(name path.Component, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Directory, virtual.ChangeInfo, virtual.Status) {
+		).DoAndReturn(func(ctx context.Context, name path.Component, createAttributes *virtual.Attributes, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Directory, virtual.ChangeInfo, virtual.Status) {
 			return nil, virtual.ChangeInfo{}, virtual.StatusErrExist
 		})
 

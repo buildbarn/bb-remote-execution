@@ -1909,11 +1909,8 @@ func (s *sequenceState) opCreate(ctx context.Context, args *nfsv4.Create4args) n
 		leaf, changeInfo, vs = currentDirectory.VirtualMknod(ctx, name, &createAttributes, virtual.AttributesMaskFileHandle, &actualAttributes)
 		fileHandle.node = virtual.DirectoryChild{}.FromLeaf(leaf)
 	case *nfsv4.Createtype4_NF4DIR:
-		// See nfs40_program.go for the createAttributes-as-OUT
-		// rationale on Mkdir/Symlink.
 		var directory virtual.Directory
-		directory, changeInfo, vs = currentDirectory.VirtualMkdir(ctx, name, virtual.AttributesMaskFileHandle, &createAttributes)
-		actualAttributes = createAttributes
+		directory, changeInfo, vs = currentDirectory.VirtualMkdir(ctx, name, &createAttributes, virtual.AttributesMaskFileHandle, &actualAttributes)
 		fileHandle.node = virtual.DirectoryChild{}.FromDirectory(directory)
 	case *nfsv4.Createtype4_NF4FIFO:
 		createAttributes.SetFileType(filesystem.FileTypeFIFO)
@@ -1930,9 +1927,8 @@ func (s *sequenceState) opCreate(ctx context.Context, args *nfsv4.Create4args) n
 			s.program.pathFormat.NewParser(string(objectType.Linkdata)),
 			name,
 			virtual.AttributesMaskFileHandle,
-			&createAttributes,
+			&actualAttributes,
 		)
-		actualAttributes = createAttributes
 		fileHandle.node = virtual.DirectoryChild{}.FromLeaf(leaf)
 	case *nfsv4.Createtype4_NF4SOCK:
 		createAttributes.SetFileType(filesystem.FileTypeSocket)

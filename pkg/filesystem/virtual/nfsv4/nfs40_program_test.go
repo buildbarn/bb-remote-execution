@@ -1503,10 +1503,12 @@ func TestNFS40ProgramCompound_OP_CREATE(t *testing.T) {
 	t.Run("DirectorySuccess", func(t *testing.T) {
 		directory := mock.NewMockVirtualDirectory(ctrl)
 		rootDirectory.EXPECT().VirtualMkdir(
+			gomock.Any(),
 			path.MustNewComponent("dir"),
+			&virtual.Attributes{},
 			virtual.AttributesMaskFileHandle,
 			gomock.Any(),
-		).DoAndReturn(func(name path.Component, requested virtual.AttributesMask, attributes *virtual.Attributes) (virtual.Directory, virtual.ChangeInfo, virtual.Status) {
+		).DoAndReturn(func(ctx context.Context, name path.Component, createAttributes *virtual.Attributes, requested virtual.AttributesMask, attributes *virtual.Attributes) (virtual.Directory, virtual.ChangeInfo, virtual.Status) {
 			attributes.SetFileHandle([]byte{0x19, 0xe5, 0x26, 0x1b, 0xee, 0x25, 0x4a, 0x76})
 			return directory, virtual.ChangeInfo{
 				Before: 0x60a4a64a5af2116f,

@@ -4017,10 +4017,12 @@ func TestNFS41ProgramCompound_OP_SEQUENCE(t *testing.T) {
 		clock.EXPECT().Now().Return(time.Unix(1008, 0)).Times(2)
 		directory := mock.NewMockVirtualDirectory(ctrl)
 		rootDirectory.EXPECT().VirtualMkdir(
+			gomock.Any(),
 			path.MustNewComponent("dir"),
+			&virtual.Attributes{},
 			virtual.AttributesMaskFileHandle,
 			gomock.Any(),
-		).DoAndReturn(func(name path.Component, requested virtual.AttributesMask, attributes *virtual.Attributes) (virtual.Directory, virtual.ChangeInfo, virtual.Status) {
+		).DoAndReturn(func(ctx context.Context, name path.Component, createAttributes *virtual.Attributes, requested virtual.AttributesMask, attributes *virtual.Attributes) (virtual.Directory, virtual.ChangeInfo, virtual.Status) {
 			attributes.SetFileHandle([]byte{0x47, 0xec, 0xdd, 0x99, 0x8b, 0x03, 0xc7, 0x0a})
 			return directory, virtual.ChangeInfo{
 				Before: 0x65756cf36a69b8e2,

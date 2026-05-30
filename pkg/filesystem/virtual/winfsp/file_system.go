@@ -538,7 +538,7 @@ func (FileSystem) openOrCreateDir(ctx context.Context, parent virtual.Directory,
 	}
 
 	// Create new directory.
-	childDir, _, status := parent.VirtualMkdir(ctx, leafName, AttributesMaskForWinFSPAttr, attributes)
+	childDir, _, status := parent.VirtualMkdir(ctx, leafName, &virtual.Attributes{}, AttributesMaskForWinFSPAttr, attributes)
 	if status != virtual.StatusOK {
 		return virtual.DirectoryChild{}, toNTStatus(status)
 	}

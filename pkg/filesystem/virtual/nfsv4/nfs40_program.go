@@ -1089,15 +1089,8 @@ func (s *compoundState) opCreate(ctx context.Context, args *nfsv4.Create4args) n
 		leaf, changeInfo, vs = currentDirectory.VirtualMknod(ctx, name, &createAttributes, virtual.AttributesMaskFileHandle, &actualAttributes)
 		fileHandle.node = virtual.DirectoryChild{}.FromLeaf(leaf)
 	case *nfsv4.Createtype4_NF4DIR:
-		// VirtualMkdir's signature doesn't yet split create vs created
-		// attributes the way VirtualMknod does. Pass createAttributes
-		// as the OUT struct so an impl that inspects the inbound state
-		// (mode / owner / group from CREATE) keeps working — the
-		// impl is expected to overwrite OUT with the new directory's
-		// actual attributes before returning.
 		var directory virtual.Directory
-		directory, changeInfo, vs = currentDirectory.VirtualMkdir(ctx, name, virtual.AttributesMaskFileHandle, &createAttributes)
-		actualAttributes = createAttributes
+		directory, changeInfo, vs = currentDirectory.VirtualMkdir(ctx, name, &createAttributes, virtual.AttributesMaskFileHandle, &actualAttributes)
 		fileHandle.node = virtual.DirectoryChild{}.FromDirectory(directory)
 	case *nfsv4.Createtype4_NF4FIFO:
 		createAttributes.SetFileType(filesystem.FileTypeFIFO)
@@ -1108,18 +1101,14 @@ func (s *compoundState) opCreate(ctx context.Context, args *nfsv4.Create4args) n
 		if !utf8.Valid(objectType.Linkdata) {
 			return &nfsv4.Create4res_default{Status: nfsv4.NFS4ERR_BADCHAR}
 		}
-		// See NF4DIR above: VirtualSymlink's signature doesn't yet
-		// split create vs created attributes; pass createAttributes
-		// as OUT so impls that read IN state from it still work.
 		var leaf virtual.Leaf
 		leaf, changeInfo, vs = currentDirectory.VirtualSymlink(
 			ctx,
 			path.UNIXFormat.NewParser(string(objectType.Linkdata)),
 			name,
 			virtual.AttributesMaskFileHandle,
-			&createAttributes,
+			&actualAttributes,
 		)
-		actualAttributes = createAttributes
 		fileHandle.node = virtual.DirectoryChild{}.FromLeaf(leaf)
 	case *nfsv4.Createtype4_NF4SOCK:
 		createAttributes.SetFileType(filesystem.FileTypeSocket)

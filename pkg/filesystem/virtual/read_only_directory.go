@@ -28,7 +28,7 @@ func (ReadOnlyDirectory) VirtualLink(ctx context.Context, name path.Component, l
 
 // VirtualMkdir is an implementation of the mkdir() system call that
 // treats the target directory as being read-only.
-func (ReadOnlyDirectory) VirtualMkdir(ctx context.Context, name path.Component, requested AttributesMask, out *Attributes) (Directory, ChangeInfo, Status) {
+func (ReadOnlyDirectory) VirtualMkdir(ctx context.Context, name path.Component, createAttributes *Attributes, requested AttributesMask, out *Attributes) (Directory, ChangeInfo, Status) {
 	return nil, ChangeInfo{}, StatusErrROFS
 }
 

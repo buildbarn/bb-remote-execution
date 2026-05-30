@@ -427,6 +427,7 @@ func TestSimpleRawFileSystemMknod(t *testing.T) {
 		// An mknod() call for a socket that is denied.
 		var expectedCreateAttrs virtual.Attributes
 		expectedCreateAttrs.SetFileType(filesystem.FileTypeSocket)
+		expectedCreateAttrs.SetPermissions(virtual.NewPermissionsFromMode(0o777))
 		rootDirectory.EXPECT().VirtualMknod(gomock.Any(), path.MustNewComponent("hello"), &expectedCreateAttrs, fuse.AttributesMaskForFUSEAttr, gomock.Any()).
 			Return(nil, virtual.ChangeInfo{}, virtual.StatusErrPerm)
 
@@ -445,6 +446,7 @@ func TestSimpleRawFileSystemMknod(t *testing.T) {
 		childLeaf := mock.NewMockVirtualLeaf(ctrl)
 		var expectedCreateAttrs virtual.Attributes
 		expectedCreateAttrs.SetFileType(filesystem.FileTypeFIFO)
+		expectedCreateAttrs.SetPermissions(virtual.NewPermissionsFromMode(0o700))
 		rootDirectory.EXPECT().VirtualMknod(gomock.Any(), path.MustNewComponent("hello"), &expectedCreateAttrs, fuse.AttributesMaskForFUSEAttr, gomock.Any()).DoAndReturn(
 			func(ctx context.Context, name path.Component, createAttributes *virtual.Attributes, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Leaf, virtual.ChangeInfo, virtual.Status) {
 				out.SetFileType(filesystem.FileTypeFIFO)
@@ -487,7 +489,9 @@ func TestSimpleRawFileSystemMkdir(t *testing.T) {
 
 	t.Run("Failure", func(t *testing.T) {
 		// An mkdir() call that fails due to an I/O error.
-		rootDirectory.EXPECT().VirtualMkdir(path.MustNewComponent("hello"), fuse.AttributesMaskForFUSEAttr, gomock.Any()).
+		var expectedCreateAttrs virtual.Attributes
+		expectedCreateAttrs.SetPermissions(virtual.NewPermissionsFromMode(0o777))
+		rootDirectory.EXPECT().VirtualMkdir(gomock.Any(), path.MustNewComponent("hello"), &expectedCreateAttrs, fuse.AttributesMaskForFUSEAttr, gomock.Any()).
 			Return(nil, virtual.ChangeInfo{}, virtual.StatusErrIO)
 
 		var entryOut go_fuse.EntryOut
@@ -502,8 +506,10 @@ func TestSimpleRawFileSystemMkdir(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		// An mkdir() call that succeeds.
 		childDirectory := mock.NewMockVirtualDirectory(ctrl)
-		rootDirectory.EXPECT().VirtualMkdir(path.MustNewComponent("hello"), fuse.AttributesMaskForFUSEAttr, gomock.Any()).DoAndReturn(
-			func(name path.Component, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Directory, virtual.ChangeInfo, virtual.Status) {
+		var expectedCreateAttrs virtual.Attributes
+		expectedCreateAttrs.SetPermissions(virtual.NewPermissionsFromMode(0o777))
+		rootDirectory.EXPECT().VirtualMkdir(gomock.Any(), path.MustNewComponent("hello"), &expectedCreateAttrs, fuse.AttributesMaskForFUSEAttr, gomock.Any()).DoAndReturn(
+			func(ctx context.Context, name path.Component, createAttributes *virtual.Attributes, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Directory, virtual.ChangeInfo, virtual.Status) {
 				out.SetFileType(filesystem.FileTypeDirectory)
 				out.SetInodeNumber(123)
 				out.SetLinkCount(12)

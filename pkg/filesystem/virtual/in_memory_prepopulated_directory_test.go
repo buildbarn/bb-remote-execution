@@ -992,7 +992,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualLookup(t *testing.T) {
 }
 
 func TestInMemoryPrepopulatedDirectoryVirtualMkdir(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	fileAllocator := mock.NewMockFileAllocator(ctrl)
 	symlinkFactory := mock.NewMockSymlinkFactory(ctrl)
@@ -1028,7 +1028,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualMkdir(t *testing.T) {
 			Return(nil, status.Error(codes.Internal, "Network error"))
 		errorLogger.EXPECT().Log(testutil.EqStatus(t, status.Error(codes.Internal, "Failed to initialize directory: Network error")))
 
-		_, _, s := childDirectory.VirtualMkdir(path.MustNewComponent("subsubdir"), 0, &virtual.Attributes{})
+		_, _, s := childDirectory.VirtualMkdir(ctx, path.MustNewComponent("subsubdir"), &virtual.Attributes{}, 0, &virtual.Attributes{})
 		require.Equal(t, virtual.StatusErrIO, s)
 	})
 
@@ -1041,7 +1041,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualMkdir(t *testing.T) {
 			path.MustNewComponent("existing_file"): virtual.InitialChild{}.FromLeaf(existingFile),
 		}, false))
 
-		_, _, s := d.VirtualMkdir(path.MustNewComponent("existing_file"), 0, &virtual.Attributes{})
+		_, _, s := d.VirtualMkdir(ctx, path.MustNewComponent("existing_file"), &virtual.Attributes{}, 0, &virtual.Attributes{})
 		require.Equal(t, virtual.StatusErrExist, s)
 	})
 
@@ -1058,7 +1058,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualMkdir(t *testing.T) {
 			})
 
 		var out virtual.Attributes
-		leaf, changeInfo, s := d.VirtualMkdir(path.MustNewComponent("dir"), inMemoryPrepopulatedDirectoryAttributesMask, &out)
+		leaf, changeInfo, s := d.VirtualMkdir(ctx, path.MustNewComponent("dir"), &virtual.Attributes{}, inMemoryPrepopulatedDirectoryAttributesMask, &out)
 		require.Equal(t, virtual.StatusOK, s)
 		require.NotNil(t, leaf)
 		require.Equal(t, virtual.ChangeInfo{
