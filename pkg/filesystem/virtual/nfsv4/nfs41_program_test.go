@@ -10,6 +10,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual/nfsv4"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	nfsv4_xdr "github.com/buildbarn/go-xdr/pkg/protocols/nfsv4"
+	"github.com/buildbarn/go-xdr/pkg/protocols/rpcv2"
 	"github.com/stretchr/testify/require"
 
 	"go.uber.org/mock/gomock"
@@ -146,6 +147,7 @@ func TestNFS41ProgramCompound_OP_CLOSE(t *testing.T) {
 		/* enforcedLeaseTime = */ 2*time.Minute,
 		/* announcedLeaseTime = */ time.Minute,
 		path.UNIXFormat,
+		[]nfsv4_xdr.Secinfo4{&nfsv4_xdr.Secinfo4_default{Flavor: rpcv2.AUTH_NONE}},
 	)
 
 	clock.EXPECT().Now().Return(time.Unix(1000, 0)).Times(2)
@@ -913,6 +915,7 @@ func TestNFS41ProgramCompound_OP_CREATE_SESSION(t *testing.T) {
 		/* enforcedLeaseTime = */ 2*time.Minute,
 		/* announcedLeaseTime = */ time.Minute,
 		path.UNIXFormat,
+		[]nfsv4_xdr.Secinfo4{&nfsv4_xdr.Secinfo4_default{Flavor: rpcv2.AUTH_NONE}},
 	)
 
 	t.Run("NotOnlyOperation", func(t *testing.T) {
@@ -1275,6 +1278,7 @@ func TestNFS41ProgramCompound_OP_DESTROY_CLIENTID(t *testing.T) {
 		/* enforcedLeaseTime = */ 2*time.Minute,
 		/* announcedLeaseTime = */ time.Minute,
 		path.UNIXFormat,
+		[]nfsv4_xdr.Secinfo4{&nfsv4_xdr.Secinfo4_default{Flavor: rpcv2.AUTH_NONE}},
 	)
 
 	t.Run("StaleClientID", func(t *testing.T) {
@@ -1412,6 +1416,7 @@ func TestNFS41ProgramCompound_OP_DESTROY_SESSION(t *testing.T) {
 		/* enforcedLeaseTime = */ 2*time.Minute,
 		/* announcedLeaseTime = */ time.Minute,
 		path.UNIXFormat,
+		[]nfsv4_xdr.Secinfo4{&nfsv4_xdr.Secinfo4_default{Flavor: rpcv2.AUTH_NONE}},
 	)
 
 	t.Run("BadSession", func(t *testing.T) {
@@ -1650,6 +1655,7 @@ func TestNFS41ProgramCompound_OP_EXCHANGE_ID(t *testing.T) {
 		/* enforcedLeaseTime = */ 2*time.Minute,
 		/* announcedLeaseTime = */ time.Minute,
 		path.UNIXFormat,
+		[]nfsv4_xdr.Secinfo4{&nfsv4_xdr.Secinfo4_default{Flavor: rpcv2.AUTH_NONE}},
 	)
 
 	t.Run("NotOnlyOperation", func(t *testing.T) {
@@ -1945,6 +1951,7 @@ func TestNFS41ProgramCompound_OP_OPEN(t *testing.T) {
 		/* enforcedLeaseTime = */ 2*time.Minute,
 		/* announcedLeaseTime = */ time.Minute,
 		path.UNIXFormat,
+		[]nfsv4_xdr.Secinfo4{&nfsv4_xdr.Secinfo4_default{Flavor: rpcv2.AUTH_NONE}},
 	)
 
 	clock.EXPECT().Now().Return(time.Unix(1000, 0)).Times(2)
@@ -2540,6 +2547,7 @@ func TestNFS41ProgramCompound_OP_OPEN_DOWNGRADE(t *testing.T) {
 		/* enforcedLeaseTime = */ 2*time.Minute,
 		/* announcedLeaseTime = */ time.Minute,
 		path.UNIXFormat,
+		[]nfsv4_xdr.Secinfo4{&nfsv4_xdr.Secinfo4_default{Flavor: rpcv2.AUTH_NONE}},
 	)
 
 	clock.EXPECT().Now().Return(time.Unix(1000, 0)).Times(2)
@@ -3701,6 +3709,7 @@ func TestNFS41ProgramCompound_OP_SEQUENCE(t *testing.T) {
 		/* enforcedLeaseTime = */ 2*time.Minute,
 		/* announcedLeaseTime = */ time.Minute,
 		path.UNIXFormat,
+		[]nfsv4_xdr.Secinfo4{&nfsv4_xdr.Secinfo4_default{Flavor: rpcv2.AUTH_NONE}},
 	)
 
 	t.Run("BadSession", func(t *testing.T) {
@@ -4460,6 +4469,7 @@ func TestNFS41ProgramCompound_OP_TEST_STATEID(t *testing.T) {
 		/* enforcedLeaseTime = */ 2*time.Minute,
 		/* announcedLeaseTime = */ time.Minute,
 		path.UNIXFormat,
+		[]nfsv4_xdr.Secinfo4{&nfsv4_xdr.Secinfo4_default{Flavor: rpcv2.AUTH_NONE}},
 	)
 
 	// The remainder of the test assumes the presence of a session.
