@@ -324,7 +324,7 @@ func TestPoolBackedFileAllocatorVirtualOpenSelfStaleAfterClose(t *testing.T) {
 }
 
 func TestPoolBackedFileAllocatorVirtualRead(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	filePool := mock.NewMockFilePool(ctrl)
 	underlyingFile := mock.NewMockFileReadWriter(ctrl)
@@ -431,7 +431,7 @@ func TestPoolBackedFileAllocatorFUSETruncateFailure(t *testing.T) {
 // Write errors should be converted to EIO errors. In order to capture
 // error details, the underlying error is forwarded to an error logger.
 func TestPoolBackedFileAllocatorVirtualWriteFailure(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	filePool := mock.NewMockFilePool(ctrl)
 	underlyingFile := mock.NewMockFileReadWriter(ctrl)

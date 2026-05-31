@@ -1288,7 +1288,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualReadDir(t *testing.T) {
 }
 
 func TestInMemoryPrepopulatedDirectoryVirtualRenameSelfDirectory(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	fileAllocator := mock.NewMockFileAllocator(ctrl)
 	symlinkFactory := mock.NewMockSymlinkFactory(ctrl)
@@ -1391,7 +1391,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRenameSelfFile(t *testing.T) {
 }
 
 func TestInMemoryPrepopulatedDirectoryVirtualRenameDirectoryInRemovedDirectory(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	fileAllocator := mock.NewMockFileAllocator(ctrl)
 	symlinkFactory := mock.NewMockSymlinkFactory(ctrl)
@@ -1426,7 +1426,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRenameDirectoryInRemovedDirectory(t
 }
 
 func TestInMemoryPrepopulatedDirectoryVirtualRenameFileInRemovedDirectory(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	fileAllocator := mock.NewMockFileAllocator(ctrl)
 	symlinkFactory := mock.NewMockSymlinkFactory(ctrl)
@@ -1469,7 +1469,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRenameFileInRemovedDirectory(t *tes
 }
 
 func TestInMemoryPrepopulatedDirectoryVirtualRenameDirectoryTwice(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	fileAllocator := mock.NewMockFileAllocator(ctrl)
 	symlinkFactory := mock.NewMockSymlinkFactory(ctrl)
@@ -1529,7 +1529,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRenameDirectoryTwice(t *testing.T) 
 }
 
 func TestInMemoryPrepopulatedDirectoryVirtualRenameCrossDevice1(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	fileAllocator := mock.NewMockFileAllocator(ctrl)
 	symlinkFactory := mock.NewMockSymlinkFactory(ctrl)
@@ -1549,7 +1549,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRenameCrossDevice1(t *testing.T) {
 }
 
 func TestInMemoryPrepopulatedDirectoryVirtualRenameCrossDevice2(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	fileAllocator1 := mock.NewMockFileAllocator(ctrl)
 	symlinkFactory1 := mock.NewMockSymlinkFactory(ctrl)
@@ -1604,7 +1604,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRenameCrossDevice2(t *testing.T) {
 }
 
 func TestInMemoryPrepopulatedDirectoryVirtualRemove(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	fileAllocator := mock.NewMockFileAllocator(ctrl)
 	symlinkFactory := mock.NewMockSymlinkFactory(ctrl)
