@@ -4452,7 +4452,7 @@ func TestNFS40ProgramCompound_OP_READ(t *testing.T) {
 		handleResolverExpectCall(t, handleResolver, []byte{4, 5, 6}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 		gomock.InOrder(
 			leaf.EXPECT().VirtualOpenSelf(ctx, virtual.ShareMaskRead, &virtual.OpenExistingOptions{}, virtual.AttributesMask(0), gomock.Any()),
-			leaf.EXPECT().VirtualRead(gomock.Len(100), uint64(1000)).Return(0, false, virtual.StatusErrIO),
+			leaf.EXPECT().VirtualRead(gomock.Any(), gomock.Len(100), uint64(1000)).Return(0, false, virtual.StatusErrIO),
 			leaf.EXPECT().VirtualClose(virtual.ShareMaskRead),
 		)
 
@@ -4496,8 +4496,8 @@ func TestNFS40ProgramCompound_OP_READ(t *testing.T) {
 		handleResolverExpectCall(t, handleResolver, []byte{4, 5, 6}, virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK)
 		gomock.InOrder(
 			leaf.EXPECT().VirtualOpenSelf(ctx, virtual.ShareMaskRead, &virtual.OpenExistingOptions{}, virtual.AttributesMask(0), gomock.Any()),
-			leaf.EXPECT().VirtualRead(gomock.Len(100), uint64(1000)).
-				DoAndReturn(func(buf []byte, offset uint64) (int, bool, virtual.Status) {
+			leaf.EXPECT().VirtualRead(gomock.Any(), gomock.Len(100), uint64(1000)).
+				DoAndReturn(func(ctx context.Context, buf []byte, offset uint64) (int, bool, virtual.Status) {
 					return copy(buf, "Hello"), true, virtual.StatusOK
 				}),
 			leaf.EXPECT().VirtualClose(virtual.ShareMaskRead),
@@ -4732,8 +4732,8 @@ func TestNFS40ProgramCompound_OP_READ(t *testing.T) {
 	t.Run("OpenStateIDSuccess", func(t *testing.T) {
 		clock.EXPECT().Now().Return(time.Unix(1019, 0))
 		clock.EXPECT().Now().Return(time.Unix(1020, 0))
-		leaf.EXPECT().VirtualRead(gomock.Len(100), uint64(1000)).
-			DoAndReturn(func(buf []byte, offset uint64) (int, bool, virtual.Status) {
+		leaf.EXPECT().VirtualRead(gomock.Any(), gomock.Len(100), uint64(1000)).
+			DoAndReturn(func(ctx context.Context, buf []byte, offset uint64) (int, bool, virtual.Status) {
 				return copy(buf, "Hello"), true, virtual.StatusOK
 			})
 
@@ -4855,8 +4855,8 @@ func TestNFS40ProgramCompound_OP_READ(t *testing.T) {
 		// It's also permitted to call READ using a lock state ID.
 		clock.EXPECT().Now().Return(time.Unix(1024, 0))
 		clock.EXPECT().Now().Return(time.Unix(1025, 0))
-		leaf.EXPECT().VirtualRead(gomock.Len(100), uint64(1000)).
-			DoAndReturn(func(buf []byte, offset uint64) (int, bool, virtual.Status) {
+		leaf.EXPECT().VirtualRead(gomock.Any(), gomock.Len(100), uint64(1000)).
+			DoAndReturn(func(ctx context.Context, buf []byte, offset uint64) (int, bool, virtual.Status) {
 				return copy(buf, "Hello"), true, virtual.StatusOK
 			})
 
@@ -6028,7 +6028,7 @@ func TestNFS40ProgramCompound_OP_REMOVE(t *testing.T) {
 	})
 
 	t.Run("Failure", func(t *testing.T) {
-		rootDirectory.EXPECT().VirtualRemove(
+		rootDirectory.EXPECT().VirtualRemove(gomock.Any(),
 			path.MustNewComponent("file"),
 			true,
 			true,
@@ -6065,7 +6065,7 @@ func TestNFS40ProgramCompound_OP_REMOVE(t *testing.T) {
 	})
 
 	t.Run("Success", func(t *testing.T) {
-		rootDirectory.EXPECT().VirtualRemove(
+		rootDirectory.EXPECT().VirtualRemove(gomock.Any(),
 			path.MustNewComponent("file"),
 			true,
 			true,

@@ -434,10 +434,10 @@ func TestWinFSPFileSystemRead(t *testing.T) {
 		require.NoError(t, err)
 
 		// Read and validate the data
-		file.EXPECT().VirtualRead(
+		file.EXPECT().VirtualRead(gomock.Any(),
 			gomock.Any(),
 			uint64(0),
-		).DoAndReturn(func(buffer []byte, offset uint64) (int, bool, virtual.Status) {
+		).DoAndReturn(func(ctx context.Context, buffer []byte, offset uint64) (int, bool, virtual.Status) {
 			n := copy(buffer, expectedContent)
 			return n, false, virtual.StatusOK
 		})
@@ -494,7 +494,7 @@ func TestWinFSPFileSystemWrite(t *testing.T) {
 
 		// Write to the file
 		fileContent := []byte("Hello, World!")
-		file.EXPECT().VirtualWrite(
+		file.EXPECT().VirtualWrite(gomock.Any(),
 			fileContent,
 			uint64(0), // offset
 		).Return(len(fileContent), virtual.StatusOK)
@@ -1087,7 +1087,7 @@ func TestWinFSPFileSystemRename(t *testing.T) {
 			gomock.Any(),
 		).Return(virtual.DirectoryChild{}, virtual.StatusErrNoEnt)
 
-		rootDirectory.EXPECT().VirtualRename(
+		rootDirectory.EXPECT().VirtualRename(gomock.Any(),
 			path.MustNewComponent("oldname.txt"),
 			rootDirectory,
 			path.MustNewComponent("newname.txt"),
@@ -1176,7 +1176,7 @@ func TestWinFSPFileSystemRename(t *testing.T) {
 			return virtual.DirectoryChild{}.FromLeaf(targetFile), virtual.StatusOK
 		})
 
-		rootDirectory.EXPECT().VirtualRename(
+		rootDirectory.EXPECT().VirtualRename(gomock.Any(),
 			path.MustNewComponent("source.txt"),
 			rootDirectory,
 			path.MustNewComponent("target.txt"),
@@ -1222,7 +1222,7 @@ func TestWinFSPFileSystemRename(t *testing.T) {
 			return virtual.DirectoryChild{}.FromLeaf(file), virtual.StatusOK
 		})
 
-		rootDirectory.EXPECT().VirtualRename(
+		rootDirectory.EXPECT().VirtualRename(gomock.Any(),
 			path.MustNewComponent("samefile.txt"),
 			rootDirectory,
 			path.MustNewComponent("samefile.txt"),
@@ -1593,7 +1593,7 @@ func TestWinFSPFileSystemDirectoryRemoval(t *testing.T) {
 		err = fs.CanDelete(ref, handle, "\\emptydir")
 		require.NoError(t, err)
 
-		rootDirectory.EXPECT().VirtualRemove(
+		rootDirectory.EXPECT().VirtualRemove(gomock.Any(),
 			path.MustNewComponent("emptydir"),
 			true,
 			false,
@@ -1653,7 +1653,7 @@ func TestWinFSPFileSystemFileRemoval(t *testing.T) {
 		err = fs.CanDelete(ref, handle, "\\deleteme.txt")
 		require.NoError(t, err)
 
-		rootDirectory.EXPECT().VirtualRemove(
+		rootDirectory.EXPECT().VirtualRemove(gomock.Any(),
 			path.MustNewComponent("deleteme.txt"),
 			false,
 			true,
@@ -1971,7 +1971,7 @@ func TestWinFSPFileSystemSymlinkCreation(t *testing.T) {
 		targetPath := "target.txt"
 		reparseBuffer := createSymlinkReparseBuffer(targetPath, windowsext.SYMLINK_FLAG_RELATIVE)
 
-		rootDirectory.EXPECT().VirtualRemove(
+		rootDirectory.EXPECT().VirtualRemove(gomock.Any(),
 			path.MustNewComponent("symlink.txt"),
 			true,
 			true,
@@ -2035,7 +2035,7 @@ func TestWinFSPFileSystemSymlinkCreation(t *testing.T) {
 		targetPath := "C:\\absolute\\target.txt"
 		reparseBuffer := createSymlinkReparseBuffer(targetPath, 0)
 
-		rootDirectory.EXPECT().VirtualRemove(
+		rootDirectory.EXPECT().VirtualRemove(gomock.Any(),
 			path.MustNewComponent("abs_symlink.txt"),
 			true,
 			true,

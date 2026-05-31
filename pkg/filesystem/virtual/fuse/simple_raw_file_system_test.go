@@ -550,7 +550,7 @@ func TestSimpleRawFileSystemUnlink(t *testing.T) {
 
 	t.Run("Failure", func(t *testing.T) {
 		// An unlink() call that fails due to an I/O error.
-		rootDirectory.EXPECT().VirtualRemove(path.MustNewComponent("hello"), false, true).
+		rootDirectory.EXPECT().VirtualRemove(gomock.Any(), path.MustNewComponent("hello"), false, true).
 			Return(virtual.ChangeInfo{}, virtual.StatusErrIO)
 
 		require.Equal(t, go_fuse.EIO, rfs.Unlink(nil, &go_fuse.InHeader{
@@ -560,7 +560,7 @@ func TestSimpleRawFileSystemUnlink(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		// An unlink() call that succeeds.
-		rootDirectory.EXPECT().VirtualRemove(path.MustNewComponent("hello"), false, true).
+		rootDirectory.EXPECT().VirtualRemove(gomock.Any(), path.MustNewComponent("hello"), false, true).
 			Return(virtual.ChangeInfo{
 				Before: 5,
 				After:  6,
@@ -581,7 +581,7 @@ func TestSimpleRawFileSystemRmdir(t *testing.T) {
 
 	t.Run("Failure", func(t *testing.T) {
 		// An rmdir() call that fails due to an I/O error.
-		rootDirectory.EXPECT().VirtualRemove(path.MustNewComponent("hello"), true, false).
+		rootDirectory.EXPECT().VirtualRemove(gomock.Any(), path.MustNewComponent("hello"), true, false).
 			Return(virtual.ChangeInfo{}, virtual.StatusErrIO)
 
 		require.Equal(t, go_fuse.EIO, rfs.Rmdir(nil, &go_fuse.InHeader{
@@ -591,7 +591,7 @@ func TestSimpleRawFileSystemRmdir(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		// An rmdir() call that succeeds.
-		rootDirectory.EXPECT().VirtualRemove(path.MustNewComponent("hello"), true, false).
+		rootDirectory.EXPECT().VirtualRemove(gomock.Any(), path.MustNewComponent("hello"), true, false).
 			Return(virtual.ChangeInfo{
 				Before: 5,
 				After:  6,

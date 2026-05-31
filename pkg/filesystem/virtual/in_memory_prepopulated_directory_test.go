@@ -1307,7 +1307,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRenameSelfDirectory(t *testing.T) {
 	require.NoError(t, child.CreateChildren(map[path.Component]virtual.InitialChild{
 		path.MustNewComponent("subdir"): virtual.InitialChild{}.FromDirectory(virtual.EmptyInitialContentsFetcher),
 	}, false))
-	changeInfo1, changeInfo2, s := d.VirtualRename(path.MustNewComponent("dir"), d, path.MustNewComponent("dir"))
+	changeInfo1, changeInfo2, s := d.VirtualRename(ctx, path.MustNewComponent("dir"), d, path.MustNewComponent("dir"))
 	require.Equal(t, virtual.StatusOK, s)
 	require.Equal(t, virtual.ChangeInfo{
 		Before: 1,
@@ -1362,7 +1362,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRenameSelfFile(t *testing.T) {
 	// Renaming a file to itself should have no effect. This even
 	// applies to hard links. Though not intuitive, this means that
 	// the source file may continue to exist.
-	changeInfo1, changeInfo2, s := d.VirtualRename(path.MustNewComponent("a"), d, path.MustNewComponent("b"))
+	changeInfo1, changeInfo2, s := d.VirtualRename(ctx, path.MustNewComponent("a"), d, path.MustNewComponent("b"))
 	require.Equal(t, virtual.StatusOK, s)
 	require.Equal(t, virtual.ChangeInfo{
 		Before: 2,
@@ -1414,7 +1414,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRenameDirectoryInRemovedDirectory(t
 	require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialChild{
 		path.MustNewComponent("dir"): virtual.InitialChild{}.FromDirectory(virtual.EmptyInitialContentsFetcher),
 	}, false))
-	_, _, s := d.VirtualRename(path.MustNewComponent("dir"), child, path.MustNewComponent("dir"))
+	_, _, s := d.VirtualRename(ctx, path.MustNewComponent("dir"), child, path.MustNewComponent("dir"))
 	require.Equal(t, virtual.StatusErrNoEnt, s)
 
 	entries, err := d.ReadDir()
@@ -1449,7 +1449,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRenameFileInRemovedDirectory(t *tes
 	require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialChild{
 		path.MustNewComponent("file"): virtual.InitialChild{}.FromLeaf(leaf),
 	}, false))
-	_, _, s := d.VirtualRename(path.MustNewComponent("file"), child, path.MustNewComponent("file"))
+	_, _, s := d.VirtualRename(ctx, path.MustNewComponent("file"), child, path.MustNewComponent("file"))
 	require.Equal(t, virtual.StatusErrNoEnt, s)
 
 	leaf.EXPECT().VirtualGetAttributes(
@@ -1489,7 +1489,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRenameDirectoryTwice(t *testing.T) 
 
 	// Move "a" to "b" to "c". Afterwards, only "c" should remain.
 	childBHandle.EXPECT().Release()
-	changeInfo1, changeInfo2, s := d.VirtualRename(path.MustNewComponent("a"), d, path.MustNewComponent("b"))
+	changeInfo1, changeInfo2, s := d.VirtualRename(ctx, path.MustNewComponent("a"), d, path.MustNewComponent("b"))
 	require.Equal(t, virtual.StatusOK, s)
 	require.Equal(t, virtual.ChangeInfo{
 		Before: 2,
@@ -1499,7 +1499,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRenameDirectoryTwice(t *testing.T) 
 		Before: 2,
 		After:  5,
 	}, changeInfo2)
-	changeInfo1, changeInfo2, s = d.VirtualRename(path.MustNewComponent("b"), d, path.MustNewComponent("c"))
+	changeInfo1, changeInfo2, s = d.VirtualRename(ctx, path.MustNewComponent("b"), d, path.MustNewComponent("c"))
 	require.Equal(t, virtual.StatusOK, s)
 	require.Equal(t, virtual.ChangeInfo{
 		Before: 5,
@@ -1544,7 +1544,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRenameCrossDevice1(t *testing.T) {
 	// Attempting to rename a file to a directory that is of a
 	// completely different type is not possible. We can only rename
 	// objects between instances of InMemoryPrepopulatedDirectory.
-	_, _, s := d1.VirtualRename(path.MustNewComponent("src"), d2, path.MustNewComponent("dst"))
+	_, _, s := d1.VirtualRename(ctx, path.MustNewComponent("src"), d2, path.MustNewComponent("dst"))
 	require.Equal(t, virtual.StatusErrXDev, s)
 }
 
@@ -1578,9 +1578,9 @@ func TestInMemoryPrepopulatedDirectoryVirtualRenameCrossDevice2(t *testing.T) {
 	require.NoError(t, d2.CreateChildren(map[path.Component]virtual.InitialChild{
 		path.MustNewComponent("dst"): virtual.InitialChild{}.FromDirectory(virtual.EmptyInitialContentsFetcher),
 	}, false))
-	_, _, s := d1.VirtualRename(path.MustNewComponent("src"), d2, path.MustNewComponent("dst"))
+	_, _, s := d1.VirtualRename(ctx, path.MustNewComponent("src"), d2, path.MustNewComponent("dst"))
 	require.Equal(t, virtual.StatusErrXDev, s)
-	_, _, s = d1.VirtualRename(path.MustNewComponent("src"), d2, path.MustNewComponent("nonexistent"))
+	_, _, s = d1.VirtualRename(ctx, path.MustNewComponent("src"), d2, path.MustNewComponent("nonexistent"))
 	require.Equal(t, virtual.StatusErrXDev, s)
 
 	// Renaming files leaf files between directory hierarchies is
@@ -1591,7 +1591,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRenameCrossDevice2(t *testing.T) {
 	require.NoError(t, d1.CreateChildren(map[path.Component]virtual.InitialChild{
 		path.MustNewComponent("leaf"): virtual.InitialChild{}.FromLeaf(leaf),
 	}, false))
-	changeInfo1, changeInfo2, s := d1.VirtualRename(path.MustNewComponent("leaf"), d2, path.MustNewComponent("leaf"))
+	changeInfo1, changeInfo2, s := d1.VirtualRename(ctx, path.MustNewComponent("leaf"), d2, path.MustNewComponent("leaf"))
 	require.Equal(t, virtual.StatusOK, s)
 	require.Equal(t, virtual.ChangeInfo{
 		Before: 2,
@@ -1616,7 +1616,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRemove(t *testing.T) {
 
 	t.Run("NotFound", func(t *testing.T) {
 		// Attempting to remove a file that does not exist.
-		_, s := d.VirtualRemove(path.MustNewComponent("nonexistent"), true, true)
+		_, s := d.VirtualRemove(ctx, path.MustNewComponent("nonexistent"), true, true)
 		require.Equal(t, virtual.StatusErrNoEnt, s)
 	})
 
@@ -1629,7 +1629,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRemove(t *testing.T) {
 			path.MustNewComponent("no_directory_removal"): virtual.InitialChild{}.FromDirectory(initialContentsFetcher),
 		}, false))
 
-		_, s := d.VirtualRemove(path.MustNewComponent("no_directory_removal"), false, true)
+		_, s := d.VirtualRemove(ctx, path.MustNewComponent("no_directory_removal"), false, true)
 		require.Equal(t, virtual.StatusErrPerm, s)
 	})
 
@@ -1641,7 +1641,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRemove(t *testing.T) {
 			path.MustNewComponent("no_file_removal"): virtual.InitialChild{}.FromLeaf(leaf),
 		}, false))
 
-		_, s := d.VirtualRemove(path.MustNewComponent("no_file_removal"), true, false)
+		_, s := d.VirtualRemove(ctx, path.MustNewComponent("no_file_removal"), true, false)
 		require.Equal(t, virtual.StatusErrNotDir, s)
 	})
 
@@ -1658,7 +1658,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRemove(t *testing.T) {
 			Return(nil, status.Error(codes.Internal, "Network error"))
 		errorLogger.EXPECT().Log(testutil.EqStatus(t, status.Error(codes.Internal, "Failed to initialize directory: Network error")))
 
-		_, s := d.VirtualRemove(path.MustNewComponent("broken_directory"), true, false)
+		_, s := d.VirtualRemove(ctx, path.MustNewComponent("broken_directory"), true, false)
 		require.Equal(t, virtual.StatusErrIO, s)
 	})
 
@@ -1673,7 +1673,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRemove(t *testing.T) {
 			path.MustNewComponent("file"): virtual.InitialChild{}.FromLeaf(leaf),
 		}, nil)
 
-		_, s := d.VirtualRemove(path.MustNewComponent("non_empty_directory"), true, false)
+		_, s := d.VirtualRemove(ctx, path.MustNewComponent("non_empty_directory"), true, false)
 		require.Equal(t, virtual.StatusErrNotEmpty, s)
 	})
 
@@ -1684,7 +1684,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRemove(t *testing.T) {
 		}, false))
 		leaf.EXPECT().Unlink()
 
-		changeInfo, s := d.VirtualRemove(path.MustNewComponent("success"), true, true)
+		changeInfo, s := d.VirtualRemove(ctx, path.MustNewComponent("success"), true, true)
 		require.Equal(t, virtual.StatusOK, s)
 		require.Equal(t, virtual.ChangeInfo{
 			Before: 5,
@@ -1711,7 +1711,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualRemove(t *testing.T) {
 		leaf2.EXPECT().Unlink()
 		dHandle.EXPECT().Release()
 
-		changeInfo, s := d.VirtualRemove(path.MustNewComponent("directory_with_hidden_files"), true, true)
+		changeInfo, s := d.VirtualRemove(ctx, path.MustNewComponent("directory_with_hidden_files"), true, true)
 		require.Equal(t, virtual.StatusOK, s)
 		require.Equal(t, virtual.ChangeInfo{
 			Before: 7,

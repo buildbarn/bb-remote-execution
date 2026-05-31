@@ -43,7 +43,7 @@ func TestPoolBackedFileAllocatorGetBazelOutputServiceStat(t *testing.T) {
 	require.NoError(t, err)
 
 	underlyingFile.EXPECT().WriteAt([]byte("Hello"), int64(0)).Return(5, nil)
-	n, s := f.VirtualWrite([]byte("Hello"), 0)
+	n, s := f.VirtualWrite(ctx, []byte("Hello"), 0)
 	require.Equal(t, virtual.StatusOK, s)
 	require.Equal(t, 5, n)
 
@@ -114,7 +114,7 @@ func TestPoolBackedFileAllocatorGetBazelOutputServiceStat(t *testing.T) {
 	// should recompute the digest.
 	require.Equal(t, virtual.StatusOK, f.VirtualOpenSelf(ctx, virtual.ShareMaskWrite, &virtual.OpenExistingOptions{}, 0, &virtual.Attributes{}))
 	underlyingFile.EXPECT().WriteAt([]byte(" world"), int64(5)).Return(6, nil)
-	n, s = f.VirtualWrite([]byte(" world"), 5)
+	n, s = f.VirtualWrite(ctx, []byte(" world"), 5)
 	require.Equal(t, virtual.StatusOK, s)
 	require.Equal(t, 6, n)
 	f.VirtualClose(virtual.ShareMaskWrite)
@@ -232,19 +232,19 @@ func TestPoolBackedFileAllocatorVirtualSeek(t *testing.T) {
 			Return(int64(0), status.Error(codes.Internal, "Disk on fire"))
 		errorLogger.EXPECT().Log(testutil.EqStatus(t, status.Error(codes.Internal, "Failed to get next region offset at offset 123: Disk on fire")))
 
-		_, s := f.VirtualSeek(123, filesystem.Data)
+		_, s := f.VirtualSeek(ctx, 123, filesystem.Data)
 		require.Equal(t, virtual.StatusErrIO, s)
 	})
 
 	t.Run("AtEndOfFile", func(t *testing.T) {
 		// End-of-file errors should be converted to ENXIO, as
 		// described in the lseek() manual page.
-		_, s := f.VirtualSeek(1000, filesystem.Hole)
+		_, s := f.VirtualSeek(ctx, 1000, filesystem.Hole)
 		require.Equal(t, virtual.StatusErrNXIO, s)
 	})
 
 	t.Run("PastEndOfFile", func(t *testing.T) {
-		_, s := f.VirtualSeek(1001, filesystem.Hole)
+		_, s := f.VirtualSeek(ctx, 1001, filesystem.Hole)
 		require.Equal(t, virtual.StatusErrNXIO, s)
 	})
 
@@ -252,7 +252,7 @@ func TestPoolBackedFileAllocatorVirtualSeek(t *testing.T) {
 		underlyingFile.EXPECT().GetNextRegionOffset(int64(789), filesystem.Data).
 			Return(int64(790), nil)
 
-		offset, s := f.VirtualSeek(789, filesystem.Data)
+		offset, s := f.VirtualSeek(ctx, 789, filesystem.Data)
 		require.Equal(t, virtual.StatusOK, s)
 		require.Equal(t, uint64(790), *offset)
 	})
@@ -261,7 +261,7 @@ func TestPoolBackedFileAllocatorVirtualSeek(t *testing.T) {
 		underlyingFile.EXPECT().GetNextRegionOffset(int64(912), filesystem.Data).
 			Return(int64(0), io.EOF)
 
-		offset, s := f.VirtualSeek(912, filesystem.Data)
+		offset, s := f.VirtualSeek(ctx, 912, filesystem.Data)
 		require.Equal(t, virtual.StatusOK, s)
 		require.Nil(t, offset)
 	})
@@ -339,7 +339,7 @@ func TestPoolBackedFileAllocatorVirtualRead(t *testing.T) {
 	// Let initial tests assume an empty file.
 	t.Run("EmptyFileAtStart", func(t *testing.T) {
 		var p [10]byte
-		n, eof, s := f.VirtualRead(p[:], 0)
+		n, eof, s := f.VirtualRead(ctx, p[:], 0)
 		require.Equal(t, virtual.StatusOK, s)
 		require.Equal(t, 0, n)
 		require.True(t, eof)
@@ -347,7 +347,7 @@ func TestPoolBackedFileAllocatorVirtualRead(t *testing.T) {
 
 	t.Run("EmptyFilePastEnd", func(t *testing.T) {
 		var p [10]byte
-		n, eof, s := f.VirtualRead(p[:], 10)
+		n, eof, s := f.VirtualRead(ctx, p[:], 10)
 		require.Equal(t, virtual.StatusOK, s)
 		require.Equal(t, 0, n)
 		require.True(t, eof)
@@ -355,7 +355,7 @@ func TestPoolBackedFileAllocatorVirtualRead(t *testing.T) {
 
 	// Let the remainder of the tests assume a non-empty file.
 	underlyingFile.EXPECT().WriteAt([]byte("Hello"), int64(0)).Return(5, nil)
-	n, s := f.VirtualWrite([]byte("Hello"), 0)
+	n, s := f.VirtualWrite(ctx, []byte("Hello"), 0)
 	require.Equal(t, virtual.StatusOK, s)
 	require.Equal(t, 5, n)
 
@@ -368,7 +368,7 @@ func TestPoolBackedFileAllocatorVirtualRead(t *testing.T) {
 		errorLogger.EXPECT().Log(testutil.EqStatus(t, status.Error(codes.Unavailable, "Failed to read from file at offset 2: Storage backends offline")))
 
 		var p [10]byte
-		_, _, s := f.VirtualRead(p[:], 2)
+		_, _, s := f.VirtualRead(ctx, p[:], 2)
 		require.Equal(t, virtual.StatusErrIO, s)
 	})
 
@@ -384,7 +384,7 @@ func TestPoolBackedFileAllocatorVirtualRead(t *testing.T) {
 		)
 
 		var p [10]byte
-		n, eof, s := f.VirtualRead(p[:], 2)
+		n, eof, s := f.VirtualRead(ctx, p[:], 2)
 		require.Equal(t, virtual.StatusOK, s)
 		require.Equal(t, 3, n)
 		require.True(t, eof)
@@ -448,7 +448,7 @@ func TestPoolBackedFileAllocatorVirtualWriteFailure(t *testing.T) {
 	f, err := virtual.NewPoolBackedFileAllocator(filePool, errorLogger, defaultAttributesSetter.Call, virtual.NoNamedAttributesFactory).
 		NewFile(pool.ZeroHoleSource, false, 0, virtual.ShareMaskWrite)
 	require.NoError(t, err)
-	_, s := f.VirtualWrite(p[:], 42)
+	_, s := f.VirtualWrite(ctx, p[:], 42)
 	require.Equal(t, virtual.StatusErrIO, s)
 	f.VirtualClose(virtual.ShareMaskWrite)
 	f.Unlink()
@@ -471,7 +471,7 @@ func TestPoolBackedFileAllocatorUploadFile(t *testing.T) {
 
 	// Initialize the file with the contents "Hello".
 	underlyingFile.EXPECT().WriteAt([]byte("Hello"), int64(0)).Return(5, nil)
-	n, s := f.VirtualWrite([]byte("Hello"), 0)
+	n, s := f.VirtualWrite(ctx, []byte("Hello"), 0)
 	require.Equal(t, virtual.StatusOK, s)
 	require.Equal(t, 5, n)
 
@@ -530,7 +530,7 @@ func TestPoolBackedFileAllocatorUploadFile(t *testing.T) {
 				// Tests for affected operations below.
 				a1 := make(chan struct{})
 				go func() {
-					require.Equal(t, virtual.StatusOK, f.VirtualAllocate(100, 23))
+					require.Equal(t, virtual.StatusOK, f.VirtualAllocate(ctx, 100, 23))
 					close(a1)
 				}()
 
@@ -562,7 +562,7 @@ func TestPoolBackedFileAllocatorUploadFile(t *testing.T) {
 
 				a4 := make(chan struct{})
 				go func() {
-					n, s := f.VirtualWrite([]byte("Foo"), 120)
+					n, s := f.VirtualWrite(ctx, []byte("Foo"), 120)
 					require.Equal(t, virtual.StatusOK, s)
 					require.Equal(t, 3, n)
 					close(a4)

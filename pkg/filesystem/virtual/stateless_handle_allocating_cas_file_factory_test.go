@@ -2,6 +2,7 @@ package virtual_test
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"testing"
 
@@ -124,8 +125,8 @@ func TestStatelessHandleAllocatingCASFileFactory(t *testing.T) {
 		// Reading the file's contents should cause it to be reported
 		// as being read. This should only happen just once.
 		fileReadMonitor.EXPECT().Call()
-		underlyingLeaf.EXPECT().VirtualRead(gomock.Len(5), uint64(0)).
-			DoAndReturn(func(buf []byte, off uint64) (int, bool, virtual.Status) {
+		underlyingLeaf.EXPECT().VirtualRead(gomock.Any(), gomock.Len(5), uint64(0)).
+			DoAndReturn(func(ctx context.Context, buf []byte, off uint64) (int, bool, virtual.Status) {
 				copy(buf, "Hello")
 				return 5, false, virtual.StatusOK
 			}).
@@ -133,7 +134,7 @@ func TestStatelessHandleAllocatingCASFileFactory(t *testing.T) {
 
 		for i := 0; i < 10; i++ {
 			var buf [5]byte
-			n, eof, s := monitoringLeaf.VirtualRead(buf[:], 0)
+			n, eof, s := monitoringLeaf.VirtualRead(context.Background(), buf[:], 0)
 			require.Equal(t, 5, n)
 			require.False(t, eof)
 			require.Equal(t, virtual.StatusOK, s)

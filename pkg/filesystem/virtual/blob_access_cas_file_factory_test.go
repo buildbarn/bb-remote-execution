@@ -56,28 +56,28 @@ func TestBlobAccessCASFileFactoryVirtualSeek(t *testing.T) {
 	)
 
 	t.Run("SEEK_DATA", func(t *testing.T) {
-		offset, s := f.VirtualSeek(0, filesystem.Data)
+		offset, s := f.VirtualSeek(ctx, 0, filesystem.Data)
 		require.Equal(t, virtual.StatusOK, s)
 		require.Equal(t, uint64(0), *offset)
 
-		offset, s = f.VirtualSeek(122, filesystem.Data)
+		offset, s = f.VirtualSeek(ctx, 122, filesystem.Data)
 		require.Equal(t, virtual.StatusOK, s)
 		require.Equal(t, uint64(122), *offset)
 
-		_, s = f.VirtualSeek(123, filesystem.Data)
+		_, s = f.VirtualSeek(ctx, 123, filesystem.Data)
 		require.Equal(t, virtual.StatusErrNXIO, s)
 	})
 
 	t.Run("SEEK_HOLE", func(t *testing.T) {
-		offset, s := f.VirtualSeek(0, filesystem.Hole)
+		offset, s := f.VirtualSeek(ctx, 0, filesystem.Hole)
 		require.Equal(t, virtual.StatusOK, s)
 		require.Equal(t, uint64(123), *offset)
 
-		offset, s = f.VirtualSeek(122, filesystem.Hole)
+		offset, s = f.VirtualSeek(ctx, 122, filesystem.Hole)
 		require.Equal(t, virtual.StatusOK, s)
 		require.Equal(t, uint64(123), *offset)
 
-		_, s = f.VirtualSeek(123, filesystem.Hole)
+		_, s = f.VirtualSeek(ctx, 123, filesystem.Hole)
 		require.Equal(t, virtual.StatusErrNXIO, s)
 	})
 }
