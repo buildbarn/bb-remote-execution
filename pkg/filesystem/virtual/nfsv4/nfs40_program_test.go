@@ -1296,7 +1296,16 @@ func TestNFS40ProgramCompound_OP_CREATE(t *testing.T) {
 
 	t.Run("BlockDeviceFailure", func(t *testing.T) {
 		// Disallow the creation of block devices. There is no
-		// need for build actions to do that.
+		// need for build actions to do that. The implementation
+		// rejects the call by returning StatusErrPerm.
+		rootDirectory.EXPECT().VirtualMknod(
+			ctx,
+			path.MustNewComponent("sda"),
+			gomock.Any(),
+			virtual.AttributesMaskFileHandle,
+			gomock.Any(),
+		).Return(nil, virtual.ChangeInfo{}, virtual.StatusErrPerm)
+
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "create",
 			Argarray: []nfsv4_xdr.NfsArgop4{
@@ -1335,7 +1344,16 @@ func TestNFS40ProgramCompound_OP_CREATE(t *testing.T) {
 
 	t.Run("CharacterDeviceFailure", func(t *testing.T) {
 		// Disallow the creation of character devices. There is no
-		// need for build actions to do that.
+		// need for build actions to do that. The implementation
+		// rejects the call by returning StatusErrPerm.
+		rootDirectory.EXPECT().VirtualMknod(
+			ctx,
+			path.MustNewComponent("null"),
+			gomock.Any(),
+			virtual.AttributesMaskFileHandle,
+			gomock.Any(),
+		).Return(nil, virtual.ChangeInfo{}, virtual.StatusErrPerm)
+
 		res, err := program.NfsV4Nfsproc4Compound(ctx, &nfsv4_xdr.Compound4args{
 			Tag: "create",
 			Argarray: []nfsv4_xdr.NfsArgop4{
@@ -1697,7 +1715,9 @@ func TestNFS40ProgramCompound_OP_GETATTR(t *testing.T) {
 				virtual.AttributesMaskHasNamedAttributes|
 				virtual.AttributesMaskInodeNumber|
 				virtual.AttributesMaskIsInNamedAttributeDirectory|
+				virtual.AttributesMaskLastAccessTime|
 				virtual.AttributesMaskLastDataModificationTime|
+				virtual.AttributesMaskLastStatusChangeTime|
 				virtual.AttributesMaskLinkCount|
 				virtual.AttributesMaskOwnerGroupID|
 				virtual.AttributesMaskOwnerUserID|
@@ -1791,7 +1811,7 @@ func TestNFS40ProgramCompound_OP_GETATTR(t *testing.T) {
 									// FATTR4_SUPPORTED_ATTRS.
 									0x00, 0x00, 0x00, 0x02,
 									0x00, 0x18, 0x0f, 0xff,
-									0x00, 0x30, 0x80, 0x3a,
+									0x00, 0x71, 0x82, 0x3a,
 									// FATTR4_TYPE == NF4DIR.
 									0x00, 0x00, 0x00, 0x02,
 									// FATTR4_FH_EXPIRE_TYPE == FH4_PERSISTENT.

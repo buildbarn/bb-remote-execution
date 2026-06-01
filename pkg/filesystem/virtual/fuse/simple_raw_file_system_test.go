@@ -329,7 +329,16 @@ func TestSimpleRawFileSystemSetAttr(t *testing.T) {
 	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call, fuse.AllowAuthenticator)
 
 	t.Run("Chown", func(t *testing.T) {
-		// chown() operations are not supported.
+		// chown() requests are forwarded to VirtualSetAttributes;
+		// implementations that don't track ownership return
+		// StatusErrPerm.
+		rootDirectory.EXPECT().VirtualSetAttributes(
+			gomock.Any(),
+			(&virtual.Attributes{}).SetOwnerUserID(1000).SetOwnerGroupID(1000),
+			fuse.AttributesMaskForFUSEAttr,
+			gomock.Any(),
+		).Return(virtual.StatusErrPerm)
+
 		var attrOut go_fuse.AttrOut
 		require.Equal(t, go_fuse.EPERM, rfs.SetAttr(nil, &go_fuse.SetAttrIn{
 			SetAttrInCommon: go_fuse.SetAttrInCommon{
