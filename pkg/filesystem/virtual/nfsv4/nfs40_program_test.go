@@ -6048,7 +6048,8 @@ func TestNFS40ProgramCompound_OP_REMOVE(t *testing.T) {
 	})
 
 	t.Run("Failure", func(t *testing.T) {
-		rootDirectory.EXPECT().VirtualRemove(gomock.Any(),
+		rootDirectory.EXPECT().VirtualRemove(
+			gomock.Any(),
 			path.MustNewComponent("file"),
 			true,
 			true,
@@ -6085,7 +6086,8 @@ func TestNFS40ProgramCompound_OP_REMOVE(t *testing.T) {
 	})
 
 	t.Run("Success", func(t *testing.T) {
-		rootDirectory.EXPECT().VirtualRemove(gomock.Any(),
+		rootDirectory.EXPECT().VirtualRemove(
+			gomock.Any(),
 			path.MustNewComponent("file"),
 			true,
 			true,
