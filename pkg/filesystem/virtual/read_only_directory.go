@@ -57,12 +57,6 @@ func (ReadOnlyDirectory) VirtualSetAttributes(ctx context.Context, in *Attribute
 	return StatusErrROFS
 }
 
-// VirtualSymlink is an implementation of the symlink() system call that
-// treats the target directory as being read-only.
-func (ReadOnlyDirectory) VirtualSymlink(ctx context.Context, pointedTo path.Parser, linkName path.Component, requested AttributesMask, out *Attributes) (Leaf, ChangeInfo, Status) {
-	return nil, ChangeInfo{}, StatusErrROFS
-}
-
 // ReadOnlyDirectoryOpenChildWrongFileType is a helper function for
 // implementing Directory.VirtualOpenChild() for read-only directories.
 // It can be used to obtain return values in case the directory already

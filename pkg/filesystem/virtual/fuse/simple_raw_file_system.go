@@ -532,8 +532,11 @@ func (rfs *simpleRawFileSystem) Symlink(cancel <-chan struct{}, header *fuse.InH
 	i := rfs.getDirectoryLocked(header.NodeId)
 	rfs.nodeLock.RUnlock()
 
+	var createAttributes virtual.Attributes
+	createAttributes.SetFileType(filesystem.FileTypeSymlink)
+	createAttributes.SetSymlinkTarget(path.UNIXFormat.NewParser(pointedTo))
 	var attributes virtual.Attributes
-	child, _, vs := i.VirtualSymlink(ctx, path.UNIXFormat.NewParser(pointedTo), path.MustNewComponent(linkName), AttributesMaskForFUSEAttr, &attributes)
+	child, _, vs := i.VirtualMknod(ctx, path.MustNewComponent(linkName), &createAttributes, AttributesMaskForFUSEAttr, &attributes)
 	if vs != virtual.StatusOK {
 		return toFUSEStatus(vs)
 	}

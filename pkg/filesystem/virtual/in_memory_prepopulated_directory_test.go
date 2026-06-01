@@ -438,7 +438,15 @@ func TestInMemoryPrepopulatedDirectoryInstallHooks(t *testing.T) {
 		attributes.SetInodeNumber(3)
 	})
 	var out virtual.Attributes
-	actualLeaf, changeInfo, s := d.VirtualSymlink(ctx, path.UNIXFormat.NewParser("target"), path.MustNewComponent("symlink"), virtual.AttributesMaskInodeNumber, &out)
+	actualLeaf, changeInfo, s := d.VirtualMknod(
+		ctx,
+		path.MustNewComponent("symlink"),
+		(&virtual.Attributes{}).
+			SetFileType(filesystem.FileTypeSymlink).
+			SetSymlinkTarget(path.UNIXFormat.NewParser("target")),
+		virtual.AttributesMaskInodeNumber,
+		&out,
+	)
 	require.Equal(t, virtual.StatusOK, s)
 	require.NotNil(t, actualLeaf)
 	require.Equal(t, virtual.ChangeInfo{
@@ -1083,7 +1091,7 @@ func TestInMemoryPrepopulatedDirectoryVirtualMkdir(t *testing.T) {
 	})
 }
 
-func TestInMemoryPrepopulatedDirectoryVirtualMknodExists(t *testing.T) {
+func TestInMemoryPrepopulatedDirectoryVirtualMknod(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	fileAllocator := mock.NewMockFileAllocator(ctrl)
@@ -1094,121 +1102,195 @@ func TestInMemoryPrepopulatedDirectoryVirtualMknodExists(t *testing.T) {
 	defaultAttributesSetter := mock.NewMockDefaultAttributesSetter(ctrl)
 	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString, clock.SystemClock, virtual.CaseSensitiveComponentNormalizer, defaultAttributesSetter.Call, virtual.NoNamedAttributesFactory)
 
-	// Files may not be overwritten by mknod().
-	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialChild{
-		path.MustNewComponent("dir"): virtual.InitialChild{}.FromDirectory(virtual.EmptyInitialContentsFetcher),
-	}, false))
-	var createAttr virtual.Attributes
-	createAttr.SetFileType(filesystem.FileTypeFIFO)
-	var attr virtual.Attributes
-	_, _, s := d.VirtualMknod(ctx, path.MustNewComponent("dir"), &createAttr, virtual.AttributesMask(0), &attr)
-	require.Equal(t, virtual.StatusErrExist, s)
-}
+	t.Run("FailureInitialContentsFetcher", func(t *testing.T) {
+		// Create a subdirectory that has an initial contents fetcher.
+		inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
+		initialContentsFetcher := mock.NewMockInitialContentsFetcher(ctrl)
+		require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialChild{
+			path.MustNewComponent("subdir"): virtual.InitialChild{}.FromDirectory(initialContentsFetcher),
+		}, false))
 
-func TestInMemoryPrepopulatedDirectoryVirtualMknodSuccess(t *testing.T) {
-	ctrl, ctx := gomock.WithContext(context.Background(), t)
+		child, err := d.LookupChild(path.MustNewComponent("subdir"))
+		require.NoError(t, err)
 
-	fileAllocator := mock.NewMockFileAllocator(ctrl)
-	symlinkFactory := mock.NewMockSymlinkFactory(ctrl)
-	errorLogger := mock.NewMockErrorLogger(ctrl)
-	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
-	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	defaultAttributesSetter := mock.NewMockDefaultAttributesSetter(ctrl)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString, clock.SystemClock, virtual.CaseSensitiveComponentNormalizer, defaultAttributesSetter.Call, virtual.NoNamedAttributesFactory)
+		childDirectory, childLeaf := child.GetPair()
+		require.NotNil(t, childDirectory)
+		require.Nil(t, childLeaf)
 
-	// Create a FIFO and a UNIX domain socket.
-	fifoHandleAllocation := mock.NewMockStatefulHandleAllocation(ctrl)
-	handleAllocator.EXPECT().New().Return(fifoHandleAllocation)
-	fifoHandleAllocation.EXPECT().AsLinkableLeaf(gomock.Any()).
-		DoAndReturn(func(leaf virtual.LinkableLeaf) virtual.LinkableLeaf { return leaf })
-	var fifoCreateAttr virtual.Attributes
-	fifoCreateAttr.SetFileType(filesystem.FileTypeFIFO)
-	var fifoAttr virtual.Attributes
-	fifoNode, changeInfo, s := d.VirtualMknod(ctx, path.MustNewComponent("fifo"), &fifoCreateAttr, specialFileAttributesMask, &fifoAttr)
-	require.Equal(t, virtual.StatusOK, s)
-	require.NotNil(t, fifoNode)
-	require.Equal(t, virtual.ChangeInfo{
-		Before: 0,
-		After:  1,
-	}, changeInfo)
-	require.Equal(
-		t,
-		*(&virtual.Attributes{}).
-			SetChangeID(0).
-			SetPermissions(virtual.PermissionsRead | virtual.PermissionsWrite).
-			SetFileType(filesystem.FileTypeFIFO).
-			SetHasNamedAttributes(false).
-			SetSizeBytes(0),
-		fifoAttr,
-	)
+		// Creating a symlink in a directory whose initial
+		// contents cannot be fetched, should fail. The reason
+		// being that we can't accurately determine whether a
+		// file under that name is already present.
+		initialContentsFetcher.EXPECT().FetchContents(gomock.Any()).
+			Return(nil, status.Error(codes.Internal, "Network error"))
+		errorLogger.EXPECT().Log(testutil.EqStatus(t, status.Error(codes.Internal, "Failed to initialize directory: Network error")))
 
-	socketHandleAllocation := mock.NewMockStatefulHandleAllocation(ctrl)
-	handleAllocator.EXPECT().New().Return(socketHandleAllocation)
-	socketHandleAllocation.EXPECT().AsLinkableLeaf(gomock.Any()).
-		DoAndReturn(func(leaf virtual.LinkableLeaf) virtual.LinkableLeaf { return leaf })
-	var socketCreateAttr virtual.Attributes
-	socketCreateAttr.SetFileType(filesystem.FileTypeSocket)
-	var socketAttr virtual.Attributes
-	socketNode, changeInfo, s := d.VirtualMknod(ctx, path.MustNewComponent("socket"), &socketCreateAttr, specialFileAttributesMask, &socketAttr)
-	require.Equal(t, virtual.StatusOK, s)
-	require.NotNil(t, socketNode)
-	require.Equal(t, virtual.ChangeInfo{
-		Before: 1,
-		After:  2,
-	}, changeInfo)
-	require.Equal(
-		t,
-		*(&virtual.Attributes{}).
-			SetChangeID(0).
-			SetPermissions(virtual.PermissionsRead | virtual.PermissionsWrite).
-			SetFileType(filesystem.FileTypeSocket).
-			SetHasNamedAttributes(false).
-			SetSizeBytes(0),
-		socketAttr,
-	)
+		_, _, s := childDirectory.VirtualMknod(
+			ctx,
+			path.MustNewComponent("symlink"),
+			(&virtual.Attributes{}).
+				SetFileType(filesystem.FileTypeSymlink).
+				SetSymlinkTarget(path.UNIXFormat.NewParser("target")),
+			0,
+			&virtual.Attributes{},
+		)
+		require.Equal(t, virtual.StatusErrIO, s)
+	})
 
-	// Check whether the devices are reported properly using the
-	// native ReadDir() method.
-	entries, err := d.ReadDir()
-	require.NoError(t, err)
-	require.Equal(t,
-		[]filesystem.FileInfo{
-			filesystem.NewFileInfo(path.MustNewComponent("fifo"), filesystem.FileTypeFIFO, false),
-			filesystem.NewFileInfo(path.MustNewComponent("socket"), filesystem.FileTypeSocket, false),
-		}, entries)
+	t.Run("FailureExist", func(t *testing.T) {
+		// The operation should fail if a file or directory
+		// already exists under the provided name.
+		existingFile := mock.NewMockLinkableLeaf(ctrl)
+		require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialChild{
+			path.MustNewComponent("existing_file"): virtual.InitialChild{}.FromLeaf(existingFile),
+		}, false))
 
-	// Check whether the devices are reported properly using the
-	// VirtualReadDir() method.
-	reporter := mock.NewMockDirectoryEntryReporter(ctrl)
-	reporter.EXPECT().ReportEntry(uint64(1), path.MustNewComponent("fifo"), virtual.DirectoryChild{}.FromLeaf(fifoNode), &fifoAttr).Return(true)
-	reporter.EXPECT().ReportEntry(uint64(2), path.MustNewComponent("socket"), virtual.DirectoryChild{}.FromLeaf(socketNode), &socketAttr).Return(true)
-	require.Equal(t, virtual.StatusOK, d.VirtualReadDir(ctx, 0, specialFileAttributesMask, reporter))
-}
+		_, _, s := d.VirtualMknod(
+			ctx,
+			path.MustNewComponent("existing_file"),
+			(&virtual.Attributes{}).
+				SetFileType(filesystem.FileTypeSymlink).
+				SetSymlinkTarget(path.UNIXFormat.NewParser("target")),
+			0,
+			&virtual.Attributes{},
+		)
+		require.Equal(t, virtual.StatusErrExist, s)
+	})
 
-func TestInMemoryPrepopulatedDirectoryVirtualMknodDeviceRejected(t *testing.T) {
-	ctrl, ctx := gomock.WithContext(context.Background(), t)
+	t.Run("FailingSymlinkFactory", func(t *testing.T) {
+		targetPathParser := path.UNIXFormat.NewParser("target")
+		symlinkFactory.EXPECT().LookupSymlink(targetPathParser).Return(nil, status.Error(codes.Internal, "Not allowed"))
+		errorLogger.EXPECT().Log(testutil.EqStatus(t, status.Error(codes.Internal, "Failed to create new symlink: Not allowed")))
+		_, _, s := d.VirtualMknod(
+			ctx,
+			path.MustNewComponent("symlink"),
+			(&virtual.Attributes{}).
+				SetFileType(filesystem.FileTypeSymlink).
+				SetSymlinkTarget(targetPathParser),
+			0,
+			&virtual.Attributes{},
+		)
+		require.Equal(t, virtual.StatusErrIO, s)
+	})
 
-	fileAllocator := mock.NewMockFileAllocator(ctrl)
-	symlinkFactory := mock.NewMockSymlinkFactory(ctrl)
-	errorLogger := mock.NewMockErrorLogger(ctrl)
-	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
-	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	defaultAttributesSetter := mock.NewMockDefaultAttributesSetter(ctrl)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString, clock.SystemClock, virtual.CaseSensitiveComponentNormalizer, defaultAttributesSetter.Call, virtual.NoNamedAttributesFactory)
+	t.Run("SuccessSymlink", func(t *testing.T) {
+		leaf := mock.NewMockLinkableLeaf(ctrl)
+		targetPathParser := path.UNIXFormat.NewParser("target")
+		symlinkFactory.EXPECT().LookupSymlink(targetPathParser).Return(leaf, nil)
+		leaf.EXPECT().VirtualGetAttributes(
+			ctx,
+			virtual.AttributesMaskInodeNumber,
+			gomock.Any(),
+		).Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
+			attributes.SetInodeNumber(3)
+		})
 
-	// Block and character device creation is not supported on
-	// loopback in-memory directories.
-	for _, ft := range []filesystem.FileType{
-		filesystem.FileTypeBlockDevice,
-		filesystem.FileTypeCharacterDevice,
-	} {
-		var createAttr virtual.Attributes
-		createAttr.SetFileType(ft)
-		var attr virtual.Attributes
-		_, _, s := d.VirtualMknod(ctx, path.MustNewComponent("dev"), &createAttr, virtual.AttributesMask(0), &attr)
-		require.Equal(t, virtual.StatusErrPerm, s)
-	}
+		var out virtual.Attributes
+		actualLeaf, changeInfo, s := d.VirtualMknod(
+			ctx,
+			path.MustNewComponent("symlink"),
+			(&virtual.Attributes{}).
+				SetFileType(filesystem.FileTypeSymlink).
+				SetSymlinkTarget(targetPathParser),
+			virtual.AttributesMaskInodeNumber,
+			&out,
+		)
+		require.Equal(t, virtual.StatusOK, s)
+		require.NotNil(t, actualLeaf)
+		require.Equal(t, virtual.ChangeInfo{
+			Before: 2,
+			After:  3,
+		}, changeInfo)
+		require.Equal(t, (&virtual.Attributes{}).SetInodeNumber(3), &out)
+	})
+
+	t.Run("FailureBlockCharacterDevice", func(t *testing.T) {
+		// Block and character device creation is not supported on
+		// loopback in-memory directories.
+		for _, ft := range []filesystem.FileType{
+			filesystem.FileTypeBlockDevice,
+			filesystem.FileTypeCharacterDevice,
+		} {
+			var createAttr virtual.Attributes
+			createAttr.SetFileType(ft)
+			var attr virtual.Attributes
+			_, _, s := d.VirtualMknod(ctx, path.MustNewComponent("dev"), &createAttr, virtual.AttributesMask(0), &attr)
+			require.Equal(t, virtual.StatusErrPerm, s)
+		}
+	})
+
+	t.Run("SuccessFIFOAndSocket", func(t *testing.T) {
+		inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
+		d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString, clock.SystemClock, virtual.CaseSensitiveComponentNormalizer, defaultAttributesSetter.Call, virtual.NoNamedAttributesFactory)
+
+		// Create a FIFO and a UNIX domain socket.
+		fifoHandleAllocation := mock.NewMockStatefulHandleAllocation(ctrl)
+		handleAllocator.EXPECT().New().Return(fifoHandleAllocation)
+		fifoHandleAllocation.EXPECT().AsLinkableLeaf(gomock.Any()).
+			DoAndReturn(func(leaf virtual.LinkableLeaf) virtual.LinkableLeaf { return leaf })
+		var fifoCreateAttr virtual.Attributes
+		fifoCreateAttr.SetFileType(filesystem.FileTypeFIFO)
+		var fifoAttr virtual.Attributes
+		fifoNode, changeInfo, s := d.VirtualMknod(ctx, path.MustNewComponent("fifo"), &fifoCreateAttr, specialFileAttributesMask, &fifoAttr)
+		require.Equal(t, virtual.StatusOK, s)
+		require.NotNil(t, fifoNode)
+		require.Equal(t, virtual.ChangeInfo{
+			Before: 0,
+			After:  1,
+		}, changeInfo)
+		require.Equal(
+			t,
+			*(&virtual.Attributes{}).
+				SetChangeID(0).
+				SetPermissions(virtual.PermissionsRead | virtual.PermissionsWrite).
+				SetFileType(filesystem.FileTypeFIFO).
+				SetHasNamedAttributes(false).
+				SetSizeBytes(0),
+			fifoAttr,
+		)
+
+		socketHandleAllocation := mock.NewMockStatefulHandleAllocation(ctrl)
+		handleAllocator.EXPECT().New().Return(socketHandleAllocation)
+		socketHandleAllocation.EXPECT().AsLinkableLeaf(gomock.Any()).
+			DoAndReturn(func(leaf virtual.LinkableLeaf) virtual.LinkableLeaf { return leaf })
+		var socketCreateAttr virtual.Attributes
+		socketCreateAttr.SetFileType(filesystem.FileTypeSocket)
+		var socketAttr virtual.Attributes
+		socketNode, changeInfo, s := d.VirtualMknod(ctx, path.MustNewComponent("socket"), &socketCreateAttr, specialFileAttributesMask, &socketAttr)
+		require.Equal(t, virtual.StatusOK, s)
+		require.NotNil(t, socketNode)
+		require.Equal(t, virtual.ChangeInfo{
+			Before: 1,
+			After:  2,
+		}, changeInfo)
+		require.Equal(
+			t,
+			*(&virtual.Attributes{}).
+				SetChangeID(0).
+				SetPermissions(virtual.PermissionsRead | virtual.PermissionsWrite).
+				SetFileType(filesystem.FileTypeSocket).
+				SetHasNamedAttributes(false).
+				SetSizeBytes(0),
+			socketAttr,
+		)
+
+		// Check whether the devices are reported properly using the
+		// native ReadDir() method.
+		entries, err := d.ReadDir()
+		require.NoError(t, err)
+		require.Equal(t,
+			[]filesystem.FileInfo{
+				filesystem.NewFileInfo(path.MustNewComponent("fifo"), filesystem.FileTypeFIFO, false),
+				filesystem.NewFileInfo(path.MustNewComponent("socket"), filesystem.FileTypeSocket, false),
+			}, entries)
+
+		// Check whether the devices are reported properly using the
+		// VirtualReadDir() method.
+		reporter := mock.NewMockDirectoryEntryReporter(ctrl)
+		reporter.EXPECT().ReportEntry(uint64(1), path.MustNewComponent("fifo"), virtual.DirectoryChild{}.FromLeaf(fifoNode), &fifoAttr).Return(true)
+		reporter.EXPECT().ReportEntry(uint64(2), path.MustNewComponent("socket"), virtual.DirectoryChild{}.FromLeaf(socketNode), &socketAttr).Return(true)
+		require.Equal(t, virtual.StatusOK, d.VirtualReadDir(ctx, 0, specialFileAttributesMask, reporter))
+	})
 }
 
 func TestInMemoryPrepopulatedDirectoryVirtualReadDir(t *testing.T) {
@@ -1717,87 +1799,5 @@ func TestInMemoryPrepopulatedDirectoryVirtualRemove(t *testing.T) {
 			Before: 7,
 			After:  8,
 		}, changeInfo)
-	})
-}
-
-func TestInMemoryPrepopulatedDirectoryVirtualSymlink(t *testing.T) {
-	ctrl, ctx := gomock.WithContext(context.Background(), t)
-
-	fileAllocator := mock.NewMockFileAllocator(ctrl)
-	symlinkFactory := mock.NewMockSymlinkFactory(ctrl)
-	errorLogger := mock.NewMockErrorLogger(ctrl)
-	handleAllocator := mock.NewMockStatefulHandleAllocator(ctrl)
-	inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-	defaultAttributesSetter := mock.NewMockDefaultAttributesSetter(ctrl)
-	d := virtual.NewInMemoryPrepopulatedDirectory(fileAllocator, symlinkFactory, errorLogger, handleAllocator, sort.Sort, hiddenFilesPatternForTesting.MatchString, clock.SystemClock, virtual.CaseSensitiveComponentNormalizer, defaultAttributesSetter.Call, virtual.NoNamedAttributesFactory)
-
-	t.Run("FailureInitialContentsFetcher", func(t *testing.T) {
-		// Create a subdirectory that has an initial contents fetcher.
-		inMemoryPrepopulatedDirectoryExpectMkdir(ctrl, handleAllocator)
-		initialContentsFetcher := mock.NewMockInitialContentsFetcher(ctrl)
-		require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialChild{
-			path.MustNewComponent("subdir"): virtual.InitialChild{}.FromDirectory(initialContentsFetcher),
-		}, false))
-
-		child, err := d.LookupChild(path.MustNewComponent("subdir"))
-		require.NoError(t, err)
-
-		childDirectory, childLeaf := child.GetPair()
-		require.NotNil(t, childDirectory)
-		require.Nil(t, childLeaf)
-
-		// Creating a symlink in a directory whose initial
-		// contents cannot be fetched, should fail. The reason
-		// being that we can't accurately determine whether a
-		// file under that name is already present.
-		initialContentsFetcher.EXPECT().FetchContents(gomock.Any()).
-			Return(nil, status.Error(codes.Internal, "Network error"))
-		errorLogger.EXPECT().Log(testutil.EqStatus(t, status.Error(codes.Internal, "Failed to initialize directory: Network error")))
-
-		_, _, s := childDirectory.VirtualSymlink(ctx, path.UNIXFormat.NewParser("target"), path.MustNewComponent("symlink"), 0, &virtual.Attributes{})
-		require.Equal(t, virtual.StatusErrIO, s)
-	})
-
-	t.Run("FailureExist", func(t *testing.T) {
-		// The operation should fail if a file or directory
-		// already exists under the provided name.
-		existingFile := mock.NewMockLinkableLeaf(ctrl)
-		require.NoError(t, d.CreateChildren(map[path.Component]virtual.InitialChild{
-			path.MustNewComponent("existing_file"): virtual.InitialChild{}.FromLeaf(existingFile),
-		}, false))
-
-		_, _, s := d.VirtualSymlink(ctx, path.UNIXFormat.NewParser("target"), path.MustNewComponent("existing_file"), 0, &virtual.Attributes{})
-		require.Equal(t, virtual.StatusErrExist, s)
-	})
-
-	t.Run("FailingSymlinkFactory", func(t *testing.T) {
-		targetPathParser := path.UNIXFormat.NewParser("target")
-		symlinkFactory.EXPECT().LookupSymlink(targetPathParser).Return(nil, status.Error(codes.Internal, "Not allowed"))
-		errorLogger.EXPECT().Log(testutil.EqStatus(t, status.Error(codes.Internal, "Failed to create new symlink: Not allowed")))
-		_, _, s := d.VirtualSymlink(ctx, targetPathParser, path.MustNewComponent("symlink"), 0, &virtual.Attributes{})
-		require.Equal(t, virtual.StatusErrIO, s)
-	})
-
-	t.Run("Success", func(t *testing.T) {
-		leaf := mock.NewMockLinkableLeaf(ctrl)
-		targetPathParser := path.UNIXFormat.NewParser("target")
-		symlinkFactory.EXPECT().LookupSymlink(targetPathParser).Return(leaf, nil)
-		leaf.EXPECT().VirtualGetAttributes(
-			ctx,
-			virtual.AttributesMaskInodeNumber,
-			gomock.Any(),
-		).Do(func(ctx context.Context, requested virtual.AttributesMask, attributes *virtual.Attributes) {
-			attributes.SetInodeNumber(3)
-		})
-
-		var out virtual.Attributes
-		actualLeaf, changeInfo, s := d.VirtualSymlink(ctx, targetPathParser, path.MustNewComponent("symlink"), virtual.AttributesMaskInodeNumber, &out)
-		require.Equal(t, virtual.StatusOK, s)
-		require.NotNil(t, actualLeaf)
-		require.Equal(t, virtual.ChangeInfo{
-			Before: 2,
-			After:  3,
-		}, changeInfo)
-		require.Equal(t, (&virtual.Attributes{}).SetInodeNumber(3), &out)
 	})
 }

@@ -880,16 +880,6 @@ func (i *inMemoryPrepopulatedDirectory) VirtualMkdir(ctx context.Context, name p
 }
 
 func (i *inMemoryPrepopulatedDirectory) VirtualMknod(ctx context.Context, name path.Component, createAttributes *Attributes, requested AttributesMask, out *Attributes) (Leaf, ChangeInfo, Status) {
-	// Block and character devices have no backing in an in-memory
-	// directory; reject rather than create an inert inode.
-	fileType := createAttributes.GetFileType()
-	switch fileType {
-	case filesystem.FileTypeFIFO, filesystem.FileTypeSocket:
-		// allowed
-	default:
-		return nil, ChangeInfo{}, StatusErrPerm
-	}
-
 	i.lock.Lock()
 	defer i.lock.Unlock()
 
@@ -902,12 +892,36 @@ func (i *inMemoryPrepopulatedDirectory) VirtualMknod(ctx context.Context, name p
 	if s := contents.virtualMayAttach(normalizedName); s != StatusOK {
 		return nil, ChangeInfo{}, s
 	}
-	// Every FIFO or UNIX domain socket needs to have its own inode
-	// number, as the kernel uses that to tell instances apart. We
-	// therefore consider it to be stateful, like a writable file.
-	child := i.subtree.filesystem.statefulHandleAllocator.
-		New().
-		AsLinkableLeaf(NewSpecialFile(fileType, nil))
+
+	var child LinkableLeaf
+	switch fileType := createAttributes.GetFileType(); fileType {
+	case filesystem.FileTypeFIFO, filesystem.FileTypeSocket:
+		// Every FIFO or UNIX domain socket needs to have its
+		// own inode number, as the kernel uses that to tell
+		// instances apart. We therefore consider it to be
+		// stateful, like a writable file.
+		child = i.subtree.filesystem.statefulHandleAllocator.
+			New().
+			AsLinkableLeaf(NewSpecialFile(fileType, nil))
+	case filesystem.FileTypeSymlink:
+		symlinkTarget, ok := createAttributes.GetSymlinkTarget()
+		if !ok {
+			panic("Symbolic links should have a target")
+		}
+		var err error
+		child, err = i.subtree.symlinkFactory.LookupSymlink(symlinkTarget)
+		if err != nil {
+			i.subtree.errorLogger.Log(util.StatusWrapf(err, "Failed to create new symlink"))
+			return nil, ChangeInfo{}, StatusErrIO
+		}
+	default:
+		// Don't permit the creation of other types of files,
+		// such as block devices and character devices. It
+		// wouldn't be safe if build actions could create those
+		// arbitrarily.
+		return nil, ChangeInfo{}, StatusErrPerm
+	}
+
 	changeIDBefore := contents.changeID
 	contents.attach(i.subtree, name, normalizedName, inMemoryDirectoryChild{}.FromLeaf(child))
 
@@ -1125,34 +1139,6 @@ func (i *inMemoryPrepopulatedDirectory) VirtualSetAttributes(ctx context.Context
 	}
 	i.VirtualGetAttributes(ctx, requested, out)
 	return StatusOK
-}
-
-func (i *inMemoryPrepopulatedDirectory) VirtualSymlink(ctx context.Context, pointedTo path.Parser, linkName path.Component, requested AttributesMask, out *Attributes) (Leaf, ChangeInfo, Status) {
-	i.lock.Lock()
-	defer i.lock.Unlock()
-
-	contents, s := i.virtualGetContents()
-	if s != StatusOK {
-		return nil, ChangeInfo{}, s
-	}
-
-	normalizedLinkName := i.subtree.filesystem.normalizer.Normalize(linkName)
-	if s := contents.virtualMayAttach(normalizedLinkName); s != StatusOK {
-		return nil, ChangeInfo{}, s
-	}
-	child, err := i.subtree.symlinkFactory.LookupSymlink(pointedTo)
-	if err != nil {
-		i.subtree.errorLogger.Log(util.StatusWrapf(err, "Failed to create new symlink"))
-		return nil, ChangeInfo{}, StatusErrIO
-	}
-	changeIDBefore := contents.changeID
-	contents.attach(i.subtree, linkName, normalizedLinkName, inMemoryDirectoryChild{}.FromLeaf(child))
-
-	child.VirtualGetAttributes(ctx, requested, out)
-	return child, ChangeInfo{
-		Before: changeIDBefore,
-		After:  contents.changeID,
-	}, StatusOK
 }
 
 // directoryPrepopulatedDirEntryList is a list of DirectoryDirEntry

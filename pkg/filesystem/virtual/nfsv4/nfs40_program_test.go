@@ -1184,10 +1184,10 @@ func TestNFS40ProgramCompound_OP_CREATE(t *testing.T) {
 	})
 
 	t.Run("SymlinkFailure", func(t *testing.T) {
-		rootDirectory.EXPECT().VirtualSymlink(
+		rootDirectory.EXPECT().VirtualMknod(
 			ctx,
-			gomock.Any(),
 			path.MustNewComponent("symlink"),
+			gomock.Any(),
 			virtual.AttributesMaskFileHandle,
 			gomock.Any(),
 		).Return(nil, virtual.ChangeInfo{}, virtual.StatusErrAccess)
@@ -1227,15 +1227,18 @@ func TestNFS40ProgramCompound_OP_CREATE(t *testing.T) {
 
 	t.Run("SymlinkSuccess", func(t *testing.T) {
 		leaf := mock.NewMockVirtualLeaf(ctrl)
-		rootDirectory.EXPECT().VirtualSymlink(
+		rootDirectory.EXPECT().VirtualMknod(
 			ctx,
-			gomock.Any(),
 			path.MustNewComponent("symlink"),
+			gomock.Any(),
 			virtual.AttributesMaskFileHandle,
 			gomock.Any(),
-		).DoAndReturn(func(ctx context.Context, target path.Parser, name path.Component, requested virtual.AttributesMask, attributes *virtual.Attributes) (virtual.Leaf, virtual.ChangeInfo, virtual.Status) {
+		).DoAndReturn(func(ctx context.Context, name path.Component, createAttributes *virtual.Attributes, requested virtual.AttributesMask, attributes *virtual.Attributes) (virtual.Leaf, virtual.ChangeInfo, virtual.Status) {
+			require.Equal(t, filesystem.FileTypeSymlink, createAttributes.GetFileType())
+			symlinkTarget, ok := createAttributes.GetSymlinkTarget()
+			require.True(t, ok)
 			targetBuilder, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
-			require.NoError(t, path.Resolve(target, scopeWalker))
+			require.NoError(t, path.Resolve(symlinkTarget, scopeWalker))
 			require.Equal(t, "target", targetBuilder.GetUNIXString())
 
 			attributes.SetFileHandle([]byte{0xbe, 0xb7, 0xe9, 0xb1, 0xbb, 0x21, 0x9a, 0xa8})

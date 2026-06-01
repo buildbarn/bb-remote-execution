@@ -1455,7 +1455,15 @@ func (fs *FileSystem) SetReparsePoint(ref *ffi.FileSystemRef, handle uintptr, na
 			return toNTStatus(s)
 		}
 		var outAttributes virtual.Attributes
-		if _, _, s := node.parent.VirtualSymlink(ctx, path.LocalFormat.NewParser(targetPath), node.name, virtual.AttributesMaskFileType, &outAttributes); s != virtual.StatusOK {
+		if _, _, s := node.parent.VirtualMknod(
+			ctx,
+			node.name,
+			(&virtual.Attributes{}).
+				SetFileType(filesystem.FileTypeSymlink).
+				SetSymlinkTarget(path.LocalFormat.NewParser(targetPath)),
+			virtual.AttributesMaskFileType,
+			&outAttributes,
+		); s != virtual.StatusOK {
 			return toNTStatus(s)
 		}
 

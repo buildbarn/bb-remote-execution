@@ -55,8 +55,9 @@ type Directory interface {
 	// VirtualMkdir creates an empty directory within the current
 	// directory.
 	VirtualMkdir(ctx context.Context, name path.Component, createAttributes *Attributes, requested AttributesMask, createdDirectoryAttributes *Attributes) (Directory, ChangeInfo, Status)
-	// VirtualMknod creates a special file (FIFO, UNIX domain socket,
-	// block device or character device) within the current directory.
+	// VirtualMknod creates a special file (FIFO, UNIX domain
+	// socket, block device or character device) or symbolic link
+	// within the current directory.
 	VirtualMknod(ctx context.Context, name path.Component, createAttributes *Attributes, requested AttributesMask, createdFileAttributes *Attributes) (Leaf, ChangeInfo, Status)
 	// VirtualReadDir reports files and directories stored within
 	// the directory.
@@ -69,9 +70,6 @@ type Directory interface {
 	// this method behaves like rmdir(), unlink() or a mixture of
 	// the two. The latter is needed by NFSv4.
 	VirtualRemove(ctx context.Context, name path.Component, removeDirectory, removeLeaf bool) (ChangeInfo, Status)
-	// VirtualSymlink creates a symbolic link within the current
-	// directory.
-	VirtualSymlink(ctx context.Context, pointedTo path.Parser, linkName path.Component, requested AttributesMask, attributes *Attributes) (Leaf, ChangeInfo, Status)
 }
 
 const (

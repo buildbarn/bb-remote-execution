@@ -620,10 +620,10 @@ func TestSimpleRawFileSystemSymlink(t *testing.T) {
 	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call, fuse.AllowAuthenticator)
 
 	t.Run("Failure", func(t *testing.T) {
-		rootDirectory.EXPECT().VirtualSymlink(
-			gomock.Any(),
+		rootDirectory.EXPECT().VirtualMknod(
 			gomock.Any(),
 			path.MustNewComponent("symlink"),
+			gomock.Any(),
 			fuse.AttributesMaskForFUSEAttr,
 			gomock.Any(),
 		).Return(nil, virtual.ChangeInfo{}, virtual.StatusErrExist)
@@ -637,16 +637,19 @@ func TestSimpleRawFileSystemSymlink(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		// Create a symbolic link.
 		symlink := mock.NewMockVirtualLeaf(ctrl)
-		rootDirectory.EXPECT().VirtualSymlink(
-			gomock.Any(),
+		rootDirectory.EXPECT().VirtualMknod(
 			gomock.Any(),
 			path.MustNewComponent("symlink"),
+			gomock.Any(),
 			fuse.AttributesMaskForFUSEAttr,
 			gomock.Any(),
-		).DoAndReturn(func(ctx context.Context, pointedTo path.Parser, linkName path.Component, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Leaf, virtual.ChangeInfo, virtual.Status) {
-			pointedToBuilder, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
-			require.NoError(t, path.Resolve(pointedTo, scopeWalker))
-			require.Equal(t, "target", pointedToBuilder.GetUNIXString())
+		).DoAndReturn(func(ctx context.Context, linkName path.Component, createAttributes *virtual.Attributes, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Leaf, virtual.ChangeInfo, virtual.Status) {
+			require.Equal(t, filesystem.FileTypeSymlink, createAttributes.GetFileType())
+			symlinkTarget, ok := createAttributes.GetSymlinkTarget()
+			require.True(t, ok)
+			symlinkTargetBuilder, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
+			require.NoError(t, path.Resolve(symlinkTarget, scopeWalker))
+			require.Equal(t, "target", symlinkTargetBuilder.GetUNIXString())
 
 			out.SetFileType(filesystem.FileTypeSymlink)
 			out.SetInodeNumber(123)

@@ -1985,13 +1985,16 @@ func TestWinFSPFileSystemSymlinkCreation(t *testing.T) {
 			true,
 		).Return(virtual.ChangeInfo{}, virtual.StatusOK)
 
-		rootDirectory.EXPECT().VirtualSymlink(
-			gomock.Any(),
+		rootDirectory.EXPECT().VirtualMknod(
 			gomock.Any(),
 			path.MustNewComponent("symlink.txt"),
+			gomock.Any(),
 			virtual.AttributesMaskFileType,
 			gomock.Any(),
-		).DoAndReturn(func(ctx context.Context, target path.Parser, name path.Component, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Leaf, virtual.ChangeInfo, virtual.Status) {
+		).DoAndReturn(func(ctx context.Context, name path.Component, createAttributes *virtual.Attributes, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Leaf, virtual.ChangeInfo, virtual.Status) {
+			require.Equal(t, filesystem.FileTypeSymlink, createAttributes.GetFileType())
+			target, ok := createAttributes.GetSymlinkTarget()
+			require.True(t, ok)
 			targetBuilder, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
 			require.NoError(t, path.Resolve(target, scopeWalker))
 			targetStr, err := path.LocalFormat.GetString(targetBuilder)
@@ -2050,13 +2053,16 @@ func TestWinFSPFileSystemSymlinkCreation(t *testing.T) {
 			true,
 		).Return(virtual.ChangeInfo{}, virtual.StatusOK)
 
-		rootDirectory.EXPECT().VirtualSymlink(
-			gomock.Any(),
+		rootDirectory.EXPECT().VirtualMknod(
 			gomock.Any(),
 			path.MustNewComponent("abs_symlink.txt"),
+			gomock.Any(),
 			virtual.AttributesMaskFileType,
 			gomock.Any(),
-		).DoAndReturn(func(ctx context.Context, target path.Parser, name path.Component, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Leaf, virtual.ChangeInfo, virtual.Status) {
+		).DoAndReturn(func(ctx context.Context, name path.Component, createAttributes *virtual.Attributes, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Leaf, virtual.ChangeInfo, virtual.Status) {
+			require.Equal(t, filesystem.FileTypeSymlink, createAttributes.GetFileType())
+			target, ok := createAttributes.GetSymlinkTarget()
+			require.True(t, ok)
 			targetBuilder, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
 			require.NoError(t, path.Resolve(target, scopeWalker))
 			targetStr, err := path.LocalFormat.GetString(targetBuilder)

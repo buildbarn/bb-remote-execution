@@ -1918,17 +1918,13 @@ func (s *sequenceState) opCreate(ctx context.Context, args *nfsv4.Create4args) n
 		leaf, changeInfo, vs = currentDirectory.VirtualMknod(ctx, name, &createAttributes, virtual.AttributesMaskFileHandle, &actualAttributes)
 		fileHandle.node = virtual.DirectoryChild{}.FromLeaf(leaf)
 	case *nfsv4.Createtype4_NF4LNK:
+		createAttributes.SetFileType(filesystem.FileTypeSymlink)
 		if !utf8.Valid(objectType.Linkdata) {
 			return &nfsv4.Create4res_default{Status: nfsv4.NFS4ERR_BADCHAR}
 		}
+		createAttributes.SetSymlinkTarget(path.UNIXFormat.NewParser(string(objectType.Linkdata)))
 		var leaf virtual.Leaf
-		leaf, changeInfo, vs = currentDirectory.VirtualSymlink(
-			ctx,
-			s.program.pathFormat.NewParser(string(objectType.Linkdata)),
-			name,
-			virtual.AttributesMaskFileHandle,
-			&actualAttributes,
-		)
+		leaf, changeInfo, vs = currentDirectory.VirtualMknod(ctx, name, &createAttributes, virtual.AttributesMaskFileHandle, &actualAttributes)
 		fileHandle.node = virtual.DirectoryChild{}.FromLeaf(leaf)
 	case *nfsv4.Createtype4_NF4SOCK:
 		createAttributes.SetFileType(filesystem.FileTypeSocket)
