@@ -16,7 +16,7 @@ import (
 )
 
 func TestStatelessHandleAllocatingCASFileFactory(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	baseCASFileFactory := mock.NewMockCASFileFactory(ctrl)
 	handleAllocation := mock.NewMockStatelessHandleAllocation(ctrl)
@@ -134,7 +134,7 @@ func TestStatelessHandleAllocatingCASFileFactory(t *testing.T) {
 
 		for i := 0; i < 10; i++ {
 			var buf [5]byte
-			n, eof, s := monitoringLeaf.VirtualRead(context.Background(), buf[:], 0)
+			n, eof, s := monitoringLeaf.VirtualRead(ctx, buf[:], 0)
 			require.Equal(t, 5, n)
 			require.False(t, eof)
 			require.Equal(t, virtual.StatusOK, s)
