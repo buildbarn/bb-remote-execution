@@ -137,7 +137,7 @@ message InputRootResourceUsage {
 // it by the action's execution duration from
 // ActionResult.execution_metadata. For example:
 //
-//   psi_cpu_some_percent = psi_cpu_some / (
+//   cpu_pressure_some_percent = cpu_pressure_some_total / (
 //       execution_completed_timestamp - execution_start_timestamp) * 100
 //
 // See:
@@ -171,29 +171,29 @@ message CgroupResourceUsage {
   // memory.peak: Peak memory usage in bytes since resetting
   // memory.peak at action start. Zero if memory.peak reset/read is
   // unavailable.
-  int64 memory_peak_bytes = 7;
+  int64 memory_peak = 7;
 
   // memory.pressure/some total: Memory PSI stall time with at least
   // one task stalled on memory.
-  google.protobuf.Duration psi_memory_some = 8;
+  google.protobuf.Duration memory_pressure_some_total = 8;
 
   // memory.pressure/full total: Memory PSI stall time with all
   // non-idle tasks stalled on memory.
-  google.protobuf.Duration psi_memory_full = 9;
+  google.protobuf.Duration memory_pressure_full_total = 9;
 
   // cpu.pressure/some total: CPU PSI stall time with at least one task
   // waiting for CPU.
-  google.protobuf.Duration psi_cpu_some = 10;
+  google.protobuf.Duration cpu_pressure_some_total = 10;
 
   // cpu.pressure/full total: CPU PSI stall time with all non-idle
   // tasks waiting for CPU.
-  google.protobuf.Duration psi_cpu_full = 11;
+  google.protobuf.Duration cpu_pressure_full_total = 11;
 
   // io.pressure/some total: I/O PSI stall time with at least one task
   // stalled on I/O.
-  google.protobuf.Duration psi_io_some = 12;
+  google.protobuf.Duration io_pressure_some_total = 12;
 
   // io.pressure/full total: I/O PSI stall time with all non-idle
   // tasks stalled on I/O.
-  google.protobuf.Duration psi_io_full = 13;
+  google.protobuf.Duration io_pressure_full_total = 13;
 }

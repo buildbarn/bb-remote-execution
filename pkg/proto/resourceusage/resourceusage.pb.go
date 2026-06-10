@@ -382,13 +382,13 @@ type CgroupResourceUsage struct {
 	MemoryEventsOom          int64                  `protobuf:"varint,4,opt,name=memory_events_oom,json=memoryEventsOom,proto3" json:"memory_events_oom,omitempty"`
 	MemoryEventsOomKill      int64                  `protobuf:"varint,5,opt,name=memory_events_oom_kill,json=memoryEventsOomKill,proto3" json:"memory_events_oom_kill,omitempty"`
 	MemoryEventsOomGroupKill int64                  `protobuf:"varint,6,opt,name=memory_events_oom_group_kill,json=memoryEventsOomGroupKill,proto3" json:"memory_events_oom_group_kill,omitempty"`
-	MemoryPeakBytes          int64                  `protobuf:"varint,7,opt,name=memory_peak_bytes,json=memoryPeakBytes,proto3" json:"memory_peak_bytes,omitempty"`
-	PsiMemorySome            *durationpb.Duration   `protobuf:"bytes,8,opt,name=psi_memory_some,json=psiMemorySome,proto3" json:"psi_memory_some,omitempty"`
-	PsiMemoryFull            *durationpb.Duration   `protobuf:"bytes,9,opt,name=psi_memory_full,json=psiMemoryFull,proto3" json:"psi_memory_full,omitempty"`
-	PsiCpuSome               *durationpb.Duration   `protobuf:"bytes,10,opt,name=psi_cpu_some,json=psiCpuSome,proto3" json:"psi_cpu_some,omitempty"`
-	PsiCpuFull               *durationpb.Duration   `protobuf:"bytes,11,opt,name=psi_cpu_full,json=psiCpuFull,proto3" json:"psi_cpu_full,omitempty"`
-	PsiIoSome                *durationpb.Duration   `protobuf:"bytes,12,opt,name=psi_io_some,json=psiIoSome,proto3" json:"psi_io_some,omitempty"`
-	PsiIoFull                *durationpb.Duration   `protobuf:"bytes,13,opt,name=psi_io_full,json=psiIoFull,proto3" json:"psi_io_full,omitempty"`
+	MemoryPeak               int64                  `protobuf:"varint,7,opt,name=memory_peak,json=memoryPeak,proto3" json:"memory_peak,omitempty"`
+	MemoryPressureSomeTotal  *durationpb.Duration   `protobuf:"bytes,8,opt,name=memory_pressure_some_total,json=memoryPressureSomeTotal,proto3" json:"memory_pressure_some_total,omitempty"`
+	MemoryPressureFullTotal  *durationpb.Duration   `protobuf:"bytes,9,opt,name=memory_pressure_full_total,json=memoryPressureFullTotal,proto3" json:"memory_pressure_full_total,omitempty"`
+	CpuPressureSomeTotal     *durationpb.Duration   `protobuf:"bytes,10,opt,name=cpu_pressure_some_total,json=cpuPressureSomeTotal,proto3" json:"cpu_pressure_some_total,omitempty"`
+	CpuPressureFullTotal     *durationpb.Duration   `protobuf:"bytes,11,opt,name=cpu_pressure_full_total,json=cpuPressureFullTotal,proto3" json:"cpu_pressure_full_total,omitempty"`
+	IoPressureSomeTotal      *durationpb.Duration   `protobuf:"bytes,12,opt,name=io_pressure_some_total,json=ioPressureSomeTotal,proto3" json:"io_pressure_some_total,omitempty"`
+	IoPressureFullTotal      *durationpb.Duration   `protobuf:"bytes,13,opt,name=io_pressure_full_total,json=ioPressureFullTotal,proto3" json:"io_pressure_full_total,omitempty"`
 	unknownFields            protoimpl.UnknownFields
 	sizeCache                protoimpl.SizeCache
 }
@@ -465,51 +465,51 @@ func (x *CgroupResourceUsage) GetMemoryEventsOomGroupKill() int64 {
 	return 0
 }
 
-func (x *CgroupResourceUsage) GetMemoryPeakBytes() int64 {
+func (x *CgroupResourceUsage) GetMemoryPeak() int64 {
 	if x != nil {
-		return x.MemoryPeakBytes
+		return x.MemoryPeak
 	}
 	return 0
 }
 
-func (x *CgroupResourceUsage) GetPsiMemorySome() *durationpb.Duration {
+func (x *CgroupResourceUsage) GetMemoryPressureSomeTotal() *durationpb.Duration {
 	if x != nil {
-		return x.PsiMemorySome
+		return x.MemoryPressureSomeTotal
 	}
 	return nil
 }
 
-func (x *CgroupResourceUsage) GetPsiMemoryFull() *durationpb.Duration {
+func (x *CgroupResourceUsage) GetMemoryPressureFullTotal() *durationpb.Duration {
 	if x != nil {
-		return x.PsiMemoryFull
+		return x.MemoryPressureFullTotal
 	}
 	return nil
 }
 
-func (x *CgroupResourceUsage) GetPsiCpuSome() *durationpb.Duration {
+func (x *CgroupResourceUsage) GetCpuPressureSomeTotal() *durationpb.Duration {
 	if x != nil {
-		return x.PsiCpuSome
+		return x.CpuPressureSomeTotal
 	}
 	return nil
 }
 
-func (x *CgroupResourceUsage) GetPsiCpuFull() *durationpb.Duration {
+func (x *CgroupResourceUsage) GetCpuPressureFullTotal() *durationpb.Duration {
 	if x != nil {
-		return x.PsiCpuFull
+		return x.CpuPressureFullTotal
 	}
 	return nil
 }
 
-func (x *CgroupResourceUsage) GetPsiIoSome() *durationpb.Duration {
+func (x *CgroupResourceUsage) GetIoPressureSomeTotal() *durationpb.Duration {
 	if x != nil {
-		return x.PsiIoSome
+		return x.IoPressureSomeTotal
 	}
 	return nil
 }
 
-func (x *CgroupResourceUsage) GetPsiIoFull() *durationpb.Duration {
+func (x *CgroupResourceUsage) GetIoPressureFullTotal() *durationpb.Duration {
 	if x != nil {
-		return x.PsiIoFull
+		return x.IoPressureFullTotal
 	}
 	return nil
 }
@@ -611,24 +611,23 @@ const file_github_com_buildbarn_bb_remote_execution_pkg_proto_resourceusage_reso
 	"\x14directories_resolved\x18\x01 \x01(\x04R\x13directoriesResolved\x12)\n" +
 	"\x10directories_read\x18\x02 \x01(\x04R\x0fdirectoriesRead\x12\x1d\n" +
 	"\n" +
-	"files_read\x18\x03 \x01(\x04R\tfilesRead\"\xde\x05\n" +
+	"files_read\x18\x03 \x01(\x04R\tfilesRead\"\xd1\x06\n" +
 	"\x13CgroupResourceUsage\x12*\n" +
 	"\x11memory_events_low\x18\x01 \x01(\x03R\x0fmemoryEventsLow\x12,\n" +
 	"\x12memory_events_high\x18\x02 \x01(\x03R\x10memoryEventsHigh\x12*\n" +
 	"\x11memory_events_max\x18\x03 \x01(\x03R\x0fmemoryEventsMax\x12*\n" +
 	"\x11memory_events_oom\x18\x04 \x01(\x03R\x0fmemoryEventsOom\x123\n" +
 	"\x16memory_events_oom_kill\x18\x05 \x01(\x03R\x13memoryEventsOomKill\x12>\n" +
-	"\x1cmemory_events_oom_group_kill\x18\x06 \x01(\x03R\x18memoryEventsOomGroupKill\x12*\n" +
-	"\x11memory_peak_bytes\x18\a \x01(\x03R\x0fmemoryPeakBytes\x12A\n" +
-	"\x0fpsi_memory_some\x18\b \x01(\v2\x19.google.protobuf.DurationR\rpsiMemorySome\x12A\n" +
-	"\x0fpsi_memory_full\x18\t \x01(\v2\x19.google.protobuf.DurationR\rpsiMemoryFull\x12;\n" +
-	"\fpsi_cpu_some\x18\n" +
-	" \x01(\v2\x19.google.protobuf.DurationR\n" +
-	"psiCpuSome\x12;\n" +
-	"\fpsi_cpu_full\x18\v \x01(\v2\x19.google.protobuf.DurationR\n" +
-	"psiCpuFull\x129\n" +
-	"\vpsi_io_some\x18\f \x01(\v2\x19.google.protobuf.DurationR\tpsiIoSome\x129\n" +
-	"\vpsi_io_full\x18\r \x01(\v2\x19.google.protobuf.DurationR\tpsiIoFullBBZ@github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusageb\x06proto3"
+	"\x1cmemory_events_oom_group_kill\x18\x06 \x01(\x03R\x18memoryEventsOomGroupKill\x12\x1f\n" +
+	"\vmemory_peak\x18\a \x01(\x03R\n" +
+	"memoryPeak\x12V\n" +
+	"\x1amemory_pressure_some_total\x18\b \x01(\v2\x19.google.protobuf.DurationR\x17memoryPressureSomeTotal\x12V\n" +
+	"\x1amemory_pressure_full_total\x18\t \x01(\v2\x19.google.protobuf.DurationR\x17memoryPressureFullTotal\x12P\n" +
+	"\x17cpu_pressure_some_total\x18\n" +
+	" \x01(\v2\x19.google.protobuf.DurationR\x14cpuPressureSomeTotal\x12P\n" +
+	"\x17cpu_pressure_full_total\x18\v \x01(\v2\x19.google.protobuf.DurationR\x14cpuPressureFullTotal\x12N\n" +
+	"\x16io_pressure_some_total\x18\f \x01(\v2\x19.google.protobuf.DurationR\x13ioPressureSomeTotal\x12N\n" +
+	"\x16io_pressure_full_total\x18\r \x01(\v2\x19.google.protobuf.DurationR\x13ioPressureFullTotalBBZ@github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusageb\x06proto3"
 
 var (
 	file_github_com_buildbarn_bb_remote_execution_pkg_proto_resourceusage_resourceusage_proto_rawDescOnce sync.Once
@@ -657,12 +656,12 @@ var file_github_com_buildbarn_bb_remote_execution_pkg_proto_resourceusage_resour
 	7,  // 0: buildbarn.resourceusage.POSIXResourceUsage.user_time:type_name -> google.protobuf.Duration
 	7,  // 1: buildbarn.resourceusage.POSIXResourceUsage.system_time:type_name -> google.protobuf.Duration
 	6,  // 2: buildbarn.resourceusage.MonetaryResourceUsage.expenses:type_name -> buildbarn.resourceusage.MonetaryResourceUsage.ExpensesEntry
-	7,  // 3: buildbarn.resourceusage.CgroupResourceUsage.psi_memory_some:type_name -> google.protobuf.Duration
-	7,  // 4: buildbarn.resourceusage.CgroupResourceUsage.psi_memory_full:type_name -> google.protobuf.Duration
-	7,  // 5: buildbarn.resourceusage.CgroupResourceUsage.psi_cpu_some:type_name -> google.protobuf.Duration
-	7,  // 6: buildbarn.resourceusage.CgroupResourceUsage.psi_cpu_full:type_name -> google.protobuf.Duration
-	7,  // 7: buildbarn.resourceusage.CgroupResourceUsage.psi_io_some:type_name -> google.protobuf.Duration
-	7,  // 8: buildbarn.resourceusage.CgroupResourceUsage.psi_io_full:type_name -> google.protobuf.Duration
+	7,  // 3: buildbarn.resourceusage.CgroupResourceUsage.memory_pressure_some_total:type_name -> google.protobuf.Duration
+	7,  // 4: buildbarn.resourceusage.CgroupResourceUsage.memory_pressure_full_total:type_name -> google.protobuf.Duration
+	7,  // 5: buildbarn.resourceusage.CgroupResourceUsage.cpu_pressure_some_total:type_name -> google.protobuf.Duration
+	7,  // 6: buildbarn.resourceusage.CgroupResourceUsage.cpu_pressure_full_total:type_name -> google.protobuf.Duration
+	7,  // 7: buildbarn.resourceusage.CgroupResourceUsage.io_pressure_some_total:type_name -> google.protobuf.Duration
+	7,  // 8: buildbarn.resourceusage.CgroupResourceUsage.io_pressure_full_total:type_name -> google.protobuf.Duration
 	5,  // 9: buildbarn.resourceusage.MonetaryResourceUsage.ExpensesEntry.value:type_name -> buildbarn.resourceusage.MonetaryResourceUsage.Expense
 	10, // [10:10] is the sub-list for method output_type
 	10, // [10:10] is the sub-list for method input_type

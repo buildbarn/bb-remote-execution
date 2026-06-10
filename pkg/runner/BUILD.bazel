@@ -66,7 +66,6 @@ go_test(
     name = "runner_test",
     srcs = [
         "apple_xcode_resolving_runner_test.go",
-        "cgroup_resource_usage_sampling_runner_test.go",
         "clean_runner_test.go",
         "local_runner_test.go",
         "path_existence_checking_runner_test.go",
@@ -74,14 +73,16 @@ go_test(
     ] + select({
         "@rules_go//go/platform:android": [
             "cgroup_linux_test.go",
+            "cgroup_resource_usage_sampling_runner_test.go",
         ],
         "@rules_go//go/platform:linux": [
             "cgroup_linux_test.go",
+            "cgroup_resource_usage_sampling_runner_test.go",
         ],
         "//conditions:default": [],
     }),
-    embed = [":runner"],
     deps = [
+        ":runner",
         "//internal/mock",
         "//pkg/cleaner",
         "//pkg/proto/resourceusage",

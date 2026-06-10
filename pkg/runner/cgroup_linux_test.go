@@ -1,20 +1,22 @@
 //go:build linux
 
-package runner
+package runner_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/buildbarn/bb-remote-execution/pkg/runner"
 	"github.com/stretchr/testify/require"
 )
 
-func TestCgroupStatsReaderReportsDeltasFromCgroupFiles(t *testing.T) {
+func TestCgroupResourceUsageReaderReportsDeltasFromCgroupFiles(t *testing.T) {
 	cgroupPath := t.TempDir()
 
-	writeCgroupFile(t, cgroupPath, "memory.events", `
+	writeFile(t, cgroupPath, "memory.events", `
 low 1
 high 2
 max 3
@@ -22,27 +24,27 @@ oom 4
 oom_kill 5
 oom_group_kill 6
 `)
-	writeCgroupFile(t, cgroupPath, "memory.pressure", `
+	writeFile(t, cgroupPath, "memory.pressure", `
 some avg10=0.00 avg60=0.00 avg300=0.00 total=100
 full avg10=0.00 avg60=0.00 avg300=0.00 total=200
 `)
-	writeCgroupFile(t, cgroupPath, "cpu.pressure", `
+	writeFile(t, cgroupPath, "cpu.pressure", `
 some avg10=0.00 avg60=0.00 avg300=0.00 total=300
 full avg10=0.00 avg60=0.00 avg300=0.00 total=310
 `)
-	writeCgroupFile(t, cgroupPath, "io.pressure", `
+	writeFile(t, cgroupPath, "io.pressure", `
 some avg10=0.00 avg60=0.00 avg300=0.00 total=400
 full avg10=0.00 avg60=0.00 avg300=0.00 total=500
 `)
-	writeCgroupFile(t, cgroupPath, "memory.peak", "0\n")
+	writeFile(t, cgroupPath, "memory.peak", "0\n")
 
-	reader, err := newCgroupStatsReader(cgroupPath)
+	reader, err := runner.NewCgroupResourceUsageReaderFromPath(cgroupPath)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, reader.Close())
 	}()
 
-	writeCgroupFile(t, cgroupPath, "memory.events", `
+	writeFile(t, cgroupPath, "memory.events", `
 low 11
 high 22
 max 33
@@ -50,19 +52,19 @@ oom 44
 oom_kill 55
 oom_group_kill 66
 `)
-	writeCgroupFile(t, cgroupPath, "memory.pressure", `
+	writeFile(t, cgroupPath, "memory.pressure", `
 some avg10=0.00 avg60=0.00 avg300=0.00 total=160
 full avg10=0.00 avg60=0.00 avg300=0.00 total=290
 `)
-	writeCgroupFile(t, cgroupPath, "cpu.pressure", `
+	writeFile(t, cgroupPath, "cpu.pressure", `
 some avg10=0.00 avg60=0.00 avg300=0.00 total=345
 full avg10=0.00 avg60=0.00 avg300=0.00 total=410
 `)
-	writeCgroupFile(t, cgroupPath, "io.pressure", `
+	writeFile(t, cgroupPath, "io.pressure", `
 some avg10=0.00 avg60=0.00 avg300=0.00 total=480
 full avg10=0.00 avg60=0.00 avg300=0.00 total=610
 `)
-	writeCgroupFile(t, cgroupPath, "memory.peak", "4096\n")
+	writeFile(t, cgroupPath, "memory.peak", "4096\n")
 
 	usage, err := reader.Read()
 	require.NoError(t, err)
@@ -73,46 +75,46 @@ full avg10=0.00 avg60=0.00 avg300=0.00 total=610
 	require.Equal(t, int64(40), usage.MemoryEventsOom)
 	require.Equal(t, int64(50), usage.MemoryEventsOomKill)
 	require.Equal(t, int64(60), usage.MemoryEventsOomGroupKill)
-	require.Equal(t, int64(4096), usage.MemoryPeakBytes)
-	require.Equal(t, 60*time.Microsecond, usage.GetPsiMemorySome().AsDuration())
-	require.Equal(t, 90*time.Microsecond, usage.GetPsiMemoryFull().AsDuration())
-	require.Equal(t, 45*time.Microsecond, usage.GetPsiCpuSome().AsDuration())
-	require.Equal(t, 100*time.Microsecond, usage.GetPsiCpuFull().AsDuration())
-	require.Equal(t, 80*time.Microsecond, usage.GetPsiIoSome().AsDuration())
-	require.Equal(t, 110*time.Microsecond, usage.GetPsiIoFull().AsDuration())
+	require.Equal(t, int64(4096), usage.MemoryPeak)
+	require.Equal(t, 60*time.Microsecond, usage.GetMemoryPressureSomeTotal().AsDuration())
+	require.Equal(t, 90*time.Microsecond, usage.GetMemoryPressureFullTotal().AsDuration())
+	require.Equal(t, 45*time.Microsecond, usage.GetCpuPressureSomeTotal().AsDuration())
+	require.Equal(t, 100*time.Microsecond, usage.GetCpuPressureFullTotal().AsDuration())
+	require.Equal(t, 80*time.Microsecond, usage.GetIoPressureSomeTotal().AsDuration())
+	require.Equal(t, 110*time.Microsecond, usage.GetIoPressureFullTotal().AsDuration())
 }
 
-func TestCgroupStatsReaderAllowsMissingOomGroupKillCounter(t *testing.T) {
+func TestCgroupResourceUsageReaderAllowsMissingOomGroupKillCounter(t *testing.T) {
 	cgroupPath := t.TempDir()
 
-	writeCgroupFile(t, cgroupPath, "memory.events", `
+	writeFile(t, cgroupPath, "memory.events", `
 low 1
 high 2
 max 3
 oom 4
 oom_kill 5
 `)
-	writeCgroupFile(t, cgroupPath, "memory.pressure", `
+	writeFile(t, cgroupPath, "memory.pressure", `
 some avg10=0.00 avg60=0.00 avg300=0.00 total=100
 full avg10=0.00 avg60=0.00 avg300=0.00 total=200
 `)
-	writeCgroupFile(t, cgroupPath, "cpu.pressure", `
+	writeFile(t, cgroupPath, "cpu.pressure", `
 some avg10=0.00 avg60=0.00 avg300=0.00 total=300
 full avg10=0.00 avg60=0.00 avg300=0.00 total=310
 `)
-	writeCgroupFile(t, cgroupPath, "io.pressure", `
+	writeFile(t, cgroupPath, "io.pressure", `
 some avg10=0.00 avg60=0.00 avg300=0.00 total=400
 full avg10=0.00 avg60=0.00 avg300=0.00 total=500
 `)
-	writeCgroupFile(t, cgroupPath, "memory.peak", "0\n")
+	writeFile(t, cgroupPath, "memory.peak", "0\n")
 
-	reader, err := newCgroupStatsReader(cgroupPath)
+	reader, err := runner.NewCgroupResourceUsageReaderFromPath(cgroupPath)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, reader.Close())
 	}()
 
-	writeCgroupFile(t, cgroupPath, "memory.events", `
+	writeFile(t, cgroupPath, "memory.events", `
 low 11
 high 22
 max 33
@@ -127,66 +129,109 @@ oom_kill 55
 	require.Equal(t, int64(0), usage.MemoryEventsOomGroupKill)
 }
 
-func TestResolveCurrentCgroupPathUsesMatchingCgroup2MountRoot(t *testing.T) {
+func TestResolveCurrentCgroupfsPathUsesMatchingCgroup2MountRoot(t *testing.T) {
 	for _, testCase := range []struct {
 		name      string
 		mountInfo string
 		cgroup    string
-		want      string
+		wantPath  string
 	}{
 		{
 			name: "root mount",
 			mountInfo: `
-36 25 0:31 / /sys/fs/cgroup rw,nosuid,nodev,noexec,relatime - cgroup2 cgroup rw
+36 25 0:31 / %[1]s rw,nosuid,nodev,noexec,relatime - cgroup2 cgroup rw
 `,
-			cgroup: "0::/worker.slice/runner.scope\n",
-			want:   "/sys/fs/cgroup/worker.slice/runner.scope",
+			cgroup:   "0::/worker.slice/runner.scope\n",
+			wantPath: "worker.slice/runner.scope",
 		},
 		{
 			name: "subtree mount",
 			mountInfo: `
 36 25 0:31 /unrelated /wrong rw,nosuid,nodev,noexec,relatime - cgroup2 cgroup rw
-37 25 0:31 /worker.slice /sys/fs/cgroup rw,nosuid,nodev,noexec,relatime - cgroup2 cgroup rw
+37 25 0:31 /worker.slice %[1]s rw,nosuid,nodev,noexec,relatime - cgroup2 cgroup rw
 `,
-			cgroup: "0::/worker.slice/runner.scope\n",
-			want:   "/sys/fs/cgroup/runner.scope",
+			cgroup:   "0::/worker.slice/runner.scope\n",
+			wantPath: "runner.scope",
 		},
 		{
 			name: "most specific mount root",
 			mountInfo: `
-36 25 0:31 / /sys/fs/cgroup rw,nosuid,nodev,noexec,relatime - cgroup2 cgroup rw
-37 25 0:31 /worker.slice /run/worker-cgroup rw,nosuid,nodev,noexec,relatime - cgroup2 cgroup rw
+36 25 0:31 / %[1]s/unrelated rw,nosuid,nodev,noexec,relatime - cgroup2 cgroup rw
+37 25 0:31 /worker.slice %[1]s rw,nosuid,nodev,noexec,relatime - cgroup2 cgroup rw
 `,
-			cgroup: "0::/worker.slice/runner.scope\n",
-			want:   "/run/worker-cgroup/runner.scope",
+			cgroup:   "0::/worker.slice/runner.scope\n",
+			wantPath: "runner.scope",
 		},
 		{
 			name: "current cgroup is mount root",
 			mountInfo: `
-36 25 0:31 /worker.slice /sys/fs/cgroup rw,nosuid,nodev,noexec,relatime - cgroup2 cgroup rw
+36 25 0:31 /worker.slice %[1]s rw,nosuid,nodev,noexec,relatime - cgroup2 cgroup rw
 `,
-			cgroup: "0::/worker.slice\n",
-			want:   "/sys/fs/cgroup",
+			cgroup:   "0::/worker.slice\n",
+			wantPath: ".",
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			tempDir := t.TempDir()
-			mountInfoPath := filepath.Join(tempDir, "mountinfo")
-			cgroupPath := filepath.Join(tempDir, "cgroup")
-			writeFile(t, mountInfoPath, testCase.mountInfo)
-			writeFile(t, cgroupPath, testCase.cgroup)
+			cgroupfsPath := filepath.Join(tempDir, "cgroupfs")
+			resolvedCgroupPath := filepath.Join(cgroupfsPath, testCase.wantPath)
+			require.NoError(t, os.MkdirAll(resolvedCgroupPath, 0o777))
+			writeInitialCgroupResourceUsageFiles(t, resolvedCgroupPath)
 
-			got, err := resolveCurrentCgroupPath(mountInfoPath, cgroupPath)
+			mountInfoPath := filepath.Join(tempDir, "mountinfo")
+			procCgroupPath := filepath.Join(tempDir, "cgroup")
+			writeFile(t, tempDir, "mountinfo", fmt.Sprintf(testCase.mountInfo, cgroupfsPath))
+			writeFile(t, tempDir, "cgroup", testCase.cgroup)
+
+			gotCgroupfsPath, err := runner.ResolveCurrentCgroupfsPathFromProcFiles(procCgroupPath, mountInfoPath)
 			require.NoError(t, err)
-			require.Equal(t, testCase.want, got)
+			require.Equal(t, resolvedCgroupPath, gotCgroupfsPath)
+
+			reader, err := runner.NewCgroupResourceUsageReaderFromPath(gotCgroupfsPath)
+			require.NoError(t, err)
+			defer func() {
+				require.NoError(t, reader.Close())
+			}()
+
+			writeFile(t, resolvedCgroupPath, "memory.events", `
+low 11
+high 22
+max 33
+oom 44
+oom_kill 55
+oom_group_kill 66
+`)
+			usage, err := reader.Read()
+			require.NoError(t, err)
+			require.Equal(t, int64(10), usage.MemoryEventsLow)
 		})
 	}
 }
 
-func writeCgroupFile(t *testing.T, cgroupPath, name, contents string) {
-	writeFile(t, filepath.Join(cgroupPath, name), contents)
+func writeInitialCgroupResourceUsageFiles(t *testing.T, cgroupPath string) {
+	writeFile(t, cgroupPath, "memory.events", `
+low 1
+high 2
+max 3
+oom 4
+oom_kill 5
+oom_group_kill 6
+`)
+	writeFile(t, cgroupPath, "memory.pressure", `
+some avg10=0.00 avg60=0.00 avg300=0.00 total=100
+full avg10=0.00 avg60=0.00 avg300=0.00 total=200
+`)
+	writeFile(t, cgroupPath, "cpu.pressure", `
+some avg10=0.00 avg60=0.00 avg300=0.00 total=300
+full avg10=0.00 avg60=0.00 avg300=0.00 total=310
+`)
+	writeFile(t, cgroupPath, "io.pressure", `
+some avg10=0.00 avg60=0.00 avg300=0.00 total=400
+full avg10=0.00 avg60=0.00 avg300=0.00 total=500
+`)
+	writeFile(t, cgroupPath, "memory.peak", "0\n")
 }
 
-func writeFile(t *testing.T, path, contents string) {
-	require.NoError(t, os.WriteFile(path, []byte(contents), 0o666))
+func writeFile(t *testing.T, dir, name, contents string) {
+	require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(contents), 0o666))
 }

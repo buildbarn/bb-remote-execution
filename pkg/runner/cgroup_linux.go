@@ -10,55 +10,13 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 
-var (
-	currentCgroupPathOnce sync.Once
-	currentCgroupPath     string
-	currentCgroupPathErr  error
-)
-
-// validateExclusiveCgroupResourceUsageSampling performs best-effort startup
-// validation for cgroup resource usage sampling. It catches obvious
-// misconfigurations, but cannot prove that no other process will enter the
-// cgroup after startup.
-func validateExclusiveCgroupResourceUsageSampling() error {
-	cgroupPath, err := getCurrentCgroupPath()
-	if err != nil {
-		return err
-	}
-	if _, err := readCgroupKeyValues(filepath.Join(cgroupPath, "memory.events")); err != nil {
-		return fmt.Errorf("failed to read cgroup v2 memory.events: %w", err)
-	}
-	if _, _, err := parsePSITotals(filepath.Join(cgroupPath, "memory.pressure")); err != nil {
-		return fmt.Errorf("failed to read cgroup v2 memory.pressure: %w", err)
-	}
-	if _, _, err := parsePSITotals(filepath.Join(cgroupPath, "cpu.pressure")); err != nil {
-		return fmt.Errorf("failed to read cgroup v2 cpu.pressure: %w", err)
-	}
-	if _, _, err := parsePSITotals(filepath.Join(cgroupPath, "io.pressure")); err != nil {
-		return fmt.Errorf("failed to read cgroup v2 io.pressure: %w", err)
-	}
-	processIDs, err := readCgroupProcessIDs(filepath.Join(cgroupPath, "cgroup.procs"))
-	if err != nil {
-		return fmt.Errorf("failed to read cgroup.procs: %w", err)
-	}
-	allowedProcessIDs := getAncestorProcessIDs(os.Getpid())
-	for _, processID := range processIDs {
-		if _, ok := allowedProcessIDs[processID]; ok {
-			continue
-		}
-		return fmt.Errorf("cgroup %q is not exclusive; found extra process %d (%s)", cgroupPath, processID, getProcessName(processID))
-	}
-	return nil
-}
-
-type cgroupStatsReader struct {
+type cgroupResourceUsageReader struct {
 	cgroupPath string
 
 	// memory.events counters
@@ -80,15 +38,9 @@ type cgroupStatsReader struct {
 	memoryPeakFile *os.File
 }
 
-func newScopedCgroupStatsReader() (*cgroupStatsReader, error) {
-	cgroupPath, err := getCurrentCgroupPath()
-	if err != nil {
-		return nil, err
-	}
-	return newCgroupStatsReader(cgroupPath)
-}
-
-func newCgroupStatsReader(cgroupPath string) (*cgroupStatsReader, error) {
+// NewCgroupResourceUsageReaderFromPath creates a reader that samples resource
+// usage counters from the cgroup v2 directory at cgroupPath.
+func NewCgroupResourceUsageReaderFromPath(cgroupPath string) (CgroupResourceUsageReader, error) {
 	events, err := readCgroupKeyValues(filepath.Join(cgroupPath, "memory.events"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read memory.events: %w", err)
@@ -108,9 +60,9 @@ func newCgroupStatsReader(cgroupPath string) (*cgroupStatsReader, error) {
 	}
 
 	// memory.peak is optional. If it is unavailable or cannot be reset/read,
-	// MemoryPeakBytes remains 0 to indicate that no peak data was collected.
+	// MemoryPeak remains 0 to indicate that no peak data was collected.
 	memoryPeakFile := openAndResetCgroupMemoryPeak(filepath.Join(cgroupPath, "memory.peak"))
-	reader := &cgroupStatsReader{
+	reader := &cgroupResourceUsageReader{
 		cgroupPath: cgroupPath,
 
 		eventsLow:          events["low"],
@@ -132,14 +84,14 @@ func newCgroupStatsReader(cgroupPath string) (*cgroupStatsReader, error) {
 	return reader, nil
 }
 
-func (r *cgroupStatsReader) Close() error {
+func (r *cgroupResourceUsageReader) Close() error {
 	if r == nil || r.memoryPeakFile == nil {
 		return nil
 	}
 	return r.memoryPeakFile.Close()
 }
 
-func (r *cgroupStatsReader) Read() (*resourceusage.CgroupResourceUsage, error) {
+func (r *cgroupResourceUsageReader) Read() (*resourceusage.CgroupResourceUsage, error) {
 	events, err := readCgroupKeyValues(filepath.Join(r.cgroupPath, "memory.events"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read memory.events: %w", err)
@@ -168,14 +120,14 @@ func (r *cgroupStatsReader) Read() (*resourceusage.CgroupResourceUsage, error) {
 		MemoryEventsOomKill:      events["oom_kill"] - r.eventsOOMKill,
 		MemoryEventsOomGroupKill: events["oom_group_kill"] - r.eventsOOMGroupKill,
 
-		MemoryPeakBytes: memoryPeak,
+		MemoryPeak: memoryPeak,
 
-		PsiMemorySome: microsecondsDuration(memorySome - r.psiMemorySomeUS),
-		PsiMemoryFull: microsecondsDuration(memoryFull - r.psiMemoryFullUS),
-		PsiCpuSome:    microsecondsDuration(cpuSome - r.psiCPUSomeUS),
-		PsiCpuFull:    microsecondsDuration(cpuFull - r.psiCPUFullUS),
-		PsiIoSome:     microsecondsDuration(ioSome - r.psiIOSomeUS),
-		PsiIoFull:     microsecondsDuration(ioFull - r.psiIOFullUS),
+		MemoryPressureSomeTotal: microsecondsDuration(memorySome - r.psiMemorySomeUS),
+		MemoryPressureFullTotal: microsecondsDuration(memoryFull - r.psiMemoryFullUS),
+		CpuPressureSomeTotal:    microsecondsDuration(cpuSome - r.psiCPUSomeUS),
+		CpuPressureFullTotal:    microsecondsDuration(cpuFull - r.psiCPUFullUS),
+		IoPressureSomeTotal:     microsecondsDuration(ioSome - r.psiIOSomeUS),
+		IoPressureFullTotal:     microsecondsDuration(ioFull - r.psiIOFullUS),
 	}, nil
 }
 
@@ -243,32 +195,10 @@ func readCgroupKeyValues(path string) (map[string]int64, error) {
 	return result, nil
 }
 
-func readCgroupProcessIDs(path string) ([]int, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	var processIDs []int
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		processID, err := strconv.Atoi(strings.TrimSpace(scanner.Text()))
-		if err != nil {
-			continue
-		}
-		processIDs = append(processIDs, processID)
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
-	return processIDs, nil
-}
-
 // parsePSITotals parses a PSI pressure file and returns the total
 // stall microseconds for the "some" and "full" lines.
 // Format: some avg10=0.00 avg60=0.00 avg300=0.00 total=12345
-func parsePSITotals(path string) (someUS int64, fullUS int64, err error) {
+func parsePSITotals(path string) (someUS, fullUS int64, err error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return 0, 0, err
@@ -312,19 +242,21 @@ func parsePSITotals(path string) (someUS int64, fullUS int64, err error) {
 	return someUS, fullUS, nil
 }
 
-func getCurrentCgroupPath() (string, error) {
-	currentCgroupPathOnce.Do(func() {
-		currentCgroupPath, currentCgroupPathErr = resolveCurrentCgroupPath("/proc/self/mountinfo", "/proc/self/cgroup")
-	})
-	return currentCgroupPath, currentCgroupPathErr
+// ResolveCurrentCgroupfsPath resolves the cgroup v2 filesystem directory of
+// the current process.
+func ResolveCurrentCgroupfsPath() (string, error) {
+	return ResolveCurrentCgroupfsPathFromProcFiles("/proc/self/cgroup", "/proc/self/mountinfo")
 }
 
-func resolveCurrentCgroupPath(mountInfoPath, cgroupPath string) (string, error) {
-	currentCgroupPath, err := readCurrentCgroupRelativePath(cgroupPath)
+// ResolveCurrentCgroupfsPathFromProcFiles reads procCgroupPath and
+// procMountInfoPath to resolve the cgroup v2 filesystem directory of the
+// current process.
+func ResolveCurrentCgroupfsPathFromProcFiles(procCgroupPath, procMountInfoPath string) (string, error) {
+	currentCgroupPath, err := readCurrentCgroupRelativePath(procCgroupPath)
 	if err != nil {
 		return "", err
 	}
-	return resolveCgroupPathFromMountInfo(mountInfoPath, currentCgroupPath)
+	return resolveCgroupPathFromMountInfo(procMountInfoPath, currentCgroupPath)
 }
 
 func resolveCgroupPathFromMountInfo(path, currentCgroupPath string) (string, error) {
@@ -405,45 +337,4 @@ func readCurrentCgroupRelativePath(path string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("cgroup v2 entry not found in %s", path)
-}
-
-func getAncestorProcessIDs(processID int) map[int]struct{} {
-	processIDs := map[int]struct{}{}
-	for processID > 0 {
-		if _, ok := processIDs[processID]; ok {
-			break
-		}
-		processIDs[processID] = struct{}{}
-		parentProcessID, err := getParentProcessID(processID)
-		if err != nil {
-			break
-		}
-		processID = parentProcessID
-	}
-	return processIDs
-}
-
-func getParentProcessID(processID int) (int, error) {
-	data, err := os.ReadFile("/proc/" + strconv.Itoa(processID) + "/status")
-	if err != nil {
-		return 0, err
-	}
-	for _, line := range strings.Split(string(data), "\n") {
-		if strings.HasPrefix(line, "PPid:") {
-			fields := strings.Fields(line)
-			if len(fields) != 2 {
-				return 0, fmt.Errorf("invalid PPid line for process %d", processID)
-			}
-			return strconv.Atoi(fields[1])
-		}
-	}
-	return 0, fmt.Errorf("PPid line not found for process %d", processID)
-}
-
-func getProcessName(processID int) string {
-	comm, err := os.ReadFile("/proc/" + strconv.Itoa(processID) + "/comm")
-	if err != nil {
-		return "<unknown>"
-	}
-	return strings.TrimSpace(string(comm))
 }

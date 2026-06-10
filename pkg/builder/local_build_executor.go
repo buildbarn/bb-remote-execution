@@ -11,7 +11,6 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
-	"github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage"
 	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/clock"
@@ -36,19 +35,6 @@ var (
 	temporaryDirectoryComponent  = path.MustNewComponent("tmp")
 	checkReadinessComponent      = path.MustNewComponent("check_readiness")
 )
-
-func getCgroupResourceUsage(result *remoteexecution.ActionResult) *resourceusage.CgroupResourceUsage {
-	if result == nil || result.ExecutionMetadata == nil {
-		return nil
-	}
-	var cgroupUsage resourceusage.CgroupResourceUsage
-	for _, metadata := range result.ExecutionMetadata.AuxiliaryMetadata {
-		if metadata.UnmarshalTo(&cgroupUsage) == nil {
-			return &cgroupUsage
-		}
-	}
-	return nil
-}
 
 // capturingErrorLogger is an error logger that stores up to a single
 // error. When the error is stored, a context cancelation function is
@@ -323,20 +309,6 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool pool.FilePoo
 	if runErr == nil {
 		response.Result.ExitCode = int32(runResponse.ExitCode)
 		response.Result.ExecutionMetadata.AuxiliaryMetadata = append(response.Result.ExecutionMetadata.AuxiliaryMetadata, runResponse.ResourceUsage...)
-		if cgroupUsage := getCgroupResourceUsage(response.Result); cgroupUsage != nil && cgroupUsage.MemoryEventsOomKill > 0 {
-			if cgroupUsage.MemoryEventsOom > 0 {
-				response.Message = "Action failed due to out of memory: cgroup memory limit was reached and a process was OOM-killed"
-				if response.Result.ExitCode == 0 {
-					response.Result.ExitCode = 1
-				}
-			} else {
-				// The cgroup did not reach its memory limit, so the OOM
-				// kill likely came from system-level memory pressure, such
-				// as node memory overcommitment. Treat this as retryable
-				// infrastructure failure.
-				attachErrorToExecuteResponse(response, status.Error(codes.Unavailable, "An action process was OOM-killed without the action reaching its cgroup memory limit"))
-			}
-		}
 	} else {
 		attachErrorToExecuteResponse(response, util.StatusWrap(runErr, "Failed to run command"))
 	}

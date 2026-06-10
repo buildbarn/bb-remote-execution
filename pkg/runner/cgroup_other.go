@@ -3,23 +3,24 @@
 package runner
 
 import (
-	"fmt"
-
-	"github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
-type cgroupStatsReader struct{}
-
-func newScopedCgroupStatsReader() (*cgroupStatsReader, error) {
-	return &cgroupStatsReader{}, nil
+// ResolveCurrentCgroupfsPath returns an error, as cgroup resource usage
+// sampling is only supported on Linux.
+func ResolveCurrentCgroupfsPath() (string, error) {
+	return "", status.Error(codes.Unimplemented, "cgroup resource usage sampling is only supported on Linux")
 }
 
-func (r *cgroupStatsReader) Close() error { return nil }
-
-func (r *cgroupStatsReader) Read() (*resourceusage.CgroupResourceUsage, error) {
-	return nil, nil
+// ResolveCurrentCgroupfsPathFromProcFiles returns an error, as cgroup resource
+// usage sampling is only supported on Linux.
+func ResolveCurrentCgroupfsPathFromProcFiles(procCgroupPath, procMountInfoPath string) (string, error) {
+	return "", status.Error(codes.Unimplemented, "cgroup resource usage sampling is only supported on Linux")
 }
 
-func validateExclusiveCgroupResourceUsageSampling() error {
-	return fmt.Errorf("cgroup resource usage sampling is only supported on Linux")
+// NewCgroupResourceUsageReaderFromPath returns an error, as cgroup resource
+// usage sampling is only supported on Linux.
+func NewCgroupResourceUsageReaderFromPath(cgroupPath string) (CgroupResourceUsageReader, error) {
+	return nil, status.Error(codes.Unimplemented, "cgroup resource usage sampling is only supported on Linux")
 }
