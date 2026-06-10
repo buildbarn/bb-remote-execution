@@ -1,25 +1,111 @@
 //go:build linux
+// +build linux
 
 package runner
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage"
+	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
+	"github.com/buildbarn/bb-storage/pkg/util"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 
-type cgroupResourceUsageReader struct {
-	cgroupPath string
+type cgroupResourceUsageSamplingRunner struct {
+	runner_pb.RunnerServer
+	cgroupfsPath string
+	activeRun    atomic.Bool
+}
 
-	// memory.events counters
+// NewCgroupResourceUsageSamplingRunner creates a decorator for RunnerServer
+// that samples cgroup v2 resource usage counters around actions and appends
+// them to successful Run() responses.
+//
+// Sampled cgroup counters are only meaningful as per-action deltas if
+// bb_worker sends at most one action to the runner at a time
+// (RunnerConfiguration.concurrency == 1), and if the runner is deployed in a
+// cgroup whose other activity is acceptable to include in the reported usage.
+func NewCgroupResourceUsageSamplingRunner(base runner_pb.RunnerServer) (runner_pb.RunnerServer, error) {
+	cgroupfsPath, err := ResolveCurrentCgroupfsPathFromProcFiles("/proc/self/cgroup", "/proc/self/mountinfo")
+	if err != nil {
+		return nil, err
+	}
+	return NewCgroupResourceUsageSamplingRunnerWithCgroupfsPath(base, cgroupfsPath), nil
+}
+
+// NewCgroupResourceUsageSamplingRunnerWithCgroupfsPath creates a decorator for
+// RunnerServer that samples cgroup v2 resource usage counters from
+// cgroupfsPath.
+//
+// cgroupfsPath is the cgroup v2 filesystem directory whose counters should be
+// sampled. Counter deltas are measured over each Run() request.
+func NewCgroupResourceUsageSamplingRunnerWithCgroupfsPath(base runner_pb.RunnerServer, cgroupfsPath string) runner_pb.RunnerServer {
+	return &cgroupResourceUsageSamplingRunner{
+		RunnerServer: base,
+		cgroupfsPath: cgroupfsPath,
+	}
+}
+
+func (r *cgroupResourceUsageSamplingRunner) Run(ctx context.Context, request *runner_pb.RunRequest) (*runner_pb.RunResponse, error) {
+	if !r.activeRun.CompareAndSwap(false, true) {
+		return nil, status.Error(codes.Internal, "cgroup resource usage sampling requires an exclusive runner cgroup, but concurrent Run() calls were observed")
+	}
+	defer r.activeRun.Store(false)
+
+	cgroupResourceUsageReader, err := newCgroupResourceUsageReader(r.cgroupfsPath)
+	if err != nil {
+		return nil, util.StatusWrap(err, "Failed to create cgroup resource usage reader")
+	}
+	defer func() {
+		_ = cgroupResourceUsageReader.close()
+	}()
+
+	response, err := r.RunnerServer.Run(ctx, request)
+	if err != nil {
+		return response, err
+	}
+
+	cgroupUsage, err := cgroupResourceUsageReader.read()
+	if err != nil {
+		return response, util.StatusWrap(err, "Failed to read cgroup stats")
+	}
+	if cgroupUsage == nil {
+		return response, nil
+	}
+	cgroupAny, err := anypb.New(cgroupUsage)
+	if err != nil {
+		return response, util.StatusWrap(err, "Failed to marshal cgroup resource usage")
+	}
+	if response != nil {
+		response.ResourceUsage = append(response.ResourceUsage, cgroupAny)
+	}
+	if cgroupUsage.MemoryEventsOomKill > 0 && cgroupUsage.MemoryEventsOom == 0 {
+		// The cgroup did not reach its memory limit, so the OOM kill likely
+		// came from system-level memory pressure, such as node memory
+		// overcommitment. Treat this as retryable infrastructure failure.
+		return response, status.Error(codes.Unavailable, "An action process was OOM-killed without the action reaching its cgroup memory limit")
+	}
+	return response, nil
+}
+
+type cgroupResourceUsageReader struct {
+	cgroupfsPath string
+
+	// Initial memory.events counter values.
 	eventsLow          int64
 	eventsHigh         int64
 	eventsMax          int64
@@ -27,7 +113,7 @@ type cgroupResourceUsageReader struct {
 	eventsOOMKill      int64
 	eventsOOMGroupKill int64
 
-	// PSI total values
+	// Initial PSI total stall durations, in microseconds.
 	psiMemorySomeUS int64
 	psiMemoryFullUS int64
 	psiCPUSomeUS    int64
@@ -38,32 +124,30 @@ type cgroupResourceUsageReader struct {
 	memoryPeakFile *os.File
 }
 
-// NewCgroupResourceUsageReaderFromPath creates a reader that samples resource
-// usage counters from the cgroup v2 directory at cgroupPath.
-func NewCgroupResourceUsageReaderFromPath(cgroupPath string) (CgroupResourceUsageReader, error) {
-	events, err := readCgroupKeyValues(filepath.Join(cgroupPath, "memory.events"))
+func newCgroupResourceUsageReader(cgroupfsPath string) (*cgroupResourceUsageReader, error) {
+	events, err := readCgroupKeyValues(filepath.Join(cgroupfsPath, "memory.events"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read memory.events: %w", err)
 	}
 
-	memorySome, memoryFull, err := parsePSITotals(filepath.Join(cgroupPath, "memory.pressure"))
+	memorySome, memoryFull, err := parsePSITotals(filepath.Join(cgroupfsPath, "memory.pressure"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read memory.pressure: %w", err)
 	}
-	cpuSome, cpuFull, err := parsePSITotals(filepath.Join(cgroupPath, "cpu.pressure"))
+	cpuSome, cpuFull, err := parsePSITotals(filepath.Join(cgroupfsPath, "cpu.pressure"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read cpu.pressure: %w", err)
 	}
-	ioSome, ioFull, err := parsePSITotals(filepath.Join(cgroupPath, "io.pressure"))
+	ioSome, ioFull, err := parsePSITotals(filepath.Join(cgroupfsPath, "io.pressure"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read io.pressure: %w", err)
 	}
 
 	// memory.peak is optional. If it is unavailable or cannot be reset/read,
 	// MemoryPeak remains 0 to indicate that no peak data was collected.
-	memoryPeakFile := openAndResetCgroupMemoryPeak(filepath.Join(cgroupPath, "memory.peak"))
+	memoryPeakFile := openAndResetCgroupMemoryPeak(filepath.Join(cgroupfsPath, "memory.peak"))
 	reader := &cgroupResourceUsageReader{
-		cgroupPath: cgroupPath,
+		cgroupfsPath: cgroupfsPath,
 
 		eventsLow:          events["low"],
 		eventsHigh:         events["high"],
@@ -84,28 +168,28 @@ func NewCgroupResourceUsageReaderFromPath(cgroupPath string) (CgroupResourceUsag
 	return reader, nil
 }
 
-func (r *cgroupResourceUsageReader) Close() error {
+func (r *cgroupResourceUsageReader) close() error {
 	if r == nil || r.memoryPeakFile == nil {
 		return nil
 	}
 	return r.memoryPeakFile.Close()
 }
 
-func (r *cgroupResourceUsageReader) Read() (*resourceusage.CgroupResourceUsage, error) {
-	events, err := readCgroupKeyValues(filepath.Join(r.cgroupPath, "memory.events"))
+func (r *cgroupResourceUsageReader) read() (*resourceusage.CgroupResourceUsage, error) {
+	events, err := readCgroupKeyValues(filepath.Join(r.cgroupfsPath, "memory.events"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read memory.events: %w", err)
 	}
 
-	memorySome, memoryFull, err := parsePSITotals(filepath.Join(r.cgroupPath, "memory.pressure"))
+	memorySome, memoryFull, err := parsePSITotals(filepath.Join(r.cgroupfsPath, "memory.pressure"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read memory.pressure: %w", err)
 	}
-	cpuSome, cpuFull, err := parsePSITotals(filepath.Join(r.cgroupPath, "cpu.pressure"))
+	cpuSome, cpuFull, err := parsePSITotals(filepath.Join(r.cgroupfsPath, "cpu.pressure"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read cpu.pressure: %w", err)
 	}
-	ioSome, ioFull, err := parsePSITotals(filepath.Join(r.cgroupPath, "io.pressure"))
+	ioSome, ioFull, err := parsePSITotals(filepath.Join(r.cgroupfsPath, "io.pressure"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read io.pressure: %w", err)
 	}
@@ -242,15 +326,8 @@ func parsePSITotals(path string) (someUS, fullUS int64, err error) {
 	return someUS, fullUS, nil
 }
 
-// ResolveCurrentCgroupfsPath resolves the cgroup v2 filesystem directory of
-// the current process.
-func ResolveCurrentCgroupfsPath() (string, error) {
-	return ResolveCurrentCgroupfsPathFromProcFiles("/proc/self/cgroup", "/proc/self/mountinfo")
-}
-
-// ResolveCurrentCgroupfsPathFromProcFiles reads procCgroupPath and
-// procMountInfoPath to resolve the cgroup v2 filesystem directory of the
-// current process.
+// ResolveCurrentCgroupfsPathFromProcFiles resolves the cgroup v2 filesystem
+// directory for the process described by procCgroupPath and procMountInfoPath.
 func ResolveCurrentCgroupfsPathFromProcFiles(procCgroupPath, procMountInfoPath string) (string, error) {
 	currentCgroupPath, err := readCurrentCgroupRelativePath(procCgroupPath)
 	if err != nil {
