@@ -119,11 +119,6 @@ const unsupportedCreateOptions = windows.FILE_CREATE_TREE_CONNECTION |
 
 const fileAndDirectoryFlag = windows.FILE_DIRECTORY_FILE | windows.FILE_NON_DIRECTORY_FILE
 
-// Attributes we support being set via SetBasicInfo.
-const setBasicInfoSupportedAttributes = windows.FILE_ATTRIBUTE_DIRECTORY |
-	windows.FILE_ATTRIBUTE_NORMAL |
-	windows.FILE_ATTRIBUTE_READONLY
-
 // The Unix Epoch as a Windows FILETIME.
 const unixEpochAsFiletime = 116444736000000000
 
@@ -234,9 +229,8 @@ func filetimeToTime(ft uint64) time.Time {
 
 func toVirtualAttributes(leaf virtual.DirectoryChild, attribute uint32, newAttributes *virtual.Attributes, attributesMask *virtual.AttributesMask) error {
 	if attribute != windows.INVALID_FILE_ATTRIBUTES {
-		if attribute&^setBasicInfoSupportedAttributes != 0 {
-			return windows.STATUS_INVALID_PARAMETER
-		}
+		// Attributes the VFS can't represent are ignored rather than rejected
+		// because Windows sets ARCHIVE on an ordinary CREATE_ALWAYS.
 		if attribute&windows.FILE_ATTRIBUTE_READONLY != 0 {
 			permissions := virtual.PermissionsRead
 			_, file := leaf.GetPair()
@@ -828,7 +822,9 @@ func (fs *FileSystem) Overwrite(ref *ffi.FileSystemRef, handle uintptr, winfspAt
 	}
 
 	// Add additional attributes
-	toVirtualAttributes(openNode, winfspAttributes, &newAttributes, &newAttributesMask)
+	if err := toVirtualAttributes(openNode, winfspAttributes, &newAttributes, &newAttributesMask); err != nil {
+		return err
+	}
 	newAttributesMask |= virtual.AttributesMaskSizeBytes
 	newAttributes.SetSizeBytes(0)
 
@@ -938,7 +934,9 @@ func (fs *FileSystem) SetBasicInfo(ref *ffi.FileSystemRef, handle uintptr, flags
 	var newAttributes virtual.Attributes
 	attributesMask := virtual.AttributesMask(0)
 
-	toVirtualAttributes(openNode, attribute, &newAttributes, &attributesMask)
+	if err := toVirtualAttributes(openNode, attribute, &newAttributes, &attributesMask); err != nil {
+		return err
+	}
 
 	if flags&ffi.SetBasicInfoLastWriteTime != 0 {
 		attributesMask |= virtual.AttributesMaskLastDataModificationTime
