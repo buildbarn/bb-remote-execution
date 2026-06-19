@@ -803,11 +803,13 @@ func TestSimpleRawFileSystemReadDir(t *testing.T) {
 			entryList.EXPECT().AddDirEntry(go_fuse.DirEntry{
 				Name: ".",
 				Mode: go_fuse.S_IFDIR,
-			}, uint64(1)).Return(true),
+				Off:  1,
+			}).Return(true),
 			entryList.EXPECT().AddDirEntry(go_fuse.DirEntry{
 				Name: "..",
 				Mode: go_fuse.S_IFDIR,
-			}, uint64(2)).Return(true),
+				Off:  2,
+			}).Return(true),
 		)
 
 		require.Equal(t, go_fuse.EIO, rfs.ReadDir(nil, &go_fuse.ReadIn{
@@ -858,26 +860,31 @@ func TestSimpleRawFileSystemReadDir(t *testing.T) {
 			entryList.EXPECT().AddDirEntry(go_fuse.DirEntry{
 				Name: ".",
 				Mode: go_fuse.S_IFDIR,
-			}, uint64(1)).Return(true),
+				Off:  1,
+			}).Return(true),
 			entryList.EXPECT().AddDirEntry(go_fuse.DirEntry{
 				Name: "..",
 				Mode: go_fuse.S_IFDIR,
-			}, uint64(2)).Return(true),
+				Off:  2,
+			}).Return(true),
 			entryList.EXPECT().AddDirEntry(go_fuse.DirEntry{
 				Name: "directory",
 				Mode: go_fuse.S_IFDIR,
 				Ino:  27,
-			}, uint64(3)).Return(true),
+				Off:  3,
+			}).Return(true),
 			entryList.EXPECT().AddDirEntry(go_fuse.DirEntry{
 				Name: "file",
 				Mode: go_fuse.S_IFREG,
 				Ino:  42,
-			}, uint64(4)).Return(true),
+				Off:  4,
+			}).Return(true),
 			entryList.EXPECT().AddDirEntry(go_fuse.DirEntry{
 				Name: "symlink",
 				Mode: go_fuse.S_IFLNK,
 				Ino:  83,
-			}, uint64(5)).Return(true),
+				Off:  5,
+			}).Return(true),
 		)
 
 		require.Equal(t, go_fuse.OK, rfs.ReadDir(nil, &go_fuse.ReadIn{
@@ -911,12 +918,14 @@ func TestSimpleRawFileSystemReadDir(t *testing.T) {
 			entryList.EXPECT().AddDirEntry(go_fuse.DirEntry{
 				Name: "..",
 				Mode: go_fuse.S_IFDIR,
-			}, uint64(2)).Return(true),
+				Off:  2,
+			}).Return(true),
 			entryList.EXPECT().AddDirEntry(go_fuse.DirEntry{
 				Name: "directory",
 				Mode: go_fuse.S_IFDIR,
 				Ino:  27,
-			}, uint64(3)).Return(true),
+				Off:  3,
+			}).Return(true),
 		)
 
 		require.Equal(t, go_fuse.OK, rfs.ReadDir(nil, &go_fuse.ReadIn{
@@ -952,7 +961,8 @@ func TestSimpleRawFileSystemReadDir(t *testing.T) {
 				Name: "directory",
 				Mode: go_fuse.S_IFDIR,
 				Ino:  27,
-			}, uint64(3)).Return(true),
+				Off:  3,
+			}).Return(true),
 		)
 
 		require.Equal(t, go_fuse.OK, rfs.ReadDir(nil, &go_fuse.ReadIn{
@@ -987,7 +997,8 @@ func TestSimpleRawFileSystemReadDir(t *testing.T) {
 				Name: "directory",
 				Mode: go_fuse.S_IFDIR,
 				Ino:  27,
-			}, uint64(57)),
+				Off:  57,
+			}),
 		)
 
 		require.Equal(t, go_fuse.OK, rfs.ReadDir(nil, &go_fuse.ReadIn{
@@ -1042,11 +1053,13 @@ func TestSimpleRawFileSystemReadDirPlus(t *testing.T) {
 			entryList.EXPECT().AddDirLookupEntry(go_fuse.DirEntry{
 				Name: ".",
 				Mode: go_fuse.S_IFDIR,
-			}, uint64(1)).Return(&entryOutDot),
+				Off:  1,
+			}).Return(&entryOutDot),
 			entryList.EXPECT().AddDirLookupEntry(go_fuse.DirEntry{
 				Name: "..",
 				Mode: go_fuse.S_IFDIR,
-			}, uint64(2)).Return(&entryOutDot),
+				Off:  2,
+			}).Return(&entryOutDot),
 		)
 
 		require.Equal(t, go_fuse.EIO, rfs.ReadDirPlus(nil, &go_fuse.ReadIn{
@@ -1099,21 +1112,25 @@ func TestSimpleRawFileSystemReadDirPlus(t *testing.T) {
 			entryList.EXPECT().AddDirLookupEntry(go_fuse.DirEntry{
 				Name: ".",
 				Mode: go_fuse.S_IFDIR,
-			}, uint64(1)).Return(&entryOutDot),
+				Off:  1,
+			}).Return(&entryOutDot),
 			entryList.EXPECT().AddDirLookupEntry(go_fuse.DirEntry{
 				Name: "..",
 				Mode: go_fuse.S_IFDIR,
-			}, uint64(2)).Return(&entryOutDot),
+				Off:  2,
+			}).Return(&entryOutDot),
 			entryList.EXPECT().AddDirLookupEntry(go_fuse.DirEntry{
 				Name: "directory",
 				Mode: go_fuse.S_IFDIR,
 				Ino:  2,
-			}, uint64(3)).Return(&entryOutDirectory),
+				Off:  3,
+			}).Return(&entryOutDirectory),
 			entryList.EXPECT().AddDirLookupEntry(go_fuse.DirEntry{
 				Name: "file",
 				Mode: go_fuse.S_IFREG,
 				Ino:  3,
-			}, uint64(4)).Return(&entryOutFile),
+				Off:  4,
+			}).Return(&entryOutFile),
 		)
 
 		require.Equal(t, go_fuse.OK, rfs.ReadDirPlus(nil, &go_fuse.ReadIn{

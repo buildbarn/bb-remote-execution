@@ -99,8 +99,8 @@ type defaultAttributesInjectingReadDirPlusEntryList struct {
 	entryOut *fuse.EntryOut
 }
 
-func (el *defaultAttributesInjectingReadDirPlusEntryList) AddDirLookupEntry(e fuse.DirEntry, off uint64) *fuse.EntryOut {
-	if entryOut := el.ReadDirPlusEntryList.AddDirLookupEntry(e, off); entryOut != nil {
+func (el *defaultAttributesInjectingReadDirPlusEntryList) AddDirLookupEntry(e fuse.DirEntry) *fuse.EntryOut {
+	if entryOut := el.ReadDirPlusEntryList.AddDirLookupEntry(e); entryOut != nil {
 		*entryOut = *el.entryOut
 		return entryOut
 	}
