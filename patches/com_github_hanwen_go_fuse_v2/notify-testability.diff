@@ -1,21 +1,21 @@
 diff --git fs/api.go fs/api.go
-index 4f4fe92..08a2772 100644
+index 3cbd514..e8bcc3c 100644
 --- fs/api.go
 +++ fs/api.go
-@@ -603,7 +603,7 @@ type Options struct {
+@@ -805,7 +805,7 @@ type Options struct {
  
- 	// ServerCallbacks can be provided to stub out notification
- 	// functions for testing a filesystem without mounting it.
+ 	// ServerCallbacks are optional callbacks to stub out notification functions
+ 	// for testing a filesystem without mounting it.
 -	ServerCallbacks ServerCallbacks
 +	ServerCallbacks fuse.ServerCallbacks
  
  	// Logger is a sink for diagnostic messages. Diagnostic
  	// messages are printed under conditions where we cannot
 diff --git fs/bridge.go fs/bridge.go
-index a747018..94b341a 100644
+index 5341bc3..d4747a6 100644
 --- fs/bridge.go
 +++ fs/bridge.go
-@@ -43,21 +43,10 @@ type fileEntry struct {
+@@ -54,17 +54,6 @@ type fileEntry struct {
  	wg sync.WaitGroup
  }
  
@@ -30,6 +30,10 @@ index a747018..94b341a 100644
 -	InodeNotifyStoreCache(node uint64, offset int64, data []byte) fuse.Status
 -}
 -
+ // TODO: fold serverBackingFdCallbacks into ServerCallbacks and bump API version
+ type serverBackingFdCallbacks interface {
+ 	RegisterBackingFd(*fuse.BackingMap) (int32, syscall.Errno)
+@@ -74,7 +63,7 @@ type serverBackingFdCallbacks interface {
  type rawBridge struct {
  	options Options
  	root    *Inode
@@ -38,7 +42,7 @@ index a747018..94b341a 100644
  
  	// mu protects the following data.  Locks for inodes must be
  	// taken before rawBridge.mu
-@@ -1100,7 +1089,7 @@ func (b *rawBridge) StatFs(cancel <-chan struct{}, input *fuse.InHeader, out *fu
+@@ -1254,7 +1243,7 @@ func (b *rawBridge) StatFs(cancel <-chan struct{}, input *fuse.InHeader, out *fu
  	return fuse.OK
  }
  
@@ -48,11 +52,11 @@ index a747018..94b341a 100644
  }
  
 diff --git fuse/api.go fuse/api.go
-index 433e5ff..93027b3 100644
+index 7efcf8d..4659a5b 100644
 --- fuse/api.go
 +++ fuse/api.go
-@@ -236,6 +236,17 @@ type MountOptions struct {
- 	DisableReadDirPlus bool
+@@ -362,6 +362,17 @@ type MountOptions struct {
+ 	ExtraCapabilities uint64
  }
  
 +// ServerCallbacks are calls into the kernel to manipulate the inode,
@@ -69,15 +73,17 @@ index 433e5ff..93027b3 100644
  // RawFileSystem is an interface close to the FUSE wire protocol.
  //
  // Unless you really know what you are doing, you should not implement
-@@ -346,5 +357,5 @@ type RawFileSystem interface {
+@@ -477,7 +488,7 @@ type RawFileSystem interface {
  	// This is called on processing the first request. The
  	// filesystem implementation can use the server argument to
  	// talk back to the kernel (through notify methods).
 -	Init(*Server)
 +	Init(ServerCallbacks)
- }
+ 
+ 	// Called after processing the last request.
+ 	OnUnmount()
 diff --git fuse/defaultraw.go fuse/defaultraw.go
-index edb0629..3f30e00 100644
+index b15df5e..ad9d911 100644
 --- fuse/defaultraw.go
 +++ fuse/defaultraw.go
 @@ -16,7 +16,7 @@ func NewDefaultRawFileSystem() RawFileSystem {
@@ -88,7 +94,7 @@ index edb0629..3f30e00 100644
 +func (fs *defaultRawFileSystem) Init(ServerCallbacks) {
  }
  
- func (fs *defaultRawFileSystem) String() string {
+ func (fs *defaultRawFileSystem) OnUnmount() {
 diff --git fuse/nodefs/fsconnector.go fuse/nodefs/fsconnector.go
 index 25945ff..351b802 100644
 --- fuse/nodefs/fsconnector.go
@@ -112,7 +118,7 @@ index 25945ff..351b802 100644
  }
  
 diff --git fuse/nodefs/fsops.go fuse/nodefs/fsops.go
-index f89a74a..bafc489 100644
+index 18d8f8a..cfde5cd 100644
 --- fuse/nodefs/fsops.go
 +++ fuse/nodefs/fsops.go
 @@ -56,7 +56,7 @@ func (c *rawBridge) String() string {
@@ -124,3 +130,16 @@ index f89a74a..bafc489 100644
  	c.server = s
  	c.rootNode.Node().OnMount((*FileSystemConnector)(c))
  }
+diff --git fuse/test/cache_test.go fuse/test/cache_test.go
+index 6e5de0c..195acac 100644
+--- fuse/test/cache_test.go
++++ fuse/test/cache_test.go
+@@ -142,7 +142,7 @@ func TestFopenKeepCache(t *testing.T) {
+ 		t.Fatalf("ReadFile: got %q, want cached %q", c, before)
+ 	}
+ 
+-	if minor := pathfs.Connector().Server().KernelSettings().Minor; minor < 12 {
++	if minor := pathfs.Connector().Server().(*fuse.Server).KernelSettings().Minor; minor < 12 {
+ 		t.Skipf("protocol v%d has no notify support.", minor)
+ 	}
+ 

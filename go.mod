@@ -5,9 +5,6 @@ go 1.26.4
 // rules_go doesn't support gomock's package mode.
 replace go.uber.org/mock => go.uber.org/mock v0.4.0
 
-// Existing patches don't apply against newer go-fuse.
-replace github.com/hanwen/go-fuse/v2 => github.com/hanwen/go-fuse/v2 v2.5.1
-
 // v0.25.2 is not in BCR yet.
 replace cel.dev/expr => cel.dev/expr v0.25.1
 
@@ -21,7 +18,7 @@ require (
 	github.com/golang/protobuf v1.5.4
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
-	github.com/hanwen/go-fuse/v2 v2.9.0
+	github.com/hanwen/go-fuse/v2 v2.10.1
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/prometheus/client_golang v1.23.2
 	github.com/spf13/pflag v1.0.10

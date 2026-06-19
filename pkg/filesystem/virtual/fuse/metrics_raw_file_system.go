@@ -134,6 +134,7 @@ var (
 	operationHistogramRelease       = newOperationHistogram("Release")
 	operationHistogramWrite         = newOperationHistogramWithStatus("Write")
 	operationHistogramCopyFileRange = newOperationHistogramWithStatus("CopyFileRange")
+	operationHistogramIoctl         = newOperationHistogramWithStatus("Ioctl")
 	operationHistogramFlush         = newOperationHistogramWithStatus("Flush")
 	operationHistogramFsync         = newOperationHistogramWithStatus("Fsync")
 	operationHistogramFallocate     = newOperationHistogramWithStatus("Fallocate")
@@ -143,6 +144,7 @@ var (
 	operationHistogramReleaseDir    = newOperationHistogram("ReleaseDir")
 	operationHistogramFsyncDir      = newOperationHistogramWithStatus("FsyncDir")
 	operationHistogramStatFs        = newOperationHistogramWithStatus("StatFs")
+	operationHistogramStatx         = newOperationHistogramWithStatus("Statz")
 
 	callbackCounterDeleteNotify          = newCallbackCounterWithStatus("DeleteNotify")
 	callbackCounterEntryNotify           = newCallbackCounterWithStatus("EntryNotify")
@@ -365,6 +367,13 @@ func (rfs *metricsRawFileSystem) CopyFileRange(cancel <-chan struct{}, input *fu
 	return r, s
 }
 
+func (rfs *metricsRawFileSystem) Ioctl(cancel <-chan struct{}, input *fuse.IoctlIn, inbuf []byte, output *fuse.IoctlOut, outbuf []byte) fuse.Status {
+	timeStart := rfs.clock.Now()
+	s := rfs.base.Ioctl(cancel, input, inbuf, output, outbuf)
+	operationHistogramIoctl.observe(s, timeStart, rfs.clock.Now())
+	return s
+}
+
 func (rfs *metricsRawFileSystem) Flush(cancel <-chan struct{}, input *fuse.FlushIn) fuse.Status {
 	timeStart := rfs.clock.Now()
 	s := rfs.base.Flush(cancel, input)
@@ -427,10 +436,21 @@ func (rfs *metricsRawFileSystem) StatFs(cancel <-chan struct{}, input *fuse.InHe
 	return s
 }
 
+func (rfs *metricsRawFileSystem) Statx(cancel <-chan struct{}, input *fuse.StatxIn, out *fuse.StatxOut) fuse.Status {
+	timeStart := rfs.clock.Now()
+	s := rfs.base.Statx(cancel, input, out)
+	operationHistogramStatx.observe(s, timeStart, rfs.clock.Now())
+	return s
+}
+
 func (rfs *metricsRawFileSystem) Init(server fuse.ServerCallbacks) {
 	rfs.base.Init(&metricsServerCallbacks{
 		base: server,
 	})
+}
+
+func (rfs *metricsRawFileSystem) OnUnmount() {
+	rfs.base.OnUnmount()
 }
 
 type metricsServerCallbacks struct {
