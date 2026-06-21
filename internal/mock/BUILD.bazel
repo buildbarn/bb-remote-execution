@@ -456,6 +456,9 @@ go_library(
         "@rules_go//go/platform:darwin": [
             ":fuse.go",
         ],
+        "@rules_go//go/platform:freebsd": [
+            ":fuse.go",
+        ],
         "@rules_go//go/platform:linux": [
             ":fuse.go",
         ],
@@ -508,6 +511,9 @@ go_library(
         "@org_uber_go_mock//gomock",
     ] + select({
         "@rules_go//go/platform:darwin": [
+            "@com_github_hanwen_go_fuse_v2//fuse",
+        ],
+        "@rules_go//go/platform:freebsd": [
             "@com_github_hanwen_go_fuse_v2//fuse",
         ],
         "@rules_go//go/platform:linux": [

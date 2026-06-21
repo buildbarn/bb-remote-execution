@@ -1,5 +1,5 @@
-//go:build linux
-// +build linux
+//go:build freebsd || linux
+// +build freebsd linux
 
 package fuse_test
 

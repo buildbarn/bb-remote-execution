@@ -1,5 +1,5 @@
-//go:build darwin || linux
-// +build darwin linux
+//go:build darwin || freebsd || linux
+// +build darwin freebsd linux
 
 package configuration
 
