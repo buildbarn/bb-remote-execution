@@ -2,6 +2,7 @@ package cas_test
 
 import (
 	"context"
+	"io"
 	"os"
 	"syscall"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/eviction"
+	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/stretchr/testify/require"
@@ -142,4 +144,40 @@ func TestHardlinkingFileFetcher(t *testing.T) {
 		t,
 		fileFetcher.GetFile(ctx, blobDigest2, buildDirectory, path.MustNewComponent("goodbye.txt"), false),
 	)
+}
+
+func TestHardlinkingFileFetcherCopyFallbackOnLinkLimit(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+
+	baseFileFetcher := mock.NewMockFileFetcher(ctrl)
+	cacheDirectory := mock.NewMockDirectory(ctrl)
+	fileFetcher := cas.NewHardlinkingFileFetcher(baseFileFetcher, cacheDirectory, 10, 10000, eviction.NewLRUSet[string]())
+
+	blobDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "8b1a9953c4611296a827abf8c47804d7", 5)
+	buildDirectory := mock.NewMockDirectory(ctrl)
+	key := path.MustNewComponent("3-8b1a9953c4611296a827abf8c47804d7-5-x")
+	name := path.MustNewComponent("hello.txt")
+
+	// Prime the cache: download the file and link it into the cache directory.
+	baseFileFetcher.EXPECT().GetFile(ctx, blobDigest, buildDirectory, name, false)
+	buildDirectory.EXPECT().Link(name, cacheDirectory, key)
+	require.NoError(t, fileFetcher.GetFile(ctx, blobDigest, buildDirectory, name, false))
+
+	// The cached file has reached the filesystem's maximum hard link count, so
+	// hardlinking it into the build directory fails with EMLINK. The fetcher
+	// must fall back to copying the cached file's contents into place.
+	cacheDirectory.EXPECT().Link(key, buildDirectory, name).Return(syscall.EMLINK)
+	cachedFile := mock.NewMockFileReader(ctrl)
+	cacheDirectory.EXPECT().OpenRead(key).Return(cachedFile, nil)
+	copiedFile := mock.NewMockFileWriter(ctrl)
+	buildDirectory.EXPECT().OpenWrite(name, filesystem.CreateExcl(0o777)).Return(copiedFile, nil)
+	cachedFile.EXPECT().ReadAt(gomock.Any(), int64(0)).DoAndReturn(
+		func(p []byte, off int64) (int, error) {
+			return copy(p, []byte("Hello")), io.EOF
+		},
+	)
+	copiedFile.EXPECT().WriteAt([]byte("Hello"), int64(0)).Return(5, nil)
+	copiedFile.EXPECT().Close()
+	cachedFile.EXPECT().Close()
+	require.NoError(t, fileFetcher.GetFile(ctx, blobDigest, buildDirectory, name, false))
 }
