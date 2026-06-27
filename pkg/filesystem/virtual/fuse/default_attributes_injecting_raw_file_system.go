@@ -10,7 +10,7 @@ import (
 )
 
 type defaultAttributesInjectingRawFileSystem struct {
-	fuse.RawFileSystem
+	RawFileSystem
 
 	attrOut  fuse.AttrOut
 	entryOut fuse.EntryOut
@@ -25,7 +25,7 @@ type defaultAttributesInjectingRawFileSystem struct {
 // Use cases of this decorator include filling in default
 // entry/attribute validity durations, file modification times, file
 // ownership, etc.
-func NewDefaultAttributesInjectingRawFileSystem(base fuse.RawFileSystem, entryValid, attrValid time.Duration, attr *fuse.Attr) fuse.RawFileSystem {
+func NewDefaultAttributesInjectingRawFileSystem(base RawFileSystem, entryValid, attrValid time.Duration, attr *fuse.Attr) RawFileSystem {
 	entryValidNsec := entryValid.Nanoseconds()
 	attrValidNsec := attrValid.Nanoseconds()
 	return &defaultAttributesInjectingRawFileSystem{
@@ -86,7 +86,7 @@ func (rfs *defaultAttributesInjectingRawFileSystem) Create(cancel <-chan struct{
 	return rfs.RawFileSystem.Create(cancel, input, name, out)
 }
 
-func (rfs *defaultAttributesInjectingRawFileSystem) ReadDirPlus(cancel <-chan struct{}, input *fuse.ReadIn, out fuse.ReadDirPlusEntryList) fuse.Status {
+func (rfs *defaultAttributesInjectingRawFileSystem) ReadDirPlus(cancel <-chan struct{}, input *fuse.ReadIn, out ReadDirPlusEntryList) fuse.Status {
 	return rfs.RawFileSystem.ReadDirPlus(cancel, input, &defaultAttributesInjectingReadDirPlusEntryList{
 		ReadDirPlusEntryList: out,
 		entryOut:             &rfs.entryOut,
@@ -94,7 +94,7 @@ func (rfs *defaultAttributesInjectingRawFileSystem) ReadDirPlus(cancel <-chan st
 }
 
 type defaultAttributesInjectingReadDirPlusEntryList struct {
-	fuse.ReadDirPlusEntryList
+	ReadDirPlusEntryList
 
 	entryOut *fuse.EntryOut
 }

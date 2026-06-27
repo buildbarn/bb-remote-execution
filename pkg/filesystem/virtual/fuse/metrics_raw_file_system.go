@@ -10,6 +10,7 @@ import (
 
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/util"
+	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -154,13 +155,13 @@ var (
 )
 
 type metricsRawFileSystem struct {
-	base  fuse.RawFileSystem
+	base  RawFileSystem
 	clock clock.Clock
 }
 
-// NewMetricsRawFileSystem creates a decorator for fuse.RawFileSystem
-// that exposes Prometheus metrics for each of the operations invoked.
-func NewMetricsRawFileSystem(base fuse.RawFileSystem, clock clock.Clock) fuse.RawFileSystem {
+// NewMetricsRawFileSystem creates a decorator for RawFileSystem that
+// exposes Prometheus metrics for each of the operations invoked.
+func NewMetricsRawFileSystem(base RawFileSystem, clock clock.Clock) RawFileSystem {
 	rawFileSystemOperationsPrometheusMetrics.Do(func() {
 		prometheus.MustRegister(rawFileSystemOperationsDurationSeconds)
 		prometheus.MustRegister(rawFileSystemCallbacks)
@@ -402,14 +403,14 @@ func (rfs *metricsRawFileSystem) OpenDir(cancel <-chan struct{}, input *fuse.Ope
 	return s
 }
 
-func (rfs *metricsRawFileSystem) ReadDir(cancel <-chan struct{}, input *fuse.ReadIn, out fuse.ReadDirEntryList) fuse.Status {
+func (rfs *metricsRawFileSystem) ReadDir(cancel <-chan struct{}, input *fuse.ReadIn, out ReadDirEntryList) fuse.Status {
 	timeStart := rfs.clock.Now()
 	s := rfs.base.ReadDir(cancel, input, out)
 	operationHistogramReadDir.observe(s, timeStart, rfs.clock.Now())
 	return s
 }
 
-func (rfs *metricsRawFileSystem) ReadDirPlus(cancel <-chan struct{}, input *fuse.ReadIn, out fuse.ReadDirPlusEntryList) fuse.Status {
+func (rfs *metricsRawFileSystem) ReadDirPlus(cancel <-chan struct{}, input *fuse.ReadIn, out ReadDirPlusEntryList) fuse.Status {
 	timeStart := rfs.clock.Now()
 	s := rfs.base.ReadDirPlus(cancel, input, out)
 	operationHistogramReadDirPlus.observe(s, timeStart, rfs.clock.Now())
@@ -443,7 +444,7 @@ func (rfs *metricsRawFileSystem) Statx(cancel <-chan struct{}, input *fuse.Statx
 	return s
 }
 
-func (rfs *metricsRawFileSystem) Init(server fuse.ServerCallbacks) {
+func (rfs *metricsRawFileSystem) Init(server fs.ServerCallbacks) {
 	rfs.base.Init(&metricsServerCallbacks{
 		base: server,
 	})
@@ -454,7 +455,7 @@ func (rfs *metricsRawFileSystem) OnUnmount() {
 }
 
 type metricsServerCallbacks struct {
-	base fuse.ServerCallbacks
+	base fs.ServerCallbacks
 }
 
 func (sc *metricsServerCallbacks) DeleteNotify(parent, child uint64, name string) fuse.Status {

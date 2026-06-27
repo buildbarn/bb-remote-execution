@@ -14,6 +14,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
+	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
 
 	"golang.org/x/sys/unix"
@@ -118,7 +119,7 @@ type simpleRawFileSystem struct {
 // Separation between these two interfaces was added to make it easier
 // to understand which operations actually get called against a given
 // object type.
-func NewSimpleRawFileSystem(rootDirectory virtual.Directory, removalNotifierRegistrar virtual.FUSERemovalNotifierRegistrar, authenticator Authenticator) fuse.RawFileSystem {
+func NewSimpleRawFileSystem(rootDirectory virtual.Directory, removalNotifierRegistrar virtual.FUSERemovalNotifierRegistrar, authenticator Authenticator) RawFileSystem {
 	return &simpleRawFileSystem{
 		removalNotifierRegistrar: removalNotifierRegistrar,
 		authenticator:            authenticator,
@@ -861,14 +862,14 @@ func toFUSEDirEntry(name path.Component, attributes *virtual.Attributes, nextCoo
 }
 
 type readDirReporter struct {
-	out fuse.ReadDirEntryList
+	out ReadDirEntryList
 }
 
 func (r *readDirReporter) ReportEntry(nextCookie uint64, name path.Component, child virtual.DirectoryChild, attributes *virtual.Attributes) bool {
 	return r.out.AddDirEntry(toFUSEDirEntry(name, attributes, nextCookie))
 }
 
-func (rfs *simpleRawFileSystem) ReadDir(cancel <-chan struct{}, input *fuse.ReadIn, out fuse.ReadDirEntryList) fuse.Status {
+func (rfs *simpleRawFileSystem) ReadDir(cancel <-chan struct{}, input *fuse.ReadIn, out ReadDirEntryList) fuse.Status {
 	ctx, s := rfs.createContext(cancel, &input.Caller)
 	if s != fuse.OK {
 		return s
@@ -897,7 +898,7 @@ func (rfs *simpleRawFileSystem) ReadDir(cancel <-chan struct{}, input *fuse.Read
 
 type readDirPlusReporter struct {
 	rfs *simpleRawFileSystem
-	out fuse.ReadDirPlusEntryList
+	out ReadDirPlusEntryList
 }
 
 func (r *readDirPlusReporter) ReportEntry(nextCookie uint64, name path.Component, child virtual.DirectoryChild, attributes *virtual.Attributes) bool {
@@ -912,7 +913,7 @@ func (r *readDirPlusReporter) ReportEntry(nextCookie uint64, name path.Component
 	return false
 }
 
-func (rfs *simpleRawFileSystem) ReadDirPlus(cancel <-chan struct{}, input *fuse.ReadIn, out fuse.ReadDirPlusEntryList) fuse.Status {
+func (rfs *simpleRawFileSystem) ReadDirPlus(cancel <-chan struct{}, input *fuse.ReadIn, out ReadDirPlusEntryList) fuse.Status {
 	ctx, s := rfs.createContext(cancel, &input.Caller)
 	if s != fuse.OK {
 		return s
@@ -960,7 +961,7 @@ func (simpleRawFileSystem) Statx(cancel <-chan struct{}, input *fuse.StatxIn, ou
 	return fuse.ENOSYS
 }
 
-func (rfs *simpleRawFileSystem) Init(server fuse.ServerCallbacks) {
+func (rfs *simpleRawFileSystem) Init(server fs.ServerCallbacks) {
 	// Obtain the inode number of the root directory.
 	rfs.nodeLock.RLock()
 	rootDirectory := rfs.directories[fuse.FUSE_ROOT_ID].directory

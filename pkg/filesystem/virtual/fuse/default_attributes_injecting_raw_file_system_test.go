@@ -122,7 +122,7 @@ func TestDefaultAttributesInjectingRawFileSystem(t *testing.T) {
 			nil,
 			&go_fuse.ReadIn{InHeader: go_fuse.InHeader{NodeId: 5}},
 			gomock.Any(),
-		).DoAndReturn(func(cancel <-chan struct{}, input *go_fuse.ReadIn, out go_fuse.ReadDirPlusEntryList) go_fuse.Status {
+		).DoAndReturn(func(cancel <-chan struct{}, input *go_fuse.ReadIn, out fuse.ReadDirPlusEntryList) go_fuse.Status {
 			e := out.AddDirLookupEntry(go_fuse.DirEntry{
 				Mode: go_fuse.S_IFLNK,
 				Name: "symlink",
