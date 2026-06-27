@@ -17,10 +17,10 @@ message MountConfiguration {
   oneof backend {
     // Use the kernel's FUSE driver to expose the mount.
     //
-    // This option is supported on Linux. In principle this could be
-    // made to work on macOS using the OSXFUSE/macFUSE kernel extension.
-    // Unfortunately, this kernel extension contains various bugs that
-    // cause system lockups under high load.
+    // This option is supported on FreeBSD and Linux. In principle this
+    // could be made to work on macOS using the OSXFUSE/macFUSE kernel
+    // extension. Unfortunately, this kernel extension contains various
+    // bugs that cause system lockups under high load.
     FUSEMountConfiguration fuse = 2;
 
     // Run an in-process NFSv4 server and use the kernel's NFSv4 client
