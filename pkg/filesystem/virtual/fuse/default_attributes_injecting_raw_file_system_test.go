@@ -1,5 +1,5 @@
-//go:build linux
-// +build linux
+//go:build freebsd || linux
+// +build freebsd linux
 
 package fuse_test
 
@@ -122,12 +122,13 @@ func TestDefaultAttributesInjectingRawFileSystem(t *testing.T) {
 			nil,
 			&go_fuse.ReadIn{InHeader: go_fuse.InHeader{NodeId: 5}},
 			gomock.Any(),
-		).DoAndReturn(func(cancel <-chan struct{}, input *go_fuse.ReadIn, out go_fuse.ReadDirPlusEntryList) go_fuse.Status {
+		).DoAndReturn(func(cancel <-chan struct{}, input *go_fuse.ReadIn, out fuse.ReadDirPlusEntryList) go_fuse.Status {
 			e := out.AddDirLookupEntry(go_fuse.DirEntry{
 				Mode: go_fuse.S_IFLNK,
 				Name: "symlink",
 				Ino:  6,
-			}, 5)
+				Off:  5,
+			})
 			e.NodeId = 6
 			e.Ino = 6
 			e.Size = 12
@@ -139,7 +140,8 @@ func TestDefaultAttributesInjectingRawFileSystem(t *testing.T) {
 				Mode: go_fuse.S_IFREG,
 				Name: "file",
 				Ino:  7,
-			}, 6)
+				Off:  6,
+			})
 			e.NodeId = 7
 			e.Ino = 7
 			e.Size = 42
@@ -151,7 +153,8 @@ func TestDefaultAttributesInjectingRawFileSystem(t *testing.T) {
 				Mode: go_fuse.S_IFDIR,
 				Name: "directory",
 				Ino:  8,
-			}, 7))
+				Off:  7,
+			}))
 			return go_fuse.OK
 		})
 		var entry1 go_fuse.EntryOut
@@ -159,18 +162,21 @@ func TestDefaultAttributesInjectingRawFileSystem(t *testing.T) {
 			Mode: go_fuse.S_IFLNK,
 			Name: "symlink",
 			Ino:  6,
-		}, uint64(5)).Return(&entry1)
+			Off:  5,
+		}).Return(&entry1)
 		var entry2 go_fuse.EntryOut
 		entryList.EXPECT().AddDirLookupEntry(go_fuse.DirEntry{
 			Mode: go_fuse.S_IFREG,
 			Name: "file",
 			Ino:  7,
-		}, uint64(6)).Return(&entry2)
+			Off:  6,
+		}).Return(&entry2)
 		entryList.EXPECT().AddDirLookupEntry(go_fuse.DirEntry{
 			Mode: go_fuse.S_IFDIR,
 			Name: "directory",
 			Ino:  8,
-		}, uint64(7))
+			Off:  7,
+		})
 
 		require.Equal(
 			t,

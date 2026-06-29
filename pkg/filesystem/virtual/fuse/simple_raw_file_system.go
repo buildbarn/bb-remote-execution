@@ -1,5 +1,5 @@
-//go:build linux
-// +build linux
+//go:build freebsd || linux
+// +build freebsd linux
 
 package fuse
 
@@ -14,6 +14,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
+	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
 
 	"golang.org/x/sys/unix"
@@ -118,7 +119,7 @@ type simpleRawFileSystem struct {
 // Separation between these two interfaces was added to make it easier
 // to understand which operations actually get called against a given
 // object type.
-func NewSimpleRawFileSystem(rootDirectory virtual.Directory, removalNotifierRegistrar virtual.FUSERemovalNotifierRegistrar, authenticator Authenticator) fuse.RawFileSystem {
+func NewSimpleRawFileSystem(rootDirectory virtual.Directory, removalNotifierRegistrar virtual.FUSERemovalNotifierRegistrar, authenticator Authenticator) RawFileSystem {
 	return &simpleRawFileSystem{
 		removalNotifierRegistrar: removalNotifierRegistrar,
 		authenticator:            authenticator,
@@ -795,6 +796,10 @@ func (simpleRawFileSystem) CopyFileRange(cancel <-chan struct{}, input *fuse.Cop
 	return 0, fuse.ENOTSUP
 }
 
+func (simpleRawFileSystem) Ioctl(cancel <-chan struct{}, input *fuse.IoctlIn, inbuf []byte, output *fuse.IoctlOut, outbuf []byte) fuse.Status {
+	return fuse.ENOTSUP
+}
+
 func (simpleRawFileSystem) Flush(cancel <-chan struct{}, input *fuse.FlushIn) fuse.Status {
 	return fuse.OK
 }
@@ -841,29 +846,30 @@ func (rfs *simpleRawFileSystem) OpenDir(cancel <-chan struct{}, input *fuse.Open
 // ReadDir() and ReadDirPlus() operations. The inode number is not
 // filled in for these entries, which is permitted.
 var dotDotEntries = []fuse.DirEntry{
-	{Mode: fuse.S_IFDIR, Name: "."},
-	{Mode: fuse.S_IFDIR, Name: ".."},
+	{Mode: fuse.S_IFDIR, Name: ".", Off: 1},
+	{Mode: fuse.S_IFDIR, Name: "..", Off: 2},
 }
 
 const dotDotEntriesCount uint64 = 2
 
-func toFUSEDirEntry(name path.Component, attributes *virtual.Attributes) fuse.DirEntry {
+func toFUSEDirEntry(name path.Component, attributes *virtual.Attributes, nextCookie uint64) fuse.DirEntry {
 	return fuse.DirEntry{
 		Mode: toFUSEFileType(attributes.GetFileType()),
 		Name: name.String(),
 		Ino:  attributes.GetInodeNumber(),
+		Off:  dotDotEntriesCount + nextCookie,
 	}
 }
 
 type readDirReporter struct {
-	out fuse.ReadDirEntryList
+	out ReadDirEntryList
 }
 
 func (r *readDirReporter) ReportEntry(nextCookie uint64, name path.Component, child virtual.DirectoryChild, attributes *virtual.Attributes) bool {
-	return r.out.AddDirEntry(toFUSEDirEntry(name, attributes), dotDotEntriesCount+nextCookie)
+	return r.out.AddDirEntry(toFUSEDirEntry(name, attributes, nextCookie))
 }
 
-func (rfs *simpleRawFileSystem) ReadDir(cancel <-chan struct{}, input *fuse.ReadIn, out fuse.ReadDirEntryList) fuse.Status {
+func (rfs *simpleRawFileSystem) ReadDir(cancel <-chan struct{}, input *fuse.ReadIn, out ReadDirEntryList) fuse.Status {
 	ctx, s := rfs.createContext(cancel, &input.Caller)
 	if s != fuse.OK {
 		return s
@@ -872,7 +878,7 @@ func (rfs *simpleRawFileSystem) ReadDir(cancel <-chan struct{}, input *fuse.Read
 	// Inject "." and ".." entries at the start of the results.
 	offset := input.Offset
 	for ; offset < dotDotEntriesCount; offset++ {
-		if !out.AddDirEntry(dotDotEntries[offset], offset+1) {
+		if !out.AddDirEntry(dotDotEntries[offset]) {
 			return fuse.OK
 		}
 	}
@@ -892,11 +898,11 @@ func (rfs *simpleRawFileSystem) ReadDir(cancel <-chan struct{}, input *fuse.Read
 
 type readDirPlusReporter struct {
 	rfs *simpleRawFileSystem
-	out fuse.ReadDirPlusEntryList
+	out ReadDirPlusEntryList
 }
 
 func (r *readDirPlusReporter) ReportEntry(nextCookie uint64, name path.Component, child virtual.DirectoryChild, attributes *virtual.Attributes) bool {
-	if e := r.out.AddDirLookupEntry(toFUSEDirEntry(name, attributes), dotDotEntriesCount+nextCookie); e != nil {
+	if e := r.out.AddDirLookupEntry(toFUSEDirEntry(name, attributes, nextCookie)); e != nil {
 		if directory, leaf := child.GetPair(); directory != nil {
 			r.rfs.addDirectory(directory, attributes, e)
 		} else {
@@ -907,7 +913,7 @@ func (r *readDirPlusReporter) ReportEntry(nextCookie uint64, name path.Component
 	return false
 }
 
-func (rfs *simpleRawFileSystem) ReadDirPlus(cancel <-chan struct{}, input *fuse.ReadIn, out fuse.ReadDirPlusEntryList) fuse.Status {
+func (rfs *simpleRawFileSystem) ReadDirPlus(cancel <-chan struct{}, input *fuse.ReadIn, out ReadDirPlusEntryList) fuse.Status {
 	ctx, s := rfs.createContext(cancel, &input.Caller)
 	if s != fuse.OK {
 		return s
@@ -918,7 +924,7 @@ func (rfs *simpleRawFileSystem) ReadDirPlus(cancel <-chan struct{}, input *fuse.
 	// for us automatically.
 	offset := input.Offset
 	for ; offset < dotDotEntriesCount; offset++ {
-		if out.AddDirLookupEntry(dotDotEntries[offset], offset+1) == nil {
+		if out.AddDirLookupEntry(dotDotEntries[offset]) == nil {
 			return fuse.OK
 		}
 	}
@@ -951,7 +957,11 @@ func (simpleRawFileSystem) StatFs(cancel <-chan struct{}, input *fuse.InHeader, 
 	return fuse.OK
 }
 
-func (rfs *simpleRawFileSystem) Init(server fuse.ServerCallbacks) {
+func (simpleRawFileSystem) Statx(cancel <-chan struct{}, input *fuse.StatxIn, out *fuse.StatxOut) fuse.Status {
+	return fuse.ENOSYS
+}
+
+func (rfs *simpleRawFileSystem) Init(server fs.ServerCallbacks) {
 	// Obtain the inode number of the root directory.
 	rfs.nodeLock.RLock()
 	rootDirectory := rfs.directories[fuse.FUSE_ROOT_ID].directory
@@ -985,4 +995,7 @@ func (rfs *simpleRawFileSystem) Init(server fuse.ServerCallbacks) {
 			}
 		}
 	})
+}
+
+func (simpleRawFileSystem) OnUnmount() {
 }

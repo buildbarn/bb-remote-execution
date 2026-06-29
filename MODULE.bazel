@@ -96,11 +96,7 @@ go_deps_dev.module_override(
     path = "github.com/grpc-ecosystem/go-grpc-prometheus",
 )
 go_deps_dev.module_override(
-    patches = [
-        "//:patches/com_github_hanwen_go_fuse_v2/direntrylist-offsets-and-testability.diff",
-        "//:patches/com_github_hanwen_go_fuse_v2/writeback-cache.diff",
-        "//:patches/com_github_hanwen_go_fuse_v2/notify-testability.diff",
-    ],
+    patches = ["//:patches/com_github_hanwen_go_fuse_v2/writeback-cache.diff"],
     path = "github.com/hanwen/go-fuse/v2",
 )
 go_deps_dev.module_override(
