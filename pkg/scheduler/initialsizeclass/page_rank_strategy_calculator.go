@@ -122,16 +122,24 @@ func (sc *pageRankStrategyCalculator) GetStrategies(perSizeClassStatsMap map[uin
 	medianExecutionTimeOnLargest := outcomesOnLargest.GetMedianExecutionTime()
 	if medianExecutionTimeOnLargest == nil {
 		// This action never succeeded on the largest size
-		// class. Force a run on both the largest and smallest
-		// size class. That way we both obtain a median
-		// execution time and learn whether the action can run
-		// on any size class.
-		return []Strategy{
-			{
-				Probability:     1.0,
-				RunInBackground: true,
-			},
+		// class. Force a run on the smallest size class for
+		// which we don't have any samples.
+		for i, perSizeClassStats := range perSizeClassStatsList[:n-1] {
+			if len(perSizeClassStats.PreviousExecutions) == 0 {
+				strategies := make([]Strategy, i+1)
+				strategies[i] = Strategy{
+					Probability:                1.0,
+					ForegroundExecutionTimeout: min(originalTimeout, sc.minimumExecutionTimeout),
+				}
+				return strategies
+			}
 		}
+		strategies := make([]Strategy, n)
+		strategies[n-1] = Strategy{
+			Probability:                1.0,
+			ForegroundExecutionTimeout: originalTimeout,
+		}
+		return strategies
 	}
 
 	// Extract previous execution times on all other size classes.
