@@ -34,26 +34,122 @@ func requireEqualStrategies(t *testing.T, expected, actual []initialsizeclass.St
 	}
 }
 
-// The first time an action is executed, all of the smaller size classes
-// should have an equal probability of running the action.
-func TestPageRankStrategyCalculatorEmpty(t *testing.T) {
+// If the action has never succeeded on the largest size class, we don't
+// know the expected duration of the action. This means that we should
+// first run it on the largest worker. However, doing so would be very
+// expensive, especially for actions that are never seen later on.
+//
+// To solve this we always run these actions on the smallest worker that
+// has never executed such an action. By using a small execution
+// timeout, this doesn't lead to unnecessary delays.
+func TestPageRankStrategyCalculatorUnknownExpectedDuration(t *testing.T) {
 	strategyCalculator := initialsizeclass.NewPageRankStrategyCalculator(5*time.Second, 0.5, 1.5, 0.001)
-	strategies := strategyCalculator.GetStrategies(map[uint32]*iscc.PerSizeClassStats{
-		1: {},
-		2: {},
-		4: {},
-		8: {},
-	}, []uint32{1, 2, 4, 8}, 15*time.Minute)
-	requireEqualStrategies(
-		t,
-		[]initialsizeclass.Strategy{
-			{
-				Probability:     1.0,
-				RunInBackground: true,
+
+	t.Run("1", func(t *testing.T) {
+		strategies := strategyCalculator.GetStrategies(map[uint32]*iscc.PerSizeClassStats{
+			1: {},
+			2: {},
+			4: {},
+			8: {},
+		}, []uint32{1, 2, 4, 8}, 15*time.Minute)
+		requireEqualStrategies(
+			t,
+			[]initialsizeclass.Strategy{
+				{
+					Probability:                1.0,
+					ForegroundExecutionTimeout: 5 * time.Second,
+				},
 			},
-		},
-		strategies,
-	)
+			strategies,
+		)
+	})
+
+	t.Run("2", func(t *testing.T) {
+		strategies := strategyCalculator.GetStrategies(map[uint32]*iscc.PerSizeClassStats{
+			1: {
+				PreviousExecutions: []*iscc.PreviousExecution{
+					{Outcome: &iscc.PreviousExecution_Succeeded{Succeeded: &durationpb.Duration{Seconds: 1}}},
+				},
+			},
+			2: {},
+			4: {},
+			8: {},
+		}, []uint32{1, 2, 4, 8}, 15*time.Minute)
+		requireEqualStrategies(
+			t,
+			[]initialsizeclass.Strategy{
+				{},
+				{
+					Probability:                1.0,
+					ForegroundExecutionTimeout: 5 * time.Second,
+				},
+			},
+			strategies,
+		)
+	})
+
+	t.Run("4", func(t *testing.T) {
+		strategies := strategyCalculator.GetStrategies(map[uint32]*iscc.PerSizeClassStats{
+			1: {
+				PreviousExecutions: []*iscc.PreviousExecution{
+					{Outcome: &iscc.PreviousExecution_Succeeded{Succeeded: &durationpb.Duration{Seconds: 1}}},
+				},
+			},
+			2: {
+				PreviousExecutions: []*iscc.PreviousExecution{
+					{Outcome: &iscc.PreviousExecution_Succeeded{Succeeded: &durationpb.Duration{Seconds: 1}}},
+				},
+			},
+			4: {},
+			8: {},
+		}, []uint32{1, 2, 4, 8}, 15*time.Minute)
+		requireEqualStrategies(
+			t,
+			[]initialsizeclass.Strategy{
+				{},
+				{},
+				{
+					Probability:                1.0,
+					ForegroundExecutionTimeout: 5 * time.Second,
+				},
+			},
+			strategies,
+		)
+	})
+
+	t.Run("8", func(t *testing.T) {
+		strategies := strategyCalculator.GetStrategies(map[uint32]*iscc.PerSizeClassStats{
+			1: {
+				PreviousExecutions: []*iscc.PreviousExecution{
+					{Outcome: &iscc.PreviousExecution_Succeeded{Succeeded: &durationpb.Duration{Seconds: 1}}},
+				},
+			},
+			2: {
+				PreviousExecutions: []*iscc.PreviousExecution{
+					{Outcome: &iscc.PreviousExecution_Succeeded{Succeeded: &durationpb.Duration{Seconds: 1}}},
+				},
+			},
+			4: {
+				PreviousExecutions: []*iscc.PreviousExecution{
+					{Outcome: &iscc.PreviousExecution_Succeeded{Succeeded: &durationpb.Duration{Seconds: 1}}},
+				},
+			},
+			8: {},
+		}, []uint32{1, 2, 4, 8}, 15*time.Minute)
+		requireEqualStrategies(
+			t,
+			[]initialsizeclass.Strategy{
+				{},
+				{},
+				{},
+				{
+					Probability:                1.0,
+					ForegroundExecutionTimeout: 15 * time.Minute,
+				},
+			},
+			strategies,
+		)
+	})
 }
 
 // If the action has succeeded once on both the smallest and the largest
