@@ -64,7 +64,7 @@ func (m *fuseMount) Expose(terminationGroup program.Group, rootDirectory virtual
 		// writes. This means data is only guaranteed to
 		// make it into the virtual file system after
 		// calling close()/fsync()/munmap()/msync().
-		EnableWritebackCache: true,
+		ExtraCapabilities: go_fuse.CAP_WRITEBACK_CACHE,
 		// Cap the FUSE asynchronous request queue. When zero,
 		// go-fuse falls back to its default of 12.
 		MaxBackground: int(m.configuration.MaximumBackgroundTasks),
