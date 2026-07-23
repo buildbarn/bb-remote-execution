@@ -152,11 +152,13 @@ func (be *prefetchingBuildExecutor) Execute(ctx context.Context, filePool pool.F
 		return nil
 	})
 
-	if err := group.Wait(); err == nil {
+	err = group.Wait()
+	newProfile := be.computeProfile(bloomFilterMonitor)
+	if err == nil {
 		// Action completed successfully. Store an updated
 		// profile in the File System Access Cache if it is
 		// different from the one fetched previously.
-		if newProfile := be.computeProfile(bloomFilterMonitor); !proto.Equal(existingProfile, newProfile) {
+		if !proto.Equal(existingProfile, newProfile) {
 			if err := be.fileSystemAccessCache.Put(ctx, reducedActionDigest, buffer.NewProtoBufferFromProto(newProfile, buffer.UserProvided)); err != nil {
 				attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to store file system access profile"))
 			}
@@ -165,6 +167,11 @@ func (be *prefetchingBuildExecutor) Execute(ctx context.Context, filePool pool.F
 		response.Status = status.Convert(err).Proto()
 	}
 
+	if newProfilePb, err := anypb.New(newProfile); err == nil {
+		response.Result.ExecutionMetadata.AuxiliaryMetadata = append(response.Result.ExecutionMetadata.AuxiliaryMetadata, newProfilePb)
+	} else {
+		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to marshal file system access profile"))
+	}
 	if resourceUsage, err := anypb.New(bloomFilterMonitor.GetInputRootResourceUsage()); err == nil {
 		response.Result.ExecutionMetadata.AuxiliaryMetadata = append(response.Result.ExecutionMetadata.AuxiliaryMetadata, resourceUsage)
 	} else {
