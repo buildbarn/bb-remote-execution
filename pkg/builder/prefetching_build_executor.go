@@ -34,6 +34,7 @@ type prefetchingBuildExecutor struct {
 	maximumMessageSizeBytes     int
 	bloomFilterBitsPerElement   int
 	bloomFilterMaximumSizeBytes int
+	logFileSystemAccessProfile  bool
 	emptyProfile                *fsac.FileSystemAccessProfile
 }
 
@@ -53,7 +54,7 @@ type prefetchingBuildExecutor struct {
 // directory (FUSE, NFSv4). On workers that use native build
 // directories, the monitor is ignored, leading to empty Bloom filters
 // being stored.
-func NewPrefetchingBuildExecutor(buildExecutor BuildExecutor, contentAddressableStorage blobstore.BlobAccess, directoryFetcher cas.DirectoryFetcher, fileReadSemaphore *semaphore.Weighted, fileSystemAccessCache blobstore.BlobAccess, maximumMessageSizeBytes, bloomFilterBitsPerElement, bloomFilterMaximumSizeBytes int) BuildExecutor {
+func NewPrefetchingBuildExecutor(buildExecutor BuildExecutor, contentAddressableStorage blobstore.BlobAccess, directoryFetcher cas.DirectoryFetcher, fileReadSemaphore *semaphore.Weighted, fileSystemAccessCache blobstore.BlobAccess, maximumMessageSizeBytes, bloomFilterBitsPerElement, bloomFilterMaximumSizeBytes int, logFileSystemAccessProfile bool) BuildExecutor {
 	be := &prefetchingBuildExecutor{
 		BuildExecutor:               buildExecutor,
 		contentAddressableStorage:   contentAddressableStorage,
@@ -63,6 +64,7 @@ func NewPrefetchingBuildExecutor(buildExecutor BuildExecutor, contentAddressable
 		maximumMessageSizeBytes:     maximumMessageSizeBytes,
 		bloomFilterBitsPerElement:   bloomFilterBitsPerElement,
 		bloomFilterMaximumSizeBytes: bloomFilterMaximumSizeBytes,
+		logFileSystemAccessProfile:  logFileSystemAccessProfile,
 	}
 	be.emptyProfile = be.computeProfile(access.NewBloomFilterComputingUnreadDirectoryMonitor())
 	return be
@@ -160,18 +162,35 @@ func (be *prefetchingBuildExecutor) Execute(ctx context.Context, filePool pool.F
 		// different from the one fetched previously.
 		if !proto.Equal(existingProfile, newProfile) {
 			if err := be.fileSystemAccessCache.Put(ctx, reducedActionDigest, buffer.NewProtoBufferFromProto(newProfile, buffer.UserProvided)); err != nil {
-				attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to store file system access profile"))
+				attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to store file system access profile to FSAC"))
 			}
 		}
 	} else if err != (dontReadFromFSACError{}) {
 		response.Status = status.Convert(err).Proto()
 	}
 
-	if newProfilePb, err := anypb.New(newProfile); err == nil {
-		response.Result.ExecutionMetadata.AuxiliaryMetadata = append(response.Result.ExecutionMetadata.AuxiliaryMetadata, newProfilePb)
-	} else {
-		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to marshal file system access profile"))
+	if be.logFileSystemAccessProfile {
+		// Store a copy of the profile in content addressable storage
+		// and attach it to the response server logs if profile
+		// logging is turned on.
+		if profileDigest, err := blobstore.CASPutProto(
+			ctx,
+			be.contentAddressableStorage,
+			newProfile,
+			digestFunction,
+		); err == nil {
+			if response.ServerLogs == nil {
+				response.ServerLogs = make(map[string]*remoteexecution.LogFile)
+			}
+			response.ServerLogs["file-access-profile"] = &remoteexecution.LogFile{
+				Digest:        profileDigest.GetProto(),
+				HumanReadable: false,
+			}
+		} else {
+			attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to store file system access profile to CAS"))
+		}
 	}
+
 	if resourceUsage, err := anypb.New(bloomFilterMonitor.GetInputRootResourceUsage()); err == nil {
 		response.Result.ExecutionMetadata.AuxiliaryMetadata = append(response.Result.ExecutionMetadata.AuxiliaryMetadata, resourceUsage)
 	} else {

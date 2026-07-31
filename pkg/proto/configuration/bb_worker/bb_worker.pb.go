@@ -652,6 +652,7 @@ type PrefetchingConfiguration struct {
 	FileSystemAccessCache       *blobstore.BlobAccessConfiguration `protobuf:"bytes,1,opt,name=file_system_access_cache,json=fileSystemAccessCache,proto3" json:"file_system_access_cache,omitempty"`
 	BloomFilterBitsPerPath      uint32                             `protobuf:"varint,2,opt,name=bloom_filter_bits_per_path,json=bloomFilterBitsPerPath,proto3" json:"bloom_filter_bits_per_path,omitempty"`
 	BloomFilterMaximumSizeBytes uint32                             `protobuf:"varint,3,opt,name=bloom_filter_maximum_size_bytes,json=bloomFilterMaximumSizeBytes,proto3" json:"bloom_filter_maximum_size_bytes,omitempty"`
+	LogFileSystemAccessProfile  bool                               `protobuf:"varint,5,opt,name=log_file_system_access_profile,json=logFileSystemAccessProfile,proto3" json:"log_file_system_access_profile,omitempty"`
 	unknownFields               protoimpl.UnknownFields
 	sizeCache                   protoimpl.SizeCache
 }
@@ -705,6 +706,13 @@ func (x *PrefetchingConfiguration) GetBloomFilterMaximumSizeBytes() uint32 {
 		return x.BloomFilterMaximumSizeBytes
 	}
 	return 0
+}
+
+func (x *PrefetchingConfiguration) GetLogFileSystemAccessProfile() bool {
+	if x != nil {
+		return x.LogFileSystemAccessProfile
+	}
+	return false
 }
 
 type HttpExecutionTimeoutCompensator struct {
@@ -839,11 +847,12 @@ const file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_w
 	"#CompletedActionLoggingConfiguration\x12I\n" +
 	"\x06client\x18\x01 \x01(\v21.buildbarn.configuration.grpc.ClientConfigurationR\x06client\x125\n" +
 	"\x17maximum_send_queue_size\x18\x02 \x01(\rR\x14maximumSendQueueSize\x127\n" +
-	"\x18add_instance_name_prefix\x18\x03 \x01(\tR\x15addInstanceNamePrefix\"\x97\x02\n" +
+	"\x18add_instance_name_prefix\x18\x03 \x01(\tR\x15addInstanceNamePrefix\"\xdb\x02\n" +
 	"\x18PrefetchingConfiguration\x12s\n" +
 	"\x18file_system_access_cache\x18\x01 \x01(\v2:.buildbarn.configuration.blobstore.BlobAccessConfigurationR\x15fileSystemAccessCache\x12:\n" +
 	"\x1abloom_filter_bits_per_path\x18\x02 \x01(\rR\x16bloomFilterBitsPerPath\x12D\n" +
-	"\x1fbloom_filter_maximum_size_bytes\x18\x03 \x01(\rR\x1bbloomFilterMaximumSizeBytesJ\x04\b\x04\x10\x05\"\xb6\x01\n" +
+	"\x1fbloom_filter_maximum_size_bytes\x18\x03 \x01(\rR\x1bbloomFilterMaximumSizeBytes\x12B\n" +
+	"\x1elog_file_system_access_profile\x18\x05 \x01(\bR\x1alogFileSystemAccessProfileJ\x04\b\x04\x10\x05\"\xb6\x01\n" +
 	"\x1fHttpExecutionTimeoutCompensator\x12S\n" +
 	"\vhttp_client\x18\x01 \x01(\v22.buildbarn.configuration.http.client.ConfigurationR\n" +
 	"httpClient\x12\x1f\n" +

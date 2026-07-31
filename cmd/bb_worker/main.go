@@ -486,6 +486,7 @@ func main() {
 							int(configuration.MaximumMessageSizeBytes),
 							int(prefetchingConfiguration.BloomFilterBitsPerPath),
 							int(prefetchingConfiguration.BloomFilterMaximumSizeBytes),
+							prefetchingConfiguration.LogFileSystemAccessProfile,
 						)
 					}
 
