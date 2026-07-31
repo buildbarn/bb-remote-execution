@@ -475,6 +475,16 @@ message PrefetchingConfiguration {
   // Was 'download_concurrency'. This option has been moved to
   // 'input_download_concurrency' in ApplicationConfiguration.
   reserved 4;
+
+  // Enables logging of generated file system access profiles.
+  //
+  // The profile digest is attached to the response Server Logs under
+  // "file-access-profile". The profile itself is also stored to
+  // Content Addressable Storage (CAS).
+  //
+  // The file system access profile can be useful for more applications
+  // than just prefetching. So it can be good to log it if desired.
+  bool log_file_system_access_profile = 5;
 }
 
 message HttpExecutionTimeoutCompensator {

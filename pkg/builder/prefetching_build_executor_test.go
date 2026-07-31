@@ -42,6 +42,7 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 		/* maximumMessageSizeBytes = */ 10000,
 		/* bloomFilterBitsPerElement = */ 10,
 		/* bloomFilterMaximumSizeBytes = */ 1000,
+		/* logFileSystemAccessProfile = */ false,
 	)
 
 	filePool := mock.NewMockFilePool(ctrl)
@@ -49,10 +50,6 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 	digestFunction := digest.MustNewFunction("hello", remoteexecution.DigestFunction_MD5)
 	executionStateUpdates := make(chan<- *remoteworker.CurrentState_Executing)
 
-	defaultFileSystemAccessProfile, err := anypb.New(&fsac.FileSystemAccessProfile{
-		BloomFilter:              []byte{0x80},
-		BloomFilterHashFunctions: 1,
-	})
 	defaultInputRootResourceUsage, err := anypb.New(&resourceusage.InputRootResourceUsage{
 		DirectoriesResolved: 1,
 		DirectoriesRead:     0,
@@ -211,7 +208,7 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 			&remoteexecution.ExecuteResponse{
 				Result: &remoteexecution.ActionResult{
 					ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
-						AuxiliaryMetadata: []*anypb.Any{defaultFileSystemAccessProfile, defaultInputRootResourceUsage},
+						AuxiliaryMetadata: []*anypb.Any{defaultInputRootResourceUsage},
 					},
 				},
 				Status: status.New(codes.Internal, "Failed to fetch file system access profile: Storage offline").Proto(),
@@ -260,7 +257,7 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 			&remoteexecution.ExecuteResponse{
 				Result: &remoteexecution.ActionResult{
 					ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
-						AuxiliaryMetadata: []*anypb.Any{defaultFileSystemAccessProfile, defaultInputRootResourceUsage},
+						AuxiliaryMetadata: []*anypb.Any{defaultInputRootResourceUsage},
 					},
 				},
 				Status: status.New(codes.Internal, "Failed to prefetch directory \".\": Storage offline").Proto(),
@@ -321,7 +318,7 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 			&remoteexecution.ExecuteResponse{
 				Result: &remoteexecution.ActionResult{
 					ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
-						AuxiliaryMetadata: []*anypb.Any{defaultFileSystemAccessProfile, defaultInputRootResourceUsage},
+						AuxiliaryMetadata: []*anypb.Any{defaultInputRootResourceUsage},
 					},
 				},
 				Status: status.New(codes.Internal, "Failed to prefetch file \"hello.txt\": Storage offline").Proto(),
@@ -370,10 +367,10 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 			&remoteexecution.ExecuteResponse{
 				Result: &remoteexecution.ActionResult{
 					ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
-						AuxiliaryMetadata: []*anypb.Any{defaultFileSystemAccessProfile, defaultInputRootResourceUsage},
+						AuxiliaryMetadata: []*anypb.Any{defaultInputRootResourceUsage},
 					},
 				},
-				Status: status.New(codes.Internal, "Failed to store file system access profile: Storage offline").Proto(),
+				Status: status.New(codes.Internal, "Failed to store file system access profile to FSAC: Storage offline").Proto(),
 			},
 			buildExecutor.Execute(
 				ctx,
@@ -412,7 +409,7 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 			&remoteexecution.ExecuteResponse{
 				Result: &remoteexecution.ActionResult{
 					ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
-						AuxiliaryMetadata: []*anypb.Any{defaultFileSystemAccessProfile, defaultInputRootResourceUsage},
+						AuxiliaryMetadata: []*anypb.Any{defaultInputRootResourceUsage},
 					},
 				},
 			},
@@ -460,11 +457,6 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 				}, profile)
 				return nil
 			})
-		fileSystemAccessProfile, err := anypb.New(&fsac.FileSystemAccessProfile{
-			BloomFilter:              []byte{0x0b, 0x2a},
-			BloomFilterHashFunctions: 9,
-		})
-		require.NoError(t, err)
 		inputRootResourceUsage, err := anypb.New(&resourceusage.InputRootResourceUsage{
 			DirectoriesResolved: 1,
 			DirectoriesRead:     1,
@@ -476,7 +468,7 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 			&remoteexecution.ExecuteResponse{
 				Result: &remoteexecution.ActionResult{
 					ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
-						AuxiliaryMetadata: []*anypb.Any{fileSystemAccessProfile, inputRootResourceUsage},
+						AuxiliaryMetadata: []*anypb.Any{inputRootResourceUsage},
 					},
 				},
 			},
