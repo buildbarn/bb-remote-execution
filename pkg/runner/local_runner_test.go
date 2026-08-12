@@ -3,11 +3,13 @@ package runner_test
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage"
@@ -548,4 +550,204 @@ func TestLocalRunnerRun(t *testing.T) {
 	})
 
 	// TODO: Improve testing coverage of LocalRunner.
+}
+
+func TestLocalRunnerRunWindowsSubprocessCleanup(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		return
+	}
+
+	// The child helper keeps its current directory inside the input root and
+	// opens a file there. Go's Windows syscall.Open shares read/write but not
+	// delete access, so RemoveAll fails while that descendant is alive. If this
+	// test can immediately remove the root, Run() waited for descendant cleanup.
+	buildDirectoryPath := t.TempDir()
+	buildDirectory, err := filesystem.NewLocalDirectory(path.LocalFormat.NewParser(buildDirectoryPath))
+	require.NoError(t, err)
+	defer buildDirectory.Close()
+
+	buildDirectoryPathBuilder, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
+	require.NoError(t, path.Resolve(path.LocalFormat.NewParser(buildDirectoryPath), scopeWalker))
+
+	testBinaryPath, err := os.Executable()
+	require.NoError(t, err)
+
+	testName := "WindowsSubprocessCleanup"
+	testPath := filepath.Join(buildDirectoryPath, testName)
+	rootPath := filepath.Join(testPath, "root")
+	require.NoError(t, os.Mkdir(testPath, 0o777))
+	require.NoError(t, os.Mkdir(rootPath, 0o777))
+	require.NoError(t, os.Mkdir(filepath.Join(testPath, "tmp"), 0o777))
+
+	environmentVariables := map[string]string{
+		"BB_RE_TEST_HELPER":      "parent",
+		"BB_RE_TEST_BINARY":      testBinaryPath,
+		"BB_RE_TEST_LOCKED_FILE": filepath.Join(rootPath, "locked"),
+		"BB_RE_TEST_READY_FILE":  filepath.Join(rootPath, "ready"),
+	}
+	for _, name := range []string{"COMSPEC", "PATH", "SYSTEMROOT", "TEMP", "TMP", "WINDIR"} {
+		if value, ok := os.LookupEnv(name); ok {
+			environmentVariables[name] = value
+		}
+	}
+
+	runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, runner.NewPlainCommandCreator(&syscall.SysProcAttr{}), false)
+	response, err := runner.Run(context.Background(), &runner_pb.RunRequest{
+		Arguments: []string{
+			testBinaryPath,
+			"-test.run=TestLocalRunnerRunWindowsSubprocessCleanupHelper",
+		},
+		EnvironmentVariables: environmentVariables,
+		StdoutPath:           testName + "/stdout",
+		StderrPath:           testName + "/stderr",
+		InputRootDirectory:   testName + "/root",
+		TemporaryDirectory:   testName + "/tmp",
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(0), response.ExitCode)
+	require.FileExists(t, filepath.Join(rootPath, "ready"))
+
+	require.NoError(t, os.RemoveAll(rootPath))
+}
+
+func TestLocalRunnerRunWindowsCancellationCleanup(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		return
+	}
+
+	// The root helper starts a descendant that holds an input-root file open,
+	// then remains alive. Cancellation must terminate both processes, and Run
+	// must wait for the entire job to be reaped so the root is immediately
+	// removable.
+	buildDirectoryPath := t.TempDir()
+	buildDirectory, err := filesystem.NewLocalDirectory(path.LocalFormat.NewParser(buildDirectoryPath))
+	require.NoError(t, err)
+	defer buildDirectory.Close()
+
+	buildDirectoryPathBuilder, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
+	require.NoError(t, path.Resolve(path.LocalFormat.NewParser(buildDirectoryPath), scopeWalker))
+
+	testName := "CancellationCleanup"
+	testPath := filepath.Join(buildDirectoryPath, testName)
+	rootPath := filepath.Join(testPath, "root")
+	require.NoError(t, os.Mkdir(testPath, 0o777))
+	require.NoError(t, os.Mkdir(rootPath, 0o777))
+	require.NoError(t, os.Mkdir(filepath.Join(testPath, "tmp"), 0o777))
+
+	testBinaryPath, err := os.Executable()
+	require.NoError(t, err)
+	readyFilePath := filepath.Join(rootPath, "ready")
+	environmentVariables := map[string]string{
+		"BB_RE_TEST_HELPER":      "parent_wait",
+		"BB_RE_TEST_BINARY":      testBinaryPath,
+		"BB_RE_TEST_LOCKED_FILE": filepath.Join(rootPath, "locked"),
+		"BB_RE_TEST_READY_FILE":  readyFilePath,
+	}
+	for _, name := range []string{"COMSPEC", "PATH", "SYSTEMROOT", "TEMP", "TMP", "WINDIR"} {
+		if value, ok := os.LookupEnv(name); ok {
+			environmentVariables[name] = value
+		}
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	type runResult struct {
+		response *runner_pb.RunResponse
+		err      error
+	}
+	runResultChannel := make(chan runResult, 1)
+	localRunner := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, runner.NewPlainCommandCreator(&syscall.SysProcAttr{}), false)
+	go func() {
+		response, err := localRunner.Run(ctx, &runner_pb.RunRequest{
+			Arguments: []string{
+				testBinaryPath,
+				"-test.run=TestLocalRunnerRunWindowsSubprocessCleanupHelper",
+			},
+			EnvironmentVariables: environmentVariables,
+			StdoutPath:           testName + "/stdout",
+			StderrPath:           testName + "/stderr",
+			InputRootDirectory:   testName + "/root",
+			TemporaryDirectory:   testName + "/tmp",
+		})
+		runResultChannel <- runResult{response: response, err: err}
+	}()
+
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		if _, err := os.Stat(readyFilePath); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("timed out waiting for the descendant helper")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	cancel()
+
+	var result runResult
+	select {
+	case result = <-runResultChannel:
+	case <-time.After(10 * time.Second):
+		t.Fatal("Run() hung after cancellation")
+	}
+	if result.err != nil {
+		require.NotContains(t, result.err.Error(), "Failed to finish process startup")
+	} else {
+		require.NotNil(t, result.response)
+	}
+
+	require.NoError(t, os.RemoveAll(rootPath))
+	require.NoDirExists(t, rootPath)
+}
+
+func TestLocalRunnerRunWindowsSubprocessCleanupHelper(t *testing.T) {
+	// parent spawns child and exits, parent_wait spawns child and remains alive,
+	// and child locks an input-root file before signaling that it is ready.
+	switch os.Getenv("BB_RE_TEST_HELPER") {
+	case "":
+		return
+	case "parent":
+		testBinaryPath := os.Getenv("BB_RE_TEST_BINARY")
+		if testBinaryPath == "" {
+			t.Fatal("BB_RE_TEST_BINARY is not set")
+		}
+		cmd := exec.Command(testBinaryPath, "-test.run=TestLocalRunnerRunWindowsSubprocessCleanupHelper")
+		cmd.Env = append(os.Environ(), "BB_RE_TEST_HELPER=child")
+		cmd.Dir = "."
+		require.NoError(t, cmd.Start())
+
+		readyFilePath := os.Getenv("BB_RE_TEST_READY_FILE")
+		deadline := time.Now().Add(10 * time.Second)
+		for {
+			if _, err := os.Stat(readyFilePath); err == nil {
+				return
+			}
+			if time.Now().After(deadline) {
+				t.Fatal("timed out waiting for child helper")
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	case "parent_wait":
+		testBinaryPath := os.Getenv("BB_RE_TEST_BINARY")
+		if testBinaryPath == "" {
+			t.Fatal("BB_RE_TEST_BINARY is not set")
+		}
+		cmd := exec.Command(testBinaryPath, "-test.run=TestLocalRunnerRunWindowsSubprocessCleanupHelper")
+		cmd.Env = append(os.Environ(), "BB_RE_TEST_HELPER=child")
+		cmd.Dir = "."
+		require.NoError(t, cmd.Start())
+		time.Sleep(time.Minute)
+	case "child":
+		lockedFilePath := os.Getenv("BB_RE_TEST_LOCKED_FILE")
+		readyFilePath := os.Getenv("BB_RE_TEST_READY_FILE")
+		lockedFile, err := os.OpenFile(lockedFilePath, os.O_CREATE|os.O_RDWR, 0o666)
+		require.NoError(t, err)
+		defer lockedFile.Close()
+		_, err = lockedFile.WriteString("locked")
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(readyFilePath, []byte("ready"), 0o666))
+		time.Sleep(time.Minute)
+	default:
+		t.Fatalf("unknown helper mode %#v", os.Getenv("BB_RE_TEST_HELPER"))
+	}
 }

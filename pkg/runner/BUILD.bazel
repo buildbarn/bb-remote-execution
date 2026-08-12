@@ -7,6 +7,8 @@ go_library(
         "clean_runner.go",
         "local_runner.go",
         "local_runner_darwin.go",
+        "local_runner_process.go",
+        "local_runner_process_windows.go",
         "local_runner_rss_bytes.go",
         "local_runner_rss_kibibytes.go",
         "local_runner_unix.go",
@@ -69,12 +71,13 @@ go_test(
     srcs = [
         "apple_xcode_resolving_runner_test.go",
         "clean_runner_test.go",
+        "local_runner_process_windows_test.go",
         "local_runner_test.go",
         "path_existence_checking_runner_test.go",
         "temporary_directory_symlinking_runner_test.go",
     ],
+    embed = [":runner"],
     deps = [
-        ":runner",
         "//internal/mock",
         "//pkg/cleaner",
         "//pkg/proto/resourceusage",
