@@ -11,7 +11,7 @@ bazel_dep(name = "gazelle", version = "0.51.0")
 bazel_dep(name = "googleapis", version = "0.0.0-20260525-ef19b7b7")
 bazel_dep(name = "platforms", version = "1.0.0")
 bazel_dep(name = "protobuf", version = "35.0")
-bazel_dep(name = "rules_go", version = "0.61.1")
+bazel_dep(name = "rules_go", version = "0.62.0")
 bazel_dep(name = "rules_jsonnet", version = "0.7.2")
 bazel_dep(name = "toolchains_llvm", version = "1.7.0")
 
