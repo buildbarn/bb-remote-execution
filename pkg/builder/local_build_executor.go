@@ -7,12 +7,13 @@ import (
 	"time"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	"github.com/buildbarn/bb-remote-execution/pkg/cas"
 	re_clock "github.com/buildbarn/bb-remote-execution/pkg/clock"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
-	"github.com/buildbarn/bb-storage/pkg/blobstore"
+	"github.com/buildbarn/bb-storage/pkg/blobstore/cdc"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
@@ -65,7 +66,8 @@ func (el *capturingErrorLogger) GetError() error {
 }
 
 type localBuildExecutor struct {
-	contentAddressableStorage      blobstore.BlobAccess
+	blobUploader                   cas.BlobUploader
+	contentAddressableStorage      cdc.ContentAddressableStorage
 	buildDirectoryCreator          BuildDirectoryCreator
 	runner                         runner_pb.RunnerClient
 	clock                          clock.Clock
@@ -78,8 +80,9 @@ type localBuildExecutor struct {
 
 // NewLocalBuildExecutor returns a BuildExecutor that executes build
 // steps on the local system.
-func NewLocalBuildExecutor(contentAddressableStorage blobstore.BlobAccess, buildDirectoryCreator BuildDirectoryCreator, runner runner_pb.RunnerClient, clock clock.Clock, maximumWritableFileUploadDelay time.Duration, inputRootCharacterDevices map[path.Component]filesystem.DeviceNumber, maximumMessageSizeBytes int, environmentVariables map[string]string, forceUploadTreesAndDirectories bool) BuildExecutor {
+func NewLocalBuildExecutor(blobUploader cas.BlobUploader, contentAddressableStorage cdc.ContentAddressableStorage, buildDirectoryCreator BuildDirectoryCreator, runner runner_pb.RunnerClient, clock clock.Clock, maximumWritableFileUploadDelay time.Duration, inputRootCharacterDevices map[path.Component]filesystem.DeviceNumber, maximumMessageSizeBytes int, environmentVariables map[string]string, forceUploadTreesAndDirectories bool) BuildExecutor {
 	return &localBuildExecutor{
+		blobUploader:                   blobUploader,
 		contentAddressableStorage:      contentAddressableStorage,
 		buildDirectoryCreator:          buildDirectoryCreator,
 		runner:                         runner,
@@ -231,12 +234,15 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool pool.FilePoo
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to extract digest for command"))
 		return response
 	}
-	commandMessage, err := be.contentAddressableStorage.Get(ctx, commandDigest).ToProto(&remoteexecution.Command{}, be.maximumMessageSizeBytes)
+	if commandDigest.GetSizeBytes() > int64(be.maximumMessageSizeBytes) {
+		attachErrorToExecuteResponse(response, status.Errorf(codes.InvalidArgument, "Command is %d bytes which exceeds the maximum message size byte of %d bytes", commandDigest.GetSizeBytes(), be.maximumMessageSizeBytes))
+		return response
+	}
+	command, err := cdc.GetProto(ctx, be.contentAddressableStorage, commandDigest, &remoteexecution.Command{})
 	if err != nil {
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to obtain command"))
 		return response
 	}
-	command := commandMessage.(*remoteexecution.Command)
 	outputHierarchy, err := NewOutputHierarchy(command)
 	if err != nil {
 		attachErrorToExecuteResponse(response, err)
@@ -343,7 +349,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool pool.FilePoo
 	} else if stderrDigest.GetSizeBytes() > 0 {
 		response.Result.StderrDigest = stderrDigest.GetProto()
 	}
-	if err := outputHierarchy.UploadOutputs(ctx, inputRootDirectory, be.contentAddressableStorage, digestFunction, writableFileUploadDelayChan, response.Result, be.forceUploadTreesAndDirectories); err != nil {
+	if err := outputHierarchy.UploadOutputs(ctx, inputRootDirectory, be.blobUploader, digestFunction, writableFileUploadDelayChan, response.Result, be.forceUploadTreesAndDirectories); err != nil {
 		attachErrorToExecuteResponse(response, err)
 	}
 

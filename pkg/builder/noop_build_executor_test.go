@@ -9,12 +9,14 @@ import (
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
+	"github.com/buildbarn/bb-storage/pkg/blobstore/cdc"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
+	"github.com/stretchr/testify/require"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 
 	"go.uber.org/mock/gomock"
 )
@@ -22,7 +24,11 @@ import (
 func TestNoopBuildExecutor(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage.EXPECT().
+		FetchCDCParameters(gomock.Any(), gomock.Any()).
+		Return(cdc.Parameters{MinChunkSizeBytes: 256 << 10, HorizonSizeBytes: 8 * 256 << 10}, nil).
+		AnyTimes()
 	buildExecutor := builder.NewNoopBuildExecutor(
 		contentAddressableStorage,
 		/* maximumMessageSizeBytes = */ 10000,
@@ -93,15 +99,22 @@ func TestNoopBuildExecutor(t *testing.T) {
 	t.Run("InvalidTemplate", func(t *testing.T) {
 		// If an invalid template is provided in the
 		// environment, parsing it should fail.
-		contentAddressableStorage.EXPECT().Get(ctx, digest.MustNewDigest("build", remoteexecution.DigestFunction_SHA256, "7f53aed4b5489c487be514dd88d3314d966e19b84bc766a972d82246ee6f494f", 150)).
-			Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
+		protoBytes, err := proto.Marshal(
+			&remoteexecution.Command{
 				EnvironmentVariables: []*remoteexecution.Command_EnvironmentVariable{
 					{
 						Name:  "NOOP_WORKER_ERROR_MESSAGE_TEMPLATE",
 						Value: "{{ foobarbaz }}",
 					},
 				},
-			}, buffer.UserProvided))
+			},
+		)
+		require.NoError(t, err)
+
+		contentAddressableStorage.EXPECT().
+			FetchChunk(ctx, digest.MustNewDigest("build", remoteexecution.DigestFunction_SHA256, "7f53aed4b5489c487be514dd88d3314d966e19b84bc766a972d82246ee6f494f", 150)).
+			Return(protoBytes, nil)
+
 		filePool := mock.NewMockFilePool(ctrl)
 		monitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
 		testutil.RequireEqualProto(
@@ -137,8 +150,13 @@ func TestNoopBuildExecutor(t *testing.T) {
 	t.Run("SuccessDefaultTemplate", func(t *testing.T) {
 		// If no template is provided in the environment
 		// variables, then a default template should be used.
-		contentAddressableStorage.EXPECT().Get(ctx, digest.MustNewDigest("build", remoteexecution.DigestFunction_SHA256, "d134371fd7573f7ef77c90e907c8bfaf95f34b82ac8503dbed5e062fb6fe4702", 200)).
-			Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{}, buffer.UserProvided))
+		protoBytes, err := proto.Marshal(&remoteexecution.Command{})
+		require.NoError(t, err)
+
+		contentAddressableStorage.EXPECT().
+			FetchChunk(ctx, digest.MustNewDigest("build", remoteexecution.DigestFunction_SHA256, "d134371fd7573f7ef77c90e907c8bfaf95f34b82ac8503dbed5e062fb6fe4702", 200)).
+			Return(protoBytes, nil)
+
 		filePool := mock.NewMockFilePool(ctrl)
 		monitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
 		testutil.RequireEqualProto(
@@ -174,8 +192,8 @@ func TestNoopBuildExecutor(t *testing.T) {
 	t.Run("SuccessCustomTemplate", func(t *testing.T) {
 		// If a custom template is provided in the environment,
 		// it should be preferred over the default template.
-		contentAddressableStorage.EXPECT().Get(ctx, digest.MustNewDigest("build", remoteexecution.DigestFunction_SHA256, "9da17cb226048f5bb3e6a20311b551e73ce8ac0d408e69e737d28a8f3179d0ce", 300)).
-			Return(buffer.NewProtoBufferFromProto(&remoteexecution.Command{
+		protoBytes, err := proto.Marshal(
+			&remoteexecution.Command{
 				EnvironmentVariables: []*remoteexecution.Command_EnvironmentVariable{
 					{
 						Name:  "PATH",
@@ -186,7 +204,14 @@ func TestNoopBuildExecutor(t *testing.T) {
 						Value: "Please visit {{ .ActionURL }} to inspect the action",
 					},
 				},
-			}, buffer.UserProvided))
+			},
+		)
+		require.NoError(t, err)
+
+		contentAddressableStorage.EXPECT().
+			FetchChunk(ctx, digest.MustNewDigest("build", remoteexecution.DigestFunction_SHA256, "9da17cb226048f5bb3e6a20311b551e73ce8ac0d408e69e737d28a8f3179d0ce", 300)).
+			Return(protoBytes, nil)
+
 		filePool := mock.NewMockFilePool(ctrl)
 		monitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
 		testutil.RequireEqualProto(

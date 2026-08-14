@@ -5,8 +5,8 @@ import (
 	"net/url"
 	"os"
 
-	re_blobstore "github.com/buildbarn/bb-remote-execution/pkg/blobstore"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
+	"github.com/buildbarn/bb-remote-execution/pkg/cas"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_noop_worker"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
@@ -45,19 +45,17 @@ func main() {
 		// Content Addressable Storage (CAS), as those may contain error
 		// message templates that this worker respects.
 		zstdPool := zstd.NewPoolFromConfiguration(configuration.ZstdPool)
-		info, err := blobstore_configuration.NewBlobAccessFromConfiguration(
+		contentAddressableStorage, _, _, _, _, err := blobstore_configuration.NewCASFromConfiguration(
 			dependenciesGroup,
 			configuration.ContentAddressableStorage,
-			blobstore_configuration.NewCASBlobAccessCreator(
-				grpcClientFactory,
-				int(configuration.MaximumMessageSizeBytes),
-				zstdPool,
-			),
+			grpcClientFactory,
+			int(configuration.MaximumMessageSizeBytes),
+			zstdPool,
 		)
 		if err != nil {
 			return util.StatusWrap(err, "Failed to create Content Adddressable Storage")
 		}
-		contentAddressableStorage := re_blobstore.NewExistencePreconditionBlobAccess(info.BlobAccess)
+		contentAddressableStorage = cas.NewExistencePreconditionContentAddressableStorage(contentAddressableStorage)
 
 		browserURL, err := url.Parse(configuration.BrowserUrl)
 		if err != nil {

@@ -3,9 +3,9 @@ package virtual
 import (
 	"context"
 
+	"github.com/buildbarn/bb-remote-execution/pkg/cas"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/bazeloutputservice"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/outputpathpersistency"
-	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
@@ -45,10 +45,10 @@ func GetFileInfo(name path.Component, node Node) filesystem.FileInfo {
 // the resulting object's digest.
 type ApplyUploadFile struct {
 	// Inputs.
-	Context                   context.Context
-	ContentAddressableStorage blobstore.BlobAccess
-	DigestFunction            digest.Function
-	WritableFileUploadDelay   <-chan struct{}
+	Context                 context.Context
+	BlobUploader            cas.BlobUploader
+	DigestFunction          digest.Function
+	WritableFileUploadDelay <-chan struct{}
 
 	// Outputs.
 	Digest digest.Digest

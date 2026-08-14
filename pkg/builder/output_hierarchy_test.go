@@ -9,7 +9,7 @@ import (
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
+	"github.com/buildbarn/bb-remote-execution/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
@@ -169,7 +169,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	root := mock.NewMockUploadableDirectory(ctrl)
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	blobUploader := mock.NewMockBlobUploader(ctrl)
 	digestFunction := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "8b1a9953c4611296a827abf8c47804d7", 5).GetDigestFunction()
 	writableFileUploadDelay := make(chan struct{})
 
@@ -186,7 +186,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 			oh.UploadOutputs(
 				ctx,
 				root,
-				contentAddressableStorage,
+				blobUploader,
 				digestFunction,
 				writableFileUploadDelay,
 				&actionResult,
@@ -253,14 +253,15 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 			Return(digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "af37d08ae228a87dc6b265fd1019c97d", 7), nil)
 		directoryDirectory.EXPECT().Readlink(path.MustNewComponent("symlink")).Return(path.UNIXFormat.NewParser("symlink-target"), nil)
 		directoryDirectory.EXPECT().Close()
-		contentAddressableStorage.EXPECT().Put(
+		blobUploader.EXPECT().UploadBlob(
 			ctx,
 			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "55aed4acf40a28132fb2d2de2b5962f0", 184),
 			gomock.Any(),
 		).
-			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
-				m, err := b.ToProto(&remoteexecution.Tree{}, 10000)
+			DoAndReturn(func(ctx context.Context, digest digest.Digest, b cas.Blob) error {
+				bytes, err := b.ToByteSlice()
 				require.NoError(t, err)
+				m := testutil.MustUnmarshal(t, bytes, &remoteexecution.Tree{})
 				testutil.RequireEqualProto(t, &remoteexecution.Tree{
 					Root: &remoteexecution.Directory{
 						Files: []*remoteexecution.FileNode{
@@ -308,13 +309,15 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		foo.EXPECT().EnterUploadableDirectory(path.MustNewComponent("path-directory")).Return(pathDirectory, nil)
 		pathDirectory.EXPECT().ReadDir().Return(nil, nil)
 		pathDirectory.EXPECT().Close()
-		contentAddressableStorage.EXPECT().Put(
+		blobUploader.EXPECT().UploadBlob(
 			ctx,
 			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "9dd94c5a4b02914af42e8e6372e0b709", 2),
 			gomock.Any(),
 		).
-			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
-				m, err := b.ToProto(&remoteexecution.Tree{}, 10000)
+			DoAndReturn(func(ctx context.Context, digest digest.Digest, b cas.Blob) error {
+				bytes, err := b.ToByteSlice()
+				require.NoError(t, err)
+				m := testutil.MustUnmarshal(t, bytes, &remoteexecution.Tree{})
 				require.NoError(t, err)
 				testutil.RequireEqualProto(t, &remoteexecution.Tree{
 					Root: &remoteexecution.Directory{},
@@ -360,7 +363,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 			oh.UploadOutputs(
 				ctx,
 				root,
-				contentAddressableStorage,
+				blobUploader,
 				digestFunction,
 				writableFileUploadDelay,
 				&actionResult,
@@ -497,14 +500,15 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		// It is permitted to add the root directory as an
 		// output path.
 		root.EXPECT().ReadDir().Return(nil, nil)
-		contentAddressableStorage.EXPECT().Put(
+		blobUploader.EXPECT().UploadBlob(
 			ctx,
 			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "9dd94c5a4b02914af42e8e6372e0b709", 2),
 			gomock.Any(),
 		).
-			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
-				m, err := b.ToProto(&remoteexecution.Tree{}, 10000)
+			DoAndReturn(func(ctx context.Context, digest digest.Digest, b cas.Blob) error {
+				bytes, err := b.ToByteSlice()
 				require.NoError(t, err)
+				m := testutil.MustUnmarshal(t, bytes, &remoteexecution.Tree{})
 				testutil.RequireEqualProto(t, &remoteexecution.Tree{
 					Root: &remoteexecution.Directory{},
 				}, m)
@@ -522,7 +526,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 			oh.UploadOutputs(
 				ctx,
 				root,
-				contentAddressableStorage,
+				blobUploader,
 				digestFunction,
 				writableFileUploadDelay,
 				&actionResult,
@@ -560,7 +564,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 			oh.UploadOutputs(
 				ctx,
 				root,
-				contentAddressableStorage,
+				blobUploader,
 				digestFunction,
 				writableFileUploadDelay,
 				&actionResult,
@@ -628,13 +632,15 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 			}},
 		}
 
-		contentAddressableStorage.EXPECT().Put(
+		blobUploader.EXPECT().UploadBlob(
 			ctx,
 			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "aa5a55cc8d4d32abd00adf5dd1ed93b5", 193),
 			gomock.Any(),
 		).
-			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
-				m, err := b.ToProto(&remoteexecution.Tree{}, 10000)
+			DoAndReturn(func(ctx context.Context, digest digest.Digest, b cas.Blob) error {
+				bytes, err := b.ToByteSlice()
+				require.NoError(t, err)
+				m := testutil.MustUnmarshal(t, bytes, &remoteexecution.Tree{})
 				require.NoError(t, err)
 				testutil.RequireEqualProto(t, &remoteexecution.Tree{
 					Root: rootDirectory,
@@ -644,24 +650,28 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 				}, m)
 				return nil
 			})
-		contentAddressableStorage.EXPECT().Put(
+		blobUploader.EXPECT().UploadBlob(
 			ctx,
 			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "f782fc2043b00886534aee47de8c522a", 120),
 			gomock.Any(),
 		).
-			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
-				m, err := b.ToProto(&remoteexecution.Directory{}, 10000)
+			DoAndReturn(func(ctx context.Context, digest digest.Digest, b cas.Blob) error {
+				bytes, err := b.ToByteSlice()
+				require.NoError(t, err)
+				m := testutil.MustUnmarshal(t, bytes, &remoteexecution.Directory{})
 				require.NoError(t, err)
 				testutil.RequireEqualProto(t, rootDirectory, m)
 				return nil
 			})
-		contentAddressableStorage.EXPECT().Put(
+		blobUploader.EXPECT().UploadBlob(
 			ctx,
 			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "460270223db29e8867bad29c658c1395", 69),
 			gomock.Any(),
 		).
-			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
-				m, err := b.ToProto(&remoteexecution.Directory{}, 10000)
+			DoAndReturn(func(ctx context.Context, digest digest.Digest, b cas.Blob) error {
+				bytes, err := b.ToByteSlice()
+				require.NoError(t, err)
+				m := testutil.MustUnmarshal(t, bytes, &remoteexecution.Directory{})
 				require.NoError(t, err)
 				testutil.RequireEqualProto(t, directory1Directory, m)
 				return nil
@@ -678,7 +688,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 			oh.UploadOutputs(
 				ctx,
 				root,
-				contentAddressableStorage,
+				blobUploader,
 				digestFunction,
 				writableFileUploadDelay,
 				&actionResult,
