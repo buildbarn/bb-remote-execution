@@ -125,7 +125,9 @@ func NewPlainCommandCreator(sysProcAttr *syscall.SysProcAttr) CommandCreator {
 }
 
 // NewLocalRunner returns a Runner capable of running commands on the
-// local system directly.
+// local system directly. On Windows, commands are placed in a
+// non-breakaway job object, and any surviving descendants are terminated
+// and waited for when the root process exits.
 func NewLocalRunner(buildDirectory filesystem.Directory, buildDirectoryPath *path.Builder, commandCreator CommandCreator, setTmpdirEnvironmentVariable bool) runner.RunnerServer {
 	return &localRunner{
 		buildDirectory:               buildDirectory,
@@ -185,10 +187,17 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 
 	// Start the subprocess. We can already close the output files
 	// while the process is running.
+	commandProcess, err := prepareCommandForStart(cmd)
+	if err != nil {
+		stdout.Close()
+		stderr.Close()
+		return nil, util.StatusWrap(err, "Failed to prepare process")
+	}
 	err = cmd.Start()
 	stdout.Close()
 	stderr.Close()
 	if err != nil {
+		commandProcess.Close()
 		code := codes.Internal
 		for _, invalidArgumentErr := range invalidArgumentErrs {
 			if errors.Is(err, invalidArgumentErr) {
@@ -198,12 +207,23 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 		}
 		return nil, util.StatusWrapWithCode(err, code, "Failed to start process")
 	}
+	if err := commandProcess.AfterStart(cmd); err != nil {
+		return nil, util.StatusWrap(err, "Failed to finish process startup")
+	}
 
 	// Wait for execution to complete. Permit non-zero exit codes.
-	if err := cmd.Wait(); err != nil {
-		if _, ok := err.(*exec.ExitError); !ok {
-			return nil, err
+	waitErr := cmd.Wait()
+	afterWaitErr := commandProcess.AfterWait(cmd)
+	if waitErr != nil {
+		if afterWaitErr != nil {
+			return nil, afterWaitErr
 		}
+		if _, ok := waitErr.(*exec.ExitError); !ok {
+			return nil, waitErr
+		}
+	}
+	if afterWaitErr != nil {
+		return nil, afterWaitErr
 	}
 
 	// Attach rusage information to the response.
