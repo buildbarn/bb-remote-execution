@@ -7,12 +7,10 @@ import (
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/blobstore"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/proto/iscc"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/stretchr/testify/require"
-
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -23,13 +21,13 @@ import (
 func TestBlobAccessMutableProtoStore(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	blobAccess := mock.NewMockBlobAccess(ctrl)
-	store := blobstore.NewBlobAccessMutableProtoStore[iscc.PreviousExecutionStats](blobAccess, 10000)
+	blobAccess := mock.NewMockBlobAccess[*iscc.PreviousExecutionStats](ctrl)
+	store := blobstore.NewBlobAccessMutableProtoStore[iscc.PreviousExecutionStats](blobAccess)
 
 	t.Run("InitialStorageGetFailure", func(t *testing.T) {
 		// Errors should be propagated from the backend.
 		blobAccess.EXPECT().Get(gomock.Any(), digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "a8ade48a0fb410f9c315723ef0aca3e3", 123)).
-			Return(buffer.NewBufferFromError(status.Error(codes.Internal, "Storage failure")))
+			Return(nil, status.Error(codes.Internal, "Storage failure"))
 
 		_, err := store.Get(ctx, digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "a8ade48a0fb410f9c315723ef0aca3e3", 123))
 		testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to read mutable Protobuf message with digest \"3-a8ade48a0fb410f9c315723ef0aca3e3-123-hello\": Storage failure"), err)
@@ -39,7 +37,7 @@ func TestBlobAccessMutableProtoStore(t *testing.T) {
 		// Reading a number of nonexistent messages should
 		// succeed and not trigger any writes against storage.
 		blobAccess.EXPECT().Get(gomock.Any(), digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "a8ade48a0fb410f9c315723ef0aca3e3", 123)).
-			Return(buffer.NewBufferFromError(status.Error(codes.NotFound, "Blob does not exist")))
+			Return(nil, status.Error(codes.NotFound, "Blob does not exist"))
 
 		handle1, err := store.Get(ctx, digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "a8ade48a0fb410f9c315723ef0aca3e3", 123))
 		require.NoError(t, err)
@@ -47,7 +45,7 @@ func TestBlobAccessMutableProtoStore(t *testing.T) {
 		handle1.Release(false)
 
 		blobAccess.EXPECT().Get(gomock.Any(), digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "ad328f7d3be9f12b93ce14e8937a083e", 456)).
-			Return(buffer.NewBufferFromError(status.Error(codes.NotFound, "Blob does not exist")))
+			Return(nil, status.Error(codes.NotFound, "Blob does not exist"))
 
 		handle2, err := store.Get(ctx, digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "ad328f7d3be9f12b93ce14e8937a083e", 456))
 		require.NoError(t, err)
@@ -55,7 +53,7 @@ func TestBlobAccessMutableProtoStore(t *testing.T) {
 		handle2.Release(false)
 
 		blobAccess.EXPECT().Get(gomock.Any(), digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "4c754f07001495a591b25e486d45b347", 789)).
-			Return(buffer.NewBufferFromError(status.Error(codes.NotFound, "Blob does not exist")))
+			Return(nil, status.Error(codes.NotFound, "Blob does not exist"))
 
 		handle3, err := store.Get(ctx, digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "4c754f07001495a591b25e486d45b347", 789))
 		require.NoError(t, err)
@@ -67,10 +65,10 @@ func TestBlobAccessMutableProtoStore(t *testing.T) {
 		// Create a handle that is backed by an existing stats
 		// message stored in the Initial Size Class Cache.
 		blobAccess.EXPECT().Get(gomock.Any(), digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "6467817c5aab2f887b2d88679cc2fd76", 123)).
-			Return(buffer.NewProtoBufferFromProto(&iscc.PreviousExecutionStats{
+			Return(&iscc.PreviousExecutionStats{
 				SizeClasses:     map[uint32]*iscc.PerSizeClassStats{},
 				LastSeenFailure: &timestamppb.Timestamp{Seconds: 1620818827},
-			}, buffer.UserProvided))
+			}, nil)
 
 		handle1, err := store.Get(ctx, digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "6467817c5aab2f887b2d88679cc2fd76", 123))
 		require.NoError(t, err)
@@ -83,7 +81,7 @@ func TestBlobAccessMutableProtoStore(t *testing.T) {
 		// create other handles without causing the first handle
 		// to be flushed.
 		blobAccess.EXPECT().Get(gomock.Any(), digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "57f48d9268744c949c1103bf0e665e28", 456)).
-			Return(buffer.NewBufferFromError(status.Error(codes.NotFound, "Blob does not exist")))
+			Return(nil, status.Error(codes.NotFound, "Blob does not exist"))
 
 		handle2, err := store.Get(ctx, digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "57f48d9268744c949c1103bf0e665e28", 456))
 		require.NoError(t, err)
@@ -114,12 +112,11 @@ func TestBlobAccessMutableProtoStore(t *testing.T) {
 		// reading the new handle, meaning the write is
 		// interrupted.
 		blobAccess.EXPECT().Get(gomock.Any(), digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "ee2d29afd9b3e8715e68a709c15a6784", 789)).
-			Return(buffer.NewBufferFromError(status.Error(codes.Internal, "Storage failure")))
+			Return(nil, status.Error(codes.Internal, "Storage failure"))
 		blobAccess.EXPECT().Put(gomock.Any(), digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "6467817c5aab2f887b2d88679cc2fd76", 123), gomock.Any()).
-			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
+			DoAndReturn(func(ctx context.Context, digest digest.Digest, m *iscc.PreviousExecutionStats) error {
 				<-ctx.Done()
 				require.Equal(t, context.Canceled, ctx.Err())
-				b.Discard()
 				return status.Error(codes.Canceled, "Request canceled")
 			})
 
@@ -128,14 +125,13 @@ func TestBlobAccessMutableProtoStore(t *testing.T) {
 
 		// Let's try this again. Except that now the write fails.
 		blobAccess.EXPECT().Get(gomock.Any(), digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "e1e6496be3124289bfb7374bbab057bf", 234)).
-			DoAndReturn(func(ctx context.Context, digest digest.Digest) buffer.Buffer {
+			DoAndReturn(func(ctx context.Context, digest digest.Digest) (*iscc.PreviousExecutionStats, error) {
 				<-ctx.Done()
 				require.Equal(t, context.Canceled, ctx.Err())
-				return buffer.NewBufferFromError(status.Error(codes.Canceled, "Request canceled"))
+				return nil, status.Error(codes.Canceled, "Request canceled")
 			})
 		blobAccess.EXPECT().Put(gomock.Any(), digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "6467817c5aab2f887b2d88679cc2fd76", 123), gomock.Any()).
-			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
-				b.Discard()
+			DoAndReturn(func(ctx context.Context, digest digest.Digest, m *iscc.PreviousExecutionStats) error {
 				return status.Error(codes.Internal, "Storage failure")
 			})
 
@@ -144,11 +140,9 @@ func TestBlobAccessMutableProtoStore(t *testing.T) {
 
 		// Now we let both the read and write succeed.
 		blobAccess.EXPECT().Get(gomock.Any(), digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "e1e6496be3124289bfb7374bbab057bf", 345)).
-			Return(buffer.NewBufferFromError(status.Error(codes.NotFound, "Blob does not exist")))
+			Return(nil, status.Error(codes.NotFound, "Blob does not exist"))
 		blobAccess.EXPECT().Put(gomock.Any(), digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "6467817c5aab2f887b2d88679cc2fd76", 123), gomock.Any()).
-			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
-				m, err := b.ToProto(&iscc.PreviousExecutionStats{}, 10000)
-				require.NoError(t, err)
+			DoAndReturn(func(ctx context.Context, digest digest.Digest, m *iscc.PreviousExecutionStats) error {
 				testutil.RequireEqualProto(t, &iscc.PreviousExecutionStats{
 					SizeClasses:     map[uint32]*iscc.PerSizeClassStats{},
 					LastSeenFailure: &timestamppb.Timestamp{Seconds: 1620819007},
@@ -165,7 +159,7 @@ func TestBlobAccessMutableProtoStore(t *testing.T) {
 		// attempts to access the store should no longer try to
 		// write the released handle.
 		blobAccess.EXPECT().Get(gomock.Any(), digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "b3edf9adbbd9cbfc2673c84cd03e5598", 567)).
-			Return(buffer.NewBufferFromError(status.Error(codes.NotFound, "Blob does not exist")))
+			Return(nil, status.Error(codes.NotFound, "Blob does not exist"))
 
 		handle5, err := store.Get(ctx, digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "b3edf9adbbd9cbfc2673c84cd03e5598", 567))
 		require.NoError(t, err)
