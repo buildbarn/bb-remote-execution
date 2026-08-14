@@ -13,7 +13,6 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/bazeloutputservice"
 	bazeloutputservicerev2 "github.com/buildbarn/bb-remote-execution/pkg/proto/bazeloutputservice/rev2"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/outputpathpersistency"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
@@ -482,13 +481,13 @@ func TestPoolBackedFileAllocatorUploadFile(t *testing.T) {
 
 	t.Run("DigestComputationIOFailure", func(t *testing.T) {
 		underlyingFile.EXPECT().ReadAt(gomock.Any(), int64(0)).Return(0, syscall.EIO)
-		contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+		blobUploader := mock.NewMockBlobUploader(ctrl)
 
 		p := virtual.ApplyUploadFile{
-			Context:                   ctx,
-			ContentAddressableStorage: contentAddressableStorage,
-			DigestFunction:            digestFunction,
-			WritableFileUploadDelay:   writableFileUploadDelay,
+			Context:                 ctx,
+			BlobUploader:            blobUploader,
+			DigestFunction:          digestFunction,
+			WritableFileUploadDelay: writableFileUploadDelay,
 		}
 		require.True(t, f.VirtualApply(&p))
 		testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to compute file digest: input/output error"), p.Err)
@@ -499,18 +498,18 @@ func TestPoolBackedFileAllocatorUploadFile(t *testing.T) {
 			copy(p, "Hello")
 			return 5, io.EOF
 		})
-		contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-		contentAddressableStorage.EXPECT().Put(ctx, fileDigest, gomock.Any()).
-			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
-				b.Discard()
-				return status.Error(codes.Internal, "Server on fire")
+		blobUploader := mock.NewMockBlobUploader(ctrl)
+		blobUploader.EXPECT().UploadBlob(ctx, digestFunction, gomock.Any()).
+			DoAndReturn(func(ctx context.Context, digestFunction digest.Function, b filesystem.FileReader) (digest.Digest, error) {
+				b.Close()
+				return digest.BadDigest, status.Error(codes.Internal, "Server on fire")
 			})
 
 		p := virtual.ApplyUploadFile{
-			Context:                   ctx,
-			ContentAddressableStorage: contentAddressableStorage,
-			DigestFunction:            digestFunction,
-			WritableFileUploadDelay:   writableFileUploadDelay,
+			Context:                 ctx,
+			BlobUploader:            blobUploader,
+			DigestFunction:          digestFunction,
+			WritableFileUploadDelay: writableFileUploadDelay,
 		}
 		require.True(t, f.VirtualApply(&p))
 		testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to upload file: Server on fire"), p.Err)
@@ -521,9 +520,9 @@ func TestPoolBackedFileAllocatorUploadFile(t *testing.T) {
 			copy(p, "Hello")
 			return 5, io.EOF
 		})
-		contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-		contentAddressableStorage.EXPECT().Put(ctx, fileDigest, gomock.Any()).
-			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
+		blobUploader := mock.NewMockBlobUploader(ctrl)
+		blobUploader.EXPECT().UploadBlob(ctx, digestFunction, gomock.Any()).
+			DoAndReturn(func(ctx context.Context, digestFunction digest.Function, blob filesystem.FileReader) (digest.Digest, error) {
 				// As long as we haven't completely read
 				// the file, any operation that modifies
 				// the file's contents should block.
@@ -584,9 +583,10 @@ func TestPoolBackedFileAllocatorUploadFile(t *testing.T) {
 				underlyingFile.EXPECT().WriteAt([]byte("Foo"), int64(120)).Return(3, nil)
 
 				// Complete reading the file.
-				data, err := b.ToByteSlice(10)
-				require.NoError(t, err)
+				data := make([]byte, 5)
+				blob.ReadAt(data, 0)
 				require.Equal(t, []byte("Hello"), data)
+				require.NoError(t, blob.Close())
 
 				// All mutable operations should now be
 				// able to complete.
@@ -594,14 +594,14 @@ func TestPoolBackedFileAllocatorUploadFile(t *testing.T) {
 				<-a2
 				<-a3
 				<-a4
-				return nil
+				return fileDigest, nil
 			})
 
 		p := virtual.ApplyUploadFile{
-			Context:                   ctx,
-			ContentAddressableStorage: contentAddressableStorage,
-			DigestFunction:            digestFunction,
-			WritableFileUploadDelay:   writableFileUploadDelay,
+			Context:                 ctx,
+			BlobUploader:            blobUploader,
+			DigestFunction:          digestFunction,
+			WritableFileUploadDelay: writableFileUploadDelay,
 		}
 		require.True(t, f.VirtualApply(&p))
 		require.NoError(t, p.Err)
@@ -613,16 +613,16 @@ func TestPoolBackedFileAllocatorUploadFile(t *testing.T) {
 	f.Unlink()
 
 	t.Run("Stale", func(t *testing.T) {
-		contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+		blobUploader := mock.NewMockBlobUploader(ctrl)
 
 		// Uploading a file that has already been released
 		// should fail. It should not cause accidental access to
 		// the closed file handle.
 		p := virtual.ApplyUploadFile{
-			Context:                   ctx,
-			ContentAddressableStorage: contentAddressableStorage,
-			DigestFunction:            digestFunction,
-			WritableFileUploadDelay:   writableFileUploadDelay,
+			Context:                 ctx,
+			BlobUploader:            blobUploader,
+			DigestFunction:          digestFunction,
+			WritableFileUploadDelay: writableFileUploadDelay,
 		}
 		require.True(t, f.VirtualApply(&p))
 		testutil.RequireEqualStatus(t, status.Error(codes.NotFound, "File was unlinked before uploading could start"), p.Err)

@@ -9,11 +9,11 @@ import (
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
+	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/require"
 
 	"google.golang.org/grpc/codes"
@@ -169,7 +169,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	root := mock.NewMockUploadableDirectory(ctrl)
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	blobUploader := mock.NewMockBlobUploader(ctrl)
 	digestFunction := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "8b1a9953c4611296a827abf8c47804d7", 5).GetDigestFunction()
 	writableFileUploadDelay := make(chan struct{})
 
@@ -186,7 +186,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 			oh.UploadOutputs(
 				ctx,
 				root,
-				contentAddressableStorage,
+				blobUploader,
 				digestFunction,
 				writableFileUploadDelay,
 				&actionResult,
@@ -253,15 +253,15 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 			Return(digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "af37d08ae228a87dc6b265fd1019c97d", 7), nil)
 		directoryDirectory.EXPECT().Readlink(path.MustNewComponent("symlink")).Return(path.UNIXFormat.NewParser("symlink-target"), nil)
 		directoryDirectory.EXPECT().Close()
-		contentAddressableStorage.EXPECT().Put(
+		directoryDirectoryDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "55aed4acf40a28132fb2d2de2b5962f0", 184)
+		digestFunction := directoryDirectoryDigest.GetDigestFunction()
+		blobUploader.EXPECT().UploadBlob(
 			ctx,
-			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "55aed4acf40a28132fb2d2de2b5962f0", 184),
+			digestFunction,
 			gomock.Any(),
 		).
-			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
-				m, err := b.ToProto(&remoteexecution.Tree{}, 10000)
-				require.NoError(t, err)
-				testutil.RequireEqualProto(t, &remoteexecution.Tree{
+			DoAndReturn(func(ctx context.Context, digestFunction digest.Function, b filesystem.FileReader) (digest.Digest, error) {
+				testutil.FileReaderIsProto(t, b, &remoteexecution.Tree{
 					Root: &remoteexecution.Directory{
 						Files: []*remoteexecution.FileNode{
 							{
@@ -299,8 +299,9 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 					Children: []*remoteexecution.Directory{
 						{},
 					},
-				}, m)
-				return nil
+				}, &remoteexecution.Tree{})
+				b.Close()
+				return directoryDirectoryDigest, nil
 			})
 
 		// Uploading of /foo/path-directory.
@@ -308,18 +309,18 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		foo.EXPECT().EnterUploadableDirectory(path.MustNewComponent("path-directory")).Return(pathDirectory, nil)
 		pathDirectory.EXPECT().ReadDir().Return(nil, nil)
 		pathDirectory.EXPECT().Close()
-		contentAddressableStorage.EXPECT().Put(
+		pathDirectoryDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "9dd94c5a4b02914af42e8e6372e0b709", 2)
+		blobUploader.EXPECT().UploadBlob(
 			ctx,
-			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "9dd94c5a4b02914af42e8e6372e0b709", 2),
+			digestFunction,
 			gomock.Any(),
 		).
-			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
-				m, err := b.ToProto(&remoteexecution.Tree{}, 10000)
-				require.NoError(t, err)
-				testutil.RequireEqualProto(t, &remoteexecution.Tree{
+			DoAndReturn(func(ctx context.Context, digestFunction digest.Function, b filesystem.FileReader) (digest.Digest, error) {
+				testutil.FileReaderIsProto(t, b, &remoteexecution.Tree{
 					Root: &remoteexecution.Directory{},
-				}, m)
-				return nil
+				}, &remoteexecution.Tree{})
+				b.Close()
+				return pathDirectoryDigest, nil
 			})
 
 		foo.EXPECT().Close()
@@ -360,7 +361,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 			oh.UploadOutputs(
 				ctx,
 				root,
-				contentAddressableStorage,
+				blobUploader,
 				digestFunction,
 				writableFileUploadDelay,
 				&actionResult,
@@ -497,18 +498,17 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 		// It is permitted to add the root directory as an
 		// output path.
 		root.EXPECT().ReadDir().Return(nil, nil)
-		contentAddressableStorage.EXPECT().Put(
+		rootDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "9dd94c5a4b02914af42e8e6372e0b709", 2)
+		blobUploader.EXPECT().UploadBlob(
 			ctx,
-			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "9dd94c5a4b02914af42e8e6372e0b709", 2),
+			digestFunction,
 			gomock.Any(),
 		).
-			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
-				m, err := b.ToProto(&remoteexecution.Tree{}, 10000)
-				require.NoError(t, err)
-				testutil.RequireEqualProto(t, &remoteexecution.Tree{
+			DoAndReturn(func(ctx context.Context, digestFunction digest.Function, b filesystem.FileReader) (digest.Digest, error) {
+				testutil.FileReaderIsProto(t, b, &remoteexecution.Tree{
 					Root: &remoteexecution.Directory{},
-				}, m)
-				return nil
+				}, &remoteexecution.Tree{})
+				return rootDigest, nil
 			})
 
 		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
@@ -522,7 +522,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 			oh.UploadOutputs(
 				ctx,
 				root,
-				contentAddressableStorage,
+				blobUploader,
 				digestFunction,
 				writableFileUploadDelay,
 				&actionResult,
@@ -560,7 +560,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 			oh.UploadOutputs(
 				ctx,
 				root,
-				contentAddressableStorage,
+				blobUploader,
 				digestFunction,
 				writableFileUploadDelay,
 				&actionResult,
@@ -628,43 +628,55 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 			}},
 		}
 
-		contentAddressableStorage.EXPECT().Put(
+		blobUploader.EXPECT().UploadBlob(
 			ctx,
-			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "aa5a55cc8d4d32abd00adf5dd1ed93b5", 193),
+			digestFunction,
 			gomock.Any(),
-		).
-			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
-				m, err := b.ToProto(&remoteexecution.Tree{}, 10000)
-				require.NoError(t, err)
-				testutil.RequireEqualProto(t, &remoteexecution.Tree{
-					Root: rootDirectory,
-					Children: []*remoteexecution.Directory{
-						directory1Directory,
-					},
-				}, m)
-				return nil
-			})
-		contentAddressableStorage.EXPECT().Put(
-			ctx,
-			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "f782fc2043b00886534aee47de8c522a", 120),
-			gomock.Any(),
-		).
-			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
-				m, err := b.ToProto(&remoteexecution.Directory{}, 10000)
-				require.NoError(t, err)
-				testutil.RequireEqualProto(t, rootDirectory, m)
-				return nil
-			})
-		contentAddressableStorage.EXPECT().Put(
-			ctx,
-			digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "460270223db29e8867bad29c658c1395", 69),
-			gomock.Any(),
-		).
-			DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
-				m, err := b.ToProto(&remoteexecution.Directory{}, 10000)
-				require.NoError(t, err)
-				testutil.RequireEqualProto(t, directory1Directory, m)
-				return nil
+		).Times(3).
+			DoAndReturn(func(ctx context.Context, digestFunc digest.Function, b filesystem.FileReader) (digest.Digest, error) {
+				// Because map iteration order is non deterministic and
+				// the function signature does not discriminate which
+				// blob we are looking at we have to read the data to
+				// figure it out.
+				length, _ := b.Len()
+				data := make([]byte, length)
+				if length > 0 {
+					b.ReadAt(data, 0)
+				}
+				b.Close()
+
+				// Compute the actual digest
+				digestGenerator := digestFunc.NewGenerator(length)
+				digestGenerator.Write(data)
+				computedDigest := digestGenerator.Sum()
+
+				// Discriminate and assert based on the computed hash
+				switch hash := computedDigest.GetHashString(); hash {
+				case "aa5a55cc8d4d32abd00adf5dd1ed93b5":
+					m := &remoteexecution.Tree{}
+					err := proto.Unmarshal(data, m)
+					require.NoError(t, err)
+					testutil.RequireEqualProto(t, &remoteexecution.Tree{
+						Root: rootDirectory,
+						Children: []*remoteexecution.Directory{
+							directory1Directory,
+						},
+					}, m)
+				case "f782fc2043b00886534aee47de8c522a":
+					m := &remoteexecution.Directory{}
+					err := proto.Unmarshal(data, m)
+					require.NoError(t, err)
+					testutil.RequireEqualProto(t, rootDirectory, m)
+				case "460270223db29e8867bad29c658c1395":
+					m := &remoteexecution.Directory{}
+					err := proto.Unmarshal(data, m)
+					require.NoError(t, err)
+					testutil.RequireEqualProto(t, directory1Directory, m)
+				default:
+					t.Fatalf("Unexpected blob uploaded with hash: %s", hash)
+				}
+
+				return computedDigest, nil
 			})
 
 		oh, err := builder.NewOutputHierarchy(&remoteexecution.Command{
@@ -678,7 +690,7 @@ func TestOutputHierarchyUploadOutputs(t *testing.T) {
 			oh.UploadOutputs(
 				ctx,
 				root,
-				contentAddressableStorage,
+				blobUploader,
 				digestFunction,
 				writableFileUploadDelay,
 				&actionResult,

@@ -27,16 +27,16 @@ const (
 )
 
 type ApplicationConfiguration struct {
-	state                     protoimpl.MessageState             `protogen:"open.v1"`
-	Global                    *global.Configuration              `protobuf:"bytes,1,opt,name=global,proto3" json:"global,omitempty"`
-	BrowserUrl                string                             `protobuf:"bytes,2,opt,name=browser_url,json=browserUrl,proto3" json:"browser_url,omitempty"`
-	Scheduler                 *grpc.ClientConfiguration          `protobuf:"bytes,3,opt,name=scheduler,proto3" json:"scheduler,omitempty"`
-	InstanceNamePrefix        string                             `protobuf:"bytes,4,opt,name=instance_name_prefix,json=instanceNamePrefix,proto3" json:"instance_name_prefix,omitempty"`
-	Platform                  *v2.Platform                       `protobuf:"bytes,5,opt,name=platform,proto3" json:"platform,omitempty"`
-	WorkerId                  map[string]string                  `protobuf:"bytes,6,rep,name=worker_id,json=workerId,proto3" json:"worker_id,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	ContentAddressableStorage *blobstore.BlobAccessConfiguration `protobuf:"bytes,7,opt,name=content_addressable_storage,json=contentAddressableStorage,proto3" json:"content_addressable_storage,omitempty"`
-	MaximumMessageSizeBytes   int64                              `protobuf:"varint,8,opt,name=maximum_message_size_bytes,json=maximumMessageSizeBytes,proto3" json:"maximum_message_size_bytes,omitempty"`
-	ZstdPool                  *zstd.PoolConfiguration            `protobuf:"bytes,9,opt,name=zstd_pool,json=zstdPool,proto3" json:"zstd_pool,omitempty"`
+	state                     protoimpl.MessageState                            `protogen:"open.v1"`
+	Global                    *global.Configuration                             `protobuf:"bytes,1,opt,name=global,proto3" json:"global,omitempty"`
+	BrowserUrl                string                                            `protobuf:"bytes,2,opt,name=browser_url,json=browserUrl,proto3" json:"browser_url,omitempty"`
+	Scheduler                 *grpc.ClientConfiguration                         `protobuf:"bytes,3,opt,name=scheduler,proto3" json:"scheduler,omitempty"`
+	InstanceNamePrefix        string                                            `protobuf:"bytes,4,opt,name=instance_name_prefix,json=instanceNamePrefix,proto3" json:"instance_name_prefix,omitempty"`
+	Platform                  *v2.Platform                                      `protobuf:"bytes,5,opt,name=platform,proto3" json:"platform,omitempty"`
+	WorkerId                  map[string]string                                 `protobuf:"bytes,6,rep,name=worker_id,json=workerId,proto3" json:"worker_id,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	ContentAddressableStorage *blobstore.ContentAddressableStorageConfiguration `protobuf:"bytes,7,opt,name=content_addressable_storage,json=contentAddressableStorage,proto3" json:"content_addressable_storage,omitempty"`
+	MaximumMessageSizeBytes   int64                                             `protobuf:"varint,8,opt,name=maximum_message_size_bytes,json=maximumMessageSizeBytes,proto3" json:"maximum_message_size_bytes,omitempty"`
+	ZstdPool                  *zstd.PoolConfiguration                           `protobuf:"bytes,9,opt,name=zstd_pool,json=zstdPool,proto3" json:"zstd_pool,omitempty"`
 	unknownFields             protoimpl.UnknownFields
 	sizeCache                 protoimpl.SizeCache
 }
@@ -113,7 +113,7 @@ func (x *ApplicationConfiguration) GetWorkerId() map[string]string {
 	return nil
 }
 
-func (x *ApplicationConfiguration) GetContentAddressableStorage() *blobstore.BlobAccessConfiguration {
+func (x *ApplicationConfiguration) GetContentAddressableStorage() *blobstore.ContentAddressableStorageConfiguration {
 	if x != nil {
 		return x.ContentAddressableStorage
 	}
@@ -138,7 +138,7 @@ var File_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_noo
 
 const file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_noop_worker_bb_noop_worker_proto_rawDesc = "" +
 	"\n" +
-	"dgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_noop_worker/bb_noop_worker.proto\x12&buildbarn.configuration.bb_noop_worker\x1a6build/bazel/remote/execution/v2/remote_execution.proto\x1aQgithub.com/buildbarn/bb-storage/pkg/proto/configuration/blobstore/blobstore.proto\x1aKgithub.com/buildbarn/bb-storage/pkg/proto/configuration/global/global.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/grpc/grpc.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/zstd/zstd.proto\"\xfd\x05\n" +
+	"dgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_noop_worker/bb_noop_worker.proto\x12&buildbarn.configuration.bb_noop_worker\x1a6build/bazel/remote/execution/v2/remote_execution.proto\x1aQgithub.com/buildbarn/bb-storage/pkg/proto/configuration/blobstore/blobstore.proto\x1aKgithub.com/buildbarn/bb-storage/pkg/proto/configuration/global/global.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/grpc/grpc.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/zstd/zstd.proto\"\x8d\x06\n" +
 	"\x18ApplicationConfiguration\x12E\n" +
 	"\x06global\x18\x01 \x01(\v2-.buildbarn.configuration.global.ConfigurationR\x06global\x12\x1f\n" +
 	"\vbrowser_url\x18\x02 \x01(\tR\n" +
@@ -146,8 +146,8 @@ const file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_n
 	"\tscheduler\x18\x03 \x01(\v21.buildbarn.configuration.grpc.ClientConfigurationR\tscheduler\x120\n" +
 	"\x14instance_name_prefix\x18\x04 \x01(\tR\x12instanceNamePrefix\x12E\n" +
 	"\bplatform\x18\x05 \x01(\v2).build.bazel.remote.execution.v2.PlatformR\bplatform\x12k\n" +
-	"\tworker_id\x18\x06 \x03(\v2N.buildbarn.configuration.bb_noop_worker.ApplicationConfiguration.WorkerIdEntryR\bworkerId\x12z\n" +
-	"\x1bcontent_addressable_storage\x18\a \x01(\v2:.buildbarn.configuration.blobstore.BlobAccessConfigurationR\x19contentAddressableStorage\x12;\n" +
+	"\tworker_id\x18\x06 \x03(\v2N.buildbarn.configuration.bb_noop_worker.ApplicationConfiguration.WorkerIdEntryR\bworkerId\x12\x89\x01\n" +
+	"\x1bcontent_addressable_storage\x18\a \x01(\v2I.buildbarn.configuration.blobstore.ContentAddressableStorageConfigurationR\x19contentAddressableStorage\x12;\n" +
 	"\x1amaximum_message_size_bytes\x18\b \x01(\x03R\x17maximumMessageSizeBytes\x12L\n" +
 	"\tzstd_pool\x18\t \x01(\v2/.buildbarn.configuration.zstd.PoolConfigurationR\bzstdPool\x1a;\n" +
 	"\rWorkerIdEntry\x12\x10\n" +
@@ -168,20 +168,20 @@ func file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_no
 
 var file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_noop_worker_bb_noop_worker_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_noop_worker_bb_noop_worker_proto_goTypes = []any{
-	(*ApplicationConfiguration)(nil),          // 0: buildbarn.configuration.bb_noop_worker.ApplicationConfiguration
-	nil,                                       // 1: buildbarn.configuration.bb_noop_worker.ApplicationConfiguration.WorkerIdEntry
-	(*global.Configuration)(nil),              // 2: buildbarn.configuration.global.Configuration
-	(*grpc.ClientConfiguration)(nil),          // 3: buildbarn.configuration.grpc.ClientConfiguration
-	(*v2.Platform)(nil),                       // 4: build.bazel.remote.execution.v2.Platform
-	(*blobstore.BlobAccessConfiguration)(nil), // 5: buildbarn.configuration.blobstore.BlobAccessConfiguration
-	(*zstd.PoolConfiguration)(nil),            // 6: buildbarn.configuration.zstd.PoolConfiguration
+	(*ApplicationConfiguration)(nil), // 0: buildbarn.configuration.bb_noop_worker.ApplicationConfiguration
+	nil,                              // 1: buildbarn.configuration.bb_noop_worker.ApplicationConfiguration.WorkerIdEntry
+	(*global.Configuration)(nil),     // 2: buildbarn.configuration.global.Configuration
+	(*grpc.ClientConfiguration)(nil), // 3: buildbarn.configuration.grpc.ClientConfiguration
+	(*v2.Platform)(nil),              // 4: build.bazel.remote.execution.v2.Platform
+	(*blobstore.ContentAddressableStorageConfiguration)(nil), // 5: buildbarn.configuration.blobstore.ContentAddressableStorageConfiguration
+	(*zstd.PoolConfiguration)(nil),                           // 6: buildbarn.configuration.zstd.PoolConfiguration
 }
 var file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_noop_worker_bb_noop_worker_proto_depIdxs = []int32{
 	2, // 0: buildbarn.configuration.bb_noop_worker.ApplicationConfiguration.global:type_name -> buildbarn.configuration.global.Configuration
 	3, // 1: buildbarn.configuration.bb_noop_worker.ApplicationConfiguration.scheduler:type_name -> buildbarn.configuration.grpc.ClientConfiguration
 	4, // 2: buildbarn.configuration.bb_noop_worker.ApplicationConfiguration.platform:type_name -> build.bazel.remote.execution.v2.Platform
 	1, // 3: buildbarn.configuration.bb_noop_worker.ApplicationConfiguration.worker_id:type_name -> buildbarn.configuration.bb_noop_worker.ApplicationConfiguration.WorkerIdEntry
-	5, // 4: buildbarn.configuration.bb_noop_worker.ApplicationConfiguration.content_addressable_storage:type_name -> buildbarn.configuration.blobstore.BlobAccessConfiguration
+	5, // 4: buildbarn.configuration.bb_noop_worker.ApplicationConfiguration.content_addressable_storage:type_name -> buildbarn.configuration.blobstore.ContentAddressableStorageConfiguration
 	6, // 5: buildbarn.configuration.bb_noop_worker.ApplicationConfiguration.zstd_pool:type_name -> buildbarn.configuration.zstd.PoolConfiguration
 	6, // [6:6] is the sub-list for method output_type
 	6, // [6:6] is the sub-list for method input_type

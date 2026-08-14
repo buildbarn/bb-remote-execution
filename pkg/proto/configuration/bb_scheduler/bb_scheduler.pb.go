@@ -31,25 +31,25 @@ const (
 )
 
 type ApplicationConfiguration struct {
-	state                             protoimpl.MessageState                   `protogen:"open.v1"`
-	ClientGrpcServers                 []*grpc.ServerConfiguration              `protobuf:"bytes,3,rep,name=client_grpc_servers,json=clientGrpcServers,proto3" json:"client_grpc_servers,omitempty"`
-	WorkerGrpcServers                 []*grpc.ServerConfiguration              `protobuf:"bytes,4,rep,name=worker_grpc_servers,json=workerGrpcServers,proto3" json:"worker_grpc_servers,omitempty"`
-	BrowserUrl                        string                                   `protobuf:"bytes,5,opt,name=browser_url,json=browserUrl,proto3" json:"browser_url,omitempty"`
-	ContentAddressableStorage         *blobstore.BlobAccessConfiguration       `protobuf:"bytes,6,opt,name=content_addressable_storage,json=contentAddressableStorage,proto3" json:"content_addressable_storage,omitempty"`
-	MaximumMessageSizeBytes           int64                                    `protobuf:"varint,7,opt,name=maximum_message_size_bytes,json=maximumMessageSizeBytes,proto3" json:"maximum_message_size_bytes,omitempty"`
-	Global                            *global.Configuration                    `protobuf:"bytes,8,opt,name=global,proto3" json:"global,omitempty"`
-	BuildQueueStateGrpcServers        []*grpc.ServerConfiguration              `protobuf:"bytes,11,rep,name=build_queue_state_grpc_servers,json=buildQueueStateGrpcServers,proto3" json:"build_queue_state_grpc_servers,omitempty"`
-	PredeclaredPlatformQueues         []*PredeclaredPlatformQueueConfiguration `protobuf:"bytes,12,rep,name=predeclared_platform_queues,json=predeclaredPlatformQueues,proto3" json:"predeclared_platform_queues,omitempty"`
-	ExecuteAuthorizer                 *auth.AuthorizerConfiguration            `protobuf:"bytes,15,opt,name=execute_authorizer,json=executeAuthorizer,proto3" json:"execute_authorizer,omitempty"`
-	ActionRouter                      *scheduler.ActionRouterConfiguration     `protobuf:"bytes,16,opt,name=action_router,json=actionRouter,proto3" json:"action_router,omitempty"`
-	InitialSizeClassCache             *blobstore.BlobAccessConfiguration       `protobuf:"bytes,17,opt,name=initial_size_class_cache,json=initialSizeClassCache,proto3" json:"initial_size_class_cache,omitempty"`
-	PlatformQueueWithNoWorkersTimeout *durationpb.Duration                     `protobuf:"bytes,18,opt,name=platform_queue_with_no_workers_timeout,json=platformQueueWithNoWorkersTimeout,proto3" json:"platform_queue_with_no_workers_timeout,omitempty"`
-	AdminHttpServers                  []*server.Configuration                  `protobuf:"bytes,19,rep,name=admin_http_servers,json=adminHttpServers,proto3" json:"admin_http_servers,omitempty"`
-	ModifyDrainsAuthorizer            *auth.AuthorizerConfiguration            `protobuf:"bytes,20,opt,name=modify_drains_authorizer,json=modifyDrainsAuthorizer,proto3" json:"modify_drains_authorizer,omitempty"`
-	KillOperationsAuthorizer          *auth.AuthorizerConfiguration            `protobuf:"bytes,21,opt,name=kill_operations_authorizer,json=killOperationsAuthorizer,proto3" json:"kill_operations_authorizer,omitempty"`
-	AdminRoutePrefix                  string                                   `protobuf:"bytes,22,opt,name=admin_route_prefix,json=adminRoutePrefix,proto3" json:"admin_route_prefix,omitempty"`
-	SynchronizeAuthorizer             *auth.AuthorizerConfiguration            `protobuf:"bytes,23,opt,name=synchronize_authorizer,json=synchronizeAuthorizer,proto3" json:"synchronize_authorizer,omitempty"`
-	ZstdPool                          *zstd.PoolConfiguration                  `protobuf:"bytes,24,opt,name=zstd_pool,json=zstdPool,proto3" json:"zstd_pool,omitempty"`
+	state                             protoimpl.MessageState                            `protogen:"open.v1"`
+	ClientGrpcServers                 []*grpc.ServerConfiguration                       `protobuf:"bytes,3,rep,name=client_grpc_servers,json=clientGrpcServers,proto3" json:"client_grpc_servers,omitempty"`
+	WorkerGrpcServers                 []*grpc.ServerConfiguration                       `protobuf:"bytes,4,rep,name=worker_grpc_servers,json=workerGrpcServers,proto3" json:"worker_grpc_servers,omitempty"`
+	BrowserUrl                        string                                            `protobuf:"bytes,5,opt,name=browser_url,json=browserUrl,proto3" json:"browser_url,omitempty"`
+	ContentAddressableStorage         *blobstore.ContentAddressableStorageConfiguration `protobuf:"bytes,6,opt,name=content_addressable_storage,json=contentAddressableStorage,proto3" json:"content_addressable_storage,omitempty"`
+	MaximumMessageSizeBytes           int64                                             `protobuf:"varint,7,opt,name=maximum_message_size_bytes,json=maximumMessageSizeBytes,proto3" json:"maximum_message_size_bytes,omitempty"`
+	Global                            *global.Configuration                             `protobuf:"bytes,8,opt,name=global,proto3" json:"global,omitempty"`
+	BuildQueueStateGrpcServers        []*grpc.ServerConfiguration                       `protobuf:"bytes,11,rep,name=build_queue_state_grpc_servers,json=buildQueueStateGrpcServers,proto3" json:"build_queue_state_grpc_servers,omitempty"`
+	PredeclaredPlatformQueues         []*PredeclaredPlatformQueueConfiguration          `protobuf:"bytes,12,rep,name=predeclared_platform_queues,json=predeclaredPlatformQueues,proto3" json:"predeclared_platform_queues,omitempty"`
+	ExecuteAuthorizer                 *auth.AuthorizerConfiguration                     `protobuf:"bytes,15,opt,name=execute_authorizer,json=executeAuthorizer,proto3" json:"execute_authorizer,omitempty"`
+	ActionRouter                      *scheduler.ActionRouterConfiguration              `protobuf:"bytes,16,opt,name=action_router,json=actionRouter,proto3" json:"action_router,omitempty"`
+	InitialSizeClassCache             *blobstore.BlobAccessConfiguration                `protobuf:"bytes,17,opt,name=initial_size_class_cache,json=initialSizeClassCache,proto3" json:"initial_size_class_cache,omitempty"`
+	PlatformQueueWithNoWorkersTimeout *durationpb.Duration                              `protobuf:"bytes,18,opt,name=platform_queue_with_no_workers_timeout,json=platformQueueWithNoWorkersTimeout,proto3" json:"platform_queue_with_no_workers_timeout,omitempty"`
+	AdminHttpServers                  []*server.Configuration                           `protobuf:"bytes,19,rep,name=admin_http_servers,json=adminHttpServers,proto3" json:"admin_http_servers,omitempty"`
+	ModifyDrainsAuthorizer            *auth.AuthorizerConfiguration                     `protobuf:"bytes,20,opt,name=modify_drains_authorizer,json=modifyDrainsAuthorizer,proto3" json:"modify_drains_authorizer,omitempty"`
+	KillOperationsAuthorizer          *auth.AuthorizerConfiguration                     `protobuf:"bytes,21,opt,name=kill_operations_authorizer,json=killOperationsAuthorizer,proto3" json:"kill_operations_authorizer,omitempty"`
+	AdminRoutePrefix                  string                                            `protobuf:"bytes,22,opt,name=admin_route_prefix,json=adminRoutePrefix,proto3" json:"admin_route_prefix,omitempty"`
+	SynchronizeAuthorizer             *auth.AuthorizerConfiguration                     `protobuf:"bytes,23,opt,name=synchronize_authorizer,json=synchronizeAuthorizer,proto3" json:"synchronize_authorizer,omitempty"`
+	ZstdPool                          *zstd.PoolConfiguration                           `protobuf:"bytes,24,opt,name=zstd_pool,json=zstdPool,proto3" json:"zstd_pool,omitempty"`
 	unknownFields                     protoimpl.UnknownFields
 	sizeCache                         protoimpl.SizeCache
 }
@@ -105,7 +105,7 @@ func (x *ApplicationConfiguration) GetBrowserUrl() string {
 	return ""
 }
 
-func (x *ApplicationConfiguration) GetContentAddressableStorage() *blobstore.BlobAccessConfiguration {
+func (x *ApplicationConfiguration) GetContentAddressableStorage() *blobstore.ContentAddressableStorageConfiguration {
 	if x != nil {
 		return x.ContentAddressableStorage
 	}
@@ -298,13 +298,13 @@ var File_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_sch
 
 const file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_scheduler_bb_scheduler_proto_rawDesc = "" +
 	"\n" +
-	"`github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_scheduler/bb_scheduler.proto\x12$buildbarn.configuration.bb_scheduler\x1a6build/bazel/remote/execution/v2/remote_execution.proto\x1aZgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/scheduler/scheduler.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/auth/auth.proto\x1aQgithub.com/buildbarn/bb-storage/pkg/proto/configuration/blobstore/blobstore.proto\x1aKgithub.com/buildbarn/bb-storage/pkg/proto/configuration/global/global.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/grpc/grpc.proto\x1aPgithub.com/buildbarn/bb-storage/pkg/proto/configuration/http/server/server.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/zstd/zstd.proto\x1a\x1egoogle/protobuf/duration.proto\"\x82\x0e\n" +
+	"`github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_scheduler/bb_scheduler.proto\x12$buildbarn.configuration.bb_scheduler\x1a6build/bazel/remote/execution/v2/remote_execution.proto\x1aZgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/scheduler/scheduler.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/auth/auth.proto\x1aQgithub.com/buildbarn/bb-storage/pkg/proto/configuration/blobstore/blobstore.proto\x1aKgithub.com/buildbarn/bb-storage/pkg/proto/configuration/global/global.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/grpc/grpc.proto\x1aPgithub.com/buildbarn/bb-storage/pkg/proto/configuration/http/server/server.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/zstd/zstd.proto\x1a\x1egoogle/protobuf/duration.proto\"\x92\x0e\n" +
 	"\x18ApplicationConfiguration\x12a\n" +
 	"\x13client_grpc_servers\x18\x03 \x03(\v21.buildbarn.configuration.grpc.ServerConfigurationR\x11clientGrpcServers\x12a\n" +
 	"\x13worker_grpc_servers\x18\x04 \x03(\v21.buildbarn.configuration.grpc.ServerConfigurationR\x11workerGrpcServers\x12\x1f\n" +
 	"\vbrowser_url\x18\x05 \x01(\tR\n" +
-	"browserUrl\x12z\n" +
-	"\x1bcontent_addressable_storage\x18\x06 \x01(\v2:.buildbarn.configuration.blobstore.BlobAccessConfigurationR\x19contentAddressableStorage\x12;\n" +
+	"browserUrl\x12\x89\x01\n" +
+	"\x1bcontent_addressable_storage\x18\x06 \x01(\v2I.buildbarn.configuration.blobstore.ContentAddressableStorageConfigurationR\x19contentAddressableStorage\x12;\n" +
 	"\x1amaximum_message_size_bytes\x18\a \x01(\x03R\x17maximumMessageSizeBytes\x12E\n" +
 	"\x06global\x18\b \x01(\v2-.buildbarn.configuration.global.ConfigurationR\x06global\x12u\n" +
 	"\x1ebuild_queue_state_grpc_servers\x18\v \x03(\v21.buildbarn.configuration.grpc.ServerConfigurationR\x1abuildQueueStateGrpcServers\x12\x8b\x01\n" +
@@ -343,36 +343,37 @@ func file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_sc
 
 var file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_scheduler_bb_scheduler_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_scheduler_bb_scheduler_proto_goTypes = []any{
-	(*ApplicationConfiguration)(nil),              // 0: buildbarn.configuration.bb_scheduler.ApplicationConfiguration
-	(*PredeclaredPlatformQueueConfiguration)(nil), // 1: buildbarn.configuration.bb_scheduler.PredeclaredPlatformQueueConfiguration
-	(*grpc.ServerConfiguration)(nil),              // 2: buildbarn.configuration.grpc.ServerConfiguration
-	(*blobstore.BlobAccessConfiguration)(nil),     // 3: buildbarn.configuration.blobstore.BlobAccessConfiguration
-	(*global.Configuration)(nil),                  // 4: buildbarn.configuration.global.Configuration
-	(*auth.AuthorizerConfiguration)(nil),          // 5: buildbarn.configuration.auth.AuthorizerConfiguration
-	(*scheduler.ActionRouterConfiguration)(nil),   // 6: buildbarn.configuration.scheduler.ActionRouterConfiguration
-	(*durationpb.Duration)(nil),                   // 7: google.protobuf.Duration
-	(*server.Configuration)(nil),                  // 8: buildbarn.configuration.http.server.Configuration
-	(*zstd.PoolConfiguration)(nil),                // 9: buildbarn.configuration.zstd.PoolConfiguration
-	(*v2.Platform)(nil),                           // 10: build.bazel.remote.execution.v2.Platform
+	(*ApplicationConfiguration)(nil),                         // 0: buildbarn.configuration.bb_scheduler.ApplicationConfiguration
+	(*PredeclaredPlatformQueueConfiguration)(nil),            // 1: buildbarn.configuration.bb_scheduler.PredeclaredPlatformQueueConfiguration
+	(*grpc.ServerConfiguration)(nil),                         // 2: buildbarn.configuration.grpc.ServerConfiguration
+	(*blobstore.ContentAddressableStorageConfiguration)(nil), // 3: buildbarn.configuration.blobstore.ContentAddressableStorageConfiguration
+	(*global.Configuration)(nil),                             // 4: buildbarn.configuration.global.Configuration
+	(*auth.AuthorizerConfiguration)(nil),                     // 5: buildbarn.configuration.auth.AuthorizerConfiguration
+	(*scheduler.ActionRouterConfiguration)(nil),              // 6: buildbarn.configuration.scheduler.ActionRouterConfiguration
+	(*blobstore.BlobAccessConfiguration)(nil),                // 7: buildbarn.configuration.blobstore.BlobAccessConfiguration
+	(*durationpb.Duration)(nil),                              // 8: google.protobuf.Duration
+	(*server.Configuration)(nil),                             // 9: buildbarn.configuration.http.server.Configuration
+	(*zstd.PoolConfiguration)(nil),                           // 10: buildbarn.configuration.zstd.PoolConfiguration
+	(*v2.Platform)(nil),                                      // 11: build.bazel.remote.execution.v2.Platform
 }
 var file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_scheduler_bb_scheduler_proto_depIdxs = []int32{
 	2,  // 0: buildbarn.configuration.bb_scheduler.ApplicationConfiguration.client_grpc_servers:type_name -> buildbarn.configuration.grpc.ServerConfiguration
 	2,  // 1: buildbarn.configuration.bb_scheduler.ApplicationConfiguration.worker_grpc_servers:type_name -> buildbarn.configuration.grpc.ServerConfiguration
-	3,  // 2: buildbarn.configuration.bb_scheduler.ApplicationConfiguration.content_addressable_storage:type_name -> buildbarn.configuration.blobstore.BlobAccessConfiguration
+	3,  // 2: buildbarn.configuration.bb_scheduler.ApplicationConfiguration.content_addressable_storage:type_name -> buildbarn.configuration.blobstore.ContentAddressableStorageConfiguration
 	4,  // 3: buildbarn.configuration.bb_scheduler.ApplicationConfiguration.global:type_name -> buildbarn.configuration.global.Configuration
 	2,  // 4: buildbarn.configuration.bb_scheduler.ApplicationConfiguration.build_queue_state_grpc_servers:type_name -> buildbarn.configuration.grpc.ServerConfiguration
 	1,  // 5: buildbarn.configuration.bb_scheduler.ApplicationConfiguration.predeclared_platform_queues:type_name -> buildbarn.configuration.bb_scheduler.PredeclaredPlatformQueueConfiguration
 	5,  // 6: buildbarn.configuration.bb_scheduler.ApplicationConfiguration.execute_authorizer:type_name -> buildbarn.configuration.auth.AuthorizerConfiguration
 	6,  // 7: buildbarn.configuration.bb_scheduler.ApplicationConfiguration.action_router:type_name -> buildbarn.configuration.scheduler.ActionRouterConfiguration
-	3,  // 8: buildbarn.configuration.bb_scheduler.ApplicationConfiguration.initial_size_class_cache:type_name -> buildbarn.configuration.blobstore.BlobAccessConfiguration
-	7,  // 9: buildbarn.configuration.bb_scheduler.ApplicationConfiguration.platform_queue_with_no_workers_timeout:type_name -> google.protobuf.Duration
-	8,  // 10: buildbarn.configuration.bb_scheduler.ApplicationConfiguration.admin_http_servers:type_name -> buildbarn.configuration.http.server.Configuration
+	7,  // 8: buildbarn.configuration.bb_scheduler.ApplicationConfiguration.initial_size_class_cache:type_name -> buildbarn.configuration.blobstore.BlobAccessConfiguration
+	8,  // 9: buildbarn.configuration.bb_scheduler.ApplicationConfiguration.platform_queue_with_no_workers_timeout:type_name -> google.protobuf.Duration
+	9,  // 10: buildbarn.configuration.bb_scheduler.ApplicationConfiguration.admin_http_servers:type_name -> buildbarn.configuration.http.server.Configuration
 	5,  // 11: buildbarn.configuration.bb_scheduler.ApplicationConfiguration.modify_drains_authorizer:type_name -> buildbarn.configuration.auth.AuthorizerConfiguration
 	5,  // 12: buildbarn.configuration.bb_scheduler.ApplicationConfiguration.kill_operations_authorizer:type_name -> buildbarn.configuration.auth.AuthorizerConfiguration
 	5,  // 13: buildbarn.configuration.bb_scheduler.ApplicationConfiguration.synchronize_authorizer:type_name -> buildbarn.configuration.auth.AuthorizerConfiguration
-	9,  // 14: buildbarn.configuration.bb_scheduler.ApplicationConfiguration.zstd_pool:type_name -> buildbarn.configuration.zstd.PoolConfiguration
-	10, // 15: buildbarn.configuration.bb_scheduler.PredeclaredPlatformQueueConfiguration.platform:type_name -> build.bazel.remote.execution.v2.Platform
-	7,  // 16: buildbarn.configuration.bb_scheduler.PredeclaredPlatformQueueConfiguration.worker_invocation_stickiness_limits:type_name -> google.protobuf.Duration
+	10, // 14: buildbarn.configuration.bb_scheduler.ApplicationConfiguration.zstd_pool:type_name -> buildbarn.configuration.zstd.PoolConfiguration
+	11, // 15: buildbarn.configuration.bb_scheduler.PredeclaredPlatformQueueConfiguration.platform:type_name -> build.bazel.remote.execution.v2.Platform
+	8,  // 16: buildbarn.configuration.bb_scheduler.PredeclaredPlatformQueueConfiguration.worker_invocation_stickiness_limits:type_name -> google.protobuf.Duration
 	17, // [17:17] is the sub-list for method output_type
 	17, // [17:17] is the sub-list for method input_type
 	17, // [17:17] is the sub-list for extension type_name

@@ -2,13 +2,10 @@ package builder
 
 import (
 	"context"
-	"io"
 
 	"github.com/buildbarn/bb-remote-execution/pkg/cas"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
-	"github.com/buildbarn/bb-storage/pkg/blobstore"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
@@ -21,10 +18,11 @@ import (
 )
 
 type naiveBuildDirectoryOptions struct {
-	directoryFetcher          cas.DirectoryFetcher
-	fileFetcher               cas.FileFetcher
-	fileFetcherSemaphore      *semaphore.Weighted
-	contentAddressableStorage blobstore.BlobAccess
+	directoryFetcher     cas.DirectoryFetcher
+	fileFetcher          cas.FileFetcher
+	fileFetcherSemaphore *semaphore.Weighted
+	// contentAddressableStorage cas.ContentAddressableStorage
+	blobUploader cas.BlobUploader
 }
 
 type naiveBuildDirectory struct {
@@ -42,14 +40,14 @@ type naiveBuildDirectory struct {
 // regular local file systems. The downside of such file systems is that
 // we cannot populate them on demand. All of the input files must be
 // present before invoking the build action.
-func NewNaiveBuildDirectory(directory filesystem.DirectoryCloser, directoryFetcher cas.DirectoryFetcher, fileFetcher cas.FileFetcher, fileFetcherSemaphore *semaphore.Weighted, contentAddressableStorage blobstore.BlobAccess) BuildDirectory {
+func NewNaiveBuildDirectory(directory filesystem.DirectoryCloser, directoryFetcher cas.DirectoryFetcher, fileFetcher cas.FileFetcher, fileFetcherSemaphore *semaphore.Weighted, blobUploader cas.BlobUploader) BuildDirectory {
 	return &naiveBuildDirectory{
 		DirectoryCloser: directory,
 		options: &naiveBuildDirectoryOptions{
-			directoryFetcher:          directoryFetcher,
-			fileFetcher:               fileFetcher,
-			fileFetcherSemaphore:      fileFetcherSemaphore,
-			contentAddressableStorage: contentAddressableStorage,
+			directoryFetcher:     directoryFetcher,
+			fileFetcher:          fileFetcher,
+			fileFetcherSemaphore: fileFetcherSemaphore,
+			blobUploader:         blobUploader,
 		},
 	}
 }
@@ -171,47 +169,5 @@ func (d *naiveBuildDirectory) UploadFile(ctx context.Context, name path.Componen
 	if err != nil {
 		return digest.BadDigest, err
 	}
-	sizeBytes, err := file.Len()
-	if err != nil {
-		return digest.BadDigest, err
-	}
-
-	// Walk through the file to compute the digest.
-	digestGenerator := digestFunction.NewGenerator(sizeBytes)
-	if _, err := io.Copy(digestGenerator, io.NewSectionReader(file, 0, sizeBytes)); err != nil {
-		file.Close()
-		return digest.BadDigest, util.StatusWrap(err, "Failed to compute file digest")
-	}
-	blobDigest := digestGenerator.Sum()
-
-	// Rewind and store it. Limit uploading to the size that was
-	// used to compute the digest. This ensures uploads succeed,
-	// even if more data gets appended in the meantime. This is not
-	// uncommon, especially for stdout and stderr logs.
-	if err := d.options.contentAddressableStorage.Put(
-		ctx,
-		blobDigest,
-		buffer.NewCASBufferFromReader(
-			blobDigest,
-			newSectionReadCloser(file, 0, sizeBytes),
-			buffer.UserProvided,
-		),
-	); err != nil {
-		return digest.BadDigest, util.StatusWrap(err, "Failed to upload file")
-	}
-	return blobDigest, nil
-}
-
-// newSectionReadCloser returns an io.ReadCloser that reads from r at a
-// given offset, but stops with EOF after n bytes. This function is
-// identical to io.NewSectionReader(), except that it provides an
-// io.ReadCloser instead of an io.Reader.
-func newSectionReadCloser(r filesystem.FileReader, off, n int64) io.ReadCloser {
-	return &struct {
-		io.SectionReader
-		io.Closer
-	}{
-		SectionReader: *io.NewSectionReader(r, off, n),
-		Closer:        r,
-	}
+	return d.options.blobUploader.UploadBlob(ctx, digestFunction, file)
 }

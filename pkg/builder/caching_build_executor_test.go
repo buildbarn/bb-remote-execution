@@ -11,8 +11,10 @@ import (
 	cas_proto "github.com/buildbarn/bb-remote-execution/pkg/proto/cas"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
+	"github.com/buildbarn/bb-storage/pkg/blobstore/cdc"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
+	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/require"
 	status_pb "google.golang.org/genproto/googleapis/rpc/status"
 
@@ -45,7 +47,7 @@ func TestCachingBuildExecutorCachedSuccess(t *testing.T) {
 			StdoutRaw: []byte("Hello, world!"),
 		},
 	})
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	actionCache := mock.NewMockBlobAccess(ctrl)
 	actionCache.EXPECT().Put(
 		ctx,
@@ -99,7 +101,7 @@ func TestCachingBuildExecutorCachedSuccessExplicitOK(t *testing.T) {
 		},
 		Status: &status_pb.Status{Message: "This is not an error, because it has code zero"},
 	})
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	actionCache := mock.NewMockBlobAccess(ctrl)
 	actionCache.EXPECT().Put(
 		ctx,
@@ -159,14 +161,19 @@ func TestCachingBuildExecutorCachedSuccessNonZeroExitCode(t *testing.T) {
 			StderrRaw: []byte("Compiler error!"),
 		},
 	})
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	contentAddressableStorage.EXPECT().Put(
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage.EXPECT().
+		FetchCDCParameters(gomock.Any(), gomock.Any()).
+		Return(cdc.Parameters{MinChunkSizeBytes: 256 << 10, HorizonSizeBytes: 8 * 256 << 10}, nil).
+		AnyTimes()
+	contentAddressableStorage.EXPECT().PutChunk(
 		ctx,
 		digest.MustNewDigest("freebsd12", remoteexecution.DigestFunction_SHA256, "bb1107706f3aa379d68aa61062f56d99d24a667ec18d5756fb6df1ba9baa1fdc", 93),
 		gomock.Any(),
 	).
-		DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
-			historicalExecuteResponse, err := b.ToProto(&cas_proto.HistoricalExecuteResponse{}, 10000)
+		DoAndReturn(func(ctx context.Context, digest digest.Digest, b []byte) error {
+			historicalExecuteResponse := &cas_proto.HistoricalExecuteResponse{}
+			err := proto.Unmarshal(b, historicalExecuteResponse)
 			require.NoError(t, err)
 			testutil.RequireEqualProto(t, &cas_proto.HistoricalExecuteResponse{
 				ActionDigest: &remoteexecution.Digest{
@@ -222,7 +229,7 @@ func TestCachingBuildExecutorCachedStorageFailure(t *testing.T) {
 			StdoutRaw: []byte("Hello, world!"),
 		},
 	})
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	actionCache := mock.NewMockBlobAccess(ctrl)
 	actionCache.EXPECT().Put(
 		ctx,
@@ -275,14 +282,20 @@ func TestCachingBuildExecutorUncachedDoNotCache(t *testing.T) {
 			StdoutRaw: []byte("Hello, world!"),
 		},
 	})
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	contentAddressableStorage.EXPECT().Put(
-		ctx,
-		digest.MustNewDigest("freebsd12", remoteexecution.DigestFunction_SHA256, "5ed2d5720b99f5575542bb4f89e84b5e00e34ab652292974fdb814ab7dc3c92e", 89),
-		gomock.Any(),
-	).
-		DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
-			historicalExecuteResponse, err := b.ToProto(&cas_proto.HistoricalExecuteResponse{}, 10000)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage.EXPECT().
+		FetchCDCParameters(gomock.Any(), gomock.Any()).
+		Return(cdc.Parameters{MinChunkSizeBytes: 256 << 10, HorizonSizeBytes: 8 * 256 << 10}, nil).
+		AnyTimes()
+	contentAddressableStorage.EXPECT().
+		PutChunk(
+			ctx,
+			digest.MustNewDigest("freebsd12", remoteexecution.DigestFunction_SHA256, "5ed2d5720b99f5575542bb4f89e84b5e00e34ab652292974fdb814ab7dc3c92e", 89),
+			gomock.Any(),
+		).
+		DoAndReturn(func(ctx context.Context, digest digest.Digest, b []byte) error {
+			historicalExecuteResponse := &cas_proto.HistoricalExecuteResponse{}
+			err := proto.Unmarshal(b, historicalExecuteResponse)
 			require.NoError(t, err)
 			testutil.RequireEqualProto(t, &cas_proto.HistoricalExecuteResponse{
 				ActionDigest: &remoteexecution.Digest{
@@ -337,14 +350,19 @@ func TestCachingBuildExecutorUncachedError(t *testing.T) {
 		},
 		Status: status.New(codes.DeadlineExceeded, "Build took more than ten seconds").Proto(),
 	})
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	contentAddressableStorage.EXPECT().Put(
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage.EXPECT().
+		FetchCDCParameters(gomock.Any(), gomock.Any()).
+		Return(cdc.Parameters{MinChunkSizeBytes: 256 << 10, HorizonSizeBytes: 8 * 256 << 10}, nil).
+		AnyTimes()
+	contentAddressableStorage.EXPECT().PutChunk(
 		ctx,
 		digest.MustNewDigest("freebsd12", remoteexecution.DigestFunction_SHA256, "a6e4f00dd21540b0b653dcd195b3d54ea4c0b3ca679cf6a69eb7b0dbd378c2cc", 126),
 		gomock.Any(),
 	).
-		DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
-			historicalExecuteResponse, err := b.ToProto(&cas_proto.HistoricalExecuteResponse{}, 10000)
+		DoAndReturn(func(ctx context.Context, digest digest.Digest, b []byte) error {
+			historicalExecuteResponse := &cas_proto.HistoricalExecuteResponse{}
+			err := proto.Unmarshal(b, historicalExecuteResponse)
 			require.NoError(t, err)
 			testutil.RequireEqualProto(t, &cas_proto.HistoricalExecuteResponse{
 				ActionDigest: &remoteexecution.Digest{
@@ -401,14 +419,19 @@ func TestCachingBuildExecutorUncachedStorageFailure(t *testing.T) {
 		},
 		Status: status.New(codes.DeadlineExceeded, "Build took more than ten seconds").Proto(),
 	})
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	contentAddressableStorage.EXPECT().Put(
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage.EXPECT().
+		FetchCDCParameters(gomock.Any(), gomock.Any()).
+		Return(cdc.Parameters{MinChunkSizeBytes: 256 << 10, HorizonSizeBytes: 8 * 256 << 10}, nil).
+		AnyTimes()
+	contentAddressableStorage.EXPECT().PutChunk(
 		ctx,
 		digest.MustNewDigest("freebsd12", remoteexecution.DigestFunction_SHA256, "a6e4f00dd21540b0b653dcd195b3d54ea4c0b3ca679cf6a69eb7b0dbd378c2cc", 126),
 		gomock.Any(),
 	).
-		DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
-			historicalExecuteResponse, err := b.ToProto(&cas_proto.HistoricalExecuteResponse{}, 10000)
+		DoAndReturn(func(ctx context.Context, digest digest.Digest, b []byte) error {
+			historicalExecuteResponse := &cas_proto.HistoricalExecuteResponse{}
+			err := proto.Unmarshal(b, historicalExecuteResponse)
 			require.NoError(t, err)
 			testutil.RequireEqualProto(t, &cas_proto.HistoricalExecuteResponse{
 				ActionDigest: &remoteexecution.Digest{
