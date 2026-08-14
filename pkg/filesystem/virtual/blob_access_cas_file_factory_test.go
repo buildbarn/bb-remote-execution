@@ -10,12 +10,16 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/bazeloutputservice"
 	bazeloutputservicerev2 "github.com/buildbarn/bb-remote-execution/pkg/proto/bazeloutputservice/rev2"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/outputpathpersistency"
+	"github.com/buildbarn/bb-storage/pkg/blobstore/chunk"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/stretchr/testify/require"
 
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/anypb"
 
 	"go.uber.org/mock/gomock"
@@ -28,14 +32,136 @@ const blobAccessCASFileFactoryAttributesMask = virtual.AttributesMaskChangeID |
 	virtual.AttributesMaskPermissions |
 	virtual.AttributesMaskSizeBytes
 
-func TestBlobAccessCASFileFactoryVirtualSeek(t *testing.T) {
+func TestBlobAccessCASFileFactoryVirtualRead(t *testing.T) {
+	// CAS-backed files report storage read failures by logging the
+	// error and returning EIO. If the failure is due to the blob being
+	// missing from storage, the logged error is converted to
+	// FAILED_PRECONDITION, so that the client can be told to re-upload
+	// the blob.
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	chunkBytesReader := mock.NewMockReader[[]byte](ctrl)
+	chunkMappingFetcher := mock.NewMockMappingFetcher(ctrl)
+	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	casFileFactory := virtual.NewBlobAccessCASFileFactory(
 		ctx,
-		contentAddressableStorage,
+		chunkBytesReader,
+		chunkMappingFetcher,
+		cdcParametersFetcher,
+		errorLogger,
+	)
+
+	helloWorldDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "5eb63bbbe01eeed093cb22bb8f5acdc3", 11)
+	chunkDigestHello := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "5d41402abc4b2a76b9719d911017c592", 5)
+	chunkDigestWorld := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "b7913aa15c43be7d534b4eec6e99e8a0", 6)
+	mapping, err := chunk.NewMappingFromDigests([]digest.Digest{chunkDigestHello, chunkDigestWorld}, 11, true)
+	require.NoError(t, err)
+	params := &remoteexecution.RepMaxCdcParams{MinChunkSizeBytes: 1, HorizonSizeBytes: 2}
+	f := casFileFactory.LookupFile(helloWorldDigest, false, nil)
+
+	t.Run("Success", func(t *testing.T) {
+		cdcParametersFetcher.EXPECT().FetchCDCParameters(gomock.Any(), helloWorldDigest.GetInstanceName()).Return(params, nil)
+		chunkMappingFetcher.EXPECT().FetchChunkMapping(gomock.Any(), helloWorldDigest).Return(mapping, nil)
+		gomock.InOrder(
+			chunkBytesReader.EXPECT().Read(gomock.Any(), chunkDigestHello).Return([]byte("hello"), nil),
+			chunkBytesReader.EXPECT().Read(gomock.Any(), chunkDigestWorld).Return([]byte(" world"), nil),
+		)
+
+		buf := make([]byte, 11)
+		n, eof, s := f.VirtualRead(ctx, buf, 0)
+		require.Equal(t, virtual.StatusOK, s)
+		require.Equal(t, 11, n)
+		require.True(t, eof)
+		require.Equal(t, "hello world", string(buf))
+	})
+
+	t.Run("PartialReadFailure", func(t *testing.T) {
+		cdcParametersFetcher.EXPECT().FetchCDCParameters(gomock.Any(), helloWorldDigest.GetInstanceName()).Return(params, nil)
+		chunkMappingFetcher.EXPECT().FetchChunkMapping(gomock.Any(), helloWorldDigest).Return(mapping, nil)
+		chunkBytesReader.EXPECT().Read(gomock.Any(), chunkDigestHello).Return([]byte("hello"), nil)
+		chunkBytesReader.EXPECT().Read(gomock.Any(), chunkDigestWorld).Return(nil, status.Error(codes.Unavailable, "Storage backends offline"))
+		errorLogger.EXPECT().Log(testutil.EqStatus(t, status.Error(
+			codes.Unavailable,
+			"Failed to read from 3-5eb63bbbe01eeed093cb22bb8f5acdc3-11-example at offset 0: Read 5 bytes instead of 11 from 3-5eb63bbbe01eeed093cb22bb8f5acdc3-11-example at offset 0: Could not fetch chunk: Storage backends offline",
+		)))
+
+		buf := make([]byte, 64)
+		n, eof, s := f.VirtualRead(ctx, buf, 0)
+		require.Equal(t, virtual.StatusErrIO, s)
+		require.Equal(t, 0, n)
+		require.False(t, eof)
+	})
+
+	t.Run("PartialReadWithoutError", func(t *testing.T) {
+		cdcParametersFetcher.EXPECT().FetchCDCParameters(gomock.Any(), helloWorldDigest.GetInstanceName()).Return(params, nil)
+		chunkMappingFetcher.EXPECT().FetchChunkMapping(gomock.Any(), helloWorldDigest).Return(mapping, nil)
+		chunkBytesReader.EXPECT().Read(gomock.Any(), chunkDigestHello).Return([]byte("hello"), nil)
+		chunkBytesReader.EXPECT().Read(gomock.Any(), chunkDigestWorld).Return(nil, nil)
+		errorLogger.EXPECT().Log(testutil.EqStatus(t, status.Error(
+			codes.Unknown,
+			"Failed to read from 3-5eb63bbbe01eeed093cb22bb8f5acdc3-11-example at offset 0: Read 5 bytes instead of 11 from 3-5eb63bbbe01eeed093cb22bb8f5acdc3-11-example at offset 0: EOF",
+		)))
+
+		buf := make([]byte, 64)
+		n, eof, s := f.VirtualRead(ctx, buf, 0)
+		require.Equal(t, virtual.StatusErrIO, s)
+		require.Equal(t, 0, n)
+		require.False(t, eof)
+	})
+
+	t.Run("MissingBlob", func(t *testing.T) {
+		cdcParametersFetcher.EXPECT().FetchCDCParameters(gomock.Any(), helloWorldDigest.GetInstanceName()).Return(params, nil)
+		chunkMappingFetcher.EXPECT().FetchChunkMapping(gomock.Any(), helloWorldDigest).DoAndReturn(
+			func(ctx context.Context, d digest.Digest) (chunk.Mapping, error) {
+				return chunk.Mapping{}, status.Error(codes.NotFound, "Blob not found")
+			},
+		)
+		errorLogger.EXPECT().Log(gomock.Any()).DoAndReturn(func(err error) {
+			// NotFound errors are converted to FAILED_PRECONDITION,
+			// with a PreconditionFailure that names the missing
+			// blob, so that the client knows to re-upload it.
+			s := status.Convert(err)
+			require.Equal(t, codes.FailedPrecondition, s.Code())
+			require.Equal(
+				t,
+				"Failed to read from 3-5eb63bbbe01eeed093cb22bb8f5acdc3-11-example at offset 0: Read 0 bytes instead of 11 from 3-5eb63bbbe01eeed093cb22bb8f5acdc3-11-example at offset 0: Could not fetch chunk mapping: Blob not found",
+				s.Message(),
+			)
+			require.Len(t, s.Details(), 1)
+			preconditionFailure, ok := s.Details()[0].(*errdetails.PreconditionFailure)
+			require.True(t, ok)
+			require.Len(t, preconditionFailure.Violations, 1)
+			require.Equal(t, "MISSING", preconditionFailure.Violations[0].Type)
+			require.Equal(
+				t,
+				digest.NewInstanceNamePatcher(helloWorldDigest.GetInstanceName(), digest.EmptyInstanceName).
+					PatchDigest(helloWorldDigest).
+					GetByteStreamReadPath(remoteexecution.Compressor_IDENTITY),
+				preconditionFailure.Violations[0].Subject,
+			)
+		})
+
+		buf := make([]byte, 64)
+		n, eof, s := f.VirtualRead(ctx, buf, 0)
+		require.Equal(t, virtual.StatusErrIO, s)
+		require.Equal(t, 0, n)
+		require.False(t, eof)
+	})
+}
+
+func TestBlobAccessCASFileFactoryVirtualSeek(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+
+	chunkBytesReader := mock.NewMockReader[[]byte](ctrl)
+	chunkMappingFetcher := mock.NewMockMappingFetcher(ctrl)
+	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
+	errorLogger := mock.NewMockErrorLogger(ctrl)
+	casFileFactory := virtual.NewBlobAccessCASFileFactory(
+		ctx,
+		chunkBytesReader,
+		chunkMappingFetcher,
+		cdcParametersFetcher,
 		errorLogger,
 	)
 
@@ -85,11 +211,15 @@ func TestBlobAccessCASFileFactoryVirtualSeek(t *testing.T) {
 func TestBlobAccessCASFileFactoryGetContainingDigests(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	chunkBytesReader := mock.NewMockReader[[]byte](ctrl)
+	chunkMappingFetcher := mock.NewMockMappingFetcher(ctrl)
+	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	casFileFactory := virtual.NewBlobAccessCASFileFactory(
 		ctx,
-		contentAddressableStorage,
+		chunkBytesReader,
+		chunkMappingFetcher,
+		cdcParametersFetcher,
 		errorLogger,
 	)
 
@@ -117,11 +247,15 @@ func TestBlobAccessCASFileFactoryGetContainingDigests(t *testing.T) {
 func TestBlobAccessCASFileFactoryGetBazelOutputServiceStat(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	chunkBytesReader := mock.NewMockReader[[]byte](ctrl)
+	chunkMappingFetcher := mock.NewMockMappingFetcher(ctrl)
+	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	casFileFactory := virtual.NewBlobAccessCASFileFactory(
 		ctx,
-		contentAddressableStorage,
+		chunkBytesReader,
+		chunkMappingFetcher,
+		cdcParametersFetcher,
 		errorLogger,
 	)
 
@@ -169,11 +303,15 @@ func TestBlobAccessCASFileFactoryGetBazelOutputServiceStat(t *testing.T) {
 func TestBlobAccessCASFileFactoryAppendOutputPathPersistencyDirectoryNode(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	chunkBytesReader := mock.NewMockReader[[]byte](ctrl)
+	chunkMappingFetcher := mock.NewMockMappingFetcher(ctrl)
+	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	casFileFactory := virtual.NewBlobAccessCASFileFactory(
 		ctx,
-		contentAddressableStorage,
+		chunkBytesReader,
+		chunkMappingFetcher,
+		cdcParametersFetcher,
 		errorLogger,
 	)
 

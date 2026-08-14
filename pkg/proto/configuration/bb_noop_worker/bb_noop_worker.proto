@@ -31,8 +31,8 @@ message ApplicationConfiguration {
   // as announced to the scheduler.
   map<string, string> worker_id = 6;
 
-  // Configuration for blob storage.
-  buildbarn.configuration.blobstore.BlobAccessConfiguration
+  // Configuration for Content Addressable Storage
+  buildbarn.configuration.blobstore.ContentAddressableStorageConfiguration
       content_addressable_storage = 7;
 
   // Maximum Protobuf message size to unmarshal.

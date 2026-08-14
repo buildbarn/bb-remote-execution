@@ -87,7 +87,7 @@ func getExecutionClient(t *testing.T, buildQueue builder.BuildQueue) remoteexecu
 func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	actionReader := mock.NewMockMessageReader[*remoteexecution.Action](ctrl)
+	actionReader := mock.NewMockReader[*remoteexecution.Action](ctrl)
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -110,7 +110,7 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 
 	// Action cannot be found in the Content Addressable Storage (CAS).
 	t.Run("MissingAction", func(t *testing.T) {
-		actionReader.EXPECT().ReadMessage(
+		actionReader.EXPECT().Read(
 			gomock.Any(),
 			digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
 		).Return(nil, status.Error(codes.FailedPrecondition, "Blob not found"))
@@ -138,7 +138,7 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 				SizeBytes: 456,
 			},
 		}
-		actionReader.EXPECT().ReadMessage(
+		actionReader.EXPECT().Read(
 			gomock.Any(),
 			digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
 		).Return(action, nil)
@@ -169,7 +169,7 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 				SizeBytes: 456,
 			},
 		}
-		actionReader.EXPECT().ReadMessage(
+		actionReader.EXPECT().Read(
 			gomock.Any(),
 			digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
 		).Return(action, nil)
@@ -194,10 +194,10 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	actionReader := mock.NewMockMessageReader[*remoteexecution.Action](ctrl)
+	actionReader := mock.NewMockReader[*remoteexecution.Action](ctrl)
 	actionRouter := mock.NewMockActionRouter(ctrl)
 	for i := 0; i < 10; i++ {
-		actionReader.EXPECT().ReadMessage(
+		actionReader.EXPECT().Read(
 			gomock.Any(),
 			digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
 		).Return(&remoteexecution.Action{
@@ -497,9 +497,9 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 			SizeBytes: 456,
 		},
 	}
-	actionReader := mock.NewMockMessageReader[*remoteexecution.Action](ctrl)
+	actionReader := mock.NewMockReader[*remoteexecution.Action](ctrl)
 	for i := 0; i < 2; i++ {
-		actionReader.EXPECT().ReadMessage(
+		actionReader.EXPECT().Read(
 			gomock.Any(),
 			digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
 		).Return(action, nil)
@@ -741,14 +741,14 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	actionReader := mock.NewMockMessageReader[*remoteexecution.Action](ctrl)
+	actionReader := mock.NewMockReader[*remoteexecution.Action](ctrl)
 	action := &remoteexecution.Action{
 		CommandDigest: &remoteexecution.Digest{
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 			SizeBytes: 456,
 		},
 	}
-	actionReader.EXPECT().ReadMessage(
+	actionReader.EXPECT().Read(
 		gomock.Any(),
 		digest.MustNewDigest("main/suffix", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
 	).Return(action, nil)
@@ -967,8 +967,8 @@ func TestInMemoryBuildQueueKillOperationsOperationName(t *testing.T) {
 			SizeBytes: 456,
 		},
 	}
-	actionReader := mock.NewMockMessageReader[*remoteexecution.Action](ctrl)
-	actionReader.EXPECT().ReadMessage(
+	actionReader := mock.NewMockReader[*remoteexecution.Action](ctrl)
+	actionReader.EXPECT().Read(
 		gomock.Any(),
 		digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
 	).Return(action, nil)
@@ -1185,8 +1185,8 @@ func TestInMemoryBuildQueueKillOperationsSizeClassQueueWithoutWorkers(t *testing
 			SizeBytes: 456,
 		},
 	}
-	actionReader := mock.NewMockMessageReader[*remoteexecution.Action](ctrl)
-	actionReader.EXPECT().ReadMessage(
+	actionReader := mock.NewMockReader[*remoteexecution.Action](ctrl)
+	actionReader.EXPECT().Read(
 		gomock.Any(),
 		digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
 	).Return(action, nil)
@@ -1353,7 +1353,7 @@ func TestInMemoryBuildQueueKillOperationsSizeClassQueueWithoutWorkers(t *testing
 func TestInMemoryBuildQueueIdleWorkerSynchronizationTimeout(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	actionReader := mock.NewMockMessageReader[*remoteexecution.Action](ctrl)
+	actionReader := mock.NewMockReader[*remoteexecution.Action](ctrl)
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -1408,8 +1408,8 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 			SizeBytes: 456,
 		},
 	}
-	actionReader := mock.NewMockMessageReader[*remoteexecution.Action](ctrl)
-	actionReader.EXPECT().ReadMessage(
+	actionReader := mock.NewMockReader[*remoteexecution.Action](ctrl)
+	actionReader.EXPECT().Read(
 		gomock.Any(),
 		digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
 	).Return(action, nil)
@@ -1711,7 +1711,7 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	actionReader := mock.NewMockMessageReader[*remoteexecution.Action](ctrl)
+	actionReader := mock.NewMockReader[*remoteexecution.Action](ctrl)
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -1796,7 +1796,7 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 				SizeBytes: 456,
 			},
 		}
-		actionReader.EXPECT().ReadMessage(
+		actionReader.EXPECT().Read(
 			gomock.Any(),
 			digest.MustNewDigest("main", remoteexecution.DigestFunction_MD5, p.actionHash, 123),
 		).Return(action, nil)
@@ -2108,7 +2108,7 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 func TestInMemoryBuildQueueInFlightDeduplicationAbandonQueued(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	actionReader := mock.NewMockMessageReader[*remoteexecution.Action](ctrl)
+	actionReader := mock.NewMockReader[*remoteexecution.Action](ctrl)
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -2177,7 +2177,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonQueued(t *testing.T) {
 				SizeBytes: 456,
 			},
 		}
-		actionReader.EXPECT().ReadMessage(
+		actionReader.EXPECT().Read(
 			gomock.Any(),
 			digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA256, "fc96ea0eee854b45950d3a7448332445730886691b992cb7917da0853664f7c2", 123),
 		).Return(action, nil)
@@ -2304,7 +2304,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonQueued(t *testing.T) {
 func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	actionReader := mock.NewMockMessageReader[*remoteexecution.Action](ctrl)
+	actionReader := mock.NewMockReader[*remoteexecution.Action](ctrl)
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -2374,7 +2374,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 			},
 			Platform: platformForTesting,
 		}
-		actionReader.EXPECT().ReadMessage(
+		actionReader.EXPECT().Read(
 			gomock.Any(),
 			digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA256, "fc96ea0eee854b45950d3a7448332445730886691b992cb7917da0853664f7c2", 123),
 		).Return(action, nil)
@@ -2544,7 +2544,7 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	actionReader := mock.NewMockMessageReader[*remoteexecution.Action](ctrl)
+	actionReader := mock.NewMockReader[*remoteexecution.Action](ctrl)
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -2585,7 +2585,7 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 			SizeBytes: 456,
 		},
 	}
-	actionReader.EXPECT().ReadMessage(
+	actionReader.EXPECT().Read(
 		gomock.Any(),
 		digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
 	).Return(action, nil)
@@ -2766,7 +2766,7 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	actionReader := mock.NewMockMessageReader[*remoteexecution.Action](ctrl)
+	actionReader := mock.NewMockReader[*remoteexecution.Action](ctrl)
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -2849,7 +2849,7 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 			SizeBytes: 456,
 		},
 	}
-	actionReader.EXPECT().ReadMessage(
+	actionReader.EXPECT().Read(
 		gomock.Any(),
 		digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
 	).Return(action, nil)
@@ -3143,7 +3143,7 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	actionReader := mock.NewMockMessageReader[*remoteexecution.Action](ctrl)
+	actionReader := mock.NewMockReader[*remoteexecution.Action](ctrl)
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -3205,7 +3205,7 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 			SizeBytes: 456,
 		},
 	}
-	actionReader.EXPECT().ReadMessage(
+	actionReader.EXPECT().Read(
 		gomock.Any(),
 		digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
 	).Return(action, nil)
@@ -3467,7 +3467,7 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	actionReader := mock.NewMockMessageReader[*remoteexecution.Action](ctrl)
+	actionReader := mock.NewMockReader[*remoteexecution.Action](ctrl)
 	mockClock := mock.NewMockClock(ctrl)
 	mockClock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -3530,7 +3530,7 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	actionReader.EXPECT().ReadMessage(
+	actionReader.EXPECT().Read(
 		gomock.Any(),
 		digest.MustNewDigest("", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
 	).Return(action, nil).AnyTimes()
@@ -3890,7 +3890,7 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 func TestInMemoryBuildQueueWorkerInvocationStickinessLimit(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	actionReader := mock.NewMockMessageReader[*remoteexecution.Action](ctrl)
+	actionReader := mock.NewMockReader[*remoteexecution.Action](ctrl)
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -3942,7 +3942,7 @@ func TestInMemoryBuildQueueWorkerInvocationStickinessLimit(t *testing.T) {
 				SizeBytes: 456,
 			},
 		}
-		actionReader.EXPECT().ReadMessage(
+		actionReader.EXPECT().Read(
 			gomock.Any(),
 			digest.MustNewDigest("", remoteexecution.DigestFunction_SHA1, "0474d2f48968a56da4de20718d8ac23aafd80709", 123),
 		).Return(action, nil)
@@ -4120,7 +4120,7 @@ func TestInMemoryBuildQueueWorkerInvocationStickinessLimit(t *testing.T) {
 func TestInMemoryBuildQueueAuthorization(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	actionReader := mock.NewMockMessageReader[*remoteexecution.Action](ctrl)
+	actionReader := mock.NewMockReader[*remoteexecution.Action](ctrl)
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0)).AnyTimes()
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -4187,7 +4187,7 @@ func TestInMemoryBuildQueueAuthorization(t *testing.T) {
 			Platform: &remoteexecution.Platform{},
 		}
 
-		actionReader.EXPECT().ReadMessage(
+		actionReader.EXPECT().Read(
 			gomock.Any(),
 			digest.MustNewDigest("beepboop", remoteexecution.DigestFunction_SHA1, "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
 		).Return(action, nil)
@@ -4244,7 +4244,7 @@ func TestInMemoryBuildQueueAuthorization(t *testing.T) {
 func TestInMemoryBuildQueueNestedInvocationsSynchronization(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	actionReader := mock.NewMockMessageReader[*remoteexecution.Action](ctrl)
+	actionReader := mock.NewMockReader[*remoteexecution.Action](ctrl)
 	mockClock := mock.NewMockClock(ctrl)
 	mockClock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -4292,7 +4292,7 @@ func TestInMemoryBuildQueueNestedInvocationsSynchronization(t *testing.T) {
 				SizeBytes: 456,
 			},
 		}
-		actionReader.EXPECT().ReadMessage(
+		actionReader.EXPECT().Read(
 			gomock.Any(),
 			digest.MustNewDigest("", remoteexecution.DigestFunction_SHA1, "0474d2f48968a56da4de20718d8ac23aafd80709", 123),
 		).Return(action, nil)

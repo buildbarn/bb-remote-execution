@@ -10,10 +10,8 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
 	cas_proto "github.com/buildbarn/bb-remote-execution/pkg/proto/cas"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
-	"github.com/stretchr/testify/require"
 	status_pb "google.golang.org/genproto/googleapis/rpc/status"
 
 	"google.golang.org/grpc/codes"
@@ -45,22 +43,19 @@ func TestCachingBuildExecutorCachedSuccess(t *testing.T) {
 			StdoutRaw: []byte("Hello, world!"),
 		},
 	})
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	actionCache := mock.NewMockBlobAccess(ctrl)
+	actionCache := mock.NewMockBlobAccess[*remoteexecution.ActionResult](ctrl)
 	actionCache.EXPECT().Put(
 		ctx,
 		digest.MustNewDigest("freebsd12", remoteexecution.DigestFunction_SHA256, "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c", 11),
 		gomock.Any(),
 	).
-		DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
-			actionResult, err := b.ToProto(&remoteexecution.ActionResult{}, 10000)
-			require.NoError(t, err)
+		DoAndReturn(func(ctx context.Context, digest digest.Digest, m *remoteexecution.ActionResult) error {
 			testutil.RequireEqualProto(t, &remoteexecution.ActionResult{
 				StdoutRaw: []byte("Hello, world!"),
-			}, actionResult)
+			}, m)
 			return nil
 		})
-	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, contentAddressableStorage, actionCache, &url.URL{
+	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, mock.NewMockCDCParametersFetcher(ctrl), mock.NewMockProtoPutter(ctrl), actionCache, &url.URL{
 		Scheme: "https",
 		Host:   "example.com",
 		Path:   "/some/sub/directory",
@@ -99,22 +94,19 @@ func TestCachingBuildExecutorCachedSuccessExplicitOK(t *testing.T) {
 		},
 		Status: &status_pb.Status{Message: "This is not an error, because it has code zero"},
 	})
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	actionCache := mock.NewMockBlobAccess(ctrl)
+	actionCache := mock.NewMockBlobAccess[*remoteexecution.ActionResult](ctrl)
 	actionCache.EXPECT().Put(
 		ctx,
 		digest.MustNewDigest("freebsd12", remoteexecution.DigestFunction_SHA256, "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c", 11),
 		gomock.Any(),
 	).
-		DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
-			actionResult, err := b.ToProto(&remoteexecution.ActionResult{}, 10000)
-			require.NoError(t, err)
+		DoAndReturn(func(ctx context.Context, digest digest.Digest, m *remoteexecution.ActionResult) error {
 			testutil.RequireEqualProto(t, &remoteexecution.ActionResult{
 				StdoutRaw: []byte("Hello, world!"),
-			}, actionResult)
+			}, m)
 			return nil
 		})
-	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, contentAddressableStorage, actionCache, &url.URL{
+	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, mock.NewMockCDCParametersFetcher(ctrl), mock.NewMockProtoPutter(ctrl), actionCache, &url.URL{
 		Scheme: "https",
 		Host:   "example.com",
 		Path:   "/some/sub/directory",
@@ -159,31 +151,28 @@ func TestCachingBuildExecutorCachedSuccessNonZeroExitCode(t *testing.T) {
 			StderrRaw: []byte("Compiler error!"),
 		},
 	})
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	contentAddressableStorage.EXPECT().Put(
-		ctx,
-		digest.MustNewDigest("freebsd12", remoteexecution.DigestFunction_SHA256, "bb1107706f3aa379d68aa61062f56d99d24a667ec18d5756fb6df1ba9baa1fdc", 93),
+	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
+	cdcParametersFetcher.EXPECT().FetchCDCParameters(gomock.Any(), gomock.Any()).Return(&remoteexecution.RepMaxCdcParams{MinChunkSizeBytes: 64, HorizonSizeBytes: 128}, nil)
+	protoPutter := mock.NewMockProtoPutter(ctrl)
+	protoPutter.EXPECT().PutProto(
 		gomock.Any(),
-	).
-		DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
-			historicalExecuteResponse, err := b.ToProto(&cas_proto.HistoricalExecuteResponse{}, 10000)
-			require.NoError(t, err)
-			testutil.RequireEqualProto(t, &cas_proto.HistoricalExecuteResponse{
-				ActionDigest: &remoteexecution.Digest{
-					Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
-					SizeBytes: 11,
+		testutil.EqProto(t, &cas_proto.HistoricalExecuteResponse{
+			ActionDigest: &remoteexecution.Digest{
+				Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
+				SizeBytes: 11,
+			},
+			ExecuteResponse: &remoteexecution.ExecuteResponse{
+				Result: &remoteexecution.ActionResult{
+					ExitCode:  127,
+					StderrRaw: []byte("Compiler error!"),
 				},
-				ExecuteResponse: &remoteexecution.ExecuteResponse{
-					Result: &remoteexecution.ActionResult{
-						ExitCode:  127,
-						StderrRaw: []byte("Compiler error!"),
-					},
-				},
-			}, historicalExecuteResponse)
-			return nil
-		})
-	actionCache := mock.NewMockBlobAccess(ctrl)
-	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, contentAddressableStorage, actionCache, &url.URL{
+			},
+		}),
+		gomock.Any(),
+		gomock.Any(),
+	).Return(digest.MustNewDigest("freebsd12", remoteexecution.DigestFunction_SHA256, "bb1107706f3aa379d68aa61062f56d99d24a667ec18d5756fb6df1ba9baa1fdc", 93), nil)
+	actionCache := mock.NewMockBlobAccess[*remoteexecution.ActionResult](ctrl)
+	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, cdcParametersFetcher, protoPutter, actionCache, &url.URL{
 		Scheme: "https",
 		Host:   "example.com",
 		Path:   "/some/sub/directory",
@@ -222,22 +211,19 @@ func TestCachingBuildExecutorCachedStorageFailure(t *testing.T) {
 			StdoutRaw: []byte("Hello, world!"),
 		},
 	})
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	actionCache := mock.NewMockBlobAccess(ctrl)
+	actionCache := mock.NewMockBlobAccess[*remoteexecution.ActionResult](ctrl)
 	actionCache.EXPECT().Put(
 		ctx,
 		digest.MustNewDigest("freebsd12", remoteexecution.DigestFunction_SHA256, "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c", 11),
 		gomock.Any(),
 	).
-		DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
-			actionResult, err := b.ToProto(&remoteexecution.ActionResult{}, 10000)
-			require.NoError(t, err)
+		DoAndReturn(func(ctx context.Context, digest digest.Digest, m *remoteexecution.ActionResult) error {
 			testutil.RequireEqualProto(t, &remoteexecution.ActionResult{
 				StdoutRaw: []byte("Hello, world!"),
-			}, actionResult)
+			}, m)
 			return status.Error(codes.Internal, "Network problems")
 		})
-	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, contentAddressableStorage, actionCache, &url.URL{
+	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, mock.NewMockCDCParametersFetcher(ctrl), mock.NewMockProtoPutter(ctrl), actionCache, &url.URL{
 		Scheme: "https",
 		Host:   "example.com",
 		Path:   "/",
@@ -275,30 +261,27 @@ func TestCachingBuildExecutorUncachedDoNotCache(t *testing.T) {
 			StdoutRaw: []byte("Hello, world!"),
 		},
 	})
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	contentAddressableStorage.EXPECT().Put(
-		ctx,
-		digest.MustNewDigest("freebsd12", remoteexecution.DigestFunction_SHA256, "5ed2d5720b99f5575542bb4f89e84b5e00e34ab652292974fdb814ab7dc3c92e", 89),
+	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
+	cdcParametersFetcher.EXPECT().FetchCDCParameters(gomock.Any(), gomock.Any()).Return(&remoteexecution.RepMaxCdcParams{MinChunkSizeBytes: 64, HorizonSizeBytes: 128}, nil)
+	protoPutter := mock.NewMockProtoPutter(ctrl)
+	protoPutter.EXPECT().PutProto(
 		gomock.Any(),
-	).
-		DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
-			historicalExecuteResponse, err := b.ToProto(&cas_proto.HistoricalExecuteResponse{}, 10000)
-			require.NoError(t, err)
-			testutil.RequireEqualProto(t, &cas_proto.HistoricalExecuteResponse{
-				ActionDigest: &remoteexecution.Digest{
-					Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
-					SizeBytes: 11,
+		testutil.EqProto(t, &cas_proto.HistoricalExecuteResponse{
+			ActionDigest: &remoteexecution.Digest{
+				Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
+				SizeBytes: 11,
+			},
+			ExecuteResponse: &remoteexecution.ExecuteResponse{
+				Result: &remoteexecution.ActionResult{
+					StdoutRaw: []byte("Hello, world!"),
 				},
-				ExecuteResponse: &remoteexecution.ExecuteResponse{
-					Result: &remoteexecution.ActionResult{
-						StdoutRaw: []byte("Hello, world!"),
-					},
-				},
-			}, historicalExecuteResponse)
-			return nil
-		})
-	actionCache := mock.NewMockBlobAccess(ctrl)
-	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, contentAddressableStorage, actionCache, &url.URL{
+			},
+		}),
+		gomock.Any(),
+		gomock.Any(),
+	).Return(digest.MustNewDigest("freebsd12", remoteexecution.DigestFunction_SHA256, "5ed2d5720b99f5575542bb4f89e84b5e00e34ab652292974fdb814ab7dc3c92e", 89), nil)
+	actionCache := mock.NewMockBlobAccess[*remoteexecution.ActionResult](ctrl)
+	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, cdcParametersFetcher, protoPutter, actionCache, &url.URL{
 		Scheme: "http",
 		Host:   "example.com",
 		Path:   "/some/sub/directory/",
@@ -337,31 +320,28 @@ func TestCachingBuildExecutorUncachedError(t *testing.T) {
 		},
 		Status: status.New(codes.DeadlineExceeded, "Build took more than ten seconds").Proto(),
 	})
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	contentAddressableStorage.EXPECT().Put(
-		ctx,
-		digest.MustNewDigest("freebsd12", remoteexecution.DigestFunction_SHA256, "a6e4f00dd21540b0b653dcd195b3d54ea4c0b3ca679cf6a69eb7b0dbd378c2cc", 126),
+	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
+	cdcParametersFetcher.EXPECT().FetchCDCParameters(gomock.Any(), gomock.Any()).Return(&remoteexecution.RepMaxCdcParams{MinChunkSizeBytes: 64, HorizonSizeBytes: 128}, nil)
+	protoPutter := mock.NewMockProtoPutter(ctrl)
+	protoPutter.EXPECT().PutProto(
 		gomock.Any(),
-	).
-		DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
-			historicalExecuteResponse, err := b.ToProto(&cas_proto.HistoricalExecuteResponse{}, 10000)
-			require.NoError(t, err)
-			testutil.RequireEqualProto(t, &cas_proto.HistoricalExecuteResponse{
-				ActionDigest: &remoteexecution.Digest{
-					Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
-					SizeBytes: 11,
+		testutil.EqProto(t, &cas_proto.HistoricalExecuteResponse{
+			ActionDigest: &remoteexecution.Digest{
+				Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
+				SizeBytes: 11,
+			},
+			ExecuteResponse: &remoteexecution.ExecuteResponse{
+				Result: &remoteexecution.ActionResult{
+					StdoutRaw: []byte("Compiling..."),
 				},
-				ExecuteResponse: &remoteexecution.ExecuteResponse{
-					Result: &remoteexecution.ActionResult{
-						StdoutRaw: []byte("Compiling..."),
-					},
-					Status: status.New(codes.DeadlineExceeded, "Build took more than ten seconds").Proto(),
-				},
-			}, historicalExecuteResponse)
-			return nil
-		})
-	actionCache := mock.NewMockBlobAccess(ctrl)
-	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, contentAddressableStorage, actionCache, &url.URL{
+				Status: status.New(codes.DeadlineExceeded, "Build took more than ten seconds").Proto(),
+			},
+		}),
+		gomock.Any(),
+		gomock.Any(),
+	).Return(digest.MustNewDigest("freebsd12", remoteexecution.DigestFunction_SHA256, "a6e4f00dd21540b0b653dcd195b3d54ea4c0b3ca679cf6a69eb7b0dbd378c2cc", 126), nil)
+	actionCache := mock.NewMockBlobAccess[*remoteexecution.ActionResult](ctrl)
+	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, cdcParametersFetcher, protoPutter, actionCache, &url.URL{
 		Scheme: "http",
 		Host:   "example.com",
 		Path:   "/some/sub/directory/",
@@ -401,31 +381,28 @@ func TestCachingBuildExecutorUncachedStorageFailure(t *testing.T) {
 		},
 		Status: status.New(codes.DeadlineExceeded, "Build took more than ten seconds").Proto(),
 	})
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	contentAddressableStorage.EXPECT().Put(
-		ctx,
-		digest.MustNewDigest("freebsd12", remoteexecution.DigestFunction_SHA256, "a6e4f00dd21540b0b653dcd195b3d54ea4c0b3ca679cf6a69eb7b0dbd378c2cc", 126),
+	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
+	cdcParametersFetcher.EXPECT().FetchCDCParameters(gomock.Any(), gomock.Any()).Return(&remoteexecution.RepMaxCdcParams{MinChunkSizeBytes: 64, HorizonSizeBytes: 128}, nil)
+	protoPutter := mock.NewMockProtoPutter(ctrl)
+	protoPutter.EXPECT().PutProto(
 		gomock.Any(),
-	).
-		DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
-			historicalExecuteResponse, err := b.ToProto(&cas_proto.HistoricalExecuteResponse{}, 10000)
-			require.NoError(t, err)
-			testutil.RequireEqualProto(t, &cas_proto.HistoricalExecuteResponse{
-				ActionDigest: &remoteexecution.Digest{
-					Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
-					SizeBytes: 11,
+		testutil.EqProto(t, &cas_proto.HistoricalExecuteResponse{
+			ActionDigest: &remoteexecution.Digest{
+				Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
+				SizeBytes: 11,
+			},
+			ExecuteResponse: &remoteexecution.ExecuteResponse{
+				Result: &remoteexecution.ActionResult{
+					StdoutRaw: []byte("Compiling..."),
 				},
-				ExecuteResponse: &remoteexecution.ExecuteResponse{
-					Result: &remoteexecution.ActionResult{
-						StdoutRaw: []byte("Compiling..."),
-					},
-					Status: status.New(codes.DeadlineExceeded, "Build took more than ten seconds").Proto(),
-				},
-			}, historicalExecuteResponse)
-			return status.Error(codes.Internal, "Cannot store historical execute response")
-		})
-	actionCache := mock.NewMockBlobAccess(ctrl)
-	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, contentAddressableStorage, actionCache, &url.URL{
+				Status: status.New(codes.DeadlineExceeded, "Build took more than ten seconds").Proto(),
+			},
+		}),
+		gomock.Any(),
+		gomock.Any(),
+	).Return(digest.MustNewDigest("freebsd12", remoteexecution.DigestFunction_SHA256, "a6e4f00dd21540b0b653dcd195b3d54ea4c0b3ca679cf6a69eb7b0dbd378c2cc", 126), status.Error(codes.Internal, "Cannot store historical execute response"))
+	actionCache := mock.NewMockBlobAccess[*remoteexecution.ActionResult](ctrl)
+	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, cdcParametersFetcher, protoPutter, actionCache, &url.URL{
 		Scheme: "http",
 		Host:   "example.com",
 		Path:   "/some/sub/directory/",

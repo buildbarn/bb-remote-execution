@@ -196,10 +196,7 @@ message BuildDirectoryConfiguration {
     // performance, it is important that a Content Addressable Storage
     // backend is used that supports fast random access to blobs. It is
     // suggested that workers use ReadCachingBlobAccess in combination
-    // with LocalBlobAccess to achieve this. When LocalBlobAccess is
-    // backed by a block device, 'data_integrity_validation_cache' must
-    // be set to ensure the file isn't checksum validated for every
-    // individual read.
+    // with LocalBlobAccess to achieve this.
     VirtualBuildDirectoryConfiguration virtual = 2;
   }
 

@@ -30,6 +30,7 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "//pkg/blobstore",
+        "//pkg/cas",
         "//pkg/proto/buildqueuestate",
         "//pkg/proto/configuration/bb_scheduler",
         "//pkg/proto/remoteworker",

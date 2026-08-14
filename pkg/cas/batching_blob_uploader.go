@@ -1,0 +1,213 @@
+package cas
+
+import (
+	"context"
+	"io"
+	"sync"
+
+	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+
+	"github.com/buildbarn/bb-storage/pkg/blobstore"
+	"github.com/buildbarn/bb-storage/pkg/blobstore/chunk"
+	"github.com/buildbarn/bb-storage/pkg/capabilities"
+	"github.com/buildbarn/bb-storage/pkg/cas"
+	bb_cas "github.com/buildbarn/bb-storage/pkg/cas"
+	"github.com/buildbarn/bb-storage/pkg/digest"
+	"github.com/buildbarn/bb-storage/pkg/filesystem"
+	"github.com/buildbarn/bb-storage/pkg/util"
+
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
+)
+
+// ReadAtCloser is an interface that combines io.ReaderAt and io.Closer.
+type ReadAtCloser interface {
+	io.ReaderAt
+	io.Closer
+}
+
+type pendingUploadOperation struct {
+	digest digest.Digest
+	file   ReadAtCloser
+}
+
+type batchingBlobUploader struct {
+	chunkStorage               blobstore.BlobAccess[*chunk.Chunk]
+	chunkMappingStorage        blobstore.BlobAccess[chunk.Mapping]
+	cdcParametersFetcher       capabilities.CDCParametersFetcher
+	digestKeyFormat            digest.KeyFormat
+	batchSize                  int
+	readerPutter               bb_cas.ReaderPutter
+	uploadConcurrencySemaphore *semaphore.Weighted
+
+	lock                    sync.Mutex
+	pendingUploadOperations map[string]pendingUploadOperation
+	flushError              error
+}
+
+// NewBatchingBlobUploader returns a BlobUploader that batches uploads
+// to the Content Addressable Storage (CAS) into batches of the
+// specified size while respecting an upload concurrency.
+func NewBatchingBlobUploader(chunkStorage blobstore.BlobAccess[*chunk.Chunk], chunkMappingStorage blobstore.BlobAccess[chunk.Mapping], cdcParametersFetcher capabilities.CDCParametersFetcher, digestKeyFormat digest.KeyFormat, batchSize int, uploadConcurrencySemaphore *semaphore.Weighted, readerPutter bb_cas.ReaderPutter) (BlobUploader, func(context.Context) error) {
+	bu := &batchingBlobUploader{
+		chunkStorage:               chunkStorage,
+		chunkMappingStorage:        chunkMappingStorage,
+		cdcParametersFetcher:       cdcParametersFetcher,
+		digestKeyFormat:            digestKeyFormat,
+		batchSize:                  batchSize,
+		readerPutter:               readerPutter,
+		uploadConcurrencySemaphore: uploadConcurrencySemaphore,
+		pendingUploadOperations:    map[string]pendingUploadOperation{},
+	}
+	return bu, func(ctx context.Context) error {
+		bu.lock.Lock()
+		defer bu.lock.Unlock()
+
+		// Flush last batch of blobs. Return any errors that occurred.
+		bu.flushLocked(ctx)
+		err := bu.flushError
+		bu.flushError = nil
+		return err
+	}
+}
+
+func (bu *batchingBlobUploader) flushLocked(ctx context.Context) {
+	// Ensure that all pending blobs are closed upon termination.
+	defer func() {
+		for _, pending := range bu.pendingUploadOperations {
+			pending.file.Close()
+		}
+		bu.pendingUploadOperations = map[string]pendingUploadOperation{}
+	}()
+
+	if len(bu.pendingUploadOperations) == 0 {
+		return
+	}
+
+	// Partition the digests of pending uploads by instance name. For
+	// every instance name, fetch the CDC parameters and determine which
+	// blobs are missing.
+	digestsPerInstance := map[digest.InstanceName][]digest.Digest{}
+	for _, pending := range bu.pendingUploadOperations {
+		instanceName := pending.digest.GetInstanceName()
+		digestsPerInstance[instanceName] = append(digestsPerInstance[instanceName], pending.digest)
+	}
+	paramsPerInstance := make(map[digest.InstanceName]*remoteexecution.RepMaxCdcParams, len(digestsPerInstance))
+	missing := digest.EmptySet
+	for instanceName, instanceDigests := range digestsPerInstance {
+		params, err := bu.cdcParametersFetcher.FetchCDCParameters(ctx, instanceName)
+		if err != nil {
+			bu.flushError = util.StatusWrapf(err, "Failed to fetch CDC parameters for instance %s", instanceName)
+			return
+		}
+		paramsPerInstance[instanceName] = params
+		set := digest.NewSetBuilder(len(instanceDigests))
+		for _, d := range instanceDigests {
+			set.Add(d)
+		}
+		instanceMissing, err := cas.FindMissing(ctx, bu.chunkStorage, bu.chunkMappingStorage, params, set.Build())
+		if err != nil {
+			bu.flushError = util.StatusWrap(err, "Failed to determine existence of previous batch of blobs")
+			return
+		}
+		missing = digest.GetUnion([]digest.Set{missing, instanceMissing})
+	}
+
+	// Upload the missing ones.
+	if !missing.Empty() {
+		group, groupCtx := errgroup.WithContext(ctx)
+		group.Go(func() error {
+			for _, d := range missing.Items() {
+				key := d.GetKey(bu.digestKeyFormat)
+				if pending, ok := bu.pendingUploadOperations[key]; ok {
+					delete(bu.pendingUploadOperations, key)
+					group.Go(func() error {
+						defer pending.file.Close()
+						if err := util.AcquireSemaphore(groupCtx, bu.uploadConcurrencySemaphore, 1); err != nil {
+							return err
+						}
+						defer bu.uploadConcurrencySemaphore.Release(1)
+						err := bu.readerPutter.PutReaderAt(groupCtx, pending.digest, pending.file, paramsPerInstance[pending.digest.GetInstanceName()])
+						if err != nil {
+							return util.StatusWrapf(err, "Failed to store previous blob %s", pending.digest)
+						}
+						return nil
+					})
+				}
+			}
+			return nil
+		})
+		if err := group.Wait(); err != nil {
+			bu.flushError = err
+		}
+	}
+}
+
+func (bu *batchingBlobUploader) uploadBlob(ctx context.Context, d digest.Digest, blob ReadAtCloser) error {
+	bu.lock.Lock()
+	defer bu.lock.Unlock()
+
+	// Discard duplicate writes.
+	key := d.GetKey(bu.digestKeyFormat)
+	if _, ok := bu.pendingUploadOperations[key]; ok {
+		blob.Close()
+		return nil
+	}
+
+	// Flush the existing blobs if there are too many pending.
+	if len(bu.pendingUploadOperations) >= bu.batchSize {
+		bu.flushLocked(ctx)
+	}
+	if err := bu.flushError; err != nil {
+		blob.Close()
+		return err
+	}
+
+	bu.pendingUploadOperations[key] = pendingUploadOperation{
+		digest: d,
+		file:   blob,
+	}
+	return nil
+}
+
+func (bu *batchingBlobUploader) UploadBlob(ctx context.Context, digestFunction digest.Function, blob filesystem.FileReader) (digest.Digest, error) {
+	sizeBytes, err := blob.Len()
+	if err != nil {
+		return digest.BadDigest, err
+	}
+
+	// Walk through the file to compute the digest.
+	digestGenerator := digestFunction.NewGenerator(sizeBytes)
+	if _, err := io.Copy(digestGenerator, io.NewSectionReader(blob, 0, sizeBytes)); err != nil {
+		blob.Close()
+		return digest.BadDigest, util.StatusWrap(err, "Failed to compute file digest")
+	}
+	blobDigest := digestGenerator.Sum()
+
+	// Rewind and store it. Limit uploading to the size that was
+	// used to compute the digest. This ensures uploads succeed,
+	// even if more data gets appended in the meantime. This is not
+	// uncommon, especially for stdout and stderr logs.
+	if err := bu.uploadBlob(
+		ctx,
+		blobDigest,
+		newSectionReadAtCloser(blob, 0, sizeBytes),
+	); err != nil {
+		return digest.BadDigest, err
+	}
+	return blobDigest, nil
+}
+
+// newSectionReadAtCloser returns a ReadAtCloser that reads from r at a
+// given offset, but stops with EOF after n bytes. This function is
+// identical to io.NewSectionReader(), except that it provides a
+// ReadAtCloser instead of an io.ReaderAt.
+func newSectionReadAtCloser(r filesystem.FileReader, off, n int64) ReadAtCloser {
+	return &struct {
+		io.SectionReader
+		io.Closer
+	}{
+		SectionReader: *io.NewSectionReader(r, off, n),
+		Closer:        r,
+	}
+}

@@ -11,7 +11,6 @@ go_library(
     importpath = "github.com/buildbarn/bb-remote-execution/cmd/bb_worker",
     visibility = ["//visibility:private"],
     deps = [
-        "//pkg/blobstore",
         "//pkg/builder",
         "//pkg/cas",
         "//pkg/cleaner",
@@ -35,6 +34,7 @@ go_library(
         "@com_github_buildbarn_bb_storage//pkg/global",
         "@com_github_buildbarn_bb_storage//pkg/http/client",
         "@com_github_buildbarn_bb_storage//pkg/program",
+        "@com_github_buildbarn_bb_storage//pkg/proto/fsac",
         "@com_github_buildbarn_bb_storage//pkg/random",
         "@com_github_buildbarn_bb_storage//pkg/util",
         "@com_github_buildbarn_bb_storage//pkg/zstd",

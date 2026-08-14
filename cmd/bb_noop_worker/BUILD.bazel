@@ -7,8 +7,8 @@ go_library(
     importpath = "github.com/buildbarn/bb-remote-execution/cmd/bb_noop_worker",
     visibility = ["//visibility:private"],
     deps = [
-        "//pkg/blobstore",
         "//pkg/builder",
+        "//pkg/cas",
         "//pkg/filesystem/pool",
         "//pkg/proto/configuration/bb_noop_worker",
         "//pkg/proto/remoteworker",
