@@ -12,9 +12,12 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
+	"github.com/buildbarn/bb-storage/pkg/blobstore/chunklist"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/proto/fsac"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
+	"github.com/buildbarn/bb-storage/pkg/zstd"
+	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/require"
 
 	"golang.org/x/sync/semaphore"
@@ -29,13 +32,20 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	baseBuildExecutor := mock.NewMockBuildExecutor(ctrl)
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	chunkBytesReader := mock.NewMockReader[[]byte](ctrl)
+	chunkListFetcher := mock.NewMockFetcher(ctrl)
+	cdcParametersFetcher := mock.NewMockParametersFetcher(ctrl)
 	directoryFetcher := mock.NewMockDirectoryFetcher(ctrl)
 	fileReadSemaphore := semaphore.NewWeighted(1)
-	fileSystemAccessCache := mock.NewMockBlobAccess(ctrl)
+	fileSystemAccessCache := mock.NewMockBlobAccess[*fsac.FileSystemAccessProfile](ctrl)
+	zstdPool := zstd.NewUnboundedPool(nil, nil)
+	chunkStorage := mock.NewMockBlobAccess[*buffer.Chunk](ctrl)
+	chunkListStorage := mock.NewMockBlobAccess[chunklist.ChunkList](ctrl)
 	buildExecutor := builder.NewPrefetchingBuildExecutor(
 		baseBuildExecutor,
-		contentAddressableStorage,
+		chunkBytesReader,
+		chunkListFetcher,
+		cdcParametersFetcher,
 		directoryFetcher,
 		fileReadSemaphore,
 		fileSystemAccessCache,
@@ -43,6 +53,9 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 		/* bloomFilterBitsPerElement = */ 10,
 		/* bloomFilterMaximumSizeBytes = */ 1000,
 		/* logFileSystemAccessProfile = */ false,
+		zstdPool,
+		chunkStorage,
+		chunkListStorage,
 	)
 
 	filePool := mock.NewMockFilePool(ctrl)
@@ -121,10 +134,10 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 			executionStateUpdates,
 		).Return(response)
 		fileSystemAccessCache.EXPECT().Get(gomock.Any(), exampleReducedActionDigest).
-			DoAndReturn(func(ctx context.Context, blobDigest digest.Digest) buffer.Buffer {
+			DoAndReturn(func(ctx context.Context, blobDigest digest.Digest) (*fsac.FileSystemAccessProfile, error) {
 				<-ctx.Done()
 				require.Equal(t, context.Canceled, ctx.Err())
-				return buffer.NewBufferFromError(status.Error(codes.Canceled, "Request cancelled"))
+				return nil, status.Error(codes.Canceled, "Request cancelled")
 			})
 
 		testutil.RequireEqualProto(
@@ -159,10 +172,10 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 			executionStateUpdates,
 		).Return(response)
 		fileSystemAccessCache.EXPECT().Get(gomock.Any(), exampleReducedActionDigest).
-			DoAndReturn(func(ctx context.Context, blobDigest digest.Digest) buffer.Buffer {
+			DoAndReturn(func(ctx context.Context, blobDigest digest.Digest) (*fsac.FileSystemAccessProfile, error) {
 				<-ctx.Done()
 				require.Equal(t, context.Canceled, ctx.Err())
-				return buffer.NewBufferFromError(status.Error(codes.Canceled, "Request cancelled"))
+				return nil, status.Error(codes.Canceled, "Request cancelled")
 			})
 
 		testutil.RequireEqualProto(
@@ -201,7 +214,7 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 			}
 		})
 		fileSystemAccessCache.EXPECT().Get(gomock.Any(), exampleReducedActionDigest).
-			Return(buffer.NewBufferFromError(status.Error(codes.Internal, "Storage offline")))
+			Return(nil, status.Error(codes.Internal, "Storage offline"))
 
 		testutil.RequireEqualProto(
 			t,
@@ -245,10 +258,10 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 			}
 		})
 		fileSystemAccessCache.EXPECT().Get(gomock.Any(), exampleReducedActionDigest).
-			Return(buffer.NewProtoBufferFromProto(&fsac.FileSystemAccessProfile{
+			Return(&fsac.FileSystemAccessProfile{
 				BloomFilter:              []byte{0xff},
 				BloomFilterHashFunctions: 1,
-			}, buffer.UserProvided))
+			}, nil)
 		directoryFetcher.EXPECT().GetDirectory(gomock.Any(), digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "095afbd64b6358665546558583c64d38", 456)).
 			Return(nil, status.Error(codes.Internal, "Storage offline"))
 
@@ -294,10 +307,10 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 			}
 		})
 		fileSystemAccessCache.EXPECT().Get(gomock.Any(), exampleReducedActionDigest).
-			Return(buffer.NewProtoBufferFromProto(&fsac.FileSystemAccessProfile{
+			Return(&fsac.FileSystemAccessProfile{
 				BloomFilter:              []byte{0xff},
 				BloomFilterHashFunctions: 1,
-			}, buffer.UserProvided))
+			}, nil)
 		directoryFetcher.EXPECT().GetDirectory(gomock.Any(), digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "095afbd64b6358665546558583c64d38", 456)).
 			Return(&remoteexecution.Directory{
 				Files: []*remoteexecution.FileNode{
@@ -310,8 +323,12 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 					},
 				},
 			}, nil)
-		contentAddressableStorage.EXPECT().Get(gomock.Any(), digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "3ffe1ce0624ece24e5d9b31c2342a6d4", 200)).
-			Return(buffer.NewBufferFromError(status.Error(codes.Internal, "Storage offline")))
+		cdcParametersFetcher.EXPECT().
+			FetchCDCParameters(gomock.Any(), gomock.Any()).
+			Return(&remoteexecution.RepMaxCdcParams{MinChunkSizeBytes: 256 << 10, HorizonSizeBytes: 8 * 256 << 10}, nil).
+			AnyTimes()
+		chunkBytesReader.EXPECT().Read(gomock.Any(), digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "3ffe1ce0624ece24e5d9b31c2342a6d4", 200)).
+			Return(nil, status.Error(codes.Internal, "Storage offline"))
 
 		testutil.RequireEqualProto(
 			t,
@@ -352,13 +369,12 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 			},
 		})
 		fileSystemAccessCache.EXPECT().Get(gomock.Any(), exampleReducedActionDigest).
-			Return(buffer.NewProtoBufferFromProto(&fsac.FileSystemAccessProfile{
+			Return(&fsac.FileSystemAccessProfile{
 				BloomFilter:              []byte{0x00, 0x20},
 				BloomFilterHashFunctions: 1,
-			}, buffer.UserProvided))
+			}, nil)
 		fileSystemAccessCache.EXPECT().Put(gomock.Any(), exampleReducedActionDigest, gomock.Any()).
-			DoAndReturn(func(ctx context.Context, blobDigest digest.Digest, b buffer.Buffer) error {
-				b.Discard()
+			DoAndReturn(func(ctx context.Context, blobDigest digest.Digest, profile *fsac.FileSystemAccessProfile) error {
 				return status.Error(codes.Internal, "Storage offline")
 			})
 
@@ -399,10 +415,10 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 			},
 		})
 		fileSystemAccessCache.EXPECT().Get(gomock.Any(), exampleReducedActionDigest).
-			Return(buffer.NewProtoBufferFromProto(&fsac.FileSystemAccessProfile{
+			Return(&fsac.FileSystemAccessProfile{
 				BloomFilter:              []byte{0x80},
 				BloomFilterHashFunctions: 1,
-			}, buffer.UserProvided))
+			}, nil)
 
 		testutil.RequireEqualProto(
 			t,
@@ -443,14 +459,12 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 			}
 		})
 		fileSystemAccessCache.EXPECT().Get(gomock.Any(), exampleReducedActionDigest).
-			Return(buffer.NewProtoBufferFromProto(&fsac.FileSystemAccessProfile{
+			Return(&fsac.FileSystemAccessProfile{
 				BloomFilter:              []byte{0x80},
 				BloomFilterHashFunctions: 1,
-			}, buffer.UserProvided))
+			}, nil)
 		fileSystemAccessCache.EXPECT().Put(gomock.Any(), exampleReducedActionDigest, gomock.Any()).
-			DoAndReturn(func(ctx context.Context, blobDigest digest.Digest, b buffer.Buffer) error {
-				profile, err := b.ToProto(&fsac.FileSystemAccessProfile{}, 10000)
-				require.NoError(t, err)
+			DoAndReturn(func(ctx context.Context, blobDigest digest.Digest, profile *fsac.FileSystemAccessProfile) error {
 				testutil.RequireEqualProto(t, &fsac.FileSystemAccessProfile{
 					BloomFilter:              []byte{0x0b, 0x2a},
 					BloomFilterHashFunctions: 9,
@@ -487,7 +501,9 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 	// to test the log file system access profile configuration.
 	profileLoggingBuildExecutor := builder.NewPrefetchingBuildExecutor(
 		baseBuildExecutor,
-		contentAddressableStorage,
+		chunkBytesReader,
+		chunkListFetcher,
+		cdcParametersFetcher,
 		directoryFetcher,
 		fileReadSemaphore,
 		fileSystemAccessCache,
@@ -495,6 +511,9 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 		/* bloomFilterBitsPerElement = */ 10,
 		/* bloomFilterMaximumSizeBytes = */ 1000,
 		/* logFileSystemAccessProfile = */ true,
+		zstd.NewUnboundedPool(nil, nil),
+		chunkStorage,
+		chunkListStorage,
 	)
 
 	t.Run("CASLogAccessProfileSuccess", func(t *testing.T) {
@@ -515,22 +534,23 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 			ServerLogs: nil, // Responses are not guaranteed to already contain any server logs.
 		})
 		fileSystemAccessCache.EXPECT().Get(gomock.Any(), exampleReducedActionDigest).
-			Return(buffer.NewProtoBufferFromProto(&fsac.FileSystemAccessProfile{
+			Return(&fsac.FileSystemAccessProfile{
 				BloomFilter:              []byte{0x80},
 				BloomFilterHashFunctions: 1,
-			}, buffer.UserProvided))
+			}, nil)
 		accessProfileDigest := digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "dc1d3a7d5a534e6175cdc57c96cc031d", 5)
-		contentAddressableStorage.EXPECT().Put(gomock.Any(), accessProfileDigest, gomock.Any()).
-			DoAndReturn(func(ctx context.Context, blobDigest digest.Digest, b buffer.Buffer) error {
-				profile, err := b.ToProto(&fsac.FileSystemAccessProfile{}, 10000)
+		chunkStorage.EXPECT().Put(gomock.Any(), accessProfileDigest, gomock.Any()).
+			DoAndReturn(func(ctx context.Context, blobDigest digest.Digest, chunk *buffer.Chunk) error {
+				data, err := chunk.GetBytes(ctx)
 				require.NoError(t, err)
+				profile := &fsac.FileSystemAccessProfile{}
+				require.NoError(t, proto.Unmarshal(data, profile))
 				testutil.RequireEqualProto(t, &fsac.FileSystemAccessProfile{
 					BloomFilter:              []byte{0x80},
 					BloomFilterHashFunctions: 1,
 				}, profile)
 				return nil
 			})
-		require.NoError(t, err)
 		testutil.RequireEqualProto(
 			t,
 			&remoteexecution.ExecuteResponse{
@@ -576,16 +596,13 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 			ServerLogs: nil, // Responses are not guaranteed to already contain any server logs.
 		})
 		fileSystemAccessCache.EXPECT().Get(gomock.Any(), exampleReducedActionDigest).
-			Return(buffer.NewProtoBufferFromProto(&fsac.FileSystemAccessProfile{
+			Return(&fsac.FileSystemAccessProfile{
 				BloomFilter:              []byte{0x80},
 				BloomFilterHashFunctions: 1,
-			}, buffer.UserProvided))
+			}, nil)
 		accessProfileDigest := digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "dc1d3a7d5a534e6175cdc57c96cc031d", 5)
-		contentAddressableStorage.EXPECT().Put(gomock.Any(), accessProfileDigest, gomock.Any()).
-			DoAndReturn(func(ctx context.Context, blobDigest digest.Digest, b buffer.Buffer) error {
-				b.Discard()
-				return status.Error(codes.Internal, "Storage offline")
-			})
+		chunkStorage.EXPECT().Put(gomock.Any(), accessProfileDigest, gomock.Any()).
+			Return(status.Error(codes.Internal, "Storage offline"))
 
 		testutil.RequireEqualProto(
 			t,
@@ -626,16 +643,13 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 			},
 		})
 		fileSystemAccessCache.EXPECT().Get(gomock.Any(), exampleReducedActionDigest).
-			Return(buffer.NewProtoBufferFromProto(&fsac.FileSystemAccessProfile{
+			Return(&fsac.FileSystemAccessProfile{
 				BloomFilter:              []byte{0x80},
 				BloomFilterHashFunctions: 1,
-			}, buffer.UserProvided))
+			}, nil)
 		accessProfileDigest := digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "dc1d3a7d5a534e6175cdc57c96cc031d", 5)
-		contentAddressableStorage.EXPECT().Put(gomock.Any(), accessProfileDigest, gomock.Any()).
-			DoAndReturn(func(ctx context.Context, blobDigest digest.Digest, b buffer.Buffer) error {
-				b.Discard()
-				return nil
-			})
+		chunkStorage.EXPECT().Put(gomock.Any(), accessProfileDigest, gomock.Any()).
+			Return(nil)
 
 		testutil.RequireEqualProto(
 			t,

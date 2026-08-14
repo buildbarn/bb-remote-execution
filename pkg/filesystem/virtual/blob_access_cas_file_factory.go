@@ -4,9 +4,13 @@ import (
 	"context"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	re_cas "github.com/buildbarn/bb-remote-execution/pkg/cas"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/bazeloutputservice"
 	bazeloutputservicerev2 "github.com/buildbarn/bb-remote-execution/pkg/proto/bazeloutputservice/rev2"
-	"github.com/buildbarn/bb-storage/pkg/blobstore"
+	"github.com/buildbarn/bb-storage/pkg/blobstore/cdc"
+	"github.com/buildbarn/bb-storage/pkg/blobstore/chunklist"
+	"github.com/buildbarn/bb-storage/pkg/cas"
+	"github.com/buildbarn/bb-storage/pkg/cas/reader"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/util"
@@ -17,20 +21,24 @@ import (
 )
 
 type blobAccessCASFileFactory struct {
-	context                   context.Context
-	contentAddressableStorage blobstore.BlobAccess
-	errorLogger               util.ErrorLogger
+	context              context.Context
+	chunkBytesReader     reader.Reader[[]byte]
+	chunkListFetcher     chunklist.Fetcher
+	cdcParametersFetcher cdc.ParametersFetcher
+	errorLogger          util.ErrorLogger
 }
 
 // NewBlobAccessCASFileFactory creates a CASFileFactory that can be used
 // to create FUSE files that are directly backed by BlobAccess. Files
 // created by this factory are entirely immutable; it is only possible
 // to read their contents.
-func NewBlobAccessCASFileFactory(ctx context.Context, contentAddressableStorage blobstore.BlobAccess, errorLogger util.ErrorLogger) CASFileFactory {
+func NewBlobAccessCASFileFactory(ctx context.Context, chunkBytesReader reader.Reader[[]byte], chunkListFetcher chunklist.Fetcher, cdcParametersFetcher cdc.ParametersFetcher, errorLogger util.ErrorLogger) CASFileFactory {
 	return &blobAccessCASFileFactory{
-		context:                   ctx,
-		contentAddressableStorage: contentAddressableStorage,
-		errorLogger:               errorLogger,
+		context:              ctx,
+		chunkBytesReader:     chunkBytesReader,
+		chunkListFetcher:     chunkListFetcher,
+		cdcParametersFetcher: cdcParametersFetcher,
+		errorLogger:          errorLogger,
 	}
 }
 
@@ -136,10 +144,16 @@ func (f *blobAccessCASFile) VirtualRead(ctx context.Context, buf []byte, off uin
 	size := uint64(f.digest.GetSizeBytes())
 	buf, eof := BoundReadToFileSize(buf, off, size)
 	if len(buf) > 0 {
-		if n, err := f.factory.contentAddressableStorage.Get(f.factory.context, f.digest).ReadAt(buf, int64(off)); n != len(buf) {
-			f.factory.errorLogger.Log(util.StatusWrapf(err, "Failed to read from %s at offset %d", f.digest, off))
-			return 0, false, StatusErrIO
+		params, err := f.factory.cdcParametersFetcher.FetchCDCParameters(f.factory.context, f.digest.GetInstanceName())
+		if err == nil {
+			n, err := cas.ReadBlobAt(f.factory.context, f.factory.chunkBytesReader, f.factory.chunkListFetcher, params, f.digest, buf, int64(off))
+			if n == len(buf) {
+				return len(buf), eof, StatusOK
+			}
+			err = util.StatusWrapf(err, "Read %d bytes instead of %d from %s at offset %d", n, len(buf), f.digest, off)
 		}
+		f.factory.errorLogger.Log(util.StatusWrapf(re_cas.FailedPreconditionOnMissingBlob(f.digest, err), "Failed to read from %s at offset %d", f.digest, off))
+		return 0, false, StatusErrIO
 	}
 	return len(buf), eof, StatusOK
 }

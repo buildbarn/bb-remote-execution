@@ -6,16 +6,21 @@ import (
 	"log"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
-	"github.com/buildbarn/bb-remote-execution/pkg/cas"
+	re_cas "github.com/buildbarn/bb-remote-execution/pkg/cas"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
+	"github.com/buildbarn/bb-storage/pkg/blobstore/cdc"
+	"github.com/buildbarn/bb-storage/pkg/blobstore/chunklist"
+	"github.com/buildbarn/bb-storage/pkg/cas"
+	"github.com/buildbarn/bb-storage/pkg/cas/reader"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/proto/fsac"
 	"github.com/buildbarn/bb-storage/pkg/util"
+	"github.com/buildbarn/bb-storage/pkg/zstd"
 
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
@@ -27,15 +32,20 @@ import (
 
 type prefetchingBuildExecutor struct {
 	BuildExecutor
-	contentAddressableStorage   blobstore.BlobAccess
-	directoryFetcher            cas.DirectoryFetcher
+	chunkBytesReader            reader.Reader[[]byte]
+	chunkListFetcher            chunklist.Fetcher
+	cdcParametersFetcher        cdc.ParametersFetcher
+	directoryFetcher            re_cas.DirectoryFetcher
 	fileReadSemaphore           *semaphore.Weighted
-	fileSystemAccessCache       blobstore.BlobAccess
+	fileSystemAccessCache       blobstore.BlobAccess[*fsac.FileSystemAccessProfile]
 	maximumMessageSizeBytes     int
 	bloomFilterBitsPerElement   int
 	bloomFilterMaximumSizeBytes int
 	logFileSystemAccessProfile  bool
 	emptyProfile                *fsac.FileSystemAccessProfile
+	zstdPool                    zstd.Pool
+	chunkStorage                blobstore.BlobAccess[*buffer.Chunk]
+	chunkListStorage            blobstore.BlobAccess[chunklist.ChunkList]
 }
 
 // NewPrefetchingBuildExecutor creates a decorator for BuildExecutor
@@ -54,10 +64,12 @@ type prefetchingBuildExecutor struct {
 // directory (FUSE, NFSv4). On workers that use native build
 // directories, the monitor is ignored, leading to empty Bloom filters
 // being stored.
-func NewPrefetchingBuildExecutor(buildExecutor BuildExecutor, contentAddressableStorage blobstore.BlobAccess, directoryFetcher cas.DirectoryFetcher, fileReadSemaphore *semaphore.Weighted, fileSystemAccessCache blobstore.BlobAccess, maximumMessageSizeBytes, bloomFilterBitsPerElement, bloomFilterMaximumSizeBytes int, logFileSystemAccessProfile bool) BuildExecutor {
+func NewPrefetchingBuildExecutor(buildExecutor BuildExecutor, chunkBytesReader reader.Reader[[]byte], chunkListFetcher chunklist.Fetcher, cdcParametersFetcher cdc.ParametersFetcher, directoryFetcher re_cas.DirectoryFetcher, fileReadSemaphore *semaphore.Weighted, fileSystemAccessCache blobstore.BlobAccess[*fsac.FileSystemAccessProfile], maximumMessageSizeBytes, bloomFilterBitsPerElement, bloomFilterMaximumSizeBytes int, logFileSystemAccessProfile bool, zstdPool zstd.Pool, chunkStorage blobstore.BlobAccess[*buffer.Chunk], chunkListStorage blobstore.BlobAccess[chunklist.ChunkList]) BuildExecutor {
 	be := &prefetchingBuildExecutor{
 		BuildExecutor:               buildExecutor,
-		contentAddressableStorage:   contentAddressableStorage,
+		chunkBytesReader:            chunkBytesReader,
+		chunkListFetcher:            chunkListFetcher,
+		cdcParametersFetcher:        cdcParametersFetcher,
 		directoryFetcher:            directoryFetcher,
 		fileReadSemaphore:           fileReadSemaphore,
 		fileSystemAccessCache:       fileSystemAccessCache,
@@ -65,6 +77,9 @@ func NewPrefetchingBuildExecutor(buildExecutor BuildExecutor, contentAddressable
 		bloomFilterBitsPerElement:   bloomFilterBitsPerElement,
 		bloomFilterMaximumSizeBytes: bloomFilterMaximumSizeBytes,
 		logFileSystemAccessProfile:  logFileSystemAccessProfile,
+		zstdPool:                    zstdPool,
+		chunkStorage:                chunkStorage,
+		chunkListStorage:            chunkListStorage,
 	}
 	be.emptyProfile = be.computeProfile(access.NewBloomFilterComputingUnreadDirectoryMonitor())
 	return be
@@ -76,6 +91,22 @@ func (be *prefetchingBuildExecutor) computeProfile(monitor *access.BloomFilterCo
 		BloomFilter:              bloomFilter,
 		BloomFilterHashFunctions: bloomFilterHashFunctions,
 	}
+}
+
+func (be *prefetchingBuildExecutor) storeFileSystemAccessProfileToCAS(ctx context.Context, profile *fsac.FileSystemAccessProfile, digestFunction digest.Function) (digest.Digest, error) {
+	params, err := be.cdcParametersFetcher.FetchCDCParameters(ctx, digestFunction.GetInstanceName())
+	if err != nil {
+		return digest.BadDigest, err
+	}
+	return cas.PutProto(
+		ctx,
+		be.zstdPool,
+		be.chunkStorage,
+		be.chunkListStorage,
+		params,
+		profile,
+		digestFunction,
+	)
 }
 
 func (be *prefetchingBuildExecutor) Execute(ctx context.Context, filePool pool.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
@@ -102,7 +133,7 @@ func (be *prefetchingBuildExecutor) Execute(ctx context.Context, filePool pool.F
 	// directories matched by the Bloom filter.
 	var existingProfile *fsac.FileSystemAccessProfile
 	group.Go(func() error {
-		profileMessage, err := be.fileSystemAccessCache.Get(groupCtx, reducedActionDigest).ToProto(&fsac.FileSystemAccessProfile{}, be.maximumMessageSizeBytes)
+		profileMessage, err := be.fileSystemAccessCache.Get(groupCtx, reducedActionDigest)
 		if err != nil {
 			if status.Code(err) == codes.NotFound {
 				existingProfile = be.emptyProfile
@@ -110,7 +141,7 @@ func (be *prefetchingBuildExecutor) Execute(ctx context.Context, filePool pool.F
 			}
 			return util.StatusWrap(err, "Failed to fetch file system access profile")
 		}
-		existingProfile = profileMessage.(*fsac.FileSystemAccessProfile)
+		existingProfile = profileMessage
 
 		bloomFilter, err := access.NewBloomFilterReader(existingProfile.BloomFilter, existingProfile.BloomFilterHashFunctions)
 		if err != nil {
@@ -123,13 +154,15 @@ func (be *prefetchingBuildExecutor) Execute(ctx context.Context, filePool pool.F
 		}
 
 		directoryPrefetcher := directoryPrefetcher{
-			context:                   prefetchCtx,
-			group:                     group,
-			bloomFilter:               bloomFilter,
-			digestFunction:            digestFunction,
-			contentAddressableStorage: be.contentAddressableStorage,
-			directoryFetcher:          be.directoryFetcher,
-			fileReadSemaphore:         be.fileReadSemaphore,
+			context:              prefetchCtx,
+			group:                group,
+			bloomFilter:          bloomFilter,
+			digestFunction:       digestFunction,
+			chunkBytesReader:     be.chunkBytesReader,
+			chunkListFetcher:     be.chunkListFetcher,
+			cdcParametersFetcher: be.cdcParametersFetcher,
+			directoryFetcher:     be.directoryFetcher,
+			fileReadSemaphore:    be.fileReadSemaphore,
 		}
 		// Prefetching may be interrupted if the action
 		// completes quickly. These cancelation errors should
@@ -161,7 +194,7 @@ func (be *prefetchingBuildExecutor) Execute(ctx context.Context, filePool pool.F
 		// profile in the File System Access Cache if it is
 		// different from the one fetched previously.
 		if !proto.Equal(existingProfile, newProfile) {
-			if err := be.fileSystemAccessCache.Put(ctx, reducedActionDigest, buffer.NewProtoBufferFromProto(newProfile, buffer.UserProvided)); err != nil {
+			if err := be.fileSystemAccessCache.Put(ctx, reducedActionDigest, newProfile); err != nil {
 				attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to store file system access profile to FSAC"))
 			}
 		}
@@ -173,12 +206,7 @@ func (be *prefetchingBuildExecutor) Execute(ctx context.Context, filePool pool.F
 		// Store a copy of the profile in content addressable storage
 		// and attach it to the response server logs if profile
 		// logging is turned on.
-		if profileDigest, err := blobstore.CASPutProto(
-			ctx,
-			be.contentAddressableStorage,
-			newProfile,
-			digestFunction,
-		); err == nil {
+		if profileDigest, err := be.storeFileSystemAccessProfileToCAS(ctx, newProfile, digestFunction); err == nil {
 			if response.ServerLogs == nil {
 				response.ServerLogs = make(map[string]*remoteexecution.LogFile)
 			}
@@ -214,13 +242,15 @@ func (dontReadFromFSACError) Error() string {
 // recursively traverse the input root, only downloading parts of the
 // input root that are matched by a Bloom filter.
 type directoryPrefetcher struct {
-	context                   context.Context
-	group                     *errgroup.Group
-	bloomFilter               *access.BloomFilterReader
-	digestFunction            digest.Function
-	contentAddressableStorage blobstore.BlobAccess
-	directoryFetcher          cas.DirectoryFetcher
-	fileReadSemaphore         *semaphore.Weighted
+	context              context.Context
+	group                *errgroup.Group
+	bloomFilter          *access.BloomFilterReader
+	digestFunction       digest.Function
+	chunkBytesReader     reader.Reader[[]byte]
+	chunkListFetcher     chunklist.Fetcher
+	cdcParametersFetcher cdc.ParametersFetcher
+	directoryFetcher     re_cas.DirectoryFetcher
+	fileReadSemaphore    *semaphore.Weighted
 }
 
 func (dp *directoryPrefetcher) shouldPrefetch(pathHashes access.PathHashes) bool {
@@ -240,7 +270,7 @@ func (dp *directoryPrefetcher) prefetchRecursively(pathTrace *path.Trace, direct
 	}
 	directory, err := dp.directoryFetcher.GetDirectory(dp.context, directoryDigest)
 	if err != nil {
-		return util.StatusWrapf(err, "Failed to prefetch directory %#v", pathTrace.GetUNIXString())
+		return util.StatusWrapf(re_cas.FailedPreconditionOnMissingBlob(directoryDigest, err), "Failed to prefetch directory %#v", pathTrace.GetUNIXString())
 	}
 
 	// Directories are traversed sequentially to prevent unbounded
@@ -271,10 +301,15 @@ func (dp *directoryPrefetcher) prefetchRecursively(pathTrace *path.Trace, direct
 			}
 			dp.group.Go(func() error {
 				var b [1]byte
-				_, err := dp.contentAddressableStorage.Get(dp.context, fileDigest).ReadAt(b[:], 0)
+				params, err := dp.cdcParametersFetcher.FetchCDCParameters(dp.context, fileDigest.GetInstanceName())
+				if err != nil {
+					dp.fileReadSemaphore.Release(1)
+					return util.StatusWrap(err, "Failed to fetch CDC parameters")
+				}
+				_, err = cas.ReadBlobAt(dp.context, dp.chunkBytesReader, dp.chunkListFetcher, params, fileDigest, b[:], 0)
 				dp.fileReadSemaphore.Release(1)
 				if err != nil && err != io.EOF && status.Code(err) != codes.Canceled {
-					return util.StatusWrapf(err, "Failed to prefetch file %#v", childPathTrace.GetUNIXString())
+					return util.StatusWrapf(re_cas.FailedPreconditionOnMissingBlob(fileDigest, err), "Failed to prefetch file %#v", childPathTrace.GetUNIXString())
 				}
 				return nil
 			})

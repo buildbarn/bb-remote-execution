@@ -11,9 +11,9 @@ replace cel.dev/expr => cel.dev/expr v0.25.1
 require (
 	cloud.google.com/go/longrunning v1.0.0
 	github.com/bazelbuild/buildtools v0.0.0-20260527145659-eb0c58a06830
-	github.com/bazelbuild/remote-apis v0.0.0-20260331222004-becdd8f9ff81
+	github.com/bazelbuild/remote-apis v0.0.0-20260908115904-76ddd98e1f92
 	github.com/bazelbuild/rules_go v0.63.0
-	github.com/buildbarn/bb-storage v0.0.0-20260906092937-ae61334ea798
+	github.com/buildbarn/bb-storage v0.0.0-20260921063913-085894171bd7
 	github.com/buildbarn/go-xdr v0.0.0-20240702182809-236788cf9e89
 	github.com/golang/protobuf v1.5.4
 	github.com/google/uuid v1.6.0
@@ -68,6 +68,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.42.1 // indirect
 	github.com/aws/smithy-go v1.25.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/buildbarn/go-cdc v0.0.9 // indirect
 	github.com/buildbarn/go-sha256tree v0.0.0-20250310211320-0f70f20e855b // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2 // indirect
@@ -124,7 +125,6 @@ require (
 	google.golang.org/api v0.281.0 // indirect
 	google.golang.org/genproto v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
-	google.golang.org/genproto/googleapis/bytestream v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/grpc/security/advancedtls v1.0.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect

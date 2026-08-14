@@ -2,7 +2,6 @@ package platform
 
 import (
 	pb "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/scheduler"
-	"github.com/buildbarn/bb-storage/pkg/blobstore"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -10,7 +9,7 @@ import (
 
 // NewKeyExtractorFromConfiguration creates a new KeyExtractor based on
 // options specified in a configuration file.
-func NewKeyExtractorFromConfiguration(configuration *pb.PlatformKeyExtractorConfiguration, contentAddressableStorage blobstore.BlobAccess) (KeyExtractor, error) {
+func NewKeyExtractorFromConfiguration(configuration *pb.PlatformKeyExtractorConfiguration) (KeyExtractor, error) {
 	if configuration == nil {
 		return nil, status.Error(codes.InvalidArgument, "No platform key extractor configuration provided")
 	}

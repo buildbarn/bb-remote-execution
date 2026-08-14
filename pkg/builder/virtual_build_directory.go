@@ -5,11 +5,13 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/buildbarn/bb-remote-execution/pkg/cas"
+	re_cas "github.com/buildbarn/bb-remote-execution/pkg/cas"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual"
-	"github.com/buildbarn/bb-storage/pkg/blobstore"
+	"github.com/buildbarn/bb-storage/pkg/blobstore/cdc"
+	"github.com/buildbarn/bb-storage/pkg/blobstore/chunklist"
+	"github.com/buildbarn/bb-storage/pkg/cas/reader"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
@@ -21,13 +23,16 @@ import (
 )
 
 type virtualBuildDirectoryOptions struct {
-	directoryFetcher          cas.DirectoryFetcher
-	contentAddressableStorage blobstore.BlobAccess
-	symlinkFactory            virtual.SymlinkFactory
-	characterDeviceFactory    virtual.CharacterDeviceFactory
-	handleAllocator           virtual.StatefulHandleAllocator
-	defaultAttributesSetter   virtual.DefaultAttributesSetter
-	clock                     clock.Clock
+	directoryFetcher        re_cas.DirectoryFetcher
+	chunkBytesReader        reader.Reader[[]byte]
+	chunkListFetcher        chunklist.Fetcher
+	cdcParametersFetcher    cdc.ParametersFetcher
+	blobUploader            re_cas.BlobUploader
+	symlinkFactory          virtual.SymlinkFactory
+	characterDeviceFactory  virtual.CharacterDeviceFactory
+	handleAllocator         virtual.StatefulHandleAllocator
+	defaultAttributesSetter virtual.DefaultAttributesSetter
+	clock                   clock.Clock
 }
 
 type virtualBuildDirectory struct {
@@ -40,17 +45,20 @@ type virtualBuildDirectory struct {
 // input root explicitly, it calls PrepopulatedDirectory.CreateChildren
 // to add special file and directory nodes whose contents are read on
 // demand.
-func NewVirtualBuildDirectory(directory virtual.PrepopulatedDirectory, directoryFetcher cas.DirectoryFetcher, contentAddressableStorage blobstore.BlobAccess, symlinkFactory virtual.SymlinkFactory, characterDeviceFactory virtual.CharacterDeviceFactory, handleAllocator virtual.StatefulHandleAllocator, defaultAttributesSetter virtual.DefaultAttributesSetter, clock clock.Clock) BuildDirectory {
+func NewVirtualBuildDirectory(directory virtual.PrepopulatedDirectory, directoryFetcher re_cas.DirectoryFetcher, chunkBytesReader reader.Reader[[]byte], chunkListFetcher chunklist.Fetcher, cdcParametersFetcher cdc.ParametersFetcher, blobUploader re_cas.BlobUploader, symlinkFactory virtual.SymlinkFactory, characterDeviceFactory virtual.CharacterDeviceFactory, handleAllocator virtual.StatefulHandleAllocator, defaultAttributesSetter virtual.DefaultAttributesSetter, clock clock.Clock) BuildDirectory {
 	return &virtualBuildDirectory{
 		PrepopulatedDirectory: directory,
 		options: &virtualBuildDirectoryOptions{
-			directoryFetcher:          directoryFetcher,
-			contentAddressableStorage: contentAddressableStorage,
-			symlinkFactory:            symlinkFactory,
-			characterDeviceFactory:    characterDeviceFactory,
-			handleAllocator:           handleAllocator,
-			defaultAttributesSetter:   defaultAttributesSetter,
-			clock:                     clock,
+			directoryFetcher:        directoryFetcher,
+			chunkBytesReader:        chunkBytesReader,
+			chunkListFetcher:        chunkListFetcher,
+			cdcParametersFetcher:    cdcParametersFetcher,
+			blobUploader:            blobUploader,
+			symlinkFactory:          symlinkFactory,
+			characterDeviceFactory:  characterDeviceFactory,
+			handleAllocator:         handleAllocator,
+			defaultAttributesSetter: defaultAttributesSetter,
+			clock:                   clock,
 		},
 	}
 }
@@ -120,11 +128,13 @@ func (d *virtualBuildDirectory) InstallHooks(filePool pool.FilePool, errorLogger
 func (d *virtualBuildDirectory) MergeDirectoryContents(ctx context.Context, errorLogger util.ErrorLogger, digest digest.Digest, monitor access.UnreadDirectoryMonitor) error {
 	initialContentsFetcher := virtual.NewCASInitialContentsFetcher(
 		ctx,
-		cas.NewDecomposedDirectoryWalker(d.options.directoryFetcher, digest),
+		re_cas.NewDecomposedDirectoryWalker(d.options.directoryFetcher, digest),
 		virtual.NewStatelessHandleAllocatingCASFileFactory(
 			virtual.NewBlobAccessCASFileFactory(
 				ctx,
-				d.options.contentAddressableStorage,
+				d.options.chunkBytesReader,
+				d.options.chunkListFetcher,
+				d.options.cdcParametersFetcher,
 				errorLogger,
 			),
 			d.options.handleAllocator.New(),
@@ -149,10 +159,10 @@ func (d *virtualBuildDirectory) UploadFile(ctx context.Context, name path.Compon
 	}
 	if _, leaf := child.GetPair(); leaf != nil {
 		p := virtual.ApplyUploadFile{
-			Context:                   ctx,
-			ContentAddressableStorage: d.options.contentAddressableStorage,
-			DigestFunction:            digestFunction,
-			WritableFileUploadDelay:   writableFileUploadDelay,
+			Context:                 ctx,
+			BlobUploader:            d.options.blobUploader,
+			DigestFunction:          digestFunction,
+			WritableFileUploadDelay: writableFileUploadDelay,
 		}
 		if !child.GetNode().VirtualApply(&p) {
 			panic("build directory contains leaves that don't handle ApplyUploadFile")
