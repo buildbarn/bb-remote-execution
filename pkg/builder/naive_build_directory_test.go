@@ -10,7 +10,7 @@ import (
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
+	"github.com/buildbarn/bb-remote-execution/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
@@ -108,8 +108,8 @@ func TestNaiveBuildDirectorySuccess(t *testing.T) {
 			require.NoError(t, path.Resolve(targetParser, scopeWalker))
 			require.Equal(t, "executable", targetPath.GetUNIXString())
 		})
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, semaphore.NewWeighted(1), contentAddressableStorage)
+	blobUploader := mock.NewMockBlobUploader(ctrl)
+	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, semaphore.NewWeighted(1), blobUploader)
 
 	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
@@ -131,8 +131,8 @@ func TestNaiveBuildDirectoryInputRootNotInStorage(t *testing.T) {
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	buildDirectory := mock.NewMockDirectoryCloser(ctrl)
 	fileFetcher := mock.NewMockFileFetcher(ctrl)
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, semaphore.NewWeighted(1), contentAddressableStorage)
+	blobUploader := mock.NewMockBlobUploader(ctrl)
+	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, semaphore.NewWeighted(1), blobUploader)
 
 	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
@@ -178,8 +178,8 @@ func TestNaiveBuildDirectoryMissingInputDirectoryDigest(t *testing.T) {
 	buildDirectory.EXPECT().EnterDirectory(path.MustNewComponent("Hello")).Return(helloDirectory, nil)
 	helloDirectory.EXPECT().Close()
 	fileFetcher := mock.NewMockFileFetcher(ctrl)
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, semaphore.NewWeighted(1), contentAddressableStorage)
+	blobUploader := mock.NewMockBlobUploader(ctrl)
+	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, semaphore.NewWeighted(1), blobUploader)
 
 	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
@@ -230,8 +230,8 @@ func TestNaiveBuildDirectoryDirectoryCreationFailure(t *testing.T) {
 	helloDirectory.EXPECT().Mkdir(path.MustNewComponent("World"), os.FileMode(0o777)).Return(status.Error(codes.DataLoss, "Disk on fire"))
 	helloDirectory.EXPECT().Close()
 	fileFetcher := mock.NewMockFileFetcher(ctrl)
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, semaphore.NewWeighted(1), contentAddressableStorage)
+	blobUploader := mock.NewMockBlobUploader(ctrl)
+	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, semaphore.NewWeighted(1), blobUploader)
 
 	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
@@ -283,8 +283,8 @@ func TestNaiveBuildDirectoryDirectoryEnterDirectoryFailure(t *testing.T) {
 	helloDirectory.EXPECT().EnterDirectory(path.MustNewComponent("World")).Return(nil, status.Error(codes.PermissionDenied, "Thou shalt not pass!"))
 	helloDirectory.EXPECT().Close()
 	fileFetcher := mock.NewMockFileFetcher(ctrl)
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, semaphore.NewWeighted(1), contentAddressableStorage)
+	blobUploader := mock.NewMockBlobUploader(ctrl)
+	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, semaphore.NewWeighted(1), blobUploader)
 
 	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
@@ -330,8 +330,8 @@ func TestNaiveBuildDirectoryMissingInputFileDigest(t *testing.T) {
 	buildDirectory.EXPECT().EnterDirectory(path.MustNewComponent("Hello")).Return(helloDirectory, nil)
 	helloDirectory.EXPECT().Close()
 	fileFetcher := mock.NewMockFileFetcher(ctrl)
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, semaphore.NewWeighted(1), contentAddressableStorage)
+	blobUploader := mock.NewMockBlobUploader(ctrl)
+	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, semaphore.NewWeighted(1), blobUploader)
 
 	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
@@ -388,8 +388,8 @@ func TestNaiveBuildDirectoryFileCreationFailure(t *testing.T) {
 		false,
 	).Return(status.Error(codes.DataLoss, "Disk on fire"))
 	helloDirectory.EXPECT().Close()
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, semaphore.NewWeighted(1), contentAddressableStorage)
+	blobUploader := mock.NewMockBlobUploader(ctrl)
+	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, semaphore.NewWeighted(1), blobUploader)
 
 	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
@@ -443,8 +443,8 @@ func TestNaiveBuildDirectorySymlinkCreationFailure(t *testing.T) {
 		})
 	helloDirectory.EXPECT().Close()
 	fileFetcher := mock.NewMockFileFetcher(ctrl)
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, semaphore.NewWeighted(1), contentAddressableStorage)
+	blobUploader := mock.NewMockBlobUploader(ctrl)
+	inputRootPopulator := builder.NewNaiveBuildDirectory(buildDirectory, directoryFetcher, fileFetcher, semaphore.NewWeighted(1), blobUploader)
 
 	err := inputRootPopulator.MergeDirectoryContents(
 		ctx,
@@ -461,13 +461,13 @@ func TestNaiveBuildDirectoryUploadFile(t *testing.T) {
 	buildDirectory := mock.NewMockDirectoryCloser(ctrl)
 	directoryFetcher := mock.NewMockDirectoryFetcher(ctrl)
 	fileFetcher := mock.NewMockFileFetcher(ctrl)
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	blobUploader := mock.NewMockBlobUploader(ctrl)
 	inputRootPopulator := builder.NewNaiveBuildDirectory(
 		buildDirectory,
 		directoryFetcher,
 		fileFetcher,
 		semaphore.NewWeighted(1),
-		contentAddressableStorage,
+		blobUploader,
 	)
 
 	helloWorldDigest := digest.MustNewDigest("default-scheduler", remoteexecution.DigestFunction_MD5, "3e25960a79dbc69b674cd4ec67a72c62", 11)
@@ -521,16 +521,16 @@ func TestNaiveBuildDirectoryUploadFile(t *testing.T) {
 			),
 			file.EXPECT().Close().Return(nil),
 		)
-		contentAddressableStorage.EXPECT().Put(ctx, helloWorldDigest, gomock.Any()).DoAndReturn(
-			func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
-				_, err := b.ToByteSlice(100)
-				testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Buffer is 9 bytes in size, while 11 bytes were expected"), err)
+		blobUploader.EXPECT().UploadBlob(ctx, helloWorldDigest, gomock.Any()).DoAndReturn(
+			func(ctx context.Context, digest digest.Digest, b cas.Blob) error {
+				_, err := b.ToByteSlice()
+				testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Stream was 9 bytes in size, while 11 bytes were expected"), err)
 				return err
 			},
 		)
 
 		_, err := inputRootPopulator.UploadFile(ctx, path.MustNewComponent("hello"), digestFunction, writableFileUploadDelay)
-		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Failed to upload file: Buffer is 9 bytes in size, while 11 bytes were expected"), err)
+		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Failed to upload file: Stream was 9 bytes in size, while 11 bytes were expected"), err)
 	})
 
 	t.Run("SuccessFileGrownDuringUpload", func(t *testing.T) {
@@ -559,9 +559,9 @@ func TestNaiveBuildDirectoryUploadFile(t *testing.T) {
 			),
 			file.EXPECT().Close().Return(nil),
 		)
-		contentAddressableStorage.EXPECT().Put(ctx, helloWorldDigest, gomock.Any()).DoAndReturn(
-			func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
-				data, err := b.ToByteSlice(100)
+		blobUploader.EXPECT().UploadBlob(ctx, helloWorldDigest, gomock.Any()).DoAndReturn(
+			func(ctx context.Context, digest digest.Digest, b cas.Blob) error {
+				data, err := b.ToByteSlice()
 				require.NoError(t, err)
 				require.Equal(t, []byte("Hello world"), data)
 				return nil

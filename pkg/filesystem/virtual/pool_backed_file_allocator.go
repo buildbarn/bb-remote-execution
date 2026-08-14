@@ -7,11 +7,10 @@ import (
 	"time"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	"github.com/buildbarn/bb-remote-execution/pkg/cas"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/bazeloutputservice"
 	bazeloutputservicerev2 "github.com/buildbarn/bb-remote-execution/pkg/proto/bazeloutputservice/rev2"
-	"github.com/buildbarn/bb-storage/pkg/blobstore"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/util"
@@ -242,7 +241,7 @@ func (f *fileBackedFile) updateCachedDigest(digestFunction digest.Function, froz
 	return newDigest, nil
 }
 
-func (f *fileBackedFile) uploadFile(ctx context.Context, contentAddressableStorage blobstore.BlobAccess, digestFunction digest.Function, writableFileUploadDelay <-chan struct{}) (digest.Digest, error) {
+func (f *fileBackedFile) uploadFile(ctx context.Context, blobUploader cas.BlobUploader, digestFunction digest.Function, writableFileUploadDelay <-chan struct{}) (digest.Digest, error) {
 	frozenFile, success := f.waitAndOpenReadFrozen(writableFileUploadDelay)
 	if !success {
 		return digest.BadDigest, status.Error(codes.NotFound, "File was unlinked before uploading could start")
@@ -254,11 +253,7 @@ func (f *fileBackedFile) uploadFile(ctx context.Context, contentAddressableStora
 		return digest.BadDigest, err
 	}
 
-	if err := contentAddressableStorage.Put(
-		ctx,
-		blobDigest,
-		buffer.NewValidatedBufferFromReaderAt(frozenFile, blobDigest.GetSizeBytes()),
-	); err != nil {
+	if err := blobUploader.UploadBlob(ctx, blobDigest, cas.NewBlobFromReaderAt(frozenFile, blobDigest.GetSizeBytes())); err != nil {
 		return digest.BadDigest, util.StatusWrap(err, "Failed to upload file")
 	}
 	return blobDigest, nil
@@ -351,7 +346,7 @@ func (f *fileBackedFile) VirtualGetAttributes(ctx context.Context, requested Att
 func (f *fileBackedFile) VirtualApply(data any) bool {
 	switch p := data.(type) {
 	case *ApplyUploadFile:
-		p.Digest, p.Err = f.uploadFile(p.Context, p.ContentAddressableStorage, p.DigestFunction, p.WritableFileUploadDelay)
+		p.Digest, p.Err = f.uploadFile(p.Context, p.BlobUploader, p.DigestFunction, p.WritableFileUploadDelay)
 	case *ApplyGetBazelOutputServiceStat:
 		p.Stat, p.Err = f.getBazelOutputServiceStat(p.DigestFunction)
 	case *ApplyAppendOutputPathPersistencyDirectoryNode:

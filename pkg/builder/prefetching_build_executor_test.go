@@ -12,6 +12,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
+	"github.com/buildbarn/bb-storage/pkg/blobstore/cdc"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/proto/fsac"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
@@ -29,7 +30,7 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	baseBuildExecutor := mock.NewMockBuildExecutor(ctrl)
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	directoryFetcher := mock.NewMockDirectoryFetcher(ctrl)
 	fileReadSemaphore := semaphore.NewWeighted(1)
 	fileSystemAccessCache := mock.NewMockBlobAccess(ctrl)
@@ -309,8 +310,12 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 					},
 				},
 			}, nil)
-		contentAddressableStorage.EXPECT().Get(gomock.Any(), digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "3ffe1ce0624ece24e5d9b31c2342a6d4", 200)).
-			Return(buffer.NewBufferFromError(status.Error(codes.Internal, "Storage offline")))
+		contentAddressableStorage.EXPECT().
+			FetchCDCParameters(gomock.Any(), gomock.Any()).
+			Return(cdc.Parameters{MinChunkSizeBytes: 256 << 10, HorizonSizeBytes: 8 * 256 << 10}, nil).
+			AnyTimes()
+		contentAddressableStorage.EXPECT().FetchChunk(gomock.Any(), digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "3ffe1ce0624ece24e5d9b31c2342a6d4", 200)).
+			Return(nil, status.Error(codes.Internal, "Storage offline"))
 
 		testutil.RequireEqualProto(
 			t,

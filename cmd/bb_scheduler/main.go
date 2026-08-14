@@ -10,6 +10,7 @@ import (
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	re_blobstore "github.com/buildbarn/bb-remote-execution/pkg/blobstore"
+	"github.com/buildbarn/bb-remote-execution/pkg/cas"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/buildqueuestate"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_scheduler"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
@@ -17,7 +18,6 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/initialsizeclass"
 	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/routing"
 	auth_configuration "github.com/buildbarn/bb-storage/pkg/auth/configuration"
-	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	blobstore_configuration "github.com/buildbarn/bb-storage/pkg/blobstore/configuration"
 	"github.com/buildbarn/bb-storage/pkg/capabilities"
 	"github.com/buildbarn/bb-storage/pkg/clock"
@@ -61,19 +61,17 @@ func main() {
 		// and Command messages stored in the CAS to obtain platform
 		// properties.
 		zstdPool := zstd.NewPoolFromConfiguration(configuration.ZstdPool)
-		info, err := blobstore_configuration.NewBlobAccessFromConfiguration(
+		contentAddressableStorage, _, _, _, _, err := blobstore_configuration.NewCASFromConfiguration(
 			dependenciesGroup,
 			configuration.ContentAddressableStorage,
-			blobstore_configuration.NewCASBlobAccessCreator(
-				grpcClientFactory,
-				int(configuration.MaximumMessageSizeBytes),
-				zstdPool,
-			),
+			grpcClientFactory,
+			int(configuration.MaximumMessageSizeBytes),
+			zstdPool,
 		)
 		if err != nil {
 			return util.StatusWrap(err, "Failed to create Content Adddressable Storage")
 		}
-		contentAddressableStorage := re_blobstore.NewExistencePreconditionBlobAccess(info.BlobAccess)
+		contentAddressableStorage = cas.NewExistencePreconditionContentAddressableStorage(contentAddressableStorage)
 
 		// Optional: Initial Size Class Cache (ISCC) access. This data
 		// store is only used if one or more parts of the ActionRouter
@@ -133,7 +131,7 @@ func main() {
 		// TODO: Make timeouts configurable.
 		generator := random.NewFastSingleThreadedGenerator()
 		buildQueue := scheduler.NewInMemoryBuildQueue(
-			blobstore.NewBlobAccessMessageReader[*remoteexecution.Action](
+			cas.NewCASMessageReader[*remoteexecution.Action](
 				contentAddressableStorage,
 				int(configuration.MaximumMessageSizeBytes),
 			),

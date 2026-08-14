@@ -9,7 +9,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual"
-	"github.com/buildbarn/bb-storage/pkg/blobstore"
+	"github.com/buildbarn/bb-storage/pkg/blobstore/cdc"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
@@ -22,7 +22,8 @@ import (
 
 type virtualBuildDirectoryOptions struct {
 	directoryFetcher          cas.DirectoryFetcher
-	contentAddressableStorage blobstore.BlobAccess
+	contentAddressableStorage cdc.ContentAddressableStorage
+	blobUploader              cas.BlobUploader
 	symlinkFactory            virtual.SymlinkFactory
 	characterDeviceFactory    virtual.CharacterDeviceFactory
 	handleAllocator           virtual.StatefulHandleAllocator
@@ -40,12 +41,13 @@ type virtualBuildDirectory struct {
 // input root explicitly, it calls PrepopulatedDirectory.CreateChildren
 // to add special file and directory nodes whose contents are read on
 // demand.
-func NewVirtualBuildDirectory(directory virtual.PrepopulatedDirectory, directoryFetcher cas.DirectoryFetcher, contentAddressableStorage blobstore.BlobAccess, symlinkFactory virtual.SymlinkFactory, characterDeviceFactory virtual.CharacterDeviceFactory, handleAllocator virtual.StatefulHandleAllocator, defaultAttributesSetter virtual.DefaultAttributesSetter, clock clock.Clock) BuildDirectory {
+func NewVirtualBuildDirectory(directory virtual.PrepopulatedDirectory, directoryFetcher cas.DirectoryFetcher, contentAddressableStorage cdc.ContentAddressableStorage, blobUploader cas.BlobUploader, symlinkFactory virtual.SymlinkFactory, characterDeviceFactory virtual.CharacterDeviceFactory, handleAllocator virtual.StatefulHandleAllocator, defaultAttributesSetter virtual.DefaultAttributesSetter, clock clock.Clock) BuildDirectory {
 	return &virtualBuildDirectory{
 		PrepopulatedDirectory: directory,
 		options: &virtualBuildDirectoryOptions{
 			directoryFetcher:          directoryFetcher,
 			contentAddressableStorage: contentAddressableStorage,
+			blobUploader:              blobUploader,
 			symlinkFactory:            symlinkFactory,
 			characterDeviceFactory:    characterDeviceFactory,
 			handleAllocator:           handleAllocator,
@@ -149,10 +151,10 @@ func (d *virtualBuildDirectory) UploadFile(ctx context.Context, name path.Compon
 	}
 	if _, leaf := child.GetPair(); leaf != nil {
 		p := virtual.ApplyUploadFile{
-			Context:                   ctx,
-			ContentAddressableStorage: d.options.contentAddressableStorage,
-			DigestFunction:            digestFunction,
-			WritableFileUploadDelay:   writableFileUploadDelay,
+			Context:                 ctx,
+			BlobUploader:            d.options.blobUploader,
+			DigestFunction:          digestFunction,
+			WritableFileUploadDelay: writableFileUploadDelay,
 		}
 		if !child.GetNode().VirtualApply(&p) {
 			panic("build directory contains leaves that don't handle ApplyUploadFile")

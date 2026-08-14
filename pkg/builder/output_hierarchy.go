@@ -6,8 +6,8 @@ import (
 	"sort"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	"github.com/buildbarn/bb-remote-execution/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
@@ -123,7 +123,7 @@ func (on *outputNode) uploadOutputs(s *uploadOutputsState, d UploadableDirectory
 // track common parameters during recursion.
 type uploadOutputsState struct {
 	context                   context.Context
-	contentAddressableStorage blobstore.BlobAccess
+	blobUploader              cas.BlobUploader
 	digestFunction            digest.Function
 	writableFileUploadDelay   <-chan struct{}
 	actionResult              *remoteexecution.ActionResult
@@ -187,7 +187,7 @@ func (s *uploadOutputsState) uploadOutputDirectoryEntered(d UploadableDirectory,
 		// depends on it to work efficiently.
 		successfullyUploaded := true
 		treeDigest := s.computeDigest(treeData)
-		if err := s.contentAddressableStorage.Put(s.context, treeDigest, buffer.NewValidatedBufferFromByteSlice(treeData)); err != nil {
+		if err := s.blobUploader.UploadBlob(s.context, treeDigest, cas.NewBlobFromByteslice(treeData)); err != nil {
 			s.saveError(util.StatusWrapf(err, "Failed to store output directory %#v", dPath.GetUNIXString()))
 			successfullyUploaded = false
 		}
@@ -199,7 +199,7 @@ func (s *uploadOutputsState) uploadOutputDirectoryEntered(d UploadableDirectory,
 		if s.uploadTreesAndDirectories {
 			rootDirectoryDigestProto = rootDirectoryDigest.GetProto()
 			for directoryDigest, directory := range dState.directoriesSeen {
-				if err := s.contentAddressableStorage.Put(s.context, directoryDigest, buffer.NewValidatedBufferFromByteSlice(directory)); err != nil {
+				if err := s.blobUploader.UploadBlob(s.context, directoryDigest, cas.NewBlobFromByteslice(directory)); err != nil {
 					s.saveError(util.StatusWrapf(err, "Failed to store output directory %#v", dPath.GetUNIXString()))
 					successfullyUploaded = false
 				}
@@ -478,10 +478,10 @@ func (oh *OutputHierarchy) CreateParentDirectories(d ParentPopulatableDirectory)
 
 // UploadOutputs uploads outputs of the build action into the CAS. This
 // function is called after executing the build action.
-func (oh *OutputHierarchy) UploadOutputs(ctx context.Context, d UploadableDirectory, contentAddressableStorage blobstore.BlobAccess, digestFunction digest.Function, writableFileUploadDelay <-chan struct{}, actionResult *remoteexecution.ActionResult, forceUploadTreesAndDirectories bool) error {
+func (oh *OutputHierarchy) UploadOutputs(ctx context.Context, d UploadableDirectory, blobUploader cas.BlobUploader, digestFunction digest.Function, writableFileUploadDelay <-chan struct{}, actionResult *remoteexecution.ActionResult, forceUploadTreesAndDirectories bool) error {
 	s := uploadOutputsState{
 		context:                   ctx,
-		contentAddressableStorage: contentAddressableStorage,
+		blobUploader:              blobUploader,
 		digestFunction:            digestFunction,
 		writableFileUploadDelay:   writableFileUploadDelay,
 		actionResult:              actionResult,
