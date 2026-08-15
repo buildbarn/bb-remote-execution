@@ -7,11 +7,14 @@ go_library(
         "blob_access_file_fetcher.go",
         "caching_directory_fetcher.go",
         "configuration.go",
+        "copy_on_link_limit.go",
         "decomposed_directory_walker.go",
         "directory_fetcher.go",
         "directory_walker.go",
         "file_fetcher.go",
         "hardlinking_file_fetcher.go",
+        "link_limit_other.go",
+        "link_limit_windows.go",
         "suspending_directory_fetcher.go",
     ],
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/cas",
@@ -32,7 +35,12 @@ go_library(
         "@org_golang_google_grpc//status",
         "@org_golang_google_protobuf//encoding/protowire",
         "@org_golang_google_protobuf//proto",
-    ],
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 go_test(
@@ -51,6 +59,7 @@ go_test(
         "@com_github_buildbarn_bb_storage//pkg/blobstore/slicing",
         "@com_github_buildbarn_bb_storage//pkg/digest",
         "@com_github_buildbarn_bb_storage//pkg/eviction",
+        "@com_github_buildbarn_bb_storage//pkg/filesystem",
         "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
         "@com_github_buildbarn_bb_storage//pkg/testutil",
         "@com_github_stretchr_testify//require",
