@@ -4,6 +4,8 @@ go_library(
     name = "runner",
     srcs = [
         "apple_xcode_resolving_runner.go",
+        "cgroup_resource_usage_sampling_runner_linux.go",
+        "cgroup_resource_usage_sampling_runner_other.go",
         "clean_runner.go",
         "local_runner.go",
         "local_runner_darwin.go",
@@ -72,7 +74,15 @@ go_test(
         "local_runner_test.go",
         "path_existence_checking_runner_test.go",
         "temporary_directory_symlinking_runner_test.go",
-    ],
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "cgroup_resource_usage_sampling_runner_test.go",
+        ],
+        "@rules_go//go/platform:linux": [
+            "cgroup_resource_usage_sampling_runner_test.go",
+        ],
+        "//conditions:default": [],
+    }),
     deps = [
         ":runner",
         "//internal/mock",
