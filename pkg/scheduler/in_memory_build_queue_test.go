@@ -16,7 +16,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/invocation"
 	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/platform"
 	"github.com/buildbarn/bb-storage/pkg/auth"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
+	"github.com/buildbarn/bb-storage/pkg/blobstore/cdc"
 	"github.com/buildbarn/bb-storage/pkg/builder"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
@@ -88,7 +88,11 @@ func getExecutionClient(t *testing.T, buildQueue builder.BuildQueue) remoteexecu
 func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage.EXPECT().
+		FetchCDCParameters(gomock.Any(), gomock.Any()).
+		Return(cdc.Parameters{MinChunkSizeBytes: 256 << 10, HorizonSizeBytes: 8 * 256 << 10}, nil).
+		AnyTimes()
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -111,10 +115,10 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 
 	// Action cannot be found in the Content Addressable Storage (CAS).
 	t.Run("MissingAction", func(t *testing.T) {
-		contentAddressableStorage.EXPECT().Get(
+		contentAddressableStorage.EXPECT().FetchChunk(
 			gomock.Any(),
 			digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-		).Return(buffer.NewBufferFromError(status.Error(codes.FailedPrecondition, "Blob not found")))
+		).Return(nil, status.Error(codes.FailedPrecondition, "Blob not found"))
 
 		stream, err := executionClient.Execute(ctx, &remoteexecution.ExecuteRequest{
 			InstanceName: "main",
@@ -139,10 +143,10 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 				SizeBytes: 456,
 			},
 		}
-		contentAddressableStorage.EXPECT().Get(
+		contentAddressableStorage.EXPECT().FetchChunk(
 			gomock.Any(),
 			digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-		).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
+		).Return(testutil.MustMarshal(t, action), nil)
 		initialSizeClassSelector := mock.NewMockSelector(ctrl)
 		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(action, platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
 		initialSizeClassSelector.EXPECT().Abandoned()
@@ -170,10 +174,10 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 				SizeBytes: 456,
 			},
 		}
-		contentAddressableStorage.EXPECT().Get(
+		contentAddressableStorage.EXPECT().FetchChunk(
 			gomock.Any(),
 			digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-		).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
+		).Return(testutil.MustMarshal(t, action), nil)
 		initialSizeClassSelector := mock.NewMockSelector(ctrl)
 		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(action, platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
 		initialSizeClassSelector.EXPECT().Abandoned()
@@ -195,19 +199,23 @@ func TestInMemoryBuildQueueExecuteBadRequest(t *testing.T) {
 func TestInMemoryBuildQueuePurgeStaleWorkersAndQueues(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage.EXPECT().
+		FetchCDCParameters(gomock.Any(), gomock.Any()).
+		Return(cdc.Parameters{MinChunkSizeBytes: 256 << 10, HorizonSizeBytes: 8 * 256 << 10}, nil).
+		AnyTimes()
 	actionRouter := mock.NewMockActionRouter(ctrl)
 	for i := 0; i < 10; i++ {
-		contentAddressableStorage.EXPECT().Get(
+		contentAddressableStorage.EXPECT().FetchChunk(
 			gomock.Any(),
 			digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-		).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Action{
+		).Return(testutil.MustMarshal(t, &remoteexecution.Action{
 			CommandDigest: &remoteexecution.Digest{
 				Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 				SizeBytes: 456,
 			},
 			DoNotCache: true,
-		}, buffer.UserProvided))
+		}), nil)
 	}
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
@@ -498,12 +506,16 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 			SizeBytes: 456,
 		},
 	}
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage.EXPECT().
+		FetchCDCParameters(gomock.Any(), gomock.Any()).
+		Return(cdc.Parameters{MinChunkSizeBytes: 256 << 10, HorizonSizeBytes: 8 * 256 << 10}, nil).
+		AnyTimes()
 	for i := 0; i < 2; i++ {
-		contentAddressableStorage.EXPECT().Get(
+		contentAddressableStorage.EXPECT().FetchChunk(
 			gomock.Any(),
 			digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-		).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
+		).Return(testutil.MustMarshal(t, action), nil)
 	}
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
@@ -742,17 +754,21 @@ func TestInMemoryBuildQueuePurgeStaleOperations(t *testing.T) {
 func TestInMemoryBuildQueueCrashLoopingWorker(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage.EXPECT().
+		FetchCDCParameters(gomock.Any(), gomock.Any()).
+		Return(cdc.Parameters{MinChunkSizeBytes: 256 << 10, HorizonSizeBytes: 8 * 256 << 10}, nil).
+		AnyTimes()
 	action := &remoteexecution.Action{
 		CommandDigest: &remoteexecution.Digest{
 			Hash:      "61c585c297d00409bd477b6b80759c94ec545ab4",
 			SizeBytes: 456,
 		},
 	}
-	contentAddressableStorage.EXPECT().Get(
+	contentAddressableStorage.EXPECT().FetchChunk(
 		gomock.Any(),
 		digest.MustNewDigest("main/suffix", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-	).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
+	).Return(testutil.MustMarshal(t, action), nil)
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -968,11 +984,15 @@ func TestInMemoryBuildQueueKillOperationsOperationName(t *testing.T) {
 			SizeBytes: 456,
 		},
 	}
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	contentAddressableStorage.EXPECT().Get(
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage.EXPECT().
+		FetchCDCParameters(gomock.Any(), gomock.Any()).
+		Return(cdc.Parameters{MinChunkSizeBytes: 256 << 10, HorizonSizeBytes: 8 * 256 << 10}, nil).
+		AnyTimes()
+	contentAddressableStorage.EXPECT().FetchChunk(
 		gomock.Any(),
 		digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-	).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
+	).Return(testutil.MustMarshal(t, action), nil)
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -1186,11 +1206,15 @@ func TestInMemoryBuildQueueKillOperationsSizeClassQueueWithoutWorkers(t *testing
 			SizeBytes: 456,
 		},
 	}
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	contentAddressableStorage.EXPECT().Get(
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage.EXPECT().
+		FetchCDCParameters(gomock.Any(), gomock.Any()).
+		Return(cdc.Parameters{MinChunkSizeBytes: 256 << 10, HorizonSizeBytes: 8 * 256 << 10}, nil).
+		AnyTimes()
+	contentAddressableStorage.EXPECT().FetchChunk(
 		gomock.Any(),
 		digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-	).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
+	).Return(testutil.MustMarshal(t, action), nil)
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -1354,7 +1378,7 @@ func TestInMemoryBuildQueueKillOperationsSizeClassQueueWithoutWorkers(t *testing
 func TestInMemoryBuildQueueIdleWorkerSynchronizationTimeout(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -1409,11 +1433,15 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 			SizeBytes: 456,
 		},
 	}
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	contentAddressableStorage.EXPECT().Get(
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage.EXPECT().
+		FetchCDCParameters(gomock.Any(), gomock.Any()).
+		Return(cdc.Parameters{MinChunkSizeBytes: 256 << 10, HorizonSizeBytes: 8 * 256 << 10}, nil).
+		AnyTimes()
+	contentAddressableStorage.EXPECT().FetchChunk(
 		gomock.Any(),
 		digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-	).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
+	).Return(testutil.MustMarshal(t, action), nil)
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -1712,7 +1740,11 @@ func TestInMemoryBuildQueueDrainedWorker(t *testing.T) {
 func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage.EXPECT().
+		FetchCDCParameters(gomock.Any(), gomock.Any()).
+		Return(cdc.Parameters{MinChunkSizeBytes: 256 << 10, HorizonSizeBytes: 8 * 256 << 10}, nil).
+		AnyTimes()
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -1797,10 +1829,10 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 				SizeBytes: 456,
 			},
 		}
-		contentAddressableStorage.EXPECT().Get(
+		contentAddressableStorage.EXPECT().FetchChunk(
 			gomock.Any(),
 			digest.MustNewDigest("main", remoteexecution.DigestFunction_MD5, p.actionHash, 123),
-		).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
+		).Return(testutil.MustMarshal(t, action), nil)
 
 		requestMetadata := &remoteexecution.RequestMetadata{
 			ToolInvocationId: p.invocationID,
@@ -2109,7 +2141,11 @@ func TestInMemoryBuildQueueInvocationFairness(t *testing.T) {
 func TestInMemoryBuildQueueInFlightDeduplicationAbandonQueued(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage.EXPECT().
+		FetchCDCParameters(gomock.Any(), gomock.Any()).
+		Return(cdc.Parameters{MinChunkSizeBytes: 256 << 10, HorizonSizeBytes: 8 * 256 << 10}, nil).
+		AnyTimes()
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -2178,10 +2214,10 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonQueued(t *testing.T) {
 				SizeBytes: 456,
 			},
 		}
-		contentAddressableStorage.EXPECT().Get(
+		contentAddressableStorage.EXPECT().FetchChunk(
 			gomock.Any(),
 			digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA256, "fc96ea0eee854b45950d3a7448332445730886691b992cb7917da0853664f7c2", 123),
-		).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
+		).Return(testutil.MustMarshal(t, action), nil)
 
 		initialSizeClassSelector := mock.NewMockSelector(ctrl)
 		requestMetadata := &remoteexecution.RequestMetadata{
@@ -2305,7 +2341,11 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonQueued(t *testing.T) {
 func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage.EXPECT().
+		FetchCDCParameters(gomock.Any(), gomock.Any()).
+		Return(cdc.Parameters{MinChunkSizeBytes: 256 << 10, HorizonSizeBytes: 8 * 256 << 10}, nil).
+		AnyTimes()
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -2375,10 +2415,10 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 			},
 			Platform: platformForTesting,
 		}
-		contentAddressableStorage.EXPECT().Get(
+		contentAddressableStorage.EXPECT().FetchChunk(
 			gomock.Any(),
 			digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA256, "fc96ea0eee854b45950d3a7448332445730886691b992cb7917da0853664f7c2", 123),
-		).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
+		).Return(testutil.MustMarshal(t, action), nil)
 
 		initialSizeClassSelector := mock.NewMockSelector(ctrl)
 		requestMetadata := &remoteexecution.RequestMetadata{
@@ -2545,7 +2585,11 @@ func TestInMemoryBuildQueueInFlightDeduplicationAbandonExecuting(t *testing.T) {
 func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage.EXPECT().
+		FetchCDCParameters(gomock.Any(), gomock.Any()).
+		Return(cdc.Parameters{MinChunkSizeBytes: 256 << 10, HorizonSizeBytes: 8 * 256 << 10}, nil).
+		AnyTimes()
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -2586,10 +2630,10 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 			SizeBytes: 456,
 		},
 	}
-	contentAddressableStorage.EXPECT().Get(
+	contentAddressableStorage.EXPECT().FetchChunk(
 		gomock.Any(),
 		digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-	).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
+	).Return(testutil.MustMarshal(t, action), nil)
 	initialSizeClassSelector := mock.NewMockSelector(ctrl)
 	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(action, platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
 	initialSizeClassLearner := mock.NewMockLearner(ctrl)
@@ -2767,7 +2811,11 @@ func TestInMemoryBuildQueuePreferBeingIdle(t *testing.T) {
 func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage.EXPECT().
+		FetchCDCParameters(gomock.Any(), gomock.Any()).
+		Return(cdc.Parameters{MinChunkSizeBytes: 256 << 10, HorizonSizeBytes: 8 * 256 << 10}, nil).
+		AnyTimes()
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -2850,10 +2898,10 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 			SizeBytes: 456,
 		},
 	}
-	contentAddressableStorage.EXPECT().Get(
+	contentAddressableStorage.EXPECT().FetchChunk(
 		gomock.Any(),
 		digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-	).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
+	).Return(testutil.MustMarshal(t, action), nil)
 	initialSizeClassSelector := mock.NewMockSelector(ctrl)
 	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(action, platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
 	initialSizeClassLearner1 := mock.NewMockLearner(ctrl)
@@ -3144,7 +3192,11 @@ func TestInMemoryBuildQueueMultipleSizeClasses(t *testing.T) {
 func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage.EXPECT().
+		FetchCDCParameters(gomock.Any(), gomock.Any()).
+		Return(cdc.Parameters{MinChunkSizeBytes: 256 << 10, HorizonSizeBytes: 8 * 256 << 10}, nil).
+		AnyTimes()
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -3206,10 +3258,10 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 			SizeBytes: 456,
 		},
 	}
-	contentAddressableStorage.EXPECT().Get(
+	contentAddressableStorage.EXPECT().FetchChunk(
 		gomock.Any(),
 		digest.MustNewDigest("main", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-	).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
+	).Return(testutil.MustMarshal(t, action), nil)
 	initialSizeClassSelector := mock.NewMockSelector(ctrl)
 	actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).Return(action, platform.MustNewKey("main", platformForTesting), nil, initialSizeClassSelector, nil)
 	initialSizeClassLearner1 := mock.NewMockLearner(ctrl)
@@ -3468,7 +3520,11 @@ func TestInMemoryBuildQueueBackgroundRun(t *testing.T) {
 func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage.EXPECT().
+		FetchCDCParameters(gomock.Any(), gomock.Any()).
+		Return(cdc.Parameters{MinChunkSizeBytes: 256 << 10, HorizonSizeBytes: 8 * 256 << 10}, nil).
+		AnyTimes()
 	mockClock := mock.NewMockClock(ctrl)
 	mockClock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -3531,10 +3587,10 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	contentAddressableStorage.EXPECT().Get(
+	contentAddressableStorage.EXPECT().FetchChunk(
 		gomock.Any(),
 		digest.MustNewDigest("", remoteexecution.DigestFunction_SHA1, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 123),
-	).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided)).AnyTimes()
+	).Return(testutil.MustMarshal(t, action), nil).AnyTimes()
 
 	// Create a worker that does a blocking Synchronize() call
 	// against the scheduler.
@@ -3891,7 +3947,11 @@ func TestInMemoryBuildQueueIdleSynchronizingWorkers(t *testing.T) {
 func TestInMemoryBuildQueueWorkerInvocationStickinessLimit(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage.EXPECT().
+		FetchCDCParameters(gomock.Any(), gomock.Any()).
+		Return(cdc.Parameters{MinChunkSizeBytes: 256 << 10, HorizonSizeBytes: 8 * 256 << 10}, nil).
+		AnyTimes()
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -3943,10 +4003,10 @@ func TestInMemoryBuildQueueWorkerInvocationStickinessLimit(t *testing.T) {
 				SizeBytes: 456,
 			},
 		}
-		contentAddressableStorage.EXPECT().Get(
+		contentAddressableStorage.EXPECT().FetchChunk(
 			gomock.Any(),
 			digest.MustNewDigest("", remoteexecution.DigestFunction_SHA1, "0474d2f48968a56da4de20718d8ac23aafd80709", 123),
-		).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
+		).Return(testutil.MustMarshal(t, action), nil)
 		requestMetadata := &remoteexecution.RequestMetadata{
 			ToolInvocationId: p.toolInvocationID,
 		}
@@ -4121,7 +4181,11 @@ func TestInMemoryBuildQueueWorkerInvocationStickinessLimit(t *testing.T) {
 func TestInMemoryBuildQueueAuthorization(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage.EXPECT().
+		FetchCDCParameters(gomock.Any(), gomock.Any()).
+		Return(cdc.Parameters{MinChunkSizeBytes: 256 << 10, HorizonSizeBytes: 8 * 256 << 10}, nil).
+		AnyTimes()
 	clock := mock.NewMockClock(ctrl)
 	clock.EXPECT().Now().Return(time.Unix(0, 0)).AnyTimes()
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -4188,10 +4252,10 @@ func TestInMemoryBuildQueueAuthorization(t *testing.T) {
 			Platform: &remoteexecution.Platform{},
 		}
 
-		contentAddressableStorage.EXPECT().Get(
+		contentAddressableStorage.EXPECT().FetchChunk(
 			gomock.Any(),
 			digest.MustNewDigest("beepboop", remoteexecution.DigestFunction_SHA1, "61c585c297d00409bd477b6b80759c94ec545ab4", 456),
-		).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
+		).Return(testutil.MustMarshal(t, action), nil)
 
 		initialSizeClassSelector := mock.NewMockSelector(ctrl)
 		actionRouter.EXPECT().RouteAction(gomock.Any(), gomock.Any(), testutil.EqProto(t, action), nil).
@@ -4245,7 +4309,11 @@ func TestInMemoryBuildQueueAuthorization(t *testing.T) {
 func TestInMemoryBuildQueueNestedInvocationsSynchronization(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage.EXPECT().
+		FetchCDCParameters(gomock.Any(), gomock.Any()).
+		Return(cdc.Parameters{MinChunkSizeBytes: 256 << 10, HorizonSizeBytes: 8 * 256 << 10}, nil).
+		AnyTimes()
 	mockClock := mock.NewMockClock(ctrl)
 	mockClock.EXPECT().Now().Return(time.Unix(0, 0))
 	uuidGenerator := mock.NewMockUUIDGenerator(ctrl)
@@ -4293,10 +4361,10 @@ func TestInMemoryBuildQueueNestedInvocationsSynchronization(t *testing.T) {
 				SizeBytes: 456,
 			},
 		}
-		contentAddressableStorage.EXPECT().Get(
+		contentAddressableStorage.EXPECT().FetchChunk(
 			gomock.Any(),
 			digest.MustNewDigest("", remoteexecution.DigestFunction_SHA1, "0474d2f48968a56da4de20718d8ac23aafd80709", 123),
-		).Return(buffer.NewProtoBufferFromProto(action, buffer.UserProvided))
+		).Return(testutil.MustMarshal(t, action), nil)
 		toolInvocationID := &remoteexecution.RequestMetadata{
 			ToolInvocationId: p.toolInvocationID,
 		}

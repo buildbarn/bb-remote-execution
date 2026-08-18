@@ -21,7 +21,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/platform"
 	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/routing"
 	"github.com/buildbarn/bb-storage/pkg/auth"
-	"github.com/buildbarn/bb-storage/pkg/blobstore"
+	"github.com/buildbarn/bb-storage/pkg/blobstore/cdc"
 	"github.com/buildbarn/bb-storage/pkg/builder"
 	"github.com/buildbarn/bb-storage/pkg/capabilities"
 	"github.com/buildbarn/bb-storage/pkg/clock"
@@ -236,7 +236,7 @@ type InMemoryBuildQueueConfiguration struct {
 type InMemoryBuildQueue struct {
 	capabilities.Provider
 
-	contentAddressableStorage           blobstore.BlobAccess
+	contentAddressableStorage           cdc.ContentAddressableStorage
 	clock                               clock.Clock
 	uuidGenerator                       util.UUIDGenerator
 	configuration                       *InMemoryBuildQueueConfiguration
@@ -316,7 +316,7 @@ var inMemoryBuildQueueCapabilitiesProvider = capabilities.NewStaticProvider(&rem
 // NewInMemoryBuildQueue creates a new InMemoryBuildQueue that is in the
 // initial state. It does not have any queues, workers or queued
 // execution requests. All of these are created by sending it RPCs.
-func NewInMemoryBuildQueue(contentAddressableStorage blobstore.BlobAccess, clock clock.Clock, uuidGenerator util.UUIDGenerator, configuration *InMemoryBuildQueueConfiguration, maximumMessageSizeBytes int, actionRouter routing.ActionRouter, executeAuthorizer, modifyDrainsAuthorizer, killOperationsAuthorizer, synchronizeAuthorizer auth.Authorizer) *InMemoryBuildQueue {
+func NewInMemoryBuildQueue(contentAddressableStorage cdc.ContentAddressableStorage, clock clock.Clock, uuidGenerator util.UUIDGenerator, configuration *InMemoryBuildQueueConfiguration, maximumMessageSizeBytes int, actionRouter routing.ActionRouter, executeAuthorizer, modifyDrainsAuthorizer, killOperationsAuthorizer, synchronizeAuthorizer auth.Authorizer) *InMemoryBuildQueue {
 	inMemoryBuildQueuePrometheusMetrics.Do(func() {
 		prometheus.MustRegister(inMemoryBuildQueueInFlightDeduplicationsTotal)
 
@@ -450,11 +450,13 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 	if err != nil {
 		return util.StatusWrap(err, "Failed to extract digest for action")
 	}
-	actionMessage, err := bq.contentAddressableStorage.Get(ctx, actionDigest).ToProto(&remoteexecution.Action{}, bq.maximumMessageSizeBytes)
+	if actionDigest.GetSizeBytes() > int64(bq.maximumMessageSizeBytes) {
+		return status.Errorf(codes.InvalidArgument, "Action is %d bytes but this backend only supports actions up to %d bytes", actionDigest.GetSizeBytes(), bq.maximumMessageSizeBytes)
+	}
+	action, err := cdc.GetProto(ctx, bq.contentAddressableStorage, actionDigest, &remoteexecution.Action{})
 	if err != nil {
 		return util.StatusWrap(err, "Failed to obtain action")
 	}
-	action := actionMessage.(*remoteexecution.Action)
 	platformKey, err := platform.NewKey(instanceName, action.Platform)
 	if err != nil {
 		return err

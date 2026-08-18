@@ -14,7 +14,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	re_blobstore "github.com/buildbarn/bb-remote-execution/pkg/blobstore"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
 	"github.com/buildbarn/bb-remote-execution/pkg/cas"
 	"github.com/buildbarn/bb-remote-execution/pkg/cleaner"
@@ -86,7 +85,7 @@ func main() {
 
 		// Storage access.
 		zstdPool := zstd.NewPoolFromConfiguration(configuration.ZstdPool)
-		globalContentAddressableStorage, actionCache, err := blobstore_configuration.NewCASAndACBlobAccessFromConfiguration(
+		globalContentAddressableStorage, actionCache, err := blobstore_configuration.NewCASAndACFromConfiguration(
 			dependenciesGroup,
 			configuration.Blobstore,
 			grpcClientFactory,
@@ -96,7 +95,7 @@ func main() {
 		if err != nil {
 			return err
 		}
-		globalContentAddressableStorage = re_blobstore.NewExistencePreconditionBlobAccess(globalContentAddressableStorage)
+		globalContentAddressableStorage = cas.NewExistencePreconditionContentAddressableStorage(globalContentAddressableStorage)
 
 		var fileSystemAccessCache blobstore.BlobAccess
 		prefetchingConfiguration := configuration.Prefetching
@@ -121,9 +120,9 @@ func main() {
 		// Tree objects.
 		directoryFetcher, err := cas.NewCachingDirectoryFetcherFromConfiguration(
 			configuration.DirectoryCache,
-			cas.NewBlobAccessDirectoryFetcher(
+			cas.NewCASDirectoryFetcher(
 				globalContentAddressableStorage,
-				/* maximumDirectorySizeBytes = */ int(configuration.MaximumMessageSizeBytes),
+				/* maximumDirectorySizeBytes = */ configuration.MaximumMessageSizeBytes,
 				/* maximumTreeSizeBytes = */ 0,
 			),
 		)
@@ -302,7 +301,7 @@ func main() {
 					return util.StatusWrap(err, "Failed to create eviction set for cache directory")
 				}
 				fileFetcher = cas.NewHardlinkingFileFetcher(
-					cas.NewBlobAccessFileFetcher(globalContentAddressableStorage),
+					cas.NewCASFileFetcher(globalContentAddressableStorage),
 					cacheDirectory,
 					int(nativeConfiguration.MaximumCacheFileCount),
 					nativeConfiguration.MaximumCacheSizeBytes,
@@ -368,22 +367,6 @@ func main() {
 				runnerClient := runner_pb.NewRunnerClient(runnerConnection)
 
 				for threadID := uint64(0); threadID < runnerConfiguration.Concurrency; threadID++ {
-					// Per-worker separate writer of the Content
-					// Addressable Storage that batches writes after
-					// completing the build action.
-					contentAddressableStorageWriter, contentAddressableStorageFlusher := re_blobstore.NewBatchedStoreBlobAccess(
-						globalContentAddressableStorage,
-						digest.KeyWithoutInstance,
-						uploadBatchSize,
-						outputUploadConcurrencySemaphore,
-					)
-					contentAddressableStorageWriter = blobstore.NewMetricsBlobAccess(
-						contentAddressableStorageWriter,
-						clock.SystemClock,
-						"cas",
-						"batched_store",
-					)
-
 					// Features like the virtual file system
 					// and HTTP execution timeout
 					// compensators require us to use a
@@ -400,6 +383,20 @@ func main() {
 						executionTimeoutClock = suspendableClock
 					}
 
+					localContentAddressableStorage := globalContentAddressableStorage
+					if virtualBuildDirectory != nil {
+						localContentAddressableStorage = cas.NewSuspendingContentAddressableStorage(localContentAddressableStorage, suspendableClock)
+					}
+
+					// Per-worker separate writer of the Content
+					// Addressable Storage that batches writes after
+					// completing the build action.
+					blobUploader, blobUploaderFlusher := cas.NewBatchingBlobUploader(
+						localContentAddressableStorage,
+						uploadBatchSize,
+						outputUploadConcurrencySemaphore,
+					)
+
 					// When the virtual file system is
 					// enabled, we can lazily load the input
 					// root, as opposed to explicitly
@@ -412,10 +409,8 @@ func main() {
 								directoryFetcher,
 								suspendableClock,
 							),
-							re_blobstore.NewSuspendingBlobAccess(
-								contentAddressableStorageWriter,
-								suspendableClock,
-							),
+							localContentAddressableStorage,
+							blobUploader,
 							symlinkFactory,
 							characterDeviceFactory,
 							handleAllocator,
@@ -428,7 +423,7 @@ func main() {
 							directoryFetcher,
 							fileFetcher,
 							inputDownloadConcurrencySemaphore,
-							contentAddressableStorageWriter,
+							blobUploader,
 						)
 					}
 
@@ -461,7 +456,8 @@ func main() {
 					}
 
 					buildExecutor := builder.NewLocalBuildExecutor(
-						contentAddressableStorageWriter,
+						blobUploader,
+						localContentAddressableStorage,
 						buildDirectoryCreator,
 						runnerClient,
 						executionTimeoutClock,
@@ -490,7 +486,7 @@ func main() {
 							builder.NewTimestampedBuildExecutor(
 								builder.NewStorageFlushingBuildExecutor(
 									buildExecutor,
-									contentAddressableStorageFlusher,
+									blobUploaderFlusher,
 								),
 								clock.SystemClock,
 								string(workerName),
