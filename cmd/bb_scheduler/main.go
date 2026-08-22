@@ -19,6 +19,7 @@ import (
 	auth_configuration "github.com/buildbarn/bb-storage/pkg/auth/configuration"
 	blobstore_configuration "github.com/buildbarn/bb-storage/pkg/blobstore/configuration"
 	"github.com/buildbarn/bb-storage/pkg/capabilities"
+	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/global"
@@ -132,7 +133,10 @@ func main() {
 		// TODO: Make timeouts configurable.
 		generator := random.NewFastSingleThreadedGenerator()
 		buildQueue := scheduler.NewInMemoryBuildQueue(
-			contentAddressableStorage,
+			cas.NewBlobAccessMessageReader[remoteexecution.Action](
+				contentAddressableStorage,
+				int(configuration.MaximumMessageSizeBytes),
+			),
 			clock.SystemClock,
 			uuid.NewRandom,
 			&scheduler.InMemoryBuildQueueConfiguration{
@@ -149,7 +153,6 @@ func main() {
 				WorkerTaskRetryCount:                9,
 				WorkerWithNoSynchronizationsTimeout: time.Minute,
 			},
-			int(configuration.MaximumMessageSizeBytes),
 			actionRouter,
 			executeAuthorizer,
 			modifyDrainsAuthorizer,
