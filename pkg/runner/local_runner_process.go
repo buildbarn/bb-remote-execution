@@ -13,11 +13,6 @@ func prepareCommandForStart(cmd *exec.Cmd) (*commandProcess, error) {
 	return &commandProcess{}, nil
 }
 
-// AfterStart is called after Start succeeds and before the caller waits.
-func (commandProcess) AfterStart(cmd *exec.Cmd) error {
-	return nil
-}
-
 // AfterWait is called after Wait returns, before build directory cleanup can
 // proceed.
 func (commandProcess) AfterWait(cmd *exec.Cmd) error {

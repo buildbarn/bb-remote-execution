@@ -4,16 +4,15 @@
 // This file intentionally mirrors the native Bazel Windows launcher:
 // https://github.com/bazelbuild/bazel/blob/master/src/main/native/windows/process.cc
 //
-// The root process is created suspended, assigned to a non-breakaway job, and
-// only then resumed. Assigning while suspended is the important race fix: an
-// unsuspended process could spawn descendants before the runner has contained
-// it, leaving those descendants alive to keep the input root undeletable.
+// The root process is assigned to a non-breakaway job as part of process
+// creation. This prevents it from spawning descendants before the runner has
+// contained it, which could leave those descendants alive to keep the input
+// root undeletable.
 
 package runner
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"os/exec"
 	"sync"
@@ -40,20 +39,15 @@ type jobObjectAssociateCompletionPort struct {
 }
 
 type commandProcess struct {
-	lock     sync.Mutex
-	job      windows.Handle
-	ioport   windows.Handle
-	assigned bool
-	closed   bool
-	canceled bool
-	// afterCancellationCheck is a test-only hook for pausing AfterStart while
-	// it holds lock between checking canceled and resuming the process.
-	afterCancellationCheck func()
+	lock   sync.Mutex
+	job    windows.Handle
+	ioport windows.Handle
+	closed bool
 }
 
 // prepareCommandForStart creates the job object and completion port before the
-// process exists. It also amends cmd so Start creates the root process suspended
-// and in a new process group. The returned object owns those handles until
+// process exists. It also amends cmd so Start creates the root process in the
+// job and in a new process group. The returned object owns those handles until
 // Close or AfterWait.
 func prepareCommandForStart(cmd *exec.Cmd) (*commandProcess, error) {
 	job, err := windows.CreateJobObject(nil, nil)
@@ -104,7 +98,11 @@ func prepareCommandForStart(cmd *exec.Cmd) (*commandProcess, error) {
 	if cmd.SysProcAttr != nil {
 		sysProcAttr = *cmd.SysProcAttr
 	}
-	sysProcAttr.CreationFlags |= windows.CREATE_NEW_PROCESS_GROUP | windows.CREATE_SUSPENDED
+	// Clone Jobs before appending, so preparing the command does not mutate the
+	// backing array of a caller-provided SysProcAttr.
+	sysProcAttr.Jobs = append([]syscall.Handle(nil), sysProcAttr.Jobs...)
+	sysProcAttr.Jobs = append(sysProcAttr.Jobs, syscall.Handle(job))
+	sysProcAttr.CreationFlags |= windows.CREATE_NEW_PROCESS_GROUP
 	cmd.SysProcAttr = &sysProcAttr
 	if cmd.Cancel != nil {
 		cmd.Cancel = p.Cancel
@@ -114,62 +112,10 @@ func prepareCommandForStart(cmd *exec.Cmd) (*commandProcess, error) {
 	return p, nil
 }
 
-// Cancel may run as soon as cmd.Context is canceled, including before AfterStart
-// has assigned the suspended root process to the job. In that pre-assignment
-// race, record the cancellation and let AfterStart terminate the job after the
-// assignment has made termination cover the whole process tree.
+// Cancel terminates the root process and all of its descendants through the job
+// to which Start assigned the process atomically.
 func (p *commandProcess) Cancel() error {
-	p.lock.Lock()
-	p.canceled = true
-	assigned := p.assigned
-	closed := p.closed
-	p.lock.Unlock()
-	if closed {
-		return os.ErrProcessDone
-	}
-	if !assigned {
-		return nil
-	}
 	return p.terminateJob()
-}
-
-// AfterStart assigns the still-suspended root process to the job, then either
-// applies a cancellation that arrived early or resumes the process. On any
-// failure after Start, it kills/reaps the partially started process tree before
-// returning to the caller.
-func (p *commandProcess) AfterStart(cmd *exec.Cmd) error {
-	processHandle, err := windows.OpenProcess(
-		windows.PROCESS_SET_QUOTA|windows.PROCESS_TERMINATE,
-		false,
-		uint32(cmd.Process.Pid),
-	)
-	if err != nil {
-		return p.cleanupAfterStartFailure(cmd, err, false)
-	}
-	err = windows.AssignProcessToJobObject(p.job, processHandle)
-	windows.CloseHandle(processHandle)
-	if err != nil {
-		return p.cleanupAfterStartFailure(cmd, err, false)
-	}
-
-	p.lock.Lock()
-	p.assigned = true
-	if p.canceled {
-		p.lock.Unlock()
-		if err := p.terminateJob(); err != nil {
-			return p.cleanupAfterStartFailure(cmd, err, true)
-		}
-		return nil
-	}
-	if p.afterCancellationCheck != nil {
-		p.afterCancellationCheck()
-	}
-	err = resumeProcessThreads(uint32(cmd.Process.Pid))
-	p.lock.Unlock()
-	if err != nil {
-		return p.cleanupAfterStartFailure(cmd, err, true)
-	}
-	return nil
 }
 
 // AfterWait runs after the root process has exited. It terminates anything that
@@ -206,20 +152,6 @@ func (p *commandProcess) Close() {
 	if ioport != 0 {
 		windows.CloseHandle(ioport)
 	}
-}
-
-func (p *commandProcess) cleanupAfterStartFailure(cmd *exec.Cmd, cause error, assigned bool) error {
-	if assigned {
-		_ = p.terminateJob()
-	} else if cmd.Process != nil {
-		_ = cmd.Process.Kill()
-	}
-	_ = cmd.Wait()
-	if assigned {
-		_ = p.waitForActiveProcessZero()
-	}
-	p.Close()
-	return cause
 }
 
 func (p *commandProcess) terminateJob() error {
@@ -259,50 +191,4 @@ func (p *commandProcess) waitForActiveProcessZero() error {
 			return nil
 		}
 	}
-}
-
-// resumeProcessThreads resumes all threads belonging to the suspended root
-// process. Go's os/exec path closes the primary thread handle returned by
-// CreateProcess, so this code has to rediscover the thread handle by PID.
-func resumeProcessThreads(pid uint32) error {
-	snapshot, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPTHREAD, 0)
-	if err != nil {
-		return err
-	}
-	defer windows.CloseHandle(snapshot)
-
-	var threadHandles []windows.Handle
-	defer func() {
-		for _, threadHandle := range threadHandles {
-			windows.CloseHandle(threadHandle)
-		}
-	}()
-
-	entry := windows.ThreadEntry32{
-		Size: uint32(unsafe.Sizeof(windows.ThreadEntry32{})),
-	}
-	for err := windows.Thread32First(snapshot, &entry); ; err = windows.Thread32Next(snapshot, &entry) {
-		if err != nil {
-			if errors.Is(err, windows.ERROR_NO_MORE_FILES) {
-				break
-			}
-			return err
-		}
-		if entry.OwnerProcessID == pid {
-			threadHandle, err := windows.OpenThread(windows.THREAD_SUSPEND_RESUME, false, entry.ThreadID)
-			if err != nil {
-				return err
-			}
-			threadHandles = append(threadHandles, threadHandle)
-		}
-	}
-	if len(threadHandles) == 0 {
-		return fmt.Errorf("process %d has no threads to resume", pid)
-	}
-	for _, threadHandle := range threadHandles {
-		if _, err := windows.ResumeThread(threadHandle); err != nil {
-			return err
-		}
-	}
-	return nil
 }

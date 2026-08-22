@@ -1,92 +1,43 @@
 package runner
 
 import (
-	"errors"
-	"os"
 	"os/exec"
-	"path/filepath"
+	"syscall"
 	"testing"
-	"time"
+
+	"golang.org/x/sys/windows"
 )
 
-func TestCommandProcessCancellationBetweenCheckAndResume(t *testing.T) {
-	// Pause AfterStart after it has checked for cancellation, at which point it
-	// must still hold the mutex. Cancel must block until AfterStart resumes the
-	// process and releases the mutex. The old implementation released the mutex
-	// before resume, allowing Cancel to terminate the suspended process first.
-	cmd := exec.Command(
-		filepath.Join(os.Getenv("SYSTEMROOT"), "System32", "cmd.exe"),
-		"/d", "/c", "ping -n 60 127.0.0.1 > nul",
-	)
+func TestPrepareCommandForStartAppendsJob(t *testing.T) {
+	const existingJob syscall.Handle = 123
+	jobs := make([]syscall.Handle, 1, 2)
+	jobs[0] = existingJob
+	cmd := exec.Command("does-not-need-to-exist")
+	originalSysProcAttr := &syscall.SysProcAttr{
+		CreationFlags: windows.CREATE_NO_WINDOW,
+		Jobs:          jobs,
+	}
+	cmd.SysProcAttr = originalSysProcAttr
+
 	commandProcess, err := prepareCommandForStart(cmd)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer commandProcess.Close()
 
-	afterCancellationCheck := make(chan struct{})
-	allowResume := make(chan struct{})
-	commandProcess.afterCancellationCheck = func() {
-		close(afterCancellationCheck)
-		<-allowResume
+	if cmd.SysProcAttr == originalSysProcAttr {
+		t.Fatal("prepareCommandForStart() reused the caller's SysProcAttr")
 	}
-
-	if err := cmd.Start(); err != nil {
-		commandProcess.Close()
-		t.Fatal(err)
+	if got, want := cmd.SysProcAttr.CreationFlags, uint32(windows.CREATE_NO_WINDOW|windows.CREATE_NEW_PROCESS_GROUP); got != want {
+		t.Errorf("CreationFlags = %#x, want %#x", got, want)
 	}
-	afterStartResult := make(chan error, 1)
-	go func() {
-		afterStartResult <- commandProcess.AfterStart(cmd)
-	}()
-
-	select {
-	case <-afterCancellationCheck:
-	case <-time.After(10 * time.Second):
-		t.Fatal("timed out waiting for the cancellation check")
+	if got, want := cmd.SysProcAttr.Jobs, []syscall.Handle{existingJob, syscall.Handle(commandProcess.job)}; len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Errorf("Jobs = %v, want %v", got, want)
 	}
-
-	var cancelErr error
-	cancellationReturnedBeforeResume := commandProcess.lock.TryLock()
-	var cancelResult chan error
-	if cancellationReturnedBeforeResume {
-		commandProcess.lock.Unlock()
-		cancelErr = commandProcess.Cancel()
-	} else {
-		cancelResult = make(chan error, 1)
-		go func() {
-			cancelResult <- commandProcess.Cancel()
-		}()
+	if got, want := originalSysProcAttr.Jobs, []syscall.Handle{existingJob}; len(got) != len(want) || got[0] != want[0] {
+		t.Errorf("original Jobs = %v, want %v", got, want)
 	}
-	close(allowResume)
-
-	var afterStartErr error
-	select {
-	case afterStartErr = <-afterStartResult:
-	case <-time.After(10 * time.Second):
-		t.Fatal("AfterStart() hung")
-	}
-	if !cancellationReturnedBeforeResume {
-		select {
-		case cancelErr = <-cancelResult:
-		case <-time.After(10 * time.Second):
-			t.Fatal("Cancel() hung")
-		}
-	}
-
-	if cancelErr != nil && !errors.Is(cancelErr, os.ErrProcessDone) {
-		t.Errorf("Cancel() failed: %v", cancelErr)
-	}
-	if afterStartErr != nil {
-		t.Errorf("AfterStart() failed: %v", afterStartErr)
-	}
-	if cancellationReturnedBeforeResume {
-		t.Error("cancellation terminated the suspended job before resume")
-	}
-
-	if afterStartErr == nil {
-		_ = cmd.Wait()
-		if err := commandProcess.AfterWait(cmd); err != nil {
-			t.Errorf("AfterWait() failed: %v", err)
-		}
+	if got := jobs[:cap(jobs)][1]; got != 0 {
+		t.Errorf("caller-owned Jobs backing array was modified: jobs[1] = %v", got)
 	}
 }

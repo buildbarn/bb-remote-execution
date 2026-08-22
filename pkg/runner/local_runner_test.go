@@ -696,11 +696,8 @@ func TestLocalRunnerRunWindowsCancellationCleanup(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		t.Fatal("Run() hung after cancellation")
 	}
-	if result.err != nil {
-		require.NotContains(t, result.err.Error(), "Failed to finish process startup")
-	} else {
-		require.NotNil(t, result.response)
-	}
+	require.NoError(t, result.err)
+	require.NotNil(t, result.response)
 
 	require.NoError(t, os.RemoveAll(rootPath))
 	require.NoDirExists(t, rootPath)

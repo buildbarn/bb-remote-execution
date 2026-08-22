@@ -207,10 +207,6 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 		}
 		return nil, util.StatusWrapWithCode(err, code, "Failed to start process")
 	}
-	if err := commandProcess.AfterStart(cmd); err != nil {
-		return nil, util.StatusWrap(err, "Failed to finish process startup")
-	}
-
 	// Wait for execution to complete. Permit non-zero exit codes.
 	waitErr := cmd.Wait()
 	afterWaitErr := commandProcess.AfterWait(cmd)
