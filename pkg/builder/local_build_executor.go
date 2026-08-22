@@ -17,6 +17,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
+	"github.com/buildbarn/bb-storage/pkg/storage"
 	"github.com/buildbarn/bb-storage/pkg/util"
 
 	"google.golang.org/grpc/codes"
@@ -66,27 +67,27 @@ func (el *capturingErrorLogger) GetError() error {
 
 type localBuildExecutor struct {
 	contentAddressableStorage      blobstore.BlobAccess
+	commandReader                  storage.MessageReader[*remoteexecution.Command]
 	buildDirectoryCreator          BuildDirectoryCreator
 	runner                         runner_pb.RunnerClient
 	clock                          clock.Clock
 	maximumWritableFileUploadDelay time.Duration
 	inputRootCharacterDevices      map[path.Component]filesystem.DeviceNumber
-	maximumMessageSizeBytes        int
 	environmentVariables           map[string]string
 	forceUploadTreesAndDirectories bool
 }
 
 // NewLocalBuildExecutor returns a BuildExecutor that executes build
 // steps on the local system.
-func NewLocalBuildExecutor(contentAddressableStorage blobstore.BlobAccess, buildDirectoryCreator BuildDirectoryCreator, runner runner_pb.RunnerClient, clock clock.Clock, maximumWritableFileUploadDelay time.Duration, inputRootCharacterDevices map[path.Component]filesystem.DeviceNumber, maximumMessageSizeBytes int, environmentVariables map[string]string, forceUploadTreesAndDirectories bool) BuildExecutor {
+func NewLocalBuildExecutor(contentAddressableStorage blobstore.BlobAccess, commandReader storage.MessageReader[*remoteexecution.Command], buildDirectoryCreator BuildDirectoryCreator, runner runner_pb.RunnerClient, clock clock.Clock, maximumWritableFileUploadDelay time.Duration, inputRootCharacterDevices map[path.Component]filesystem.DeviceNumber, environmentVariables map[string]string, forceUploadTreesAndDirectories bool) BuildExecutor {
 	return &localBuildExecutor{
 		contentAddressableStorage:      contentAddressableStorage,
+		commandReader:                  commandReader,
 		buildDirectoryCreator:          buildDirectoryCreator,
 		runner:                         runner,
 		clock:                          clock,
 		maximumWritableFileUploadDelay: maximumWritableFileUploadDelay,
 		inputRootCharacterDevices:      inputRootCharacterDevices,
-		maximumMessageSizeBytes:        maximumMessageSizeBytes,
 		environmentVariables:           environmentVariables,
 		forceUploadTreesAndDirectories: forceUploadTreesAndDirectories,
 	}
@@ -231,12 +232,11 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool pool.FilePoo
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to extract digest for command"))
 		return response
 	}
-	commandMessage, err := be.contentAddressableStorage.Get(ctx, commandDigest).ToProto(&remoteexecution.Command{}, be.maximumMessageSizeBytes)
+	command, err := be.commandReader.ReadMessage(ctx, commandDigest, &remoteexecution.Command{})
 	if err != nil {
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to obtain command"))
 		return response
 	}
-	command := commandMessage.(*remoteexecution.Command)
 	outputHierarchy, err := NewOutputHierarchy(command)
 	if err != nil {
 		attachErrorToExecuteResponse(response, err)
