@@ -14,6 +14,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -25,30 +26,18 @@ func TestBlobAccessDirectoryFetcherGetDirectory(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	blobAccess := mock.NewMockBlobAccess(ctrl)
-	directoryFetcher := cas.NewBlobAccessDirectoryFetcher(blobAccess, 1000, 10000)
+	directoryReader := mock.NewMockMessageReader[*remoteexecution.Directory](ctrl)
+	treeReader := mock.NewMockStreamReader(ctrl)
+	directoryFetcher := cas.NewBlobAccessDirectoryFetcher(blobAccess, directoryReader, treeReader, 1000, 10000)
 
-	t.Run("IOError", func(t *testing.T) {
+	t.Run("Error", func(t *testing.T) {
 		// Failures reading the Directory object should be propagated.
 		directoryDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "756b15c8f94b519e96135dcfde0e58c5", 50)
 
-		r := mock.NewMockFileReader(ctrl)
-		r.EXPECT().ReadAt(gomock.Any(), gomock.Any()).Return(0, status.Error(codes.Internal, "I/O error"))
-		r.EXPECT().Close()
-		blobAccess.EXPECT().Get(ctx, directoryDigest).Return(buffer.NewValidatedBufferFromReaderAt(r, 100))
+		directoryReader.EXPECT().ReadMessage(ctx, directoryDigest).Return(nil, status.Error(codes.Internal, "Some error reading directory object."))
 
 		_, err := directoryFetcher.GetDirectory(ctx, directoryDigest)
-		testutil.RequireEqualStatus(t, status.Error(codes.Internal, "I/O error"), err)
-	})
-
-	t.Run("InvalidDirectory", func(t *testing.T) {
-		// It is only valid to call GetDirectory() against an
-		// REv2 Directory object.
-		directoryDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "764b0da73352b970cfbfc488a0f54934", 30)
-
-		blobAccess.EXPECT().Get(ctx, directoryDigest).Return(buffer.NewValidatedBufferFromByteSlice([]byte("This is not a Directory object")))
-
-		_, err := directoryFetcher.GetDirectory(ctx, directoryDigest)
-		testutil.RequirePrefixedStatus(t, status.Error(codes.InvalidArgument, "Failed to unmarshal message: "), err)
+		testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Some error reading directory object."), err)
 	})
 
 	t.Run("Success", func(t *testing.T) {
@@ -65,7 +54,7 @@ func TestBlobAccessDirectoryFetcherGetDirectory(t *testing.T) {
 			},
 		}
 
-		blobAccess.EXPECT().Get(ctx, directoryDigest).Return(buffer.NewProtoBufferFromProto(exampleDirectory, buffer.UserProvided))
+		directoryReader.EXPECT().ReadMessage(ctx, directoryDigest).Return(exampleDirectory, nil)
 
 		directory, err := directoryFetcher.GetDirectory(ctx, directoryDigest)
 		require.NoError(t, err)
@@ -77,7 +66,9 @@ func TestBlobAccessDirectoryFetcherGetTreeRootDirectory(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	blobAccess := mock.NewMockBlobAccess(ctrl)
-	directoryFetcher := cas.NewBlobAccessDirectoryFetcher(blobAccess, 1000, 10000)
+	directoryReader := mock.NewMockMessageReader[*remoteexecution.Directory](ctrl)
+	treeReader := mock.NewMockStreamReader(ctrl)
+	directoryFetcher := cas.NewBlobAccessDirectoryFetcher(blobAccess, directoryReader, treeReader, 1000, 10000)
 
 	t.Run("TooBig", func(t *testing.T) {
 		_, err := directoryFetcher.GetTreeRootDirectory(ctx, digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "f5f634611dd11ccba54c7b9d9607c3c2", 100000))
@@ -88,10 +79,11 @@ func TestBlobAccessDirectoryFetcherGetTreeRootDirectory(t *testing.T) {
 		// Failures reading the Tree object should be propagated.
 		treeDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "756b15c8f94b519e96135dcfde0e58c5", 50)
 
-		r := mock.NewMockFileReader(ctrl)
-		r.EXPECT().ReadAt(gomock.Any(), gomock.Any()).Return(0, status.Error(codes.Internal, "I/O error")).AnyTimes()
-		r.EXPECT().Close()
-		blobAccess.EXPECT().Get(ctx, treeDigest).Return(buffer.NewValidatedBufferFromReaderAt(r, 100))
+		errReader := mock.NewMockReadCloser(ctrl)
+		errReader.EXPECT().Read(gomock.Any()).Return(0, status.Error(codes.Internal, "I/O error")).AnyTimes()
+		errReader.EXPECT().Close()
+
+		treeReader.EXPECT().ReadStream(ctx, treeDigest).Return(errReader, nil)
 
 		_, err := directoryFetcher.GetTreeRootDirectory(ctx, treeDigest)
 		testutil.RequireEqualStatus(t, status.Error(codes.Internal, "I/O error"), err)
@@ -102,7 +94,8 @@ func TestBlobAccessDirectoryFetcherGetTreeRootDirectory(t *testing.T) {
 		// against an REv2 Tree object.
 		treeDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "3478477ca0af085e8d676f9a53b095cb", 25)
 
-		blobAccess.EXPECT().Get(ctx, treeDigest).Return(buffer.NewValidatedBufferFromByteSlice([]byte("This is not a Tree object")))
+		r := io.NopCloser(bytes.NewReader([]byte("This is not a Tree object")))
+		treeReader.EXPECT().ReadStream(ctx, treeDigest).Return(r, nil)
 
 		_, err := directoryFetcher.GetTreeRootDirectory(ctx, treeDigest)
 		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Field with number 10 at offset 0 has type 4, while 2 was expected"), err)
@@ -112,9 +105,12 @@ func TestBlobAccessDirectoryFetcherGetTreeRootDirectory(t *testing.T) {
 		// Malformed Tree objects may not have a root directory.
 		treeDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "f5f634611dd11ccba54c7b9d9607c3c2", 100)
 
-		blobAccess.EXPECT().Get(ctx, treeDigest).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Tree{}, buffer.UserProvided))
+		treeBytes, err := proto.Marshal(&remoteexecution.Tree{})
+		require.NoError(t, err)
+		r := io.NopCloser(bytes.NewReader(treeBytes))
+		treeReader.EXPECT().ReadStream(ctx, treeDigest).Return(r, nil)
 
-		_, err := directoryFetcher.GetTreeRootDirectory(ctx, treeDigest)
+		_, err = directoryFetcher.GetTreeRootDirectory(ctx, treeDigest)
 		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Tree does not contain a root directory"), err)
 	})
 
@@ -124,11 +120,22 @@ func TestBlobAccessDirectoryFetcherGetTreeRootDirectory(t *testing.T) {
 		// checksum mismatch.
 		treeDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "ceb78ab91c6d580aceea6618dd6fc5cc", 10000)
 
-		blobAccess.EXPECT().Get(ctx, treeDigest).
-			Return(buffer.NewCASBufferFromReader(treeDigest, io.NopCloser(bytes.NewBuffer(make([]byte, 10000))), buffer.UserProvided))
+		mockStream := mock.NewMockReadCloser(ctrl)
+		gomock.InOrder(
+			mockStream.EXPECT().Read(gomock.Any()).
+				DoAndReturn(func(p []byte) (int, error) {
+					return copy(p, "garbage data that does not parse as a proto object"), nil
+				}),
+			mockStream.EXPECT().Read(gomock.Any()).
+				DoAndReturn(func(p []byte) (int, error) {
+					return 0, status.Error(codes.InvalidArgument, "Data was garbage earlier, but the stream eventually discovered there was a checksum mismatch")
+				}),
+			mockStream.EXPECT().Close(),
+		)
+		treeReader.EXPECT().ReadStream(ctx, treeDigest).Return(mockStream, nil)
 
 		_, err := directoryFetcher.GetTreeRootDirectory(ctx, treeDigest)
-		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Buffer has checksum b85d6fb9ef4260dcf1ce0a1b0bff80d3, while ceb78ab91c6d580aceea6618dd6fc5cc was expected"), err)
+		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Data was garbage earlier, but the stream eventually discovered there was a checksum mismatch"), err)
 	})
 
 	t.Run("Success", func(t *testing.T) {
@@ -144,10 +151,10 @@ func TestBlobAccessDirectoryFetcherGetTreeRootDirectory(t *testing.T) {
 				},
 			},
 		}
-
-		blobAccess.EXPECT().Get(ctx, treeDigest).Return(buffer.NewProtoBufferFromProto(&remoteexecution.Tree{
+		treeBytes, err := proto.Marshal(&remoteexecution.Tree{
 			Root: exampleDirectory,
-		}, buffer.UserProvided))
+		})
+		treeReader.EXPECT().ReadStream(ctx, treeDigest).Return(io.NopCloser(bytes.NewReader(treeBytes)), nil)
 
 		directory, err := directoryFetcher.GetTreeRootDirectory(ctx, treeDigest)
 		require.NoError(t, err)
@@ -159,7 +166,9 @@ func TestBlobAccessDirectoryFetcherGetTreeChildDirectory(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	blobAccess := mock.NewMockBlobAccess(ctrl)
-	directoryFetcher := cas.NewBlobAccessDirectoryFetcher(blobAccess, 1000, 10000)
+	directoryReader := mock.NewMockMessageReader[*remoteexecution.Directory](ctrl)
+	treeReader := mock.NewMockStreamReader(ctrl)
+	directoryFetcher := cas.NewBlobAccessDirectoryFetcher(blobAccess, directoryReader, treeReader, 1000, 10000)
 
 	t.Run("TooBig", func(t *testing.T) {
 		_, err := directoryFetcher.GetTreeChildDirectory(

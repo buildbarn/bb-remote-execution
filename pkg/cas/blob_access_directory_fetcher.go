@@ -8,6 +8,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/slicing"
+	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/util"
 
@@ -18,15 +19,19 @@ import (
 
 type blobAccessDirectoryFetcher struct {
 	blobAccess           blobstore.BlobAccess
+	directoryReader      cas.MessageReader[*remoteexecution.Directory]
+	treeReader           cas.StreamReader
 	slicer               treeBlobSlicer
 	maximumTreeSizeBytes int64
 }
 
 // NewBlobAccessDirectoryFetcher creates a DirectoryFetcher that reads
 // Directory objects from a BlobAccess based store.
-func NewBlobAccessDirectoryFetcher(blobAccess blobstore.BlobAccess, maximumDirectorySizeBytes int, maximumTreeSizeBytes int64) DirectoryFetcher {
+func NewBlobAccessDirectoryFetcher(blobAccess blobstore.BlobAccess, directoryReader cas.MessageReader[*remoteexecution.Directory], treeReader cas.StreamReader, maximumDirectorySizeBytes int, maximumTreeSizeBytes int64) DirectoryFetcher {
 	return &blobAccessDirectoryFetcher{
-		blobAccess: blobAccess,
+		blobAccess:      blobAccess,
+		directoryReader: directoryReader,
+		treeReader:      treeReader,
 		slicer: treeBlobSlicer{
 			maximumDirectorySizeBytes: maximumDirectorySizeBytes,
 		},
@@ -35,11 +40,11 @@ func NewBlobAccessDirectoryFetcher(blobAccess blobstore.BlobAccess, maximumDirec
 }
 
 func (df *blobAccessDirectoryFetcher) GetDirectory(ctx context.Context, directoryDigest digest.Digest) (*remoteexecution.Directory, error) {
-	m, err := df.blobAccess.Get(ctx, directoryDigest).ToProto(&remoteexecution.Directory{}, df.slicer.maximumDirectorySizeBytes)
+	m, err := df.directoryReader.ReadMessage(ctx, directoryDigest)
 	if err != nil {
 		return nil, err
 	}
-	return m.(*remoteexecution.Directory), nil
+	return m, nil
 }
 
 func (df *blobAccessDirectoryFetcher) GetTreeRootDirectory(ctx context.Context, treeDigest digest.Digest) (*remoteexecution.Directory, error) {
@@ -47,7 +52,10 @@ func (df *blobAccessDirectoryFetcher) GetTreeRootDirectory(ctx context.Context, 
 		return nil, status.Errorf(codes.InvalidArgument, "Tree exceeds the maximum permitted size of %d bytes", df.maximumTreeSizeBytes)
 	}
 
-	r := df.blobAccess.Get(ctx, treeDigest).ToReader()
+	r, err := df.treeReader.ReadStream(ctx, treeDigest)
+	if err != nil {
+		return nil, err
+	}
 	defer r.Close()
 
 	var rootDirectory *remoteexecution.Directory

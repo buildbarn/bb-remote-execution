@@ -21,9 +21,9 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/platform"
 	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/routing"
 	"github.com/buildbarn/bb-storage/pkg/auth"
-	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/builder"
 	"github.com/buildbarn/bb-storage/pkg/capabilities"
+	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/otel"
@@ -236,12 +236,11 @@ type InMemoryBuildQueueConfiguration struct {
 type InMemoryBuildQueue struct {
 	capabilities.Provider
 
-	contentAddressableStorage           blobstore.BlobAccess
+	actionReader                        cas.MessageReader[*remoteexecution.Action]
 	clock                               clock.Clock
 	uuidGenerator                       util.UUIDGenerator
 	configuration                       *InMemoryBuildQueueConfiguration
 	platformQueueAbsenceHardFailureTime time.Time
-	maximumMessageSizeBytes             int
 	actionRouter                        routing.ActionRouter
 
 	lock               sync.Mutex
@@ -316,7 +315,7 @@ var inMemoryBuildQueueCapabilitiesProvider = capabilities.NewStaticProvider(&rem
 // NewInMemoryBuildQueue creates a new InMemoryBuildQueue that is in the
 // initial state. It does not have any queues, workers or queued
 // execution requests. All of these are created by sending it RPCs.
-func NewInMemoryBuildQueue(contentAddressableStorage blobstore.BlobAccess, clock clock.Clock, uuidGenerator util.UUIDGenerator, configuration *InMemoryBuildQueueConfiguration, maximumMessageSizeBytes int, actionRouter routing.ActionRouter, executeAuthorizer, modifyDrainsAuthorizer, killOperationsAuthorizer, synchronizeAuthorizer auth.Authorizer) *InMemoryBuildQueue {
+func NewInMemoryBuildQueue(actionReader cas.MessageReader[*remoteexecution.Action], clock clock.Clock, uuidGenerator util.UUIDGenerator, configuration *InMemoryBuildQueueConfiguration, actionRouter routing.ActionRouter, executeAuthorizer, modifyDrainsAuthorizer, killOperationsAuthorizer, synchronizeAuthorizer auth.Authorizer) *InMemoryBuildQueue {
 	inMemoryBuildQueuePrometheusMetrics.Do(func() {
 		prometheus.MustRegister(inMemoryBuildQueueInFlightDeduplicationsTotal)
 
@@ -341,12 +340,11 @@ func NewInMemoryBuildQueue(contentAddressableStorage blobstore.BlobAccess, clock
 	return &InMemoryBuildQueue{
 		Provider: capabilities.NewAuthorizingProvider(inMemoryBuildQueueCapabilitiesProvider, executeAuthorizer),
 
-		contentAddressableStorage:           contentAddressableStorage,
+		actionReader:                        actionReader,
 		clock:                               clock,
 		uuidGenerator:                       uuidGenerator,
 		configuration:                       configuration,
 		platformQueueAbsenceHardFailureTime: clock.Now().Add(configuration.PlatformQueueWithNoWorkersTimeout),
-		maximumMessageSizeBytes:             maximumMessageSizeBytes,
 		actionRouter:                        actionRouter,
 		platformQueuesTrie:                  platform.NewTrie(),
 		sizeClassQueues:                     map[sizeClassKey]*sizeClassQueue{},
@@ -450,11 +448,10 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 	if err != nil {
 		return util.StatusWrap(err, "Failed to extract digest for action")
 	}
-	actionMessage, err := bq.contentAddressableStorage.Get(ctx, actionDigest).ToProto(&remoteexecution.Action{}, bq.maximumMessageSizeBytes)
+	action, err := bq.actionReader.ReadMessage(ctx, actionDigest)
 	if err != nil {
 		return util.StatusWrap(err, "Failed to obtain action")
 	}
-	action := actionMessage.(*remoteexecution.Action)
 	platformKey, err := platform.NewKey(instanceName, action.Platform)
 	if err != nil {
 		return err

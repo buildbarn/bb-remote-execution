@@ -14,9 +14,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	re_blobstore "github.com/buildbarn/bb-remote-execution/pkg/blobstore"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
-	"github.com/buildbarn/bb-remote-execution/pkg/cas"
+	re_cas "github.com/buildbarn/bb-remote-execution/pkg/cas"
 	"github.com/buildbarn/bb-remote-execution/pkg/cleaner"
 	re_clock "github.com/buildbarn/bb-remote-execution/pkg/clock"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
@@ -28,6 +29,7 @@ import (
 	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	blobstore_configuration "github.com/buildbarn/bb-storage/pkg/blobstore/configuration"
+	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/eviction"
@@ -119,10 +121,12 @@ func main() {
 		// Content Addressable Storage. All workers make use of the same
 		// cache, to increase the hit rate. This process does not read
 		// Tree objects.
-		directoryFetcher, err := cas.NewCachingDirectoryFetcherFromConfiguration(
+		directoryFetcher, err := re_cas.NewCachingDirectoryFetcherFromConfiguration(
 			configuration.DirectoryCache,
-			cas.NewBlobAccessDirectoryFetcher(
+			re_cas.NewBlobAccessDirectoryFetcher(
 				globalContentAddressableStorage,
+				cas.NewBlobAccessMessageReader[remoteexecution.Directory](globalContentAddressableStorage, int(configuration.MaximumMessageSizeBytes)),
+				cas.NewBlobAccessStreamReader(globalContentAddressableStorage),
 				/* maximumDirectorySizeBytes = */ int(configuration.MaximumMessageSizeBytes),
 				/* maximumTreeSizeBytes = */ 0,
 			),
@@ -188,7 +192,7 @@ func main() {
 			var handleAllocator virtual.StatefulHandleAllocator
 			var characterDeviceFactory virtual.CharacterDeviceFactory
 			var naiveBuildDirectory filesystem.DirectoryCloser
-			var fileFetcher cas.FileFetcher
+			var fileFetcher re_cas.FileFetcher
 			var buildDirectoryCleaner cleaner.Cleaner
 			uploadBatchSize := blobstore.RecommendedFindMissingDigestsCount
 			var maximumExecutionTimeoutCompensation time.Duration
@@ -301,8 +305,8 @@ func main() {
 				if err != nil {
 					return util.StatusWrap(err, "Failed to create eviction set for cache directory")
 				}
-				fileFetcher = cas.NewHardlinkingFileFetcher(
-					cas.NewBlobAccessFileFetcher(globalContentAddressableStorage),
+				fileFetcher = re_cas.NewHardlinkingFileFetcher(
+					re_cas.NewBlobAccessFileFetcher(globalContentAddressableStorage),
 					cacheDirectory,
 					int(nativeConfiguration.MaximumCacheFileCount),
 					nativeConfiguration.MaximumCacheSizeBytes,
@@ -408,7 +412,7 @@ func main() {
 					if virtualBuildDirectory != nil {
 						buildDirectory = builder.NewVirtualBuildDirectory(
 							virtualBuildDirectory,
-							cas.NewSuspendingDirectoryFetcher(
+							re_cas.NewSuspendingDirectoryFetcher(
 								directoryFetcher,
 								suspendableClock,
 							),
@@ -462,12 +466,12 @@ func main() {
 
 					buildExecutor := builder.NewLocalBuildExecutor(
 						contentAddressableStorageWriter,
+						cas.NewBlobAccessMessageReader[remoteexecution.Command](contentAddressableStorageWriter, int(configuration.MaximumMessageSizeBytes)),
 						buildDirectoryCreator,
 						runnerClient,
 						executionTimeoutClock,
 						maximumWritableFileUploadDelay,
 						inputRootCharacterDevices,
-						int(configuration.MaximumMessageSizeBytes),
 						runnerConfiguration.EnvironmentVariables,
 						configuration.ForceUploadTreesAndDirectories,
 					)
