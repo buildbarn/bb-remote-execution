@@ -2,6 +2,7 @@ package runner_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -25,6 +26,17 @@ import (
 
 	"go.uber.org/mock/gomock"
 )
+
+func TestMain(m *testing.M) {
+	if mode := os.Getenv("BB_RE_TEST_HELPER"); mode != "" {
+		if err := runWindowsProcessTreeHelper(mode); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+	os.Exit(m.Run())
+}
 
 func TestLocalRunnerCheckReadiness(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
@@ -593,10 +605,7 @@ func TestLocalRunnerRunWindowsSubprocessCleanup(t *testing.T) {
 
 	runner := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, runner.NewPlainCommandCreator(&syscall.SysProcAttr{}), false)
 	response, err := runner.Run(context.Background(), &runner_pb.RunRequest{
-		Arguments: []string{
-			testBinaryPath,
-			"-test.run=TestLocalRunnerRunWindowsSubprocessCleanupHelper",
-		},
+		Arguments:            []string{testBinaryPath},
 		EnvironmentVariables: environmentVariables,
 		StdoutPath:           testName + "/stdout",
 		StderrPath:           testName + "/stderr",
@@ -659,10 +668,7 @@ func TestLocalRunnerRunWindowsCancellationCleanup(t *testing.T) {
 	localRunner := runner.NewLocalRunner(buildDirectory, buildDirectoryPathBuilder, runner.NewPlainCommandCreator(&syscall.SysProcAttr{}), false)
 	go func() {
 		response, err := localRunner.Run(ctx, &runner_pb.RunRequest{
-			Arguments: []string{
-				testBinaryPath,
-				"-test.run=TestLocalRunnerRunWindowsSubprocessCleanupHelper",
-			},
+			Arguments:            []string{testBinaryPath},
 			EnvironmentVariables: environmentVariables,
 			StdoutPath:           testName + "/stdout",
 			StderrPath:           testName + "/stderr",
@@ -700,54 +706,53 @@ func TestLocalRunnerRunWindowsCancellationCleanup(t *testing.T) {
 	require.NoDirExists(t, rootPath)
 }
 
-func TestLocalRunnerRunWindowsSubprocessCleanupHelper(t *testing.T) {
+func runWindowsProcessTreeHelper(mode string) error {
 	// parent spawns child and exits, parent_wait spawns child and remains alive,
 	// and child locks an input-root file before signaling that it is ready.
-	switch os.Getenv("BB_RE_TEST_HELPER") {
-	case "":
-		return
-	case "parent":
+	switch mode {
+	case "parent", "parent_wait":
 		testBinaryPath := os.Getenv("BB_RE_TEST_BINARY")
 		if testBinaryPath == "" {
-			t.Fatal("BB_RE_TEST_BINARY is not set")
+			return fmt.Errorf("BB_RE_TEST_BINARY is not set")
 		}
-		cmd := exec.Command(testBinaryPath, "-test.run=TestLocalRunnerRunWindowsSubprocessCleanupHelper")
+		cmd := exec.Command(testBinaryPath)
 		cmd.Env = append(os.Environ(), "BB_RE_TEST_HELPER=child")
 		cmd.Dir = "."
-		require.NoError(t, cmd.Start())
-
+		if err := cmd.Start(); err != nil {
+			return fmt.Errorf("failed to start child helper: %w", err)
+		}
+		if mode == "parent_wait" {
+			time.Sleep(time.Minute)
+			return nil
+		}
 		readyFilePath := os.Getenv("BB_RE_TEST_READY_FILE")
 		deadline := time.Now().Add(10 * time.Second)
 		for {
 			if _, err := os.Stat(readyFilePath); err == nil {
-				return
+				return nil
 			}
 			if time.Now().After(deadline) {
-				t.Fatal("timed out waiting for child helper")
+				return fmt.Errorf("timed out waiting for child helper")
 			}
 			time.Sleep(10 * time.Millisecond)
 		}
-	case "parent_wait":
-		testBinaryPath := os.Getenv("BB_RE_TEST_BINARY")
-		if testBinaryPath == "" {
-			t.Fatal("BB_RE_TEST_BINARY is not set")
-		}
-		cmd := exec.Command(testBinaryPath, "-test.run=TestLocalRunnerRunWindowsSubprocessCleanupHelper")
-		cmd.Env = append(os.Environ(), "BB_RE_TEST_HELPER=child")
-		cmd.Dir = "."
-		require.NoError(t, cmd.Start())
-		time.Sleep(time.Minute)
 	case "child":
 		lockedFilePath := os.Getenv("BB_RE_TEST_LOCKED_FILE")
 		readyFilePath := os.Getenv("BB_RE_TEST_READY_FILE")
 		lockedFile, err := os.OpenFile(lockedFilePath, os.O_CREATE|os.O_RDWR, 0o666)
-		require.NoError(t, err)
+		if err != nil {
+			return fmt.Errorf("failed to open locked file: %w", err)
+		}
 		defer lockedFile.Close()
-		_, err = lockedFile.WriteString("locked")
-		require.NoError(t, err)
-		require.NoError(t, os.WriteFile(readyFilePath, []byte("ready"), 0o666))
+		if _, err := lockedFile.WriteString("locked"); err != nil {
+			return fmt.Errorf("failed to write locked file: %w", err)
+		}
+		if err := os.WriteFile(readyFilePath, []byte("ready"), 0o666); err != nil {
+			return fmt.Errorf("failed to write ready file: %w", err)
+		}
 		time.Sleep(time.Minute)
+		return nil
 	default:
-		t.Fatalf("unknown helper mode %#v", os.Getenv("BB_RE_TEST_HELPER"))
+		return fmt.Errorf("unknown helper mode %#v", mode)
 	}
 }
