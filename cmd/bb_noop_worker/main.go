@@ -5,11 +5,13 @@ import (
 	"net/url"
 	"os"
 
+	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	re_blobstore "github.com/buildbarn/bb-remote-execution/pkg/blobstore"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_noop_worker"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
+	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	blobstore_configuration "github.com/buildbarn/bb-storage/pkg/blobstore/configuration"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
@@ -78,8 +80,10 @@ func main() {
 		buildClient := builder.NewBuildClient(
 			schedulerClient,
 			builder.NewNoopBuildExecutor(
-				contentAddressableStorage,
-				int(configuration.MaximumMessageSizeBytes),
+				blobstore.NewBlobAccessMessageReader[*remoteexecution.Command](
+					contentAddressableStorage,
+					int(configuration.MaximumMessageSizeBytes),
+				),
 				browserURL,
 			),
 			pool.EmptyFilePool,

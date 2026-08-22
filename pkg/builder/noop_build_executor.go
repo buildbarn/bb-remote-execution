@@ -11,8 +11,8 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	re_util "github.com/buildbarn/bb-remote-execution/pkg/util"
-	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/digest"
+	"github.com/buildbarn/bb-storage/pkg/storage"
 	"github.com/buildbarn/bb-storage/pkg/util"
 
 	"google.golang.org/grpc/codes"
@@ -20,9 +20,8 @@ import (
 )
 
 type noopBuildExecutor struct {
-	contentAddressableStorage blobstore.BlobAccess
-	maximumMessageSizeBytes   int
-	browserURL                *url.URL
+	commandReader storage.MessageReader[*remoteexecution.Command]
+	browserURL    *url.URL
 }
 
 // NewNoopBuildExecutor creates a BuildExecutor that always returns an
@@ -32,11 +31,10 @@ type noopBuildExecutor struct {
 // to upload the input root of an action into the Content Addressable
 // Storage (CAS) without causing it to be executed afterwards. This may
 // be useful when attempting to debug actions.
-func NewNoopBuildExecutor(contentAddressableStorage blobstore.BlobAccess, maximumMessageSizeBytes int, browserURL *url.URL) BuildExecutor {
+func NewNoopBuildExecutor(commandReader storage.MessageReader[*remoteexecution.Command], browserURL *url.URL) BuildExecutor {
 	return &noopBuildExecutor{
-		contentAddressableStorage: contentAddressableStorage,
-		maximumMessageSizeBytes:   maximumMessageSizeBytes,
-		browserURL:                browserURL,
+		commandReader: commandReader,
+		browserURL:    browserURL,
 	}
 }
 
@@ -69,12 +67,11 @@ func (be *noopBuildExecutor) Execute(ctx context.Context, filePool pool.FilePool
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to extract digest for command"))
 		return response
 	}
-	commandMessage, err := be.contentAddressableStorage.Get(ctx, commandDigest).ToProto(&remoteexecution.Command{}, be.maximumMessageSizeBytes)
+	command, err := be.commandReader.ReadMessage(ctx, commandDigest, &remoteexecution.Command{})
 	if err != nil {
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to obtain command"))
 		return response
 	}
-	command := commandMessage.(*remoteexecution.Command)
 
 	errorMessageTemplate := defaultNoopErrorMessageTemplate
 	for _, environmentVariable := range command.EnvironmentVariables {

@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	re_blobstore "github.com/buildbarn/bb-remote-execution/pkg/blobstore"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
 	"github.com/buildbarn/bb-remote-execution/pkg/cas"
@@ -462,12 +463,12 @@ func main() {
 
 					buildExecutor := builder.NewLocalBuildExecutor(
 						contentAddressableStorageWriter,
+						blobstore.NewBlobAccessMessageReader[*remoteexecution.Command](contentAddressableStorageWriter, int(configuration.MaximumMessageSizeBytes)),
 						buildDirectoryCreator,
 						runnerClient,
 						executionTimeoutClock,
 						maximumWritableFileUploadDelay,
 						inputRootCharacterDevices,
-						int(configuration.MaximumMessageSizeBytes),
 						runnerConfiguration.EnvironmentVariables,
 						configuration.ForceUploadTreesAndDirectories,
 					)
