@@ -8,7 +8,6 @@ import (
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
-	"github.com/buildbarn/bb-remote-execution/pkg/cas"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/bazeloutputservice"
@@ -500,10 +499,10 @@ func TestPoolBackedFileAllocatorUploadFile(t *testing.T) {
 			return 5, io.EOF
 		})
 		blobUploader := mock.NewMockBlobUploader(ctrl)
-		blobUploader.EXPECT().UploadBlob(ctx, fileDigest, gomock.Any()).
-			DoAndReturn(func(ctx context.Context, digest digest.Digest, b cas.Blob) error {
-				b.Discard()
-				return status.Error(codes.Internal, "Server on fire")
+		blobUploader.EXPECT().UploadBlob(ctx, digestFunction, gomock.Any()).
+			DoAndReturn(func(ctx context.Context, digestFunction digest.Function, b filesystem.FileReader) (digest.Digest, error) {
+				b.Close()
+				return digest.BadDigest, status.Error(codes.Internal, "Server on fire")
 			})
 
 		p := virtual.ApplyUploadFile{
@@ -522,8 +521,8 @@ func TestPoolBackedFileAllocatorUploadFile(t *testing.T) {
 			return 5, io.EOF
 		})
 		blobUploader := mock.NewMockBlobUploader(ctrl)
-		blobUploader.EXPECT().UploadBlob(ctx, fileDigest, gomock.Any()).
-			DoAndReturn(func(ctx context.Context, digest digest.Digest, b cas.Blob) error {
+		blobUploader.EXPECT().UploadBlob(ctx, digestFunction, gomock.Any()).
+			DoAndReturn(func(ctx context.Context, digestFunction digest.Function, blob filesystem.FileReader) (digest.Digest, error) {
 				// As long as we haven't completely read
 				// the file, any operation that modifies
 				// the file's contents should block.
@@ -584,9 +583,10 @@ func TestPoolBackedFileAllocatorUploadFile(t *testing.T) {
 				underlyingFile.EXPECT().WriteAt([]byte("Foo"), int64(120)).Return(3, nil)
 
 				// Complete reading the file.
-				data, err := b.ToByteSlice()
-				require.NoError(t, err)
+				data := make([]byte, 5)
+				blob.ReadAt(data, 0)
 				require.Equal(t, []byte("Hello"), data)
+				require.NoError(t, blob.Close())
 
 				// All mutable operations should now be
 				// able to complete.
@@ -594,7 +594,7 @@ func TestPoolBackedFileAllocatorUploadFile(t *testing.T) {
 				<-a2
 				<-a3
 				<-a4
-				return nil
+				return fileDigest, nil
 			})
 
 		p := virtual.ApplyUploadFile{

@@ -2,6 +2,7 @@ package cas_test
 
 import (
 	"context"
+	"io"
 	"testing"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
@@ -29,12 +30,17 @@ func TestBatchingBlobUploadSuccess(t *testing.T) {
 	// We should be able to enqueue requests for up to two blobs
 	// without generating any calls on the storage backend.
 	digestEmpty := digest.MustNewDigest("default", remoteexecution.DigestFunction_MD5, "d41d8cd98f00b204e9800998ecf8427e", 0)
+	digestFunction := digestEmpty.GetDigestFunction()
 	for i := 0; i < 10; i++ {
-		require.NoError(t, blobUploader.UploadBlob(ctx, digestEmpty, cas.NewBlobFromByteslice(nil)))
+		d, err := blobUploader.UploadBlob(ctx, digestFunction, cas.ByteSliceFileReader(nil))
+		require.NoError(t, err)
+		require.Equal(t, digestEmpty, d)
 	}
 	digestHello := digest.MustNewDigest("default", remoteexecution.DigestFunction_MD5, "8b1a9953c4611296a827abf8c47804d7", 5)
 	for i := 0; i < 10; i++ {
-		require.NoError(t, blobUploader.UploadBlob(ctx, digestHello, cas.NewBlobFromByteslice([]byte("Hello"))))
+		d, err := blobUploader.UploadBlob(ctx, digestFunction, cas.ByteSliceFileReader([]byte("Hello")))
+		require.NoError(t, err)
+		require.Equal(t, digestHello, d)
 	}
 
 	// Attempting to store a third blob should cause the first two blobs
@@ -46,7 +52,7 @@ func TestBatchingBlobUploadSuccess(t *testing.T) {
 	}, nil)
 	contentAddressableStorage.EXPECT().
 		FindMissing(gomock.Any(), digest.NewSetBuilder(2).Add(digestHello).Add(digestEmpty).Build()).
-		Return(digest.NewSetBuilder(1).Add(digestHello).Build(), nil)
+		Return(digestHello.ToSingletonSet(), nil)
 	contentAddressableStorage.EXPECT().PutChunk(gomock.Any(), digestHello, gomock.Any()).DoAndReturn(
 		func(ctx context.Context, digest digest.Digest, data []byte) error {
 			require.Equal(t, []byte("Hello"), data)
@@ -55,7 +61,9 @@ func TestBatchingBlobUploadSuccess(t *testing.T) {
 	)
 
 	digestGoodbye := digest.MustNewDigest("default", remoteexecution.DigestFunction_MD5, "6fc422233a40a75a1f028e11c3cd1140", 7)
-	require.NoError(t, blobUploader.UploadBlob(ctx, digestGoodbye, cas.NewBlobFromByteslice([]byte("Goodbye"))))
+	d, err := blobUploader.UploadBlob(ctx, digestFunction, cas.ByteSliceFileReader([]byte("Goodbye")))
+	require.NoError(t, err)
+	require.Equal(t, digestGoodbye, d)
 
 	// The third blob is enqueued and should be written when flushed.
 	contentAddressableStorage.EXPECT().FetchCDCParameters(gomock.Any(), gomock.Any()).Return(cdc.Parameters{
@@ -88,12 +96,17 @@ func TestBatchingBlobUploaderFailure(t *testing.T) {
 	// We should be able to enqueue requests for up to two blobs
 	// without generating any calls on the storage backend.
 	digestEmpty := digest.MustNewDigest("default", remoteexecution.DigestFunction_MD5, "d41d8cd98f00b204e9800998ecf8427e", 0)
+	digestFunction := digestEmpty.GetDigestFunction()
 	for i := 0; i < 10; i++ {
-		require.NoError(t, blobUploader.UploadBlob(ctx, digestEmpty, cas.NewBlobFromByteslice(nil)))
+		d, err := blobUploader.UploadBlob(ctx, digestFunction, cas.ByteSliceFileReader(nil))
+		require.NoError(t, err)
+		require.Equal(t, digestEmpty, d)
 	}
 	digestHello := digest.MustNewDigest("default", remoteexecution.DigestFunction_MD5, "8b1a9953c4611296a827abf8c47804d7", 5)
 	for i := 0; i < 10; i++ {
-		require.NoError(t, blobUploader.UploadBlob(ctx, digestHello, cas.NewBlobFromByteslice([]byte("Hello"))))
+		d, err := blobUploader.UploadBlob(ctx, digestFunction, cas.ByteSliceFileReader([]byte("Hello")))
+		require.NoError(t, err)
+		require.Equal(t, digestHello, d)
 	}
 
 	// Attempting to store a third blob should cause the first two blobs
@@ -114,18 +127,20 @@ func TestBatchingBlobUploaderFailure(t *testing.T) {
 	)
 
 	digestGoodbye := digest.MustNewDigest("default", remoteexecution.DigestFunction_MD5, "6fc422233a40a75a1f028e11c3cd1140", 7)
+	_, err := blobUploader.UploadBlob(ctx, digestFunction, cas.ByteSliceFileReader([]byte("Goodbye")))
 	testutil.RequireEqualStatus(
 		t,
-		status.Error(codes.Internal, "Failed to store previous blob 3-8b1a9953c4611296a827abf8c47804d7-5-default: Storage backend on fire"),
-		blobUploader.UploadBlob(ctx, digestGoodbye, cas.NewBlobFromByteslice([]byte("Goodbye"))),
+		status.Error(codes.Internal, "Failed to store previous blob 3-8b1a9953c4611296a827abf8c47804d7-5-default: Failed to save chunk: Storage backend on fire"),
+		err,
 	)
 
 	// Future requests to store blobs should be discarded
 	// immediately, returning same error.
+	_, err = blobUploader.UploadBlob(ctx, digestFunction, cas.ByteSliceFileReader([]byte("Goodbye")))
 	testutil.RequireEqualStatus(
 		t,
-		status.Error(codes.Internal, "Failed to store previous blob 3-8b1a9953c4611296a827abf8c47804d7-5-default: Storage backend on fire"),
-		blobUploader.UploadBlob(ctx, digestGoodbye, cas.NewBlobFromByteslice([]byte("Goodbye"))),
+		status.Error(codes.Internal, "Failed to store previous blob 3-8b1a9953c4611296a827abf8c47804d7-5-default: Failed to save chunk: Storage backend on fire"),
+		err,
 	)
 
 	// Flushing should not cause any requests on the backend, due to
@@ -133,13 +148,15 @@ func TestBatchingBlobUploaderFailure(t *testing.T) {
 	// caused it to go into the error state.
 	testutil.RequireEqualStatus(
 		t,
-		status.Error(codes.Internal, "Failed to store previous blob 3-8b1a9953c4611296a827abf8c47804d7-5-default: Storage backend on fire"),
+		status.Error(codes.Internal, "Failed to store previous blob 3-8b1a9953c4611296a827abf8c47804d7-5-default: Failed to save chunk: Storage backend on fire"),
 		flush(ctx),
 	)
 
 	// Successive stores and flushes should be functional once again.
-	require.NoError(t, blobUploader.UploadBlob(ctx, digestGoodbye, cas.NewBlobFromByteslice([]byte("Goodbye"))))
-	contentAddressableStorage.EXPECT().FindMissing(ctx, digest.NewSetBuilder(1).Add(digestGoodbye).Build()).Return(digest.EmptySet, nil)
+	d, err := blobUploader.UploadBlob(ctx, digestFunction, cas.ByteSliceFileReader([]byte("Goodbye")))
+	require.NoError(t, err)
+	require.Equal(t, digestGoodbye, d)
+	contentAddressableStorage.EXPECT().FindMissing(ctx, digestGoodbye.ToSingletonSet()).Return(digest.EmptySet, nil)
 	require.NoError(t, flush(ctx))
 }
 
@@ -153,8 +170,17 @@ func TestBatchingBlobUploaderCanceledWhileWaitingOnSemaphore(t *testing.T) {
 
 	// Enqueue a blob for writing.
 	digestHello := digest.MustNewDigest("default", remoteexecution.DigestFunction_MD5, "8b1a9953c4611296a827abf8c47804d7", 5)
+	digestFunction := digestHello.GetDigestFunction()
 	reader := mock.NewMockFileReader(ctrl)
-	require.NoError(t, blobUploader.UploadBlob(ctx, digestHello, cas.NewBlobFromReaderAt(reader, 5)))
+	reader.EXPECT().Len().Return(int64(5), nil)
+	reader.EXPECT().ReadAt(gomock.Any(), int64(0)).DoAndReturn(func(p []byte, off int64) (int, error) {
+		copy(p, "Hello")
+		return 5, io.EOF
+	})
+
+	d, err := blobUploader.UploadBlob(ctx, digestFunction, reader)
+	require.NoError(t, err)
+	require.Equal(t, digestHello, d)
 
 	// Flushing it should attempt to write it. Because the semaphore
 	// is set to zero, there is no capacity to do this. As we're
@@ -166,4 +192,56 @@ func TestBatchingBlobUploaderCanceledWhileWaitingOnSemaphore(t *testing.T) {
 	reader.EXPECT().Close()
 
 	testutil.RequireEqualStatus(t, status.Error(codes.Canceled, "context canceled"), flush(ctxCanceled))
+}
+
+func TestBatchingBlobUploaderSuccessFileGrownDuringUpload(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	contentAddressableStorage.EXPECT().GetDigestKeyFormat().Return(digest.KeyWithoutInstance)
+	uploadConcurrencySemaphore := semaphore.NewWeighted(1)
+	blobUploader, flush := cas.NewBatchingBlobUploader(contentAddressableStorage, 2, uploadConcurrencySemaphore)
+
+	helloWorldDigest := digest.MustNewDigest("default", remoteexecution.DigestFunction_MD5, "3e25960a79dbc69b674cd4ec67a72c62", 11)
+	digestFunction := helloWorldDigest.GetDigestFunction()
+
+	file := mock.NewMockFileReader(ctrl)
+	gomock.InOrder(
+		file.EXPECT().Len().Return(int64(11), nil),
+		file.EXPECT().ReadAt(gomock.Any(), int64(0)).DoAndReturn(
+			func(p []byte, off int64) (int, error) {
+				require.Len(t, p, 11)
+				copy(p, "Hello world")
+				return 11, io.EOF
+			},
+		),
+		file.EXPECT().ReadAt(gomock.Any(), int64(0)).DoAndReturn(
+			func(p []byte, off int64) (int, error) {
+				require.Len(t, p, 11)
+				copy(p, "Hello world")
+				return 11, nil
+			},
+		),
+		file.EXPECT().Close().Return(nil),
+	)
+
+	d, err := blobUploader.UploadBlob(ctx, digestFunction, file)
+	require.NoError(t, err)
+	require.Equal(t, helloWorldDigest, d)
+
+	contentAddressableStorage.EXPECT().FetchCDCParameters(gomock.Any(), gomock.Any()).Return(cdc.Parameters{
+		MinChunkSizeBytes: 256 << 10,
+		HorizonSizeBytes:  8 * 256 << 10,
+	}, nil)
+	contentAddressableStorage.EXPECT().
+		FindMissing(gomock.Any(), helloWorldDigest.ToSingletonSet()).
+		Return(helloWorldDigest.ToSingletonSet(), nil)
+	contentAddressableStorage.EXPECT().PutChunk(gomock.Any(), helloWorldDigest, gomock.Any()).DoAndReturn(
+		func(ctx context.Context, digest digest.Digest, data []byte) error {
+			require.Equal(t, []byte("Hello world"), data)
+			return nil
+		},
+	)
+
+	require.NoError(t, flush(ctx))
 }

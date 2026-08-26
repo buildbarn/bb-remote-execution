@@ -187,7 +187,8 @@ func (s *uploadOutputsState) uploadOutputDirectoryEntered(d UploadableDirectory,
 		// depends on it to work efficiently.
 		successfullyUploaded := true
 		treeDigest := s.computeDigest(treeData)
-		if err := s.blobUploader.UploadBlob(s.context, treeDigest, cas.NewBlobFromByteslice(treeData)); err != nil {
+		treeDigest, err := s.blobUploader.UploadBlob(s.context, s.digestFunction, cas.ByteSliceFileReader(treeData))
+		if err != nil {
 			s.saveError(util.StatusWrapf(err, "Failed to store output directory %#v", dPath.GetUNIXString()))
 			successfullyUploaded = false
 		}
@@ -198,8 +199,8 @@ func (s *uploadOutputsState) uploadOutputDirectoryEntered(d UploadableDirectory,
 		var rootDirectoryDigestProto *remoteexecution.Digest
 		if s.uploadTreesAndDirectories {
 			rootDirectoryDigestProto = rootDirectoryDigest.GetProto()
-			for directoryDigest, directory := range dState.directoriesSeen {
-				if err := s.blobUploader.UploadBlob(s.context, directoryDigest, cas.NewBlobFromByteslice(directory)); err != nil {
+			for _, directory := range dState.directoriesSeen {
+				if _, err := s.blobUploader.UploadBlob(s.context, s.digestFunction, cas.ByteSliceFileReader(directory)); err != nil {
 					s.saveError(util.StatusWrapf(err, "Failed to store output directory %#v", dPath.GetUNIXString()))
 					successfullyUploaded = false
 				}

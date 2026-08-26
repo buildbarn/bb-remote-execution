@@ -247,13 +247,15 @@ func (f *fileBackedFile) uploadFile(ctx context.Context, blobUploader cas.BlobUp
 		return digest.BadDigest, status.Error(codes.NotFound, "File was unlinked before uploading could start")
 	}
 
+	// TODO: blobUploader.UploadBlob already computes the digest should
+	// we do it here as well?
 	blobDigest, err := f.updateCachedDigest(digestFunction, frozenFile)
 	if err != nil {
 		frozenFile.Close()
 		return digest.BadDigest, err
 	}
 
-	if err := blobUploader.UploadBlob(ctx, blobDigest, cas.NewBlobFromReaderAt(frozenFile, blobDigest.GetSizeBytes())); err != nil {
+	if _, err := blobUploader.UploadBlob(ctx, digestFunction, frozenFile); err != nil {
 		return digest.BadDigest, util.StatusWrap(err, "Failed to upload file")
 	}
 	return blobDigest, nil

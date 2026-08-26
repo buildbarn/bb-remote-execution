@@ -14,6 +14,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/blobstore/cdc"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
+	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/require"
 	status_pb "google.golang.org/genproto/googleapis/rpc/status"
 
@@ -171,7 +172,9 @@ func TestCachingBuildExecutorCachedSuccessNonZeroExitCode(t *testing.T) {
 		gomock.Any(),
 	).
 		DoAndReturn(func(ctx context.Context, digest digest.Digest, b []byte) error {
-			historicalExecuteResponse := testutil.MustUnmarshal(t, b, &cas_proto.HistoricalExecuteResponse{})
+			historicalExecuteResponse := &cas_proto.HistoricalExecuteResponse{}
+			err := proto.Unmarshal(b, historicalExecuteResponse)
+			require.NoError(t, err)
 			testutil.RequireEqualProto(t, &cas_proto.HistoricalExecuteResponse{
 				ActionDigest: &remoteexecution.Digest{
 					Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
@@ -291,7 +294,9 @@ func TestCachingBuildExecutorUncachedDoNotCache(t *testing.T) {
 			gomock.Any(),
 		).
 		DoAndReturn(func(ctx context.Context, digest digest.Digest, b []byte) error {
-			historicalExecuteResponse := testutil.MustUnmarshal(t, b, &cas_proto.HistoricalExecuteResponse{})
+			historicalExecuteResponse := &cas_proto.HistoricalExecuteResponse{}
+			err := proto.Unmarshal(b, historicalExecuteResponse)
+			require.NoError(t, err)
 			testutil.RequireEqualProto(t, &cas_proto.HistoricalExecuteResponse{
 				ActionDigest: &remoteexecution.Digest{
 					Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
@@ -356,7 +361,9 @@ func TestCachingBuildExecutorUncachedError(t *testing.T) {
 		gomock.Any(),
 	).
 		DoAndReturn(func(ctx context.Context, digest digest.Digest, b []byte) error {
-			historicalExecuteResponse := testutil.MustUnmarshal(t, b, &cas_proto.HistoricalExecuteResponse{})
+			historicalExecuteResponse := &cas_proto.HistoricalExecuteResponse{}
+			err := proto.Unmarshal(b, historicalExecuteResponse)
+			require.NoError(t, err)
 			testutil.RequireEqualProto(t, &cas_proto.HistoricalExecuteResponse{
 				ActionDigest: &remoteexecution.Digest{
 					Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
@@ -423,7 +430,9 @@ func TestCachingBuildExecutorUncachedStorageFailure(t *testing.T) {
 		gomock.Any(),
 	).
 		DoAndReturn(func(ctx context.Context, digest digest.Digest, b []byte) error {
-			historicalExecuteResponse := testutil.MustUnmarshal(t, b, &cas_proto.HistoricalExecuteResponse{})
+			historicalExecuteResponse := &cas_proto.HistoricalExecuteResponse{}
+			err := proto.Unmarshal(b, historicalExecuteResponse)
+			require.NoError(t, err)
 			testutil.RequireEqualProto(t, &cas_proto.HistoricalExecuteResponse{
 				ActionDigest: &remoteexecution.Digest{
 					Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",

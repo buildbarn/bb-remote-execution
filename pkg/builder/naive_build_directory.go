@@ -2,12 +2,10 @@ package builder
 
 import (
 	"context"
-	"io"
 
 	"github.com/buildbarn/bb-remote-execution/pkg/cas"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
@@ -171,46 +169,5 @@ func (d *naiveBuildDirectory) UploadFile(ctx context.Context, name path.Componen
 	if err != nil {
 		return digest.BadDigest, err
 	}
-	sizeBytes, err := file.Len()
-	if err != nil {
-		return digest.BadDigest, err
-	}
-
-	// Walk through the file to compute the digest.
-	digestGenerator := digestFunction.NewGenerator(sizeBytes)
-	if _, err := io.Copy(digestGenerator, io.NewSectionReader(file, 0, sizeBytes)); err != nil {
-		file.Close()
-		return digest.BadDigest, util.StatusWrap(err, "Failed to compute file digest")
-	}
-	blobDigest := digestGenerator.Sum()
-
-	// Rewind and store it. Limit uploading to the size that was
-	// used to compute the digest. This ensures uploads succeed,
-	// even if more data gets appended in the meantime. This is not
-	// uncommon, especially for stdout and stderr logs.
-	if err := d.options.blobUploader.UploadBlob(
-		ctx,
-		blobDigest,
-		cas.NewBlobFromReaderAt(
-			newSectionReadAtCloser(file, 0, sizeBytes),
-			sizeBytes,
-		),
-	); err != nil {
-		return digest.BadDigest, util.StatusWrap(err, "Failed to upload file")
-	}
-	return blobDigest, nil
-}
-
-// newSectionReadAtCloser returns an io.ReadCloser that reads from r at
-// a given offset, but stops with EOF after n bytes. This function is
-// identical to io.NewSectionReader(), except that it provides an
-// buffer.ReadAtCloser instead of an io.ReaderAt.
-func newSectionReadAtCloser(r filesystem.FileReader, off, n int64) buffer.ReadAtCloser {
-	return &struct {
-		io.SectionReader
-		io.Closer
-	}{
-		SectionReader: *io.NewSectionReader(r, off, n),
-		Closer:        r,
-	}
+	return d.options.blobUploader.UploadBlob(ctx, digestFunction, file)
 }

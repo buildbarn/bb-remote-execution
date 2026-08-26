@@ -4,8 +4,8 @@ go_library(
     name = "cas",
     srcs = [
         "batching_blob_uploader.go",
-        "blob.go",
         "blob_uploader.go",
+        "byte_slice_file_reader.go",
         "caching_directory_fetcher.go",
         "cas_directory_fetcher.go",
         "cas_file_fetcher.go",
@@ -17,7 +17,6 @@ go_library(
         "existence_precondition_content_addressable_storage.go",
         "file_fetcher.go",
         "hardlinking_file_fetcher.go",
-        "put_blob.go",
         "suspending_content_addressable_storage.go",
         "suspending_directory_fetcher.go",
     ],
@@ -57,7 +56,6 @@ go_test(
         "decomposed_directory_walker_test.go",
         "existence_precondition_content_addressable_storage_test.go",
         "hardlinking_file_fetcher_test.go",
-        "put_blob_test.go",
     ],
     deps = [
         ":cas",

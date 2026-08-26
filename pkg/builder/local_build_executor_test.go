@@ -9,7 +9,6 @@ import (
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
-	"github.com/buildbarn/bb-remote-execution/pkg/cas"
 	re_clock "github.com/buildbarn/bb-remote-execution/pkg/clock"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
@@ -435,19 +434,19 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 		nil,
 	)
 	blobUploader := mock.NewMockBlobUploader(ctrl)
+	blobDigest := digest.MustNewDigest("nintendo64", remoteexecution.DigestFunction_SHA256, "102b51b9765a56a3e899f7cf0ee38e5251f9c503b357b330a49183eb7b155604", 2)
+	digestFunction := blobDigest.GetDigestFunction()
 	blobUploader.EXPECT().UploadBlob(
 		ctx,
-		digest.MustNewDigest("nintendo64", remoteexecution.DigestFunction_SHA256, "102b51b9765a56a3e899f7cf0ee38e5251f9c503b357b330a49183eb7b155604", 2),
+		digestFunction,
 		gomock.Any(),
 	).
-		DoAndReturn(func(ctx context.Context, digest digest.Digest, b cas.Blob) error {
-			data, err := b.ToByteSlice()
-			require.NoError(t, err)
-			m := testutil.MustUnmarshal(t, data, &remoteexecution.Tree{})
-			testutil.RequireEqualProto(t, &remoteexecution.Tree{
+		DoAndReturn(func(ctx context.Context, digestFunction digest.Function, b filesystem.FileReader) (digest.Digest, error) {
+			testutil.FileReaderIsProto(t, b, &remoteexecution.Tree{
 				Root: &remoteexecution.Directory{},
-			}, m)
-			return nil
+			}, &remoteexecution.Tree{})
+			b.Close()
+			return blobDigest, nil
 		})
 
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
