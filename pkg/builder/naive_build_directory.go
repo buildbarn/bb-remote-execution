@@ -23,7 +23,7 @@ type naiveBuildDirectoryOptions struct {
 	directoryFetcher     cas.DirectoryFetcher
 	fileFetcher          cas.FileFetcher
 	fileFetcherSemaphore *semaphore.Weighted
-	// contentAddressableStorage cdc.ContentAddressableStorage
+	// contentAddressableStorage cas.ContentAddressableStorage
 	blobUploader cas.BlobUploader
 }
 

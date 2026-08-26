@@ -4,8 +4,8 @@ import (
 	"context"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/cdc"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/chunklist"
+	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
@@ -14,7 +14,7 @@ import (
 )
 
 type existencePreconditionContentAddressableStorage struct {
-	cdc.ContentAddressableStorage
+	cas.ContentAddressableStorage
 }
 
 // NewExistencePreconditionContentAddressableStorage wraps a
@@ -22,7 +22,7 @@ type existencePreconditionContentAddressableStorage struct {
 // code "FAILED_PRECONDITION" instead of "NOT_FOUND" for Get() style
 // operations. This is used by worker processes to make
 // Execution::Execute() comply to the protocol.
-func NewExistencePreconditionContentAddressableStorage(contentAddressableStorage cdc.ContentAddressableStorage) cdc.ContentAddressableStorage {
+func NewExistencePreconditionContentAddressableStorage(contentAddressableStorage cas.ContentAddressableStorage) cas.ContentAddressableStorage {
 	return &existencePreconditionContentAddressableStorage{
 		ContentAddressableStorage: contentAddressableStorage,
 	}

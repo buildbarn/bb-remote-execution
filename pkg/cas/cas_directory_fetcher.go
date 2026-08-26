@@ -7,7 +7,7 @@ import (
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/cdc"
+	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/util"
 
@@ -23,14 +23,14 @@ import (
 var errTargetFound = errors.New("target directory found")
 
 type casDirectoryFetcher struct {
-	contentAddressableStorage cdc.ContentAddressableStorage
+	contentAddressableStorage cas.ContentAddressableStorage
 	maximumTreeSizeBytes      int64
 	maximumDirectorySizeBytes int64
 }
 
 // NewCASDirectoryFetcher creates a DirectoryFetcher that reads Directory
 // objects from a CAS.
-func NewCASDirectoryFetcher(contentAddressableStorage cdc.ContentAddressableStorage, maximumDirectorySizeBytes, maximumTreeSizeBytes int64) DirectoryFetcher {
+func NewCASDirectoryFetcher(contentAddressableStorage cas.ContentAddressableStorage, maximumDirectorySizeBytes, maximumTreeSizeBytes int64) DirectoryFetcher {
 	return &casDirectoryFetcher{
 		contentAddressableStorage: contentAddressableStorage,
 		maximumDirectorySizeBytes: maximumDirectorySizeBytes,
@@ -43,7 +43,7 @@ func (df *casDirectoryFetcher) GetDirectory(ctx context.Context, directoryDigest
 		return nil, status.Errorf(codes.InvalidArgument, "Directory exceeds the maximum permitted size of %d bytes", df.maximumDirectorySizeBytes)
 	}
 
-	m, err := cdc.GetProto(ctx, df.contentAddressableStorage, directoryDigest, &remoteexecution.Directory{})
+	m, err := cas.GetProto(ctx, df.contentAddressableStorage, directoryDigest, &remoteexecution.Directory{})
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +60,7 @@ func (df *casDirectoryFetcher) streamTree(ctx context.Context, treeDigest digest
 		return status.Errorf(codes.InvalidArgument, "Tree exceeds the maximum permitted size of %d bytes", df.maximumTreeSizeBytes)
 	}
 
-	r, err := cdc.GetReadCloser(ctx, df.contentAddressableStorage, treeDigest)
+	r, err := cas.GetReadCloser(ctx, df.contentAddressableStorage, treeDigest)
 	if err != nil {
 		return err
 	}

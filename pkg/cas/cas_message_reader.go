@@ -3,7 +3,7 @@ package cas
 import (
 	"context"
 
-	"github.com/buildbarn/bb-storage/pkg/blobstore/cdc"
+	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/storage"
 
@@ -13,11 +13,11 @@ import (
 )
 
 type casMessageReader[T proto.Message] struct {
-	contentAddressableStorage cdc.ContentAddressableStorage
+	contentAddressableStorage cas.ContentAddressableStorage
 	maximumMessageSizeBytes   int
 }
 
-func NewCASMessageReader[T proto.Message](contentAddressableStorage cdc.ContentAddressableStorage, maximumMessageSizeBytes int) storage.MessageReader[T] {
+func NewCASMessageReader[T proto.Message](contentAddressableStorage cas.ContentAddressableStorage, maximumMessageSizeBytes int) storage.MessageReader[T] {
 	return &casMessageReader[T]{
 		contentAddressableStorage: contentAddressableStorage,
 		maximumMessageSizeBytes:   maximumMessageSizeBytes,
@@ -29,5 +29,5 @@ func (r *casMessageReader[T]) ReadMessage(ctx context.Context, d digest.Digest, 
 	if d.GetSizeBytes() > int64(r.maximumMessageSizeBytes) {
 		return zero, status.Errorf(codes.InvalidArgument, "Message size %d exceeds maximum allowed size %d", d.GetSizeBytes(), r.maximumMessageSizeBytes)
 	}
-	return cdc.GetProto(ctx, r.contentAddressableStorage, d, message)
+	return cas.GetProto(ctx, r.contentAddressableStorage, d, message)
 }

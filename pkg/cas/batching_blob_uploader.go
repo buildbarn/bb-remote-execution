@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/buildbarn/bb-storage/pkg/blobstore/cdc"
+	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/util"
 
@@ -18,7 +18,7 @@ type pendingUploadOperation struct {
 }
 
 type batchingBlobUploader struct {
-	contentAddressableStorage  cdc.ContentAddressableStorage
+	contentAddressableStorage  cas.ContentAddressableStorage
 	digestKeyFormat            digest.KeyFormat
 	batchSize                  int
 	uploadConcurrencySemaphore *semaphore.Weighted
@@ -31,7 +31,7 @@ type batchingBlobUploader struct {
 // NewBatchingBlobUploader returns a BlobUploader that batches uploads
 // to the Content Addressable Storage (CAS) into batches of the
 // specified size while still respecting an upload concurrency.
-func NewBatchingBlobUploader(contentAddressableStorage cdc.ContentAddressableStorage, batchSize int, uploadConcurrencySemaphore *semaphore.Weighted) (BlobUploader, func(context.Context) error) {
+func NewBatchingBlobUploader(contentAddressableStorage cas.ContentAddressableStorage, batchSize int, uploadConcurrencySemaphore *semaphore.Weighted) (BlobUploader, func(context.Context) error) {
 	bu := &batchingBlobUploader{
 		contentAddressableStorage:  contentAddressableStorage,
 		digestKeyFormat:            contentAddressableStorage.GetDigestKeyFormat(),

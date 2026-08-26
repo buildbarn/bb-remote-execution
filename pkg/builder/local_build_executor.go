@@ -7,13 +7,13 @@ import (
 	"time"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
-	"github.com/buildbarn/bb-remote-execution/pkg/cas"
+	re_cas "github.com/buildbarn/bb-remote-execution/pkg/cas"
 	re_clock "github.com/buildbarn/bb-remote-execution/pkg/clock"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/cdc"
+	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
@@ -68,8 +68,8 @@ func (el *capturingErrorLogger) GetError() error {
 
 type localBuildExecutor struct {
 	commandReader                  storage.MessageReader[*remoteexecution.Command]
-	blobUploader                   cas.BlobUploader
-	contentAddressableStorage      cdc.ContentAddressableStorage
+	blobUploader                   re_cas.BlobUploader
+	contentAddressableStorage      cas.ContentAddressableStorage
 	buildDirectoryCreator          BuildDirectoryCreator
 	runner                         runner_pb.RunnerClient
 	clock                          clock.Clock
@@ -81,7 +81,7 @@ type localBuildExecutor struct {
 
 // NewLocalBuildExecutor returns a BuildExecutor that executes build
 // steps on the local system.
-func NewLocalBuildExecutor(contentAddressableStorage cdc.ContentAddressableStorage, commandReader storage.MessageReader[*remoteexecution.Command], blobUploader cas.BlobUploader, buildDirectoryCreator BuildDirectoryCreator, runner runner_pb.RunnerClient, clock clock.Clock, maximumWritableFileUploadDelay time.Duration, inputRootCharacterDevices map[path.Component]filesystem.DeviceNumber, environmentVariables map[string]string, forceUploadTreesAndDirectories bool) BuildExecutor {
+func NewLocalBuildExecutor(contentAddressableStorage cas.ContentAddressableStorage, commandReader storage.MessageReader[*remoteexecution.Command], blobUploader re_cas.BlobUploader, buildDirectoryCreator BuildDirectoryCreator, runner runner_pb.RunnerClient, clock clock.Clock, maximumWritableFileUploadDelay time.Duration, inputRootCharacterDevices map[path.Component]filesystem.DeviceNumber, environmentVariables map[string]string, forceUploadTreesAndDirectories bool) BuildExecutor {
 	return &localBuildExecutor{
 		blobUploader:                   blobUploader,
 		contentAddressableStorage:      contentAddressableStorage,

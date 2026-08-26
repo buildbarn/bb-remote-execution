@@ -6,11 +6,12 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/cdc"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/chunklist"
+	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 )
 
 type suspendingContentAddressableStorage struct {
-	base        cdc.ContentAddressableStorage
+	base        cas.ContentAddressableStorage
 	suspendable clock.Suspendable
 }
 
@@ -22,7 +23,7 @@ type suspendingContentAddressableStorage struct {
 // This decorator is used in combination with SuspendableClock, allowing
 // VFS-based workers to compensate the execution timeout of build
 // actions for any time spent downloading the input root.
-func NewSuspendingContentAddressableStorage(base cdc.ContentAddressableStorage, suspendable clock.Suspendable) cdc.ContentAddressableStorage {
+func NewSuspendingContentAddressableStorage(base cas.ContentAddressableStorage, suspendable clock.Suspendable) cas.ContentAddressableStorage {
 	return &suspendingContentAddressableStorage{
 		base:        base,
 		suspendable: suspendable,

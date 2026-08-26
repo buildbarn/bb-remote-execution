@@ -4,19 +4,19 @@ import (
 	"context"
 	"os"
 
-	"github.com/buildbarn/bb-storage/pkg/blobstore/cdc"
+	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 )
 
 type blobAccessFileFetcher struct {
-	contentAddressableStorage cdc.ContentAddressableStorage
+	contentAddressableStorage cas.ContentAddressableStorage
 }
 
 // NewCASFileFetcher creates a FileFetcher that reads files fom a
 // Content Addressable Storage (CAS).
-func NewCASFileFetcher(contentAddressableStorage cdc.ContentAddressableStorage) FileFetcher {
+func NewCASFileFetcher(contentAddressableStorage cas.ContentAddressableStorage) FileFetcher {
 	return &blobAccessFileFetcher{
 		contentAddressableStorage: contentAddressableStorage,
 	}
@@ -34,7 +34,7 @@ func (ff *blobAccessFileFetcher) GetFile(ctx context.Context, digest digest.Dige
 	}
 	defer w.Close()
 
-	if err := cdc.IntoWriter(ctx, ff.contentAddressableStorage, digest, 0, w); err != nil {
+	if err := cas.IntoWriter(ctx, ff.contentAddressableStorage, digest, 0, w); err != nil {
 		// Ensure no traces are left behind upon failure.
 		directory.Remove(name)
 		return err

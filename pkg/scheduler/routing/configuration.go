@@ -6,7 +6,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/initialsizeclass"
 	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/invocation"
 	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/platform"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/cdc"
+	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	bb_grpc "github.com/buildbarn/bb-storage/pkg/grpc"
 	"github.com/buildbarn/bb-storage/pkg/program"
@@ -18,7 +18,7 @@ import (
 
 // NewActionRouterFromConfiguration creates an ActionRouter based on
 // options specified in a configuration file.
-func NewActionRouterFromConfiguration(configuration *pb.ActionRouterConfiguration, contentAddressableStorage cdc.ContentAddressableStorage, previousExecutionStatsStore initialsizeclass.PreviousExecutionStatsStore, grpcClientFactory bb_grpc.ClientFactory, dependenciesGroup program.Group) (ActionRouter, error) {
+func NewActionRouterFromConfiguration(configuration *pb.ActionRouterConfiguration, contentAddressableStorage cas.ContentAddressableStorage, previousExecutionStatsStore initialsizeclass.PreviousExecutionStatsStore, grpcClientFactory bb_grpc.ClientFactory, dependenciesGroup program.Group) (ActionRouter, error) {
 	if configuration == nil {
 		return nil, status.Error(codes.InvalidArgument, "No action router configuration provided")
 	}

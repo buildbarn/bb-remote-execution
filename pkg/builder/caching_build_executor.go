@@ -12,7 +12,7 @@ import (
 	re_util "github.com/buildbarn/bb-remote-execution/pkg/util"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/cdc"
+	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/util"
 
@@ -22,7 +22,7 @@ import (
 
 type cachingBuildExecutor struct {
 	BuildExecutor
-	contentAddressableStorage cdc.ContentAddressableStorage
+	contentAddressableStorage cas.ContentAddressableStorage
 	actionCache               blobstore.BlobAccess
 	browserURL                *url.URL
 }
@@ -34,7 +34,7 @@ type cachingBuildExecutor struct {
 //
 // In both cases, a link to bb_browser is added to the ExecuteResponse,
 // so that the user may inspect the Action and ActionResult in detail.
-func NewCachingBuildExecutor(base BuildExecutor, contentAddressableStorage cdc.ContentAddressableStorage, actionCache blobstore.BlobAccess, browserURL *url.URL) BuildExecutor {
+func NewCachingBuildExecutor(base BuildExecutor, contentAddressableStorage cas.ContentAddressableStorage, actionCache blobstore.BlobAccess, browserURL *url.URL) BuildExecutor {
 	return &cachingBuildExecutor{
 		BuildExecutor:             base,
 		contentAddressableStorage: contentAddressableStorage,
@@ -60,7 +60,7 @@ func (be *cachingBuildExecutor) Execute(ctx context.Context, filePool pool.FileP
 		// Extension: store the result in the Content
 		// Addressable Storage, so the user can at least inspect
 		// it through bb_browser.
-		if historicalExecuteResponseDigest, err := cdc.PutProto(
+		if historicalExecuteResponseDigest, err := cas.PutProto(
 			ctx,
 			be.contentAddressableStorage,
 			&cas_proto.HistoricalExecuteResponse{
