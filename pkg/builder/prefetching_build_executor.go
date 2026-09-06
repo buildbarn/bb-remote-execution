@@ -6,12 +6,13 @@ import (
 	"log"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
-	"github.com/buildbarn/bb-remote-execution/pkg/cas"
+	re_cas "github.com/buildbarn/bb-remote-execution/pkg/cas"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
+	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/proto/fsac"
@@ -27,8 +28,8 @@ import (
 
 type prefetchingBuildExecutor struct {
 	BuildExecutor
-	contentAddressableStorage   blobstore.BlobAccess
-	directoryFetcher            cas.DirectoryFetcher
+	contentAddressableStorage   cas.ContentAddressableStorage
+	directoryFetcher            re_cas.DirectoryFetcher
 	fileReadSemaphore           *semaphore.Weighted
 	fileSystemAccessCache       blobstore.BlobAccess
 	maximumMessageSizeBytes     int
@@ -53,7 +54,7 @@ type prefetchingBuildExecutor struct {
 // directory (FUSE, NFSv4). On workers that use native build
 // directories, the monitor is ignored, leading to empty Bloom filters
 // being stored.
-func NewPrefetchingBuildExecutor(buildExecutor BuildExecutor, contentAddressableStorage blobstore.BlobAccess, directoryFetcher cas.DirectoryFetcher, fileReadSemaphore *semaphore.Weighted, fileSystemAccessCache blobstore.BlobAccess, maximumMessageSizeBytes, bloomFilterBitsPerElement, bloomFilterMaximumSizeBytes int) BuildExecutor {
+func NewPrefetchingBuildExecutor(buildExecutor BuildExecutor, contentAddressableStorage cas.ContentAddressableStorage, directoryFetcher re_cas.DirectoryFetcher, fileReadSemaphore *semaphore.Weighted, fileSystemAccessCache blobstore.BlobAccess, maximumMessageSizeBytes, bloomFilterBitsPerElement, bloomFilterMaximumSizeBytes int) BuildExecutor {
 	be := &prefetchingBuildExecutor{
 		BuildExecutor:               buildExecutor,
 		contentAddressableStorage:   contentAddressableStorage,
@@ -192,8 +193,8 @@ type directoryPrefetcher struct {
 	group                     *errgroup.Group
 	bloomFilter               *access.BloomFilterReader
 	digestFunction            digest.Function
-	contentAddressableStorage blobstore.BlobAccess
-	directoryFetcher          cas.DirectoryFetcher
+	contentAddressableStorage cas.ContentAddressableStorage
+	directoryFetcher          re_cas.DirectoryFetcher
 	fileReadSemaphore         *semaphore.Weighted
 }
 
@@ -245,7 +246,7 @@ func (dp *directoryPrefetcher) prefetchRecursively(pathTrace *path.Trace, direct
 			}
 			dp.group.Go(func() error {
 				var b [1]byte
-				_, err := dp.contentAddressableStorage.Get(dp.context, fileDigest).ReadAt(b[:], 0)
+				_, err := cas.ReadBlobAt(dp.context, dp.contentAddressableStorage, fileDigest, b[:], 0)
 				dp.fileReadSemaphore.Release(1)
 				if err != nil && err != io.EOF && status.Code(err) != codes.Canceled {
 					return util.StatusWrapf(err, "Failed to prefetch file %#v", childPathTrace.GetUNIXString())

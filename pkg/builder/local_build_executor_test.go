@@ -13,7 +13,6 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
@@ -34,14 +33,16 @@ import (
 func TestLocalBuildExecutorInvalidActionDigest(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
 	commandReader := mock.NewMockMessageReader[*remoteexecution.Command](ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	blobUploader := mock.NewMockBlobUploader(ctrl)
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	runner := mock.NewMockRunnerClient(ctrl)
 	clock := mock.NewMockClock(ctrl)
 	localBuildExecutor := builder.NewLocalBuildExecutor(
 		contentAddressableStorage,
 		commandReader,
+		blobUploader,
 		buildDirectoryCreator,
 		runner,
 		clock,
@@ -85,14 +86,16 @@ func TestLocalBuildExecutorInvalidActionDigest(t *testing.T) {
 func TestLocalBuildExecutorMissingAction(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	commandReader := mock.NewMockMessageReader[*remoteexecution.Command](ctrl)
+	blobUploader := mock.NewMockBlobUploader(ctrl)
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	runner := mock.NewMockRunnerClient(ctrl)
 	clock := mock.NewMockClock(ctrl)
 	localBuildExecutor := builder.NewLocalBuildExecutor(
 		contentAddressableStorage,
 		commandReader,
+		blobUploader,
 		buildDirectoryCreator,
 		runner,
 		clock,
@@ -129,8 +132,9 @@ func TestLocalBuildExecutorMissingAction(t *testing.T) {
 func TestLocalBuildExecutorBuildDirectoryCreatorFailedFailed(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	commandReader := mock.NewMockMessageReader[*remoteexecution.Command](ctrl)
+	blobUploader := mock.NewMockBlobUploader(ctrl)
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	actionDigest := digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "5555555555555555555555555555555555555555555555555555555555555555", 7)
 	buildDirectoryCreator.EXPECT().GetBuildDirectory(ctx, &actionDigest).
@@ -140,6 +144,7 @@ func TestLocalBuildExecutorBuildDirectoryCreatorFailedFailed(t *testing.T) {
 	localBuildExecutor := builder.NewLocalBuildExecutor(
 		contentAddressableStorage,
 		commandReader,
+		blobUploader,
 		buildDirectoryCreator,
 		runner,
 		clock,
@@ -183,8 +188,9 @@ func TestLocalBuildExecutorBuildDirectoryCreatorFailedFailed(t *testing.T) {
 func TestLocalBuildExecutorInputRootPopulationFailed(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	commandReader := mock.NewMockMessageReader[*remoteexecution.Command](ctrl)
+	blobUploader := mock.NewMockBlobUploader(ctrl)
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
 	actionDigest := digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "5555555555555555555555555555555555555555555555555555555555555555", 7)
@@ -209,6 +215,7 @@ func TestLocalBuildExecutorInputRootPopulationFailed(t *testing.T) {
 	localBuildExecutor := builder.NewLocalBuildExecutor(
 		contentAddressableStorage,
 		commandReader,
+		blobUploader,
 		buildDirectoryCreator,
 		runner,
 		clock,
@@ -250,8 +257,9 @@ func TestLocalBuildExecutorInputRootPopulationFailed(t *testing.T) {
 func TestLocalBuildExecutorOutputDirectoryCreationFailure(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	commandReader := mock.NewMockMessageReader[*remoteexecution.Command](ctrl)
+	blobUploader := mock.NewMockBlobUploader(ctrl)
 	commandReader.EXPECT().ReadMessage(
 		gomock.Any(),
 		digest.MustNewDigest("fedora", remoteexecution.DigestFunction_SHA256, "6666666666666666666666666666666666666666666666666666666666666666", 234),
@@ -287,6 +295,7 @@ func TestLocalBuildExecutorOutputDirectoryCreationFailure(t *testing.T) {
 	localBuildExecutor := builder.NewLocalBuildExecutor(
 		contentAddressableStorage,
 		commandReader,
+		blobUploader,
 		buildDirectoryCreator,
 		runner,
 		clock,
@@ -332,8 +341,9 @@ func TestLocalBuildExecutorOutputDirectoryCreationFailure(t *testing.T) {
 func TestLocalBuildExecutorMissingCommand(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	commandReader := mock.NewMockMessageReader[*remoteexecution.Command](ctrl)
+	blobUploader := mock.NewMockBlobUploader(ctrl)
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
 	actionDigest := digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "5555555555555555555555555555555555555555555555555555555555555555", 7)
@@ -358,6 +368,7 @@ func TestLocalBuildExecutorMissingCommand(t *testing.T) {
 	localBuildExecutor := builder.NewLocalBuildExecutor(
 		contentAddressableStorage,
 		commandReader,
+		blobUploader,
 		buildDirectoryCreator,
 		runner,
 		clock,
@@ -399,7 +410,7 @@ func TestLocalBuildExecutorMissingCommand(t *testing.T) {
 func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	commandReader := mock.NewMockMessageReader[*remoteexecution.Command](ctrl)
 	commandReader.EXPECT().ReadMessage(
 		gomock.Any(),
@@ -420,18 +431,20 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 		digest.MustNewDigest("nintendo64", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000006", 678),
 		nil,
 	)
-	contentAddressableStorage.EXPECT().Put(
+	blobUploader := mock.NewMockBlobUploader(ctrl)
+	blobDigest := digest.MustNewDigest("nintendo64", remoteexecution.DigestFunction_SHA256, "102b51b9765a56a3e899f7cf0ee38e5251f9c503b357b330a49183eb7b155604", 2)
+	digestFunction := blobDigest.GetDigestFunction()
+	blobUploader.EXPECT().UploadBlob(
 		ctx,
-		digest.MustNewDigest("nintendo64", remoteexecution.DigestFunction_SHA256, "102b51b9765a56a3e899f7cf0ee38e5251f9c503b357b330a49183eb7b155604", 2),
+		digestFunction,
 		gomock.Any(),
 	).
-		DoAndReturn(func(ctx context.Context, digest digest.Digest, b buffer.Buffer) error {
-			m, err := b.ToProto(&remoteexecution.Tree{}, 10000)
-			require.NoError(t, err)
-			testutil.RequireEqualProto(t, &remoteexecution.Tree{
+		DoAndReturn(func(ctx context.Context, digestFunction digest.Function, b filesystem.FileReader) (digest.Digest, error) {
+			testutil.FileReaderIsProto(t, b, &remoteexecution.Tree{
 				Root: &remoteexecution.Directory{},
-			}, m)
-			return nil
+			}, &remoteexecution.Tree{})
+			b.Close()
+			return blobDigest, nil
 		})
 
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
@@ -489,6 +502,7 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 	localBuildExecutor := builder.NewLocalBuildExecutor(
 		contentAddressableStorage,
 		commandReader,
+		blobUploader,
 		buildDirectoryCreator,
 		runner,
 		clock,
@@ -596,7 +610,7 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 	helloUploadableDirectory.EXPECT().Close()
 
 	// Read operations against the Content Addressable Storage.
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	commandReader := mock.NewMockMessageReader[*remoteexecution.Command](ctrl)
 	commandReader.EXPECT().ReadMessage(
 		gomock.Any(),
@@ -720,9 +734,11 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 	clock.EXPECT().NewContextWithTimeout(gomock.Any(), 10*time.Second).DoAndReturn(func(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 		return parent, func() {}
 	})
+	blobUploader := mock.NewMockBlobUploader(ctrl)
 	localBuildExecutor := builder.NewLocalBuildExecutor(
 		contentAddressableStorage,
 		commandReader,
+		blobUploader,
 		buildDirectoryCreator,
 		runner,
 		clock,
@@ -805,14 +821,16 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 func TestLocalBuildExecutorCachingInvalidTimeout(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	commandReader := mock.NewMockMessageReader[*remoteexecution.Command](ctrl)
+	blobUploader := mock.NewMockBlobUploader(ctrl)
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
 	runner := mock.NewMockRunnerClient(ctrl)
 	clock := mock.NewMockClock(ctrl)
 	localBuildExecutor := builder.NewLocalBuildExecutor(
 		contentAddressableStorage,
 		commandReader,
+		blobUploader,
 		buildDirectoryCreator,
 		runner,
 		clock,
@@ -857,7 +875,7 @@ func TestLocalBuildExecutorInputRootIOFailureDuringExecution(t *testing.T) {
 
 	// Build directory.
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	commandReader := mock.NewMockMessageReader[*remoteexecution.Command](ctrl)
 	commandReader.EXPECT().ReadMessage(
 		gomock.Any(),
@@ -933,9 +951,11 @@ func TestLocalBuildExecutorInputRootIOFailureDuringExecution(t *testing.T) {
 	clock.EXPECT().NewContextWithTimeout(gomock.Any(), 10*time.Second).DoAndReturn(func(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 		return parent, func() {}
 	})
+	blobUploader := mock.NewMockBlobUploader(ctrl)
 	localBuildExecutor := builder.NewLocalBuildExecutor(
 		contentAddressableStorage,
 		commandReader,
+		blobUploader,
 		buildDirectoryCreator,
 		runner,
 		clock,
@@ -993,7 +1013,8 @@ func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 
 	// Build directory.
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
+	blobUploader := mock.NewMockBlobUploader(ctrl)
 	commandReader := mock.NewMockMessageReader[*remoteexecution.Command](ctrl)
 	commandReader.EXPECT().ReadMessage(
 		gomock.Any(),
@@ -1073,6 +1094,7 @@ func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 	localBuildExecutor := builder.NewLocalBuildExecutor(
 		contentAddressableStorage,
 		commandReader,
+		blobUploader,
 		buildDirectoryCreator,
 		runner,
 		clock,
@@ -1136,8 +1158,9 @@ func TestLocalBuildExecutorCharacterDeviceNodeCreationFailed(t *testing.T) {
 
 	// Build directory.
 	buildDirectory := mock.NewMockBuildDirectory(ctrl)
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	contentAddressableStorage := mock.NewMockContentAddressableStorage(ctrl)
 	commandReader := mock.NewMockMessageReader[*remoteexecution.Command](ctrl)
+	blobUploader := mock.NewMockBlobUploader(ctrl)
 
 	// Build environment.
 	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
@@ -1174,6 +1197,7 @@ func TestLocalBuildExecutorCharacterDeviceNodeCreationFailed(t *testing.T) {
 	localBuildExecutor := builder.NewLocalBuildExecutor(
 		contentAddressableStorage,
 		commandReader,
+		blobUploader,
 		buildDirectoryCreator,
 		runner,
 		clock,
