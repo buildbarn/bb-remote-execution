@@ -1289,10 +1289,11 @@ func FillSymlinkReparseBuffer(target string, flags uint32, buffer []byte) (int, 
 	// utf-16 encoded so 2 bytes per character; no null terminator needed.
 	targetUTF16Len := len(targetUTF16) - 1
 	targetUTF16Bytes := targetUTF16Len * 2
-	symbolicLinkReparseSize := int(unsafe.Sizeof(windowsext.SymbolicLinkReparseBuffer{})) -
-		// Exclude the PathBuffer member.
-		2 +
-		// Two copies of the target path.
+	// The buffer holds two copies of the target (SubstituteName + PrintName).
+	// Header size is PathBuffer's offset. Don't compute it as sizeof minus the
+	// placeholder element — sizeof rounds up for the uint32 Flags field, so that
+	// leaves 2 bytes of trailing padding and over-counts ReparseDataLength.
+	symbolicLinkReparseSize := int(unsafe.Offsetof(windowsext.SymbolicLinkReparseBuffer{}.PathBuffer)) +
 		targetUTF16Bytes*2
 	requiredSize := int(unsafe.Sizeof(windowsext.REPARSE_DATA_BUFFER_HEADER{})) + symbolicLinkReparseSize
 	if len(buffer) < requiredSize {
@@ -1311,7 +1312,8 @@ func FillSymlinkReparseBuffer(target string, flags uint32, buffer []byte) (int, 
 	slrb.PrintNameOffset = uint16(targetUTF16Bytes)
 	slrb.PrintNameLength = uint16(targetUTF16Bytes)
 
-	pathBuffer := unsafe.Slice(&slrb.PathBuffer[0], 2*targetUTF16Bytes)
+	// unsafe.Slice's length is in uint16 elements, not bytes.
+	pathBuffer := unsafe.Slice(&slrb.PathBuffer[0], 2*targetUTF16Len)
 	copy(pathBuffer[0:targetUTF16Len], targetUTF16)
 	copy(pathBuffer[targetUTF16Len:targetUTF16Len*2], targetUTF16)
 
