@@ -374,6 +374,146 @@ func (x *InputRootResourceUsage) GetFilesRead() uint64 {
 	return 0
 }
 
+type CgroupResourceUsage struct {
+	state                    protoimpl.MessageState `protogen:"open.v1"`
+	MemoryEventsLow          int64                  `protobuf:"varint,1,opt,name=memory_events_low,json=memoryEventsLow,proto3" json:"memory_events_low,omitempty"`
+	MemoryEventsHigh         int64                  `protobuf:"varint,2,opt,name=memory_events_high,json=memoryEventsHigh,proto3" json:"memory_events_high,omitempty"`
+	MemoryEventsMax          int64                  `protobuf:"varint,3,opt,name=memory_events_max,json=memoryEventsMax,proto3" json:"memory_events_max,omitempty"`
+	MemoryEventsOom          int64                  `protobuf:"varint,4,opt,name=memory_events_oom,json=memoryEventsOom,proto3" json:"memory_events_oom,omitempty"`
+	MemoryEventsOomKill      int64                  `protobuf:"varint,5,opt,name=memory_events_oom_kill,json=memoryEventsOomKill,proto3" json:"memory_events_oom_kill,omitempty"`
+	MemoryEventsOomGroupKill int64                  `protobuf:"varint,6,opt,name=memory_events_oom_group_kill,json=memoryEventsOomGroupKill,proto3" json:"memory_events_oom_group_kill,omitempty"`
+	MemoryPeak               int64                  `protobuf:"varint,7,opt,name=memory_peak,json=memoryPeak,proto3" json:"memory_peak,omitempty"`
+	MemoryPressureSomeTotal  *durationpb.Duration   `protobuf:"bytes,8,opt,name=memory_pressure_some_total,json=memoryPressureSomeTotal,proto3" json:"memory_pressure_some_total,omitempty"`
+	MemoryPressureFullTotal  *durationpb.Duration   `protobuf:"bytes,9,opt,name=memory_pressure_full_total,json=memoryPressureFullTotal,proto3" json:"memory_pressure_full_total,omitempty"`
+	CpuPressureSomeTotal     *durationpb.Duration   `protobuf:"bytes,10,opt,name=cpu_pressure_some_total,json=cpuPressureSomeTotal,proto3" json:"cpu_pressure_some_total,omitempty"`
+	CpuPressureFullTotal     *durationpb.Duration   `protobuf:"bytes,11,opt,name=cpu_pressure_full_total,json=cpuPressureFullTotal,proto3" json:"cpu_pressure_full_total,omitempty"`
+	IoPressureSomeTotal      *durationpb.Duration   `protobuf:"bytes,12,opt,name=io_pressure_some_total,json=ioPressureSomeTotal,proto3" json:"io_pressure_some_total,omitempty"`
+	IoPressureFullTotal      *durationpb.Duration   `protobuf:"bytes,13,opt,name=io_pressure_full_total,json=ioPressureFullTotal,proto3" json:"io_pressure_full_total,omitempty"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
+}
+
+func (x *CgroupResourceUsage) Reset() {
+	*x = CgroupResourceUsage{}
+	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_resourceusage_resourceusage_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CgroupResourceUsage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CgroupResourceUsage) ProtoMessage() {}
+
+func (x *CgroupResourceUsage) ProtoReflect() protoreflect.Message {
+	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_resourceusage_resourceusage_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CgroupResourceUsage.ProtoReflect.Descriptor instead.
+func (*CgroupResourceUsage) Descriptor() ([]byte, []int) {
+	return file_github_com_buildbarn_bb_remote_execution_pkg_proto_resourceusage_resourceusage_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *CgroupResourceUsage) GetMemoryEventsLow() int64 {
+	if x != nil {
+		return x.MemoryEventsLow
+	}
+	return 0
+}
+
+func (x *CgroupResourceUsage) GetMemoryEventsHigh() int64 {
+	if x != nil {
+		return x.MemoryEventsHigh
+	}
+	return 0
+}
+
+func (x *CgroupResourceUsage) GetMemoryEventsMax() int64 {
+	if x != nil {
+		return x.MemoryEventsMax
+	}
+	return 0
+}
+
+func (x *CgroupResourceUsage) GetMemoryEventsOom() int64 {
+	if x != nil {
+		return x.MemoryEventsOom
+	}
+	return 0
+}
+
+func (x *CgroupResourceUsage) GetMemoryEventsOomKill() int64 {
+	if x != nil {
+		return x.MemoryEventsOomKill
+	}
+	return 0
+}
+
+func (x *CgroupResourceUsage) GetMemoryEventsOomGroupKill() int64 {
+	if x != nil {
+		return x.MemoryEventsOomGroupKill
+	}
+	return 0
+}
+
+func (x *CgroupResourceUsage) GetMemoryPeak() int64 {
+	if x != nil {
+		return x.MemoryPeak
+	}
+	return 0
+}
+
+func (x *CgroupResourceUsage) GetMemoryPressureSomeTotal() *durationpb.Duration {
+	if x != nil {
+		return x.MemoryPressureSomeTotal
+	}
+	return nil
+}
+
+func (x *CgroupResourceUsage) GetMemoryPressureFullTotal() *durationpb.Duration {
+	if x != nil {
+		return x.MemoryPressureFullTotal
+	}
+	return nil
+}
+
+func (x *CgroupResourceUsage) GetCpuPressureSomeTotal() *durationpb.Duration {
+	if x != nil {
+		return x.CpuPressureSomeTotal
+	}
+	return nil
+}
+
+func (x *CgroupResourceUsage) GetCpuPressureFullTotal() *durationpb.Duration {
+	if x != nil {
+		return x.CpuPressureFullTotal
+	}
+	return nil
+}
+
+func (x *CgroupResourceUsage) GetIoPressureSomeTotal() *durationpb.Duration {
+	if x != nil {
+		return x.IoPressureSomeTotal
+	}
+	return nil
+}
+
+func (x *CgroupResourceUsage) GetIoPressureFullTotal() *durationpb.Duration {
+	if x != nil {
+		return x.IoPressureFullTotal
+	}
+	return nil
+}
+
 type MonetaryResourceUsage_Expense struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Currency      string                 `protobuf:"bytes,1,opt,name=currency,proto3" json:"currency,omitempty"`
@@ -384,7 +524,7 @@ type MonetaryResourceUsage_Expense struct {
 
 func (x *MonetaryResourceUsage_Expense) Reset() {
 	*x = MonetaryResourceUsage_Expense{}
-	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_resourceusage_resourceusage_proto_msgTypes[4]
+	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_resourceusage_resourceusage_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -396,7 +536,7 @@ func (x *MonetaryResourceUsage_Expense) String() string {
 func (*MonetaryResourceUsage_Expense) ProtoMessage() {}
 
 func (x *MonetaryResourceUsage_Expense) ProtoReflect() protoreflect.Message {
-	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_resourceusage_resourceusage_proto_msgTypes[4]
+	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_resourceusage_resourceusage_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -471,7 +611,23 @@ const file_github_com_buildbarn_bb_remote_execution_pkg_proto_resourceusage_reso
 	"\x14directories_resolved\x18\x01 \x01(\x04R\x13directoriesResolved\x12)\n" +
 	"\x10directories_read\x18\x02 \x01(\x04R\x0fdirectoriesRead\x12\x1d\n" +
 	"\n" +
-	"files_read\x18\x03 \x01(\x04R\tfilesReadBBZ@github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusageb\x06proto3"
+	"files_read\x18\x03 \x01(\x04R\tfilesRead\"\xd1\x06\n" +
+	"\x13CgroupResourceUsage\x12*\n" +
+	"\x11memory_events_low\x18\x01 \x01(\x03R\x0fmemoryEventsLow\x12,\n" +
+	"\x12memory_events_high\x18\x02 \x01(\x03R\x10memoryEventsHigh\x12*\n" +
+	"\x11memory_events_max\x18\x03 \x01(\x03R\x0fmemoryEventsMax\x12*\n" +
+	"\x11memory_events_oom\x18\x04 \x01(\x03R\x0fmemoryEventsOom\x123\n" +
+	"\x16memory_events_oom_kill\x18\x05 \x01(\x03R\x13memoryEventsOomKill\x12>\n" +
+	"\x1cmemory_events_oom_group_kill\x18\x06 \x01(\x03R\x18memoryEventsOomGroupKill\x12\x1f\n" +
+	"\vmemory_peak\x18\a \x01(\x03R\n" +
+	"memoryPeak\x12V\n" +
+	"\x1amemory_pressure_some_total\x18\b \x01(\v2\x19.google.protobuf.DurationR\x17memoryPressureSomeTotal\x12V\n" +
+	"\x1amemory_pressure_full_total\x18\t \x01(\v2\x19.google.protobuf.DurationR\x17memoryPressureFullTotal\x12P\n" +
+	"\x17cpu_pressure_some_total\x18\n" +
+	" \x01(\v2\x19.google.protobuf.DurationR\x14cpuPressureSomeTotal\x12P\n" +
+	"\x17cpu_pressure_full_total\x18\v \x01(\v2\x19.google.protobuf.DurationR\x14cpuPressureFullTotal\x12N\n" +
+	"\x16io_pressure_some_total\x18\f \x01(\v2\x19.google.protobuf.DurationR\x13ioPressureSomeTotal\x12N\n" +
+	"\x16io_pressure_full_total\x18\r \x01(\v2\x19.google.protobuf.DurationR\x13ioPressureFullTotalBBZ@github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusageb\x06proto3"
 
 var (
 	file_github_com_buildbarn_bb_remote_execution_pkg_proto_resourceusage_resourceusage_proto_rawDescOnce sync.Once
@@ -485,26 +641,33 @@ func file_github_com_buildbarn_bb_remote_execution_pkg_proto_resourceusage_resou
 	return file_github_com_buildbarn_bb_remote_execution_pkg_proto_resourceusage_resourceusage_proto_rawDescData
 }
 
-var file_github_com_buildbarn_bb_remote_execution_pkg_proto_resourceusage_resourceusage_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_github_com_buildbarn_bb_remote_execution_pkg_proto_resourceusage_resourceusage_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_github_com_buildbarn_bb_remote_execution_pkg_proto_resourceusage_resourceusage_proto_goTypes = []any{
 	(*FilePoolResourceUsage)(nil),         // 0: buildbarn.resourceusage.FilePoolResourceUsage
 	(*POSIXResourceUsage)(nil),            // 1: buildbarn.resourceusage.POSIXResourceUsage
 	(*MonetaryResourceUsage)(nil),         // 2: buildbarn.resourceusage.MonetaryResourceUsage
 	(*InputRootResourceUsage)(nil),        // 3: buildbarn.resourceusage.InputRootResourceUsage
-	(*MonetaryResourceUsage_Expense)(nil), // 4: buildbarn.resourceusage.MonetaryResourceUsage.Expense
-	nil,                                   // 5: buildbarn.resourceusage.MonetaryResourceUsage.ExpensesEntry
-	(*durationpb.Duration)(nil),           // 6: google.protobuf.Duration
+	(*CgroupResourceUsage)(nil),           // 4: buildbarn.resourceusage.CgroupResourceUsage
+	(*MonetaryResourceUsage_Expense)(nil), // 5: buildbarn.resourceusage.MonetaryResourceUsage.Expense
+	nil,                                   // 6: buildbarn.resourceusage.MonetaryResourceUsage.ExpensesEntry
+	(*durationpb.Duration)(nil),           // 7: google.protobuf.Duration
 }
 var file_github_com_buildbarn_bb_remote_execution_pkg_proto_resourceusage_resourceusage_proto_depIdxs = []int32{
-	6, // 0: buildbarn.resourceusage.POSIXResourceUsage.user_time:type_name -> google.protobuf.Duration
-	6, // 1: buildbarn.resourceusage.POSIXResourceUsage.system_time:type_name -> google.protobuf.Duration
-	5, // 2: buildbarn.resourceusage.MonetaryResourceUsage.expenses:type_name -> buildbarn.resourceusage.MonetaryResourceUsage.ExpensesEntry
-	4, // 3: buildbarn.resourceusage.MonetaryResourceUsage.ExpensesEntry.value:type_name -> buildbarn.resourceusage.MonetaryResourceUsage.Expense
-	4, // [4:4] is the sub-list for method output_type
-	4, // [4:4] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	7,  // 0: buildbarn.resourceusage.POSIXResourceUsage.user_time:type_name -> google.protobuf.Duration
+	7,  // 1: buildbarn.resourceusage.POSIXResourceUsage.system_time:type_name -> google.protobuf.Duration
+	6,  // 2: buildbarn.resourceusage.MonetaryResourceUsage.expenses:type_name -> buildbarn.resourceusage.MonetaryResourceUsage.ExpensesEntry
+	7,  // 3: buildbarn.resourceusage.CgroupResourceUsage.memory_pressure_some_total:type_name -> google.protobuf.Duration
+	7,  // 4: buildbarn.resourceusage.CgroupResourceUsage.memory_pressure_full_total:type_name -> google.protobuf.Duration
+	7,  // 5: buildbarn.resourceusage.CgroupResourceUsage.cpu_pressure_some_total:type_name -> google.protobuf.Duration
+	7,  // 6: buildbarn.resourceusage.CgroupResourceUsage.cpu_pressure_full_total:type_name -> google.protobuf.Duration
+	7,  // 7: buildbarn.resourceusage.CgroupResourceUsage.io_pressure_some_total:type_name -> google.protobuf.Duration
+	7,  // 8: buildbarn.resourceusage.CgroupResourceUsage.io_pressure_full_total:type_name -> google.protobuf.Duration
+	5,  // 9: buildbarn.resourceusage.MonetaryResourceUsage.ExpensesEntry.value:type_name -> buildbarn.resourceusage.MonetaryResourceUsage.Expense
+	10, // [10:10] is the sub-list for method output_type
+	10, // [10:10] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() {
@@ -520,7 +683,7 @@ func file_github_com_buildbarn_bb_remote_execution_pkg_proto_resourceusage_resou
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_github_com_buildbarn_bb_remote_execution_pkg_proto_resourceusage_resourceusage_proto_rawDesc), len(file_github_com_buildbarn_bb_remote_execution_pkg_proto_resourceusage_resourceusage_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
