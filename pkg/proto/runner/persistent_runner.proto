@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package buildbarn.runner;
+
+import "github.com/buildbarn/bb-remote-execution/pkg/proto/runner/runner.proto";
+import "google/protobuf/any.proto";
+import "google/protobuf/empty.proto";
+import "worker_protocol.proto";
+
+option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/runner";
+
+// Similar to Runner but with added session management endpoints for persistent workers support.
+// See https://bazel.build/remote/creating
+service PersistentRunner {
+  rpc CheckReadiness(CheckReadinessRequest) returns (google.protobuf.Empty);
+  rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
+  rpc ExecuteSession(ExecuteSessionRequest) returns (ExecuteSessionResponse);
+  rpc CloseSession(SessionRequest) returns (google.protobuf.Empty);
+
+  // TODO: Define RenewSession so orphaned workers are cleaned up. 
+}
+
+message CreateSessionRequest {
+  repeated string arguments = 1;
+  map<string, string> environment_variables = 2;
+  string working_directory = 3;
+  string input_root_directory = 4;
+  string temporary_directory = 5;
+  string process_stderr_path = 6;
+  string server_logs_directory = 7;
+}
+
+message CreateSessionResponse {
+  string session_id = 1;
+}
+
+message SessionRequest {
+  string session_id = 1;
+}
+
+message ExecuteSessionRequest {
+  string session_id = 1;
+  // Forward the WorkRequest from Bazel to the runner.
+  bazel_worker.WorkRequest work_request = 2;
+}
+
+message ExecuteSessionResponse {
+  // Forward the WorkResponse from the runner to Bazel.
+  bazel_worker.WorkResponse work_response = 1;
+  repeated google.protobuf.Any resource_usage = 2;
+}

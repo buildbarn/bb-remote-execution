@@ -4,10 +4,14 @@ load("@rules_go//proto:def.bzl", "go_proto_library")
 
 proto_library(
     name = "runner_proto",
-    srcs = ["runner.proto"],
+    srcs = [
+        "persistent_runner.proto",
+        "runner.proto",
+    ],
     import_prefix = "github.com/buildbarn/bb-remote-execution",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/proto/worker:worker_proto",
         "@protobuf//:any_proto",
         "@protobuf//:empty_proto",
     ],
@@ -22,6 +26,7 @@ go_proto_library(
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/proto/runner",
     proto = ":runner_proto",
     visibility = ["//visibility:public"],
+    deps = ["//pkg/proto/worker"],
 )
 
 go_library(

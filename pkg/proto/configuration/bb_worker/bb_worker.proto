@@ -402,6 +402,10 @@ message RunnerConfiguration {
   // directory. This should typically be set to the primary group of the
   // user that is used by bb_runner to run actions.
   uint32 build_directory_owner_group_id = 16;
+
+  // Whether the runner accepts persistent worker requests.
+  // See https://bazel.build/remote/creating
+  bool enable_persistent_workers = 17;
 }
 
 message CompletedActionLoggingConfiguration {

@@ -135,4 +135,10 @@ message ApplicationConfiguration {
   // https://github.com/bazelbuild/bazel/blob/master/src/main/java/com/google/devtools/build/lib/exec/local/XcodeLocalEnvProvider.java
   // https://www.smileykeith.com/2021/03/08/locking-xcode-in-bazel/
   map<string, string> apple_xcode_developer_directories = 14;
+
+  PersistentWorkersConfiguration persistent_workers = 15;
+}
+
+message PersistentWorkersConfiguration {
+  uint64 maximum_protocol_message_size_bytes = 1;
 }
