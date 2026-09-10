@@ -4,6 +4,13 @@ go_binary(
     name = "fake_worker",
     testonly = True,
     srcs = ["main.go"],
-    visibility = ["//pkg/runner:__pkg__"],
-    deps = ["@com_github_google_uuid//:uuid"],
+    visibility = [
+        "//pkg/builder:__pkg__",
+        "//pkg/runner:__pkg__",
+    ],
+    deps = [
+        "//pkg/proto/worker",
+        "@com_github_google_uuid//:uuid",
+        "@org_golang_google_protobuf//proto",
+    ],
 )

@@ -9,15 +9,23 @@ import (
 	"io"
 	"math"
 	"os"
+	"strings"
 	"time"
 
+	worker_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/worker"
 	"github.com/google/uuid"
+	"google.golang.org/protobuf/proto"
 )
 
 // Fake worker binary to process test requests.
 func main() {
 	mode := flag.String("mode", "echo", "Fake worker behavior")
+	persistent := flag.Bool("persistent_worker", false, "Use the persistent worker protocol")
 	flag.Parse()
+	if *mode == "proto" && !*persistent {
+		fmt.Fprintln(os.Stderr, "Expected --persistent_worker")
+		os.Exit(1)
+	}
 	if err := run(*mode); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -27,7 +35,7 @@ func main() {
 func run(mode string) error {
 	workerID := uuid.NewString()
 	switch mode {
-	case "echo", "exit", "truncated", "invalid-length", "oversized":
+	case "echo", "proto", "wait", "exit", "truncated", "invalid-length", "oversized":
 	case "exit-idle":
 		return nil
 	default:
@@ -48,6 +56,24 @@ func run(mode string) error {
 		}
 		response := append(fmt.Appendf(nil, "%s:%d:", workerID, requestIndex), request...)
 		switch mode {
+		case "proto":
+			workRequest := &worker_pb.WorkRequest{}
+			if err := proto.Unmarshal(request, workRequest); err != nil {
+				return err
+			}
+			workResponse := &worker_pb.WorkResponse{RequestId: workRequest.RequestId, Output: workerID}
+			if err := compile(workRequest.Arguments); err != nil {
+				workResponse.ExitCode = 1
+				workResponse.Output += "\n" + err.Error()
+			}
+			response, err = proto.Marshal(workResponse)
+			if err != nil {
+				return err
+			}
+		case "wait":
+			fmt.Fprintln(os.Stderr, "Request received")
+			time.Sleep(time.Hour)
+			return nil
 		case "exit":
 			os.Exit(23)
 		case "truncated":
@@ -73,4 +99,15 @@ func run(mode string) error {
 			return err
 		}
 	}
+}
+
+func compile(arguments []string) error {
+	if len(arguments) != 2 {
+		return fmt.Errorf("expected input and output paths")
+	}
+	contents, err := os.ReadFile(arguments[0])
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(arguments[1], []byte(strings.ToUpper(string(contents))), 0o666)
 }

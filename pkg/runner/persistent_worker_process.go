@@ -22,7 +22,10 @@ type PersistentWorkerProcess struct {
 	done          chan struct{}
 }
 
-// StartPersistentWorkerProcess spawns a long lived worker process.
+// StartPersistentWorkerProcess starts a long-lived worker using a
+// preconfigured command. It takes ownership of the command and its
+// stdin/stdout pipes, including waiting for process termination. The
+// caller retains ownership of any configured stderr log file.
 func StartPersistentWorkerProcess(command *exec.Cmd, maximumResponseSizeBytes uint64) (*PersistentWorkerProcess, error) {
 	if command == nil || command.Process != nil || command.Stdin != nil || command.Stdout != nil {
 		return nil, errors.New("persistent worker requires an unstarted command without stdin or stdout")
@@ -61,7 +64,10 @@ func StartPersistentWorkerProcess(command *exec.Cmd, maximumResponseSizeBytes ui
 	return process, nil
 }
 
-// Execute writes a WorkRequest to the workers stdin for the worker to execute.
+// Execute writes an opaque request to the worker and reads its response.
+// Concurrent executions are rejected. Cancelling an in-flight exchange
+// or encountering a framing or I/O error closes the process; successful
+// exchanges leave it available for reuse.
 func (process *PersistentWorkerProcess) Execute(ctx context.Context, request []byte) ([]byte, error) {
 	if !process.executionLock.TryLock() {
 		return nil, errors.New("persistent worker is already executing a request")
@@ -109,6 +115,9 @@ func (process *PersistentWorkerProcess) stop() {
 	})
 }
 
+// Close closes the protocol pipes, kills the worker, and waits for it
+// to be reaped. It may be called multiple times, including concurrently,
+// and does not report the worker's exit status as an error.
 func (process *PersistentWorkerProcess) Close() error {
 	process.stop()
 	if process.stopError != nil {
@@ -118,10 +127,14 @@ func (process *PersistentWorkerProcess) Close() error {
 	return nil
 }
 
+// Done returns a channel that is closed after the worker has been
+// reaped and its protocol pipes have been closed.
 func (process *PersistentWorkerProcess) Done() <-chan struct{} {
 	return process.done
 }
 
+// Wait waits for the worker to be reaped and returns the command's
+// process exit error. It does not initiate process termination.
 func (process *PersistentWorkerProcess) Wait() error {
 	<-process.done
 	return process.waitError

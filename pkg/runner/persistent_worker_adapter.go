@@ -14,6 +14,10 @@ type PersistentWorkerAdapter struct {
 	maximumResponseSizeBytes uint64
 }
 
+// NewPersistentWorkerAdapter creates an adapter for exchanging opaque
+// protobuf payloads over a worker's stdin and stdout. Responses larger
+// than the configured limit are rejected before allocating a buffer.
+// The adapter must be retained across exchanges to preserve buffered data.
 func NewPersistentWorkerAdapter(stdin io.Writer, stdout io.Reader, maximumResponseSizeBytes uint64) *PersistentWorkerAdapter {
 	return &PersistentWorkerAdapter{
 		stdin:                    stdin,
@@ -22,6 +26,8 @@ func NewPersistentWorkerAdapter(stdin io.Writer, stdout io.Reader, maximumRespon
 	}
 }
 
+// WriteRequest writes a request payload preceded by its varint-encoded
+// length. The payload is forwarded without decoding it.
 func (protocol *PersistentWorkerAdapter) WriteRequest(request []byte) error {
 	var header [binary.MaxVarintLen64]byte
 	headerSize := binary.PutUvarint(header[:], uint64(len(request)))
@@ -42,6 +48,9 @@ func (protocol *PersistentWorkerAdapter) WriteRequest(request []byte) error {
 	return err
 }
 
+// ReadResponse reads a length-prefixed response and returns its payload
+// without decoding it. Invalid lengths, oversized responses, and
+// incomplete frames result in an error.
 func (protocol *PersistentWorkerAdapter) ReadResponse() ([]byte, error) {
 	size, err := binary.ReadUvarint(protocol.stdout)
 	if err != nil {
