@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPersistentWorkerProtocolWriteRequest(t *testing.T) {
+func TestPersistentWorkerAdapterWriteRequest(t *testing.T) {
 	for _, test := range []struct {
 		name    string
 		payload []byte
@@ -36,7 +36,7 @@ func TestPersistentWorkerProtocolWriteRequest(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			var stdin bytes.Buffer
-			protocol := runner.NewPersistentWorkerProtocol(&stdin, bytes.NewReader(nil), 0)
+			protocol := runner.NewPersistentWorkerAdapter(&stdin, bytes.NewReader(nil), 0)
 			require.NoError(t, protocol.WriteRequest(test.payload))
 			require.Equal(t, test.frame, stdin.Bytes())
 		})
@@ -49,7 +49,7 @@ func (writer persistentWorkerWriterFunc) Write(data []byte) (int, error) {
 	return writer(data)
 }
 
-func TestPersistentWorkerProtocolWriteRequestFailure(t *testing.T) {
+func TestPersistentWorkerAdapterWriteRequestFailure(t *testing.T) {
 	writeError := errors.New("write failed")
 	for _, test := range []struct {
 		name       string
@@ -71,14 +71,14 @@ func TestPersistentWorkerProtocolWriteRequestFailure(t *testing.T) {
 				}
 				return len(data), nil
 			})
-			protocol := runner.NewPersistentWorkerProtocol(stdin, bytes.NewReader(nil), 0)
+			protocol := runner.NewPersistentWorkerAdapter(stdin, bytes.NewReader(nil), 0)
 			require.ErrorIs(t, protocol.WriteRequest([]byte{0xff, 0x00, 0x80}), test.expected)
 			require.Equal(t, test.failedCall, calls)
 		})
 	}
 }
 
-func TestPersistentWorkerProtocolReadResponse(t *testing.T) {
+func TestPersistentWorkerAdapterReadResponse(t *testing.T) {
 	for _, test := range []struct {
 		name    string
 		frame   []byte
@@ -101,7 +101,7 @@ func TestPersistentWorkerProtocolReadResponse(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			protocol := runner.NewPersistentWorkerProtocol(io.Discard, iotest.OneByteReader(bytes.NewReader(test.frame)), uint64(len(test.payload)))
+			protocol := runner.NewPersistentWorkerAdapter(io.Discard, iotest.OneByteReader(bytes.NewReader(test.frame)), uint64(len(test.payload)))
 			response, err := protocol.ReadResponse()
 			require.NoError(t, err)
 			require.Equal(t, test.payload, response)
@@ -109,9 +109,9 @@ func TestPersistentWorkerProtocolReadResponse(t *testing.T) {
 	}
 }
 
-func TestPersistentWorkerProtocolConsecutiveFrames(t *testing.T) {
+func TestPersistentWorkerAdapterConsecutiveFrames(t *testing.T) {
 	var stdin bytes.Buffer
-	protocol := runner.NewPersistentWorkerProtocol(&stdin, bytes.NewReader([]byte{2, 0xff, 0x00, 0, 1, 0x80}), 2)
+	protocol := runner.NewPersistentWorkerAdapter(&stdin, bytes.NewReader([]byte{2, 0xff, 0x00, 0, 1, 0x80}), 2)
 	for _, payload := range [][]byte{{0xff, 0x00}, {}, {0x80}} {
 		require.NoError(t, protocol.WriteRequest(payload))
 		response, err := protocol.ReadResponse()
@@ -124,7 +124,7 @@ func TestPersistentWorkerProtocolConsecutiveFrames(t *testing.T) {
 	require.Equal(t, []byte{2, 0xff, 0x00, 0, 1, 0x80}, stdin.Bytes())
 }
 
-func TestPersistentWorkerProtocolReadResponseFailure(t *testing.T) {
+func TestPersistentWorkerAdapterReadResponseFailure(t *testing.T) {
 	readError := errors.New("read failed")
 	for _, test := range []struct {
 		name     string
@@ -139,7 +139,7 @@ func TestPersistentWorkerProtocolReadResponseFailure(t *testing.T) {
 		{name: "PayloadReadError", stdout: io.MultiReader(bytes.NewReader([]byte{3, 0xff}), iotest.ErrReader(readError)), expected: readError},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			protocol := runner.NewPersistentWorkerProtocol(io.Discard, test.stdout, 300)
+			protocol := runner.NewPersistentWorkerAdapter(io.Discard, test.stdout, 300)
 			response, err := protocol.ReadResponse()
 			require.ErrorIs(t, err, test.expected)
 			require.Nil(t, response)
@@ -147,19 +147,19 @@ func TestPersistentWorkerProtocolReadResponseFailure(t *testing.T) {
 	}
 }
 
-func TestPersistentWorkerProtocolReadResponseInvalidLength(t *testing.T) {
+func TestPersistentWorkerAdapterReadResponseInvalidLength(t *testing.T) {
 	for _, header := range [][]byte{
 		bytes.Repeat([]byte{0x80}, binary.MaxVarintLen64),
 		append(bytes.Repeat([]byte{0xff}, binary.MaxVarintLen64-1), 0x02),
 	} {
-		protocol := runner.NewPersistentWorkerProtocol(io.Discard, bytes.NewReader(header), math.MaxUint64)
+		protocol := runner.NewPersistentWorkerAdapter(io.Discard, bytes.NewReader(header), math.MaxUint64)
 		response, err := protocol.ReadResponse()
 		require.Error(t, err)
 		require.Nil(t, response)
 	}
 }
 
-func TestPersistentWorkerProtocolReadResponseSizeLimit(t *testing.T) {
+func TestPersistentWorkerAdapterReadResponseSizeLimit(t *testing.T) {
 	for _, test := range []struct {
 		name    string
 		size    uint64
@@ -172,7 +172,7 @@ func TestPersistentWorkerProtocolReadResponseSizeLimit(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			stdout := bytes.NewReader(append(binary.AppendUvarint(nil, test.size), 0xff))
-			protocol := runner.NewPersistentWorkerProtocol(io.Discard, iotest.OneByteReader(stdout), test.maximum)
+			protocol := runner.NewPersistentWorkerAdapter(io.Discard, iotest.OneByteReader(stdout), test.maximum)
 			response, err := protocol.ReadResponse()
 			require.Error(t, err)
 			require.Nil(t, response)
