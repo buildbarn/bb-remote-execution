@@ -173,10 +173,10 @@ func (x *ApplicationConfiguration) GetPersistentWorkers() *PersistentWorkersConf
 }
 
 type PersistentWorkersConfiguration struct {
-	state                           protoimpl.MessageState `protogen:"open.v1"`
-	MaximumProtocolMessageSizeBytes uint64                 `protobuf:"varint,1,opt,name=maximum_protocol_message_size_bytes,json=maximumProtocolMessageSizeBytes,proto3" json:"maximum_protocol_message_size_bytes,omitempty"`
-	unknownFields                   protoimpl.UnknownFields
-	sizeCache                       protoimpl.SizeCache
+	state                        protoimpl.MessageState `protogen:"open.v1"`
+	MaximumWorkResponseSizeBytes uint64                 `protobuf:"varint,1,opt,name=maximum_work_response_size_bytes,json=maximumWorkResponseSizeBytes,proto3" json:"maximum_work_response_size_bytes,omitempty"`
+	unknownFields                protoimpl.UnknownFields
+	sizeCache                    protoimpl.SizeCache
 }
 
 func (x *PersistentWorkersConfiguration) Reset() {
@@ -209,9 +209,9 @@ func (*PersistentWorkersConfiguration) Descriptor() ([]byte, []int) {
 	return file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_runner_bb_runner_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *PersistentWorkersConfiguration) GetMaximumProtocolMessageSizeBytes() uint64 {
+func (x *PersistentWorkersConfiguration) GetMaximumWorkResponseSizeBytes() uint64 {
 	if x != nil {
-		return x.MaximumProtocolMessageSizeBytes
+		return x.MaximumWorkResponseSizeBytes
 	}
 	return 0
 }
@@ -240,9 +240,9 @@ const file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_r
 	"#AppleXcodeDeveloperDirectoriesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\t\x10\n" +
-	"\"n\n" +
-	"\x1ePersistentWorkersConfiguration\x12L\n" +
-	"#maximum_protocol_message_size_bytes\x18\x01 \x01(\x04R\x1fmaximumProtocolMessageSizeBytesBLZJgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_runnerb\x06proto3"
+	"\"h\n" +
+	"\x1ePersistentWorkersConfiguration\x12F\n" +
+	" maximum_work_response_size_bytes\x18\x01 \x01(\x04R\x1cmaximumWorkResponseSizeBytesBLZJgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_runnerb\x06proto3"
 
 var (
 	file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_runner_bb_runner_proto_rawDescOnce sync.Once

@@ -5,7 +5,6 @@ package buildbarn.runner;
 import "github.com/buildbarn/bb-remote-execution/pkg/proto/runner/runner.proto";
 import "google/protobuf/any.proto";
 import "google/protobuf/empty.proto";
-import "worker_protocol.proto";
 
 option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/runner";
 
@@ -40,12 +39,12 @@ message SessionRequest {
 
 message ExecuteSessionRequest {
   string session_id = 1;
-  // Forward the WorkRequest from Bazel to the runner.
-  bazel_worker.WorkRequest work_request = 2;
+  // WorkRequest serialized by bb_worker, without the varint length prefix.
+  bytes serialized_work_request = 2;
 }
 
 message ExecuteSessionResponse {
-  // Forward the WorkResponse from the runner to Bazel.
-  bazel_worker.WorkResponse work_response = 1;
+  // WorkResponse from the compiler, without the varint length prefix.
+  bytes serialized_work_response = 1;
   repeated google.protobuf.Any resource_usage = 2;
 }

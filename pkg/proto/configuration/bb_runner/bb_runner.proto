@@ -140,5 +140,5 @@ message ApplicationConfiguration {
 }
 
 message PersistentWorkersConfiguration {
-  uint64 maximum_protocol_message_size_bytes = 1;
+  uint64 maximum_work_response_size_bytes = 1;
 }
