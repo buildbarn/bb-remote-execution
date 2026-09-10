@@ -62,7 +62,7 @@ func TestPersistentRunnerReadinessAndInvalidRequests(t *testing.T) {
 		require.Nil(t, response)
 	}
 	for _, sessionID := range []string{"", "unknown"} {
-		response, err := server.ExecuteSession(ctx, &runner_pb.ExecuteSessionRequest{SessionId: sessionID})
+		response, err := server.ExecuteInPersistentWorker(ctx, &runner_pb.ExecuteInPersistentWorkerRequest{SessionId: sessionID})
 		require.Error(t, err)
 		require.Nil(t, response)
 	}
@@ -82,7 +82,7 @@ func TestPersistentRunnerReuse(t *testing.T) {
 	var workerID uuid.UUID
 	for requestIndex := range 3 {
 		actionContext, cancelAction := context.WithCancel(ctx)
-		response, err := server.ExecuteSession(actionContext, &runner_pb.ExecuteSessionRequest{
+		response, err := server.ExecuteInPersistentWorker(actionContext, &runner_pb.ExecuteInPersistentWorkerRequest{
 			SessionId: sessionID, SerializedWorkRequest: []byte{0xff, 0x00, 0x80},
 		})
 		cancelAction()
@@ -101,7 +101,7 @@ func TestPersistentRunnerReuse(t *testing.T) {
 		_, err := server.CloseSession(ctx, &runner_pb.SessionRequest{SessionId: sessionID})
 		require.NoError(t, err)
 	}
-	_, err := server.ExecuteSession(ctx, &runner_pb.ExecuteSessionRequest{SessionId: sessionID})
+	_, err := server.ExecuteInPersistentWorker(ctx, &runner_pb.ExecuteInPersistentWorkerRequest{SessionId: sessionID})
 	require.Error(t, err)
 }
 
@@ -113,7 +113,7 @@ func TestPersistentRunnerFailedSession(t *testing.T) {
 			server, _ := newPersistentRunner(t, ctx, runner.NewPlainCommandCreator(&syscall.SysProcAttr{}))
 			sessionID := createPersistentRunnerSession(t, server, ctx, mode)
 			for range 2 {
-				response, err := server.ExecuteSession(ctx, &runner_pb.ExecuteSessionRequest{SessionId: sessionID})
+				response, err := server.ExecuteInPersistentWorker(ctx, &runner_pb.ExecuteInPersistentWorkerRequest{SessionId: sessionID})
 				require.Error(t, err)
 				require.Nil(t, response)
 			}
@@ -138,16 +138,16 @@ func TestPersistentRunnerConcurrentSessions(t *testing.T) {
 			defer cancelAction()
 			executionDone := make(chan error, 1)
 			go func() {
-				_, err := server.ExecuteSession(actionContext, &runner_pb.ExecuteSessionRequest{SessionId: waiting.SessionId})
+				_, err := server.ExecuteInPersistentWorker(actionContext, &runner_pb.ExecuteInPersistentWorkerRequest{SessionId: waiting.SessionId})
 				executionDone <- err
 			}()
 			require.Eventually(t, func() bool {
 				info, err := os.Stat(filepath.Join(directoryPath, "waiting.stderr"))
 				return err == nil && info.Size() > 0
 			}, 5*time.Second, time.Millisecond)
-			_, err = server.ExecuteSession(ctx, &runner_pb.ExecuteSessionRequest{SessionId: waiting.SessionId})
+			_, err = server.ExecuteInPersistentWorker(ctx, &runner_pb.ExecuteInPersistentWorkerRequest{SessionId: waiting.SessionId})
 			require.Error(t, err)
-			_, err = server.ExecuteSession(ctx, &runner_pb.ExecuteSessionRequest{SessionId: otherSessionID})
+			_, err = server.ExecuteInPersistentWorker(ctx, &runner_pb.ExecuteInPersistentWorkerRequest{SessionId: otherSessionID})
 			require.NoError(t, err)
 			switch finish {
 			case "CloseSession":
@@ -172,7 +172,7 @@ func TestPersistentRunnerConcurrentSessions(t *testing.T) {
 			case <-ctx.Done():
 				t.Fatal("Execution did not finish")
 			}
-			_, err = server.ExecuteSession(ctx, &runner_pb.ExecuteSessionRequest{SessionId: waiting.SessionId})
+			_, err = server.ExecuteInPersistentWorker(ctx, &runner_pb.ExecuteInPersistentWorkerRequest{SessionId: waiting.SessionId})
 			require.Error(t, err)
 		})
 	}

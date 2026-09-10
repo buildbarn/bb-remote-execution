@@ -108,11 +108,11 @@ func TestPersistentWorkerGRPCRoundTrip(t *testing.T) {
 			sessionID = session.SessionId
 		}
 		require.Equal(t, compatibilityKey, prepared.CompatibilityKey)
-		request, err := prepared.NewExecuteSessionRequest(ctx, sessionID, func(ctx context.Context, name string) ([]byte, error) {
+		request, err := prepared.NewExecuteInPersistentWorkerRequest(ctx, sessionID, func(ctx context.Context, name string) ([]byte, error) {
 			return os.ReadFile(filepath.Join(directoryPath, "root", name))
 		})
 		require.NoError(t, err)
-		response, err := client.ExecuteSession(ctx, request)
+		response, err := client.ExecuteInPersistentWorker(ctx, request)
 		require.NoError(t, err)
 		workResponse, err := builder.DecodePersistentWorkerResponse(response)
 		require.NoError(t, err)
@@ -137,7 +137,7 @@ func TestPersistentWorkerGRPCRoundTrip(t *testing.T) {
 		_, err := client.CloseSession(ctx, &runner_pb.SessionRequest{SessionId: sessionID})
 		require.NoError(t, err)
 	}
-	_, err = client.ExecuteSession(ctx, &runner_pb.ExecuteSessionRequest{SessionId: sessionID})
+	_, err = client.ExecuteInPersistentWorker(ctx, &runner_pb.ExecuteInPersistentWorkerRequest{SessionId: sessionID})
 	require.Error(t, err)
 	server.Stop()
 	require.NoError(t, <-serveDone)

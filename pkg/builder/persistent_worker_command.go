@@ -185,9 +185,10 @@ func validPersistentWorkerInputPath(inputPath string) bool {
 		path.Clean(inputPath) == inputPath && !strings.ContainsRune(inputPath, '\x00')
 }
 
-// NewExecuteSessionRequest expands flag files and serializes WorkRequest. 
+// NewExecuteInPersistentWorkerRequest expands flag files and serializes
+// WorkRequest.
 // This method constructs the request without sending an RPC.
-func (prepared *PersistentWorkerCommand) NewExecuteSessionRequest(ctx context.Context, sessionID string, readFile func(context.Context, string) ([]byte, error)) (*runner_pb.ExecuteSessionRequest, error) {
+func (prepared *PersistentWorkerCommand) NewExecuteInPersistentWorkerRequest(ctx context.Context, sessionID string, readFile func(context.Context, string) ([]byte, error)) (*runner_pb.ExecuteInPersistentWorkerRequest, error) {
 	if sessionID == "" {
 		return nil, status.Error(codes.InvalidArgument, "Missing session ID")
 	}
@@ -239,13 +240,13 @@ func (prepared *PersistentWorkerCommand) NewExecuteSessionRequest(ctx context.Co
 	if err != nil {
 		return nil, util.StatusWrap(err, "Failed to serialize persistent work request")
 	}
-	return &runner_pb.ExecuteSessionRequest{SessionId: sessionID, SerializedWorkRequest: serialized}, nil
+	return &runner_pb.ExecuteInPersistentWorkerRequest{SessionId: sessionID, SerializedWorkRequest: serialized}, nil
 }
 
 // DecodePersistentWorkerResponse decodes and validates a response to a work request. 
 // A nonzero compiler exit code is a valid response, not an error.
 // The caller must retire the session if decoding or protocol validation fails.
-func DecodePersistentWorkerResponse(response *runner_pb.ExecuteSessionResponse) (*worker_pb.WorkResponse, error) {
+func DecodePersistentWorkerResponse(response *runner_pb.ExecuteInPersistentWorkerResponse) (*worker_pb.WorkResponse, error) {
 	if response == nil {
 		return nil, status.Error(codes.DataLoss, "Missing persistent work response")
 	}

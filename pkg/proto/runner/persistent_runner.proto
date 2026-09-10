@@ -13,7 +13,8 @@ option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/runner";
 service PersistentRunner {
   rpc CheckReadiness(CheckReadinessRequest) returns (google.protobuf.Empty);
   rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
-  rpc ExecuteSession(ExecuteSessionRequest) returns (ExecuteSessionResponse);
+  rpc ExecuteInPersistentWorker(ExecuteInPersistentWorkerRequest)
+      returns (ExecuteInPersistentWorkerResponse);
   rpc CloseSession(SessionRequest) returns (google.protobuf.Empty);
 
   // TODO: Define RenewSession so orphaned workers are cleaned up. 
@@ -37,13 +38,13 @@ message SessionRequest {
   string session_id = 1;
 }
 
-message ExecuteSessionRequest {
+message ExecuteInPersistentWorkerRequest {
   string session_id = 1;
   // WorkRequest serialized by bb_worker, without the varint length prefix.
   bytes serialized_work_request = 2;
 }
 
-message ExecuteSessionResponse {
+message ExecuteInPersistentWorkerResponse {
   // WorkResponse from the compiler, without the varint length prefix.
   bytes serialized_work_response = 1;
   repeated google.protobuf.Any resource_usage = 2;

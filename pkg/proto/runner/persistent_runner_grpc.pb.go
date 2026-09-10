@@ -20,10 +20,10 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	PersistentRunner_CheckReadiness_FullMethodName = "/buildbarn.runner.PersistentRunner/CheckReadiness"
-	PersistentRunner_CreateSession_FullMethodName  = "/buildbarn.runner.PersistentRunner/CreateSession"
-	PersistentRunner_ExecuteSession_FullMethodName = "/buildbarn.runner.PersistentRunner/ExecuteSession"
-	PersistentRunner_CloseSession_FullMethodName   = "/buildbarn.runner.PersistentRunner/CloseSession"
+	PersistentRunner_CheckReadiness_FullMethodName            = "/buildbarn.runner.PersistentRunner/CheckReadiness"
+	PersistentRunner_CreateSession_FullMethodName             = "/buildbarn.runner.PersistentRunner/CreateSession"
+	PersistentRunner_ExecuteInPersistentWorker_FullMethodName = "/buildbarn.runner.PersistentRunner/ExecuteInPersistentWorker"
+	PersistentRunner_CloseSession_FullMethodName              = "/buildbarn.runner.PersistentRunner/CloseSession"
 )
 
 // PersistentRunnerClient is the client API for PersistentRunner service.
@@ -32,7 +32,7 @@ const (
 type PersistentRunnerClient interface {
 	CheckReadiness(ctx context.Context, in *CheckReadinessRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	CreateSession(ctx context.Context, in *CreateSessionRequest, opts ...grpc.CallOption) (*CreateSessionResponse, error)
-	ExecuteSession(ctx context.Context, in *ExecuteSessionRequest, opts ...grpc.CallOption) (*ExecuteSessionResponse, error)
+	ExecuteInPersistentWorker(ctx context.Context, in *ExecuteInPersistentWorkerRequest, opts ...grpc.CallOption) (*ExecuteInPersistentWorkerResponse, error)
 	CloseSession(ctx context.Context, in *SessionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
@@ -64,10 +64,10 @@ func (c *persistentRunnerClient) CreateSession(ctx context.Context, in *CreateSe
 	return out, nil
 }
 
-func (c *persistentRunnerClient) ExecuteSession(ctx context.Context, in *ExecuteSessionRequest, opts ...grpc.CallOption) (*ExecuteSessionResponse, error) {
+func (c *persistentRunnerClient) ExecuteInPersistentWorker(ctx context.Context, in *ExecuteInPersistentWorkerRequest, opts ...grpc.CallOption) (*ExecuteInPersistentWorkerResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ExecuteSessionResponse)
-	err := c.cc.Invoke(ctx, PersistentRunner_ExecuteSession_FullMethodName, in, out, cOpts...)
+	out := new(ExecuteInPersistentWorkerResponse)
+	err := c.cc.Invoke(ctx, PersistentRunner_ExecuteInPersistentWorker_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +90,7 @@ func (c *persistentRunnerClient) CloseSession(ctx context.Context, in *SessionRe
 type PersistentRunnerServer interface {
 	CheckReadiness(context.Context, *CheckReadinessRequest) (*emptypb.Empty, error)
 	CreateSession(context.Context, *CreateSessionRequest) (*CreateSessionResponse, error)
-	ExecuteSession(context.Context, *ExecuteSessionRequest) (*ExecuteSessionResponse, error)
+	ExecuteInPersistentWorker(context.Context, *ExecuteInPersistentWorkerRequest) (*ExecuteInPersistentWorkerResponse, error)
 	CloseSession(context.Context, *SessionRequest) (*emptypb.Empty, error)
 }
 
@@ -107,8 +107,8 @@ func (UnimplementedPersistentRunnerServer) CheckReadiness(context.Context, *Chec
 func (UnimplementedPersistentRunnerServer) CreateSession(context.Context, *CreateSessionRequest) (*CreateSessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateSession not implemented")
 }
-func (UnimplementedPersistentRunnerServer) ExecuteSession(context.Context, *ExecuteSessionRequest) (*ExecuteSessionResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ExecuteSession not implemented")
+func (UnimplementedPersistentRunnerServer) ExecuteInPersistentWorker(context.Context, *ExecuteInPersistentWorkerRequest) (*ExecuteInPersistentWorkerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ExecuteInPersistentWorker not implemented")
 }
 func (UnimplementedPersistentRunnerServer) CloseSession(context.Context, *SessionRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CloseSession not implemented")
@@ -169,20 +169,20 @@ func _PersistentRunner_CreateSession_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
-func _PersistentRunner_ExecuteSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ExecuteSessionRequest)
+func _PersistentRunner_ExecuteInPersistentWorker_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExecuteInPersistentWorkerRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(PersistentRunnerServer).ExecuteSession(ctx, in)
+		return srv.(PersistentRunnerServer).ExecuteInPersistentWorker(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: PersistentRunner_ExecuteSession_FullMethodName,
+		FullMethod: PersistentRunner_ExecuteInPersistentWorker_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(PersistentRunnerServer).ExecuteSession(ctx, req.(*ExecuteSessionRequest))
+		return srv.(PersistentRunnerServer).ExecuteInPersistentWorker(ctx, req.(*ExecuteInPersistentWorkerRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -221,8 +221,8 @@ var PersistentRunner_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _PersistentRunner_CreateSession_Handler,
 		},
 		{
-			MethodName: "ExecuteSession",
-			Handler:    _PersistentRunner_ExecuteSession_Handler,
+			MethodName: "ExecuteInPersistentWorker",
+			Handler:    _PersistentRunner_ExecuteInPersistentWorker_Handler,
 		},
 		{
 			MethodName: "CloseSession",

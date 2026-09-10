@@ -216,7 +216,7 @@ func TestPersistentWorkerCommandRequest(t *testing.T) {
 	prepared, err := builder.NewPersistentWorkerCommand(action, command, digest.MustNewFunction("instance", remoteexecution.DigestFunction_SHA256), inputs, nil)
 	require.NoError(t, err)
 	require.Equal(t, []string{"compiler", "--persistent_worker", "@@startup", "@repo//label"}, prepared.Arguments)
-	request, err := prepared.NewExecuteSessionRequest(context.Background(), "session", func(ctx context.Context, name string) ([]byte, error) {
+	request, err := prepared.NewExecuteInPersistentWorkerRequest(context.Background(), "session", func(ctx context.Context, name string) ([]byte, error) {
 		contents, ok := files[name]
 		require.True(t, ok)
 		return []byte(contents), nil
@@ -244,7 +244,7 @@ func TestPersistentWorkerCommandFlagFileErrors(t *testing.T) {
 			action, command, inputs := persistentWorkerTestCommand()
 			prepared, err := builder.NewPersistentWorkerCommand(action, command, digest.MustNewFunction("instance", remoteexecution.DigestFunction_SHA256), inputs, nil)
 			require.NoError(t, err)
-			response, err := prepared.NewExecuteSessionRequest(context.Background(), "session", func(ctx context.Context, name string) ([]byte, error) {
+			response, err := prepared.NewExecuteInPersistentWorkerRequest(context.Background(), "session", func(ctx context.Context, name string) ([]byte, error) {
 				return []byte(contents), nil
 			})
 			require.Error(t, err)
@@ -254,18 +254,18 @@ func TestPersistentWorkerCommandFlagFileErrors(t *testing.T) {
 	action, command, inputs := persistentWorkerTestCommand()
 	prepared, err := builder.NewPersistentWorkerCommand(action, command, digest.MustNewFunction("instance", remoteexecution.DigestFunction_SHA256), inputs, nil)
 	require.NoError(t, err)
-	_, err = prepared.NewExecuteSessionRequest(context.Background(), "session", func(ctx context.Context, name string) ([]byte, error) {
+	_, err = prepared.NewExecuteInPersistentWorkerRequest(context.Background(), "session", func(ctx context.Context, name string) ([]byte, error) {
 		return nil, os.ErrNotExist
 	})
 	require.Error(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err = prepared.NewExecuteSessionRequest(ctx, "session", nil)
+	_, err = prepared.NewExecuteInPersistentWorkerRequest(ctx, "session", nil)
 	require.Error(t, err)
-	_, err = prepared.NewExecuteSessionRequest(context.Background(), "", nil)
+	_, err = prepared.NewExecuteInPersistentWorkerRequest(context.Background(), "", nil)
 	require.Error(t, err)
 	largeArgument := strings.Repeat("argument", 20000)
-	request, err := prepared.NewExecuteSessionRequest(context.Background(), "session", func(ctx context.Context, name string) ([]byte, error) {
+	request, err := prepared.NewExecuteInPersistentWorkerRequest(context.Background(), "session", func(ctx context.Context, name string) ([]byte, error) {
 		return []byte(largeArgument), nil
 	})
 	require.NoError(t, err)
@@ -281,17 +281,17 @@ func TestDecodePersistentWorkerResponse(t *testing.T) {
 	} {
 		serialized, err := proto.Marshal(workResponse)
 		require.NoError(t, err)
-		decoded, err := builder.DecodePersistentWorkerResponse(&runner_pb.ExecuteSessionResponse{SerializedWorkResponse: serialized})
+		decoded, err := builder.DecodePersistentWorkerResponse(&runner_pb.ExecuteInPersistentWorkerResponse{SerializedWorkResponse: serialized})
 		require.NoError(t, err)
 		require.True(t, proto.Equal(workResponse, decoded))
 	}
 	for _, workResponse := range []*worker_pb.WorkResponse{{RequestId: 1}, {WasCancelled: true}} {
 		serialized, err := proto.Marshal(workResponse)
 		require.NoError(t, err)
-		_, err = builder.DecodePersistentWorkerResponse(&runner_pb.ExecuteSessionResponse{SerializedWorkResponse: serialized})
+		_, err = builder.DecodePersistentWorkerResponse(&runner_pb.ExecuteInPersistentWorkerResponse{SerializedWorkResponse: serialized})
 		require.Error(t, err)
 	}
-	_, err := builder.DecodePersistentWorkerResponse(&runner_pb.ExecuteSessionResponse{SerializedWorkResponse: []byte{0xff}})
+	_, err := builder.DecodePersistentWorkerResponse(&runner_pb.ExecuteInPersistentWorkerResponse{SerializedWorkResponse: []byte{0xff}})
 	require.Error(t, err)
 	_, err = builder.DecodePersistentWorkerResponse(nil)
 	require.Error(t, err)

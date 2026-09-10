@@ -152,11 +152,11 @@ func (server *PersistentRunner) CreateSession(ctx context.Context, request *runn
 	return &runner_pb.CreateSessionResponse{SessionId: sessionID.String()}, nil
 }
 
-// ExecuteSession exchanges opaque request and response payloads with a
-// session's compiler. Concurrent requests to the same session are
-// rejected rather than queued. Cancelling an in-flight exchange or
-// encountering a framing or I/O error terminates the compiler.
-func (server *PersistentRunner) ExecuteSession(ctx context.Context, request *runner_pb.ExecuteSessionRequest) (*runner_pb.ExecuteSessionResponse, error) {
+// ExecuteInPersistentWorker exchanges opaque request and response
+// payloads with a session's compiler. Concurrent requests to the same
+// session are rejected rather than queued. Cancelling an in-flight
+// exchange or encountering a framing or I/O error terminates the compiler.
+func (server *PersistentRunner) ExecuteInPersistentWorker(ctx context.Context, request *runner_pb.ExecuteInPersistentWorkerRequest) (*runner_pb.ExecuteInPersistentWorkerResponse, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, status.FromContextError(err).Err()
 	}
@@ -192,7 +192,7 @@ func (server *PersistentRunner) ExecuteSession(ctx context.Context, request *run
 		}
 		return nil, util.StatusWrapWithCode(err, codes.Unavailable, "Persistent worker exchange failed")
 	}
-	return &runner_pb.ExecuteSessionResponse{SerializedWorkResponse: response}, nil
+	return &runner_pb.ExecuteInPersistentWorkerResponse{SerializedWorkResponse: response}, nil
 }
 
 // CloseSession terminates and reaps a session's compiler, interrupting
