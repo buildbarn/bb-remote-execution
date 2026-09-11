@@ -12,6 +12,7 @@ import (
 	grpc "github.com/buildbarn/bb-storage/pkg/proto/configuration/grpc"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	durationpb "google.golang.org/protobuf/types/known/durationpb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -39,6 +40,7 @@ type ApplicationConfiguration struct {
 	SymlinkTemporaryDirectories    []string                                  `protobuf:"bytes,12,rep,name=symlink_temporary_directories,json=symlinkTemporaryDirectories,proto3" json:"symlink_temporary_directories,omitempty"`
 	RunCommandCleaner              []string                                  `protobuf:"bytes,13,rep,name=run_command_cleaner,json=runCommandCleaner,proto3" json:"run_command_cleaner,omitempty"`
 	AppleXcodeDeveloperDirectories map[string]string                         `protobuf:"bytes,14,rep,name=apple_xcode_developer_directories,json=appleXcodeDeveloperDirectories,proto3" json:"apple_xcode_developer_directories,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	PersistentWorkers              *PersistentWorkersConfiguration           `protobuf:"bytes,15,opt,name=persistent_workers,json=persistentWorkers,proto3" json:"persistent_workers,omitempty"`
 	unknownFields                  protoimpl.UnknownFields
 	sizeCache                      protoimpl.SizeCache
 }
@@ -164,11 +166,78 @@ func (x *ApplicationConfiguration) GetAppleXcodeDeveloperDirectories() map[strin
 	return nil
 }
 
+func (x *ApplicationConfiguration) GetPersistentWorkers() *PersistentWorkersConfiguration {
+	if x != nil {
+		return x.PersistentWorkers
+	}
+	return nil
+}
+
+type PersistentWorkersConfiguration struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	DirectoryPath      string                 `protobuf:"bytes,1,opt,name=directory_path,json=directoryPath,proto3" json:"directory_path,omitempty"`
+	MaximumWorkerCount int64                  `protobuf:"varint,2,opt,name=maximum_worker_count,json=maximumWorkerCount,proto3" json:"maximum_worker_count,omitempty"`
+	IdleTimeout        *durationpb.Duration   `protobuf:"bytes,3,opt,name=idle_timeout,json=idleTimeout,proto3" json:"idle_timeout,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *PersistentWorkersConfiguration) Reset() {
+	*x = PersistentWorkersConfiguration{}
+	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_runner_bb_runner_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PersistentWorkersConfiguration) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PersistentWorkersConfiguration) ProtoMessage() {}
+
+func (x *PersistentWorkersConfiguration) ProtoReflect() protoreflect.Message {
+	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_runner_bb_runner_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PersistentWorkersConfiguration.ProtoReflect.Descriptor instead.
+func (*PersistentWorkersConfiguration) Descriptor() ([]byte, []int) {
+	return file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_runner_bb_runner_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *PersistentWorkersConfiguration) GetDirectoryPath() string {
+	if x != nil {
+		return x.DirectoryPath
+	}
+	return ""
+}
+
+func (x *PersistentWorkersConfiguration) GetMaximumWorkerCount() int64 {
+	if x != nil {
+		return x.MaximumWorkerCount
+	}
+	return 0
+}
+
+func (x *PersistentWorkersConfiguration) GetIdleTimeout() *durationpb.Duration {
+	if x != nil {
+		return x.IdleTimeout
+	}
+	return nil
+}
+
 var File_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_runner_bb_runner_proto protoreflect.FileDescriptor
 
 const file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_runner_bb_runner_proto_rawDesc = "" +
 	"\n" +
-	"Zgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_runner/bb_runner.proto\x12!buildbarn.configuration.bb_runner\x1a^github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/credentials/credentials.proto\x1aKgithub.com/buildbarn/bb-storage/pkg/proto/configuration/global/global.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/grpc/grpc.proto\"\xf3\b\n" +
+	"Zgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_runner/bb_runner.proto\x12!buildbarn.configuration.bb_runner\x1a^github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/credentials/credentials.proto\x1aKgithub.com/buildbarn/bb-storage/pkg/proto/configuration/global/global.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/grpc/grpc.proto\x1a\x1egoogle/protobuf/duration.proto\"\xe5\t\n" +
 	"\x18ApplicationConfiguration\x120\n" +
 	"\x14build_directory_path\x18\x01 \x01(\tR\x12buildDirectoryPath\x12T\n" +
 	"\fgrpc_servers\x18\x02 \x03(\v21.buildbarn.configuration.grpc.ServerConfigurationR\vgrpcServers\x12>\n" +
@@ -183,11 +252,16 @@ const file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_r
 	"\x0frun_commands_as\x18\v \x01(\v2A.buildbarn.configuration.credentials.UNIXCredentialsConfigurationR\rrunCommandsAs\x12B\n" +
 	"\x1dsymlink_temporary_directories\x18\f \x03(\tR\x1bsymlinkTemporaryDirectories\x12.\n" +
 	"\x13run_command_cleaner\x18\r \x03(\tR\x11runCommandCleaner\x12\xaa\x01\n" +
-	"!apple_xcode_developer_directories\x18\x0e \x03(\v2_.buildbarn.configuration.bb_runner.ApplicationConfiguration.AppleXcodeDeveloperDirectoriesEntryR\x1eappleXcodeDeveloperDirectories\x1aQ\n" +
+	"!apple_xcode_developer_directories\x18\x0e \x03(\v2_.buildbarn.configuration.bb_runner.ApplicationConfiguration.AppleXcodeDeveloperDirectoriesEntryR\x1eappleXcodeDeveloperDirectories\x12p\n" +
+	"\x12persistent_workers\x18\x0f \x01(\v2A.buildbarn.configuration.bb_runner.PersistentWorkersConfigurationR\x11persistentWorkers\x1aQ\n" +
 	"#AppleXcodeDeveloperDirectoriesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\t\x10\n" +
-	"BLZJgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_runnerb\x06proto3"
+	"\"\xb7\x01\n" +
+	"\x1ePersistentWorkersConfiguration\x12%\n" +
+	"\x0edirectory_path\x18\x01 \x01(\tR\rdirectoryPath\x120\n" +
+	"\x14maximum_worker_count\x18\x02 \x01(\x03R\x12maximumWorkerCount\x12<\n" +
+	"\fidle_timeout\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\vidleTimeoutBLZJgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_runnerb\x06proto3"
 
 var (
 	file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_runner_bb_runner_proto_rawDescOnce sync.Once
@@ -201,26 +275,30 @@ func file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_ru
 	return file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_runner_bb_runner_proto_rawDescData
 }
 
-var file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_runner_bb_runner_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_runner_bb_runner_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_runner_bb_runner_proto_goTypes = []any{
 	(*ApplicationConfiguration)(nil),                 // 0: buildbarn.configuration.bb_runner.ApplicationConfiguration
-	nil,                                              // 1: buildbarn.configuration.bb_runner.ApplicationConfiguration.AppleXcodeDeveloperDirectoriesEntry
-	(*grpc.ServerConfiguration)(nil),                 // 2: buildbarn.configuration.grpc.ServerConfiguration
-	(*global.Configuration)(nil),                     // 3: buildbarn.configuration.global.Configuration
-	(*grpc.ClientConfiguration)(nil),                 // 4: buildbarn.configuration.grpc.ClientConfiguration
-	(*credentials.UNIXCredentialsConfiguration)(nil), // 5: buildbarn.configuration.credentials.UNIXCredentialsConfiguration
+	(*PersistentWorkersConfiguration)(nil),           // 1: buildbarn.configuration.bb_runner.PersistentWorkersConfiguration
+	nil,                                              // 2: buildbarn.configuration.bb_runner.ApplicationConfiguration.AppleXcodeDeveloperDirectoriesEntry
+	(*grpc.ServerConfiguration)(nil),                 // 3: buildbarn.configuration.grpc.ServerConfiguration
+	(*global.Configuration)(nil),                     // 4: buildbarn.configuration.global.Configuration
+	(*grpc.ClientConfiguration)(nil),                 // 5: buildbarn.configuration.grpc.ClientConfiguration
+	(*credentials.UNIXCredentialsConfiguration)(nil), // 6: buildbarn.configuration.credentials.UNIXCredentialsConfiguration
+	(*durationpb.Duration)(nil),                      // 7: google.protobuf.Duration
 }
 var file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_runner_bb_runner_proto_depIdxs = []int32{
-	2, // 0: buildbarn.configuration.bb_runner.ApplicationConfiguration.grpc_servers:type_name -> buildbarn.configuration.grpc.ServerConfiguration
-	3, // 1: buildbarn.configuration.bb_runner.ApplicationConfiguration.global:type_name -> buildbarn.configuration.global.Configuration
-	4, // 2: buildbarn.configuration.bb_runner.ApplicationConfiguration.temporary_directory_installer:type_name -> buildbarn.configuration.grpc.ClientConfiguration
-	5, // 3: buildbarn.configuration.bb_runner.ApplicationConfiguration.run_commands_as:type_name -> buildbarn.configuration.credentials.UNIXCredentialsConfiguration
-	1, // 4: buildbarn.configuration.bb_runner.ApplicationConfiguration.apple_xcode_developer_directories:type_name -> buildbarn.configuration.bb_runner.ApplicationConfiguration.AppleXcodeDeveloperDirectoriesEntry
-	5, // [5:5] is the sub-list for method output_type
-	5, // [5:5] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	3, // 0: buildbarn.configuration.bb_runner.ApplicationConfiguration.grpc_servers:type_name -> buildbarn.configuration.grpc.ServerConfiguration
+	4, // 1: buildbarn.configuration.bb_runner.ApplicationConfiguration.global:type_name -> buildbarn.configuration.global.Configuration
+	5, // 2: buildbarn.configuration.bb_runner.ApplicationConfiguration.temporary_directory_installer:type_name -> buildbarn.configuration.grpc.ClientConfiguration
+	6, // 3: buildbarn.configuration.bb_runner.ApplicationConfiguration.run_commands_as:type_name -> buildbarn.configuration.credentials.UNIXCredentialsConfiguration
+	2, // 4: buildbarn.configuration.bb_runner.ApplicationConfiguration.apple_xcode_developer_directories:type_name -> buildbarn.configuration.bb_runner.ApplicationConfiguration.AppleXcodeDeveloperDirectoriesEntry
+	1, // 5: buildbarn.configuration.bb_runner.ApplicationConfiguration.persistent_workers:type_name -> buildbarn.configuration.bb_runner.PersistentWorkersConfiguration
+	7, // 6: buildbarn.configuration.bb_runner.PersistentWorkersConfiguration.idle_timeout:type_name -> google.protobuf.Duration
+	7, // [7:7] is the sub-list for method output_type
+	7, // [7:7] is the sub-list for method input_type
+	7, // [7:7] is the sub-list for extension type_name
+	7, // [7:7] is the sub-list for extension extendee
+	0, // [0:7] is the sub-list for field type_name
 }
 
 func init() {
@@ -236,7 +314,7 @@ func file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_ru
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_runner_bb_runner_proto_rawDesc), len(file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_runner_bb_runner_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

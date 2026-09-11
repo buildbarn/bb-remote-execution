@@ -371,6 +371,23 @@ func main() {
 				}
 				runnerClient := runner_pb.NewRunnerClient(runnerConnection)
 
+				// Determine whether build actions that request
+				// execution by a persistent worker process
+				// should be honored. The runner to which we
+				// connect needs to have support for persistent
+				// workers enabled as well.
+				var persistentWorkerExtractor *builder.PersistentWorkerExtractor
+				if persistentWorkersConfiguration := runnerConfiguration.PersistentWorkers; persistentWorkersConfiguration != nil {
+					maximumInputFileCount := persistentWorkersConfiguration.MaximumInputFileCount
+					if maximumInputFileCount <= 0 {
+						return status.Error(codes.InvalidArgument, "Persistent workers require a positive maximum input file count to be set")
+					}
+					persistentWorkerExtractor = builder.NewPersistentWorkerExtractor(
+						directoryFetcher,
+						int(maximumInputFileCount),
+					)
+				}
+
 				for threadID := uint64(0); threadID < runnerConfiguration.Concurrency; threadID++ {
 					// Per-worker separate writer of the Content
 					// Addressable Storage that batches writes after
@@ -474,6 +491,7 @@ func main() {
 						inputRootCharacterDevices,
 						runnerConfiguration.EnvironmentVariables,
 						configuration.ForceUploadTreesAndDirectories,
+						persistentWorkerExtractor,
 					)
 
 					if prefetchingConfiguration != nil {

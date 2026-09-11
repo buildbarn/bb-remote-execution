@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package buildbarn.runner;
 
+import "github.com/buildbarn/bb-remote-execution/pkg/proto/bazelworker/worker_protocol.proto";
 import "google/protobuf/any.proto";
 import "google/protobuf/empty.proto";
 
@@ -58,6 +59,59 @@ message RunRequest {
   // Path where files may be stored that are attached to the REv2
   // ExecuteResponse in the form of server logs.
   string server_logs_directory = 8;
+
+  // When set, the build action must not be executed by spawning a
+  // process of its own. Instead, it must be executed by a persistent
+  // worker process, using the Bazel persistent worker protocol.
+  //
+  // Runners that do not implement support for persistent workers must
+  // reject requests that have this field set, as silently falling back
+  // to running the tool as a regular process would cause the tool to
+  // interpret the '@flagfile' arguments literally.
+  PersistentWorker persistent_worker = 9;
+}
+
+// Options for executing a build action through the Bazel persistent
+// worker protocol, as opposed to spawning a separate process for every
+// build action.
+//
+// Bazel only emits actions that can be executed this way if the
+// --experimental_remote_mark_tool_inputs command line flag is provided.
+message PersistentWorker {
+  // The encoding that is used to exchange WorkRequest and WorkResponse
+  // messages with the worker process over its stdin and stdout.
+  enum Protocol {
+    // Protobuf messages, each prefixed with their size in bytes,
+    // encoded as a Protobuf varint. This is what Bazel uses by default.
+    PROTO = 0;
+
+    // Newline delimited JSON messages, using the canonical Protobuf
+    // JSON mapping. Bazel uses this encoding for tools that declare the
+    // 'requires-worker-protocol=json' execution requirement.
+    JSON = 1;
+  }
+
+  // An opaque identifier of the tool that needs to execute the build
+  // action. Build actions having an identical key may be executed by
+  // the same persistent worker process.
+  //
+  // Bazel sets this to the value of the 'persistentWorkerKey' REv2
+  // platform property, which is a cryptographic hash of the tool's
+  // input files, the command line arguments that are used to launch the
+  // tool, and the environment variables that are set.
+  string key = 1;
+
+  // The encoding of WorkRequest and WorkResponse messages.
+  Protocol protocol = 2;
+
+  // The input files of the build action, to be placed in the 'inputs'
+  // field of the WorkRequest message. Paths are relative to the input
+  // root directory.
+  //
+  // Tools that perform incremental compilation use this list to
+  // invalidate cached state that they hold in memory. Leaving it empty
+  // may thus cause tools to emit incorrect results.
+  repeated blaze.worker.Input inputs = 3;
 }
 
 message RunResponse {

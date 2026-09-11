@@ -64,3 +64,9 @@ in the [docker-compose example](https://github.com/buildbarn/bb-deployments/blob
 
 Please refer to [the Buildbarn Deployments repository](https://github.com/buildbarn/bb-deployments)
 for examples on how to set up these tools.
+
+# Additional documentation
+
+- [Persistent workers](https://github.com/buildbarn/bb-remote-execution/blob/main/doc/persistent_workers.md):
+  how Buildbarn implements Bazel's persistent worker protocol, allowing
+  tools such as `javac` to be kept alive in between build actions.

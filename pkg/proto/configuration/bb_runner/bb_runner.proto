@@ -5,6 +5,7 @@ package buildbarn.configuration.bb_runner;
 import "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/credentials/credentials.proto";
 import "github.com/buildbarn/bb-storage/pkg/proto/configuration/global/global.proto";
 import "github.com/buildbarn/bb-storage/pkg/proto/configuration/grpc/grpc.proto";
+import "google/protobuf/duration.proto";
 
 option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_runner";
 
@@ -135,4 +136,60 @@ message ApplicationConfiguration {
   // https://github.com/bazelbuild/bazel/blob/master/src/main/java/com/google/devtools/build/lib/exec/local/XcodeLocalEnvProvider.java
   // https://www.smileykeith.com/2021/03/08/locking-xcode-in-bazel/
   map<string, string> apple_xcode_developer_directories = 14;
+
+  // When set, permit bb_worker to request that build actions are
+  // executed by persistent worker processes, using the Bazel persistent
+  // worker protocol, as opposed to spawning a separate process for
+  // every build action.
+  //
+  // This option must be enabled if bb_worker is configured to extract
+  // persistent worker options from incoming build actions. If it is
+  // left unset, all actions that request execution by a persistent
+  // worker will fail.
+  PersistentWorkersConfiguration persistent_workers = 15;
+}
+
+message PersistentWorkersConfiguration {
+  // Directory where persistent worker processes are executed.
+  //
+  // Persistent worker processes outlive the build actions that they
+  // execute, meaning they cannot use the build directory of an
+  // individual action as their working directory. Instead, every
+  // persistent worker process is given a directory of its own inside
+  // the directory specified here. Before every build action, this
+  // directory is populated with symbolic links that point to the
+  // contents of the input root of the build action, similar to how
+  // Bazel's symlinked sandbox works.
+  //
+  // This directory MUST be located on the same file system as the build
+  // directory, as symbolic links pointing to the build directory are
+  // created inside of it. Its contents are removed when bb_runner
+  // starts, meaning it must not be shared between multiple instances of
+  // bb_runner.
+  string directory_path = 1;
+
+  // The maximum number of persistent worker processes that may be alive
+  // at any given time, including ones that are idle.
+  //
+  // Whenever this limit is reached and a build action requires a
+  // persistent worker process that is not present in the pool, the
+  // least recently used idle process is terminated to make space.
+  //
+  // This is a soft limit: processes that are currently executing a
+  // build action are never terminated, meaning the number of processes
+  // may temporarily exceed this value by up to the number of actions
+  // that bb_worker runs concurrently against this runner. This value
+  // should therefore be set to a multiple of that number, so that
+  // processes belonging to distinct tools remain cached.
+  //
+  // Recommended value: 4 * the 'concurrency' of the associated
+  // bb_worker RunnerConfiguration.
+  int64 maximum_worker_count = 2;
+
+  // The amount of time a persistent worker process may remain idle
+  // before it is terminated. This ensures that processes belonging to
+  // tools that are no longer used don't consume memory indefinitely.
+  //
+  // Recommended value: 900s
+  google.protobuf.Duration idle_timeout = 3;
 }

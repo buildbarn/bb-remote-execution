@@ -7,6 +7,7 @@
 package runner
 
 import (
+	bazelworker "github.com/buildbarn/bb-remote-execution/pkg/proto/bazelworker"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	anypb "google.golang.org/protobuf/types/known/anypb"
@@ -22,6 +23,52 @@ const (
 	// Verify that runtime/protoimpl is sufficiently up-to-date.
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
+
+type PersistentWorker_Protocol int32
+
+const (
+	PersistentWorker_PROTO PersistentWorker_Protocol = 0
+	PersistentWorker_JSON  PersistentWorker_Protocol = 1
+)
+
+// Enum value maps for PersistentWorker_Protocol.
+var (
+	PersistentWorker_Protocol_name = map[int32]string{
+		0: "PROTO",
+		1: "JSON",
+	}
+	PersistentWorker_Protocol_value = map[string]int32{
+		"PROTO": 0,
+		"JSON":  1,
+	}
+)
+
+func (x PersistentWorker_Protocol) Enum() *PersistentWorker_Protocol {
+	p := new(PersistentWorker_Protocol)
+	*p = x
+	return p
+}
+
+func (x PersistentWorker_Protocol) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (PersistentWorker_Protocol) Descriptor() protoreflect.EnumDescriptor {
+	return file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_runner_proto_enumTypes[0].Descriptor()
+}
+
+func (PersistentWorker_Protocol) Type() protoreflect.EnumType {
+	return &file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_runner_proto_enumTypes[0]
+}
+
+func (x PersistentWorker_Protocol) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use PersistentWorker_Protocol.Descriptor instead.
+func (PersistentWorker_Protocol) EnumDescriptor() ([]byte, []int) {
+	return file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_runner_proto_rawDescGZIP(), []int{2, 0}
+}
 
 type CheckReadinessRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -77,6 +124,7 @@ type RunRequest struct {
 	InputRootDirectory   string                 `protobuf:"bytes,6,opt,name=input_root_directory,json=inputRootDirectory,proto3" json:"input_root_directory,omitempty"`
 	TemporaryDirectory   string                 `protobuf:"bytes,7,opt,name=temporary_directory,json=temporaryDirectory,proto3" json:"temporary_directory,omitempty"`
 	ServerLogsDirectory  string                 `protobuf:"bytes,8,opt,name=server_logs_directory,json=serverLogsDirectory,proto3" json:"server_logs_directory,omitempty"`
+	PersistentWorker     *PersistentWorker      `protobuf:"bytes,9,opt,name=persistent_worker,json=persistentWorker,proto3" json:"persistent_worker,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -167,6 +215,73 @@ func (x *RunRequest) GetServerLogsDirectory() string {
 	return ""
 }
 
+func (x *RunRequest) GetPersistentWorker() *PersistentWorker {
+	if x != nil {
+		return x.PersistentWorker
+	}
+	return nil
+}
+
+type PersistentWorker struct {
+	state         protoimpl.MessageState    `protogen:"open.v1"`
+	Key           string                    `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	Protocol      PersistentWorker_Protocol `protobuf:"varint,2,opt,name=protocol,proto3,enum=buildbarn.runner.PersistentWorker_Protocol" json:"protocol,omitempty"`
+	Inputs        []*bazelworker.Input      `protobuf:"bytes,3,rep,name=inputs,proto3" json:"inputs,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PersistentWorker) Reset() {
+	*x = PersistentWorker{}
+	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_runner_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PersistentWorker) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PersistentWorker) ProtoMessage() {}
+
+func (x *PersistentWorker) ProtoReflect() protoreflect.Message {
+	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_runner_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PersistentWorker.ProtoReflect.Descriptor instead.
+func (*PersistentWorker) Descriptor() ([]byte, []int) {
+	return file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_runner_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *PersistentWorker) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+func (x *PersistentWorker) GetProtocol() PersistentWorker_Protocol {
+	if x != nil {
+		return x.Protocol
+	}
+	return PersistentWorker_PROTO
+}
+
+func (x *PersistentWorker) GetInputs() []*bazelworker.Input {
+	if x != nil {
+		return x.Inputs
+	}
+	return nil
+}
+
 type RunResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ExitCode      int64                  `protobuf:"varint,1,opt,name=exit_code,json=exitCode,proto3" json:"exit_code,omitempty"`
@@ -177,7 +292,7 @@ type RunResponse struct {
 
 func (x *RunResponse) Reset() {
 	*x = RunResponse{}
-	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_runner_proto_msgTypes[2]
+	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_runner_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -189,7 +304,7 @@ func (x *RunResponse) String() string {
 func (*RunResponse) ProtoMessage() {}
 
 func (x *RunResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_runner_proto_msgTypes[2]
+	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_runner_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -202,7 +317,7 @@ func (x *RunResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RunResponse.ProtoReflect.Descriptor instead.
 func (*RunResponse) Descriptor() ([]byte, []int) {
-	return file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_runner_proto_rawDescGZIP(), []int{2}
+	return file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_runner_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *RunResponse) GetExitCode() int64 {
@@ -223,9 +338,9 @@ var File_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_runner_proto 
 
 const file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_runner_proto_rawDesc = "" +
 	"\n" +
-	"Fgithub.com/buildbarn/bb-remote-execution/pkg/proto/runner/runner.proto\x12\x10buildbarn.runner\x1a\x19google/protobuf/any.proto\x1a\x1bgoogle/protobuf/empty.proto\"+\n" +
+	"Fgithub.com/buildbarn/bb-remote-execution/pkg/proto/runner/runner.proto\x12\x10buildbarn.runner\x1aTgithub.com/buildbarn/bb-remote-execution/pkg/proto/bazelworker/worker_protocol.proto\x1a\x19google/protobuf/any.proto\x1a\x1bgoogle/protobuf/empty.proto\"+\n" +
 	"\x15CheckReadinessRequest\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\"\xe6\x03\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\"\xb7\x04\n" +
 	"\n" +
 	"RunRequest\x12\x1c\n" +
 	"\targuments\x18\x01 \x03(\tR\targuments\x12k\n" +
@@ -237,10 +352,18 @@ const file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_runner_prot
 	"stderrPath\x120\n" +
 	"\x14input_root_directory\x18\x06 \x01(\tR\x12inputRootDirectory\x12/\n" +
 	"\x13temporary_directory\x18\a \x01(\tR\x12temporaryDirectory\x122\n" +
-	"\x15server_logs_directory\x18\b \x01(\tR\x13serverLogsDirectory\x1aG\n" +
+	"\x15server_logs_directory\x18\b \x01(\tR\x13serverLogsDirectory\x12O\n" +
+	"\x11persistent_worker\x18\t \x01(\v2\".buildbarn.runner.PersistentWorkerR\x10persistentWorker\x1aG\n" +
 	"\x19EnvironmentVariablesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"g\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xbb\x01\n" +
+	"\x10PersistentWorker\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12G\n" +
+	"\bprotocol\x18\x02 \x01(\x0e2+.buildbarn.runner.PersistentWorker.ProtocolR\bprotocol\x12+\n" +
+	"\x06inputs\x18\x03 \x03(\v2\x13.blaze.worker.InputR\x06inputs\"\x1f\n" +
+	"\bProtocol\x12\t\n" +
+	"\x05PROTO\x10\x00\x12\b\n" +
+	"\x04JSON\x10\x01\"g\n" +
 	"\vRunResponse\x12\x1b\n" +
 	"\texit_code\x18\x01 \x01(\x03R\bexitCode\x12;\n" +
 	"\x0eresource_usage\x18\x02 \x03(\v2\x14.google.protobuf.AnyR\rresourceUsage2\x9f\x01\n" +
@@ -260,27 +383,34 @@ func file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_runner_proto
 	return file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_runner_proto_rawDescData
 }
 
-var file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_runner_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_runner_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_runner_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_runner_proto_goTypes = []any{
-	(*CheckReadinessRequest)(nil), // 0: buildbarn.runner.CheckReadinessRequest
-	(*RunRequest)(nil),            // 1: buildbarn.runner.RunRequest
-	(*RunResponse)(nil),           // 2: buildbarn.runner.RunResponse
-	nil,                           // 3: buildbarn.runner.RunRequest.EnvironmentVariablesEntry
-	(*anypb.Any)(nil),             // 4: google.protobuf.Any
-	(*emptypb.Empty)(nil),         // 5: google.protobuf.Empty
+	(PersistentWorker_Protocol)(0), // 0: buildbarn.runner.PersistentWorker.Protocol
+	(*CheckReadinessRequest)(nil),  // 1: buildbarn.runner.CheckReadinessRequest
+	(*RunRequest)(nil),             // 2: buildbarn.runner.RunRequest
+	(*PersistentWorker)(nil),       // 3: buildbarn.runner.PersistentWorker
+	(*RunResponse)(nil),            // 4: buildbarn.runner.RunResponse
+	nil,                            // 5: buildbarn.runner.RunRequest.EnvironmentVariablesEntry
+	(*bazelworker.Input)(nil),      // 6: blaze.worker.Input
+	(*anypb.Any)(nil),              // 7: google.protobuf.Any
+	(*emptypb.Empty)(nil),          // 8: google.protobuf.Empty
 }
 var file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_runner_proto_depIdxs = []int32{
-	3, // 0: buildbarn.runner.RunRequest.environment_variables:type_name -> buildbarn.runner.RunRequest.EnvironmentVariablesEntry
-	4, // 1: buildbarn.runner.RunResponse.resource_usage:type_name -> google.protobuf.Any
-	0, // 2: buildbarn.runner.Runner.CheckReadiness:input_type -> buildbarn.runner.CheckReadinessRequest
-	1, // 3: buildbarn.runner.Runner.Run:input_type -> buildbarn.runner.RunRequest
-	5, // 4: buildbarn.runner.Runner.CheckReadiness:output_type -> google.protobuf.Empty
-	2, // 5: buildbarn.runner.Runner.Run:output_type -> buildbarn.runner.RunResponse
-	4, // [4:6] is the sub-list for method output_type
-	2, // [2:4] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	5, // 0: buildbarn.runner.RunRequest.environment_variables:type_name -> buildbarn.runner.RunRequest.EnvironmentVariablesEntry
+	3, // 1: buildbarn.runner.RunRequest.persistent_worker:type_name -> buildbarn.runner.PersistentWorker
+	0, // 2: buildbarn.runner.PersistentWorker.protocol:type_name -> buildbarn.runner.PersistentWorker.Protocol
+	6, // 3: buildbarn.runner.PersistentWorker.inputs:type_name -> blaze.worker.Input
+	7, // 4: buildbarn.runner.RunResponse.resource_usage:type_name -> google.protobuf.Any
+	1, // 5: buildbarn.runner.Runner.CheckReadiness:input_type -> buildbarn.runner.CheckReadinessRequest
+	2, // 6: buildbarn.runner.Runner.Run:input_type -> buildbarn.runner.RunRequest
+	8, // 7: buildbarn.runner.Runner.CheckReadiness:output_type -> google.protobuf.Empty
+	4, // 8: buildbarn.runner.Runner.Run:output_type -> buildbarn.runner.RunResponse
+	7, // [7:9] is the sub-list for method output_type
+	5, // [5:7] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_runner_proto_init() }
@@ -293,13 +423,14 @@ func file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_runner_proto
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_runner_proto_rawDesc), len(file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_runner_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   4,
+			NumEnums:      1,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_runner_proto_goTypes,
 		DependencyIndexes: file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_runner_proto_depIdxs,
+		EnumInfos:         file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_runner_proto_enumTypes,
 		MessageInfos:      file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_runner_proto_msgTypes,
 	}.Build()
 	File_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_runner_proto = out.File

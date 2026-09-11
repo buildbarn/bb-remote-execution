@@ -4,6 +4,7 @@ import (
 	"context"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 )
 
 // KeyExtractor is responsible for extracting an invocation key from an
@@ -11,7 +12,7 @@ import (
 // key and scheduled fairly.
 //
 // Implementations of KeyExtract may construct keys based on REv2
-// request metadata or user credentials.
+// request metadata, properties of the action, or user credentials.
 type KeyExtractor interface {
-	ExtractKey(ctx context.Context, requestMetadata *remoteexecution.RequestMetadata) (Key, error)
+	ExtractKey(ctx context.Context, digestFunction digest.Function, action *remoteexecution.Action, requestMetadata *remoteexecution.RequestMetadata) (Key, error)
 }

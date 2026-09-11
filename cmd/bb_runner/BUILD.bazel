@@ -14,6 +14,7 @@ go_library(
         "//pkg/proto/runner",
         "//pkg/proto/tmp_installer",
         "//pkg/runner",
+        "@com_github_buildbarn_bb_storage//pkg/clock",
         "@com_github_buildbarn_bb_storage//pkg/filesystem",
         "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
         "@com_github_buildbarn_bb_storage//pkg/global",
