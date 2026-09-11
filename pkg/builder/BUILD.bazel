@@ -7,6 +7,7 @@ go_library(
         "build_directory.go",
         "build_directory_creator.go",
         "build_executor.go",
+        "build_executor_helpers.go",
         "caching_build_executor.go",
         "clean_build_directory_creator.go",
         "command.go",

@@ -11,6 +11,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
 	re_clock "github.com/buildbarn/bb-remote-execution/pkg/clock"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
+	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
 	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
@@ -800,6 +801,158 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 			},
 		},
 	}, executeResponse)
+}
+
+func TestLocalBuildExecutorResultHandling(test *testing.T) {
+	for _, testCase := range []struct {
+		name         string
+		runError     error
+		ioError      error
+		stdoutError  error
+		stderrError  error
+		closeError   error
+		expectedCode codes.Code
+	}{
+		{
+			name:         "NonzeroExitCodeStillUploadsOutputs",
+			expectedCode: codes.OK,
+		},
+		{
+			name:         "RunnerErrorBeforeUploadAndCloseErrors",
+			runError:     status.Error(codes.Unavailable, "runner unavailable"),
+			stdoutError:  status.Error(codes.ResourceExhausted, "stdout upload failed"),
+			closeError:   status.Error(codes.Internal, "close failed"),
+			expectedCode: codes.Unavailable,
+		},
+		{
+			name:         "IOErrorBeforeRunnerCancellation",
+			runError:     status.Error(codes.Canceled, "execution canceled"),
+			ioError:      status.Error(codes.DataLoss, "input read failed"),
+			stdoutError:  status.Error(codes.ResourceExhausted, "stdout upload failed"),
+			expectedCode: codes.DataLoss,
+		},
+		{
+			name:         "StdoutErrorBeforeStderrAndCloseErrors",
+			stdoutError:  status.Error(codes.ResourceExhausted, "stdout upload failed"),
+			stderrError:  status.Error(codes.PermissionDenied, "stderr upload failed"),
+			closeError:   status.Error(codes.Internal, "close failed"),
+			expectedCode: codes.ResourceExhausted,
+		},
+		{
+			name:         "StderrErrorStillUploadsOutputsAndLogs",
+			stderrError:  status.Error(codes.PermissionDenied, "stderr upload failed"),
+			expectedCode: codes.PermissionDenied,
+		},
+		{
+			name:         "CloseErrorAfterSuccessfulUpload",
+			closeError:   status.Error(codes.Internal, "close failed"),
+			expectedCode: codes.Internal,
+		},
+	} {
+		test.Run(testCase.name, func(test *testing.T) {
+			ctrl, ctx := gomock.WithContext(context.Background(), test)
+			digestFunction := digest.MustNewFunction("", remoteexecution.DigestFunction_SHA256)
+			emptyDigest := digest.MustNewDigest("", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0)
+			actionDigest := digest.MustNewDigest("", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000001", 123)
+			commandDigest := digest.MustNewDigest("", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000002", 234)
+			inputRootDigest := digest.MustNewDigest("", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000003", 345)
+			outputDigest := digest.MustNewDigest("", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000004", 456)
+
+			contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+			commandReader := mock.NewMockMessageReader[*remoteexecution.Command](ctrl)
+			commandReader.EXPECT().ReadMessage(ctx, commandDigest).Return(&remoteexecution.Command{
+				Arguments:   []string{"compiler"},
+				OutputPaths: []string{"output"},
+			}, nil)
+			buildDirectory := mock.NewMockBuildDirectory(ctrl)
+			buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
+			buildDirectoryCreator.EXPECT().GetBuildDirectory(ctx, &actionDigest).Return(buildDirectory, (*path.Trace)(nil), nil)
+			filePool := mock.NewMockFilePool(ctrl)
+			monitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
+			var errorLogger util.ErrorLogger
+			buildDirectory.EXPECT().InstallHooks(filePool, gomock.Any()).Do(func(_ pool.FilePool, logger util.ErrorLogger) {
+				errorLogger = logger
+			})
+			buildDirectory.EXPECT().Mkdir(path.MustNewComponent("root"), os.FileMode(0o777))
+			inputRootDirectory := mock.NewMockBuildDirectory(ctrl)
+			buildDirectory.EXPECT().EnterBuildDirectory(path.MustNewComponent("root")).Return(inputRootDirectory, nil)
+			inputRootDirectory.EXPECT().MergeDirectoryContents(ctx, gomock.Any(), inputRootDigest, monitor)
+			buildDirectory.EXPECT().Mkdir(path.MustNewComponent("tmp"), os.FileMode(0o777))
+			buildDirectory.EXPECT().Mkdir(path.MustNewComponent("server_logs"), os.FileMode(0o777))
+
+			clock := mock.NewMockClock(ctrl)
+			clock.EXPECT().NewContextWithTimeout(gomock.Any(), time.Hour).DoAndReturn(func(parent context.Context, _ time.Duration) (context.Context, context.CancelFunc) {
+				return context.WithCancel(parent)
+			})
+			clock.EXPECT().NewContextWithTimeout(ctx, 10*time.Second).DoAndReturn(func(parent context.Context, _ time.Duration) (context.Context, context.CancelFunc) {
+				return context.WithCancel(parent)
+			})
+			runner := mock.NewMockRunnerClient(ctrl)
+			var executionContext context.Context
+			runCall := runner.EXPECT().Run(gomock.Any(), gomock.Any()).DoAndReturn(func(runContext context.Context, _ *runner_pb.RunRequest, _ ...grpc.CallOption) (*runner_pb.RunResponse, error) {
+				executionContext = runContext
+				if testCase.ioError != nil {
+					errorLogger.Log(testCase.ioError)
+					require.Error(test, runContext.Err())
+				}
+				if testCase.runError != nil {
+					return nil, testCase.runError
+				}
+				return &runner_pb.RunResponse{ExitCode: 17}, nil
+			})
+			serverLogsDirectory := mock.NewMockUploadableDirectory(ctrl)
+			gomock.InOrder(
+				runCall,
+				buildDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("stdout"), digestFunction, gomock.Any()).DoAndReturn(func(uploadContext context.Context, _ path.Component, _ digest.Function, _ <-chan struct{}) (digest.Digest, error) {
+					require.Error(test, executionContext.Err())
+					require.NoError(test, uploadContext.Err())
+					return emptyDigest, testCase.stdoutError
+				}),
+				buildDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("stderr"), digestFunction, gomock.Any()).Return(emptyDigest, testCase.stderrError),
+				inputRootDirectory.EXPECT().Lstat(path.MustNewComponent("output")).Return(filesystem.NewFileInfo(path.MustNewComponent("output"), filesystem.FileTypeRegularFile, false), nil),
+				inputRootDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("output"), digestFunction, gomock.Any()).Return(outputDigest, nil),
+				buildDirectory.EXPECT().EnterUploadableDirectory(path.MustNewComponent("server_logs")).Return(serverLogsDirectory, nil),
+				serverLogsDirectory.EXPECT().ReadDir().Return([]filesystem.FileInfo{filesystem.NewFileInfo(path.MustNewComponent("diagnostic"), filesystem.FileTypeRegularFile, false)}, nil),
+				serverLogsDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("diagnostic"), digestFunction, gomock.Any()).Return(outputDigest, nil),
+				serverLogsDirectory.EXPECT().Close(),
+				inputRootDirectory.EXPECT().Close(),
+				buildDirectory.EXPECT().Close().Return(testCase.closeError),
+			)
+
+			localBuildExecutor := builder.NewLocalBuildExecutor(contentAddressableStorage, commandReader, buildDirectoryCreator, runner, clock, 10*time.Second, nil, nil, false)
+			stateUpdates := make(chan *remoteworker.CurrentState_Executing, 3)
+			response := localBuildExecutor.Execute(ctx, filePool, monitor, digestFunction, &remoteworker.DesiredState_Executing{
+				ActionDigest: actionDigest.GetProto(),
+				Action: &remoteexecution.Action{
+					CommandDigest:   commandDigest.GetProto(),
+					InputRootDigest: inputRootDigest.GetProto(),
+					Timeout:         durationpb.New(time.Hour),
+				},
+			}, stateUpdates)
+
+			responseError := status.ErrorProto(response.Status)
+			if testCase.expectedCode == codes.OK {
+				require.NoError(test, responseError)
+			} else {
+				require.Error(test, responseError)
+				require.Equal(test, testCase.expectedCode, status.Code(responseError))
+			}
+			if testCase.runError == nil {
+				require.Equal(test, int32(17), response.Result.ExitCode)
+			} else {
+				require.Zero(test, response.Result.ExitCode)
+			}
+			require.Nil(test, response.Result.StdoutDigest)
+			require.Nil(test, response.Result.StderrDigest)
+			require.Len(test, response.Result.OutputFiles, 1)
+			testutil.RequireEqualProto(test, &remoteexecution.OutputFile{Path: "output", Digest: outputDigest.GetProto()}, response.Result.OutputFiles[0])
+			testutil.RequireEqualProto(test, &remoteexecution.LogFile{Digest: outputDigest.GetProto()}, response.ServerLogs["diagnostic"])
+			require.Len(test, stateUpdates, 3)
+			require.NotNil(test, (<-stateUpdates).GetFetchingInputs())
+			require.NotNil(test, (<-stateUpdates).GetRunning())
+			require.NotNil(test, (<-stateUpdates).GetUploadingOutputs())
+		})
+	}
 }
 
 func TestLocalBuildExecutorCachingInvalidTimeout(t *testing.T) {
