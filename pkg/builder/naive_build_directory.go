@@ -3,6 +3,7 @@ package builder
 import (
 	"context"
 	"io"
+	"os"
 
 	"github.com/buildbarn/bb-remote-execution/pkg/cas"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
@@ -118,17 +119,24 @@ func (d *naiveBuildDirectory) mergeDirectoryContents(ctx context.Context, group 
 			return nil
 		})
 	}
+	directoryNames := map[path.Component]struct{}{}
 	for _, directory := range directory.Directories {
 		component, ok := path.NewComponent(directory.Name)
 		if !ok {
 			return status.Errorf(codes.InvalidArgument, "Directory %#v has an invalid name", directory.Name)
 		}
+		// We no longer fail when trying to create an existing directory below but we still want to make sure
+                // to not process duplicate directory enries in the same call.
+		if _, ok := directoryNames[component]; ok {
+			return status.Errorf(codes.InvalidArgument, "Directory contains multiple children named %#v", directory.Name)
+		}
+		directoryNames[component] = struct{}{}
 		childPathTrace := pathTrace.Append(component)
 		childDigest, err := digestFunction.NewDigestFromProto(directory.Digest)
 		if err != nil {
 			return util.StatusWrapf(err, "Failed to extract digest for input directory %#v", childPathTrace.GetUNIXString())
 		}
-		if err := inputDirectory.Mkdir(component, 0o777); err != nil {
+		if err := inputDirectory.Mkdir(component, 0o777); err != nil && !os.IsExist(err) {
 			return util.StatusWrapf(err, "Failed to create input directory %#v", childPathTrace.GetUNIXString())
 		}
 		childDirectory, err := inputDirectory.EnterDirectory(component)

@@ -135,11 +135,47 @@ func (d *virtualBuildDirectory) MergeDirectoryContents(ctx context.Context, erro
 	if monitor != nil {
 		initialContentsFetcher = virtual.NewAccessMonitoringInitialContentsFetcher(initialContentsFetcher, monitor)
 	}
-	children, err := initialContentsFetcher.FetchContents(func(name path.Component) virtual.FileReadMonitor { return nil })
+	return mergeVirtualBuildDirectoryContents(d.PrepopulatedDirectory, initialContentsFetcher)
+}
+
+func mergeVirtualBuildDirectoryContents(directory virtual.PrepopulatedDirectory, fetcher virtual.InitialContentsFetcher) error {
+	children, err := fetcher.FetchContents(func(name path.Component) virtual.FileReadMonitor { return nil })
 	if err != nil {
 		return err
 	}
-	return d.CreateChildren(children, false)
+	defer func() {
+		for _, child := range children {
+			if _, leaf := child.GetPair(); leaf != nil {
+				leaf.Unlink()
+			}
+		}
+	}()
+	for name, child := range children {
+		childFetcher, _ := child.GetPair()
+		if childFetcher == nil {
+			continue
+		}
+		existing, err := directory.LookupChild(name)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		existingDirectory, _ := existing.GetPair()
+		if existingDirectory == nil {
+			return syscall.ENOTDIR
+		}
+		if err := mergeVirtualBuildDirectoryContents(existingDirectory, childFetcher); err != nil {
+			return err
+		}
+		delete(children, name)
+	}
+	if err := directory.CreateChildren(children, false); err != nil {
+		return err
+	}
+	children = nil
+	return nil
 }
 
 func (d *virtualBuildDirectory) UploadFile(ctx context.Context, name path.Component, digestFunction digest.Function, writableFileUploadDelay <-chan struct{}) (digest.Digest, error) {
