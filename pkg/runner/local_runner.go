@@ -73,9 +73,11 @@ type localRunner struct {
 	setTmpdirEnvironmentVariable bool
 }
 
-func (r *localRunner) openLog(logPath string) (filesystem.FileAppender, error) {
+// openLogFile creates one of the files inside the build directory to
+// which the output of a build action is written.
+func openLogFile(buildDirectory filesystem.Directory, logPath string) (filesystem.FileAppender, error) {
 	logFileResolver := buildDirectoryPathResolver{
-		stack: util.NewNonEmptyStack(filesystem.NopDirectoryCloser(r.buildDirectory)),
+		stack: util.NewNonEmptyStack(filesystem.NopDirectoryCloser(buildDirectory)),
 	}
 	defer logFileResolver.closeAll()
 	if err := path.Resolve(path.UNIXFormat.NewParser(logPath), path.NewRelativeScopeWalker(&logFileResolver)); err != nil {
@@ -85,6 +87,10 @@ func (r *localRunner) openLog(logPath string) (filesystem.FileAppender, error) {
 		return nil, status.Error(codes.InvalidArgument, "Path resolves to a directory")
 	}
 	return logFileResolver.stack.Peek().OpenAppend(*logFileResolver.TerminalName, filesystem.CreateExcl(0o666))
+}
+
+func (r *localRunner) openLog(logPath string) (filesystem.FileAppender, error) {
+	return openLogFile(r.buildDirectory, logPath)
 }
 
 // CommandCreator is a type alias for a function that creates the
@@ -138,6 +144,13 @@ func NewLocalRunner(buildDirectory filesystem.Directory, buildDirectoryPath *pat
 func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*runner.RunResponse, error) {
 	if len(request.Arguments) < 1 {
 		return nil, status.Error(codes.InvalidArgument, "Insufficient number of command arguments")
+	}
+	if request.PersistentWorker != nil {
+		// Spawning a process of our own would cause the tool to
+		// interpret the "@flagfile" arguments literally, meaning
+		// it would silently compute the wrong results. Fail
+		// loudly instead.
+		return nil, status.Error(codes.InvalidArgument, "This runner is not configured to execute build actions through persistent worker processes")
 	}
 
 	inputRootDirectory, scopeWalker := r.buildDirectoryPath.Join(path.VoidScopeWalker)

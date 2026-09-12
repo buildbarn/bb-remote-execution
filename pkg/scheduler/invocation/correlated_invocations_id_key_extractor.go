@@ -4,13 +4,14 @@ import (
 	"context"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
 type correlatedInvocationsIDKeyExtractor struct{}
 
-func (correlatedInvocationsIDKeyExtractor) ExtractKey(ctx context.Context, requestMetadata *remoteexecution.RequestMetadata) (Key, error) {
+func (correlatedInvocationsIDKeyExtractor) ExtractKey(ctx context.Context, digestFunction digest.Function, action *remoteexecution.Action, requestMetadata *remoteexecution.RequestMetadata) (Key, error) {
 	any, err := anypb.New(&remoteexecution.RequestMetadata{
 		CorrelatedInvocationsId: requestMetadata.GetCorrelatedInvocationsId(),
 	})

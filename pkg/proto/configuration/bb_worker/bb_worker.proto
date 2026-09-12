@@ -402,6 +402,47 @@ message RunnerConfiguration {
   // directory. This should typically be set to the primary group of the
   // user that is used by bb_runner to run actions.
   uint32 build_directory_owner_group_id = 16;
+
+  // When set, permit build actions to be executed by persistent worker
+  // processes, using the Bazel persistent worker protocol.
+  //
+  // Bazel only emits actions that can be executed this way if the
+  // --experimental_remote_mark_tool_inputs command line flag is
+  // provided. Such actions carry a 'persistentWorkerKey' REv2 platform
+  // property.
+  //
+  // This option may only be enabled if the runner to which this worker
+  // is connected also has support for persistent workers enabled. If
+  // that is not the case, all actions carrying the
+  // 'persistentWorkerKey' platform property will fail.
+  PersistentWorkersConfiguration persistent_workers = 17;
+}
+
+message PersistentWorkersConfiguration {
+  // The maximum number of files that may be part of the input root of a
+  // build action for it to be eligible for execution by a persistent
+  // worker process.
+  //
+  // The Bazel persistent worker protocol requires that the paths and
+  // digests of all input files of a build action are sent to the worker
+  // process, so that it may invalidate any cached state that it holds
+  // in memory. As bb_worker needs to traverse the full input root to
+  // compute this list, this may be costly for build actions that have a
+  // large number of inputs.
+  //
+  // Build actions whose input root contains more files than the value
+  // specified here are executed as regular processes, meaning that the
+  // tool is launched once for every build action. Note that this only
+  // works as expected for tools that support running in non-persistent
+  // mode, which is the case for all of Bazel's built-in workers.
+  //
+  // This field is required and must be greater than zero. There is
+  // deliberately no way to disable the limit, as the size of the list
+  // of input files is bounded by nothing but the size of the input
+  // root.
+  //
+  // Recommended value: 10000
+  int64 maximum_input_file_count = 1;
 }
 
 message CompletedActionLoggingConfiguration {
