@@ -18,6 +18,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 )
 
 func TestPersistentRunnerBinary(test *testing.T) {
@@ -86,6 +87,12 @@ func TestPersistentRunnerBinary(test *testing.T) {
 	persistent := runner_pb.NewPersistentRunnerClient(connection)
 	_, err = ordinary.CheckReadiness(ctx, &runner_pb.CheckReadinessRequest{Path: "."}, grpc.WaitForReady(true))
 	require.NoError(test, err)
+	_, err = persistent.CreateSession(ctx, &runner_pb.CreateSessionRequest{
+		Arguments: []string{"./missing-compiler"}, ProcessStderrPath: "failed.stderr",
+	})
+	require.Error(test, err)
+	require.Len(test, status.Convert(err).Details(), 1)
+	require.IsType(test, &runner_pb.CreateSessionFailure{}, status.Convert(err).Details()[0])
 	createSession := func(stderrPath string) string {
 		test.Helper()
 		response, err := persistent.CreateSession(ctx, &runner_pb.CreateSessionRequest{

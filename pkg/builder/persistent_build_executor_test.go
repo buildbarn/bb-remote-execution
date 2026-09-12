@@ -160,7 +160,7 @@ func TestPersistentBuildExecutorReuse(test *testing.T) {
 	var workingPath string
 	var workingDirectory *os.File
 	fixture.runner.EXPECT().CreateSession(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, request *runner_pb.CreateSessionRequest, options ...grpc.CallOption) (*runner_pb.CreateSessionResponse, error) {
-		require.Equal(test, []string{"./compiler", "--persistent_worker", "--startup"}, request.Arguments)
+		require.Equal(test, []string{"./compiler", "--startup", "--persistent_worker"}, request.Arguments)
 		require.Equal(test, map[string]string{"PATH": "command", "DEFAULT": "retained"}, request.EnvironmentVariables)
 		require.Equal(test, "pkg", request.WorkingDirectory)
 		require.Equal(test, "1/tmp", request.TemporaryDirectory)
@@ -465,6 +465,26 @@ func TestPersistentBuildExecutorFailedStop(test *testing.T) {
 	fixture.runner.EXPECT().CloseSession(gomock.Any(), &runner_pb.SessionRequest{SessionId: "session"}).Return(&emptypb.Empty{}, nil)
 	require.NoError(test, fixture.executor.Close(context.Background()))
 	require.NoDirExists(test, filepath.Join(fixture.nativePath, "1"))
+}
+
+func TestPersistentBuildExecutorConfirmedCreationFailure(test *testing.T) {
+	fixture := newPersistentExecutorTestFixture(test)
+	request := fixture.request("tool", "source", nil)
+	creationStatus, err := status.New(codes.Unavailable, "Startup failed").WithDetails(&runner_pb.CreateSessionFailure{})
+	require.NoError(test, err)
+	fixture.runner.EXPECT().CreateSession(gomock.Any(), gomock.Any()).Return(nil, creationStatus.Err())
+	response, _ := fixture.execute(context.Background(), request)
+	require.Error(test, status.ErrorProto(response.Status))
+	require.NoDirExists(test, filepath.Join(fixture.nativePath, "1"))
+	fixture.ordinary.EXPECT().CheckReadiness(gomock.Any()).Return(nil)
+	fixture.runner.EXPECT().CheckReadiness(gomock.Any(), gomock.Any()).Return(&emptypb.Empty{}, nil)
+	require.NoError(test, fixture.executor.CheckReadiness(context.Background()))
+	fixture.runner.EXPECT().CreateSession(gomock.Any(), gomock.Any()).Return(&runner_pb.CreateSessionResponse{SessionId: "recovered"}, nil)
+	fixture.runner.EXPECT().ExecuteInPersistentWorker(gomock.Any(), gomock.Any()).Return(persistentExecutorTestResponse(test, &worker_pb.WorkResponse{}), nil)
+	response, _ = fixture.execute(context.Background(), request)
+	require.NoError(test, status.ErrorProto(response.Status))
+	fixture.runner.EXPECT().CloseSession(gomock.Any(), &runner_pb.SessionRequest{SessionId: "recovered"}).Return(&emptypb.Empty{}, nil)
+	require.NoError(test, fixture.executor.Close(context.Background()))
 }
 
 func TestPersistentBuildExecutorUnknownCreationOutcome(test *testing.T) {

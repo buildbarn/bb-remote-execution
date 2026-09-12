@@ -2,6 +2,8 @@ package runner_test
 
 import (
 	"context"
+	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -72,6 +74,8 @@ func TestPersistentRunnerReadinessAndInvalidRequests(t *testing.T) {
 	} {
 		response, err := server.CreateSession(ctx, request)
 		require.Error(t, err)
+		require.Len(t, status.Convert(err).Details(), 1)
+		require.IsType(t, &runner_pb.CreateSessionFailure{}, status.Convert(err).Details()[0])
 		require.Nil(t, response)
 	}
 	for _, sessionID := range []string{"", "unknown"} {
@@ -132,6 +136,44 @@ func TestPersistentRunnerFailedSession(t *testing.T) {
 			}
 			_, err := server.CloseSession(ctx, &runner_pb.SessionRequest{SessionId: sessionID})
 			require.NoError(t, err)
+		})
+	}
+}
+
+func TestPersistentRunnerExitDiagnostics(t *testing.T) {
+	logFile, err := os.CreateTemp(t.TempDir(), "runner-log")
+	require.NoError(t, err)
+	previousOutput := log.Writer()
+	log.SetOutput(logFile)
+	t.Cleanup(func() {
+		log.SetOutput(previousOutput)
+		require.NoError(t, logFile.Close())
+	})
+	for _, mode := range []string{"exit", "exit-startup"} {
+		t.Run(mode, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			server, _ := newPersistentRunner(t, ctx, runner.NewPlainCommandCreator(&syscall.SysProcAttr{}))
+			created, err := server.CreateSession(ctx, &runner_pb.CreateSessionRequest{
+				Arguments: []string{fakeWorkerExecutable(t), "--mode=" + mode}, ProcessStderrPath: "stderr",
+			})
+			if err != nil {
+				require.Len(t, status.Convert(err).Details(), 1)
+				require.IsType(t, &runner_pb.CreateSessionFailure{}, status.Convert(err).Details()[0])
+			} else {
+				_, err = server.ExecuteInPersistentWorker(ctx, &runner_pb.ExecuteInPersistentWorkerRequest{SessionId: created.SessionId})
+				require.Error(t, err)
+			}
+			require.Eventually(t, func() bool {
+				contents, err := os.ReadFile(logFile.Name())
+				require.NoError(t, err)
+				return strings.Contains(string(contents), fmt.Sprintf("stderr_tail=%q", strings.Repeat("x", 8192-len(mode)-1)+mode+"\n"))
+			}, 5*time.Second, time.Millisecond)
+			require.NoError(t, server.Close())
+			contents, err := os.ReadFile(logFile.Name())
+			require.NoError(t, err)
+			require.Contains(t, string(contents), `exit_status="exit status 23"`)
+			require.NotContains(t, string(contents), "discarded prefix")
 		})
 	}
 }

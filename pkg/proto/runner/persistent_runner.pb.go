@@ -159,6 +159,42 @@ func (x *CreateSessionResponse) GetSessionId() string {
 	return ""
 }
 
+type CreateSessionFailure struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateSessionFailure) Reset() {
+	*x = CreateSessionFailure{}
+	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_persistent_runner_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateSessionFailure) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateSessionFailure) ProtoMessage() {}
+
+func (x *CreateSessionFailure) ProtoReflect() protoreflect.Message {
+	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_persistent_runner_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateSessionFailure.ProtoReflect.Descriptor instead.
+func (*CreateSessionFailure) Descriptor() ([]byte, []int) {
+	return file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_persistent_runner_proto_rawDescGZIP(), []int{2}
+}
+
 type SessionRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
@@ -168,7 +204,7 @@ type SessionRequest struct {
 
 func (x *SessionRequest) Reset() {
 	*x = SessionRequest{}
-	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_persistent_runner_proto_msgTypes[2]
+	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_persistent_runner_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -180,7 +216,7 @@ func (x *SessionRequest) String() string {
 func (*SessionRequest) ProtoMessage() {}
 
 func (x *SessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_persistent_runner_proto_msgTypes[2]
+	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_persistent_runner_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -193,7 +229,7 @@ func (x *SessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SessionRequest.ProtoReflect.Descriptor instead.
 func (*SessionRequest) Descriptor() ([]byte, []int) {
-	return file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_persistent_runner_proto_rawDescGZIP(), []int{2}
+	return file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_persistent_runner_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *SessionRequest) GetSessionId() string {
@@ -213,7 +249,7 @@ type ExecuteInPersistentWorkerRequest struct {
 
 func (x *ExecuteInPersistentWorkerRequest) Reset() {
 	*x = ExecuteInPersistentWorkerRequest{}
-	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_persistent_runner_proto_msgTypes[3]
+	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_persistent_runner_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -225,7 +261,7 @@ func (x *ExecuteInPersistentWorkerRequest) String() string {
 func (*ExecuteInPersistentWorkerRequest) ProtoMessage() {}
 
 func (x *ExecuteInPersistentWorkerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_persistent_runner_proto_msgTypes[3]
+	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_persistent_runner_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -238,7 +274,7 @@ func (x *ExecuteInPersistentWorkerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecuteInPersistentWorkerRequest.ProtoReflect.Descriptor instead.
 func (*ExecuteInPersistentWorkerRequest) Descriptor() ([]byte, []int) {
-	return file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_persistent_runner_proto_rawDescGZIP(), []int{3}
+	return file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_persistent_runner_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ExecuteInPersistentWorkerRequest) GetSessionId() string {
@@ -265,7 +301,7 @@ type ExecuteInPersistentWorkerResponse struct {
 
 func (x *ExecuteInPersistentWorkerResponse) Reset() {
 	*x = ExecuteInPersistentWorkerResponse{}
-	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_persistent_runner_proto_msgTypes[4]
+	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_persistent_runner_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -277,7 +313,7 @@ func (x *ExecuteInPersistentWorkerResponse) String() string {
 func (*ExecuteInPersistentWorkerResponse) ProtoMessage() {}
 
 func (x *ExecuteInPersistentWorkerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_persistent_runner_proto_msgTypes[4]
+	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_persistent_runner_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -290,7 +326,7 @@ func (x *ExecuteInPersistentWorkerResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use ExecuteInPersistentWorkerResponse.ProtoReflect.Descriptor instead.
 func (*ExecuteInPersistentWorkerResponse) Descriptor() ([]byte, []int) {
-	return file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_persistent_runner_proto_rawDescGZIP(), []int{4}
+	return file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_persistent_runner_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ExecuteInPersistentWorkerResponse) GetSerializedWorkResponse() []byte {
@@ -325,7 +361,8 @@ const file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_persistent_
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"6\n" +
 	"\x15CreateSessionResponse\x12\x1d\n" +
 	"\n" +
-	"session_id\x18\x01 \x01(\tR\tsessionId\"/\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\"\x16\n" +
+	"\x14CreateSessionFailure\"/\n" +
 	"\x0eSessionRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\"y\n" +
@@ -354,29 +391,30 @@ func file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_persistent_r
 	return file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_persistent_runner_proto_rawDescData
 }
 
-var file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_persistent_runner_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_persistent_runner_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_persistent_runner_proto_goTypes = []any{
 	(*CreateSessionRequest)(nil),              // 0: buildbarn.runner.CreateSessionRequest
 	(*CreateSessionResponse)(nil),             // 1: buildbarn.runner.CreateSessionResponse
-	(*SessionRequest)(nil),                    // 2: buildbarn.runner.SessionRequest
-	(*ExecuteInPersistentWorkerRequest)(nil),  // 3: buildbarn.runner.ExecuteInPersistentWorkerRequest
-	(*ExecuteInPersistentWorkerResponse)(nil), // 4: buildbarn.runner.ExecuteInPersistentWorkerResponse
-	nil,                           // 5: buildbarn.runner.CreateSessionRequest.EnvironmentVariablesEntry
-	(*anypb.Any)(nil),             // 6: google.protobuf.Any
-	(*CheckReadinessRequest)(nil), // 7: buildbarn.runner.CheckReadinessRequest
-	(*emptypb.Empty)(nil),         // 8: google.protobuf.Empty
+	(*CreateSessionFailure)(nil),              // 2: buildbarn.runner.CreateSessionFailure
+	(*SessionRequest)(nil),                    // 3: buildbarn.runner.SessionRequest
+	(*ExecuteInPersistentWorkerRequest)(nil),  // 4: buildbarn.runner.ExecuteInPersistentWorkerRequest
+	(*ExecuteInPersistentWorkerResponse)(nil), // 5: buildbarn.runner.ExecuteInPersistentWorkerResponse
+	nil,                           // 6: buildbarn.runner.CreateSessionRequest.EnvironmentVariablesEntry
+	(*anypb.Any)(nil),             // 7: google.protobuf.Any
+	(*CheckReadinessRequest)(nil), // 8: buildbarn.runner.CheckReadinessRequest
+	(*emptypb.Empty)(nil),         // 9: google.protobuf.Empty
 }
 var file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_persistent_runner_proto_depIdxs = []int32{
-	5, // 0: buildbarn.runner.CreateSessionRequest.environment_variables:type_name -> buildbarn.runner.CreateSessionRequest.EnvironmentVariablesEntry
-	6, // 1: buildbarn.runner.ExecuteInPersistentWorkerResponse.resource_usage:type_name -> google.protobuf.Any
-	7, // 2: buildbarn.runner.PersistentRunner.CheckReadiness:input_type -> buildbarn.runner.CheckReadinessRequest
+	6, // 0: buildbarn.runner.CreateSessionRequest.environment_variables:type_name -> buildbarn.runner.CreateSessionRequest.EnvironmentVariablesEntry
+	7, // 1: buildbarn.runner.ExecuteInPersistentWorkerResponse.resource_usage:type_name -> google.protobuf.Any
+	8, // 2: buildbarn.runner.PersistentRunner.CheckReadiness:input_type -> buildbarn.runner.CheckReadinessRequest
 	0, // 3: buildbarn.runner.PersistentRunner.CreateSession:input_type -> buildbarn.runner.CreateSessionRequest
-	3, // 4: buildbarn.runner.PersistentRunner.ExecuteInPersistentWorker:input_type -> buildbarn.runner.ExecuteInPersistentWorkerRequest
-	2, // 5: buildbarn.runner.PersistentRunner.CloseSession:input_type -> buildbarn.runner.SessionRequest
-	8, // 6: buildbarn.runner.PersistentRunner.CheckReadiness:output_type -> google.protobuf.Empty
+	4, // 4: buildbarn.runner.PersistentRunner.ExecuteInPersistentWorker:input_type -> buildbarn.runner.ExecuteInPersistentWorkerRequest
+	3, // 5: buildbarn.runner.PersistentRunner.CloseSession:input_type -> buildbarn.runner.SessionRequest
+	9, // 6: buildbarn.runner.PersistentRunner.CheckReadiness:output_type -> google.protobuf.Empty
 	1, // 7: buildbarn.runner.PersistentRunner.CreateSession:output_type -> buildbarn.runner.CreateSessionResponse
-	4, // 8: buildbarn.runner.PersistentRunner.ExecuteInPersistentWorker:output_type -> buildbarn.runner.ExecuteInPersistentWorkerResponse
-	8, // 9: buildbarn.runner.PersistentRunner.CloseSession:output_type -> google.protobuf.Empty
+	5, // 8: buildbarn.runner.PersistentRunner.ExecuteInPersistentWorker:output_type -> buildbarn.runner.ExecuteInPersistentWorkerResponse
+	9, // 9: buildbarn.runner.PersistentRunner.CloseSession:output_type -> google.protobuf.Empty
 	6, // [6:10] is the sub-list for method output_type
 	2, // [2:6] is the sub-list for method input_type
 	2, // [2:2] is the sub-list for extension type_name
@@ -398,7 +436,7 @@ func file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_persistent_r
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_persistent_runner_proto_rawDesc), len(file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_persistent_runner_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

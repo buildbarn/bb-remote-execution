@@ -211,7 +211,7 @@ func NewAppleXcodeResolvingPersistentRunner(base runner_pb.PersistentRunnerServe
 func (server *appleXcodeResolvingPersistentRunner) CreateSession(ctx context.Context, request *runner_pb.CreateSessionRequest) (*runner_pb.CreateSessionResponse, error) {
 	environment, err := server.resolveEnvironment(ctx, request.EnvironmentVariables)
 	if err != nil {
-		return nil, err
+		return nil, confirmedSessionCreationFailure(err)
 	}
 	if environment == nil {
 		return server.PersistentRunnerServer.CreateSession(ctx, request)

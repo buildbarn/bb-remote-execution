@@ -337,6 +337,11 @@ func (executor *PersistentBuildExecutor) executeInSession(ctx context.Context, p
 			executor.sessionCreationUncertain = false
 		}
 		if err != nil {
+			for _, detail := range status.Convert(err).Details() {
+				if _, ok := detail.(*runner_pb.CreateSessionFailure); ok {
+					executor.sessionCreationUncertain = false
+				}
+			}
 			return nil, nil, err
 		}
 		if executor.sessionID == "" {

@@ -81,7 +81,7 @@ func (server *pathExistenceCheckingPersistentRunner) CheckReadiness(ctx context.
 
 func (server *pathExistenceCheckingPersistentRunner) CreateSession(ctx context.Context, request *runner_pb.CreateSessionRequest) (*runner_pb.CreateSessionResponse, error) {
 	if err := server.checker.checkPathExistence(ctx); err != nil {
-		return nil, err
+		return nil, confirmedSessionCreationFailure(err)
 	}
 	return server.PersistentRunnerServer.CreateSession(ctx, request)
 }

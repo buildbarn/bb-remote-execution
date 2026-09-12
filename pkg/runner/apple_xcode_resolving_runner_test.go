@@ -39,6 +39,8 @@ func TestAppleXcodeResolvingPersistentRunner(test *testing.T) {
 	request.EnvironmentVariables["XCODE_VERSION_OVERRIDE"] = "missing"
 	_, err = server.CreateSession(context.Background(), request)
 	require.Error(test, err)
+	require.Len(test, status.Convert(err).Details(), 1)
+	require.IsType(test, &runner_pb.CreateSessionFailure{}, status.Convert(err).Details()[0])
 }
 
 func TestAppleXcodeResolvingRunner(t *testing.T) {

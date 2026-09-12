@@ -34,6 +34,13 @@ message CreateSessionResponse {
   string session_id = 1;
 }
 
+// Error detail attached to a failed CreateSession response only when no
+// session was retained and any started worker has been terminated and reaped.
+// The caller may discard the workspace and retry with a new session. Without
+// this detail, a failure without a session ID has an unknown creation outcome;
+// the caller must not delete files that a possibly live worker could still use.
+message CreateSessionFailure {}
+
 message SessionRequest {
   string session_id = 1;
 }

@@ -38,6 +38,9 @@ func run(mode string) error {
 	case "echo", "proto", "wait", "exit", "truncated", "invalid-length", "oversized":
 	case "exit-idle":
 		return nil
+	case "exit-startup":
+		fmt.Fprintln(os.Stderr, "discarded prefix"+strings.Repeat("x", 8192)+mode)
+		os.Exit(23)
 	default:
 		return fmt.Errorf("unknown fake worker mode %q", mode)
 	}
@@ -75,6 +78,7 @@ func run(mode string) error {
 			time.Sleep(time.Hour)
 			return nil
 		case "exit":
+			fmt.Fprintln(os.Stderr, "discarded prefix"+strings.Repeat("x", 8192)+mode)
 			os.Exit(23)
 		case "truncated":
 			_, err := os.Stdout.Write([]byte{3, 0xff})

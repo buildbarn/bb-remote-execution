@@ -101,6 +101,27 @@ func TestPersistentWorkerCommandValidation(t *testing.T) {
 	}
 }
 
+func TestPersistentWorkerCommandStartupArguments(t *testing.T) {
+	for _, arguments := range [][]string{
+		{"compiler", "--startup", "@args"},
+		{"java", "-Xfoo", "-jar", "x.jar", "--tool_arg", "@args"},
+		{"java", "-Xfoo", "-jar", "x.jar", "@args", "--tool_arg"},
+	} {
+		t.Run(strings.Join(arguments, " "), func(t *testing.T) {
+			action, command, inputs := persistentWorkerTestCommand()
+			command.Arguments = slices.Clone(arguments)
+			prepared, err := builder.NewPersistentWorkerCommand(action.Platform, command, digest.MustNewFunction("instance", remoteexecution.DigestFunction_SHA256), inputs, nil)
+			require.NoError(t, err)
+			expected := []string{"compiler", "--startup", "--persistent_worker"}
+			if arguments[0] == "java" {
+				expected = []string{"java", "-Xfoo", "-jar", "x.jar", "--tool_arg", "--persistent_worker"}
+			}
+			require.Equal(t, expected, prepared.Arguments)
+			require.Equal(t, arguments, command.Arguments)
+		})
+	}
+}
+
 func TestPersistentWorkerCommandCompatibility(t *testing.T) {
 	for _, test := range []struct {
 		name   string
@@ -200,7 +221,7 @@ func TestPersistentWorkerCommandRequest(t *testing.T) {
 	}
 	prepared, err := builder.NewPersistentWorkerCommand(action.Platform, command, digest.MustNewFunction("instance", remoteexecution.DigestFunction_SHA256), inputs, nil)
 	require.NoError(t, err)
-	require.Equal(t, []string{"compiler", "--persistent_worker", "@@startup", "@repo//label"}, prepared.Arguments)
+	require.Equal(t, []string{"compiler", "@@startup", "@repo//label", "--persistent_worker"}, prepared.Arguments)
 	request, err := prepared.NewExecuteInPersistentWorkerRequest(context.Background(), "session", func(ctx context.Context, name string) ([]byte, error) {
 		contents, ok := files[name]
 		require.True(t, ok)

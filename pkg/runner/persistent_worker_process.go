@@ -100,7 +100,10 @@ func (process *PersistentWorkerProcess) Execute(ctx context.Context, request []b
 		return nil, errors.Join(ctx.Err(), process.Close())
 	}
 	if err != nil {
-		return nil, errors.Join(err, process.Close())
+		if closeError := process.Close(); closeError != nil {
+			return nil, errors.Join(err, closeError)
+		}
+		return nil, errors.Join(err, process.Wait())
 	}
 	return response, nil
 }

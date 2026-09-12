@@ -55,7 +55,7 @@ func NewPersistentWorkerCommand(platform *remoteexecution.Platform, command *rem
 		workingDirectory = ""
 	}
 	prepared := &PersistentWorkerCommand{
-		Arguments:            []string{command.Arguments[0], "--persistent_worker"},
+		Arguments:            []string{command.Arguments[0]},
 		EnvironmentVariables: map[string]string{},
 		WorkingDirectory:     workingDirectory,
 		inputPaths:           map[string]struct{}{},
@@ -70,6 +70,7 @@ func NewPersistentWorkerCommand(platform *remoteexecution.Platform, command *rem
 	if len(prepared.requestArguments) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "Missing persistent worker flag file")
 	}
+	prepared.Arguments = append(prepared.Arguments, "--persistent_worker")
 	for _, variable := range command.EnvironmentVariables {
 		if _, ok := prepared.EnvironmentVariables[variable.GetName()]; ok {
 			return nil, status.Errorf(codes.InvalidArgument, "Duplicate environment variable %q", variable.GetName())
@@ -226,7 +227,7 @@ func (prepared *PersistentWorkerCommand) NewExecuteInPersistentWorkerRequest(ctx
 	return &runner_pb.ExecuteInPersistentWorkerRequest{SessionId: sessionID, SerializedWorkRequest: serialized}, nil
 }
 
-// DecodePersistentWorkerResponse decodes and validates a response to a work request. 
+// DecodePersistentWorkerResponse decodes and validates a response to a work request.
 // A nonzero compiler exit code is a valid response, not an error.
 // The caller must retire the session if decoding or protocol validation fails.
 func DecodePersistentWorkerResponse(response *runner_pb.ExecuteInPersistentWorkerResponse) (*worker_pb.WorkResponse, error) {

@@ -3,6 +3,8 @@ package runner
 import (
 	"context"
 	"errors"
+	"io"
+	"log"
 	"sync"
 	"time"
 
@@ -20,6 +22,7 @@ import (
 
 type persistentRunnerSession struct {
 	process *PersistentWorkerProcess
+	logExit func()
 	busy    bool
 	closing bool
 	done    chan struct{}
@@ -86,8 +89,15 @@ func (server *PersistentRunner) CheckReadiness(ctx context.Context, request *run
 
 // CreateSession starts a compiler process and returns its session ID.
 // The request context can cancel startup, but a successfully created
-// session remains alive independently of that context.
+// session remains alive independently of that context. Confirmed startup
+// failures carry a CreateSessionFailure detail once cleanup has completed.
 func (server *PersistentRunner) CreateSession(ctx context.Context, request *runner_pb.CreateSessionRequest) (response *runner_pb.CreateSessionResponse, returnError error) {
+	creationStopped := true
+	defer func() {
+		if returnError != nil && creationStopped {
+			returnError = confirmedSessionCreationFailure(returnError)
+		}
+	}()
 	if err := ctx.Err(); err != nil {
 		return nil, status.FromContextError(err).Err()
 	}
@@ -139,9 +149,15 @@ func (server *PersistentRunner) CreateSession(ctx context.Context, request *runn
 	if err != nil {
 		return nil, util.StatusWrapWithCode(err, codes.Internal, "Failed to start persistent worker")
 	}
+	creationStopped = false
 	defer func() {
 		if !retained {
-			process.Close()
+			err := process.Close()
+			creationStopped = err == nil
+			returnError = errors.Join(returnError, err)
+			if creationStopped {
+				server.logWorkerExit(process, request)
+			}
 		}
 	}()
 	if !stopCancellation() || ctx.Err() != nil {
@@ -158,10 +174,14 @@ func (server *PersistentRunner) CreateSession(ctx context.Context, request *runn
 	}
 	select {
 	case <-process.Done():
-		return nil, status.Error(codes.Unavailable, "Persistent worker exited during startup")
+		return nil, status.Errorf(codes.Unavailable, "Persistent worker exited during startup: %v", process.Wait())
 	default:
 	}
-	session := &persistentRunnerSession{process: process, done: make(chan struct{})}
+	session := &persistentRunnerSession{
+		process: process,
+		logExit: sync.OnceFunc(func() { server.logWorkerExit(process, request) }),
+		done:    make(chan struct{}),
+	}
 	server.sessions[sessionID.String()] = session
 	retained = true
 	server.operations.Add(1)
@@ -169,6 +189,12 @@ func (server *PersistentRunner) CreateSession(ctx context.Context, request *runn
 		defer server.operations.Done()
 		<-process.Done()
 		cancelSession()
+		server.lock.Lock()
+		expectedExit := session.closing || server.closed
+		server.lock.Unlock()
+		if !expectedExit {
+			session.logExit()
+		}
 		session.err = server.releaseCleaner()
 		server.lock.Lock()
 		delete(server.sessions, sessionID.String())
@@ -177,6 +203,52 @@ func (server *PersistentRunner) CreateSession(ctx context.Context, request *runn
 		close(session.done)
 	}()
 	return &runner_pb.CreateSessionResponse{SessionId: sessionID.String()}, nil
+}
+
+func confirmedSessionCreationFailure(err error) error {
+	creationStatus, detailError := status.Convert(err).WithDetails(&runner_pb.CreateSessionFailure{})
+	if detailError != nil {
+		return err
+	}
+	return creationStatus.Err()
+}
+
+func (server *PersistentRunner) logWorkerExit(process *PersistentWorkerProcess, request *runner_pb.CreateSessionRequest) {
+	exitStatus := "exit status 0"
+	if err := process.Wait(); err != nil {
+		exitStatus = err.Error()
+	}
+	tail, err := server.readStderrTail(request.GetProcessStderrPath())
+	log.Printf("Persistent worker exited: executable=%q input_root=%q exit_status=%q stderr_tail=%q stderr_read_error=%v", request.Arguments[0], request.InputRootDirectory, exitStatus, tail, err)
+}
+
+func (server *PersistentRunner) readStderrTail(logPath string) ([]byte, error) {
+	resolver := buildDirectoryPathResolver{
+		stack: util.NewNonEmptyStack(filesystem.NopDirectoryCloser(server.localRunner.buildDirectory)),
+	}
+	defer resolver.closeAll()
+	if err := path.Resolve(path.UNIXFormat.NewParser(logPath), path.NewRelativeScopeWalker(&resolver)); err != nil {
+		return nil, err
+	}
+	if resolver.TerminalName == nil {
+		return nil, status.Error(codes.InvalidArgument, "Path resolves to a directory")
+	}
+	file, err := resolver.stack.Peek().OpenRead(*resolver.TerminalName)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	size, err := file.Len()
+	if err != nil {
+		return nil, err
+	}
+	const maximumStderrTailSizeBytes = 8 * 1024
+	tail := make([]byte, min(size, maximumStderrTailSizeBytes))
+	count, err := file.ReadAt(tail, size-int64(len(tail)))
+	if err == io.EOF {
+		err = nil
+	}
+	return tail[:count], err
 }
 
 // ExecuteInPersistentWorker exchanges opaque request and response
@@ -216,6 +288,11 @@ func (server *PersistentRunner) ExecuteInPersistentWorker(ctx context.Context, r
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil, status.FromContextError(ctx.Err()).Err()
+		}
+		select {
+		case <-session.process.Done():
+			session.logExit()
+		default:
 		}
 		return nil, util.StatusWrapWithCode(err, codes.Unavailable, "Persistent worker exchange failed")
 	}

@@ -116,6 +116,11 @@ func TestPersistentWorkerProcessFailure(t *testing.T) {
 			process := startPersistentWorkerProcess(t, command)
 			response, err := process.Execute(ctx, nil)
 			require.Error(t, err)
+			if mode == "exit" {
+				var exitError *exec.ExitError
+				require.ErrorAs(t, err, &exitError)
+				require.Equal(t, 23, exitError.ExitCode())
+			}
 			require.Nil(t, response)
 			require.NoError(t, ctx.Err())
 			require.NotNil(t, command.ProcessState)
