@@ -5,6 +5,7 @@ go_binary(
     testonly = True,
     srcs = ["main.go"],
     visibility = [
+        "//cmd/bb_runner:__pkg__",
         "//pkg/builder:__pkg__",
         "//pkg/runner:__pkg__",
     ],

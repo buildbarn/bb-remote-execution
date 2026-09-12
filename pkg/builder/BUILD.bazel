@@ -108,6 +108,7 @@ go_test(
         "test_infrastructure_failure_detecting_build_executor_test.go",
         "timestamped_build_executor_test.go",
         "tracing_build_executor_test.go",
+        "worker_thread_test.go",
     ],
     deps = [
         ":builder",
@@ -130,6 +131,7 @@ go_test(
         "@com_github_buildbarn_bb_storage//pkg/digest",
         "@com_github_buildbarn_bb_storage//pkg/filesystem",
         "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
+        "@com_github_buildbarn_bb_storage//pkg/program",
         "@com_github_buildbarn_bb_storage//pkg/proto/fsac",
         "@com_github_buildbarn_bb_storage//pkg/random",
         "@com_github_buildbarn_bb_storage//pkg/testutil",
