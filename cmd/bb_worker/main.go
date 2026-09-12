@@ -489,18 +489,42 @@ func main() {
 						)
 					}
 
-					buildExecutor = builder.NewMetricsBuildExecutor(
-						builder.NewFilePoolStatsBuildExecutor(
-							builder.NewTimestampedBuildExecutor(
-								builder.NewStorageFlushingBuildExecutor(
-									buildExecutor,
-									contentAddressableStorageFlusher,
-								),
-								clock.SystemClock,
-								string(workerName),
-							),
-						),
+					slotFilePool := pool.NewQuotaEnforcingFilePool(filePool, runnerConfiguration.MaximumFilePoolFileCount, runnerConfiguration.MaximumFilePoolSizeBytes)
+					var cleanup func() error
+					if runnerConfiguration.EnablePersistentWorkers {
+						slotContext, cancelSlot := context.WithCancel(context.WithoutCancel(ctx))
+						persistentExecutor := builder.NewPersistentBuildExecutor(
+							slotContext,
+							builder.NewFilePoolStatsBuildExecutor(buildExecutor),
+							contentAddressableStorageWriter,
+							cas.NewBlobAccessMessageReader[remoteexecution.Command](contentAddressableStorageWriter, int(configuration.MaximumMessageSizeBytes)),
+							directoryFetcher,
+							buildDirectoryCreator,
+							runner_pb.NewPersistentRunnerClient(runnerConnection),
+							slotFilePool,
+							executionTimeoutClock,
+							maximumWritableFileUploadDelay,
+							30*time.Second,
+							inputRootCharacterDevices,
+							runnerConfiguration.EnvironmentVariables,
+							configuration.ForceUploadTreesAndDirectories,
+						)
+						buildExecutor = persistentExecutor
+						cleanup = func() error {
+							defer cancelSlot()
+							return persistentExecutor.Close(context.Background())
+						}
+					}
+
+					buildExecutor = builder.NewTimestampedBuildExecutor(
+						builder.NewStorageFlushingBuildExecutor(buildExecutor, contentAddressableStorageFlusher),
+						clock.SystemClock,
+						string(workerName),
 					)
+					if !runnerConfiguration.EnablePersistentWorkers {
+						buildExecutor = builder.NewFilePoolStatsBuildExecutor(buildExecutor)
+					}
+					buildExecutor = builder.NewMetricsBuildExecutor(buildExecutor)
 
 					if len(runnerConfiguration.CostsPerSecond) > 0 {
 						buildExecutor = builder.NewCostComputingBuildExecutor(buildExecutor, runnerConfiguration.CostsPerSecond)
@@ -546,18 +570,14 @@ func main() {
 					buildClient := builder.NewBuildClient(
 						schedulerClient,
 						buildExecutor,
-						pool.NewQuotaEnforcingFilePool(
-							filePool,
-							runnerConfiguration.MaximumFilePoolFileCount,
-							runnerConfiguration.MaximumFilePoolSizeBytes,
-						),
+						slotFilePool,
 						clock.SystemClock,
 						workerID,
 						instanceNamePrefix,
 						runnerConfiguration.Platform,
 						runnerConfiguration.SizeClass,
 					)
-					builder.LaunchWorkerThread(siblingsGroup, buildClient, string(workerName))
+					builder.LaunchWorkerThread(siblingsGroup, buildClient, string(workerName), cleanup)
 				}
 			}
 		}

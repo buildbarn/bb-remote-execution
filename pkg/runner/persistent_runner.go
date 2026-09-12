@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"time"
 
+	"github.com/buildbarn/bb-remote-execution/pkg/cleaner"
 	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
@@ -20,6 +22,8 @@ type persistentRunnerSession struct {
 	process *PersistentWorkerProcess
 	busy    bool
 	closing bool
+	done    chan struct{}
+	err     error
 }
 
 // PersistentRunner implements the runner session service using retained
@@ -29,6 +33,7 @@ type PersistentRunner struct {
 	lifetimeContext              context.Context
 	cancel                       context.CancelFunc
 	maximumWorkResponseSizeBytes uint64
+	idleInvoker                  *cleaner.IdleInvoker
 	lock                         sync.Mutex
 	sessions                     map[string]*persistentRunnerSession
 	closed                       bool
@@ -43,8 +48,10 @@ type PersistentRunner struct {
 // shutdown. Close waits for shutdown to complete.
 //
 // The caller retains ownership of the build directory and must close
-// the runner before closing the directory.
-func NewPersistentRunner(ctx context.Context, buildDirectory filesystem.Directory, buildDirectoryPath *path.Builder, commandCreator CommandCreator, setTmpdirEnvironmentVariable bool, maximumWorkResponseSizeBytes uint64) *PersistentRunner {
+// the runner before closing the directory. When provided, idleInvoker
+// must also be used by ordinary execution on this runner. Each session
+// holds a reference until its process has been reaped.
+func NewPersistentRunner(ctx context.Context, buildDirectory filesystem.Directory, buildDirectoryPath *path.Builder, commandCreator CommandCreator, setTmpdirEnvironmentVariable bool, maximumWorkResponseSizeBytes uint64, idleInvoker *cleaner.IdleInvoker) *PersistentRunner {
 	lifetimeContext, cancel := context.WithCancel(ctx)
 	server := &PersistentRunner{
 		localRunner: &localRunner{
@@ -56,6 +63,7 @@ func NewPersistentRunner(ctx context.Context, buildDirectory filesystem.Director
 		lifetimeContext:              lifetimeContext,
 		cancel:                       cancel,
 		maximumWorkResponseSizeBytes: maximumWorkResponseSizeBytes,
+		idleInvoker:                  idleInvoker,
 		sessions:                     map[string]*persistentRunnerSession{},
 	}
 	context.AfterFunc(lifetimeContext, func() { server.Close() })
@@ -63,9 +71,15 @@ func NewPersistentRunner(ctx context.Context, buildDirectory filesystem.Director
 }
 
 // CheckReadiness checks that the runner is accepting sessions.
-func (server *PersistentRunner) CheckReadiness(ctx context.Context, request *runner_pb.CheckReadinessRequest) (*emptypb.Empty, error) {
+func (server *PersistentRunner) CheckReadiness(ctx context.Context, request *runner_pb.CheckReadinessRequest) (response *emptypb.Empty, returnError error) {
 	if server.lifetimeContext.Err() != nil {
 		return nil, status.Error(codes.Unavailable, "Persistent runner is shutting down")
+	}
+	if server.idleInvoker != nil {
+		if err := server.idleInvoker.Acquire(ctx); err != nil {
+			return nil, err
+		}
+		defer func() { returnError = errors.Join(returnError, server.releaseCleaner()) }()
 	}
 	return server.localRunner.CheckReadiness(ctx, request)
 }
@@ -73,7 +87,7 @@ func (server *PersistentRunner) CheckReadiness(ctx context.Context, request *run
 // CreateSession starts a compiler process and returns its session ID.
 // The request context can cancel startup, but a successfully created
 // session remains alive independently of that context.
-func (server *PersistentRunner) CreateSession(ctx context.Context, request *runner_pb.CreateSessionRequest) (*runner_pb.CreateSessionResponse, error) {
+func (server *PersistentRunner) CreateSession(ctx context.Context, request *runner_pb.CreateSessionRequest) (response *runner_pb.CreateSessionResponse, returnError error) {
 	if err := ctx.Err(); err != nil {
 		return nil, status.FromContextError(err).Err()
 	}
@@ -95,6 +109,16 @@ func (server *PersistentRunner) CreateSession(ctx context.Context, request *runn
 	}()
 	stopCancellation := context.AfterFunc(ctx, cancelSession)
 	defer stopCancellation()
+	if server.idleInvoker != nil {
+		if err := server.idleInvoker.Acquire(sessionContext); err != nil {
+			return nil, err
+		}
+		defer func() {
+			if !retained {
+				returnError = errors.Join(returnError, server.releaseCleaner())
+			}
+		}()
+	}
 	command, err := server.localRunner.createCommand(sessionContext, &runner_pb.RunRequest{
 		Arguments:            request.GetArguments(),
 		EnvironmentVariables: request.GetEnvironmentVariables(),
@@ -137,7 +161,7 @@ func (server *PersistentRunner) CreateSession(ctx context.Context, request *runn
 		return nil, status.Error(codes.Unavailable, "Persistent worker exited during startup")
 	default:
 	}
-	session := &persistentRunnerSession{process: process}
+	session := &persistentRunnerSession{process: process, done: make(chan struct{})}
 	server.sessions[sessionID.String()] = session
 	retained = true
 	server.operations.Add(1)
@@ -145,9 +169,12 @@ func (server *PersistentRunner) CreateSession(ctx context.Context, request *runn
 		defer server.operations.Done()
 		<-process.Done()
 		cancelSession()
+		session.err = server.releaseCleaner()
 		server.lock.Lock()
 		delete(server.sessions, sessionID.String())
+		server.closeError = errors.Join(server.closeError, session.err)
 		server.lock.Unlock()
+		close(session.done)
 	}()
 	return &runner_pb.CreateSessionResponse{SessionId: sessionID.String()}, nil
 }
@@ -212,6 +239,14 @@ func (server *PersistentRunner) CloseSession(ctx context.Context, request *runne
 		if err := session.process.Close(); err != nil {
 			return nil, util.StatusWrapWithCode(err, codes.Internal, "Failed to close persistent worker")
 		}
+		select {
+		case <-session.done:
+			if session.err != nil {
+				return nil, session.err
+			}
+		case <-ctx.Done():
+			return nil, status.FromContextError(ctx.Err()).Err()
+		}
 	}
 	return &emptypb.Empty{}, nil
 }
@@ -229,10 +264,23 @@ func (server *PersistentRunner) Close() error {
 			sessions = append(sessions, session)
 		}
 		server.lock.Unlock()
+		var closeError error
 		for _, session := range sessions {
-			server.closeError = errors.Join(server.closeError, session.process.Close())
+			closeError = errors.Join(closeError, session.process.Close())
 		}
 		server.operations.Wait()
+		server.lock.Lock()
+		server.closeError = errors.Join(server.closeError, closeError)
+		server.lock.Unlock()
 	})
 	return server.closeError
+}
+
+func (server *PersistentRunner) releaseCleaner() error {
+	if server.idleInvoker == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return server.idleInvoker.Release(ctx)
 }

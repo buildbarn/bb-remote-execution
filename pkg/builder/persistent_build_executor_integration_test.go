@@ -90,7 +90,7 @@ func TestPersistentBuildExecutorGRPCRoundTrip(test *testing.T) {
 	defer directory.Close()
 	directoryBuilder, walker := path.EmptyBuilder.Join(path.VoidScopeWalker)
 	require.NoError(test, path.Resolve(path.LocalFormat.NewParser(directoryPath), walker))
-	persistentRunner := runner.NewPersistentRunner(ctx, directory, directoryBuilder, runner.NewPlainCommandCreator(&syscall.SysProcAttr{}), true, 1024*1024)
+	persistentRunner := runner.NewPersistentRunner(ctx, directory, directoryBuilder, runner.NewPlainCommandCreator(&syscall.SysProcAttr{}), true, 1024*1024, nil)
 	defer persistentRunner.Close()
 	listener := bufconn.Listen(1024 * 1024)
 	defer listener.Close()

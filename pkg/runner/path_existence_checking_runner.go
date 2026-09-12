@@ -56,3 +56,43 @@ func (r *pathExistenceCheckingRunner) Run(ctx context.Context, request *runner_p
 	}
 	return response, nil
 }
+
+type pathExistenceCheckingPersistentRunner struct {
+	runner_pb.PersistentRunnerServer
+	checker pathExistenceCheckingRunner
+}
+
+// NewPathExistenceCheckingPersistentRunner checks required paths during
+// readiness, before session creation, and after successful exchanges.
+// It does not decode the persistent worker's response payload.
+func NewPathExistenceCheckingPersistentRunner(base runner_pb.PersistentRunnerServer, pathnames []string) runner_pb.PersistentRunnerServer {
+	return &pathExistenceCheckingPersistentRunner{
+		PersistentRunnerServer: base,
+		checker:                pathExistenceCheckingRunner{readinessCheckingPathnames: pathnames},
+	}
+}
+
+func (server *pathExistenceCheckingPersistentRunner) CheckReadiness(ctx context.Context, request *runner_pb.CheckReadinessRequest) (*emptypb.Empty, error) {
+	if err := server.checker.checkPathExistence(ctx); err != nil {
+		return nil, err
+	}
+	return server.PersistentRunnerServer.CheckReadiness(ctx, request)
+}
+
+func (server *pathExistenceCheckingPersistentRunner) CreateSession(ctx context.Context, request *runner_pb.CreateSessionRequest) (*runner_pb.CreateSessionResponse, error) {
+	if err := server.checker.checkPathExistence(ctx); err != nil {
+		return nil, err
+	}
+	return server.PersistentRunnerServer.CreateSession(ctx, request)
+}
+
+func (server *pathExistenceCheckingPersistentRunner) ExecuteInPersistentWorker(ctx context.Context, request *runner_pb.ExecuteInPersistentWorkerRequest) (*runner_pb.ExecuteInPersistentWorkerResponse, error) {
+	response, err := server.PersistentRunnerServer.ExecuteInPersistentWorker(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+	if err := server.checker.checkPathExistence(ctx); err != nil {
+		return nil, err
+	}
+	return response, nil
+}

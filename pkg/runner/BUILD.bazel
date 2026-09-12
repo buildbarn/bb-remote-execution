@@ -75,6 +75,7 @@ go_test(
         "clean_runner_test.go",
         "local_runner_test.go",
         "path_existence_checking_runner_test.go",
+        "persistent_runner_decorators_test.go",
         "persistent_runner_test.go",
         "persistent_worker_adapter_test.go",
         "persistent_worker_process_test.go",

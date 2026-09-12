@@ -43,7 +43,7 @@ func TestPersistentWorkerGRPCRoundTrip(t *testing.T) {
 	defer directory.Close()
 	directoryBuilder, scopeWalker := path.EmptyBuilder.Join(path.VoidScopeWalker)
 	require.NoError(t, path.Resolve(path.LocalFormat.NewParser(directoryPath), scopeWalker))
-	persistentRunner := runner.NewPersistentRunner(ctx, directory, directoryBuilder, runner.NewPlainCommandCreator(&syscall.SysProcAttr{}), false, 1024*1024)
+	persistentRunner := runner.NewPersistentRunner(ctx, directory, directoryBuilder, runner.NewPlainCommandCreator(&syscall.SysProcAttr{}), false, 1024*1024, nil)
 	defer persistentRunner.Close()
 	listener := bufconn.Listen(1024 * 1024)
 	defer listener.Close()

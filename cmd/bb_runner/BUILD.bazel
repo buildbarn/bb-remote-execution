@@ -1,9 +1,12 @@
 load("@com_github_buildbarn_bb_storage//tools:container.bzl", "container_push_official", "multiarch_go_image")
-load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 
 go_library(
     name = "bb_runner_lib",
-    srcs = ["main.go"],
+    srcs = [
+        "main.go",
+        "persistent_workers.go",
+    ],
     importpath = "github.com/buildbarn/bb-remote-execution/cmd/bb_runner",
     visibility = ["//visibility:private"],
     deps = [
@@ -31,6 +34,36 @@ go_binary(
     embed = [":bb_runner_lib"],
     pure = "on",
     visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "bb_runner_test",
+    srcs = [
+        "persistent_workers_integration_test.go",
+        "persistent_workers_test.go",
+    ],
+    data = [
+        ":bb_runner",
+        "//pkg/runner/testdata/fake_worker",
+    ],
+    embed = [":bb_runner_lib"],
+    env = {
+        "FAKE_WORKER_BINARY": "$(rlocationpath //pkg/runner/testdata/fake_worker)",
+        "RUNNER_BINARY": "$(rlocationpath :bb_runner)",
+    },
+    deps = [
+        "//pkg/proto/configuration/bb_runner",
+        "//pkg/proto/runner",
+        "//pkg/runner",
+        "@com_github_buildbarn_bb_storage//pkg/filesystem",
+        "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
+        "@com_github_buildbarn_bb_storage//pkg/proto/configuration/grpc",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials/insecure",
+        "@rules_go//go/runfiles",
+    ],
 )
 
 multiarch_go_image(
