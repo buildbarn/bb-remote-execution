@@ -624,6 +624,7 @@ without depending on an external tool being installed.
 | `TestParseToolInputPaths` | Tree construction: nesting, a path underneath an already-materialized ancestor, the reverse order, and every rejected path. |
 | `TestMaterializeToolInputs` | Files, symbolic links and nested directories are all reproduced in the execution root, nothing outside the tool is, and the result outlives the removal of the input root. |
 | `TestRefreshSymlinkFarmToolInputs` | Across two input roots: the tool stays a real file while its non-tool siblings are repointed. |
+| `TestRefreshSymlinkFarmToolInputsUnderWorkingDirectory` | The tool and the working directory share a path prefix. Both get a real directory at that level, each recursion carries the other along, and harvesting collects an output written next to the tool while leaving one written inside it. |
 | `TestIsCrossDevice` | `EXDEV` is recognised bare and wrapped; `ENOENT` and `nil` are not. |
 | `TestMoveIntoInputRootCrossDevice` | With `rename()` forced to fail with `EXDEV`: regular files, the executable bit, nested directories, symbolic links and a pre-existing destination are all handled by the copy fallback. |
 
@@ -692,11 +693,14 @@ worth doing once against a deployment:
   resolves a path relative to its own executable — every JVM — fails on
   the second action. Bazel always emits the properties alongside
   `persistentWorkerKey`, so this only affects other clients.
-- **Files the tool writes into its own installation directory are not
-  harvested, and persist across actions.** The tool's directory belongs
-  to the worker process rather than to any single action. This matches
-  what Bazel's local workers do, where the tool likewise lives in a
-  directory that outlives the action.
+- **Files written inside a directory that was materialized as a unit
+  are not harvested, and persist across actions.** Collapsing a
+  directory that holds nothing but tool inputs is what keeps the cost
+  of this feature down — a JDK is one entry rather than thousands — but
+  it also means the harvest step does not walk inside it. An output
+  written *next to* the tool, in a directory that merely leads to it,
+  is still collected. This matches what Bazel's local workers do, where
+  the tool likewise lives in a directory that outlives the action.
 - **Tool materialization is not shared between worker processes.** Two
   processes with the same key each get their own copy. Where the
   persistent worker directory and the build directory share a file

@@ -300,3 +300,75 @@ func TestMoveIntoInputRootCrossDevice(t *testing.T) {
 		require.True(t, os.IsNotExist(err))
 	})
 }
+
+// TestRefreshSymlinkFarmToolInputsUnderWorkingDirectory covers the case
+// where the tool and the working directory of the build action share a
+// path prefix. Both need a real directory at that level, and the
+// recursion for each has to carry the other along.
+func TestRefreshSymlinkFarmToolInputsUnderWorkingDirectory(t *testing.T) {
+	execRoot, execRootPath, inputRoot, inputRootPath := toolInputsTestDirectories(t)
+
+	// "shared" holds both the tool and the working directory.
+	require.NoError(t, os.MkdirAll(filepath.Join(inputRootPath, "shared", "jdk"), 0o777))
+	require.NoError(t, os.MkdirAll(filepath.Join(inputRootPath, "shared", "work"), 0o777))
+	require.NoError(t, os.WriteFile(filepath.Join(inputRootPath, "shared", "jdk", "java"), []byte("tool"), 0o777))
+	require.NoError(t, os.WriteFile(filepath.Join(inputRootPath, "shared", "work", "input.txt"), []byte("first"), 0o666))
+
+	inputRootBuilder, scopeWalker := path.EmptyBuilder.Join(path.NewAbsoluteScopeWalker(path.VoidComponentWalker))
+	require.NoError(t, path.Resolve(path.LocalFormat.NewParser(inputRootPath), scopeWalker))
+
+	workingDirectory := []path.Component{
+		path.MustNewComponent("shared"),
+		path.MustNewComponent("work"),
+	}
+	tree, err := parseToolInputPaths([]string{"shared/jdk"}, workingDirectory)
+	require.NoError(t, err)
+	require.NoError(t, materializeToolInputs(execRoot, inputRoot, tree))
+	require.NoError(t, refreshSymlinkFarm(execRoot, inputRoot, inputRootBuilder, workingDirectory, tree))
+
+	// The tool is real and reachable.
+	fileInfo, err := os.Lstat(filepath.Join(execRootPath, "shared", "jdk", "java"))
+	require.NoError(t, err)
+	require.True(t, fileInfo.Mode().IsRegular())
+
+	// The working directory is a real directory at both levels, so
+	// that a running process keeps resolving paths against it.
+	for _, dir := range []string{"shared", filepath.Join("shared", "work")} {
+		fileInfo, err := os.Lstat(filepath.Join(execRootPath, dir))
+		require.NoError(t, err)
+		require.True(t, fileInfo.IsDir(), dir)
+	}
+
+	// Its contents still come from the input root.
+	contents, err := os.ReadFile(filepath.Join(execRootPath, "shared", "work", "input.txt"))
+	require.NoError(t, err)
+	require.Equal(t, "first", string(contents))
+
+	// Harvesting has to distinguish two kinds of directory. "shared"
+	// merely leads to the tool, so it is descended into and anything
+	// the build action left there is moved out. "shared/jdk" was
+	// materialized as a unit, so it is skipped: walking it would
+	// mean traversing the whole tool on every action, and moving it
+	// would unlink the executable of the running process.
+	require.NoError(t, os.WriteFile(filepath.Join(execRootPath, "shared", "beside.txt"), []byte("produced"), 0o666))
+	require.NoError(t, os.WriteFile(filepath.Join(execRootPath, "shared", "jdk", "inside.txt"), []byte("ignored"), 0o666))
+	require.NoError(t, harvestSymlinkFarm(execRoot, inputRoot, workingDirectory, tree))
+
+	// The tool survives.
+	contents, err = os.ReadFile(filepath.Join(execRootPath, "shared", "jdk", "java"))
+	require.NoError(t, err)
+	require.Equal(t, "tool", string(contents))
+
+	// An output written next to the tool reaches the input root.
+	contents, err = os.ReadFile(filepath.Join(inputRootPath, "shared", "beside.txt"))
+	require.NoError(t, err)
+	require.Equal(t, "produced", string(contents))
+
+	// One written inside it does not, and stays where the tool put
+	// it. This is the documented trade-off of collapsing a
+	// directory that holds nothing but tool inputs.
+	_, err = os.Lstat(filepath.Join(inputRootPath, "shared", "jdk", "inside.txt"))
+	require.True(t, os.IsNotExist(err))
+	_, err = os.Lstat(filepath.Join(execRootPath, "shared", "jdk", "inside.txt"))
+	require.NoError(t, err)
+}

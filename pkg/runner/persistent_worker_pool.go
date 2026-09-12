@@ -602,11 +602,10 @@ func harvestSymlinkFarm(target, source filesystem.Directory, workingDirectory []
 			// A directory that leads to tool inputs. The tool
 			// needs to stay in place, but the build action
 			// may have created files next to it.
-			sourceChildPath := name
 			if err := enterBoth(target, source, name, func(targetChild, sourceChild filesystem.Directory) error {
 				return harvestSymlinkFarm(targetChild, sourceChild, nil, child)
 			}); err != nil {
-				return util.StatusWrapfWithCode(err, codes.Internal, "Failed to harvest directory %#v", sourceChildPath.String())
+				return err
 			}
 			continue
 		}
