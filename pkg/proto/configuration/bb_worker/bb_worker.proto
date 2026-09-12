@@ -436,6 +436,11 @@ message PersistentWorkersConfiguration {
   // works as expected for tools that support running in non-persistent
   // mode, which is the case for all of Bazel's built-in workers.
   //
+  // This field is required and must be greater than zero. There is
+  // deliberately no way to disable the limit, as the size of the list
+  // of input files is bounded by nothing but the size of the input
+  // root.
+  //
   // Recommended value: 10000
   int64 maximum_input_file_count = 1;
 }

@@ -122,6 +122,15 @@ func (r *persistentWorkerRunner) Run(ctx context.Context, request *runner_pb.Run
 	}
 	healthy = true
 
+	// Move any files that the build action created in the execution
+	// root of the worker process into the input root, so that
+	// bb_worker is capable of uploading them. This needs to happen
+	// even if the build action failed, as clients may still be
+	// interested in the outputs that were created.
+	if err := w.harvestExecRoot(inputRootDirectory, workingDirectory); err != nil {
+		return nil, err
+	}
+
 	// Tools running as a persistent worker are required to report
 	// all of the output of a single build action through the work
 	// response, as opposed to writing it to their own standard

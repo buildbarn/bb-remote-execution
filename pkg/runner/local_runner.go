@@ -145,6 +145,13 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 	if len(request.Arguments) < 1 {
 		return nil, status.Error(codes.InvalidArgument, "Insufficient number of command arguments")
 	}
+	if request.PersistentWorker != nil {
+		// Spawning a process of our own would cause the tool to
+		// interpret the "@flagfile" arguments literally, meaning
+		// it would silently compute the wrong results. Fail
+		// loudly instead.
+		return nil, status.Error(codes.InvalidArgument, "This runner is not configured to execute build actions through persistent worker processes")
+	}
 
 	inputRootDirectory, scopeWalker := r.buildDirectoryPath.Join(path.VoidScopeWalker)
 	if err := path.Resolve(path.UNIXFormat.NewParser(request.InputRootDirectory), scopeWalker); err != nil {

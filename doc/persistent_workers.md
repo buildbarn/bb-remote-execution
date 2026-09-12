@@ -105,6 +105,7 @@ bulk of the work happens in `bb_runner`:
 |     -> acquires a process from runner.PersistentWorkerPool,         |
 |     -> repopulates its execution root with a symlink farm,          |
 |     -> exchanges WorkRequest/WorkResponse,                          |
+|     -> moves the outputs back into the input root,                  |
 |     -> writes WorkResponse.output to the action's stderr file.      |
 +---------------------------------------------------------------------+
 ```
@@ -242,7 +243,16 @@ is written. `request_id` is always `0`, because only one request is in
 flight at a time; the protocol reserves that value for non-multiplexed
 ("singleplex") workers. The response is validated: a non-zero
 `request_id` or a `was_cancelled` response is a protocol violation and
-causes the process to be discarded.
+causes the process to be discarded. The size of a single `WorkResponse`
+is bounded at 64 MiB, for both encodings: the message is decoded into
+memory in its entirety, and one tool that emits an unbounded amount of
+output must not be able to take down the actions that run alongside it.
+
+**Output harvesting.** Files that the action created inside the
+execution root are moved into the input root, so that `bb_worker` can
+upload them (see below). This happens even when the tool reported a
+non-zero exit code, because clients are still interested in whatever
+outputs were produced.
 
 **Output.** `WorkResponse.output` is written to the file that
 `bb_worker` uses to capture standard error, and the standard output file
@@ -251,7 +261,11 @@ persistent worker, and it means the output shows up in the REv2
 `ActionResult` exactly as it would for a regular action. Anything the
 tool writes to its own standard error is *not* part of any single action
 and is instead appended to a per-process `stderr` log file that
-operators can inspect.
+operators can inspect. The process's standard *output* is the protocol
+channel itself; a tool that writes anything else to it corrupts the
+message stream, and the action fails. This is a requirement the
+persistent worker protocol places on the tool, not something the runner
+can paper over.
 
 **Failure handling.** Any error after the process has been acquired
 marks it unhealthy, which causes it to be killed and its directory to be
@@ -311,6 +325,26 @@ directories and across the FUSE/NFSv4 based virtual file systems that
 `bb_worker` can use for the build directory. The persistent worker
 directory must be on the same file system as the build directory.
 
+**Symlink in, move out.** The farm only solves half of the problem.
+Outputs that the tool writes to a path that traverses a symbolic link
+land in the input root automatically, because the link resolves there.
+Outputs written to a path that does *not* — a file created directly in
+the execution root, or anywhere inside one of the real directories that
+make up the working directory — land in the worker's own directory,
+where `bb_worker` would never look for them. After every action the
+execution root is therefore walked one level deep, and every entry that
+is not one of our symbolic links is renamed into the corresponding
+location in the input root; the real working directory components are
+descended into rather than moved, so that the running process keeps its
+working directory. `rename()` is used rather than a copy, which is why
+the two directories have to share a file system.
+
+This mirrors what Bazel's symlinked sandbox does: symlink the inputs in,
+move the outputs out. It also has a useful side effect: because the
+entries are *moved*, the execution root is left holding only symbolic
+links, so a stale output from a previous action can never be mistaken
+for an output of the next one.
+
 ### Worker pool management
 
 `runner.PersistentWorkerPool` (see
@@ -360,6 +394,15 @@ is terminated.
 **Action timeouts.** Enforced by `bb_worker` as usual. The runner stops
 waiting for the response when the context is cancelled and the process
 is discarded.
+
+**Runners without persistent worker support.** `runner.LocalRunner`
+rejects any request carrying `persistent_worker` with
+`InvalidArgument`. Silently running the tool as a regular process would
+hand it literal `@flagfile` arguments, which a tool built as a
+persistent worker does not expand, so it would compute the wrong result
+without anyone noticing. Failing loudly is the only safe behaviour, and
+it also catches the misconfiguration where `bb_worker` has persistent
+workers enabled but the runner it talks to does not.
 
 **In-flight deduplication, caching, size classes.** Unaffected: from the
 scheduler's and `bb_worker`'s point of view, this is an ordinary action
@@ -457,7 +500,8 @@ Bazel, so plain `go test` is not sufficient.
 | --- | --- | --- |
 | Argument splitting | `TestSplitPersistentWorkerArguments` (`pkg/runner`) | Both flag file spellings, `@@`-escaped arguments, empty arguments not being flag files, and the two "must be non-empty" errors. |
 | Flag file expansion | `TestExpandFlagFileArguments` (`pkg/runner`) | Simple and nested expansion, `\r\n` line endings, empty files, blank lines and a missing trailing newline, `--flagfile=`/`@@`/`@repo//pkg` *not* being expanded, non-existent files, paths escaping the input root, cyclic includes, and resolution relative to a nested working directory including `..` back into the input root. Uses a real temporary directory rather than a mock, so that path resolution is exercised for real. |
-| Wire protocol | `TestPersistentWorkerProtocolProto`, `TestPersistentWorkerProtocolJSON`, `TestPersistentWorkerProtocolUnsupported` (`pkg/runner`) | That the Protobuf encoding is byte-for-byte `writeDelimitedTo()`, that responses larger than protodelim's 4 MiB default limit can be read, that truncated input is an error, that JSON messages are newline separated with no insignificant whitespace, that `bytes` fields are base64 encoded, that unknown fields and inter-message whitespace are tolerated, and that what we write round-trips through `protojson`. |
+| Wire protocol | `TestPersistentWorkerProtocolProto`, `TestPersistentWorkerProtocolJSON`, `TestPersistentWorkerProtocolUnsupported` (`pkg/runner`) | That the Protobuf encoding is byte-for-byte `writeDelimitedTo()`, that responses larger than protodelim's 4 MiB default limit can be read, that truncated input is an error, that JSON messages are newline separated with no insignificant whitespace, that `bytes` fields are base64 encoded, that unknown fields and inter-message whitespace are tolerated, and that what we write round-trips through `protojson`. Both encodings have an `OversizedWorkResponse` subtest that feeds in a message beyond the 64 MiB bound and asserts it is rejected rather than allocated. |
+| Message size bound | `TestResettableLimitReader` (`pkg/runner`) | That a message of exactly the limit is accepted, that one byte more is an error, and — the subtle one — that the budget is per message rather than for the lifetime of the reader, so a long-lived worker is not cut off after its first large response. |
 
 ### 2. Mock-driven unit tests
 
@@ -488,11 +532,13 @@ without depending on an external tool being installed.
 | `TestPersistentWorkerRunnerPassthrough` | Requests without `persistent_worker` reach the underlying runner unmodified. |
 | `TestPersistentWorkerRunnerReuse` | The heart of the feature: two actions with the same key, run from **two different input roots**, are served by the **same process ID**, and the second one sees the second input root's `marker.txt` through the symlink farm. A third action with a different key gets a different process ID. |
 | `TestPersistentWorkerRunnerWorkingDirectory` | Reuse for an action with a nested `working_directory`. The process must keep the same working directory across actions — the directories along that path are preserved rather than recreated — while both the marker file in the working directory and the one in the input root above it reflect the new action. This is the case that a naive "empty the execution root" implementation gets wrong. |
+| `TestPersistentWorkerRunnerOutputFiles` | The harvest step. The tool writes an output into the execution root, both at its top level and inside a nested working directory, using paths that do not traverse a symbolic link. Both must end up in the action's input root, and the execution root must be left holding nothing but symbolic links, so the next action cannot observe a stale output. |
 | `TestPersistentWorkerRunnerJSONProtocol` | The same flow over newline delimited JSON. |
 | `TestPersistentWorkerRunnerNonZeroExitCode` | A tool that fails yields `RunResponse.exit_code` rather than a gRPC error, and its output lands in the action's stderr file. |
 | `TestPersistentWorkerRunnerCrash` | A process that dies mid-request produces an error, is not returned to the pool, and a subsequent action gets a freshly started process. |
 | `TestPersistentWorkerRunnerTimeout` | A hanging tool causes the action's context deadline to be reported, and the process is discarded rather than reused. |
 | `TestPersistentWorkerRunnerInvalidRequests` | An empty key, an argument list without a flag file, and a non-existent input root are all rejected with `InvalidArgument`. |
+| `TestLocalRunnerRun/PersistentWorkerNotSupported` | A runner without persistent worker support rejects an action that requests one with `InvalidArgument`, rather than running the tool with unexpanded `@flagfile` arguments. |
 | `TestPersistentWorkerPoolEviction` | With `maximum_worker_count` set to 1, alternating between two keys terminates and recreates processes instead of growing the pool. |
 | `TestPersistentWorkerPoolIdleTimeout` | Driven by a mock `clock.Clock` and a mock timer: advancing time past the idle timeout and firing the reaper terminates the idle process, and the next action starts a new one. |
 
@@ -543,10 +589,26 @@ worth doing once against a deployment:
   regular files appear in `WorkRequest.inputs`. Tools that key their
   incremental state on a symlink's target would not notice a change to
   it. Bazel's own workers do not do this.
-- **`bazel_tool_input` node properties are not used.** The full input
-  root is reported rather than only the non-tool inputs. This is a
-  superset of what Bazel sends, which is safe — a tool that sees a file
-  it did not expect will at worst invalidate more state than necessary.
+- **`bazel_tool_input` node properties are not used.** REv2 lets a
+  client mark which inputs are tool inputs, which is how Bazel conveys
+  the information it uses locally to compute the worker key. We do not
+  read those properties, because the key arrives ready-made in the
+  `persistentWorkerKey` platform property. Note that this does not
+  change `WorkRequest.inputs`: Bazel sends the *full* input map there
+  too, tool inputs included, so what the tool receives is the same
+  either way.
+- **The worker's `tmp/` directory is never cleaned between actions.**
+  It is created when the process starts and removed when it is
+  terminated. Emptying it per action would be wrong for the tools this
+  feature exists for — a worker is explicitly allowed to keep state
+  across requests, and some keep it on disk — but it does mean a
+  long-lived process that leaks temporary files grows without bound.
+  `idle_timeout` and `maximum_worker_count` are the backstop; operators
+  running such a tool should tighten them.
+- **A single `WorkResponse` may not exceed 64 MiB.** A tool that emits
+  more output than that for one action fails that action and is
+  discarded. The limit exists because the message is decoded into
+  memory in full.
 - **The process table cleaner only protects the worker processes
   themselves.** Children that a persistent worker spawns are still
   eligible for cleanup. In practice the cleaner only runs while the

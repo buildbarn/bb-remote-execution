@@ -509,6 +509,82 @@ func refreshSymlinkFarm(target, source filesystem.Directory, sourcePath *path.Bu
 	return refreshSymlinkFarm(targetChild, sourceChild, sourceChildPath, workingDirectory[1:])
 }
 
+// harvestExecRoot moves files that the build action created in the
+// execution root of the worker process into the input root of the build
+// action, which is the directory from which bb_worker collects output
+// files.
+//
+// Every entry that we place in the execution root is either a symbolic
+// link that points into the input root, or one of the real directories
+// that make up the working directory of the build action. Data written
+// through the former already ends up in the input root. Anything else
+// was created by the build action itself, and would be discarded when
+// the execution root is emptied before the next build action runs.
+func (w *persistentWorkerProcess) harvestExecRoot(inputRootDirectory filesystem.Directory, workingDirectory []path.Component) error {
+	return harvestSymlinkFarm(w.execRoot, inputRootDirectory, workingDirectory)
+}
+
+func harvestSymlinkFarm(target, source filesystem.Directory, workingDirectory []path.Component) error {
+	entries, err := target.ReadDir()
+	if err != nil {
+		return util.StatusWrapWithCode(err, codes.Internal, "Failed to read the execution root of the persistent worker")
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.Type() == filesystem.FileTypeSymlink {
+			// One of the symbolic links that we created.
+			continue
+		}
+		if len(workingDirectory) > 0 && name == workingDirectory[0] && entry.Type() == filesystem.FileTypeDirectory {
+			if err := harvestWorkingDirectory(target, source, workingDirectory); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := moveIntoInputRoot(target, source, name); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func harvestWorkingDirectory(target, source filesystem.Directory, workingDirectory []path.Component) error {
+	name := workingDirectory[0]
+	targetChild, err := target.EnterDirectory(name)
+	if err != nil {
+		return util.StatusWrapfWithCode(err, codes.Internal, "Failed to enter directory %#v in the execution root of the persistent worker", name.String())
+	}
+	defer targetChild.Close()
+	sourceChild, err := source.EnterDirectory(name)
+	if err != nil {
+		return util.StatusWrapfWithCode(err, codes.Internal, "Failed to enter directory %#v of the input root", name.String())
+	}
+	defer sourceChild.Close()
+	return harvestSymlinkFarm(targetChild, sourceChild, workingDirectory[1:])
+}
+
+// moveIntoInputRoot moves a single file or directory from the execution
+// root of a persistent worker process into the input root of the build
+// action.
+func moveIntoInputRoot(target, source filesystem.Directory, name path.Component) error {
+	if err := target.Rename(name, source, name); err == nil {
+		return nil
+	}
+
+	// Renaming may fail if the input root already contains a
+	// non-empty directory under the same name, which happens if the
+	// build action replaced one of the symbolic links with a
+	// directory of its own. The version created by the build action
+	// takes precedence.
+	if err := source.RemoveAll(name); err != nil {
+		return util.StatusWrapfWithCode(err, codes.Internal, "Failed to remove %#v from the input root", name.String())
+	}
+	if err := target.Rename(name, source, name); err != nil {
+		return util.StatusWrapfWithCode(err, codes.Internal, "Failed to move %#v from the execution root of the persistent worker into the input root. Is the directory of persistent worker processes located on the same file system as the build directory?", name.String())
+	}
+	return nil
+}
+
 // ensureStarted launches the worker process, if this hasn't happened
 // yet. This must only be called after the execution root has been
 // populated, as the working directory of the process needs to exist and

@@ -66,8 +66,9 @@ type PersistentWorkerExtractor struct {
 // Build actions whose input root contains more than
 // maximumInputFileCount files are executed as regular processes, as
 // providing the full list of input files to the runner would require an
-// excessive amount of memory and network bandwidth. A value of zero
-// disables this limit.
+// excessive amount of memory and network bandwidth. A value of zero or
+// less disables this limit, which callers should only do if the size of
+// input roots is bounded by other means.
 func NewPersistentWorkerExtractor(directoryFetcher cas.DirectoryFetcher, maximumInputFileCount int) *PersistentWorkerExtractor {
 	persistentWorkerExtractorPrometheusMetrics.Do(func() {
 		prometheus.MustRegister(persistentWorkerExtractorActionsTotal)

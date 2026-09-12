@@ -15,6 +15,44 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
+// maximumWorkResponseSizeBytes is the maximum size of a single
+// WorkResponse message that a persistent worker process may return.
+// Messages are decoded into memory in their entirety, so a limit needs
+// to be imposed to prevent a single misbehaving tool from exhausting
+// the memory of bb_runner, which would also affect build actions that
+// run concurrently.
+//
+// Tools are expected to report the output of a build action through
+// this message, so the limit needs to be generous.
+const maximumWorkResponseSizeBytes = 64 * 1024 * 1024
+
+// resettableLimitReader is a decorator for io.Reader that fails
+// attempts to read more than a given number of bytes since the last
+// call to reset(). It is used to bound the size of individual messages
+// emitted by a persistent worker process, for encodings that don't
+// perform length prefixing.
+type resettableLimitReader struct {
+	reader    io.Reader
+	limit     int64
+	remaining int64
+}
+
+func (r *resettableLimitReader) reset() {
+	r.remaining = r.limit
+}
+
+func (r *resettableLimitReader) Read(p []byte) (int, error) {
+	if r.remaining <= 0 {
+		return 0, status.Errorf(codes.Internal, "Message exceeds maximum size of %d bytes", r.limit)
+	}
+	if int64(len(p)) > r.remaining {
+		p = p[:r.remaining]
+	}
+	n, err := r.reader.Read(p)
+	r.remaining -= int64(n)
+	return n, err
+}
+
 // persistentWorkerProtocol is used to exchange WorkRequest and
 // WorkResponse messages with a single persistent worker process over
 // its standard input and output. Instances are stateful, as the JSON
@@ -35,9 +73,14 @@ func newPersistentWorkerProtocol(protocol runner_pb.PersistentWorker_Protocol, w
 			reader: bufio.NewReader(r),
 		}, nil
 	case runner_pb.PersistentWorker_JSON:
+		limitReader := &resettableLimitReader{
+			reader: bufio.NewReader(r),
+			limit:  maximumWorkResponseSizeBytes,
+		}
 		return &jsonPersistentWorkerProtocol{
-			writer:  bufio.NewWriter(w),
-			decoder: json.NewDecoder(bufio.NewReader(r)),
+			writer:      bufio.NewWriter(w),
+			limitReader: limitReader,
+			decoder:     json.NewDecoder(limitReader),
 		}, nil
 	default:
 		return nil, status.Errorf(codes.InvalidArgument, "Unsupported persistent worker protocol %#v", protocol.String())
@@ -61,10 +104,10 @@ func (p *protoPersistentWorkerProtocol) WriteWorkRequest(request *bazelworker.Wo
 
 func (p *protoPersistentWorkerProtocol) ReadWorkResponse() (*bazelworker.WorkResponse, error) {
 	var response bazelworker.WorkResponse
-	// Disable the size limit that protodelim applies by default, as
-	// tools may emit large amounts of output as part of a single
+	// Raise the 4 MiB size limit that protodelim applies by default,
+	// as tools may emit large amounts of output as part of a single
 	// WorkResponse message.
-	if err := (protodelim.UnmarshalOptions{MaxSize: -1}).UnmarshalFrom(p.reader, &response); err != nil {
+	if err := (protodelim.UnmarshalOptions{MaxSize: maximumWorkResponseSizeBytes}).UnmarshalFrom(p.reader, &response); err != nil {
 		return nil, err
 	}
 	return &response, nil
@@ -75,8 +118,9 @@ func (p *protoPersistentWorkerProtocol) ReadWorkResponse() (*bazelworker.WorkRes
 // requirement. Messages are encoded using the canonical Protobuf JSON
 // mapping and separated by newlines.
 type jsonPersistentWorkerProtocol struct {
-	writer  *bufio.Writer
-	decoder *json.Decoder
+	writer      *bufio.Writer
+	limitReader *resettableLimitReader
+	decoder     *json.Decoder
 }
 
 func (p *jsonPersistentWorkerProtocol) WriteWorkRequest(request *bazelworker.WorkRequest) error {
@@ -102,6 +146,12 @@ func (p *jsonPersistentWorkerProtocol) WriteWorkRequest(request *bazelworker.Wor
 }
 
 func (p *jsonPersistentWorkerProtocol) ReadWorkResponse() (*bazelworker.WorkResponse, error) {
+	// Bound the amount of data that may be read while decoding a
+	// single message. Note that the decoder buffers data internally,
+	// meaning the effective limit is the one below plus the size of
+	// its buffer.
+	p.limitReader.reset()
+
 	var message json.RawMessage
 	if err := p.decoder.Decode(&message); err != nil {
 		return nil, err

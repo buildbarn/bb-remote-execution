@@ -46,6 +46,11 @@ const fakePersistentWorkerEnvironmentVariable = "BB_RUNNER_TEST_FAKE_PERSISTENT_
 // that both levels of the symlink farm are validated.
 const fakePersistentWorkerRootMarkerEnvironmentVariable = "BB_RUNNER_TEST_ROOT_MARKER"
 
+// fakePersistentWorkerOutputEnvironmentVariable causes the fake
+// persistent worker to write output files, both directly in its working
+// directory and in a directory that it creates itself.
+const fakePersistentWorkerOutputEnvironmentVariable = "BB_RUNNER_TEST_OUTPUT_NAME"
+
 // fakePersistentWorkerReport is emitted by the fake persistent worker
 // as part of the 'output' field of every WorkResponse, so that tests
 // can make assertions on the state of the worker process.
@@ -56,6 +61,7 @@ type fakePersistentWorkerReport struct {
 	Inputs           []string `json:"inputs"`
 	Marker           string   `json:"marker"`
 	RootMarker       string   `json:"rootMarker"`
+	StaleOutput      bool     `json:"staleOutput"`
 	WorkingDirectory string   `json:"workingDirectory"`
 }
 
@@ -118,6 +124,31 @@ func runFakePersistentWorker(mode string) {
 			rootMarker = readFakePersistentWorkerMarker(rootMarkerPath)
 		}
 		workingDirectory, _ := os.Getwd()
+
+		// Emulate a tool that writes output files. Bazel places
+		// these underneath "bazel-out", but a build action is
+		// free to write them anywhere underneath its working
+		// directory.
+		staleOutput := false
+		if outputName, ok := os.LookupEnv(fakePersistentWorkerOutputEnvironmentVariable); ok {
+			// Output files of the previous build action must
+			// not be visible.
+			if _, err := os.Lstat(outputName); err == nil {
+				staleOutput = true
+			}
+			if err := os.WriteFile(outputName, []byte(marker), 0o666); err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to write output file: %s\n", err)
+				os.Exit(1)
+			}
+			if err := os.MkdirAll("generated", 0o777); err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to create output directory: %s\n", err)
+				os.Exit(1)
+			}
+			if err := os.WriteFile(filepath.Join("generated", outputName), []byte(marker), 0o666); err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to write nested output file: %s\n", err)
+				os.Exit(1)
+			}
+		}
 		inputs := make([]string, 0, len(request.Inputs))
 		for _, input := range request.Inputs {
 			inputs = append(inputs, input.Path+"="+string(input.Digest))
@@ -129,6 +160,7 @@ func runFakePersistentWorker(mode string) {
 			Inputs:           inputs,
 			Marker:           marker,
 			RootMarker:       rootMarker,
+			StaleOutput:      staleOutput,
 			WorkingDirectory: workingDirectory,
 		})
 		if err != nil {
@@ -416,6 +448,79 @@ func TestPersistentWorkerRunnerWorkingDirectory(t *testing.T) {
 	require.Equal(t, "second-nested", report2.Marker)
 	require.Equal(t, "second", report2.RootMarker)
 	require.Equal(t, []string{"--source", "Goodbye.java"}, report2.Arguments)
+}
+
+func TestPersistentWorkerRunnerOutputFiles(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Persistent workers are not supported on Windows")
+	}
+
+	// Files that a build action writes to its working directory need
+	// to end up in the input root, as that is the directory from
+	// which bb_worker collects output files. Because the working
+	// directory of a persistent worker process is a symlink farm
+	// rather than the input root itself, they need to be moved
+	// there explicitly.
+	for _, workingDirectory := range []string{"", "sub/dir"} {
+		name := workingDirectory
+		if name == "" {
+			name = "InputRoot"
+		}
+		t.Run(name, func(t *testing.T) {
+			ctrl, ctx := gomock.WithContext(context.Background(), t)
+			e := newPersistentWorkerTestEnvironment(t, ctrl, clock.SystemClock, 4, time.Hour)
+			e.startReaper(t)
+
+			run := func(markerContents string) (*runner_pb.RunRequest, fakePersistentWorkerReport) {
+				request := e.createActionWithWorkingDirectory(t, markerContents, workingDirectory, "--source", "Hello.java")
+				request.EnvironmentVariables[fakePersistentWorkerOutputEnvironmentVariable] = "output.txt"
+				_, err := e.runner.Run(ctx, request)
+				require.NoError(t, err)
+				return request, e.readReport(t, request)
+			}
+			outputDirectory := func(request *runner_pb.RunRequest) string {
+				return filepath.Join(
+					e.buildPath,
+					filepath.FromSlash(request.InputRootDirectory),
+					filepath.FromSlash(workingDirectory),
+				)
+			}
+
+			request1, report1 := run("first")
+			require.False(t, report1.StaleOutput)
+			require.FileExists(t, filepath.Join(outputDirectory(request1), "output.txt"))
+			contents, err := os.ReadFile(filepath.Join(outputDirectory(request1), "output.txt"))
+			require.NoError(t, err)
+			require.Equal(t, report1.Marker, string(contents))
+
+			// Directories that the build action creates itself
+			// need to be moved as well.
+			contents, err = os.ReadFile(filepath.Join(outputDirectory(request1), "generated", "output.txt"))
+			require.NoError(t, err)
+			require.Equal(t, report1.Marker, string(contents))
+
+			// A second build action must be executed by the same
+			// worker process, and must not observe the output
+			// files of the first one.
+			request2, report2 := run("second")
+			require.Equal(t, report1.ProcessID, report2.ProcessID)
+			require.Equal(t, 2, report2.RequestCount)
+			require.False(t, report2.StaleOutput)
+
+			contents, err = os.ReadFile(filepath.Join(outputDirectory(request2), "output.txt"))
+			require.NoError(t, err)
+			require.Equal(t, report2.Marker, string(contents))
+			contents, err = os.ReadFile(filepath.Join(outputDirectory(request2), "generated", "output.txt"))
+			require.NoError(t, err)
+			require.Equal(t, report2.Marker, string(contents))
+
+			// Outputs of the first build action must be left
+			// alone, as bb_worker may still be uploading them.
+			contents, err = os.ReadFile(filepath.Join(outputDirectory(request1), "output.txt"))
+			require.NoError(t, err)
+			require.Equal(t, report1.Marker, string(contents))
+		})
+	}
 }
 
 func TestPersistentWorkerRunnerJSONProtocol(t *testing.T) {

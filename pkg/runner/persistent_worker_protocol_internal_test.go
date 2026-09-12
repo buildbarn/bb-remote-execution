@@ -1,8 +1,11 @@
 package runner
 
 import (
+	"bufio"
 	"bytes"
+	"encoding/json"
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/bazelworker"
@@ -10,8 +13,11 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/stretchr/testify/require"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protodelim"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -92,6 +98,21 @@ func TestPersistentWorkerProtocolProto(t *testing.T) {
 		response, err := p.ReadWorkResponse()
 		require.NoError(t, err)
 		require.Len(t, response.Output, 8*1024*1024)
+	})
+
+	t.Run("OversizedWorkResponse", func(t *testing.T) {
+		// A message whose length prefix exceeds the maximum must
+		// be rejected before its contents are read, so that a
+		// misbehaving tool cannot exhaust the memory of
+		// bb_runner.
+		var input bytes.Buffer
+		input.Write(protowire.AppendVarint(nil, maximumWorkResponseSizeBytes+1))
+
+		p, err := newPersistentWorkerProtocol(runner_pb.PersistentWorker_PROTO, io.Discard, &input)
+		require.NoError(t, err)
+		_, err = p.ReadWorkResponse()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "size")
 	})
 
 	t.Run("TruncatedWorkResponse", func(t *testing.T) {
@@ -176,6 +197,28 @@ func TestPersistentWorkerProtocolJSON(t *testing.T) {
 		require.Equal(t, io.EOF, err)
 	})
 
+	t.Run("OversizedWorkResponse", func(t *testing.T) {
+		// JSON messages are not length prefixed, so the limit is
+		// enforced while reading. Use a protocol instance with a
+		// small limit, so that the test doesn't need to generate
+		// tens of megabytes of data.
+		limitReader := &resettableLimitReader{
+			reader: bytes.NewReader([]byte("{\"output\":\"" + strings.Repeat("x", 1000) + "\"}\n")),
+			limit:  16,
+		}
+		p := &jsonPersistentWorkerProtocol{
+			writer:      bufio.NewWriter(io.Discard),
+			limitReader: limitReader,
+			decoder:     json.NewDecoder(limitReader),
+		}
+		_, err := p.ReadWorkResponse()
+		testutil.RequireEqualStatus(
+			t,
+			status.Error(codes.Internal, "Message exceeds maximum size of 16 bytes"),
+			err,
+		)
+	})
+
 	t.Run("MalformedWorkResponse", func(t *testing.T) {
 		p, err := newPersistentWorkerProtocol(
 			runner_pb.PersistentWorker_JSON,
@@ -205,6 +248,46 @@ func TestPersistentWorkerProtocolJSON(t *testing.T) {
 		var roundTripped bazelworker.WorkRequest
 		require.NoError(t, protojson.Unmarshal(bytes.TrimSuffix(output.Bytes(), []byte("\n")), &roundTripped))
 		testutil.RequireEqualProto(t, request, &roundTripped)
+	})
+}
+
+// TestResettableLimitReader validates the mechanism that bounds the
+// size of individual JSON messages emitted by a persistent worker
+// process.
+func TestResettableLimitReader(t *testing.T) {
+	t.Run("WithinLimit", func(t *testing.T) {
+		r := &resettableLimitReader{reader: bytes.NewReader([]byte("Hello, world")), limit: 5}
+		r.reset()
+		buffer := make([]byte, 5)
+		_, err := io.ReadFull(r, buffer)
+		require.NoError(t, err)
+		require.Equal(t, "Hello", string(buffer))
+	})
+
+	t.Run("ExceedsLimit", func(t *testing.T) {
+		r := &resettableLimitReader{reader: bytes.NewReader([]byte("Hello, world")), limit: 5}
+		r.reset()
+		_, err := io.ReadAll(r)
+		testutil.RequireEqualStatus(
+			t,
+			status.Error(codes.Internal, "Message exceeds maximum size of 5 bytes"),
+			err,
+		)
+	})
+
+	t.Run("LimitAppliesPerMessage", func(t *testing.T) {
+		// Resetting must make the full budget available again,
+		// so that a long lived worker process is not cut off
+		// after the cumulative size of its messages exceeds the
+		// limit.
+		r := &resettableLimitReader{reader: bytes.NewReader([]byte("HelloWorld")), limit: 5}
+		buffer := make([]byte, 5)
+		for _, expected := range []string{"Hello", "World"} {
+			r.reset()
+			n, err := io.ReadFull(r, buffer)
+			require.NoError(t, err)
+			require.Equal(t, expected, string(buffer[:n]))
+		}
 	})
 }
 
