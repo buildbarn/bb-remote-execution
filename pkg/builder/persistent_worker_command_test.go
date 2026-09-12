@@ -48,28 +48,16 @@ func persistentWorkerTestCommand() (*remoteexecution.Action, *remoteexecution.Co
 		}
 }
 
-func TestPersistentWorkerCommandEligibility(t *testing.T) {
+func TestPersistentWorkerCommandValidation(t *testing.T) {
 	for _, test := range []struct {
 		name     string
 		modify   func(*remoteexecution.Action, *remoteexecution.Command, map[string]*remoteexecution.FileNode)
 		eligible bool
 		invalid  bool
 	}{
-		{name: "Proto", eligible: true},
-		{name: "DefaultProtocol", eligible: true, modify: func(action *remoteexecution.Action, command *remoteexecution.Command, inputs map[string]*remoteexecution.FileNode) {
-			action.Platform.Properties[1].Value = ""
-		}},
-		{name: "LegacyCommandPlatform", eligible: true, modify: func(action *remoteexecution.Action, command *remoteexecution.Command, inputs map[string]*remoteexecution.FileNode) {
-			command.Platform, action.Platform = action.Platform, nil
-		}},
-		{name: "Ordinary", modify: func(action *remoteexecution.Action, command *remoteexecution.Command, inputs map[string]*remoteexecution.FileNode) {
-			action.Platform.Properties = nil
-		}},
-		{name: "JSON", modify: func(action *remoteexecution.Action, command *remoteexecution.Command, inputs map[string]*remoteexecution.FileNode) {
-			action.Platform.Properties[1].Value = "json"
-		}},
-		{name: "UnknownProtocol", modify: func(action *remoteexecution.Action, command *remoteexecution.Command, inputs map[string]*remoteexecution.FileNode) {
-			action.Platform.Properties[1].Value = "unknown"
+		{name: "ValidPlatform", eligible: true},
+		{name: "NilPlatform", modify: func(action *remoteexecution.Action, command *remoteexecution.Command, inputs map[string]*remoteexecution.FileNode) {
+			action.Platform = nil
 		}},
 		{name: "NoMarkedTools", modify: func(action *remoteexecution.Action, command *remoteexecution.Command, inputs map[string]*remoteexecution.FileNode) {
 			inputs["compiler"].NodeProperties = nil
@@ -79,9 +67,6 @@ func TestPersistentWorkerCommandEligibility(t *testing.T) {
 		}},
 		{name: "MissingFlagFile", invalid: true, modify: func(action *remoteexecution.Action, command *remoteexecution.Command, inputs map[string]*remoteexecution.FileNode) {
 			command.Arguments = []string{"compiler", "source"}
-		}},
-		{name: "DuplicateProperty", invalid: true, modify: func(action *remoteexecution.Action, command *remoteexecution.Command, inputs map[string]*remoteexecution.FileNode) {
-			action.Platform.Properties = append(action.Platform.Properties, action.Platform.Properties[0])
 		}},
 		{name: "DuplicateEnvironment", invalid: true, modify: func(action *remoteexecution.Action, command *remoteexecution.Command, inputs map[string]*remoteexecution.FileNode) {
 			command.EnvironmentVariables = append(command.EnvironmentVariables, command.EnvironmentVariables[0])
@@ -101,7 +86,7 @@ func TestPersistentWorkerCommandEligibility(t *testing.T) {
 			if test.modify != nil {
 				test.modify(action, command, inputs)
 			}
-			prepared, err := builder.NewPersistentWorkerCommand(action, command, digest.MustNewFunction("instance", remoteexecution.DigestFunction_SHA256), inputs, nil)
+			prepared, err := builder.NewPersistentWorkerCommand(action.Platform, command, digest.MustNewFunction("instance", remoteexecution.DigestFunction_SHA256), inputs, nil)
 			if test.invalid {
 				require.Error(t, err)
 			} else {
@@ -162,12 +147,12 @@ func TestPersistentWorkerCommandCompatibility(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			action, command, inputs := persistentWorkerTestCommand()
 			digestFunction := digest.MustNewFunction("instance", remoteexecution.DigestFunction_SHA256)
-			first, err := builder.NewPersistentWorkerCommand(action, command, digestFunction, inputs, nil)
+			first, err := builder.NewPersistentWorkerCommand(action.Platform, command, digestFunction, inputs, nil)
 			require.NoError(t, err)
 			if test.modify != nil {
 				test.modify(action, command, inputs)
 			}
-			second, err := builder.NewPersistentWorkerCommand(action, command, digestFunction, inputs, nil)
+			second, err := builder.NewPersistentWorkerCommand(action.Platform, command, digestFunction, inputs, nil)
 			require.NoError(t, err)
 			require.Equal(t, test.same, first.CompatibilityKey == second.CompatibilityKey)
 		})
@@ -177,7 +162,7 @@ func TestPersistentWorkerCommandCompatibility(t *testing.T) {
 func TestPersistentWorkerCommandKeyEncoding(t *testing.T) {
 	action, command, inputs := persistentWorkerTestCommand()
 	digestFunction := digest.MustNewFunction("instance", remoteexecution.DigestFunction_SHA256)
-	first, err := builder.NewPersistentWorkerCommand(action, command, digestFunction, inputs, map[string]string{"PATH": "/override"})
+	first, err := builder.NewPersistentWorkerCommand(action.Platform, command, digestFunction, inputs, map[string]string{"PATH": "/override"})
 	require.NoError(t, err)
 	require.Equal(t, "/override", first.EnvironmentVariables["PATH"])
 	require.Equal(t, "/bin", command.EnvironmentVariables[0].Value)
@@ -185,18 +170,18 @@ func TestPersistentWorkerCommandKeyEncoding(t *testing.T) {
 		digest.MustNewFunction("other-instance", remoteexecution.DigestFunction_SHA256),
 		digest.MustNewFunction("instance", remoteexecution.DigestFunction_SHA256TREE),
 	} {
-		other, err := builder.NewPersistentWorkerCommand(action, command, otherFunction, inputs, map[string]string{"PATH": "/override"})
+		other, err := builder.NewPersistentWorkerCommand(action.Platform, command, otherFunction, inputs, map[string]string{"PATH": "/override"})
 		require.NoError(t, err)
 		require.NotEqual(t, first.CompatibilityKey, other.CompatibilityKey)
 	}
-	other, err := builder.NewPersistentWorkerCommand(action, command, digestFunction, inputs, nil)
+	other, err := builder.NewPersistentWorkerCommand(action.Platform, command, digestFunction, inputs, nil)
 	require.NoError(t, err)
 	require.NotEqual(t, first.CompatibilityKey, other.CompatibilityKey)
 	command.Arguments = []string{"compiler", "a b", "c", "@args"}
-	first, err = builder.NewPersistentWorkerCommand(action, command, digestFunction, inputs, nil)
+	first, err = builder.NewPersistentWorkerCommand(action.Platform, command, digestFunction, inputs, nil)
 	require.NoError(t, err)
 	command.Arguments = []string{"compiler", "a", "b c", "@args"}
-	other, err = builder.NewPersistentWorkerCommand(action, command, digestFunction, inputs, nil)
+	other, err = builder.NewPersistentWorkerCommand(action.Platform, command, digestFunction, inputs, nil)
 	require.NoError(t, err)
 	require.NotEqual(t, first.CompatibilityKey, other.CompatibilityKey)
 }
@@ -213,7 +198,7 @@ func TestPersistentWorkerCommandRequest(t *testing.T) {
 	for name, contents := range files {
 		inputs[name] = persistentWorkerTestFile(contents, false)
 	}
-	prepared, err := builder.NewPersistentWorkerCommand(action, command, digest.MustNewFunction("instance", remoteexecution.DigestFunction_SHA256), inputs, nil)
+	prepared, err := builder.NewPersistentWorkerCommand(action.Platform, command, digest.MustNewFunction("instance", remoteexecution.DigestFunction_SHA256), inputs, nil)
 	require.NoError(t, err)
 	require.Equal(t, []string{"compiler", "--persistent_worker", "@@startup", "@repo//label"}, prepared.Arguments)
 	request, err := prepared.NewExecuteInPersistentWorkerRequest(context.Background(), "session", func(ctx context.Context, name string) ([]byte, error) {
@@ -242,7 +227,7 @@ func TestPersistentWorkerCommandFlagFileErrors(t *testing.T) {
 	for _, contents := range []string{"@missing", "@./args", "@../outside", "@/outside", string([]byte{0xff})} {
 		t.Run(contents, func(t *testing.T) {
 			action, command, inputs := persistentWorkerTestCommand()
-			prepared, err := builder.NewPersistentWorkerCommand(action, command, digest.MustNewFunction("instance", remoteexecution.DigestFunction_SHA256), inputs, nil)
+			prepared, err := builder.NewPersistentWorkerCommand(action.Platform, command, digest.MustNewFunction("instance", remoteexecution.DigestFunction_SHA256), inputs, nil)
 			require.NoError(t, err)
 			response, err := prepared.NewExecuteInPersistentWorkerRequest(context.Background(), "session", func(ctx context.Context, name string) ([]byte, error) {
 				return []byte(contents), nil
@@ -252,7 +237,7 @@ func TestPersistentWorkerCommandFlagFileErrors(t *testing.T) {
 		})
 	}
 	action, command, inputs := persistentWorkerTestCommand()
-	prepared, err := builder.NewPersistentWorkerCommand(action, command, digest.MustNewFunction("instance", remoteexecution.DigestFunction_SHA256), inputs, nil)
+	prepared, err := builder.NewPersistentWorkerCommand(action.Platform, command, digest.MustNewFunction("instance", remoteexecution.DigestFunction_SHA256), inputs, nil)
 	require.NoError(t, err)
 	_, err = prepared.NewExecuteInPersistentWorkerRequest(context.Background(), "session", func(ctx context.Context, name string) ([]byte, error) {
 		return nil, os.ErrNotExist

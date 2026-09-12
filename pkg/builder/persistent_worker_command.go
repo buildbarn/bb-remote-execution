@@ -36,29 +36,12 @@ type PersistentWorkerCommand struct {
 
 // NewPersistentWorkerCommand prepares an REv2 command for singleplex execution.
 //
+// The caller must resolve the platform and check worker protocol support.
 // Inputs must contain the complete file manifest, keyed by canonical
 // input-root-relative paths, with tool files marked by bazel_tool_input.
-// Unsupported actions or actions without marked tools return (nil, nil)
-func NewPersistentWorkerCommand(action *remoteexecution.Action, command *remoteexecution.Command, digestFunction digest.Function, inputs map[string]*remoteexecution.FileNode, environmentVariables map[string]string) (*PersistentWorkerCommand, error) {
-	platform := action.GetPlatform()
+// A nil platform or missing marked tools returns (nil, nil).
+func NewPersistentWorkerCommand(platform *remoteexecution.Platform, command *remoteexecution.Command, digestFunction digest.Function, inputs map[string]*remoteexecution.FileNode, environmentVariables map[string]string) (*PersistentWorkerCommand, error) {
 	if platform == nil {
-		platform = command.GetPlatform()
-	}
-	properties := map[string]string{}
-	for _, property := range platform.GetProperties() {
-		if property.GetName() == "persistentWorkerKey" || property.GetName() == "persistentWorkerProtocol" {
-			if _, ok := properties[property.Name]; ok {
-				return nil, status.Errorf(codes.InvalidArgument, "Duplicate platform property %q", property.Name)
-			}
-			properties[property.Name] = property.Value
-		}
-	}
-	if properties["persistentWorkerKey"] == "" {
-		return nil, nil
-	}
-
-  // TODO: support JSON as well. 
-	if protocol := properties["persistentWorkerProtocol"]; protocol != "" && protocol != "proto" {
 		return nil, nil
 	}
 	if len(command.GetArguments()) == 0 || command.Arguments[0] == "" {

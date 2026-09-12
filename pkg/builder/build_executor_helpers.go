@@ -146,6 +146,10 @@ func uploadBuildOutputs(ctx context.Context, buildDirectory, inputRootDirectory 
 	} else if stderrDigest.GetSizeBytes() > 0 {
 		response.Result.StderrDigest = stderrDigest.GetProto()
 	}
+	uploadOutputPathsAndLogs(ctx, buildDirectory, inputRootDirectory, outputHierarchy, contentAddressableStorage, digestFunction, writableFileUploadDelay, response, forceUploadTreesAndDirectories)
+}
+
+func uploadOutputPathsAndLogs(ctx context.Context, buildDirectory, inputRootDirectory UploadableDirectory, outputHierarchy *OutputHierarchy, contentAddressableStorage blobstore.BlobAccess, digestFunction digest.Function, writableFileUploadDelay <-chan struct{}, response *remoteexecution.ExecuteResponse, forceUploadTreesAndDirectories bool) {
 	if err := outputHierarchy.UploadOutputs(ctx, inputRootDirectory, contentAddressableStorage, digestFunction, writableFileUploadDelay, response.Result, forceUploadTreesAndDirectories); err != nil {
 		attachErrorToExecuteResponse(response, err)
 	}

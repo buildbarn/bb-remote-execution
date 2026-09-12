@@ -93,7 +93,7 @@ func TestPersistentWorkerGRPCRoundTrip(t *testing.T) {
 			hash := sha256.Sum256([]byte(contents))
 			inputs[name] = &remoteexecution.FileNode{Digest: &remoteexecution.Digest{Hash: hex.EncodeToString(hash[:]), SizeBytes: int64(len(contents))}}
 		}
-		prepared, err := builder.NewPersistentWorkerCommand(action, command, digest.MustNewFunction("instance", remoteexecution.DigestFunction_SHA256), inputs, nil)
+		prepared, err := builder.NewPersistentWorkerCommand(action.Platform, command, digest.MustNewFunction("instance", remoteexecution.DigestFunction_SHA256), inputs, nil)
 		require.NoError(t, err)
 		require.NotNil(t, prepared)
 		if requestIndex == 0 {
