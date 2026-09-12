@@ -17,11 +17,16 @@ import (
 
 func TestSplitPersistentWorkerArguments(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
+		// The arguments that Bazel sends to a remote execution
+		// service are the ones that would be used to run the
+		// action as a regular process, meaning they contain the
+		// flag files and no "--persistent_worker". Splitting
+		// them needs to yield the command line that Bazel would
+		// have used to launch a worker process locally.
 		workerArguments, flagFileArguments, err := runner.SplitPersistentWorkerArguments([]string{
 			"external/remotejdk/bin/java",
 			"-jar",
 			"JavaBuilder_deploy.jar",
-			"--persistent_worker",
 			"@bazel-out/k8-fastbuild/bin/hello.jar-0.params",
 		})
 		require.NoError(t, err)
@@ -34,6 +39,21 @@ func TestSplitPersistentWorkerArguments(t *testing.T) {
 		require.Equal(t, []string{"@bazel-out/k8-fastbuild/bin/hello.jar-0.params"}, flagFileArguments)
 	})
 
+	t.Run("PersistentWorkerFlagAlreadyPresent", func(t *testing.T) {
+		// Bazel appends "--persistent_worker" unconditionally,
+		// meaning a tool whose command line already contains it
+		// receives it twice. Behave identically, so that the
+		// command line remains the one the tool would have been
+		// launched with locally.
+		workerArguments, _, err := runner.SplitPersistentWorkerArguments([]string{
+			"tool",
+			"--persistent_worker",
+			"@params",
+		})
+		require.NoError(t, err)
+		require.Equal(t, []string{"tool", "--persistent_worker", "--persistent_worker"}, workerArguments)
+	})
+
 	t.Run("FlagFileOptions", func(t *testing.T) {
 		// Both "-flagfile=" and "--flagfile=" are recognised by
 		// Bazel, and may appear anywhere on the command line.
@@ -44,7 +64,7 @@ func TestSplitPersistentWorkerArguments(t *testing.T) {
 			"-flagfile=second.params",
 		})
 		require.NoError(t, err)
-		require.Equal(t, []string{"tool", "--worker"}, workerArguments)
+		require.Equal(t, []string{"tool", "--worker", "--persistent_worker"}, workerArguments)
 		require.Equal(t, []string{"--flagfile=first.params", "-flagfile=second.params"}, flagFileArguments)
 	})
 
@@ -58,7 +78,7 @@ func TestSplitPersistentWorkerArguments(t *testing.T) {
 			"@real.params",
 		})
 		require.NoError(t, err)
-		require.Equal(t, []string{"tool"}, workerArguments)
+		require.Equal(t, []string{"tool", "--persistent_worker"}, workerArguments)
 		require.Equal(t, []string{"@@literal", "@real.params"}, flagFileArguments)
 	})
 
@@ -70,7 +90,7 @@ func TestSplitPersistentWorkerArguments(t *testing.T) {
 			"@params",
 		})
 		require.NoError(t, err)
-		require.Equal(t, []string{"tool", "@", "--flagfile="}, workerArguments)
+		require.Equal(t, []string{"tool", "@", "--flagfile=", "--persistent_worker"}, workerArguments)
 		require.Equal(t, []string{"@params"}, flagFileArguments)
 	})
 

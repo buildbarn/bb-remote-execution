@@ -24,6 +24,17 @@ const (
 	// limit needs to be imposed to prevent the runner from running
 	// out of memory when a build action provides a bogus one.
 	maximumFlagFileSizeBytes = 64 * 1024 * 1024
+
+	// persistentWorkerFlag is the command line argument that
+	// instructs a tool to run as a persistent worker, meaning it
+	// reads WorkRequest messages from its standard input instead of
+	// performing the work described by its command line arguments.
+	//
+	// Bazel appends this argument itself when it runs a build action
+	// locally, but the command line it sends to a remote execution
+	// service is the one that would be used to run the action as a
+	// regular process. It is therefore up to us to append it.
+	persistentWorkerFlag = "--persistent_worker"
 )
 
 // flagFileArgumentPrefixes contains the prefixes of command line
@@ -56,11 +67,15 @@ func isExternalRepositoryLabel(argument string) bool {
 // persistent worker process, and the arguments that refer to flag
 // files. The latter contain the work that the tool needs to perform,
 // and are therefore provided to the tool as part of a WorkRequest
-// message.
+// message. The "--persistent_worker" flag is appended to the former, as
+// that is what causes the tool to run as a persistent worker.
 //
 // This function mimics the behaviour of
 // WorkerParser.splitSpawnArgsIntoWorkerArgsAndFlagFiles() in Bazel,
-// with --experimental_worker_strict_flagfiles disabled.
+// with --experimental_worker_strict_flagfiles disabled. The
+// --worker_extra_flag arguments that Bazel also appends are not
+// supported, as those are a property of the client's command line that
+// is not communicated to a remote execution service.
 func SplitPersistentWorkerArguments(arguments []string) (workerArguments, flagFileArguments []string, err error) {
 	for _, argument := range arguments {
 		if isFlagFileArgument(argument) {
@@ -75,7 +90,7 @@ func SplitPersistentWorkerArguments(arguments []string) (workerArguments, flagFi
 	if len(flagFileArguments) == 0 {
 		return nil, nil, status.Error(codes.InvalidArgument, "Command line arguments of persistent worker actions must contain at least one \"@flagfile\" or \"--flagfile=\" argument")
 	}
-	return workerArguments, flagFileArguments, nil
+	return append(workerArguments, persistentWorkerFlag), flagFileArguments, nil
 }
 
 // splitFlagFileLines splits the contents of a flag file into individual

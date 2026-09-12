@@ -31,9 +31,11 @@ const (
 	// encoded as JSON, as opposed to length delimited Protobuf
 	// messages.
 	//
-	// Bazel does not set this property automatically. Users need to
-	// declare it explicitly through exec_properties, matching the
-	// 'requires-worker-protocol' execution requirement of the tool.
+	// Bazel sets this property from the tool's
+	// 'requires-worker-protocol' execution requirement, whose only
+	// valid values are "json" and "proto". Tools that do not declare
+	// it use the Protobuf encoding, so an absent property means the
+	// same as "proto".
 	PersistentWorkerProtocolPlatformProperty = "persistentWorkerProtocol"
 )
 

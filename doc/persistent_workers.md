@@ -21,6 +21,12 @@ addresses [issue #112](https://github.com/buildbarn/bb-remote-execution/issues/1
 - [Testing plan](#testing-plan)
 - [Known limitations](#known-limitations)
 
+The client/server contract this implementation follows is written down
+separately, in
+[Remote persistent workers: a specification](remote_persistent_workers_specification.md).
+That document is about what any remote execution service has to do; this
+one is about how Buildbarn does it.
+
 ## Background
 
 Many build tools have a high startup cost. A JVM based compiler such as
@@ -165,9 +171,10 @@ action transitions into the `Running` state. It:
    Platform properties are read from the `Action` message only, which is
    consistent with `platform.ActionKeyExtractor` and REv2.2 semantics.
 2. Reads the optional `persistentWorkerProtocol` property, which selects
-   between the `proto` (default) and `json` encodings. Bazel does not
-   set this property itself; it has to be declared through
-   `exec_properties` for tools that use the JSON protocol.
+   between the `proto` (default) and `json` encodings. Bazel sets it
+   from the tool's `requires-worker-protocol` execution requirement,
+   whose only valid values are `json` and `proto`; a tool that does not
+   declare it uses `proto`.
 3. Recursively walks the input root through `cas.DirectoryFetcher`,
    producing one `blaze.worker.Input` per file. `Input.path` is relative
    to the input root and `Input.digest` is the ASCII hexadecimal
@@ -207,6 +214,20 @@ describe the work. An argument is a flag file when it starts with `@`,
 `(?:@|--?flagfile=)(.+)` pattern. Both lists must be non-empty:
 without a startup argument there is no tool to launch, and without a
 flag file the request would be indistinguishable from a regular action.
+
+`--persistent_worker` is then appended to the startup arguments. This
+step is easy to overlook and impossible to skip. Bazel does *not*
+rewrite the command line it sends to a remote execution service: what
+arrives is the command line that would be used to run the action as a
+regular process — flag files included, `--persistent_worker` absent —
+precisely so that a service which ignores the platform property still
+executes the action correctly. Reconstructing the worker command line is
+therefore the service's job, and it is the same reconstruction
+`WorkerParser.splitSpawnArgsIntoWorkerArgsAndFlagFiles()` performs
+locally. Without the flag, the tool would parse an empty command line,
+never read its standard input, and the exchange would fail. The flag is
+appended unconditionally, matching Bazel, which also means it is part of
+the pool key.
 
 **Flag file expansion.** `ExpandFlagFileArguments()` reads the flag
 files from the input root and replaces each argument with the lines it
@@ -582,6 +603,11 @@ worth doing once against a deployment:
   would allow a single process to serve several actions concurrently.
   The pool would need to hand the same process to several callers and
   demultiplex responses by request ID.
+- **`--worker_extra_flag` is not supported.** Bazel appends these
+  per-mnemonic flags to a worker's command line locally, but they are a
+  property of the client's own command line and are not communicated to
+  a remote execution service. The upstream design proposal lists this as
+  an open question.
 - **Cancellation is not sent.** When an action times out, the process is
   killed rather than sent a `cancel` request. Killing is always correct;
   sending `cancel` first would let more processes be reused.

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -84,6 +85,16 @@ func runFakePersistentWorker(mode string) {
 		options[name] = value
 	}
 	useJSON := options["protocol"] == "json"
+
+	// A tool only speaks the persistent worker protocol when it is
+	// launched with "--persistent_worker". Bazel does not include
+	// that argument in the command line it sends to a remote
+	// execution service, so the runner is responsible for appending
+	// it. Refuse to run without it, exactly like a real tool would.
+	if !slices.Contains(os.Args, "--persistent_worker") {
+		fmt.Fprintf(os.Stderr, "Not launched with --persistent_worker: %s\n", strings.Join(os.Args, " "))
+		os.Exit(1)
+	}
 
 	stdin := bufio.NewReader(os.Stdin)
 	jsonDecoder := json.NewDecoder(stdin)
@@ -315,9 +326,13 @@ func (e *persistentWorkerTestEnvironment) createActionWithWorkingDirectory(t *te
 	executable, err := os.Executable()
 	require.NoError(t, err)
 	return &runner_pb.RunRequest{
+		// Note that "--persistent_worker" is deliberately absent:
+		// Bazel provides the command line that would be used to
+		// run the action as a regular process, and expects the
+		// remote execution service to turn it into the command
+		// line of a worker process.
 		Arguments: []string{
 			executable,
-			"--persistent_worker",
 			flagFileArgument,
 		},
 		EnvironmentVariables: environmentVariables,

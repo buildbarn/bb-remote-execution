@@ -70,3 +70,7 @@ for examples on how to set up these tools.
 - [Persistent workers](https://github.com/buildbarn/bb-remote-execution/blob/main/doc/persistent_workers.md):
   how Buildbarn implements Bazel's persistent worker protocol, allowing
   tools such as `javac` to be kept alive in between build actions.
+- [Remote persistent workers: a specification](https://github.com/buildbarn/bb-remote-execution/blob/main/doc/remote_persistent_workers_specification.md):
+  a draft of the client/server contract that Bazel's
+  `--experimental_remote_mark_tool_inputs` implies, intended for
+  submission to the Remote Execution API project.
