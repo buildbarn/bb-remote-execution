@@ -75,6 +75,15 @@ func (r *persistentWorkerRunner) Run(ctx context.Context, request *runner_pb.Run
 		return nil, err
 	}
 
+	// Determine which of the input files make up the tool. Those
+	// need to be placed inside the execution root of the worker
+	// process, as they have to remain valid after the input root of
+	// this build action is removed.
+	toolInputs, err := parseToolInputPaths(persistentWorker.ToolInputPaths, workingDirectory)
+	if err != nil {
+		return nil, err
+	}
+
 	// Obtain a worker process. Its execution root is repopulated to
 	// provide a view of the input root of this build action, as the
 	// process may previously have been used to execute a build
@@ -84,6 +93,7 @@ func (r *persistentWorkerRunner) Run(ctx context.Context, request *runner_pb.Run
 		persistentWorker.Protocol,
 		request.WorkingDirectory,
 		workerArguments,
+		persistentWorker.ToolInputPaths,
 		request.EnvironmentVariables,
 	)
 	w, err := r.pool.acquire(key, persistentWorker.Protocol)
@@ -95,7 +105,7 @@ func (r *persistentWorkerRunner) Run(ctx context.Context, request *runner_pb.Run
 		r.pool.release(w, healthy)
 	}()
 
-	if err := w.prepareExecRoot(inputRootDirectory, inputRootPath, workingDirectory); err != nil {
+	if err := w.prepareExecRoot(inputRootDirectory, inputRootPath, workingDirectory, toolInputs); err != nil {
 		return nil, err
 	}
 	if err := w.ensureStarted(workerArguments, request.EnvironmentVariables, path.UNIXFormat.NewParser(request.WorkingDirectory)); err != nil {
@@ -127,7 +137,7 @@ func (r *persistentWorkerRunner) Run(ctx context.Context, request *runner_pb.Run
 	// bb_worker is capable of uploading them. This needs to happen
 	// even if the build action failed, as clients may still be
 	// interested in the outputs that were created.
-	if err := w.harvestExecRoot(inputRootDirectory, workingDirectory); err != nil {
+	if err := w.harvestExecRoot(inputRootDirectory, workingDirectory, toolInputs); err != nil {
 		return nil, err
 	}
 

@@ -75,12 +75,30 @@ rather than guess.
 Files in the input root that are tool inputs carry a `NodeProperty`
 named `bazel_tool_input` with an empty value.
 
-This is informational: it lets a server compute a worker key of its own,
-or decide where to place tool files. A server that takes the key from
-`persistentWorkerKey` — as this specification assumes — does not need to
-read it. It notably does **not** partition the input root: tool inputs
-remain ordinary inputs and are reported to the worker like any other
-file (§3.2).
+A server that takes the worker key from `persistentWorkerKey` still
+needs these properties, and this is easy to get wrong. The input root of
+a build action is, for most servers, a directory that is removed as soon
+as that action completes, while the worker process outlives it. A tool
+exposed through that directory is therefore launched from a path that
+stops existing. The process survives, but anything that re-derives a
+path from the tool's own install location does not — which every JVM
+does at startup, to compute `java.home`. Bazel's own `JavaBuilder` fails
+on its second action in that situation.
+
+These properties are what lets a server tell the tool apart from the
+action's data, and so give the tool a location of its own that lasts for
+the lifetime of the process. A server that ignores them can only serve
+one action per worker process, which defeats the purpose of the feature.
+
+They notably do **not** partition the input root: tool inputs remain
+ordinary inputs and are reported to the worker like any other file
+(§3.2), and the tool must still appear at its original path relative to
+the working directory, since `Command.arguments[0]` refers to it there.
+
+> **Note.** The property has a name but no value, and is attached to
+> `FileNode.node_properties`. Bazel emits it from
+> `MerkleTree.buildProto()`, gated on the same condition that produces
+> `persistentWorkerKey`, so the two always appear together.
 
 ### 1.4 Backwards compatibility
 
@@ -259,7 +277,7 @@ state the constraints they operate under:
 | --- | --- | --- |
 | `persistentWorkerKey` | sets it on `Action`/`Command` platform | routes so that equal keys can share a process |
 | `persistentWorkerProtocol` | sets `json`, or omits for `proto` | selects the encoding, rejects other values |
-| `bazel_tool_input` | marks tool inputs | may ignore |
+| `bazel_tool_input` | marks tool inputs | materializes them outside the input root |
 | `Command.arguments` | leaves unmodified | splits, appends `--persistent_worker` |
 | flag files | are inputs | expands into `WorkRequest.arguments` |
 | input root | is complete | reports every file in `WorkRequest.inputs` |
@@ -279,3 +297,8 @@ state the constraints they operate under:
 5. Whether these properties should keep their `bazel_`/camelCase
    spelling once formally adopted, or be renamed as part of moving them
    into the REv2 specification proper.
+6. Whether the specification should require that tool inputs be
+   reachable at a stable path for the lifetime of the worker process,
+   rather than leaving it implied (§1.3). As written, a server can be
+   fully conformant and still fail every JVM-based worker on its second
+   action, which suggests the requirement belongs in the text.

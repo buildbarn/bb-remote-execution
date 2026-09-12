@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/bazelworker"
@@ -79,7 +80,7 @@ type persistentWorkerKey struct {
 	fingerprint [sha256.Size]byte
 }
 
-func newPersistentWorkerKey(toolKey string, protocol runner_pb.PersistentWorker_Protocol, workingDirectory string, arguments []string, environmentVariables map[string]string) persistentWorkerKey {
+func newPersistentWorkerKey(toolKey string, protocol runner_pb.PersistentWorker_Protocol, workingDirectory string, arguments, toolInputPaths []string, environmentVariables map[string]string) persistentWorkerKey {
 	hasher := sha256.New()
 	writeString := func(s string) {
 		// Prefix every string with its length, so that no two
@@ -94,6 +95,13 @@ func newPersistentWorkerKey(toolKey string, protocol runner_pb.PersistentWorker_
 	writeString(strconv.Itoa(len(arguments)))
 	for _, argument := range arguments {
 		writeString(argument)
+	}
+	// The contents of the tool are already covered by the key that
+	// the client provided. Its layout is not, while the worker
+	// process only materializes it once.
+	writeString(strconv.Itoa(len(toolInputPaths)))
+	for _, toolInputPath := range toolInputPaths {
+		writeString(toolInputPath)
 	}
 	names := make([]string, 0, len(environmentVariables))
 	for name := range environmentVariables {
@@ -384,6 +392,12 @@ type persistentWorkerProcess struct {
 	stderrPath             string
 	temporaryDirectoryPath string
 
+	// Set once the input files of the tool have been copied into
+	// the execution root. Every build action that reaches the same
+	// worker process provides the same tool, as both its contents
+	// and its layout are covered by the worker's key.
+	toolInputsMaterialized bool
+
 	cmd          *exec.Cmd
 	stdinWriter  *os.File
 	stdoutReader *os.File
@@ -435,8 +449,14 @@ func (w *persistentWorkerProcess) createDirectories() error {
 // is about to be executed. Because the working directory of a running
 // process cannot be changed, the execution root is not replaced, but
 // filled with symbolic links that point into the input root.
-func (w *persistentWorkerProcess) prepareExecRoot(inputRootDirectory filesystem.Directory, inputRootPath *path.Builder, workingDirectory []path.Component) error {
-	return refreshSymlinkFarm(w.execRoot, inputRootDirectory, inputRootPath, workingDirectory)
+func (w *persistentWorkerProcess) prepareExecRoot(inputRootDirectory filesystem.Directory, inputRootPath *path.Builder, workingDirectory []path.Component, toolInputs *toolInputTree) error {
+	if !w.toolInputsMaterialized {
+		if err := materializeToolInputs(w.execRoot, inputRootDirectory, toolInputs); err != nil {
+			return err
+		}
+		w.toolInputsMaterialized = true
+	}
+	return refreshSymlinkFarm(w.execRoot, inputRootDirectory, inputRootPath, workingDirectory, toolInputs)
 }
 
 // refreshSymlinkFarm replaces the contents of the target directory with
@@ -449,7 +469,12 @@ func (w *persistentWorkerProcess) prepareExecRoot(inputRootDirectory filesystem.
 // directories are reused if they already exist, as replacing them would
 // leave a worker process that is already running with a working
 // directory that has been unlinked.
-func refreshSymlinkFarm(target, source filesystem.Directory, sourcePath *path.Builder, workingDirectory []path.Component) error {
+//
+// The input files of the tool are provided by the execution root
+// itself, as the worker process outlives the input root that they were
+// obtained from. They are therefore left in place, and no symbolic
+// links are created for them.
+func refreshSymlinkFarm(target, source filesystem.Directory, sourcePath *path.Builder, workingDirectory []path.Component, toolInputs *toolInputTree) error {
 	// Discard the contents of the previous build action.
 	targetEntries, err := target.ReadDir()
 	if err != nil {
@@ -458,6 +483,9 @@ func refreshSymlinkFarm(target, source filesystem.Directory, sourcePath *path.Bu
 	for _, entry := range targetEntries {
 		name := entry.Name()
 		if len(workingDirectory) > 0 && name == workingDirectory[0] && entry.Type() == filesystem.FileTypeDirectory {
+			continue
+		}
+		if toolInputs.contains(name) {
 			continue
 		}
 		if err := target.RemoveAll(name); err != nil {
@@ -475,6 +503,9 @@ func refreshSymlinkFarm(target, source filesystem.Directory, sourcePath *path.Bu
 		if len(workingDirectory) > 0 && name == workingDirectory[0] {
 			continue
 		}
+		if toolInputs.contains(name) {
+			continue
+		}
 		targetPath, err := getLocalPathString(sourcePath, name)
 		if err != nil {
 			return err
@@ -483,6 +514,30 @@ func refreshSymlinkFarm(target, source filesystem.Directory, sourcePath *path.Bu
 			return util.StatusWrapfWithCode(err, codes.Internal, "Failed to create symbolic link to %#v", targetPath)
 		}
 	}
+
+	// Descend into the directories that merely lead to tool inputs,
+	// as those hold entries belonging to this build action as well.
+	// Directories that consist of nothing but tool inputs are left
+	// untouched, which is what keeps this cheap.
+	if toolInputs != nil {
+		for _, name := range sortedComponents(toolInputs.directories) {
+			if len(workingDirectory) > 0 && name == workingDirectory[0] {
+				// Handled below, so that both the working
+				// directory and the tool are accounted for.
+				continue
+			}
+			sourceChildPath, err := appendComponentsToPath(sourcePath, name)
+			if err != nil {
+				return err
+			}
+			if err := enterBoth(target, source, name, func(targetChild, sourceChild filesystem.Directory) error {
+				return refreshSymlinkFarm(targetChild, sourceChild, sourceChildPath, nil, toolInputs.directories[name])
+			}); err != nil {
+				return err
+			}
+		}
+	}
+
 	if len(workingDirectory) == 0 {
 		return nil
 	}
@@ -506,7 +561,7 @@ func refreshSymlinkFarm(target, source filesystem.Directory, sourcePath *path.Bu
 	if err != nil {
 		return err
 	}
-	return refreshSymlinkFarm(targetChild, sourceChild, sourceChildPath, workingDirectory[1:])
+	return refreshSymlinkFarm(targetChild, sourceChild, sourceChildPath, workingDirectory[1:], toolInputs.child(name))
 }
 
 // harvestExecRoot moves files that the build action created in the
@@ -515,16 +570,18 @@ func refreshSymlinkFarm(target, source filesystem.Directory, sourcePath *path.Bu
 // files.
 //
 // Every entry that we place in the execution root is either a symbolic
-// link that points into the input root, or one of the real directories
-// that make up the working directory of the build action. Data written
-// through the former already ends up in the input root. Anything else
-// was created by the build action itself, and would be discarded when
-// the execution root is emptied before the next build action runs.
-func (w *persistentWorkerProcess) harvestExecRoot(inputRootDirectory filesystem.Directory, workingDirectory []path.Component) error {
-	return harvestSymlinkFarm(w.execRoot, inputRootDirectory, workingDirectory)
+// link that points into the input root, one of the real directories
+// that make up the working directory of the build action, or part of
+// the tool. Data written through the first already ends up in the input
+// root, and the tool has to stay where it is, as the worker process
+// keeps running. Anything else was created by the build action itself,
+// and would be discarded when the execution root is emptied before the
+// next build action runs.
+func (w *persistentWorkerProcess) harvestExecRoot(inputRootDirectory filesystem.Directory, workingDirectory []path.Component, toolInputs *toolInputTree) error {
+	return harvestSymlinkFarm(w.execRoot, inputRootDirectory, workingDirectory, toolInputs)
 }
 
-func harvestSymlinkFarm(target, source filesystem.Directory, workingDirectory []path.Component) error {
+func harvestSymlinkFarm(target, source filesystem.Directory, workingDirectory []path.Component, toolInputs *toolInputTree) error {
 	entries, err := target.ReadDir()
 	if err != nil {
 		return util.StatusWrapWithCode(err, codes.Internal, "Failed to read the execution root of the persistent worker")
@@ -536,9 +593,28 @@ func harvestSymlinkFarm(target, source filesystem.Directory, workingDirectory []
 			continue
 		}
 		if len(workingDirectory) > 0 && name == workingDirectory[0] && entry.Type() == filesystem.FileTypeDirectory {
-			if err := harvestWorkingDirectory(target, source, workingDirectory); err != nil {
+			if err := harvestWorkingDirectory(target, source, workingDirectory, toolInputs); err != nil {
 				return err
 			}
+			continue
+		}
+		if child := toolInputs.child(name); child != nil {
+			// A directory that leads to tool inputs. The tool
+			// needs to stay in place, but the build action
+			// may have created files next to it.
+			sourceChildPath := name
+			if err := enterBoth(target, source, name, func(targetChild, sourceChild filesystem.Directory) error {
+				return harvestSymlinkFarm(targetChild, sourceChild, nil, child)
+			}); err != nil {
+				return util.StatusWrapfWithCode(err, codes.Internal, "Failed to harvest directory %#v", sourceChildPath.String())
+			}
+			continue
+		}
+		if toolInputs.contains(name) {
+			// Part of the tool. Moving it into the input root
+			// would unlink the executable of the very process
+			// that is expected to handle the next build
+			// action.
 			continue
 		}
 		if err := moveIntoInputRoot(target, source, name); err != nil {
@@ -548,7 +624,7 @@ func harvestSymlinkFarm(target, source filesystem.Directory, workingDirectory []
 	return nil
 }
 
-func harvestWorkingDirectory(target, source filesystem.Directory, workingDirectory []path.Component) error {
+func harvestWorkingDirectory(target, source filesystem.Directory, workingDirectory []path.Component, toolInputs *toolInputTree) error {
 	name := workingDirectory[0]
 	targetChild, err := target.EnterDirectory(name)
 	if err != nil {
@@ -560,18 +636,22 @@ func harvestWorkingDirectory(target, source filesystem.Directory, workingDirecto
 		return util.StatusWrapfWithCode(err, codes.Internal, "Failed to enter directory %#v of the input root", name.String())
 	}
 	defer sourceChild.Close()
-	return harvestSymlinkFarm(targetChild, sourceChild, workingDirectory[1:])
+	return harvestSymlinkFarm(targetChild, sourceChild, workingDirectory[1:], toolInputs.child(name))
 }
 
 // moveIntoInputRoot moves a single file or directory from the execution
 // root of a persistent worker process into the input root of the build
 // action.
 func moveIntoInputRoot(target, source filesystem.Directory, name path.Component) error {
-	if err := target.Rename(name, source, name); err == nil {
+	err := target.Rename(name, source, name)
+	if err == nil {
 		return nil
 	}
+	if isCrossDevice(err) {
+		return copyIntoInputRoot(target, source, name)
+	}
 
-	// Renaming may fail if the input root already contains a
+	// Renaming may also fail if the input root already contains a
 	// non-empty directory under the same name, which happens if the
 	// build action replaced one of the symbolic links with a
 	// directory of its own. The version created by the build action
@@ -580,7 +660,48 @@ func moveIntoInputRoot(target, source filesystem.Directory, name path.Component)
 		return util.StatusWrapfWithCode(err, codes.Internal, "Failed to remove %#v from the input root", name.String())
 	}
 	if err := target.Rename(name, source, name); err != nil {
-		return util.StatusWrapfWithCode(err, codes.Internal, "Failed to move %#v from the execution root of the persistent worker into the input root. Is the directory of persistent worker processes located on the same file system as the build directory?", name.String())
+		if isCrossDevice(err) {
+			return copyIntoInputRoot(target, source, name)
+		}
+		return util.StatusWrapfWithCode(err, codes.Internal, "Failed to move %#v from the execution root of the persistent worker into the input root", name.String())
+	}
+	return nil
+}
+
+// isCrossDevice returns whether an attempt to rename a file failed
+// because the source and target directory are not backed by the same
+// file system.
+//
+// This is the common case for production deployments, which place the
+// directories of persistent worker processes on local disk, while build
+// directories are provided by a virtual file system. The same error is
+// reported when the two directories are backed by different
+// implementations of filesystem.Directory, which cannot rename between
+// each other either.
+func isCrossDevice(err error) bool {
+	return errors.Is(err, syscall.EXDEV)
+}
+
+// copyIntoInputRoot copies a file or directory from the execution root
+// of a persistent worker process into the input root of the build
+// action, removing the original afterwards. It is the fallback that is
+// used when the two directories are not backed by the same file system,
+// which rules out renaming.
+func copyIntoInputRoot(target, source filesystem.Directory, name path.Component) error {
+	// Anything the build action created takes precedence over what
+	// the input root already holds under the same name. Note that
+	// filesystem.Directory.RemoveAll() reports an error when the
+	// entry is absent, which is the common case here.
+	if err := source.RemoveAll(name); err != nil && !os.IsNotExist(err) {
+		return util.StatusWrapfWithCode(err, codes.Internal, "Failed to remove %#v from the input root", name.String())
+	}
+	// Hard linking is not attempted, as it fails for the very same
+	// reason that renaming did.
+	if err := copyEntry(source, target, name, false); err != nil {
+		return util.StatusWrapfWithCode(err, codes.Internal, "Failed to copy %#v from the execution root of the persistent worker into the input root", name.String())
+	}
+	if err := target.RemoveAll(name); err != nil {
+		return util.StatusWrapfWithCode(err, codes.Internal, "Failed to remove %#v from the execution root of the persistent worker", name.String())
 	}
 	return nil
 }

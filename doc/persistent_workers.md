@@ -14,6 +14,8 @@ addresses [issue #112](https://github.com/buildbarn/bb-remote-execution/issues/1
   - [`bb_worker`: extracting the request](#bb_worker-extracting-the-request)
   - [`bb_runner`: running the tool](#bb_runner-running-the-tool)
   - [The symlink farm](#the-symlink-farm)
+  - [The tool's own inputs](#the-tools-own-inputs)
+  - [Harvesting outputs](#harvesting-outputs)
   - [Worker pool management](#worker-pool-management)
   - [Interaction with other features](#interaction-with-other-features)
 - [Configuration](#configuration)
@@ -327,6 +329,9 @@ links are created for the *children* of the input root rather than for
 the input root itself, the tool observes a directory that looks exactly
 like the input root, at a path that never changes.
 
+The tool itself is the one thing that must **not** arrive through a
+symbolic link. See [the tool's own inputs](#the-tools-own-inputs).
+
 A non-empty `working_directory` needs a little more care: the process is
 launched with `root/<working_directory>` as its working directory, and
 paths in the flag files are relative to *that*, while `WorkRequest`
@@ -344,7 +349,44 @@ never see the next action's inputs. Only their contents are replaced.
 Symbolic links are cheap to create and, unlike hard links, work for
 directories and across the FUSE/NFSv4 based virtual file systems that
 `bb_worker` can use for the build directory. The persistent worker
-directory must be on the same file system as the build directory.
+directory does *not* need to be on the same file system as the build
+directory; see [harvesting outputs](#harvesting-outputs).
+
+### The tool's own inputs
+
+A symbolic link is the wrong way to expose the tool, and this is not a
+detail: it is the difference between the feature working and not
+working at all.
+
+`bb_worker` names each build directory after the digest of the action
+that runs in it, and removes it as soon as that action completes. A tool
+reached through `root/<something> -> <build dir>/<digest>/root/...` is
+therefore launched from a path that stops existing the moment the first
+action finishes. The process survives — the kernel keeps the inode alive
+— but anything that *re-derives* a path from the tool's own install
+location does not. Every JVM does exactly that at startup, to compute
+`java.home`, which makes this fatal for Bazel's `JavaBuilder`: on the
+second action `javac` compares its `--system` directory against
+`java.home` using `Files.isSameFile`, the removed directory raises an
+`IOException`, and the action fails with an `IllegalArgumentException`.
+
+This is what the `bazel_tool_input` node property is for. `bb_worker`
+collects the paths that carry it while it walks the input root, and
+sends them to the runner in `PersistentWorker.tool_input_paths`. A
+directory whose subtree consists of nothing but tool inputs is collapsed
+into a single path, so a JDK costs one entry rather than thousands.
+
+The runner materializes those paths inside the worker's own execution
+root, once, before the process is started: a hard link where the two
+directories share a file system, a copy where they do not. Directories
+that merely lead to tool inputs become real directories whose *other*
+children are still symlinked per action, so a directory holding both the
+tool and the action's sources behaves correctly. Nothing re-materializes
+on later actions, which is safe because the worker's pooling key covers
+both the tool's contents (through Bazel's `persistentWorkerKey`) and its
+layout (through the tool input paths themselves).
+
+### Harvesting outputs
 
 **Symlink in, move out.** The farm only solves half of the problem.
 Outputs that the tool writes to a path that traverses a symbolic link
@@ -353,18 +395,29 @@ Outputs written to a path that does *not* — a file created directly in
 the execution root, or anywhere inside one of the real directories that
 make up the working directory — land in the worker's own directory,
 where `bb_worker` would never look for them. After every action the
-execution root is therefore walked one level deep, and every entry that
-is not one of our symbolic links is renamed into the corresponding
-location in the input root; the real working directory components are
-descended into rather than moved, so that the running process keeps its
-working directory. `rename()` is used rather than a copy, which is why
-the two directories have to share a file system.
+execution root is therefore walked, and every entry that is not one of
+our symbolic links is moved into the corresponding location in the input
+root. Two kinds of entry are descended into rather than moved: the real
+working directory components, so that the running process keeps its
+working directory, and the directories that lead to tool inputs. The
+materialized tool is skipped outright — moving it into the input root
+would unlink the executable of the very process that is expected to
+serve the next action.
+
+`rename()` is attempted first. It fails with `EXDEV` when the two
+directories are not backed by the same file system, which is the norm
+rather than the exception in production: deployments place the
+persistent worker directory on local disk while the build directory is
+provided by a FUSE or NFSv4 mount. The same error is reported when the
+two directories are backed by different `filesystem.Directory`
+implementations, which cannot rename between each other either. A
+recursive copy is used as the fallback in both cases.
 
 This mirrors what Bazel's symlinked sandbox does: symlink the inputs in,
 move the outputs out. It also has a useful side effect: because the
 entries are *moved*, the execution root is left holding only symbolic
-links, so a stale output from a previous action can never be mistaken
-for an output of the next one.
+links and the tool, so a stale output from a previous action can never
+be mistaken for an output of the next one.
 
 ### Worker pool management
 
@@ -488,8 +541,11 @@ runners: [{
 }
 ```
 
-`directoryPath` must be on the same file system as `buildDirectoryPath`
-and must not be shared between `bb_runner` instances. Enabling it in
+`directoryPath` must not be shared between `bb_runner` instances. It
+does not need to be on the same file system as `buildDirectoryPath`,
+though placing it there is faster: the tool is then hard linked into
+each worker's execution root instead of copied, and outputs are moved
+with `rename()` instead of being copied out. Enabling it in
 `bb_worker` without enabling it in `bb_runner` causes every persistent
 worker action to fail, as the runner rejects a `RunRequest` it cannot
 honour.
@@ -562,6 +618,14 @@ without depending on an external tool being installed.
 | `TestLocalRunnerRun/PersistentWorkerNotSupported` | A runner without persistent worker support rejects an action that requests one with `InvalidArgument`, rather than running the tool with unexpanded `@flagfile` arguments. |
 | `TestPersistentWorkerPoolEviction` | With `maximum_worker_count` set to 1, alternating between two keys terminates and recreates processes instead of growing the pool. |
 | `TestPersistentWorkerPoolIdleTimeout` | Driven by a mock `clock.Clock` and a mock timer: advancing time past the idle timeout and firing the reaper terminates the idle process, and the next action starts a new one. |
+| `TestPersistentWorkerRunnerToolInputs` | The regression test for tool materialization. A tool stored in the input root is launched, the **whole build directory of the first action is deleted**, and a second action must still be served by the *same process ID* and still be able to read a file next to its own executable. Fails with `EOF` — the process dies — if the tool is left as a symbolic link. |
+| `TestPersistentWorkerRunnerToolInputsPartialDirectory` | A directory holding both a tool input and a regular input: the tool survives the removal of the first input root, while the regular input tracks the action that is currently running. |
+| `TestPersistentWorkerRunnerToolInputsInvalid` | The input root itself, a path escaping the input root, and a path containing the action's working directory are all rejected with `InvalidArgument`. |
+| `TestParseToolInputPaths` | Tree construction: nesting, a path underneath an already-materialized ancestor, the reverse order, and every rejected path. |
+| `TestMaterializeToolInputs` | Files, symbolic links and nested directories are all reproduced in the execution root, nothing outside the tool is, and the result outlives the removal of the input root. |
+| `TestRefreshSymlinkFarmToolInputs` | Across two input roots: the tool stays a real file while its non-tool siblings are repointed. |
+| `TestIsCrossDevice` | `EXDEV` is recognised bare and wrapped; `ENOENT` and `nil` are not. |
+| `TestMoveIntoInputRootCrossDevice` | With `rename()` forced to fail with `EXDEV`: regular files, the executable bit, nested directories, symbolic links and a pre-existing destination are all handled by the copy fallback. |
 
 ### 4. Whole-repository checks
 
@@ -587,6 +651,10 @@ worth doing once against a deployment:
 2. Confirm that compiler diagnostics still appear in Bazel's output and
    in `bb_browser`, which verifies the `WorkResponse.output` to stderr
    mapping.
+3. Confirm that a build of more than a handful of Java targets
+   *completes*. Tool materialization is only exercised from the second
+   action onwards on a given process, so a one-action smoke test passes
+   even when it is broken.
 3. Run the same build without the flag and confirm nothing changes
    functionally.
 4. Kill a tool process by hand and confirm that the next action
@@ -615,14 +683,25 @@ worth doing once against a deployment:
   regular files appear in `WorkRequest.inputs`. Tools that key their
   incremental state on a symlink's target would not notice a change to
   it. Bazel's own workers do not do this.
-- **`bazel_tool_input` node properties are not used.** REv2 lets a
-  client mark which inputs are tool inputs, which is how Bazel conveys
-  the information it uses locally to compute the worker key. We do not
-  read those properties, because the key arrives ready-made in the
-  `persistentWorkerKey` platform property. Note that this does not
-  change `WorkRequest.inputs`: Bazel sends the *full* input map there
-  too, tool inputs included, so what the tool receives is the same
-  either way.
+- **A client that marks no tool inputs gets a worker that can only
+  serve one action.** `bazel_tool_input` node properties are what tells
+  the server which files make up the tool, and therefore which files
+  need a home that outlives the action. Without them the tool is
+  reached through a symbolic link into a build directory that is
+  removed as soon as the first action completes, and any tool that
+  resolves a path relative to its own executable — every JVM — fails on
+  the second action. Bazel always emits the properties alongside
+  `persistentWorkerKey`, so this only affects other clients.
+- **Files the tool writes into its own installation directory are not
+  harvested, and persist across actions.** The tool's directory belongs
+  to the worker process rather than to any single action. This matches
+  what Bazel's local workers do, where the tool likewise lives in a
+  directory that outlives the action.
+- **Tool materialization is not shared between worker processes.** Two
+  processes with the same key each get their own copy. Where the
+  persistent worker directory and the build directory share a file
+  system this is free, as hard links are used; where they do not, the
+  tool is copied once per process.
 - **The worker's `tmp/` directory is never cleaned between actions.**
   It is created when the process starts and removed when it is
   terminated. Emptying it per action would be wrong for the tools this

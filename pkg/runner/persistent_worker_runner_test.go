@@ -63,8 +63,17 @@ type fakePersistentWorkerReport struct {
 	Marker           string   `json:"marker"`
 	RootMarker       string   `json:"rootMarker"`
 	StaleOutput      bool     `json:"staleOutput"`
+	ToolResource     string   `json:"toolResource"`
 	WorkingDirectory string   `json:"workingDirectory"`
 }
+
+// fakePersistentWorkerToolResource is the name of a file that the fake
+// persistent worker reads from the directory that holds its own
+// executable, when it is launched with the "toolresource" option. This
+// mimics the way every JVM derives 'java.home' from the location of the
+// 'java' binary at startup, which is what makes the tool's own path
+// need to outlive the build action that launched it.
+const fakePersistentWorkerToolResource = "resource.txt"
 
 func TestMain(m *testing.M) {
 	if mode, ok := os.LookupEnv(fakePersistentWorkerEnvironmentVariable); ok {
@@ -136,6 +145,26 @@ func runFakePersistentWorker(mode string) {
 		}
 		workingDirectory, _ := os.Getwd()
 
+		// Resolve a file that is stored next to our own
+		// executable. A tool whose executable was unlinked
+		// together with the input root it was launched from
+		// cannot do this, as os.Executable() then yields a
+		// pathname suffixed with " (deleted)".
+		toolResource := ""
+		if _, ok := options["toolresource"]; ok {
+			executable, err := os.Executable()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to determine own executable: %s\n", err)
+				os.Exit(1)
+			}
+			data, err := os.ReadFile(filepath.Join(filepath.Dir(executable), fakePersistentWorkerToolResource))
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to read tool resource: %s\n", err)
+				os.Exit(1)
+			}
+			toolResource = string(data)
+		}
+
 		// Emulate a tool that writes output files. Bazel places
 		// these underneath "bazel-out", but a build action is
 		// free to write them anywhere underneath its working
@@ -172,6 +201,7 @@ func runFakePersistentWorker(mode string) {
 			Marker:           marker,
 			RootMarker:       rootMarker,
 			StaleOutput:      staleOutput,
+			ToolResource:     toolResource,
 			WorkingDirectory: workingDirectory,
 		})
 		if err != nil {
@@ -214,6 +244,7 @@ func readFakePersistentWorkerMarker(markerPath string) string {
 // needed to invoke a Runner that supports persistent workers.
 type persistentWorkerTestEnvironment struct {
 	buildPath          string
+	poolPath           string
 	buildDirectory     filesystem.DirectoryCloser
 	buildDirectoryPath *path.Builder
 	pool               *runner.PersistentWorkerPool
@@ -235,7 +266,8 @@ func newLocalDirectoryAndPath(t *testing.T, directoryPath string) (filesystem.Di
 func newPersistentWorkerTestEnvironment(t *testing.T, ctrl *gomock.Controller, c clock.Clock, maximumWorkerCount int, idleTimeout time.Duration) *persistentWorkerTestEnvironment {
 	buildPath := t.TempDir()
 	buildDirectory, buildDirectoryPath := newLocalDirectoryAndPath(t, buildPath)
-	poolDirectory, poolDirectoryPath := newLocalDirectoryAndPath(t, t.TempDir())
+	poolPath := t.TempDir()
+	poolDirectory, poolDirectoryPath := newLocalDirectoryAndPath(t, poolPath)
 
 	pool, err := runner.NewPersistentWorkerPool(
 		poolDirectory,
@@ -251,6 +283,7 @@ func newPersistentWorkerTestEnvironment(t *testing.T, ctrl *gomock.Controller, c
 	baseRunner := mock.NewMockRunnerServer(ctrl)
 	return &persistentWorkerTestEnvironment{
 		buildPath:          buildPath,
+		poolPath:           poolPath,
 		buildDirectory:     buildDirectory,
 		buildDirectoryPath: buildDirectoryPath,
 		pool:               pool,
@@ -345,6 +378,23 @@ func (e *persistentWorkerTestEnvironment) createActionWithWorkingDirectory(t *te
 			Key: "tool-key",
 		},
 	}
+}
+
+// workerDiagnostics returns anything that the worker processes wrote to
+// their standard error. Tools report failures that are not associated
+// with a single build action this way, so it is what needs to be
+// inspected when a worker process disappears unexpectedly.
+func (e *persistentWorkerTestEnvironment) workerDiagnostics(t *testing.T) string {
+	var diagnostics strings.Builder
+	entries, err := os.ReadDir(e.poolPath)
+	require.NoError(t, err)
+	for _, entry := range entries {
+		data, err := os.ReadFile(filepath.Join(e.poolPath, entry.Name(), "stderr"))
+		if err == nil && len(data) > 0 {
+			fmt.Fprintf(&diagnostics, "worker %s: %s\n", entry.Name(), data)
+		}
+	}
+	return diagnostics.String()
 }
 
 func (e *persistentWorkerTestEnvironment) readReport(t *testing.T, request *runner_pb.RunRequest) fakePersistentWorkerReport {
@@ -755,4 +805,147 @@ func TestPersistentWorkerPoolIdleTimeout(t *testing.T) {
 	require.NoError(t, err)
 	report2 := e.readReport(t, request2)
 	require.NotEqual(t, report1.ProcessID, report2.ProcessID)
+}
+
+// createActionWithTool creates a build action whose tool is stored
+// inside the input root, which is how Bazel provides hermetic
+// toolchains under remote execution. The tool is accompanied by a
+// resource file that it resolves relative to its own executable.
+func (e *persistentWorkerTestEnvironment) createActionWithTool(t *testing.T, markerContents, resourceContents string) *runner_pb.RunRequest {
+	request := e.createAction(t, markerContents, "hello", "world")
+	toolPath := filepath.Join(e.buildPath, fmt.Sprintf("%d", e.nextActionID), "root", "tools")
+	require.NoError(t, os.MkdirAll(toolPath, 0o777))
+
+	executable, err := os.Executable()
+	require.NoError(t, err)
+	data, err := os.ReadFile(executable)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(toolPath, "worker"), data, 0o777))
+	require.NoError(t, os.WriteFile(filepath.Join(toolPath, fakePersistentWorkerToolResource), []byte(resourceContents), 0o666))
+
+	// Bazel provides the tool through a relative pathname, and marks
+	// its input files with the 'bazel_tool_input' node property.
+	request.Arguments[0] = filepath.Join("tools", "worker")
+	request.EnvironmentVariables[fakePersistentWorkerEnvironmentVariable] = "protocol=proto,toolresource"
+	request.PersistentWorker.ToolInputPaths = []string{"tools"}
+	return request
+}
+
+// TestPersistentWorkerRunnerToolInputs tests that a worker process
+// remains usable after the input root that it was launched from has
+// been removed, which is what bb_worker does as soon as a build action
+// completes.
+//
+// The tool is given a home inside the execution root of the worker
+// process for this very reason. Without it, the tool's executable is
+// unlinked underneath the running process, and anything that resolves a
+// path relative to it stops working. Bazel's JavaBuilder hits this on
+// its second build action, as javac compares the '--system' directory
+// against 'java.home'.
+func TestPersistentWorkerRunnerToolInputs(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+
+	e := newPersistentWorkerTestEnvironment(t, ctrl, clock.SystemClock, 1, time.Minute)
+	e.startReaper(t)
+
+	request1 := e.createActionWithTool(t, "first", "resource-contents")
+	response1, err := e.runner.Run(ctx, request1)
+	require.NoError(t, err, e.workerDiagnostics(t))
+	require.Equal(t, int64(0), response1.ExitCode)
+	report1 := e.readReport(t, request1)
+	require.Equal(t, "first", report1.Marker)
+	require.Equal(t, "resource-contents", report1.ToolResource)
+
+	// Discard the build directory of the first build action, taking
+	// the copy of the tool that it contains with it.
+	require.NoError(t, os.RemoveAll(filepath.Join(e.buildPath, "1")))
+
+	request2 := e.createActionWithTool(t, "second", "resource-contents")
+	response2, err := e.runner.Run(ctx, request2)
+	require.NoError(t, err)
+	require.Equal(t, int64(0), response2.ExitCode)
+	report2 := e.readReport(t, request2)
+
+	// The same process must have been reused, and it must still be
+	// able to reach both its own installation and the input root of
+	// the build action that is now running.
+	require.Equal(t, report1.ProcessID, report2.ProcessID)
+	require.Equal(t, 2, report2.RequestCount)
+	require.Equal(t, "second", report2.Marker)
+	require.Equal(t, "resource-contents", report2.ToolResource)
+}
+
+// TestPersistentWorkerRunnerToolInputsPartialDirectory tests the case
+// where a directory in the input root holds both tool inputs and
+// regular input files. The former are provided by the execution root,
+// while the latter continue to be symbolic links that need to be
+// refreshed for every build action.
+func TestPersistentWorkerRunnerToolInputsPartialDirectory(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+
+	e := newPersistentWorkerTestEnvironment(t, ctrl, clock.SystemClock, 1, time.Minute)
+	e.startReaper(t)
+
+	createAction := func(markerContents string) *runner_pb.RunRequest {
+		request := e.createActionWithTool(t, markerContents, "resource-contents")
+		// Store a file that is not part of the tool next to it,
+		// which changes between build actions.
+		toolPath := filepath.Join(e.buildPath, fmt.Sprintf("%d", e.nextActionID), "root", "tools")
+		require.NoError(t, os.WriteFile(filepath.Join(toolPath, "marker.txt"), []byte(markerContents), 0o666))
+		request.PersistentWorker.ToolInputPaths = []string{
+			"tools/worker",
+			"tools/" + fakePersistentWorkerToolResource,
+		}
+		request.EnvironmentVariables[fakePersistentWorkerRootMarkerEnvironmentVariable] = filepath.Join("tools", "marker.txt")
+		return request
+	}
+
+	request1 := createAction("first")
+	_, err := e.runner.Run(ctx, request1)
+	require.NoError(t, err, e.workerDiagnostics(t))
+	report1 := e.readReport(t, request1)
+	require.Equal(t, "resource-contents", report1.ToolResource)
+	require.Equal(t, "first", report1.RootMarker)
+
+	require.NoError(t, os.RemoveAll(filepath.Join(e.buildPath, "1")))
+
+	request2 := createAction("second")
+	_, err = e.runner.Run(ctx, request2)
+	require.NoError(t, err)
+	report2 := e.readReport(t, request2)
+	require.Equal(t, report1.ProcessID, report2.ProcessID)
+	require.Equal(t, "resource-contents", report2.ToolResource)
+	// The non-tool file in the same directory must track the build
+	// action that is currently running.
+	require.Equal(t, "second", report2.RootMarker)
+}
+
+// TestPersistentWorkerRunnerToolInputsInvalid tests the paths that a
+// client is not permitted to mark as belonging to the tool.
+func TestPersistentWorkerRunnerToolInputsInvalid(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+
+	e := newPersistentWorkerTestEnvironment(t, ctrl, clock.SystemClock, 1, time.Minute)
+	e.startReaper(t)
+
+	t.Run("InputRootItself", func(t *testing.T) {
+		request := e.createAction(t, "hello", "hello")
+		request.PersistentWorker.ToolInputPaths = []string{"."}
+		_, err := e.runner.Run(ctx, request)
+		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Tool input path \".\" refers to the input root itself"), err)
+	})
+
+	t.Run("EscapesInputRoot", func(t *testing.T) {
+		request := e.createAction(t, "hello", "hello")
+		request.PersistentWorker.ToolInputPaths = []string{"../tools"}
+		_, err := e.runner.Run(ctx, request)
+		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Failed to resolve tool input path \"../tools\": Path resolves to a location outside the input root directory"), err)
+	})
+
+	t.Run("ContainsWorkingDirectory", func(t *testing.T) {
+		request := e.createActionWithWorkingDirectory(t, "hello", "sub/dir", "hello")
+		request.PersistentWorker.ToolInputPaths = []string{"sub"}
+		_, err := e.runner.Run(ctx, request)
+		testutil.RequireEqualStatus(t, status.Error(codes.InvalidArgument, "Tool input path \"sub\" contains the working directory of the build action"), err)
+	})
 }

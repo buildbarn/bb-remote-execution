@@ -112,6 +112,25 @@ message PersistentWorker {
   // invalidate cached state that they hold in memory. Leaving it empty
   // may thus cause tools to emit incorrect results.
   repeated blaze.worker.Input inputs = 3;
+
+  // The paths of the input files that belong to the tool itself, as
+  // opposed to the data that the build action processes. Paths are
+  // relative to the input root directory.
+  //
+  // Bazel marks these files by attaching a 'bazel_tool_input' node
+  // property to them in the input root's Merkle tree. A path may refer
+  // to a directory, in which case every file stored underneath it is a
+  // tool input.
+  //
+  // A persistent worker process outlives the build action that caused
+  // it to be launched, while the input root of that build action is
+  // removed as soon as it completes. The runner therefore gives these
+  // files a home of their own inside the execution root of the worker
+  // process, instead of exposing them through symbolic links that point
+  // into the input root. Tools that resolve paths relative to their own
+  // executable would otherwise misbehave as soon as they are reused.
+  // Every JVM does this at startup, to compute 'java.home'.
+  repeated string tool_input_paths = 4;
 }
 
 message RunResponse {

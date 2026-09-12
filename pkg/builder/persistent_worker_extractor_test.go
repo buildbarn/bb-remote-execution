@@ -171,6 +171,162 @@ func TestPersistentWorkerExtractor(t *testing.T) {
 		}, persistentWorker)
 	})
 
+	t.Run("ToolInputs", func(t *testing.T) {
+		// Files that Bazel marked with the 'bazel_tool_input'
+		// node property need to be reported separately, so that
+		// the runner can give them a home that outlives the
+		// build action. A directory that holds nothing but tool
+		// inputs is collapsed into a single path, so that the
+		// runner does not need to descend into it.
+		rootDigest := digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "6b9e4b3f5e0a1c05b9b2a4c8a2a09e94", 123)
+		jdkDigest := digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "8b1a9953c4611296a827abf8c47804d7", 45)
+		binDigest := digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "c4ca4238a0b923820dcc509a6f75849b", 12)
+		mixedDigest := digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "c81e728d9d4c2f636f067f89cc14862c", 34)
+		toolInput := &remoteexecution.NodeProperties{
+			Properties: []*remoteexecution.NodeProperty{
+				{Name: "bazel_tool_input"},
+			},
+		}
+		directoryFetcher := mock.NewMockDirectoryFetcher(ctrl)
+		directoryFetcher.EXPECT().GetDirectory(gomock.Any(), rootDigest).
+			Return(&remoteexecution.Directory{
+				Files: []*remoteexecution.FileNode{
+					{
+						Name:   "Hello.java",
+						Digest: &remoteexecution.Digest{Hash: "5d41402abc4b2a76b9719d911017c592", SizeBytes: 5},
+					},
+				},
+				Directories: []*remoteexecution.DirectoryNode{
+					{
+						Name:   "jdk",
+						Digest: &remoteexecution.Digest{Hash: "8b1a9953c4611296a827abf8c47804d7", SizeBytes: 45},
+					},
+					{
+						Name:   "mixed",
+						Digest: &remoteexecution.Digest{Hash: "c81e728d9d4c2f636f067f89cc14862c", SizeBytes: 34},
+					},
+				},
+			}, nil)
+		// Every file underneath "jdk" belongs to the tool, so
+		// the whole directory collapses into one path.
+		directoryFetcher.EXPECT().GetDirectory(gomock.Any(), jdkDigest).
+			Return(&remoteexecution.Directory{
+				Files: []*remoteexecution.FileNode{
+					{
+						Name:           "release",
+						Digest:         &remoteexecution.Digest{Hash: "7d793037a0760186574b0282f2f435e7", SizeBytes: 5},
+						NodeProperties: toolInput,
+					},
+				},
+				Directories: []*remoteexecution.DirectoryNode{
+					{
+						Name:   "bin",
+						Digest: &remoteexecution.Digest{Hash: "c4ca4238a0b923820dcc509a6f75849b", SizeBytes: 12},
+					},
+				},
+			}, nil)
+		directoryFetcher.EXPECT().GetDirectory(gomock.Any(), binDigest).
+			Return(&remoteexecution.Directory{
+				Files: []*remoteexecution.FileNode{
+					{
+						Name:           "java",
+						Digest:         &remoteexecution.Digest{Hash: "8277e0910d750195b448797616e091ad", SizeBytes: 7},
+						NodeProperties: toolInput,
+					},
+				},
+			}, nil)
+		// "mixed" holds a tool input next to a regular input,
+		// so only the tool input itself is reported.
+		directoryFetcher.EXPECT().GetDirectory(gomock.Any(), mixedDigest).
+			Return(&remoteexecution.Directory{
+				Files: []*remoteexecution.FileNode{
+					{
+						Name:           "JavaBuilder.jar",
+						Digest:         &remoteexecution.Digest{Hash: "e1671797c52e15f763380b45e841ec32", SizeBytes: 9},
+						NodeProperties: toolInput,
+					},
+					{
+						Name:   "sources.txt",
+						Digest: &remoteexecution.Digest{Hash: "1679091c5a880faf6fb5e6087eb1b2dc", SizeBytes: 6},
+					},
+				},
+			}, nil)
+		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 100)
+
+		persistentWorker, err := extractor.Extract(ctx, digestFunction, &remoteexecution.Action{
+			InputRootDigest: &remoteexecution.Digest{
+				Hash:      "6b9e4b3f5e0a1c05b9b2a4c8a2a09e94",
+				SizeBytes: 123,
+			},
+			Platform: &remoteexecution.Platform{
+				Properties: []*remoteexecution.Platform_Property{
+					{Name: "persistentWorkerKey", Value: "b0a6c1"},
+				},
+			},
+		})
+		require.NoError(t, err)
+		testutil.RequireEqualProto(t, &runner_pb.PersistentWorker{
+			Key:      "b0a6c1",
+			Protocol: runner_pb.PersistentWorker_PROTO,
+			Inputs: []*bazelworker.Input{
+				{Path: "Hello.java", Digest: []byte("5d41402abc4b2a76b9719d911017c592")},
+				{Path: "jdk/release", Digest: []byte("7d793037a0760186574b0282f2f435e7")},
+				{Path: "jdk/bin/java", Digest: []byte("8277e0910d750195b448797616e091ad")},
+				{Path: "mixed/JavaBuilder.jar", Digest: []byte("e1671797c52e15f763380b45e841ec32")},
+				{Path: "mixed/sources.txt", Digest: []byte("1679091c5a880faf6fb5e6087eb1b2dc")},
+			},
+			ToolInputPaths: []string{
+				"jdk",
+				"mixed/JavaBuilder.jar",
+			},
+		}, persistentWorker)
+	})
+
+	t.Run("ToolInputsNeverCollapseInputRoot", func(t *testing.T) {
+		// Even when every file in the input root belongs to the
+		// tool, the input root itself must not be reported as a
+		// tool input path. It is the directory that the runner
+		// populates with symbolic links.
+		rootDigest := digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "6b9e4b3f5e0a1c05b9b2a4c8a2a09e94", 123)
+		directoryFetcher := mock.NewMockDirectoryFetcher(ctrl)
+		directoryFetcher.EXPECT().GetDirectory(gomock.Any(), rootDigest).
+			Return(&remoteexecution.Directory{
+				Files: []*remoteexecution.FileNode{
+					{
+						Name:   "tool",
+						Digest: &remoteexecution.Digest{Hash: "5d41402abc4b2a76b9719d911017c592", SizeBytes: 5},
+						NodeProperties: &remoteexecution.NodeProperties{
+							Properties: []*remoteexecution.NodeProperty{
+								{Name: "bazel_tool_input"},
+							},
+						},
+					},
+				},
+			}, nil)
+		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 100)
+
+		persistentWorker, err := extractor.Extract(ctx, digestFunction, &remoteexecution.Action{
+			InputRootDigest: &remoteexecution.Digest{
+				Hash:      "6b9e4b3f5e0a1c05b9b2a4c8a2a09e94",
+				SizeBytes: 123,
+			},
+			Platform: &remoteexecution.Platform{
+				Properties: []*remoteexecution.Platform_Property{
+					{Name: "persistentWorkerKey", Value: "b0a6c1"},
+				},
+			},
+		})
+		require.NoError(t, err)
+		testutil.RequireEqualProto(t, &runner_pb.PersistentWorker{
+			Key:      "b0a6c1",
+			Protocol: runner_pb.PersistentWorker_PROTO,
+			Inputs: []*bazelworker.Input{
+				{Path: "tool", Digest: []byte("5d41402abc4b2a76b9719d911017c592")},
+			},
+			ToolInputPaths: []string{"tool"},
+		}, persistentWorker)
+	})
+
 	t.Run("JSONProtocol", func(t *testing.T) {
 		directoryFetcher := mock.NewMockDirectoryFetcher(ctrl)
 		directoryFetcher.EXPECT().GetDirectory(gomock.Any(), emptyDirectoryDigest).

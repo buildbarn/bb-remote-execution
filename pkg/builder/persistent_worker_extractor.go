@@ -37,6 +37,16 @@ const (
 	// it use the Protobuf encoding, so an absent property means the
 	// same as "proto".
 	PersistentWorkerProtocolPlatformProperty = "persistentWorkerProtocol"
+
+	// PersistentWorkerToolInputNodeProperty is the name of the REv2
+	// node property that Bazel attaches to the input files that
+	// belong to the tool, as opposed to the data that the build
+	// action processes. The property has no value.
+	//
+	// Bazel only emits it when --experimental_remote_mark_tool_inputs
+	// is provided, which is also the only case in which it sets the
+	// 'persistentWorkerKey' platform property.
+	PersistentWorkerToolInputNodeProperty = "bazel_tool_input"
 )
 
 var (
@@ -118,7 +128,7 @@ func (e *PersistentWorkerExtractor) Extract(ctx context.Context, digestFunction 
 	if err != nil {
 		return nil, util.StatusWrap(err, "Failed to extract digest for input root")
 	}
-	inputs, err := e.getInputs(ctx, digestFunction, inputRootDigest)
+	inputs, toolInputPaths, err := e.getInputs(ctx, digestFunction, inputRootDigest)
 	if err != nil {
 		return nil, err
 	}
@@ -134,75 +144,136 @@ func (e *PersistentWorkerExtractor) Extract(ctx context.Context, digestFunction 
 
 	persistentWorkerExtractorActionsTotal.WithLabelValues("Used").Inc()
 	return &runner_pb.PersistentWorker{
-		Key:      key,
-		Protocol: protocol,
-		Inputs:   inputs,
+		Key:            key,
+		Protocol:       protocol,
+		Inputs:         inputs,
+		ToolInputPaths: toolInputPaths,
 	}, nil
 }
 
-// getInputs returns the list of files stored in the input root of a
-// build action, including their digests. It returns nil if the input
-// root contains more files than the configured maximum.
-func (e *PersistentWorkerExtractor) getInputs(ctx context.Context, digestFunction digest.Function, inputRootDigest digest.Digest) ([]*bazelworker.Input, error) {
-	// Always return a non-nil slice on success, so that callers can
-	// distinguish an empty input root from one that is too large.
-	inputs := []*bazelworker.Input{}
-	inputs, exceeded, err := e.appendInputs(ctx, inputs, digestFunction, inputRootDigest, nil)
-	if err != nil {
-		return nil, err
-	}
-	if exceeded {
-		return nil, nil
-	}
-	return inputs, nil
+// inputsCollector accumulates the results of walking the input root of
+// a build action.
+type inputsCollector struct {
+	inputs         []*bazelworker.Input
+	toolInputPaths []string
 }
 
-func (e *PersistentWorkerExtractor) appendInputs(ctx context.Context, inputs []*bazelworker.Input, digestFunction digest.Function, directoryDigest digest.Digest, directoryPath *path.Trace) ([]*bazelworker.Input, bool, error) {
+// getInputs returns the list of files stored in the input root of a
+// build action, including their digests, together with the paths of the
+// files that belong to the tool. It returns nil if the input root
+// contains more files than the configured maximum.
+func (e *PersistentWorkerExtractor) getInputs(ctx context.Context, digestFunction digest.Function, inputRootDigest digest.Digest) ([]*bazelworker.Input, []string, error) {
+	// Always return a non-nil slice on success, so that callers can
+	// distinguish an empty input root from one that is too large.
+	c := inputsCollector{inputs: []*bazelworker.Input{}}
+	_, exceeded, err := e.appendInputs(ctx, &c, digestFunction, inputRootDigest, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	if exceeded {
+		return nil, nil, nil
+	}
+	return c.inputs, c.toolInputPaths, nil
+}
+
+// isToolInput returns whether a file in the input root was marked by the
+// client as belonging to the tool that executes the build action.
+func isToolInput(nodeProperties *remoteexecution.NodeProperties) bool {
+	for _, property := range nodeProperties.GetProperties() {
+		if property.Name == PersistentWorkerToolInputNodeProperty {
+			return true
+		}
+	}
+	return false
+}
+
+// appendInputs walks a single directory in the input root of a build
+// action, recursively.
+//
+// The first return value indicates that the directory is non-empty and
+// that every file stored in its subtree is a tool input. In that case
+// the paths that were emitted for the subtree are collapsed into the
+// path of the directory itself. This keeps the list of tool input paths
+// short, and it allows the runner to materialize whole directories in
+// one go, rather than having to descend into them to refresh symbolic
+// links that can never be needed.
+func (e *PersistentWorkerExtractor) appendInputs(ctx context.Context, c *inputsCollector, digestFunction digest.Function, directoryDigest digest.Digest, directoryPath *path.Trace) (bool, bool, error) {
 	directory, err := e.directoryFetcher.GetDirectory(ctx, directoryDigest)
 	if err != nil {
-		return nil, false, util.StatusWrapf(err, "Failed to obtain input directory %#v", directoryPath.GetUNIXString())
+		return false, false, util.StatusWrapf(err, "Failed to obtain input directory %#v", directoryPath.GetUNIXString())
 	}
+
+	// Remember where the tool input paths of this subtree start, so
+	// that they can be replaced by the path of this directory if it
+	// turns out to hold nothing else.
+	firstToolInputPath := len(c.toolInputPaths)
+	entryCount := 0
+	allToolInputs := true
 
 	for _, file := range directory.Files {
 		component, ok := path.NewComponent(file.Name)
 		if !ok {
-			return nil, false, status.Errorf(codes.InvalidArgument, "Input directory %#v contains file with invalid name %#v", directoryPath.GetUNIXString(), file.Name)
+			return false, false, status.Errorf(codes.InvalidArgument, "Input directory %#v contains file with invalid name %#v", directoryPath.GetUNIXString(), file.Name)
 		}
 		filePath := directoryPath.Append(component)
 		fileDigest, err := digestFunction.NewDigestFromProto(file.Digest)
 		if err != nil {
-			return nil, false, util.StatusWrapf(err, "Failed to extract digest for input file %#v", filePath.GetUNIXString())
+			return false, false, util.StatusWrapf(err, "Failed to extract digest for input file %#v", filePath.GetUNIXString())
 		}
-		if e.maximumInputFileCount > 0 && len(inputs) >= e.maximumInputFileCount {
-			return nil, true, nil
+		if e.maximumInputFileCount > 0 && len(c.inputs) >= e.maximumInputFileCount {
+			return false, true, nil
 		}
-		inputs = append(inputs, &bazelworker.Input{
+		c.inputs = append(c.inputs, &bazelworker.Input{
 			Path: filePath.GetUNIXString(),
 			// Bazel provides persistent workers with the
 			// hexadecimal representation of the digest of
 			// the file's contents, encoded as UTF-8.
 			Digest: []byte(fileDigest.GetHashString()),
 		})
+		entryCount++
+		if isToolInput(file.NodeProperties) {
+			c.toolInputPaths = append(c.toolInputPaths, filePath.GetUNIXString())
+		} else {
+			allToolInputs = false
+		}
 	}
 
 	for _, child := range directory.Directories {
 		component, ok := path.NewComponent(child.Name)
 		if !ok {
-			return nil, false, status.Errorf(codes.InvalidArgument, "Input directory %#v contains directory with invalid name %#v", directoryPath.GetUNIXString(), child.Name)
+			return false, false, status.Errorf(codes.InvalidArgument, "Input directory %#v contains directory with invalid name %#v", directoryPath.GetUNIXString(), child.Name)
 		}
 		childPath := directoryPath.Append(component)
 		childDigest, err := digestFunction.NewDigestFromProto(child.Digest)
 		if err != nil {
-			return nil, false, util.StatusWrapf(err, "Failed to extract digest for input directory %#v", childPath.GetUNIXString())
+			return false, false, util.StatusWrapf(err, "Failed to extract digest for input directory %#v", childPath.GetUNIXString())
 		}
-		var exceeded bool
-		inputs, exceeded, err = e.appendInputs(ctx, inputs, digestFunction, childDigest, childPath)
+		childAllToolInputs, exceeded, err := e.appendInputs(ctx, c, digestFunction, childDigest, childPath)
 		if err != nil {
-			return nil, false, err
+			return false, false, err
 		}
 		if exceeded {
-			return nil, true, nil
+			return false, true, nil
+		}
+		entryCount++
+		if !childAllToolInputs {
+			allToolInputs = false
 		}
 	}
-	return inputs, false, nil
+
+	// Symbolic links are never marked as tool inputs, and the runner
+	// recreates them by hand. Keep the directory holding them open.
+	if len(directory.Symlinks) > 0 {
+		entryCount += len(directory.Symlinks)
+		allToolInputs = false
+	}
+
+	if !allToolInputs || entryCount == 0 || directoryPath == nil {
+		// Either this directory holds more than just the tool, or
+		// it is the input root itself, which must always remain a
+		// directory that the runner descends into.
+		return allToolInputs && entryCount > 0, false, nil
+	}
+	c.toolInputPaths = append(c.toolInputPaths[:firstToolInputPath], directoryPath.GetUNIXString())
+	return true, false, nil
 }

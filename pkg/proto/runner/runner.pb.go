@@ -223,12 +223,13 @@ func (x *RunRequest) GetPersistentWorker() *PersistentWorker {
 }
 
 type PersistentWorker struct {
-	state         protoimpl.MessageState    `protogen:"open.v1"`
-	Key           string                    `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
-	Protocol      PersistentWorker_Protocol `protobuf:"varint,2,opt,name=protocol,proto3,enum=buildbarn.runner.PersistentWorker_Protocol" json:"protocol,omitempty"`
-	Inputs        []*bazelworker.Input      `protobuf:"bytes,3,rep,name=inputs,proto3" json:"inputs,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState    `protogen:"open.v1"`
+	Key            string                    `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	Protocol       PersistentWorker_Protocol `protobuf:"varint,2,opt,name=protocol,proto3,enum=buildbarn.runner.PersistentWorker_Protocol" json:"protocol,omitempty"`
+	Inputs         []*bazelworker.Input      `protobuf:"bytes,3,rep,name=inputs,proto3" json:"inputs,omitempty"`
+	ToolInputPaths []string                  `protobuf:"bytes,4,rep,name=tool_input_paths,json=toolInputPaths,proto3" json:"tool_input_paths,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *PersistentWorker) Reset() {
@@ -278,6 +279,13 @@ func (x *PersistentWorker) GetProtocol() PersistentWorker_Protocol {
 func (x *PersistentWorker) GetInputs() []*bazelworker.Input {
 	if x != nil {
 		return x.Inputs
+	}
+	return nil
+}
+
+func (x *PersistentWorker) GetToolInputPaths() []string {
+	if x != nil {
+		return x.ToolInputPaths
 	}
 	return nil
 }
@@ -356,11 +364,12 @@ const file_github_com_buildbarn_bb_remote_execution_pkg_proto_runner_runner_prot
 	"\x11persistent_worker\x18\t \x01(\v2\".buildbarn.runner.PersistentWorkerR\x10persistentWorker\x1aG\n" +
 	"\x19EnvironmentVariablesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xbb\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xe5\x01\n" +
 	"\x10PersistentWorker\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12G\n" +
 	"\bprotocol\x18\x02 \x01(\x0e2+.buildbarn.runner.PersistentWorker.ProtocolR\bprotocol\x12+\n" +
-	"\x06inputs\x18\x03 \x03(\v2\x13.blaze.worker.InputR\x06inputs\"\x1f\n" +
+	"\x06inputs\x18\x03 \x03(\v2\x13.blaze.worker.InputR\x06inputs\x12(\n" +
+	"\x10tool_input_paths\x18\x04 \x03(\tR\x0etoolInputPaths\"\x1f\n" +
 	"\bProtocol\x12\t\n" +
 	"\x05PROTO\x10\x00\x12\b\n" +
 	"\x04JSON\x10\x01\"g\n" +
