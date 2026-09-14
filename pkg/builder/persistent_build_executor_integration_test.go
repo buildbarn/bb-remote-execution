@@ -5,6 +5,7 @@ import (
 	"math"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -117,6 +118,7 @@ func TestPersistentBuildExecutorGRPCRoundTrip(test *testing.T) {
 	defer func() { require.NoError(test, executor.Close(context.Background())) }()
 	executable, err := runfiles.Rlocation(os.Getenv("FAKE_WORKER_BINARY"))
 	require.NoError(test, err)
+	compilerName := "compiler" + filepath.Ext(executable)
 	compiler, err := os.ReadFile(executable)
 	require.NoError(test, err)
 	compilerDigest := addBytes(compiler)
@@ -129,12 +131,12 @@ func TestPersistentBuildExecutorGRPCRoundTrip(test *testing.T) {
 		inputDirectory := &remoteexecution.Directory{Files: []*remoteexecution.FileNode{
 			{Name: "args", Digest: addBytes([]byte(arguments))},
 			{
-				Name: "compiler", Digest: compilerDigest, IsExecutable: true,
+				Name: compilerName, Digest: compilerDigest, IsExecutable: true,
 				NodeProperties: &remoteexecution.NodeProperties{Properties: []*remoteexecution.NodeProperty{{Name: "bazel_tool_input"}}},
 			},
 			{Name: "source", Digest: addBytes([]byte(source))},
 		}}
-		command := &remoteexecution.Command{Arguments: []string{"./compiler", "--mode=proto", "@args"}, WorkingDirectory: "work", OutputPaths: []string{"out/result"}}
+		command := &remoteexecution.Command{Arguments: []string{"./" + compilerName, "--mode=proto", "@args"}, WorkingDirectory: "work", OutputPaths: []string{"out/result"}}
 		if actionIndex == 4 {
 			command.EnvironmentVariables = []*remoteexecution.Command_EnvironmentVariable{{Name: "CHANGED", Value: "true"}}
 		}

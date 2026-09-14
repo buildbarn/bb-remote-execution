@@ -170,7 +170,11 @@ func TestPersistentBuildExecutorReuse(test *testing.T) {
 		var err error
 		workingDirectory, err = os.Open(workingPath)
 		require.NoError(test, err)
-		test.Cleanup(func() { require.NoError(test, workingDirectory.Close()) })
+		test.Cleanup(func() {
+			if workingDirectory != nil {
+				require.NoError(test, workingDirectory.Close())
+			}
+		})
 		require.NoError(test, os.WriteFile(filepath.Join(fixture.nativePath, request.ProcessStderrPath), []byte("lifetime diagnostics"), 0o666))
 		require.NoError(test, os.WriteFile(filepath.Join(fixture.nativePath, request.TemporaryDirectory, "cache"), []byte("cached"), 0o666))
 		return &runner_pb.CreateSessionResponse{SessionId: "session"}, nil
@@ -237,6 +241,8 @@ func TestPersistentBuildExecutorReuse(test *testing.T) {
 	}
 	fixture.runner.EXPECT().CloseSession(gomock.Any(), &runner_pb.SessionRequest{SessionId: "session"}).DoAndReturn(func(ctx context.Context, request *runner_pb.SessionRequest, options ...grpc.CallOption) (*emptypb.Empty, error) {
 		require.DirExists(test, workingPath)
+		require.NoError(test, workingDirectory.Close())
+		workingDirectory = nil
 		return &emptypb.Empty{}, nil
 	})
 	for range 2 {

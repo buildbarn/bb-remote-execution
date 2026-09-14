@@ -112,7 +112,7 @@ func (process *PersistentWorkerProcess) stop() {
 	process.stopOnce.Do(func() {
 		process.stdin.Close()
 		process.stdout.Close()
-		if err := process.command.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+		if err := killPersistentWorkerProcess(process.command.Process); err != nil && !errors.Is(err, os.ErrProcessDone) {
 			process.stopError = err
 		}
 	})

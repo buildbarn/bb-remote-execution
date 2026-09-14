@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -71,7 +73,15 @@ func TestPersistentRunnerBinary(test *testing.T) {
 		close(done)
 	}()
 	test.Cleanup(func() {
-		command.Process.Signal(syscall.SIGTERM)
+		select {
+		case <-done:
+		default:
+			if runtime.GOOS == "windows" {
+				command.Process.Kill()
+			} else {
+				command.Process.Signal(syscall.SIGTERM)
+			}
+		}
 		select {
 		case <-done:
 		case <-time.After(10 * time.Second):
@@ -86,7 +96,14 @@ func TestPersistentRunnerBinary(test *testing.T) {
 		}
 	})
 
-	connection, err := grpc.NewClient("unix://"+socketPath, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	connection, err := grpc.NewClient(
+		"passthrough:///runner",
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithContextDialer(func(ctx context.Context, address string) (net.Conn, error) {
+			var dialer net.Dialer
+			return dialer.DialContext(ctx, "unix", socketPath)
+		}),
+	)
 	require.NoError(test, err)
 	defer connection.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -103,7 +120,7 @@ func TestPersistentRunnerBinary(test *testing.T) {
 	require.Len(test, status.Convert(err).Details(), 1)
 	require.IsType(test, &runner_pb.CreateSessionFailure{}, status.Convert(err).Details()[0])
 
-	createSession := func(stderrPath string) string {
+	createSession := func(test *testing.T, stderrPath string) string {
 		test.Helper()
 		response, err := persistent.CreateSession(ctx, &runner_pb.CreateSessionRequest{
 			Arguments: []string{executable("FAKE_WORKER_BINARY"), "--persistent_worker"}, ProcessStderrPath: stderrPath,
@@ -112,7 +129,18 @@ func TestPersistentRunnerBinary(test *testing.T) {
 		return response.SessionId
 	}
 
-	sessionID := createSession("session.stderr")
+	sessionID := createSession(test, "session.stderr")
+	defer func() {
+		select {
+		case <-done:
+			return
+		default:
+		}
+		cleanupContext, cancelCleanup := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancelCleanup()
+		_, err := persistent.CloseSession(cleanupContext, &runner_pb.SessionRequest{SessionId: sessionID})
+		require.NoError(test, err)
+	}()
 	marker := filepath.Join(temporaryDirectory, "retained")
 	require.NoError(test, os.WriteFile(marker, nil, 0o600))
 
@@ -149,16 +177,21 @@ func TestPersistentRunnerBinary(test *testing.T) {
 	require.NoError(test, err)
 	require.NoFileExists(test, marker)
 
-	createSession("shutdown.stderr")
-	require.NoError(test, os.WriteFile(marker, nil, 0o600))
-	require.NoError(test, command.Process.Signal(syscall.SIGTERM))
-	select {
-	case <-done:
-	case <-ctx.Done():
-		test.Fatal(ctx.Err())
-	}
+	test.Run("SIGTERMShutdown", func(test *testing.T) {
+		if runtime.GOOS == "windows" {
+			test.Skip("SIGTERM delivery is not supported on Windows")
+		}
+		createSession(test, "shutdown.stderr")
+		require.NoError(test, os.WriteFile(marker, nil, 0o600))
+		require.NoError(test, command.Process.Signal(syscall.SIGTERM))
+		select {
+		case <-done:
+		case <-ctx.Done():
+			test.Fatal(ctx.Err())
+		}
 
-	var exitError *exec.ExitError
-	require.ErrorAs(test, waitError, &exitError)
-	require.NoFileExists(test, marker)
+		var exitError *exec.ExitError
+		require.ErrorAs(test, waitError, &exitError)
+		require.NoFileExists(test, marker)
+	})
 }

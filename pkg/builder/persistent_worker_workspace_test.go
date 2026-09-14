@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"sync/atomic"
 	"testing"
@@ -143,6 +144,7 @@ func TestPersistentWorkerWorkspaceReconciliation(test *testing.T) {
 		stopCalls++
 		_, err := os.Stat(workingPath)
 		require.NoError(test, err)
+		require.NoError(test, workingHandle.Close())
 		return nil
 	}
 	require.Error(test, workspace.Close(context.Background(), stopWorker))
@@ -171,7 +173,9 @@ func TestPersistentWorkerWorkspaceReconciliation(test *testing.T) {
 	require.Equal(test, "second", string(contents))
 	sourceInfo, err := os.Stat(filepath.Join(workingPath, "source"))
 	require.NoError(test, err)
-	require.NotZero(test, sourceInfo.Mode()&0o111)
+	if runtime.GOOS != "windows" {
+		require.NotZero(test, sourceInfo.Mode()&0o111)
+	}
 	target, err := os.Readlink(filepath.Join(workingPath, "new-link"))
 	require.NoError(test, err)
 	require.Equal(test, "source", target)

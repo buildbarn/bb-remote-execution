@@ -157,6 +157,7 @@ func TestPersistentWorkerProcessLifetimeCancellation(t *testing.T) {
 	_, err := process.Execute(ctx, nil)
 	require.NoError(t, err)
 	cancelLifetime()
+	require.NoError(t, process.Close())
 	select {
 	case <-process.Done():
 	case <-ctx.Done():

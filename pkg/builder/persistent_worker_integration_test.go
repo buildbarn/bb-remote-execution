@@ -33,11 +33,12 @@ func TestPersistentWorkerGRPCRoundTrip(t *testing.T) {
 	defer cancel()
 	executable, err := runfiles.Rlocation(os.Getenv("FAKE_WORKER_BINARY"))
 	require.NoError(t, err)
+	compilerName := "compiler" + filepath.Ext(executable)
 	compiler, err := os.ReadFile(executable)
 	require.NoError(t, err)
 	directoryPath := t.TempDir()
 	require.NoError(t, os.Mkdir(filepath.Join(directoryPath, "root"), 0o777))
-	require.NoError(t, os.WriteFile(filepath.Join(directoryPath, "root", "compiler"), compiler, 0o777))
+	require.NoError(t, os.WriteFile(filepath.Join(directoryPath, "root", compilerName), compiler, 0o777))
 	directory, err := filesystem.NewLocalDirectory(path.LocalFormat.NewParser(directoryPath))
 	require.NoError(t, err)
 	defer directory.Close()
@@ -66,10 +67,10 @@ func TestPersistentWorkerGRPCRoundTrip(t *testing.T) {
 	action := &remoteexecution.Action{Platform: &remoteexecution.Platform{Properties: []*remoteexecution.Platform_Property{
 		{Name: "persistentWorkerKey", Value: "test-tool"},
 	}}}
-	command := &remoteexecution.Command{Arguments: []string{"./compiler", "--mode=proto", "@args"}}
+	command := &remoteexecution.Command{Arguments: []string{"./" + compilerName, "--mode=proto", "@args"}}
 	compilerHash := sha256.Sum256(compiler)
 	inputs := map[string]*remoteexecution.FileNode{
-		"compiler": {
+		compilerName: {
 			Digest:         &remoteexecution.Digest{Hash: hex.EncodeToString(compilerHash[:]), SizeBytes: int64(len(compiler))},
 			IsExecutable:   true,
 			NodeProperties: &remoteexecution.NodeProperties{Properties: []*remoteexecution.NodeProperty{{Name: "bazel_tool_input"}}},
