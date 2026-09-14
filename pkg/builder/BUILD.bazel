@@ -1,5 +1,8 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
+# gazelle:exclude persistent_build_executor_integration_test.go
+# gazelle:exclude persistent_worker_integration_test.go
+
 go_library(
     name = "builder",
     srcs = [

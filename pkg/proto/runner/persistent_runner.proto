@@ -8,8 +8,8 @@ import "google/protobuf/empty.proto";
 
 option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/runner";
 
-// Similar to Runner but with added session management endpoints for persistent workers support.
-// See https://bazel.build/remote/creating
+// Similar to Runner but with added session management endpoints for persistent
+// workers support. See https://bazel.build/remote/creating
 service PersistentRunner {
   rpc CheckReadiness(CheckReadinessRequest) returns (google.protobuf.Empty);
   rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
@@ -17,7 +17,7 @@ service PersistentRunner {
       returns (ExecuteInPersistentWorkerResponse);
   rpc CloseSession(SessionRequest) returns (google.protobuf.Empty);
 
-  // TODO: Define RenewSession so orphaned workers are cleaned up. 
+  // TODO: Define RenewSession so orphaned workers are cleaned up.
 }
 
 message CreateSessionRequest {
