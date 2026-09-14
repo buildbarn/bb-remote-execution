@@ -202,6 +202,7 @@ func TestLocalBuildExecutorInputRootPopulationFailed(t *testing.T) {
 		gomock.Any(),
 		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42),
 		monitor,
+		nil,
 	).Return(status.Error(codes.FailedPrecondition, "Some input files could not be found"))
 	inputRootDirectory.EXPECT().Close()
 	buildDirectory.EXPECT().Close()
@@ -279,6 +280,7 @@ func TestLocalBuildExecutorOutputDirectoryCreationFailure(t *testing.T) {
 		gomock.Any(),
 		digest.MustNewDigest("fedora", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42),
 		monitor,
+		nil,
 	).Return(nil)
 	inputRootDirectory.EXPECT().Mkdir(path.MustNewComponent("foo"), os.FileMode(0o777)).Return(status.Error(codes.Internal, "Out of disk space"))
 	inputRootDirectory.EXPECT().Close()
@@ -351,6 +353,7 @@ func TestLocalBuildExecutorMissingCommand(t *testing.T) {
 		gomock.Any(),
 		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42),
 		monitor,
+		nil,
 	).Return(nil)
 	inputRootDirectory.EXPECT().Close()
 	buildDirectory.EXPECT().Close()
@@ -450,6 +453,7 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 		gomock.Any(),
 		digest.MustNewDigest("nintendo64", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42),
 		monitor,
+		nil,
 	).Return(nil)
 	buildDirectory.EXPECT().Mkdir(path.MustNewComponent("tmp"), os.FileMode(0o777))
 	buildDirectory.EXPECT().Mkdir(path.MustNewComponent("server_logs"), os.FileMode(0o777))
@@ -666,6 +670,7 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 		gomock.Any(),
 		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000003", 345),
 		monitor,
+		nil,
 	).Return(nil)
 	inputRootDirectory.EXPECT().Mkdir(path.MustNewComponent("dev"), os.FileMode(0o777))
 	inputRootDevDirectory := mock.NewMockBuildDirectory(ctrl)
@@ -876,7 +881,7 @@ func TestLocalBuildExecutorResultHandling(test *testing.T) {
 			buildDirectory.EXPECT().Mkdir(path.MustNewComponent("root"), os.FileMode(0o777))
 			inputRootDirectory := mock.NewMockBuildDirectory(ctrl)
 			buildDirectory.EXPECT().EnterBuildDirectory(path.MustNewComponent("root")).Return(inputRootDirectory, nil)
-			inputRootDirectory.EXPECT().MergeDirectoryContents(ctx, gomock.Any(), inputRootDigest, monitor)
+			inputRootDirectory.EXPECT().MergeDirectoryContents(ctx, gomock.Any(), inputRootDigest, monitor, nil)
 			buildDirectory.EXPECT().Mkdir(path.MustNewComponent("tmp"), os.FileMode(0o777))
 			buildDirectory.EXPECT().Mkdir(path.MustNewComponent("server_logs"), os.FileMode(0o777))
 
@@ -1048,7 +1053,8 @@ func TestLocalBuildExecutorInputRootIOFailureDuringExecution(t *testing.T) {
 		gomock.Any(),
 		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000003", 345),
 		monitor,
-	).DoAndReturn(func(ctx context.Context, providedErrorLogger util.ErrorLogger, digest digest.Digest, monitor access.UnreadDirectoryMonitor) error {
+		nil,
+	).DoAndReturn(func(ctx context.Context, providedErrorLogger util.ErrorLogger, digest digest.Digest, monitor access.UnreadDirectoryMonitor, preservedFiles map[string]struct{}) error {
 		errorLogger = providedErrorLogger
 		return nil
 	})
@@ -1181,6 +1187,7 @@ func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 		gomock.Any(),
 		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000003", 345),
 		monitor,
+		nil,
 	).Return(nil)
 	buildDirectory.EXPECT().Mkdir(path.MustNewComponent("tmp"), os.FileMode(0o777))
 	buildDirectory.EXPECT().Mkdir(path.MustNewComponent("server_logs"), os.FileMode(0o777))
@@ -1310,6 +1317,7 @@ func TestLocalBuildExecutorCharacterDeviceNodeCreationFailed(t *testing.T) {
 		gomock.Any(),
 		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000003", 345),
 		monitor,
+		nil,
 	).Return(nil)
 	inputRootDirectory.EXPECT().Mkdir(path.MustNewComponent("dev"), os.FileMode(0o777))
 	inputRootDevDirectory := mock.NewMockBuildDirectory(ctrl)

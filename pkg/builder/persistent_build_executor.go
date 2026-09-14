@@ -199,7 +199,7 @@ func (executor *PersistentBuildExecutor) Execute(ctx context.Context, filePool p
 		}
 	}
 	if executor.workspace == nil {
-		executor.workspace, err = NewPersistentWorkerWorkspace(executor.lifetimeContext, executor.buildDirectoryCreator, executor.filePool, prepared.WorkingDirectory, executor.inputRootCharacterDevices)
+		executor.workspace, err = NewPersistentWorkerWorkspace(executor.lifetimeContext, executor.buildDirectoryCreator, executor.filePool, prepared.WorkingDirectory, prepared.toolInputPaths, executor.inputRootCharacterDevices)
 		if err != nil {
 			attachErrorToExecuteResponse(response, err)
 			return response

@@ -59,12 +59,12 @@ func (logger *capturingErrorLogger) GetError() error {
 	return logger.error
 }
 
-func populateInputRoot(ctx context.Context, inputRootDirectory BuildDirectory, errorLogger util.ErrorLogger, digestFunction digest.Function, inputRootDigestProto *remoteexecution.Digest, monitor access.UnreadDirectoryMonitor, characterDevices map[path.Component]filesystem.DeviceNumber) error {
+func populateInputRoot(ctx context.Context, inputRootDirectory BuildDirectory, errorLogger util.ErrorLogger, digestFunction digest.Function, inputRootDigestProto *remoteexecution.Digest, monitor access.UnreadDirectoryMonitor, characterDevices map[path.Component]filesystem.DeviceNumber, preservedFiles map[string]struct{}) error {
 	inputRootDigest, err := digestFunction.NewDigestFromProto(inputRootDigestProto)
 	if err != nil {
 		return util.StatusWrap(err, "Failed to extract digest for input root")
 	}
-	if err := inputRootDirectory.MergeDirectoryContents(ctx, errorLogger, inputRootDigest, monitor); err != nil {
+	if err := inputRootDirectory.MergeDirectoryContents(ctx, errorLogger, inputRootDigest, monitor, preservedFiles); err != nil {
 		return err
 	}
 	if len(characterDevices) == 0 {

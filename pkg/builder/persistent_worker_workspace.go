@@ -3,6 +3,7 @@ package builder
 import (
 	"context"
 	"errors"
+	"maps"
 	"os"
 	"strings"
 	"sync"
@@ -30,6 +31,8 @@ type PersistentWorkerWorkspace struct {
 	buildPath        *path.Trace
 	workingDirectory []path.Component
 	characterDevices map[path.Component]filesystem.DeviceNumber
+	preservedPaths   map[string]filesystem.FileType
+	toolInputPaths   map[string]struct{}
 
 	lock        sync.Mutex
 	busy        bool
@@ -42,8 +45,10 @@ type PersistentWorkerWorkspace struct {
 
 // NewPersistentWorkerWorkspace acquires a uniquely named directory for a
 // compiler session. The context and file pool must outlive individual
-// actions. WorkingDirectory must be canonical and input-root-relative.
-func NewPersistentWorkerWorkspace(ctx context.Context, creator BuildDirectoryCreator, filePool pool.FilePool, workingDirectory string, characterDevices map[path.Component]filesystem.DeviceNumber) (*PersistentWorkerWorkspace, error) {
+// actions. WorkingDirectory and toolInputPaths must be canonical and
+// input-root-relative. Tool inputs must remain immutable and identical
+// across every action using the workspace.
+func NewPersistentWorkerWorkspace(ctx context.Context, creator BuildDirectoryCreator, filePool pool.FilePool, workingDirectory string, toolInputPaths []string, characterDevices map[path.Component]filesystem.DeviceNumber) (*PersistentWorkerWorkspace, error) {
 	var workingDirectoryComponents []path.Component
 	if workingDirectory != "" {
 		if !validPersistentWorkerInputPath(workingDirectory) {
@@ -56,6 +61,36 @@ func NewPersistentWorkerWorkspace(ctx context.Context, creator BuildDirectoryCre
 			}
 			workingDirectoryComponents = append(workingDirectoryComponents, component)
 		}
+	}
+	preservedPaths := map[string]filesystem.FileType{}
+	var workingPath *path.Trace
+	for _, component := range workingDirectoryComponents {
+		workingPath = workingPath.Append(component)
+		preservedPaths[workingPath.GetUNIXString()] = filesystem.FileTypeDirectory
+	}
+	toolFiles := map[string]struct{}{}
+	for _, toolPath := range toolInputPaths {
+		if !validPersistentWorkerInputPath(toolPath) {
+			return nil, status.Error(codes.InvalidArgument, "Invalid persistent worker tool path")
+		}
+		var toolTrace *path.Trace
+		components := strings.Split(toolPath, "/")
+		for componentIndex, name := range components {
+			component, ok := path.NewComponent(name)
+			if !ok {
+				return nil, status.Error(codes.InvalidArgument, "Invalid persistent worker tool path component")
+			}
+			toolTrace = toolTrace.Append(component)
+			fileType := filesystem.FileTypeDirectory
+			if componentIndex == len(components)-1 {
+				fileType = filesystem.FileTypeRegularFile
+			}
+			if existing, ok := preservedPaths[toolTrace.GetUNIXString()]; ok && existing != fileType {
+				return nil, status.Error(codes.InvalidArgument, "Conflicting persistent worker tool paths")
+			}
+			preservedPaths[toolTrace.GetUNIXString()] = fileType
+		}
+		toolFiles[toolPath] = struct{}{}
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, status.FromContextError(err).Err()
@@ -73,6 +108,8 @@ func NewPersistentWorkerWorkspace(ctx context.Context, creator BuildDirectoryCre
 		buildPath:        buildPath,
 		workingDirectory: workingDirectoryComponents,
 		characterDevices: characterDevices,
+		preservedPaths:   preservedPaths,
+		toolInputPaths:   toolFiles,
 	}
 	buildDirectory.InstallHooks(filePool, &workspace.errorLogger)
 	for _, name := range []path.Component{inputRootDirectoryComponent, temporaryDirectoryComponent, serverLogsDirectoryComponent, persistentWorkerSessionLogsComponent} {
@@ -112,8 +149,9 @@ type PersistentWorkerWorkspaceLease struct {
 }
 
 // Prepare removes previous action files and populates the new input
-// root, preserving the compiler's working directory identity. A lease
-// remains held until Release, including while outputs are uploaded.
+// root, preserving tool files and the compiler's working directory
+// identity. A lease remains held until Release, including while outputs
+// are uploaded.
 // Preparation failures make the workspace unusable until it is closed.
 func (workspace *PersistentWorkerWorkspace) Prepare(ctx context.Context, inputRootDigest digest.Digest, outputHierarchy *OutputHierarchy) (*PersistentWorkerWorkspaceLease, error) {
 	if err := ctx.Err(); err != nil {
@@ -159,12 +197,17 @@ func (workspace *PersistentWorkerWorkspace) Prepare(ctx context.Context, inputRo
 }
 
 func (workspace *PersistentWorkerWorkspace) prepare(inputRootDigest digest.Digest, outputHierarchy *OutputHierarchy) error {
-	var preservedPath []path.Component
+	var remainingPaths map[string]filesystem.FileType
+	var preservedFiles map[string]struct{}
 	if workspace.initialized {
-		preservedPath = workspace.workingDirectory
+		remainingPaths = maps.Clone(workspace.preservedPaths)
+		preservedFiles = workspace.toolInputPaths
 	}
-	if err := cleanPersistentWorkerDirectory(workspace.context, workspace.inputRoot, preservedPath); err != nil {
+	if err := cleanPersistentWorkerDirectory(workspace.context, workspace.inputRoot, nil, remainingPaths); err != nil {
 		return util.StatusWrap(err, "Failed to clean persistent worker input root")
+	}
+	if len(remainingPaths) != 0 {
+		return status.Error(codes.FailedPrecondition, "Persistent worker working directory or tool input was removed")
 	}
 	for _, name := range []path.Component{stdoutComponent, stderrComponent} {
 		if err := workspace.buildDirectory.RemoveAll(name); err != nil && !os.IsNotExist(err) {
@@ -175,12 +218,12 @@ func (workspace *PersistentWorkerWorkspace) prepare(inputRootDigest digest.Diges
 	if err != nil {
 		return util.StatusWrap(err, "Failed to enter per-action server logs")
 	}
-	cleanError := cleanPersistentWorkerDirectory(workspace.context, serverLogs, nil)
+	cleanError := cleanPersistentWorkerDirectory(workspace.context, serverLogs, nil, nil)
 	closeError := serverLogs.Close()
 	if err := errors.Join(cleanError, closeError); err != nil {
 		return util.StatusWrap(err, "Failed to clean per-action server logs")
 	}
-	if err := populateInputRoot(workspace.context, workspace.inputRoot, &workspace.errorLogger, inputRootDigest.GetDigestFunction(), inputRootDigest.GetProto(), nil, workspace.characterDevices); err != nil {
+	if err := populateInputRoot(workspace.context, workspace.inputRoot, &workspace.errorLogger, inputRootDigest.GetDigestFunction(), inputRootDigest.GetProto(), nil, workspace.characterDevices, preservedFiles); err != nil {
 		return err
 	}
 	if err := createPersistentWorkerWorkingDirectory(workspace.inputRoot, workspace.workingDirectory); err != nil {
@@ -189,36 +232,36 @@ func (workspace *PersistentWorkerWorkspace) prepare(inputRootDigest digest.Diges
 	return outputHierarchy.CreateParentDirectories(workspace.inputRoot)
 }
 
-func cleanPersistentWorkerDirectory(ctx context.Context, directory BuildDirectory, preservedPath []path.Component) error {
+func cleanPersistentWorkerDirectory(ctx context.Context, directory BuildDirectory, directoryPath *path.Trace, remainingPaths map[string]filesystem.FileType) error {
 	children, err := directory.ReadDir()
 	if err != nil {
 		return err
 	}
-	foundPreservedDirectory := len(preservedPath) == 0
 	for _, child := range children {
 		if err := ctx.Err(); err != nil {
 			return status.FromContextError(err).Err()
 		}
-		if len(preservedPath) > 0 && child.Name() == preservedPath[0] {
-			if child.Type() != filesystem.FileTypeDirectory {
-				return status.Error(codes.FailedPrecondition, "Persistent worker working directory was replaced")
+		childPath := directoryPath.Append(child.Name())
+		if fileType, ok := remainingPaths[childPath.GetUNIXString()]; ok {
+			if child.Type() != fileType {
+				return status.Error(codes.FailedPrecondition, "Persistent worker working directory or tool input was replaced")
+			}
+			delete(remainingPaths, childPath.GetUNIXString())
+			if fileType == filesystem.FileTypeRegularFile {
+				continue
 			}
 			childDirectory, err := directory.EnterBuildDirectory(child.Name())
 			if err != nil {
 				return err
 			}
-			cleanError := cleanPersistentWorkerDirectory(ctx, childDirectory, preservedPath[1:])
+			cleanError := cleanPersistentWorkerDirectory(ctx, childDirectory, childPath, remainingPaths)
 			closeError := childDirectory.Close()
 			if err := errors.Join(cleanError, closeError); err != nil {
 				return err
 			}
-			foundPreservedDirectory = true
 		} else if err := directory.RemoveAll(child.Name()); err != nil {
 			return err
 		}
-	}
-	if !foundPreservedDirectory {
-		return status.Error(codes.FailedPrecondition, "Persistent worker working directory was removed")
 	}
 	return nil
 }

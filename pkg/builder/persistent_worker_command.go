@@ -32,6 +32,7 @@ type PersistentWorkerCommand struct {
 	requestArguments     []string
 	inputs               []*worker_pb.Input
 	inputPaths           map[string]struct{}
+	toolInputPaths       []string
 }
 
 // NewPersistentWorkerCommand prepares an REv2 command for singleplex execution.
@@ -96,6 +97,7 @@ func NewPersistentWorkerCommand(platform *remoteexecution.Platform, command *rem
 		prepared.inputPaths[inputPath] = struct{}{}
 		for _, property := range file.GetNodeProperties().GetProperties() {
 			if property.GetName() == "bazel_tool_input" {
+				prepared.toolInputPaths = append(prepared.toolInputPaths, inputPath)
 				toolDirectory.Files = append(toolDirectory.Files, &remoteexecution.FileNode{
 					Name:         inputPath,
 					Digest:       proto.Clone(file.Digest).(*remoteexecution.Digest),

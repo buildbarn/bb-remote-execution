@@ -117,7 +117,7 @@ func (d *virtualBuildDirectory) InstallHooks(filePool pool.FilePool, errorLogger
 	)
 }
 
-func (d *virtualBuildDirectory) MergeDirectoryContents(ctx context.Context, errorLogger util.ErrorLogger, digest digest.Digest, monitor access.UnreadDirectoryMonitor) error {
+func (d *virtualBuildDirectory) MergeDirectoryContents(ctx context.Context, errorLogger util.ErrorLogger, digest digest.Digest, monitor access.UnreadDirectoryMonitor, preservedFiles map[string]struct{}) error {
 	initialContentsFetcher := virtual.NewCASInitialContentsFetcher(
 		ctx,
 		cas.NewDecomposedDirectoryWalker(d.options.directoryFetcher, digest),
@@ -135,10 +135,10 @@ func (d *virtualBuildDirectory) MergeDirectoryContents(ctx context.Context, erro
 	if monitor != nil {
 		initialContentsFetcher = virtual.NewAccessMonitoringInitialContentsFetcher(initialContentsFetcher, monitor)
 	}
-	return mergeVirtualBuildDirectoryContents(d.PrepopulatedDirectory, initialContentsFetcher)
+	return mergeVirtualBuildDirectoryContents(d.PrepopulatedDirectory, initialContentsFetcher, nil, preservedFiles)
 }
 
-func mergeVirtualBuildDirectoryContents(directory virtual.PrepopulatedDirectory, fetcher virtual.InitialContentsFetcher) error {
+func mergeVirtualBuildDirectoryContents(directory virtual.PrepopulatedDirectory, fetcher virtual.InitialContentsFetcher, pathTrace *path.Trace, preservedFiles map[string]struct{}) error {
 	children, err := fetcher.FetchContents(func(name path.Component) virtual.FileReadMonitor { return nil })
 	if err != nil {
 		return err
@@ -151,8 +151,13 @@ func mergeVirtualBuildDirectoryContents(directory virtual.PrepopulatedDirectory,
 		}
 	}()
 	for name, child := range children {
-		childFetcher, _ := child.GetPair()
+		childPath := pathTrace.Append(name)
+		childFetcher, leaf := child.GetPair()
 		if childFetcher == nil {
+			if _, ok := preservedFiles[childPath.GetUNIXString()]; ok {
+				leaf.Unlink()
+				delete(children, name)
+			}
 			continue
 		}
 		existing, err := directory.LookupChild(name)
@@ -166,7 +171,7 @@ func mergeVirtualBuildDirectoryContents(directory virtual.PrepopulatedDirectory,
 		if existingDirectory == nil {
 			return syscall.ENOTDIR
 		}
-		if err := mergeVirtualBuildDirectoryContents(existingDirectory, childFetcher); err != nil {
+		if err := mergeVirtualBuildDirectoryContents(existingDirectory, childFetcher, childPath, preservedFiles); err != nil {
 			return err
 		}
 		delete(children, name)

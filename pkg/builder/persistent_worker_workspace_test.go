@@ -113,7 +113,7 @@ func TestPersistentWorkerWorkspaceReconciliation(test *testing.T) {
 		cleans++
 		return nil
 	})), &nextID)
-	workspace, err := builder.NewPersistentWorkerWorkspace(context.Background(), creator, pool.EmptyFilePool, "pkg/work", nil)
+	workspace, err := builder.NewPersistentWorkerWorkspace(context.Background(), creator, pool.EmptyFilePool, "pkg/work", nil, nil)
 	require.NoError(test, err)
 	workspacePath := filepath.Join(nativePath, workspace.GetBuildDirectoryPath().GetUNIXString())
 	workingPath := filepath.Join(workspacePath, "root", "pkg", "work")
@@ -198,14 +198,97 @@ func TestPersistentWorkerWorkspaceReconciliation(test *testing.T) {
 	require.True(test, os.IsNotExist(err))
 }
 
+func TestPersistentWorkerWorkspaceRetainsToolFiles(test *testing.T) {
+	storage := newPersistentWorkspaceTestStorage(test)
+	rootDirectory, nativePath := storage.newNativeRoot()
+	var nextID atomic.Uint64
+	creator := builder.NewSharedBuildDirectoryCreator(builder.NewRootBuildDirectoryCreator(rootDirectory), &nextID)
+	workspace, err := builder.NewPersistentWorkerWorkspace(context.Background(), creator, pool.EmptyFilePool, "work", []string{"tools/bin/compiler"}, nil)
+	require.NoError(test, err)
+	defer func() {
+		require.NoError(test, workspace.Close(context.Background(), func(context.Context) error { return nil }))
+	}()
+	toolDigest := storage.addBytes([]byte("compiler"))
+	inputRoot := func(source string) digest.Digest {
+		sourceDigest := storage.addBytes([]byte(source))
+		binaryDirectory := storage.addDirectory(&remoteexecution.Directory{Files: []*remoteexecution.FileNode{
+			{Name: "compiler", Digest: toolDigest.GetProto(), IsExecutable: true},
+			{Name: "source", Digest: sourceDigest.GetProto()},
+		}})
+		toolDirectory := storage.addDirectory(&remoteexecution.Directory{Directories: []*remoteexecution.DirectoryNode{{Name: "bin", Digest: binaryDirectory.GetProto()}}})
+		return storage.addDirectory(&remoteexecution.Directory{
+			Files:       []*remoteexecution.FileNode{{Name: "compiler", Digest: sourceDigest.GetProto()}},
+			Directories: []*remoteexecution.DirectoryNode{{Name: "tools", Digest: toolDirectory.GetProto()}},
+		})
+	}
+	outputs := persistentWorkspaceTestOutputs(test, "work")
+	firstLease, err := workspace.Prepare(context.Background(), inputRoot("first"), outputs)
+	require.NoError(test, err)
+	firstLease.Release()
+	rootPath := filepath.Join(nativePath, workspace.GetBuildDirectoryPath().GetUNIXString(), "root")
+	toolPath := filepath.Join(rootPath, "tools", "bin", "compiler")
+	toolFile, err := os.Open(toolPath)
+	require.NoError(test, err)
+	defer toolFile.Close()
+	toolInfo, err := toolFile.Stat()
+	require.NoError(test, err)
+	stalePath := filepath.Join(rootPath, "tools", "bin", "stale")
+	require.NoError(test, os.WriteFile(stalePath, []byte("stale"), 0o666))
+	delete(storage.contents, toolDigest)
+	secondLease, err := workspace.Prepare(context.Background(), inputRoot("second"), outputs)
+	require.NoError(test, err)
+	defer secondLease.Release()
+	newToolInfo, err := os.Stat(toolPath)
+	require.NoError(test, err)
+	require.True(test, os.SameFile(toolInfo, newToolInfo))
+	for _, sourcePath := range []string{"compiler", "tools/bin/source"} {
+		contents, err := os.ReadFile(filepath.Join(rootPath, sourcePath))
+		require.NoError(test, err)
+		require.Equal(test, "second", string(contents))
+	}
+	require.NoFileExists(test, stalePath)
+}
+
+func TestPersistentWorkerWorkspaceToolFileReplaced(test *testing.T) {
+	for _, replacement := range []string{"Missing", "Directory", "Symlink"} {
+		test.Run(replacement, func(test *testing.T) {
+			storage := newPersistentWorkspaceTestStorage(test)
+			rootDirectory, nativePath := storage.newNativeRoot()
+			var nextID atomic.Uint64
+			creator := builder.NewSharedBuildDirectoryCreator(builder.NewRootBuildDirectoryCreator(rootDirectory), &nextID)
+			workspace, err := builder.NewPersistentWorkerWorkspace(context.Background(), creator, pool.EmptyFilePool, "work", []string{"compiler"}, nil)
+			require.NoError(test, err)
+			defer func() {
+				require.NoError(test, workspace.Close(context.Background(), func(context.Context) error { return nil }))
+			}()
+			inputDigest := storage.addDirectory(&remoteexecution.Directory{Files: []*remoteexecution.FileNode{{Name: "compiler", Digest: storage.addBytes([]byte("tool")).GetProto()}}})
+			outputs := persistentWorkspaceTestOutputs(test, "work")
+			lease, err := workspace.Prepare(context.Background(), inputDigest, outputs)
+			require.NoError(test, err)
+			lease.Release()
+			toolPath := filepath.Join(nativePath, workspace.GetBuildDirectoryPath().GetUNIXString(), "root", "compiler")
+			require.NoError(test, os.Chmod(toolPath, 0o666))
+			require.NoError(test, os.Remove(toolPath))
+			switch replacement {
+			case "Directory":
+				require.NoError(test, os.Mkdir(toolPath, 0o777))
+			case "Symlink":
+				require.NoError(test, os.Symlink("work", toolPath))
+			}
+			_, err = workspace.Prepare(context.Background(), inputDigest, outputs)
+			require.Error(test, err)
+		})
+	}
+}
+
 func TestPersistentWorkerWorkspaceRetirement(test *testing.T) {
 	storage := newPersistentWorkspaceTestStorage(test)
 	rootDirectory, nativePath := storage.newNativeRoot()
 	var nextID atomic.Uint64
 	creator := builder.NewSharedBuildDirectoryCreator(builder.NewRootBuildDirectoryCreator(rootDirectory), &nextID)
-	first, err := builder.NewPersistentWorkerWorkspace(context.Background(), creator, pool.EmptyFilePool, "", nil)
+	first, err := builder.NewPersistentWorkerWorkspace(context.Background(), creator, pool.EmptyFilePool, "", nil, nil)
 	require.NoError(test, err)
-	second, err := builder.NewPersistentWorkerWorkspace(context.Background(), creator, pool.EmptyFilePool, "", nil)
+	second, err := builder.NewPersistentWorkerWorkspace(context.Background(), creator, pool.EmptyFilePool, "", nil, nil)
 	require.NoError(test, err)
 	require.NotEqual(test, first.GetBuildDirectoryPath().GetUNIXString(), second.GetBuildDirectoryPath().GetUNIXString())
 	firstPath := filepath.Join(nativePath, first.GetBuildDirectoryPath().GetUNIXString())
@@ -228,7 +311,7 @@ func TestPersistentWorkerWorkspaceCloseExcludesPreparation(test *testing.T) {
 	storage := newPersistentWorkspaceTestStorage(test)
 	rootDirectory, nativePath := storage.newNativeRoot()
 	var nextID atomic.Uint64
-	workspace, err := builder.NewPersistentWorkerWorkspace(context.Background(), builder.NewSharedBuildDirectoryCreator(builder.NewRootBuildDirectoryCreator(rootDirectory), &nextID), pool.EmptyFilePool, "", nil)
+	workspace, err := builder.NewPersistentWorkerWorkspace(context.Background(), builder.NewSharedBuildDirectoryCreator(builder.NewRootBuildDirectoryCreator(rootDirectory), &nextID), pool.EmptyFilePool, "", nil, nil)
 	require.NoError(test, err)
 	workspacePath := filepath.Join(nativePath, workspace.GetBuildDirectoryPath().GetUNIXString())
 	stopEntered := make(chan struct{})
@@ -256,7 +339,17 @@ func TestPersistentWorkerWorkspaceInvalidWorkingDirectory(test *testing.T) {
 	for _, workingDirectory := range []string{"../outside", "/absolute", "pkg/../work", "pkg//work", ".", "nul\x00byte"} {
 		test.Run(workingDirectory, func(test *testing.T) {
 			creator := mock.NewMockBuildDirectoryCreator(gomock.NewController(test))
-			_, err := builder.NewPersistentWorkerWorkspace(context.Background(), creator, pool.EmptyFilePool, workingDirectory, nil)
+			_, err := builder.NewPersistentWorkerWorkspace(context.Background(), creator, pool.EmptyFilePool, workingDirectory, nil, nil)
+			require.Error(test, err)
+		})
+	}
+}
+
+func TestPersistentWorkerWorkspaceInvalidToolPaths(test *testing.T) {
+	for _, toolPaths := range [][]string{{"../outside"}, {"/absolute"}, {"tools/../compiler"}, {"nul\x00byte"}, {"work"}, {"tools", "tools/compiler"}} {
+		test.Run(toolPaths[0], func(test *testing.T) {
+			creator := mock.NewMockBuildDirectoryCreator(gomock.NewController(test))
+			_, err := builder.NewPersistentWorkerWorkspace(context.Background(), creator, pool.EmptyFilePool, "work", toolPaths, nil)
 			require.Error(test, err)
 		})
 	}
@@ -266,7 +359,7 @@ func TestPersistentWorkerWorkspaceWorkingDirectoryReplaced(test *testing.T) {
 	storage := newPersistentWorkspaceTestStorage(test)
 	rootDirectory, nativePath := storage.newNativeRoot()
 	var nextID atomic.Uint64
-	workspace, err := builder.NewPersistentWorkerWorkspace(context.Background(), builder.NewSharedBuildDirectoryCreator(builder.NewRootBuildDirectoryCreator(rootDirectory), &nextID), pool.EmptyFilePool, "work", nil)
+	workspace, err := builder.NewPersistentWorkerWorkspace(context.Background(), builder.NewSharedBuildDirectoryCreator(builder.NewRootBuildDirectoryCreator(rootDirectory), &nextID), pool.EmptyFilePool, "work", nil, nil)
 	require.NoError(test, err)
 	inputDigest := storage.addDirectory(&remoteexecution.Directory{})
 	outputs := persistentWorkspaceTestOutputs(test, "work")
@@ -289,7 +382,7 @@ func TestPersistentWorkerWorkspaceFailedPreparation(test *testing.T) {
 	storage := newPersistentWorkspaceTestStorage(test)
 	rootDirectory, nativePath := storage.newNativeRoot()
 	var nextID atomic.Uint64
-	workspace, err := builder.NewPersistentWorkerWorkspace(context.Background(), builder.NewSharedBuildDirectoryCreator(builder.NewRootBuildDirectoryCreator(rootDirectory), &nextID), pool.EmptyFilePool, "", nil)
+	workspace, err := builder.NewPersistentWorkerWorkspace(context.Background(), builder.NewSharedBuildDirectoryCreator(builder.NewRootBuildDirectoryCreator(rootDirectory), &nextID), pool.EmptyFilePool, "", nil, nil)
 	require.NoError(test, err)
 	missingDirectory := storage.addBytes([]byte("missing directory"))
 	_, err = workspace.Prepare(context.Background(), missingDirectory, persistentWorkspaceTestOutputs(test, ""))
@@ -323,13 +416,14 @@ func TestPersistentWorkerWorkspaceVirtualLifetime(test *testing.T) {
 			cacheFile.EXPECT().WriteAt([]byte("cache"), int64(0)).Return(5, nil)
 			cacheFile.EXPECT().Close().Return(nil)
 			var nextID atomic.Uint64
-			workspace, err := builder.NewPersistentWorkerWorkspace(context.Background(), builder.NewSharedBuildDirectoryCreator(builder.NewRootBuildDirectoryCreator(buildDirectory), &nextID), pool.NewQuotaEnforcingFilePool(filePool, 1, 10), "work", map[path.Component]filesystem.DeviceNumber{path.MustNewComponent("null"): filesystem.NewDeviceNumberFromMajorMinor(1, 3)})
+			workspace, err := builder.NewPersistentWorkerWorkspace(context.Background(), builder.NewSharedBuildDirectoryCreator(builder.NewRootBuildDirectoryCreator(buildDirectory), &nextID), pool.NewQuotaEnforcingFilePool(filePool, 1, 10), "work", []string{"work/compiler"}, map[path.Component]filesystem.DeviceNumber{path.MustNewComponent("null"): filesystem.NewDeviceNumberFromMajorMinor(1, 3)})
 			require.NoError(test, err)
 			defer func() {
 				require.NoError(test, workspace.Close(context.Background(), func(context.Context) error { return nil }))
 			}()
 			fileDigest := storage.addBytes([]byte("retained contents"))
-			workDigest := storage.addDirectory(&remoteexecution.Directory{Files: []*remoteexecution.FileNode{{Name: "source", Digest: fileDigest.GetProto()}}})
+			toolFile := &remoteexecution.FileNode{Name: "compiler", Digest: storage.addBytes([]byte("compiler")).GetProto(), IsExecutable: true}
+			workDigest := storage.addDirectory(&remoteexecution.Directory{Files: []*remoteexecution.FileNode{toolFile, {Name: "source", Digest: fileDigest.GetProto()}}})
 			rootDigest := storage.addDirectory(&remoteexecution.Directory{Directories: []*remoteexecution.DirectoryNode{{Name: "work", Digest: workDigest.GetProto()}, {Name: "lazy", Digest: workDigest.GetProto()}}})
 			firstContext, cancelFirst := context.WithCancel(context.Background())
 			defer cancelFirst()
@@ -352,6 +446,9 @@ func TestPersistentWorkerWorkspaceVirtualLifetime(test *testing.T) {
 			workChild, err := inputDirectory.LookupChild(path.MustNewComponent("work"))
 			require.NoError(test, err)
 			workDirectory, _ := workChild.GetPair()
+			toolChild, err := workDirectory.LookupChild(path.MustNewComponent("compiler"))
+			require.NoError(test, err)
+			_, retainedTool := toolChild.GetPair()
 			sourceChild, err := workDirectory.LookupChild(path.MustNewComponent("source"))
 			require.NoError(test, err)
 			_, retainedSource := sourceChild.GetPair()
@@ -368,7 +465,7 @@ func TestPersistentWorkerWorkspaceVirtualLifetime(test *testing.T) {
 			require.NoError(test, err)
 
 			newFileDigest := storage.addBytes([]byte("new contents"))
-			newWork := storage.addDirectory(&remoteexecution.Directory{Files: []*remoteexecution.FileNode{{Name: "source", Digest: newFileDigest.GetProto()}}})
+			newWork := storage.addDirectory(&remoteexecution.Directory{Files: []*remoteexecution.FileNode{toolFile, {Name: "source", Digest: newFileDigest.GetProto()}}})
 			newRoot := storage.addDirectory(&remoteexecution.Directory{Directories: []*remoteexecution.DirectoryNode{{Name: "work", Digest: newWork.GetProto()}}})
 			secondLease, err := workspace.Prepare(context.Background(), newRoot, outputs)
 			require.NoError(test, err)
@@ -380,6 +477,10 @@ func TestPersistentWorkerWorkspaceVirtualLifetime(test *testing.T) {
 			require.NoError(test, err)
 			newWorkDirectory, _ := newWorkChild.GetPair()
 			require.Same(test, workDirectory, newWorkDirectory)
+			newToolChild, err := newWorkDirectory.LookupChild(path.MustNewComponent("compiler"))
+			require.NoError(test, err)
+			_, newTool := newToolChild.GetPair()
+			require.Same(test, retainedTool, newTool)
 			newSourceChild, err := newWorkDirectory.LookupChild(path.MustNewComponent("source"))
 			require.NoError(test, err)
 			_, newSource := newSourceChild.GetPair()
@@ -422,7 +523,7 @@ func TestPersistentWorkerWorkspaceCancellationAndIdleIOError(test *testing.T) {
 			hooks := &persistentWorkspaceHookDirectory{BuildDirectory: directory}
 			creator := mock.NewMockBuildDirectoryCreator(gomock.NewController(test))
 			creator.EXPECT().GetBuildDirectory(gomock.Any(), nil).Return(hooks, buildPath, nil)
-			workspace, err := builder.NewPersistentWorkerWorkspace(context.Background(), creator, pool.EmptyFilePool, "", nil)
+			workspace, err := builder.NewPersistentWorkerWorkspace(context.Background(), creator, pool.EmptyFilePool, "", nil, nil)
 			require.NoError(test, err)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()

@@ -145,7 +145,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool pool.FilePoo
 	}
 	defer inputRootDirectory.Close()
 
-	if err := populateInputRoot(ctx, inputRootDirectory, &ioErrorCapturer, digestFunction, action.InputRootDigest, monitor, be.inputRootCharacterDevices); err != nil {
+	if err := populateInputRoot(ctx, inputRootDirectory, &ioErrorCapturer, digestFunction, action.InputRootDigest, monitor, be.inputRootCharacterDevices, nil); err != nil {
 		attachErrorToExecuteResponse(response, err)
 		return response
 	}
