@@ -8,12 +8,16 @@ import (
 )
 
 func killPersistentWorkerProcess(process *os.Process) error {
+	const stillActiveExitCode = 259
 	var killError error
 	if err := process.WithHandle(func(handle uintptr) {
 		processHandle := windows.Handle(handle)
 		err := windows.TerminateProcess(processHandle, 1)
 		if errors.Is(err, windows.ERROR_ACCESS_DENIED) {
-			if state, waitError := windows.WaitForSingleObject(processHandle, 0); waitError == nil && state == windows.WAIT_OBJECT_0 {
+			var exitCode uint32
+			if queryError := windows.GetExitCodeProcess(processHandle, &exitCode); queryError == nil && exitCode != stillActiveExitCode {
+				err = nil
+			} else if state, waitError := windows.WaitForSingleObject(processHandle, 1000); waitError == nil && state == windows.WAIT_OBJECT_0 {
 				err = nil
 			}
 		}

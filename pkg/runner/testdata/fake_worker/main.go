@@ -35,7 +35,7 @@ func main() {
 func run(mode string) error {
 	workerID := uuid.NewString()
 	switch mode {
-	case "echo", "proto", "wait", "exit", "truncated", "invalid-length", "oversized":
+	case "echo", "proto", "wait", "exit", "exit-259", "truncated", "invalid-length", "oversized":
 	case "exit-idle":
 		return nil
 	case "exit-startup":
@@ -77,8 +77,11 @@ func run(mode string) error {
 			fmt.Fprintln(os.Stderr, "Request received")
 			time.Sleep(time.Hour)
 			return nil
-		case "exit":
+		case "exit", "exit-259":
 			fmt.Fprintln(os.Stderr, "discarded prefix"+strings.Repeat("x", 8192)+mode)
+			if mode == "exit-259" {
+				os.Exit(259)
+			}
 			os.Exit(23)
 		case "truncated":
 			_, err := os.Stdout.Write([]byte{3, 0xff})

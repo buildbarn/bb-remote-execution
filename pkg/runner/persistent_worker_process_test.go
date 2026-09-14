@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -110,16 +111,23 @@ func TestPersistentWorkerProcessPreCancelledRequest(t *testing.T) {
 }
 
 func TestPersistentWorkerProcessFailure(t *testing.T) {
-	for _, mode := range []string{"exit", "truncated", "invalid-length", "oversized"} {
+	for _, mode := range []string{"exit", "exit-259", "truncated", "invalid-length", "oversized"} {
 		t.Run(mode, func(t *testing.T) {
 			ctx, command := newPersistentWorkerProcessCommand(t, mode)
 			process := startPersistentWorkerProcess(t, command)
 			response, err := process.Execute(ctx, nil)
 			require.Error(t, err)
-			if mode == "exit" {
+			if mode == "exit" || mode == "exit-259" {
 				var exitError *exec.ExitError
 				require.ErrorAs(t, err, &exitError)
-				require.Equal(t, 23, exitError.ExitCode())
+				expectedExitCode := 23
+				if mode == "exit-259" {
+					expectedExitCode = 259
+					if runtime.GOOS != "windows" {
+						expectedExitCode &= 0xff
+					}
+				}
+				require.Equal(t, expectedExitCode, exitError.ExitCode())
 			}
 			require.Nil(t, response)
 			require.NoError(t, ctx.Err())
