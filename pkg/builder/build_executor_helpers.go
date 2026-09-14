@@ -33,8 +33,8 @@ var (
 
 // capturingErrorLogger is an error logger that stores up to a single
 // error. When the error is stored, a context cancelation function is
-// invoked. This is used by localBuildExecutor to kill a build action in
-// case an I/O error occurs on the FUSE file system.
+// invoked. Both localBuildExecutor and PersistentBuildExecutor use this to
+// cancel execution when an I/O error occurs on the virtual file system.
 type capturingErrorLogger struct {
 	lock   sync.Mutex
 	cancel context.CancelFunc
@@ -125,8 +125,8 @@ func attachExecutionResult(ctx context.Context, response *remoteexecution.Execut
 		attachErrorToExecuteResponse(response, util.StatusWrap(executionError, "Failed to run command"))
 	}
 
-	// For FUSE-based workers: Attach the amount of time the action
-	// ran, minus the time it was delayed reading data from storage.
+	// With a suspendable execution clock, attach elapsed time excluding
+	// suspensions for virtual file system reads or HTTP timeout compensation.
 	if unsuspendedDuration, ok := ctx.Value(re_clock.UnsuspendedDurationKey{}).(time.Duration); ok {
 		response.Result.ExecutionMetadata.VirtualExecutionDuration = durationpb.New(unsuspendedDuration)
 	}

@@ -13,10 +13,9 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func readPersistentWorkerInputs(ctx context.Context, fetcher cas.DirectoryFetcher, rootDigest digest.Digest) (map[string]*remoteexecution.FileNode, bool, error) {
+func readPersistentWorkerInputs(ctx context.Context, fetcher cas.DirectoryFetcher, rootDigest digest.Digest) (map[string]*remoteexecution.FileNode, error) {
 	inputs := map[string]*remoteexecution.FileNode{}
 	activeDirectories := map[digest.Digest]struct{}{}
-	hasSymlinks := false
 	var visit func(digest.Digest, *path.Trace) error
 	visit = func(directoryDigest digest.Digest, directoryPath *path.Trace) error {
 		if err := ctx.Err(); err != nil {
@@ -60,7 +59,6 @@ func readPersistentWorkerInputs(ctx context.Context, fetcher cas.DirectoryFetche
 			if _, err := childPath(symlink.GetName()); err != nil {
 				return err
 			}
-			hasSymlinks = true
 		}
 		for _, child := range directory.Directories {
 			childTrace, err := childPath(child.GetName())
@@ -78,5 +76,5 @@ func readPersistentWorkerInputs(ctx context.Context, fetcher cas.DirectoryFetche
 		return nil
 	}
 	err := visit(rootDigest, nil)
-	return inputs, hasSymlinks, err
+	return inputs, err
 }

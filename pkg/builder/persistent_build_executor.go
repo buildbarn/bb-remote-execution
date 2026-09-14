@@ -174,13 +174,10 @@ func (executor *PersistentBuildExecutor) Execute(ctx context.Context, filePool p
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to extract digest for input root"))
 		return response
 	}
-	inputs, hasSymlinks, err := readPersistentWorkerInputs(ctx, executor.directoryFetcher, inputRootDigest)
+	inputs, err := readPersistentWorkerInputs(ctx, executor.directoryFetcher, inputRootDigest)
 	if err != nil {
 		attachErrorToExecuteResponse(response, err)
 		return response
-	}
-	if hasSymlinks {
-		return executor.ordinary.Execute(ctx, filePool, monitor, digestFunction, request, executionStateUpdates)
 	}
 	prepared, err := NewPersistentWorkerCommand(platform, command, digestFunction, inputs, getCommandEnvironmentVariables(command, executor.environmentVariables))
 	if err != nil {

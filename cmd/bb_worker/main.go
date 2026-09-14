@@ -50,6 +50,11 @@ import (
 	"go.opentelemetry.io/otel"
 )
 
+// persistentWorkerSessionCleanupTimeout bounds each session cleanup attempt
+// independently of action cancellation when the runner is unresponsive.
+// Thirty seconds is an operational grace period, not a worker protocol timeout.
+const persistentWorkerSessionCleanupTimeout = 30 * time.Second
+
 func main() {
 	program.RunMain(func(ctx context.Context, siblingsGroup, dependenciesGroup program.Group) error {
 		if len(os.Args) != 2 {
@@ -489,13 +494,14 @@ func main() {
 						)
 					}
 
+					buildExecutor = builder.NewFilePoolStatsBuildExecutor(buildExecutor)
 					slotFilePool := pool.NewQuotaEnforcingFilePool(filePool, runnerConfiguration.MaximumFilePoolFileCount, runnerConfiguration.MaximumFilePoolSizeBytes)
 					var cleanup func() error
 					if runnerConfiguration.EnablePersistentWorkers {
 						slotContext, cancelSlot := context.WithCancel(context.WithoutCancel(ctx))
 						persistentExecutor := builder.NewPersistentBuildExecutor(
 							slotContext,
-							builder.NewFilePoolStatsBuildExecutor(buildExecutor),
+							buildExecutor,
 							contentAddressableStorageWriter,
 							cas.NewBlobAccessMessageReader[remoteexecution.Command](contentAddressableStorageWriter, int(configuration.MaximumMessageSizeBytes)),
 							directoryFetcher,
@@ -504,7 +510,7 @@ func main() {
 							slotFilePool,
 							executionTimeoutClock,
 							maximumWritableFileUploadDelay,
-							30*time.Second,
+							persistentWorkerSessionCleanupTimeout,
 							inputRootCharacterDevices,
 							runnerConfiguration.EnvironmentVariables,
 							configuration.ForceUploadTreesAndDirectories,
@@ -521,9 +527,6 @@ func main() {
 						clock.SystemClock,
 						string(workerName),
 					)
-					if !runnerConfiguration.EnablePersistentWorkers {
-						buildExecutor = builder.NewFilePoolStatsBuildExecutor(buildExecutor)
-					}
 					buildExecutor = builder.NewMetricsBuildExecutor(buildExecutor)
 
 					if len(runnerConfiguration.CostsPerSecond) > 0 {

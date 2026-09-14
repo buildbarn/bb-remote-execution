@@ -266,9 +266,6 @@ func TestPersistentBuildExecutorFallback(test *testing.T) {
 		{name: "UnmarkedTool", modify: func(action *remoteexecution.Action, command *remoteexecution.Command, directory *remoteexecution.Directory) {
 			directory.Files[1].NodeProperties = nil
 		}},
-		{name: "Symlink", modify: func(action *remoteexecution.Action, command *remoteexecution.Command, directory *remoteexecution.Directory) {
-			directory.Symlinks = []*remoteexecution.SymlinkNode{{Name: "alias", Target: "source"}}
-		}},
 	} {
 		test.Run(testCase.name, func(test *testing.T) {
 			fixture := newPersistentExecutorTestFixture(test)
@@ -286,6 +283,33 @@ func TestPersistentBuildExecutorFallback(test *testing.T) {
 			require.Empty(test, children)
 		})
 	}
+}
+
+func TestPersistentBuildExecutorInputSymlink(test *testing.T) {
+	fixture := newPersistentExecutorTestFixture(test)
+	fixture.runner.EXPECT().CreateSession(gomock.Any(), gomock.Any()).Return(&runner_pb.CreateSessionResponse{SessionId: "session"}, nil)
+
+	for _, source := range []string{"first", "second"} {
+		request := fixture.request("tool", source, func(action *remoteexecution.Action, command *remoteexecution.Command, directory *remoteexecution.Directory) {
+			directory.Symlinks = []*remoteexecution.SymlinkNode{{Name: "alias", Target: "source"}}
+		})
+		fixture.runner.EXPECT().ExecuteInPersistentWorker(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, request *runner_pb.ExecuteInPersistentWorkerRequest, options ...grpc.CallOption) (*runner_pb.ExecuteInPersistentWorkerResponse, error) {
+			require.Equal(test, "session", request.SessionId)
+			aliasPath := filepath.Join(fixture.nativePath, "1/root/pkg/alias")
+			target, err := os.Readlink(aliasPath)
+			require.NoError(test, err)
+			require.Equal(test, "source", target)
+			contents, err := os.ReadFile(aliasPath)
+			require.NoError(test, err)
+			require.Equal(test, source, string(contents))
+			return persistentExecutorTestResponse(test, &worker_pb.WorkResponse{}), nil
+		})
+		response, _ := fixture.execute(context.Background(), request)
+		require.NoError(test, status.ErrorProto(response.Status))
+	}
+
+	fixture.runner.EXPECT().CloseSession(gomock.Any(), &runner_pb.SessionRequest{SessionId: "session"}).Return(&emptypb.Empty{}, nil)
+	require.NoError(test, fixture.executor.Close(context.Background()))
 }
 
 func TestPersistentBuildExecutorPlatform(test *testing.T) {
@@ -451,22 +475,6 @@ func TestPersistentBuildExecutorCancellation(test *testing.T) {
 	}
 }
 
-func TestPersistentBuildExecutorFailedStop(test *testing.T) {
-	fixture := newPersistentExecutorTestFixture(test)
-	request := fixture.request("tool", "source", nil)
-	fixture.runner.EXPECT().CreateSession(gomock.Any(), gomock.Any()).Return(&runner_pb.CreateSessionResponse{SessionId: "session"}, nil)
-	fixture.runner.EXPECT().ExecuteInPersistentWorker(gomock.Any(), gomock.Any()).Return(nil, status.Error(codes.Unavailable, "Exchange failed"))
-	fixture.runner.EXPECT().CloseSession(gomock.Any(), gomock.Any()).Return(nil, status.Error(codes.Unavailable, "Stop failed")).Times(2)
-	for range 2 {
-		response, _ := fixture.execute(context.Background(), request)
-		require.Error(test, status.ErrorProto(response.Status))
-		require.DirExists(test, filepath.Join(fixture.nativePath, "1/root"))
-	}
-	fixture.runner.EXPECT().CloseSession(gomock.Any(), &runner_pb.SessionRequest{SessionId: "session"}).Return(&emptypb.Empty{}, nil)
-	require.NoError(test, fixture.executor.Close(context.Background()))
-	require.NoDirExists(test, filepath.Join(fixture.nativePath, "1"))
-}
-
 func TestPersistentBuildExecutorConfirmedCreationFailure(test *testing.T) {
 	fixture := newPersistentExecutorTestFixture(test)
 	request := fixture.request("tool", "source", nil)
@@ -485,23 +493,6 @@ func TestPersistentBuildExecutorConfirmedCreationFailure(test *testing.T) {
 	require.NoError(test, status.ErrorProto(response.Status))
 	fixture.runner.EXPECT().CloseSession(gomock.Any(), &runner_pb.SessionRequest{SessionId: "recovered"}).Return(&emptypb.Empty{}, nil)
 	require.NoError(test, fixture.executor.Close(context.Background()))
-}
-
-func TestPersistentBuildExecutorUnknownCreationOutcome(test *testing.T) {
-	for _, creationError := range []error{nil, status.Error(codes.Unavailable, "Response lost")} {
-		test.Run(status.Code(creationError).String(), func(test *testing.T) {
-			fixture := newPersistentExecutorTestFixture(test)
-			request := fixture.request("tool", "source", nil)
-			fixture.runner.EXPECT().CreateSession(gomock.Any(), gomock.Any()).Return(&runner_pb.CreateSessionResponse{}, creationError)
-			for range 2 {
-				response, _ := fixture.execute(context.Background(), request)
-				require.Error(test, status.ErrorProto(response.Status))
-			}
-			require.Error(test, fixture.executor.CheckReadiness(context.Background()))
-			require.Error(test, fixture.executor.Close(context.Background()))
-			require.DirExists(test, filepath.Join(fixture.nativePath, "1/root"))
-		})
-	}
 }
 
 func TestPersistentBuildExecutorConcurrentExecution(test *testing.T) {

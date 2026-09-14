@@ -20,7 +20,7 @@ import (
 )
 
 func TestPersistentRunnerConfiguration(test *testing.T) {
-	for _, testCase := range []struct {
+	testCases := []struct {
 		name          string
 		configuration *bb_runner.ApplicationConfiguration
 		invalid       bool
@@ -34,7 +34,9 @@ func TestPersistentRunnerConfiguration(test *testing.T) {
 		{name: "Installer", invalid: true, configuration: &bb_runner.ApplicationConfiguration{
 			PersistentWorkers: &bb_runner.PersistentWorkersConfiguration{MaximumWorkResponseSizeBytes: 1024}, TemporaryDirectoryInstaller: &grpc_configuration.ClientConfiguration{},
 		}},
-	} {
+	}
+
+	for _, testCase := range testCases {
 		test.Run(testCase.name, func(test *testing.T) {
 			server, closer, err := newPersistentRunnerFromConfiguration(context.Background(), testCase.configuration, nil, nil, nil, nil)
 			require.Nil(test, server)
