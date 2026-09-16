@@ -2,7 +2,6 @@ package cleaner_test
 
 import (
 	"testing"
-	"time"
 
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/cleaner"
@@ -17,12 +16,16 @@ import (
 func TestFilteringProcessTable(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
+	preexistingProcessIDs := map[int]struct{}{2: {}}
 	baseProcessTable := mock.NewMockProcessTable(ctrl)
 	processTable := cleaner.NewFilteringProcessTable(
 		baseProcessTable,
 		func(process *cleaner.Process) bool {
-			return process.UserID == 123 &&
-				process.CreationTime.After(time.Unix(1500000000, 0))
+			if process.UserID != 123 {
+				return false
+			}
+			_, preexisting := preexistingProcessIDs[process.ProcessID]
+			return !preexisting
 		},
 	)
 
@@ -39,23 +42,21 @@ func TestFilteringProcessTable(t *testing.T) {
 			// Process is running as a different user. It
 			// should be left alone.
 			{
-				ProcessID:    1,
-				UserID:       122,
-				CreationTime: time.Unix(1600000000, 0),
+				ProcessID: 1,
+				UserID:    122,
 			},
 			// Process is running as the right user, but it
-			// was started earlier on. It should be left
-			// alone, as it may be important to the system.
+			// was already running at startup. It should be
+			// left alone, as it may be important to the
+			// system.
 			{
-				ProcessID:    2,
-				UserID:       123,
-				CreationTime: time.Unix(1400000000, 0),
+				ProcessID: 2,
+				UserID:    123,
 			},
 			// Process that should be matched.
 			{
-				ProcessID:    3,
-				UserID:       123,
-				CreationTime: time.Unix(1600000000, 0),
+				ProcessID: 3,
+				UserID:    123,
 			},
 		}, nil)
 
@@ -63,9 +64,8 @@ func TestFilteringProcessTable(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, []cleaner.Process{
 			{
-				ProcessID:    3,
-				UserID:       123,
-				CreationTime: time.Unix(1600000000, 0),
+				ProcessID: 3,
+				UserID:    123,
 			},
 		}, processes)
 	})

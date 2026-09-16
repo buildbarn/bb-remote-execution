@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"runtime"
-	"time"
 
 	"github.com/buildbarn/bb-remote-execution/pkg/cleaner"
 	"github.com/buildbarn/bb-remote-execution/pkg/credentials"
@@ -91,19 +90,34 @@ func main() {
 
 		// Kill processes that actions leave behind by daemonizing.
 		// Ensure that we only match processes belonging to the current
-		// user that were created after bb_runner is spawned, as we
+		// user that did not yet exist when bb_runner was spawned, as we
 		// don't want to kill unrelated processes.
+		//
+		// This does assume that processes that were already running at
+		// startup outlive bb_runner.
 		var cleaners []cleaner.Cleaner
 		if configuration.CleanProcessTable {
-			startupTime := time.Now()
+			preexistingProcesses, err := cleaner.SystemProcessTable.GetProcesses()
+			if err != nil {
+				return util.StatusWrap(err, "Failed to obtain initial process table")
+			}
+			preexistingProcessIDs := map[int]struct{}{}
+			for _, process := range preexistingProcesses {
+				if process.UserID == processTableCleaningUserID {
+					preexistingProcessIDs[process.ProcessID] = struct{}{}
+				}
+			}
 			cleaners = append(
 				cleaners,
 				cleaner.NewProcessTableCleaner(
 					cleaner.NewFilteringProcessTable(
 						cleaner.SystemProcessTable,
 						func(process *cleaner.Process) bool {
-							return process.UserID == processTableCleaningUserID &&
-								process.CreationTime.After(startupTime)
+							if process.UserID != processTableCleaningUserID {
+								return false
+							}
+							_, preexisting := preexistingProcessIDs[process.ProcessID]
+							return !preexisting
 						},
 					),
 				),

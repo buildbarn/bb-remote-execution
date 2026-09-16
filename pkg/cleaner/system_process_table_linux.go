@@ -6,7 +6,6 @@ package cleaner
 import (
 	"os"
 	"strconv"
-	"time"
 
 	"github.com/buildbarn/bb-storage/pkg/util"
 
@@ -39,8 +38,7 @@ func (systemProcessTable) GetProcesses() ([]Process, error) {
 			continue
 		}
 
-		// Stat process directory entries to obtain user ID and
-		// creation time.
+		// Stat process directory entries to obtain the user ID.
 		var stat unix.Stat_t
 		if err := unix.Fstatat(fd, name, &stat, unix.AT_SYMLINK_NOFOLLOW); os.IsNotExist(err) {
 			continue
@@ -48,9 +46,8 @@ func (systemProcessTable) GetProcesses() ([]Process, error) {
 			return nil, util.StatusWrapfWithCode(err, codes.Internal, "Failed to stat process %d", pid)
 		}
 		processes = append(processes, Process{
-			ProcessID:    int(pid),
-			UserID:       int(stat.Uid),
-			CreationTime: time.Unix(int64(stat.Ctim.Sec), int64(stat.Ctim.Nsec)),
+			ProcessID: int(pid),
+			UserID:    int(stat.Uid),
 		})
 	}
 	return processes, nil
