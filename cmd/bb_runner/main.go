@@ -70,6 +70,12 @@ func main() {
 			commandCreator,
 			configuration.SetTmpdirEnvironmentVariable,
 		)
+		if configuration.SampleCgroupResourceUsage {
+			r, err = runner.NewCgroupResourceUsageSamplingRunner(r)
+			if err != nil {
+				return util.StatusWrap(err, "Failed to create cgroup resource usage sampling runner")
+			}
+		}
 
 		// Let bb_runner replace temporary directories with symbolic
 		// links pointing to the temporary directory set up by
