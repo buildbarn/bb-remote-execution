@@ -182,13 +182,40 @@ message PersistentWorkersConfiguration {
   // should therefore be set to a multiple of that number, so that
   // processes belonging to distinct tools remain cached.
   //
+  // MEMORY: the pool bounds itself by process count only. It has no
+  // insight into how much memory a tool uses, so the aggregate
+  // footprint of the pool is this value (plus the runner's
+  // concurrency, per the soft limit above) multiplied by the tool's
+  // resident size. That product must fit within the memory available
+  // to bb_runner, or the process that happens to allocate next is
+  // killed rather than a worker being evicted. This is easy to get
+  // wrong for tools that are themselves memory hungry: Bazel's
+  // JavaBuilder was measured at roughly 2.5 GiB resident per process,
+  // so a pool of 32 needs on the order of 80 GiB.
+  //
+  // Evictions, which are visible as
+  // buildbarn_runner_persistent_worker_pool_terminations_total with
+  // reason "Evicted", are the symptom of this value being too low.
+  // They cost a process start; exceeding the memory available costs
+  // the whole runner. Prefer the former.
+  //
   // Recommended value: 4 * the 'concurrency' of the associated
-  // bb_worker RunnerConfiguration.
+  // bb_worker RunnerConfiguration, reduced as needed to keep the
+  // product described above within the runner's memory budget.
   int64 maximum_worker_count = 2;
 
   // The amount of time a persistent worker process may remain idle
   // before it is terminated. This ensures that processes belonging to
   // tools that are no longer used don't consume memory indefinitely.
+  //
+  // Note that an idle process holds its full memory footprint until it
+  // expires, and that expiry is evaluated on a timer of this same
+  // period, so a process may live for up to twice this long. Idle
+  // processes are not tied to any particular client: a pool stays
+  // populated across builds that request no persistent workers at all,
+  // and the memory it holds is unavailable to those builds. Shorten
+  // this value when a pool sized by 'maximum_worker_count' is close to
+  // the runner's memory budget.
   //
   // Recommended value: 900s
   google.protobuf.Duration idle_timeout = 3;

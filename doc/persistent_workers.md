@@ -434,7 +434,14 @@ be mistaken for an output of the next one.
 - **Idle processes expire.** A reaper goroutine, started through
   `PersistentWorkerPool.Run()`, terminates processes that have been idle
   for longer than `idle_timeout`. Because expiry is evaluated on a timer
-  of the same period, a process may live for up to twice that long.
+  of the same period, a process may live for up to twice that long. An
+  idle process holds its full memory footprint for that whole time, and
+  the pool is not tied to any one client: it stays populated across
+  builds that request no persistent workers at all.
+- **Bounding is by count, not by size.** The pool counts processes; it
+  has no insight into what a process weighs. Sizing is therefore the
+  operator's job — see the note under `maximum_worker_count` in
+  [Configuration](#configuration).
 - **Startup is clean.** The persistent worker directory is emptied when
   the pool is created, so that a crashed `bb_runner` does not leave
   state behind. The directory must therefore not be shared between
@@ -504,15 +511,29 @@ actionRouter: {
 },
 ```
 
-and, on the platform queue that should have worker affinity:
+The invocation key extractors above only partition the queue for fair
+scheduling. Worker affinity is a separate setting, and it lives on
+`PredeclaredPlatformQueueConfiguration` rather than at the top level of
+the scheduler configuration — so it can only be set by declaring the
+queue, whose `platform` must match the actions' platform *after* the
+stripping extractor has run:
 
 ```jsonnet
-workerInvocationStickinessLimits: ['0s', '300s'],
+predeclaredPlatformQueues: [{
+  instanceNamePrefix: 'buildbarn',
+  platform: { properties: [/* the stripped platform */] },
+  sizeClasses: [0],
+  workerInvocationStickinessLimits: ['0s', '300s'],
+}],
 ```
 
 The list has one entry per invocation key extractor: no stickiness at
 the Bazel invocation level, five minutes of stickiness at the tool
-level.
+level. A predeclared queue whose platform does not match the real one
+is not an error — it simply sits there empty and the stickiness never
+applies, so verify against
+`buildbarn_builder_in_memory_build_queue_workers_created_total`, whose
+`platform` label carries the platform the workers actually joined.
 
 `bb_worker`:
 
@@ -540,6 +561,23 @@ runners: [{
   // ...
 }
 ```
+
+`maximumInputFileCount` is counted over the *whole* input root — every
+regular file, tool and action data alike — not just the files marked as
+tool inputs. Exceeding it is silent: the action runs as an ordinary
+process and the only trace is the `TooManyInputFiles` counter below, so
+check that counter before concluding the feature is not helping. The
+default is ample in practice; a Javac action in a large Java monorepo
+was measured at roughly 825 input files, because a modular JDK image
+contributes a handful of files rather than thousands.
+
+`maximumWorkerCount` needs to be sized against the memory available to
+`bb_runner`, not just against `concurrency`: the pool bounds itself by
+process count only, so `maximumWorkerCount` (plus `concurrency`, as the
+limit is soft) times the tool's resident size has to fit the budget. The
+32 above suits a tool that is cheap to keep resident; for JavaBuilder,
+at roughly 2.5 GiB per process, it would imply about 80 GiB. Over-commit
+this and the runner is OOM-killed instead of a worker being evicted.
 
 `directoryPath` must not be shared between `bb_runner` instances. It
 does not need to be on the same file system as `buildDirectoryPath`,
@@ -725,3 +763,15 @@ worth doing once against a deployment:
 - **`maximum_worker_count` is a soft limit.** Processes that are
   executing an action are never evicted, so the pool can temporarily
   exceed the configured maximum by up to the runner's concurrency.
+- **The pool has no memory awareness, and over-committing it kills the
+  runner rather than evicting.** `maximum_worker_count` counts
+  processes, so the pool's aggregate footprint is that count (plus the
+  concurrency, per the soft limit) times the tool's resident size. When
+  that exceeds what `bb_runner` has available, the next allocation
+  fails — under a container memory limit, the kernel OOM-kills the
+  runner, taking its in-flight actions with it. This was observed:
+  `maximum_worker_count: 8` against a 20 GiB container limit, with
+  JavaBuilder at ~2.5 GiB resident per process, OOM-killed the runner.
+  A memory-aware eviction policy would let the pool trade a process
+  start for staying within budget; today the only controls are
+  `maximum_worker_count` and `idle_timeout`, both set by hand.
