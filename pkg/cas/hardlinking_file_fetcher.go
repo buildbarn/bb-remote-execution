@@ -68,6 +68,13 @@ func (ff *hardlinkingFileFetcher) makeSpace(size int64) error {
 }
 
 func (ff *hardlinkingFileFetcher) GetFile(ctx context.Context, blobDigest digest.Digest, directory filesystem.Directory, name path.Component, isExecutable bool) error {
+	// Empty blobs require no download and may occur many times in an input
+	// tree. Avoid exhausting the filesystem hardlink limit and contending
+	// on the shared cache/LRU path.
+	if blobDigest.GetSizeBytes() == 0 {
+		return ff.base.GetFile(ctx, blobDigest, directory, name, isExecutable)
+	}
+
 	key := blobDigest.GetKey(digest.KeyWithoutInstance)
 	if isExecutable {
 		key += "+x"
