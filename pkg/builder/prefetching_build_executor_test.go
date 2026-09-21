@@ -482,4 +482,185 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 			),
 		)
 	})
+
+	// The build executor that will be used in the tests below
+	// to test the log file system access profile configuration.
+	profileLoggingBuildExecutor := builder.NewPrefetchingBuildExecutor(
+		baseBuildExecutor,
+		contentAddressableStorage,
+		directoryFetcher,
+		fileReadSemaphore,
+		fileSystemAccessCache,
+		/* maximumMessageSizeBytes = */ 10000,
+		/* bloomFilterBitsPerElement = */ 10,
+		/* bloomFilterMaximumSizeBytes = */ 1000,
+		/* logFileSystemAccessProfile = */ true,
+	)
+
+	t.Run("CASLogAccessProfileSuccess", func(t *testing.T) {
+		// Successfully store file system access profile in
+		// Content Addressable Storage (CAS) and attach the
+		// profile digest to the response server logs.
+		baseBuildExecutor.EXPECT().Execute(
+			gomock.Any(),
+			filePool,
+			gomock.Any(),
+			digestFunction,
+			testutil.EqProto(t, exampleRequest),
+			executionStateUpdates,
+		).Return(&remoteexecution.ExecuteResponse{
+			Result: &remoteexecution.ActionResult{
+				ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
+			},
+			ServerLogs: nil, // Responses are not guaranteed to already contain any server logs.
+		})
+		fileSystemAccessCache.EXPECT().Get(gomock.Any(), exampleReducedActionDigest).
+			Return(buffer.NewProtoBufferFromProto(&fsac.FileSystemAccessProfile{
+				BloomFilter:              []byte{0x80},
+				BloomFilterHashFunctions: 1,
+			}, buffer.UserProvided))
+		accessProfileDigest := digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "dc1d3a7d5a534e6175cdc57c96cc031d", 5)
+		contentAddressableStorage.EXPECT().Put(gomock.Any(), accessProfileDigest, gomock.Any()).
+			DoAndReturn(func(ctx context.Context, blobDigest digest.Digest, b buffer.Buffer) error {
+				profile, err := b.ToProto(&fsac.FileSystemAccessProfile{}, 10000)
+				require.NoError(t, err)
+				testutil.RequireEqualProto(t, &fsac.FileSystemAccessProfile{
+					BloomFilter:              []byte{0x80},
+					BloomFilterHashFunctions: 1,
+				}, profile)
+				return nil
+			})
+		require.NoError(t, err)
+		testutil.RequireEqualProto(
+			t,
+			&remoteexecution.ExecuteResponse{
+				Result: &remoteexecution.ActionResult{
+					ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
+						AuxiliaryMetadata: []*anypb.Any{defaultInputRootResourceUsage},
+					},
+				},
+				ServerLogs: map[string]*remoteexecution.LogFile{
+					"file-access-profile": {
+						Digest:        accessProfileDigest.GetProto(),
+						HumanReadable: false,
+					},
+				},
+			},
+			profileLoggingBuildExecutor.Execute(
+				ctx,
+				filePool,
+				baseMonitor,
+				digestFunction,
+				exampleRequest,
+				executionStateUpdates,
+			),
+		)
+	})
+
+	t.Run("CASLogAccessProfileError", func(t *testing.T) {
+		// If storing the file system access profile to Content
+		// Addressable Storage (CAS) fails the error should be
+		// propagated and the profile digest should not be
+		// attached to the response server logs.
+		baseBuildExecutor.EXPECT().Execute(
+			gomock.Any(),
+			filePool,
+			gomock.Any(),
+			digestFunction,
+			testutil.EqProto(t, exampleRequest),
+			executionStateUpdates,
+		).Return(&remoteexecution.ExecuteResponse{
+			Result: &remoteexecution.ActionResult{
+				ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
+			},
+			ServerLogs: nil, // Responses are not guaranteed to already contain any server logs.
+		})
+		fileSystemAccessCache.EXPECT().Get(gomock.Any(), exampleReducedActionDigest).
+			Return(buffer.NewProtoBufferFromProto(&fsac.FileSystemAccessProfile{
+				BloomFilter:              []byte{0x80},
+				BloomFilterHashFunctions: 1,
+			}, buffer.UserProvided))
+		accessProfileDigest := digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "dc1d3a7d5a534e6175cdc57c96cc031d", 5)
+		contentAddressableStorage.EXPECT().Put(gomock.Any(), accessProfileDigest, gomock.Any()).
+			DoAndReturn(func(ctx context.Context, blobDigest digest.Digest, b buffer.Buffer) error {
+				b.Discard()
+				return status.Error(codes.Internal, "Storage offline")
+			})
+
+		testutil.RequireEqualProto(
+			t,
+			&remoteexecution.ExecuteResponse{
+				Result: &remoteexecution.ActionResult{
+					ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
+						AuxiliaryMetadata: []*anypb.Any{defaultInputRootResourceUsage},
+					},
+				},
+				Status: status.New(codes.Internal, "Failed to store file system access profile to CAS: Storage offline").Proto(),
+			},
+			profileLoggingBuildExecutor.Execute(
+				ctx,
+				filePool,
+				baseMonitor,
+				digestFunction,
+				exampleRequest,
+				executionStateUpdates,
+			),
+		)
+	})
+
+	t.Run("DoNotOverwriteServerLogs", func(t *testing.T) {
+		// Response server logs must retain preexisting data.
+		baseBuildExecutor.EXPECT().Execute(
+			gomock.Any(),
+			filePool,
+			gomock.Any(),
+			digestFunction,
+			testutil.EqProto(t, exampleRequest),
+			executionStateUpdates,
+		).Return(&remoteexecution.ExecuteResponse{
+			Result: &remoteexecution.ActionResult{
+				ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
+			},
+			ServerLogs: map[string]*remoteexecution.LogFile{
+				"existing-log": {},
+			},
+		})
+		fileSystemAccessCache.EXPECT().Get(gomock.Any(), exampleReducedActionDigest).
+			Return(buffer.NewProtoBufferFromProto(&fsac.FileSystemAccessProfile{
+				BloomFilter:              []byte{0x80},
+				BloomFilterHashFunctions: 1,
+			}, buffer.UserProvided))
+		accessProfileDigest := digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "dc1d3a7d5a534e6175cdc57c96cc031d", 5)
+		contentAddressableStorage.EXPECT().Put(gomock.Any(), accessProfileDigest, gomock.Any()).
+			DoAndReturn(func(ctx context.Context, blobDigest digest.Digest, b buffer.Buffer) error {
+				b.Discard()
+				return nil
+			})
+
+		testutil.RequireEqualProto(
+			t,
+			&remoteexecution.ExecuteResponse{
+				Result: &remoteexecution.ActionResult{
+					ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
+						AuxiliaryMetadata: []*anypb.Any{defaultInputRootResourceUsage},
+					},
+				},
+				ServerLogs: map[string]*remoteexecution.LogFile{
+					"existing-log": {},
+					"file-access-profile": {
+						Digest:        accessProfileDigest.GetProto(),
+						HumanReadable: false,
+					},
+				},
+			},
+			profileLoggingBuildExecutor.Execute(
+				ctx,
+				filePool,
+				baseMonitor,
+				digestFunction,
+				exampleRequest,
+				executionStateUpdates,
+			),
+		)
+	})
 }
