@@ -8,40 +8,17 @@ import "github.com/buildbarn/bb-storage/pkg/proto/configuration/auth/auth.proto"
 import "github.com/buildbarn/bb-storage/pkg/proto/configuration/blobstore/blobstore.proto";
 import "github.com/buildbarn/bb-storage/pkg/proto/configuration/global/global.proto";
 import "github.com/buildbarn/bb-storage/pkg/proto/configuration/grpc/grpc.proto";
-import "github.com/buildbarn/bb-storage/pkg/proto/configuration/http/server/server.proto";
 import "github.com/buildbarn/bb-storage/pkg/proto/configuration/zstd/zstd.proto";
 import "google/protobuf/duration.proto";
 
 option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_scheduler";
 
 message ApplicationConfiguration {
-  // Was 'admin_http_listen_address'. bb-portal is capable of displaying
-  // the same information by letting it connect to the
+  // Was 'admin_http_listen_address', 'admin_http_servers',
+  // 'admin_route_prefix', and 'portal_url'. bb-portal is capable of
+  // displaying the same information by letting it connect to the
   // build_queue_state_grpc_servers endpoint.
-  reserved 2;
-
-  // URL of bb-portal, linked to by the web UI.
-  //
-  // NOTE: This option will be removed on 2027-07-01, as bb-portal is
-  // capable of displaying the same information by letting it connect to
-  // the build_queue_state_grpc_servers endpoint.
-  string deprecated_portal_url = 5;
-
-  // Configuration for the HTTP servers that expose the web UI.
-  //
-  // NOTE: This option will be removed on 2027-07-01, as bb-portal is
-  // now capable of displaying the same information by letting it
-  // connect to the build_queue_state_grpc_servers endpoint.
-  repeated buildbarn.configuration.http.server.Configuration
-      deprecated_admin_http_servers = 19;
-
-  // The path under which the administrative web UI needs to be exposed.
-  // When left empty, the web UI will be exposed at "/".
-  //
-  // NOTE: This option will be removed on 2027-07-01, as bb-portal is
-  // now capable of displaying the same information by letting it
-  // connect to the build_queue_state_grpc_servers endpoint.
-  string deprecated_admin_route_prefix = 22;
+  reserved 2, 5, 19, 22;
 
   // gRPC servers to spawn to listen for requests from clients
   // (bb_storage or Bazel).

@@ -1,7 +1,6 @@
 module(name = "com_github_buildbarn_bb_remote_execution")
 
 bazel_dep(name = "aspect_bazel_lib", version = "2.22.5")
-bazel_dep(name = "aspect_rules_js", version = "3.1.2")
 bazel_dep(name = "bazel_remote_apis", version = "0")
 bazel_dep(name = "bazel_skylib", version = "1.9.0")
 bazel_dep(name = "cel-spec", version = "0.25.1")
@@ -67,7 +66,6 @@ use_repo(
     "com_github_bazelbuild_remote_apis",
     "com_github_golang_protobuf",
     "com_github_google_uuid",
-    "com_github_gorilla_mux",
     "com_github_hanwen_go_fuse_v2",
     "com_github_kballard_go_shellquote",
     "com_github_prometheus_client_golang",
@@ -115,27 +113,12 @@ go_deps_dev.module_override(
     path = "go.uber.org/mock",
 )
 
-http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-
-http_archive(
-    name = "com_github_twbs_bootstrap",
-    build_file_content = """exports_files(["css/bootstrap.min.css", "js/bootstrap.min.js"])""",
-    sha256 = "395342b2974e3350560e65752d36aab6573652b11cc6cb5ef79a2e5e83ad64b1",
-    strip_prefix = "bootstrap-5.1.0-dist",
-    urls = ["https://github.com/twbs/bootstrap/releases/download/v5.1.0/bootstrap-5.1.0-dist.zip"],
-)
-
 llvm = use_extension("@toolchains_llvm//toolchain/extensions:llvm.bzl", "llvm", dev_dependency = True)
 llvm.toolchain(
     llvm_version = "17.0.6",
 )
 
-npm = use_extension("@aspect_rules_js//npm:extensions.bzl", "npm")
-npm.npm_translate_lock(
-    name = "com_github_buildbarn_bb_remote_execution_npm",
-    pnpm_lock = "//:pnpm-lock.yaml",
-)
-use_repo(npm, "com_github_buildbarn_bb_remote_execution_npm")
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 http_archive(
     name = "com_github_winfsp_winfsp_tests",

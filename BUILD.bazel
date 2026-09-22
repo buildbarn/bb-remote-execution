@@ -1,5 +1,3 @@
-load("@com_github_buildbarn_bb_remote_execution_npm//:defs.bzl", "npm_link_all_packages")
-
 # gazelle:go_grpc_compilers @rules_go//proto:go_proto,@rules_go//proto:go_grpc_v2
 # gazelle:go_naming_convention_external import
 # gazelle:prefix github.com/buildbarn/bb-remote-execution
@@ -15,7 +13,3 @@ load("@com_github_buildbarn_bb_remote_execution_npm//:defs.bzl", "npm_link_all_p
 # gazelle:resolve_regexp proto github.com/buildbarn/bb-storage/(.*)/(.*)\.proto @com_github_buildbarn_bb_storage//$1:${2}_proto
 # gazelle:resolve_regexp proto go github.com/buildbarn/bb-storage/(.*)/(.*)\.proto @com_github_buildbarn_bb_storage//$1:$2
 # gazelle:resolve_regexp proto google/protobuf/(.*)\.proto @protobuf//:${1}_proto
-
-npm_link_all_packages(
-    name = "node_modules",
-)
