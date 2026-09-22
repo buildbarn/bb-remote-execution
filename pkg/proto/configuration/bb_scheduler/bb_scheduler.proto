@@ -15,9 +15,33 @@ import "google/protobuf/duration.proto";
 option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_scheduler";
 
 message ApplicationConfiguration {
-  // Was 'admin_http_listen_address'. The listen address of the HTTP
-  // server can now be configured through 'admin_http_servers'.
+  // Was 'admin_http_listen_address'. bb-portal is capable of displaying
+  // the same information by letting it connect to the
+  // build_queue_state_grpc_servers endpoint.
   reserved 2;
+
+  // URL of bb-portal, linked to by the web UI.
+  //
+  // NOTE: This option will be removed on 2027-07-01, as bb-portal is
+  // capable of displaying the same information by letting it connect to
+  // the build_queue_state_grpc_servers endpoint.
+  string deprecated_portal_url = 5;
+
+  // Configuration for the HTTP servers that expose the web UI.
+  //
+  // NOTE: This option will be removed on 2027-07-01, as bb-portal is
+  // now capable of displaying the same information by letting it
+  // connect to the build_queue_state_grpc_servers endpoint.
+  repeated buildbarn.configuration.http.server.Configuration
+      deprecated_admin_http_servers = 19;
+
+  // The path under which the administrative web UI needs to be exposed.
+  // When left empty, the web UI will be exposed at "/".
+  //
+  // NOTE: This option will be removed on 2027-07-01, as bb-portal is
+  // now capable of displaying the same information by letting it
+  // connect to the build_queue_state_grpc_servers endpoint.
+  string deprecated_admin_route_prefix = 22;
 
   // gRPC servers to spawn to listen for requests from clients
   // (bb_storage or Bazel).
@@ -27,9 +51,6 @@ message ApplicationConfiguration {
   // gRPC servers to spawn to listen for requests from bb_worker.
   repeated buildbarn.configuration.grpc.ServerConfiguration
       worker_grpc_servers = 4;
-
-  // URL of bb-portal, linked to by the web UI.
-  string portal_url = 5;
 
   // Configuration for blob storage.
   buildbarn.configuration.blobstore.BlobAccessConfiguration
@@ -47,8 +68,8 @@ message ApplicationConfiguration {
   reserved 9, 10;
 
   // gRPC servers to spawn to expose the state of the build queue. This
-  // can be used to obtain access to the data shown in the web UI in a
-  // programmatic manner.
+  // endpoint can be used by bb-portal to display the state of workers
+  // and currently running operations.
   repeated buildbarn.configuration.grpc.ServerConfiguration
       build_queue_state_grpc_servers = 11;
 
@@ -123,17 +144,9 @@ message ApplicationConfiguration {
   // Recommended value: 900s
   google.protobuf.Duration platform_queue_with_no_workers_timeout = 18;
 
-  // Configuration for the HTTP servers that expose the web UI.
-  //
-  // TODO: This web UI no longer needs to be integrated into
-  // bb_scheduler, as the underlying information can be exposed over
-  // gRPC using the 'build_queue_state_grpc_servers' option.
-  repeated buildbarn.configuration.http.server.Configuration
-      admin_http_servers = 19;
-
   // Authorization requirements to be enforced for AddDrain and
   // RemoveDrain requests issued through the BuildQueueState gRPC
-  // servers and web UI.
+  // servers.
   //
   // The instance name to be matched is the instance name prefix of the
   // size class queue to which drains are added, or from which drains
@@ -143,17 +156,13 @@ message ApplicationConfiguration {
 
   // Authorization requirements to be enforced for KillOperations
   // RemoveDrain requests issued through the BuildQueueState gRPC
-  // servers and web UI.
+  // servers.
   //
   // The instance name to be matched is the instance name prefix of the
   // size class queue containing the operation. Not the instance name
   // used by the operation itself.
   buildbarn.configuration.auth.AuthorizerConfiguration
       kill_operations_authorizer = 21;
-
-  // The path under which the administrative web UI needs to be exposed.
-  // When left empty, the web UI will be exposed at "/".
-  string admin_route_prefix = 22;
 
   // Authorization requirements to be enforced for Synchronize requests
   // by workers.
