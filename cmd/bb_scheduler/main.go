@@ -52,7 +52,7 @@ func main() {
 			return util.StatusWrap(err, "Failed to apply global configuration options")
 		}
 
-		portalURL, err := url.Parse(configuration.PortalUrl)
+		portalURL, err := url.Parse(configuration.DeprecatedPortalUrl)
 		if err != nil {
 			return util.StatusWrap(err, "Failed to parse portal URL")
 		}
@@ -224,14 +224,14 @@ func main() {
 
 		// Web server for metrics and profiling.
 		router := mux.NewRouter()
-		routePrefix := path.Join("/", configuration.AdminRoutePrefix)
+		routePrefix := path.Join("/", configuration.DeprecatedAdminRoutePrefix)
 		if !strings.HasSuffix(routePrefix, "/") {
 			routePrefix += "/"
 		}
 		subrouter := router.PathPrefix(routePrefix).Subrouter()
 		newBuildQueueStateService(buildQueue, clock.SystemClock, portalURL, subrouter)
 		http_server.NewServersFromConfigurationAndServe(
-			configuration.AdminHttpServers,
+			configuration.DeprecatedAdminHttpServers,
 			http_server.NewMetricsHandler(router, "SchedulerUI"),
 			siblingsGroup,
 			grpcClientFactory,
