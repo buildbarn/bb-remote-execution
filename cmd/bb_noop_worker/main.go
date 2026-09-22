@@ -27,7 +27,7 @@ import (
 // This is an implementation of a remote execution worker that always
 // fails to execute actions with an INVALID_ARGUMENT error. This worker
 // may be useful when attempting to inspect input roots of actions, as
-// it causes the client to print a link to bb_browser immediately.
+// it causes the client to print a link to bb-portal immediately.
 
 func main() {
 	program.RunMain(func(ctx context.Context, siblingsGroup, dependenciesGroup program.Group) error {
@@ -61,9 +61,9 @@ func main() {
 		}
 		contentAddressableStorage := re_blobstore.NewExistencePreconditionBlobAccess(info.BlobAccess)
 
-		browserURL, err := url.Parse(configuration.BrowserUrl)
+		portalURL, err := url.Parse(configuration.PortalUrl)
 		if err != nil {
-			return util.StatusWrap(err, "Failed to parse browser URL")
+			return util.StatusWrap(err, "Failed to parse portal URL")
 		}
 
 		schedulerConnection, err := grpcClientFactory.NewClientFromConfiguration(configuration.Scheduler, dependenciesGroup)
@@ -84,7 +84,7 @@ func main() {
 					contentAddressableStorage,
 					int(configuration.MaximumMessageSizeBytes),
 				),
-				browserURL,
+				portalURL,
 			),
 			pool.EmptyFilePool,
 			clock.SystemClock,

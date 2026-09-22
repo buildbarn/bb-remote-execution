@@ -17,24 +17,24 @@ import (
 
 type loggingBuildExecutor struct {
 	BuildExecutor
-	browserURL *url.URL
+	portalURL *url.URL
 }
 
 // NewLoggingBuildExecutor wraps an existing BuildExecutor, adding basic
-// logging. A link to bb_browser is printed prior to executing the
+// logging. A link to bb-portal is printed prior to executing the
 // action. A JSON representation of the ExecuteResponse is logged after
 // completion.
-func NewLoggingBuildExecutor(base BuildExecutor, browserURL *url.URL) BuildExecutor {
+func NewLoggingBuildExecutor(base BuildExecutor, portalURL *url.URL) BuildExecutor {
 	return &loggingBuildExecutor{
 		BuildExecutor: base,
-		browserURL:    browserURL,
+		portalURL:     portalURL,
 	}
 }
 
 func (be *loggingBuildExecutor) Execute(ctx context.Context, filePool pool.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
-	// Print URL to bb_browser prior to execution.
+	// Print URL to bb-portal prior to execution.
 	if actionDigest, err := digestFunction.NewDigestFromProto(request.ActionDigest); err == nil {
-		log.Printf("Action: %s with timeout %s", re_util.GetBrowserURL(be.browserURL, "action", actionDigest), request.Action.GetTimeout().AsDuration())
+		log.Printf("Action: %s with timeout %s", re_util.GetPortalURL(be.portalURL, "action", actionDigest), request.Action.GetTimeout().AsDuration())
 	} else {
 		log.Print("Action: Failed to extract digest: ", err)
 	}

@@ -52,9 +52,9 @@ func main() {
 			return util.StatusWrap(err, "Failed to apply global configuration options")
 		}
 
-		browserURL, err := url.Parse(configuration.BrowserUrl)
+		portalURL, err := url.Parse(configuration.PortalUrl)
 		if err != nil {
-			return util.StatusWrap(err, "Failed to parse browser URL")
+			return util.StatusWrap(err, "Failed to parse portal URL")
 		}
 
 		// Storage access. The scheduler requires access to the Action
@@ -229,7 +229,7 @@ func main() {
 			routePrefix += "/"
 		}
 		subrouter := router.PathPrefix(routePrefix).Subrouter()
-		newBuildQueueStateService(buildQueue, clock.SystemClock, browserURL, subrouter)
+		newBuildQueueStateService(buildQueue, clock.SystemClock, portalURL, subrouter)
 		http_server.NewServersFromConfigurationAndServe(
 			configuration.AdminHttpServers,
 			http_server.NewMetricsHandler(router, "SchedulerUI"),

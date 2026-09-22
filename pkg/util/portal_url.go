@@ -9,11 +9,11 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/digest"
 )
 
-// GetBrowserURL generates a URL that can be visited to obtain more
-// information about an object stored in the Content Addressable Storage
-// (CAS) or Action Cache (AC).
-func GetBrowserURL(browserURL *url.URL, objectType string, digest digest.Digest) string {
-	return browserURL.JoinPath(
+// GetPortalURL generates a URL pointing to an instance of bb-portal
+// that can be visited to obtain more information about an object stored
+// in the Content Addressable Storage (CAS) or Action Cache (AC).
+func GetPortalURL(portalURL *url.URL, objectType string, digest digest.Digest) string {
+	return portalURL.JoinPath(
 		digest.GetInstanceName().String(),
 		"blobs",
 		strings.ToLower(digest.GetDigestFunction().GetEnumValue().String()),

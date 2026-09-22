@@ -48,7 +48,7 @@ var (
 			}
 			return s
 		},
-		"action_url": func(browserURL *url.URL, instanceNamePrefix, instanceNameSuffix string, digestFunctionValue remoteexecution.DigestFunction_Value, actionDigest *remoteexecution.Digest) string {
+		"action_url": func(portalURL *url.URL, instanceNamePrefix, instanceNameSuffix string, digestFunctionValue remoteexecution.DigestFunction_Value, actionDigest *remoteexecution.Digest) string {
 			iPrefix, err := digest.NewInstanceName(instanceNamePrefix)
 			if err != nil {
 				return ""
@@ -67,7 +67,7 @@ var (
 			if err != nil {
 				return ""
 			}
-			return re_util.GetBrowserURL(browserURL, "action", d)
+			return re_util.GetPortalURL(portalURL, "action", d)
 		},
 		"get_child_invocation_name": func(parent *buildqueuestate.InvocationName, id *anypb.Any) *buildqueuestate.InvocationName {
 			return &buildqueuestate.InvocationName{
@@ -157,14 +157,14 @@ func renderError(w http.ResponseWriter, err error) {
 type buildQueueStateService struct {
 	buildQueue buildqueuestate.BuildQueueStateServer
 	clock      clock.Clock
-	browserURL *url.URL
+	portalURL  *url.URL
 }
 
-func newBuildQueueStateService(buildQueue buildqueuestate.BuildQueueStateServer, clock clock.Clock, browserURL *url.URL, router *mux.Router) *buildQueueStateService {
+func newBuildQueueStateService(buildQueue buildqueuestate.BuildQueueStateServer, clock clock.Clock, portalURL *url.URL, router *mux.Router) *buildQueueStateService {
 	s := &buildQueueStateService{
 		buildQueue: buildQueue,
 		clock:      clock,
-		browserURL: browserURL,
+		portalURL:  portalURL,
 	}
 	router.HandleFunc("/", s.handleGetBuildQueueState)
 	router.HandleFunc("/add_drain", s.handleAddDrain)
@@ -271,12 +271,12 @@ func (s *buildQueueStateService) handleGetOperation(w http.ResponseWriter, req *
 		return
 	}
 	if err := templates.ExecuteTemplate(w, "get_operation_state.html", struct {
-		BrowserURL    *url.URL
+		PortalURL     *url.URL
 		Now           time.Time
 		OperationName string
 		Operation     *buildqueuestate.OperationState
 	}{
-		BrowserURL:    s.browserURL,
+		PortalURL:     s.portalURL,
 		Now:           s.clock.Now(),
 		OperationName: operationName,
 		Operation:     response.Operation,
@@ -335,7 +335,7 @@ func (s *buildQueueStateService) handleListOperations(w http.ResponseWriter, req
 	}
 
 	if err := templates.ExecuteTemplate(w, "list_operation_state.html", struct {
-		BrowserURL         *url.URL
+		PortalURL          *url.URL
 		Now                time.Time
 		PaginationInfo     *buildqueuestate.PaginationInfo
 		EndIndex           int
@@ -344,7 +344,7 @@ func (s *buildQueueStateService) handleListOperations(w http.ResponseWriter, req
 		StartAfter         *buildqueuestate.ListOperationsRequest_StartAfter
 		Operations         []*buildqueuestate.OperationState
 	}{
-		BrowserURL:         s.browserURL,
+		PortalURL:          s.portalURL,
 		Now:                s.clock.Now(),
 		PaginationInfo:     response.PaginationInfo,
 		EndIndex:           int(response.PaginationInfo.StartIndex) + len(response.Operations),
@@ -398,7 +398,7 @@ func (s *buildQueueStateService) handleListQueuedOperations(w http.ResponseWrite
 
 	if err := templates.ExecuteTemplate(w, "list_queued_operation_state.html", struct {
 		InvocationName   *buildqueuestate.InvocationName
-		BrowserURL       *url.URL
+		PortalURL        *url.URL
 		Now              time.Time
 		PaginationInfo   *buildqueuestate.PaginationInfo
 		EndIndex         int
@@ -406,7 +406,7 @@ func (s *buildQueueStateService) handleListQueuedOperations(w http.ResponseWrite
 		QueuedOperations []*buildqueuestate.OperationState
 	}{
 		InvocationName:   &invocationName,
-		BrowserURL:       s.browserURL,
+		PortalURL:        s.portalURL,
 		Now:              s.clock.Now(),
 		PaginationInfo:   response.PaginationInfo,
 		EndIndex:         int(response.PaginationInfo.StartIndex) + len(response.QueuedOperations),
@@ -456,7 +456,7 @@ func (s *buildQueueStateService) handleListWorkers(w http.ResponseWriter, req *h
 
 	if err := templates.ExecuteTemplate(w, "list_worker_state.html", struct {
 		Filter         *buildqueuestate.ListWorkersRequest_Filter
-		BrowserURL     *url.URL
+		PortalURL      *url.URL
 		Now            time.Time
 		PaginationInfo *buildqueuestate.PaginationInfo
 		EndIndex       int
@@ -464,7 +464,7 @@ func (s *buildQueueStateService) handleListWorkers(w http.ResponseWriter, req *h
 		Workers        []*buildqueuestate.WorkerState
 	}{
 		Filter:         &filter,
-		BrowserURL:     s.browserURL,
+		PortalURL:      s.portalURL,
 		Now:            s.clock.Now(),
 		PaginationInfo: response.PaginationInfo,
 		EndIndex:       int(response.PaginationInfo.StartIndex) + len(response.Workers),

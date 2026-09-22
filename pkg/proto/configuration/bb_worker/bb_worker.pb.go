@@ -36,7 +36,7 @@ const (
 type ApplicationConfiguration struct {
 	state                            protoimpl.MessageState                    `protogen:"open.v1"`
 	Blobstore                        *blobstore.BlobstoreConfiguration         `protobuf:"bytes,1,opt,name=blobstore,proto3" json:"blobstore,omitempty"`
-	BrowserUrl                       string                                    `protobuf:"bytes,2,opt,name=browser_url,json=browserUrl,proto3" json:"browser_url,omitempty"`
+	PortalUrl                        string                                    `protobuf:"bytes,2,opt,name=portal_url,json=portalUrl,proto3" json:"portal_url,omitempty"`
 	MaximumMessageSizeBytes          int64                                     `protobuf:"varint,6,opt,name=maximum_message_size_bytes,json=maximumMessageSizeBytes,proto3" json:"maximum_message_size_bytes,omitempty"`
 	Scheduler                        *grpc.ClientConfiguration                 `protobuf:"bytes,8,opt,name=scheduler,proto3" json:"scheduler,omitempty"`
 	Global                           *global.Configuration                     `protobuf:"bytes,19,opt,name=global,proto3" json:"global,omitempty"`
@@ -91,9 +91,9 @@ func (x *ApplicationConfiguration) GetBlobstore() *blobstore.BlobstoreConfigurat
 	return nil
 }
 
-func (x *ApplicationConfiguration) GetBrowserUrl() string {
+func (x *ApplicationConfiguration) GetPortalUrl() string {
 	if x != nil {
-		return x.BrowserUrl
+		return x.PortalUrl
 	}
 	return ""
 }
@@ -771,12 +771,12 @@ var File_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_wor
 
 const file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_worker_bb_worker_proto_rawDesc = "" +
 	"\n" +
-	"Zgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_worker/bb_worker.proto\x12!buildbarn.configuration.bb_worker\x1a6build/bazel/remote/execution/v2/remote_execution.proto\x1aNgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/cas/cas.proto\x1a\\github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem/filesystem.proto\x1aagithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem/virtual/virtual.proto\x1aTgithub.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage/resourceusage.proto\x1aQgithub.com/buildbarn/bb-storage/pkg/proto/configuration/blobstore/blobstore.proto\x1aOgithub.com/buildbarn/bb-storage/pkg/proto/configuration/eviction/eviction.proto\x1aKgithub.com/buildbarn/bb-storage/pkg/proto/configuration/global/global.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/grpc/grpc.proto\x1aPgithub.com/buildbarn/bb-storage/pkg/proto/configuration/http/client/client.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/zstd/zstd.proto\x1a\x1egoogle/protobuf/duration.proto\"\xc8\n" +
+	"Zgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_worker/bb_worker.proto\x12!buildbarn.configuration.bb_worker\x1a6build/bazel/remote/execution/v2/remote_execution.proto\x1aNgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/cas/cas.proto\x1a\\github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem/filesystem.proto\x1aagithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/filesystem/virtual/virtual.proto\x1aTgithub.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage/resourceusage.proto\x1aQgithub.com/buildbarn/bb-storage/pkg/proto/configuration/blobstore/blobstore.proto\x1aOgithub.com/buildbarn/bb-storage/pkg/proto/configuration/eviction/eviction.proto\x1aKgithub.com/buildbarn/bb-storage/pkg/proto/configuration/global/global.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/grpc/grpc.proto\x1aPgithub.com/buildbarn/bb-storage/pkg/proto/configuration/http/client/client.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/zstd/zstd.proto\x1a\x1egoogle/protobuf/duration.proto\"\xc6\n" +
 	"\n" +
 	"\x18ApplicationConfiguration\x12W\n" +
-	"\tblobstore\x18\x01 \x01(\v29.buildbarn.configuration.blobstore.BlobstoreConfigurationR\tblobstore\x12\x1f\n" +
-	"\vbrowser_url\x18\x02 \x01(\tR\n" +
-	"browserUrl\x12;\n" +
+	"\tblobstore\x18\x01 \x01(\v29.buildbarn.configuration.blobstore.BlobstoreConfigurationR\tblobstore\x12\x1d\n" +
+	"\n" +
+	"portal_url\x18\x02 \x01(\tR\tportalUrl\x12;\n" +
 	"\x1amaximum_message_size_bytes\x18\x06 \x01(\x03R\x17maximumMessageSizeBytes\x12O\n" +
 	"\tscheduler\x18\b \x01(\v21.buildbarn.configuration.grpc.ClientConfigurationR\tscheduler\x12E\n" +
 	"\x06global\x18\x13 \x01(\v2-.buildbarn.configuration.global.ConfigurationR\x06global\x12k\n" +
