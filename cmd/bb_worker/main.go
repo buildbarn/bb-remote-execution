@@ -65,9 +65,9 @@ func main() {
 		}
 		tracerProvider := otel.GetTracerProvider()
 
-		browserURL, err := url.Parse(configuration.BrowserUrl)
+		portalURL, err := url.Parse(configuration.PortalUrl)
 		if err != nil {
-			return util.StatusWrap(err, "Failed to parse browser URL")
+			return util.StatusWrap(err, "Failed to parse portal URL")
 		}
 
 		// Create connection with scheduler.
@@ -518,7 +518,7 @@ func main() {
 						buildExecutor,
 						globalContentAddressableStorage,
 						actionCache,
-						browserURL,
+						portalURL,
 					)
 
 					for _, remoteCompletedActionLogger := range remoteCompletedActionLoggers {
@@ -533,7 +533,7 @@ func main() {
 					buildExecutor = builder.NewTracingBuildExecutor(
 						builder.NewLoggingBuildExecutor(
 							buildExecutor,
-							browserURL,
+							portalURL,
 						),
 						tracerProvider,
 					)

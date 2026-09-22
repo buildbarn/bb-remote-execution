@@ -167,7 +167,7 @@ message InitialSizeClassAnalyzerConfiguration {
   // the Initial Size Class Cache (ISCC), so that future invocations of
   // similar actions can be scheduled more intelligently.
   //
-  // bb_browser is also capable of reading data from this data store,
+  // bb-portal is also capable of reading data from this data store,
   // making it possible to view these statistics by visiting the page of
   // an action.
   InitialSizeClassFeedbackDrivenAnalyzerConfiguration feedback_driven = 3;

@@ -33,7 +33,7 @@ func TestNoopBuildExecutor(t *testing.T) {
 
 	t.Run("NoActionDigest", func(t *testing.T) {
 		// The client needs to provide an Action digest, so that
-		// this BuildExecutor can generate a link to bb_browser.
+		// this BuildExecutor can generate a link to bb-portal.
 		filePool := mock.NewMockFilePool(ctrl)
 		monitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
 		testutil.RequireEqualProto(

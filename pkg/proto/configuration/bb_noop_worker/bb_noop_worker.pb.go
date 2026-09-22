@@ -29,7 +29,7 @@ const (
 type ApplicationConfiguration struct {
 	state                     protoimpl.MessageState             `protogen:"open.v1"`
 	Global                    *global.Configuration              `protobuf:"bytes,1,opt,name=global,proto3" json:"global,omitempty"`
-	BrowserUrl                string                             `protobuf:"bytes,2,opt,name=browser_url,json=browserUrl,proto3" json:"browser_url,omitempty"`
+	PortalUrl                 string                             `protobuf:"bytes,2,opt,name=portal_url,json=portalUrl,proto3" json:"portal_url,omitempty"`
 	Scheduler                 *grpc.ClientConfiguration          `protobuf:"bytes,3,opt,name=scheduler,proto3" json:"scheduler,omitempty"`
 	InstanceNamePrefix        string                             `protobuf:"bytes,4,opt,name=instance_name_prefix,json=instanceNamePrefix,proto3" json:"instance_name_prefix,omitempty"`
 	Platform                  *v2.Platform                       `protobuf:"bytes,5,opt,name=platform,proto3" json:"platform,omitempty"`
@@ -78,9 +78,9 @@ func (x *ApplicationConfiguration) GetGlobal() *global.Configuration {
 	return nil
 }
 
-func (x *ApplicationConfiguration) GetBrowserUrl() string {
+func (x *ApplicationConfiguration) GetPortalUrl() string {
 	if x != nil {
-		return x.BrowserUrl
+		return x.PortalUrl
 	}
 	return ""
 }
@@ -138,11 +138,11 @@ var File_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_noo
 
 const file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_noop_worker_bb_noop_worker_proto_rawDesc = "" +
 	"\n" +
-	"dgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_noop_worker/bb_noop_worker.proto\x12&buildbarn.configuration.bb_noop_worker\x1a6build/bazel/remote/execution/v2/remote_execution.proto\x1aQgithub.com/buildbarn/bb-storage/pkg/proto/configuration/blobstore/blobstore.proto\x1aKgithub.com/buildbarn/bb-storage/pkg/proto/configuration/global/global.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/grpc/grpc.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/zstd/zstd.proto\"\xfd\x05\n" +
+	"dgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_noop_worker/bb_noop_worker.proto\x12&buildbarn.configuration.bb_noop_worker\x1a6build/bazel/remote/execution/v2/remote_execution.proto\x1aQgithub.com/buildbarn/bb-storage/pkg/proto/configuration/blobstore/blobstore.proto\x1aKgithub.com/buildbarn/bb-storage/pkg/proto/configuration/global/global.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/grpc/grpc.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/zstd/zstd.proto\"\xfb\x05\n" +
 	"\x18ApplicationConfiguration\x12E\n" +
-	"\x06global\x18\x01 \x01(\v2-.buildbarn.configuration.global.ConfigurationR\x06global\x12\x1f\n" +
-	"\vbrowser_url\x18\x02 \x01(\tR\n" +
-	"browserUrl\x12O\n" +
+	"\x06global\x18\x01 \x01(\v2-.buildbarn.configuration.global.ConfigurationR\x06global\x12\x1d\n" +
+	"\n" +
+	"portal_url\x18\x02 \x01(\tR\tportalUrl\x12O\n" +
 	"\tscheduler\x18\x03 \x01(\v21.buildbarn.configuration.grpc.ClientConfigurationR\tscheduler\x120\n" +
 	"\x14instance_name_prefix\x18\x04 \x01(\tR\x12instanceNamePrefix\x12E\n" +
 	"\bplatform\x18\x05 \x01(\v2).build.bazel.remote.execution.v2.PlatformR\bplatform\x12k\n" +

@@ -21,7 +21,7 @@ import (
 
 type noopBuildExecutor struct {
 	commandReader cas.MessageReader[*remoteexecution.Command]
-	browserURL    *url.URL
+	portalURL     *url.URL
 }
 
 // NewNoopBuildExecutor creates a BuildExecutor that always returns an
@@ -31,10 +31,10 @@ type noopBuildExecutor struct {
 // to upload the input root of an action into the Content Addressable
 // Storage (CAS) without causing it to be executed afterwards. This may
 // be useful when attempting to debug actions.
-func NewNoopBuildExecutor(commandReader cas.MessageReader[*remoteexecution.Command], browserURL *url.URL) BuildExecutor {
+func NewNoopBuildExecutor(commandReader cas.MessageReader[*remoteexecution.Command], portalURL *url.URL) BuildExecutor {
 	return &noopBuildExecutor{
 		commandReader: commandReader,
-		browserURL:    browserURL,
+		portalURL:     portalURL,
 	}
 }
 
@@ -90,7 +90,7 @@ func (be *noopBuildExecutor) Execute(ctx context.Context, filePool pool.FilePool
 	if err := errorMessageTemplate.Execute(&errorMessage, struct {
 		ActionURL string
 	}{
-		ActionURL: re_util.GetBrowserURL(be.browserURL, "action", actionDigest),
+		ActionURL: re_util.GetPortalURL(be.portalURL, "action", actionDigest),
 	}); err != nil {
 		attachErrorToExecuteResponse(response, util.StatusWrapWithCode(err, codes.InvalidArgument, "Cannot evaluate error message template"))
 		return response

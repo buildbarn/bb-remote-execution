@@ -28,8 +28,8 @@ message ApplicationConfiguration {
   repeated buildbarn.configuration.grpc.ServerConfiguration
       worker_grpc_servers = 4;
 
-  // URL of the Buildbarn Browser, linked to by the web UI.
-  string browser_url = 5;
+  // URL of bb-portal, linked to by the web UI.
+  string portal_url = 5;
 
   // Configuration for blob storage.
   buildbarn.configuration.blobstore.BlobAccessConfiguration

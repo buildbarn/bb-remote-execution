@@ -21,8 +21,8 @@ message ApplicationConfiguration {
   // Configuration for blob storage.
   buildbarn.configuration.blobstore.BlobstoreConfiguration blobstore = 1;
 
-  // URL of the Buildbarn Browser, shown to the user upon build completion.
-  string browser_url = 2;
+  // URL of bb-portal, shown to the user upon build completion.
+  string portal_url = 2;
 
   // Maximum Protobuf message size to unmarshal.
   int64 maximum_message_size_bytes = 6;
@@ -131,7 +131,7 @@ message ApplicationConfiguration {
   // Forcefully uploading Directory messages into the CAS has several
   // advantages:
   //
-  // - bb_browser is capable of displaying listings of individual
+  // - bb-portal is capable of displaying listings of individual
   //   directories contained in an output directory without needing to
   //   load the full Tree object from the CAS.
   //

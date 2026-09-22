@@ -23,7 +23,7 @@ type cachingBuildExecutor struct {
 	BuildExecutor
 	contentAddressableStorage blobstore.BlobAccess
 	actionCache               blobstore.BlobAccess
-	browserURL                *url.URL
+	portalURL                 *url.URL
 }
 
 // NewCachingBuildExecutor creates an adapter for BuildExecutor that
@@ -31,14 +31,14 @@ type cachingBuildExecutor struct {
 // If they may not be cached, they are stored in the Content Addressable
 // Storage (CAS) instead.
 //
-// In both cases, a link to bb_browser is added to the ExecuteResponse,
+// In both cases, a link to bb-portal is added to the ExecuteResponse,
 // so that the user may inspect the Action and ActionResult in detail.
-func NewCachingBuildExecutor(base BuildExecutor, contentAddressableStorage, actionCache blobstore.BlobAccess, browserURL *url.URL) BuildExecutor {
+func NewCachingBuildExecutor(base BuildExecutor, contentAddressableStorage, actionCache blobstore.BlobAccess, portalURL *url.URL) BuildExecutor {
 	return &cachingBuildExecutor{
 		BuildExecutor:             base,
 		contentAddressableStorage: contentAddressableStorage,
 		actionCache:               actionCache,
-		browserURL:                browserURL,
+		portalURL:                 portalURL,
 	}
 }
 
@@ -51,14 +51,14 @@ func (be *cachingBuildExecutor) Execute(ctx context.Context, filePool pool.FileP
 	} else if !action.DoNotCache && executeResponseIsSuccessful(response) {
 		// Store result in the Action Cache.
 		if err := be.actionCache.Put(ctx, actionDigest, buffer.NewProtoBufferFromProto(response.Result, buffer.UserProvided)); err == nil {
-			response.Message = "Action details (cached result): " + re_util.GetBrowserURL(be.browserURL, "action", actionDigest)
+			response.Message = "Action details (cached result): " + re_util.GetPortalURL(be.portalURL, "action", actionDigest)
 		} else {
 			attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to store cached action result"))
 		}
 	} else {
 		// Extension: store the result in the Content
 		// Addressable Storage, so the user can at least inspect
-		// it through bb_browser.
+		// it through bb-portal.
 		if historicalExecuteResponseDigest, err := blobstore.CASPutProto(
 			ctx,
 			be.contentAddressableStorage,
@@ -68,7 +68,7 @@ func (be *cachingBuildExecutor) Execute(ctx context.Context, filePool pool.FileP
 			},
 			actionDigest.GetDigestFunction(),
 		); err == nil {
-			response.Message = "Action details (uncached result): " + re_util.GetBrowserURL(be.browserURL, "historical_execute_response", historicalExecuteResponseDigest)
+			response.Message = "Action details (uncached result): " + re_util.GetPortalURL(be.portalURL, "historical_execute_response", historicalExecuteResponseDigest)
 		} else {
 			attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to store historical execute response"))
 		}

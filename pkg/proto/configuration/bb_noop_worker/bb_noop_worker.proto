@@ -14,8 +14,8 @@ message ApplicationConfiguration {
   // Common configuration options that apply to all Buildbarn binaries.
   buildbarn.configuration.global.Configuration global = 1;
 
-  // URL of the Buildbarn Browser, shown to the user upon build completion.
-  string browser_url = 2;
+  // URL of bb-portal, shown to the user upon build completion.
+  string portal_url = 2;
 
   // Endpoint of the scheduler to which to connect.
   buildbarn.configuration.grpc.ClientConfiguration scheduler = 3;

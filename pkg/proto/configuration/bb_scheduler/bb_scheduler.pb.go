@@ -34,7 +34,7 @@ type ApplicationConfiguration struct {
 	state                             protoimpl.MessageState                   `protogen:"open.v1"`
 	ClientGrpcServers                 []*grpc.ServerConfiguration              `protobuf:"bytes,3,rep,name=client_grpc_servers,json=clientGrpcServers,proto3" json:"client_grpc_servers,omitempty"`
 	WorkerGrpcServers                 []*grpc.ServerConfiguration              `protobuf:"bytes,4,rep,name=worker_grpc_servers,json=workerGrpcServers,proto3" json:"worker_grpc_servers,omitempty"`
-	BrowserUrl                        string                                   `protobuf:"bytes,5,opt,name=browser_url,json=browserUrl,proto3" json:"browser_url,omitempty"`
+	PortalUrl                         string                                   `protobuf:"bytes,5,opt,name=portal_url,json=portalUrl,proto3" json:"portal_url,omitempty"`
 	ContentAddressableStorage         *blobstore.BlobAccessConfiguration       `protobuf:"bytes,6,opt,name=content_addressable_storage,json=contentAddressableStorage,proto3" json:"content_addressable_storage,omitempty"`
 	MaximumMessageSizeBytes           int64                                    `protobuf:"varint,7,opt,name=maximum_message_size_bytes,json=maximumMessageSizeBytes,proto3" json:"maximum_message_size_bytes,omitempty"`
 	Global                            *global.Configuration                    `protobuf:"bytes,8,opt,name=global,proto3" json:"global,omitempty"`
@@ -98,9 +98,9 @@ func (x *ApplicationConfiguration) GetWorkerGrpcServers() []*grpc.ServerConfigur
 	return nil
 }
 
-func (x *ApplicationConfiguration) GetBrowserUrl() string {
+func (x *ApplicationConfiguration) GetPortalUrl() string {
 	if x != nil {
-		return x.BrowserUrl
+		return x.PortalUrl
 	}
 	return ""
 }
@@ -298,12 +298,12 @@ var File_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_sch
 
 const file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_scheduler_bb_scheduler_proto_rawDesc = "" +
 	"\n" +
-	"`github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_scheduler/bb_scheduler.proto\x12$buildbarn.configuration.bb_scheduler\x1a6build/bazel/remote/execution/v2/remote_execution.proto\x1aZgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/scheduler/scheduler.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/auth/auth.proto\x1aQgithub.com/buildbarn/bb-storage/pkg/proto/configuration/blobstore/blobstore.proto\x1aKgithub.com/buildbarn/bb-storage/pkg/proto/configuration/global/global.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/grpc/grpc.proto\x1aPgithub.com/buildbarn/bb-storage/pkg/proto/configuration/http/server/server.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/zstd/zstd.proto\x1a\x1egoogle/protobuf/duration.proto\"\x82\x0e\n" +
+	"`github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_scheduler/bb_scheduler.proto\x12$buildbarn.configuration.bb_scheduler\x1a6build/bazel/remote/execution/v2/remote_execution.proto\x1aZgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/scheduler/scheduler.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/auth/auth.proto\x1aQgithub.com/buildbarn/bb-storage/pkg/proto/configuration/blobstore/blobstore.proto\x1aKgithub.com/buildbarn/bb-storage/pkg/proto/configuration/global/global.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/grpc/grpc.proto\x1aPgithub.com/buildbarn/bb-storage/pkg/proto/configuration/http/server/server.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/zstd/zstd.proto\x1a\x1egoogle/protobuf/duration.proto\"\x80\x0e\n" +
 	"\x18ApplicationConfiguration\x12a\n" +
 	"\x13client_grpc_servers\x18\x03 \x03(\v21.buildbarn.configuration.grpc.ServerConfigurationR\x11clientGrpcServers\x12a\n" +
-	"\x13worker_grpc_servers\x18\x04 \x03(\v21.buildbarn.configuration.grpc.ServerConfigurationR\x11workerGrpcServers\x12\x1f\n" +
-	"\vbrowser_url\x18\x05 \x01(\tR\n" +
-	"browserUrl\x12z\n" +
+	"\x13worker_grpc_servers\x18\x04 \x03(\v21.buildbarn.configuration.grpc.ServerConfigurationR\x11workerGrpcServers\x12\x1d\n" +
+	"\n" +
+	"portal_url\x18\x05 \x01(\tR\tportalUrl\x12z\n" +
 	"\x1bcontent_addressable_storage\x18\x06 \x01(\v2:.buildbarn.configuration.blobstore.BlobAccessConfigurationR\x19contentAddressableStorage\x12;\n" +
 	"\x1amaximum_message_size_bytes\x18\a \x01(\x03R\x17maximumMessageSizeBytes\x12E\n" +
 	"\x06global\x18\b \x01(\v2-.buildbarn.configuration.global.ConfigurationR\x06global\x12u\n" +
