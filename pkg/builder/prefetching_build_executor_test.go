@@ -540,7 +540,7 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 					},
 				},
 				ServerLogs: map[string]*remoteexecution.LogFile{
-					"file-access-profile": {
+					"buildbarn.fsac.FileSystemAccessProfile": {
 						Digest:        accessProfileDigest.GetProto(),
 						HumanReadable: false,
 					},
@@ -647,7 +647,7 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 				},
 				ServerLogs: map[string]*remoteexecution.LogFile{
 					"existing-log": {},
-					"file-access-profile": {
+					"buildbarn.fsac.FileSystemAccessProfile": {
 						Digest:        accessProfileDigest.GetProto(),
 						HumanReadable: false,
 					},

@@ -182,7 +182,7 @@ func (be *prefetchingBuildExecutor) Execute(ctx context.Context, filePool pool.F
 			if response.ServerLogs == nil {
 				response.ServerLogs = make(map[string]*remoteexecution.LogFile)
 			}
-			response.ServerLogs["file-access-profile"] = &remoteexecution.LogFile{
+			response.ServerLogs["buildbarn.fsac.FileSystemAccessProfile"] = &remoteexecution.LogFile{
 				Digest:        profileDigest.GetProto(),
 				HumanReadable: false,
 			}
