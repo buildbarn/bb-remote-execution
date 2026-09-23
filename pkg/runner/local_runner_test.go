@@ -547,5 +547,31 @@ func TestLocalRunnerRun(t *testing.T) {
 		)
 	})
 
+	t.Run("PersistentWorkerNotSupported", func(t *testing.T) {
+		// If bb_worker is configured to let build actions be
+		// executed by persistent worker processes, while
+		// bb_runner is not, we must not fall back to spawning a
+		// process of our own. The tool would interpret the
+		// "@flagfile" arguments literally, causing it to compute
+		// incorrect results.
+		buildDirectory := mock.NewMockDirectoryCloser(ctrl)
+		runner := runner.NewLocalRunner(buildDirectory, &path.EmptyBuilder, runner.NewPlainCommandCreator(&syscall.SysProcAttr{}), false)
+		_, err := runner.Run(context.Background(), &runner_pb.RunRequest{
+			Arguments:          []string{"javac", "@bazel-out/hello.params"},
+			StdoutPath:         "stdout",
+			StderrPath:         "stderr",
+			InputRootDirectory: ".",
+			TemporaryDirectory: ".",
+			PersistentWorker: &runner_pb.PersistentWorker{
+				Key: "b0a6c1",
+			},
+		})
+		testutil.RequireEqualStatus(
+			t,
+			status.Error(codes.InvalidArgument, "This runner is not configured to execute build actions through persistent worker processes"),
+			err,
+		)
+	})
+
 	// TODO: Improve testing coverage of LocalRunner.
 }

@@ -75,11 +75,12 @@ type localBuildExecutor struct {
 	inputRootCharacterDevices      map[path.Component]filesystem.DeviceNumber
 	environmentVariables           map[string]string
 	forceUploadTreesAndDirectories bool
+	persistentWorkerExtractor      *PersistentWorkerExtractor
 }
 
 // NewLocalBuildExecutor returns a BuildExecutor that executes build
 // steps on the local system.
-func NewLocalBuildExecutor(contentAddressableStorage blobstore.BlobAccess, commandReader cas.MessageReader[*remoteexecution.Command], buildDirectoryCreator BuildDirectoryCreator, runner runner_pb.RunnerClient, clock clock.Clock, maximumWritableFileUploadDelay time.Duration, inputRootCharacterDevices map[path.Component]filesystem.DeviceNumber, environmentVariables map[string]string, forceUploadTreesAndDirectories bool) BuildExecutor {
+func NewLocalBuildExecutor(contentAddressableStorage blobstore.BlobAccess, commandReader cas.MessageReader[*remoteexecution.Command], buildDirectoryCreator BuildDirectoryCreator, runner runner_pb.RunnerClient, clock clock.Clock, maximumWritableFileUploadDelay time.Duration, inputRootCharacterDevices map[path.Component]filesystem.DeviceNumber, environmentVariables map[string]string, forceUploadTreesAndDirectories bool, persistentWorkerExtractor *PersistentWorkerExtractor) BuildExecutor {
 	return &localBuildExecutor{
 		contentAddressableStorage:      contentAddressableStorage,
 		commandReader:                  commandReader,
@@ -90,6 +91,7 @@ func NewLocalBuildExecutor(contentAddressableStorage blobstore.BlobAccess, comma
 		inputRootCharacterDevices:      inputRootCharacterDevices,
 		environmentVariables:           environmentVariables,
 		forceUploadTreesAndDirectories: forceUploadTreesAndDirectories,
+		persistentWorkerExtractor:      persistentWorkerExtractor,
 	}
 }
 
@@ -268,6 +270,18 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool pool.FilePoo
 		return response
 	}
 
+	// Determine whether this build action needs to be executed by a
+	// persistent worker process, as opposed to spawning a process of
+	// its own.
+	var persistentWorker *runner_pb.PersistentWorker
+	if be.persistentWorkerExtractor != nil {
+		persistentWorker, err = be.persistentWorkerExtractor.Extract(ctx, digestFunction, action)
+		if err != nil {
+			attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to extract persistent worker options"))
+			return response
+		}
+	}
+
 	executionStateUpdates <- &remoteworker.CurrentState_Executing{
 		ActionDigest: request.ActionDigest,
 		ExecutionState: &remoteworker.CurrentState_Executing_Running{
@@ -294,6 +308,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool pool.FilePoo
 		InputRootDirectory:   buildDirectoryPath.Append(inputRootDirectoryComponent).GetUNIXString(),
 		TemporaryDirectory:   buildDirectoryPath.Append(temporaryDirectoryComponent).GetUNIXString(),
 		ServerLogsDirectory:  buildDirectoryPath.Append(serverLogsDirectoryComponent).GetUNIXString(),
+		PersistentWorker:     persistentWorker,
 	})
 	cancelTimeout()
 	<-ctxWithTimeout.Done()

@@ -5,13 +5,14 @@ import (
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-storage/pkg/auth"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
 type authenticationMetadataKeyExtractor struct{}
 
-func (authenticationMetadataKeyExtractor) ExtractKey(ctx context.Context, requestMetadata *remoteexecution.RequestMetadata) (Key, error) {
+func (authenticationMetadataKeyExtractor) ExtractKey(ctx context.Context, digestFunction digest.Function, action *remoteexecution.Action, requestMetadata *remoteexecution.RequestMetadata) (Key, error) {
 	authenticationMetadata, _ := auth.AuthenticationMetadataFromContext(ctx).GetPublicProto()
 	any, err := anypb.New(authenticationMetadata)
 	if err != nil {

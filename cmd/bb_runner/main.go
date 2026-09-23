@@ -13,6 +13,7 @@ import (
 	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/tmp_installer"
 	"github.com/buildbarn/bb-remote-execution/pkg/runner"
+	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/global"
@@ -71,6 +72,50 @@ func main() {
 			configuration.SetTmpdirEnvironmentVariable,
 		)
 
+		// Execute build actions that request it through a
+		// persistent worker process, using the Bazel persistent
+		// worker protocol. Because such processes outlive the
+		// build actions they execute, they are managed by a
+		// pool that is separate from the build directory.
+		var persistentWorkerPool *runner.PersistentWorkerPool
+		if persistentWorkersConfiguration := configuration.PersistentWorkers; persistentWorkersConfiguration != nil {
+			if configuration.ChrootIntoInputRoot {
+				return status.Error(codes.InvalidArgument, "Persistent workers cannot be used in combination with chrooting into the input root, as persistent worker processes are launched outside of the input root")
+			}
+			idleTimeout := persistentWorkersConfiguration.IdleTimeout
+			if err := idleTimeout.CheckValid(); err != nil {
+				return util.StatusWrap(err, "Invalid persistent worker idle timeout")
+			}
+
+			persistentWorkerDirectoryPath, scopeWalker := path.EmptyBuilder.Join(path.NewAbsoluteScopeWalker(path.VoidComponentWalker))
+			if err := path.Resolve(path.LocalFormat.NewParser(persistentWorkersConfiguration.DirectoryPath), scopeWalker); err != nil {
+				return util.StatusWrapf(err, "Failed to resolve persistent worker directory %#v", persistentWorkersConfiguration.DirectoryPath)
+			}
+			persistentWorkerDirectory, err := filesystem.NewLocalDirectory(persistentWorkerDirectoryPath)
+			if err != nil {
+				return util.StatusWrapf(err, "Failed to open persistent worker directory %#v", persistentWorkersConfiguration.DirectoryPath)
+			}
+
+			persistentWorkerPool, err = runner.NewPersistentWorkerPool(
+				persistentWorkerDirectory,
+				persistentWorkerDirectoryPath,
+				commandCreator,
+				clock.SystemClock,
+				int(persistentWorkersConfiguration.MaximumWorkerCount),
+				idleTimeout.AsDuration(),
+				configuration.SetTmpdirEnvironmentVariable,
+			)
+			if err != nil {
+				persistentWorkerDirectory.Close()
+				return util.StatusWrap(err, "Failed to create persistent worker pool")
+			}
+			dependenciesGroup.Go(func(ctx context.Context, siblingsGroup, dependenciesGroup program.Group) error {
+				return persistentWorkerPool.Run(ctx)
+			})
+
+			r = runner.NewPersistentWorkerRunner(r, buildDirectory, buildDirectoryPath, persistentWorkerPool)
+		}
+
 		// Let bb_runner replace temporary directories with symbolic
 		// links pointing to the temporary directory set up by
 		// bb_worker.
@@ -102,6 +147,13 @@ func main() {
 					cleaner.NewFilteringProcessTable(
 						cleaner.SystemProcessTable,
 						func(process *cleaner.Process) bool {
+							// Persistent worker processes are
+							// intended to outlive the build
+							// actions that they execute, so
+							// they must not be killed.
+							if persistentWorkerPool != nil && persistentWorkerPool.ContainsProcessID(process.ProcessID) {
+								return false
+							}
 							return process.UserID == processTableCleaningUserID &&
 								process.CreationTime.After(startupTime)
 						},

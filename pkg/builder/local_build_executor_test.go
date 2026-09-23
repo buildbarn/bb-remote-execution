@@ -49,6 +49,7 @@ func TestLocalBuildExecutorInvalidActionDigest(t *testing.T) {
 		/* inputRootCharacterDevices = */ nil,
 		/* environmentVariables = */ map[string]string{},
 		/* forceUploadTreesAndDirectories = */ false,
+		/* persistentWorkerExtractor = */ nil,
 	)
 
 	filePool := mock.NewMockFilePool(ctrl)
@@ -100,6 +101,7 @@ func TestLocalBuildExecutorMissingAction(t *testing.T) {
 		/* inputRootCharacterDevices = */ nil,
 		/* environmentVariables = */ map[string]string{},
 		/* forceUploadTreesAndDirectories = */ false,
+		/* persistentWorkerExtractor = */ nil,
 	)
 
 	filePool := mock.NewMockFilePool(ctrl)
@@ -147,6 +149,7 @@ func TestLocalBuildExecutorBuildDirectoryCreatorFailedFailed(t *testing.T) {
 		/* inputRootCharacterDevices = */ nil,
 		/* environmentVariables = */ map[string]string{},
 		/* forceUploadTreesAndDirectories = */ false,
+		/* persistentWorkerExtractor = */ nil,
 	)
 
 	filePool := mock.NewMockFilePool(ctrl)
@@ -216,6 +219,7 @@ func TestLocalBuildExecutorInputRootPopulationFailed(t *testing.T) {
 		/* inputRootCharacterDevices = */ nil,
 		/* environmentVariables = */ map[string]string{},
 		/* forceUploadTreesAndDirectories = */ false,
+		/* persistentWorkerExtractor = */ nil,
 	)
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
@@ -294,6 +298,7 @@ func TestLocalBuildExecutorOutputDirectoryCreationFailure(t *testing.T) {
 		/* inputRootCharacterDevices = */ nil,
 		/* environmentVariables = */ map[string]string{},
 		/* forceUploadTreesAndDirectories = */ false,
+		/* persistentWorkerExtractor = */ nil,
 	)
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
@@ -365,6 +370,7 @@ func TestLocalBuildExecutorMissingCommand(t *testing.T) {
 		/* inputRootCharacterDevices = */ nil,
 		/* environmentVariables = */ map[string]string{},
 		/* forceUploadTreesAndDirectories = */ false,
+		/* persistentWorkerExtractor = */ nil,
 	)
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
@@ -496,6 +502,7 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 		/* inputRootCharacterDevices = */ nil,
 		/* environmentVariables = */ map[string]string{},
 		/* forceUploadTreesAndDirectories = */ false,
+		/* persistentWorkerExtractor = */ nil,
 	)
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
@@ -735,6 +742,7 @@ func TestLocalBuildExecutorSuccess(t *testing.T) {
 			"PWD":      "dont-overwrite",
 		},
 		/* forceUploadTreesAndDirectories = */ false,
+		/* persistentWorkerExtractor = */ nil,
 	)
 
 	requestMetadata, err := anypb.New(&remoteexecution.RequestMetadata{
@@ -820,6 +828,7 @@ func TestLocalBuildExecutorCachingInvalidTimeout(t *testing.T) {
 		/* inputRootCharacterDevices = */ nil,
 		/* environmentVariables = */ map[string]string{},
 		/* forceUploadTreesAndDirectories = */ false,
+		/* persistentWorkerExtractor = */ nil,
 	)
 
 	// Execution should fail, as the number of nanoseconds in the
@@ -943,6 +952,7 @@ func TestLocalBuildExecutorInputRootIOFailureDuringExecution(t *testing.T) {
 		/* inputRootCharacterDevices = */ nil,
 		/* environmentVariables = */ map[string]string{},
 		/* forceUploadTreesAndDirectories = */ false,
+		/* persistentWorkerExtractor = */ nil,
 	)
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
@@ -1080,6 +1090,7 @@ func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 		/* inputRootCharacterDevices = */ nil,
 		/* environmentVariables = */ map[string]string{},
 		/* forceUploadTreesAndDirectories = */ false,
+		/* persistentWorkerExtractor = */ nil,
 	)
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
@@ -1183,6 +1194,7 @@ func TestLocalBuildExecutorCharacterDeviceNodeCreationFailed(t *testing.T) {
 		},
 		/* environmentVariables = */ map[string]string{},
 		/* forceUploadTreesAndDirectories = */ false,
+		/* persistentWorkerExtractor = */ nil,
 	)
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)

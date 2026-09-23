@@ -3,6 +3,7 @@ package platform
 import (
 	pb "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/scheduler"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
+	"github.com/buildbarn/bb-storage/pkg/util"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -19,6 +20,12 @@ func NewKeyExtractorFromConfiguration(configuration *pb.PlatformKeyExtractorConf
 		return ActionKeyExtractor, nil
 	case *pb.PlatformKeyExtractorConfiguration_Static:
 		return NewStaticKeyExtractor(kind.Static), nil
+	case *pb.PlatformKeyExtractorConfiguration_Stripping:
+		base, err := NewKeyExtractorFromConfiguration(kind.Stripping.Base, contentAddressableStorage)
+		if err != nil {
+			return nil, util.StatusWrap(err, "Failed to create base platform key extractor")
+		}
+		return NewStrippingKeyExtractor(base, kind.Stripping.PropertyNames), nil
 	default:
 		return nil, status.Error(codes.InvalidArgument, "Configuration did not contain a supported platform key extractor type")
 	}
