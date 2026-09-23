@@ -385,6 +385,7 @@ func main() {
 					persistentWorkerExtractor = builder.NewPersistentWorkerExtractor(
 						directoryFetcher,
 						int(maximumInputFileCount),
+						persistentWorkersConfiguration.ExcludedToolKeys,
 					)
 				}
 

@@ -69,6 +69,7 @@ var (
 type PersistentWorkerExtractor struct {
 	directoryFetcher      cas.DirectoryFetcher
 	maximumInputFileCount int
+	excludedToolKeys      map[string]struct{}
 }
 
 // NewPersistentWorkerExtractor creates a PersistentWorkerExtractor that
@@ -81,14 +82,23 @@ type PersistentWorkerExtractor struct {
 // excessive amount of memory and network bandwidth. A value of zero or
 // less disables this limit, which callers should only do if the size of
 // input roots is bounded by other means.
-func NewPersistentWorkerExtractor(directoryFetcher cas.DirectoryFetcher, maximumInputFileCount int) *PersistentWorkerExtractor {
+//
+// Build actions whose tool key is contained in excludedToolKeys are
+// also executed as regular processes, allowing an operator to withhold
+// persistent workers from a tool that misbehaves when it is given one.
+func NewPersistentWorkerExtractor(directoryFetcher cas.DirectoryFetcher, maximumInputFileCount int, excludedToolKeys []string) *PersistentWorkerExtractor {
 	persistentWorkerExtractorPrometheusMetrics.Do(func() {
 		prometheus.MustRegister(persistentWorkerExtractorActionsTotal)
 	})
 
+	excludedToolKeysSet := make(map[string]struct{}, len(excludedToolKeys))
+	for _, key := range excludedToolKeys {
+		excludedToolKeysSet[key] = struct{}{}
+	}
 	return &PersistentWorkerExtractor{
 		directoryFetcher:      directoryFetcher,
 		maximumInputFileCount: maximumInputFileCount,
+		excludedToolKeys:      excludedToolKeysSet,
 	}
 }
 
@@ -111,6 +121,14 @@ func getPlatformProperty(platform *remoteexecution.Platform, name string) string
 func (e *PersistentWorkerExtractor) Extract(ctx context.Context, digestFunction digest.Function, action *remoteexecution.Action) (*runner_pb.PersistentWorker, error) {
 	key := getPlatformProperty(action.GetPlatform(), PersistentWorkerKeyPlatformProperty)
 	if key == "" {
+		return nil, nil
+	}
+	if _, ok := e.excludedToolKeys[key]; ok {
+		// Persistent workers have been withheld from this tool
+		// by the worker's configuration. Launch the tool once
+		// for every build action, which is what would have
+		// happened had the client not requested otherwise.
+		persistentWorkerExtractorActionsTotal.WithLabelValues("ExcludedToolKey").Inc()
 		return nil, nil
 	}
 

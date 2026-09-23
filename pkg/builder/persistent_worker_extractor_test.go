@@ -35,7 +35,7 @@ func TestPersistentWorkerExtractor(t *testing.T) {
 		// process, meaning no access to storage should be
 		// performed at all.
 		directoryFetcher := mock.NewMockDirectoryFetcher(ctrl)
-		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 100)
+		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 100, nil)
 
 		persistentWorker, err := extractor.Extract(ctx, digestFunction, &remoteexecution.Action{
 			InputRootDigest: emptyDirectoryDigestProto,
@@ -46,7 +46,7 @@ func TestPersistentWorkerExtractor(t *testing.T) {
 
 	t.Run("UnrelatedPlatformProperties", func(t *testing.T) {
 		directoryFetcher := mock.NewMockDirectoryFetcher(ctrl)
-		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 100)
+		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 100, nil)
 
 		persistentWorker, err := extractor.Extract(ctx, digestFunction, &remoteexecution.Action{
 			InputRootDigest: emptyDirectoryDigestProto,
@@ -65,7 +65,7 @@ func TestPersistentWorkerExtractor(t *testing.T) {
 		directoryFetcher := mock.NewMockDirectoryFetcher(ctrl)
 		directoryFetcher.EXPECT().GetDirectory(gomock.Any(), emptyDirectoryDigest).
 			Return(&remoteexecution.Directory{}, nil)
-		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 100)
+		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 100, nil)
 
 		persistentWorker, err := extractor.Extract(ctx, digestFunction, &remoteexecution.Action{
 			InputRootDigest: emptyDirectoryDigestProto,
@@ -136,7 +136,7 @@ func TestPersistentWorkerExtractor(t *testing.T) {
 					},
 				},
 			}, nil)
-		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 100)
+		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 100, nil)
 
 		persistentWorker, err := extractor.Extract(ctx, digestFunction, &remoteexecution.Action{
 			InputRootDigest: &remoteexecution.Digest{
@@ -251,7 +251,7 @@ func TestPersistentWorkerExtractor(t *testing.T) {
 					},
 				},
 			}, nil)
-		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 100)
+		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 100, nil)
 
 		persistentWorker, err := extractor.Extract(ctx, digestFunction, &remoteexecution.Action{
 			InputRootDigest: &remoteexecution.Digest{
@@ -303,7 +303,7 @@ func TestPersistentWorkerExtractor(t *testing.T) {
 					},
 				},
 			}, nil)
-		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 100)
+		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 100, nil)
 
 		persistentWorker, err := extractor.Extract(ctx, digestFunction, &remoteexecution.Action{
 			InputRootDigest: &remoteexecution.Digest{
@@ -331,7 +331,7 @@ func TestPersistentWorkerExtractor(t *testing.T) {
 		directoryFetcher := mock.NewMockDirectoryFetcher(ctrl)
 		directoryFetcher.EXPECT().GetDirectory(gomock.Any(), emptyDirectoryDigest).
 			Return(&remoteexecution.Directory{}, nil)
-		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 100)
+		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 100, nil)
 
 		persistentWorker, err := extractor.Extract(ctx, digestFunction, &remoteexecution.Action{
 			InputRootDigest: emptyDirectoryDigestProto,
@@ -353,7 +353,7 @@ func TestPersistentWorkerExtractor(t *testing.T) {
 		directoryFetcher := mock.NewMockDirectoryFetcher(ctrl)
 		directoryFetcher.EXPECT().GetDirectory(gomock.Any(), emptyDirectoryDigest).
 			Return(&remoteexecution.Directory{}, nil)
-		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 100)
+		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 100, nil)
 
 		persistentWorker, err := extractor.Extract(ctx, digestFunction, &remoteexecution.Action{
 			InputRootDigest: emptyDirectoryDigestProto,
@@ -373,7 +373,7 @@ func TestPersistentWorkerExtractor(t *testing.T) {
 
 	t.Run("UnsupportedProtocol", func(t *testing.T) {
 		directoryFetcher := mock.NewMockDirectoryFetcher(ctrl)
-		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 100)
+		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 100, nil)
 
 		_, err := extractor.Extract(ctx, digestFunction, &remoteexecution.Action{
 			InputRootDigest: emptyDirectoryDigestProto,
@@ -425,7 +425,7 @@ func TestPersistentWorkerExtractor(t *testing.T) {
 					},
 				},
 			}, nil)
-		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 2)
+		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 2, nil)
 
 		persistentWorker, err := extractor.Extract(ctx, digestFunction, &remoteexecution.Action{
 			InputRootDigest: emptyDirectoryDigestProto,
@@ -460,7 +460,7 @@ func TestPersistentWorkerExtractor(t *testing.T) {
 					},
 				},
 			}, nil)
-		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 2)
+		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 2, nil)
 
 		persistentWorker, err := extractor.Extract(ctx, digestFunction, &remoteexecution.Action{
 			InputRootDigest: emptyDirectoryDigestProto,
@@ -489,7 +489,7 @@ func TestPersistentWorkerExtractor(t *testing.T) {
 
 	t.Run("InvalidInputRootDigest", func(t *testing.T) {
 		directoryFetcher := mock.NewMockDirectoryFetcher(ctrl)
-		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 100)
+		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 100, nil)
 
 		_, err := extractor.Extract(ctx, digestFunction, &remoteexecution.Action{
 			InputRootDigest: &remoteexecution.Digest{
@@ -513,7 +513,7 @@ func TestPersistentWorkerExtractor(t *testing.T) {
 		directoryFetcher := mock.NewMockDirectoryFetcher(ctrl)
 		directoryFetcher.EXPECT().GetDirectory(gomock.Any(), emptyDirectoryDigest).
 			Return(nil, status.Error(codes.Internal, "Server on fire"))
-		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 100)
+		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 100, nil)
 
 		_, err := extractor.Extract(ctx, digestFunction, &remoteexecution.Action{
 			InputRootDigest: emptyDirectoryDigestProto,
@@ -547,7 +547,7 @@ func TestPersistentWorkerExtractor(t *testing.T) {
 			}, nil)
 		directoryFetcher.EXPECT().GetDirectory(gomock.Any(), childDigest).
 			Return(nil, status.Error(codes.Unavailable, "Server offline"))
-		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 100)
+		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 100, nil)
 
 		_, err := extractor.Extract(ctx, digestFunction, &remoteexecution.Action{
 			InputRootDigest: emptyDirectoryDigestProto,
@@ -578,7 +578,7 @@ func TestPersistentWorkerExtractor(t *testing.T) {
 					},
 				},
 			}, nil)
-		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 100)
+		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 100, nil)
 
 		_, err := extractor.Extract(ctx, digestFunction, &remoteexecution.Action{
 			InputRootDigest: emptyDirectoryDigestProto,
@@ -609,7 +609,7 @@ func TestPersistentWorkerExtractor(t *testing.T) {
 					},
 				},
 			}, nil)
-		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 100)
+		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 100, nil)
 
 		_, err := extractor.Extract(ctx, digestFunction, &remoteexecution.Action{
 			InputRootDigest: emptyDirectoryDigestProto,
@@ -624,6 +624,48 @@ func TestPersistentWorkerExtractor(t *testing.T) {
 			status.Error(codes.InvalidArgument, "Input directory \".\" contains directory with invalid name \"a/b\""),
 			err,
 		)
+	})
+
+	t.Run("ExcludedToolKey", func(t *testing.T) {
+		// Tool keys that the configuration withholds persistent
+		// workers from should be executed by spawning a
+		// process, meaning no access to storage should be
+		// performed at all.
+		directoryFetcher := mock.NewMockDirectoryFetcher(ctrl)
+		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 100, []string{"1b8a63", "b0a6c1"})
+
+		persistentWorker, err := extractor.Extract(ctx, digestFunction, &remoteexecution.Action{
+			InputRootDigest: emptyDirectoryDigestProto,
+			Platform: &remoteexecution.Platform{
+				Properties: []*remoteexecution.Platform_Property{
+					{Name: "persistentWorkerKey", Value: "b0a6c1"},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Nil(t, persistentWorker)
+	})
+
+	t.Run("NonExcludedToolKey", func(t *testing.T) {
+		// Keys that are absent from the list remain unaffected.
+		directoryFetcher := mock.NewMockDirectoryFetcher(ctrl)
+		directoryFetcher.EXPECT().GetDirectory(gomock.Any(), emptyDirectoryDigest).
+			Return(&remoteexecution.Directory{}, nil)
+		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 100, []string{"1b8a63"})
+
+		persistentWorker, err := extractor.Extract(ctx, digestFunction, &remoteexecution.Action{
+			InputRootDigest: emptyDirectoryDigestProto,
+			Platform: &remoteexecution.Platform{
+				Properties: []*remoteexecution.Platform_Property{
+					{Name: "persistentWorkerKey", Value: "b0a6c1"},
+				},
+			},
+		})
+		require.NoError(t, err)
+		testutil.RequireEqualProto(t, &runner_pb.PersistentWorker{
+			Key:      "b0a6c1",
+			Protocol: runner_pb.PersistentWorker_PROTO,
+		}, persistentWorker)
 	})
 
 	t.Run("NoInputFileLimit", func(t *testing.T) {
@@ -642,7 +684,7 @@ func TestPersistentWorkerExtractor(t *testing.T) {
 					},
 				},
 			}, nil)
-		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 0)
+		extractor := builder.NewPersistentWorkerExtractor(directoryFetcher, 0, nil)
 
 		persistentWorker, err := extractor.Extract(ctx, digestFunction, &remoteexecution.Action{
 			InputRootDigest: emptyDirectoryDigestProto,

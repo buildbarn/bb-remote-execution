@@ -443,6 +443,30 @@ message PersistentWorkersConfiguration {
   //
   // Recommended value: 10000
   int64 maximum_input_file_count = 1;
+
+  // Tool keys for which persistent workers must not be used, even
+  // though the client requested them.
+  //
+  // Bazel computes the value of the 'persistentWorkerKey' platform
+  // property from the tool's own input files, meaning that a key
+  // identifies one build of one toolchain. Build actions carrying a
+  // key listed here are executed as regular processes, which is how
+  // they would have been executed had the client not provided
+  // --experimental_remote_mark_tool_inputs.
+  //
+  // This makes it possible to disable persistent workers for a single
+  // misbehaving toolchain without disabling them fleet wide, and
+  // without requiring a change on the client. Because the platform
+  // property is left in place, the REv2 Action digest is unaffected,
+  // so results that were cached before a key was added here remain
+  // valid.
+  //
+  // Keys change whenever the tool they identify changes, so entries
+  // added here go stale on the next toolchain upgrade. This field is
+  // only intended to be used as a temporary measure while a tool's
+  // incompatibility with the persistent worker protocol is
+  // investigated.
+  repeated string excluded_tool_keys = 2;
 }
 
 message CompletedActionLoggingConfiguration {

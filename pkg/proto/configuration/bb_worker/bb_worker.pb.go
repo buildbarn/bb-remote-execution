@@ -598,6 +598,7 @@ func (x *RunnerConfiguration) GetPersistentWorkers() *PersistentWorkersConfigura
 type PersistentWorkersConfiguration struct {
 	state                 protoimpl.MessageState `protogen:"open.v1"`
 	MaximumInputFileCount int64                  `protobuf:"varint,1,opt,name=maximum_input_file_count,json=maximumInputFileCount,proto3" json:"maximum_input_file_count,omitempty"`
+	ExcludedToolKeys      []string               `protobuf:"bytes,2,rep,name=excluded_tool_keys,json=excludedToolKeys,proto3" json:"excluded_tool_keys,omitempty"`
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
 }
@@ -637,6 +638,13 @@ func (x *PersistentWorkersConfiguration) GetMaximumInputFileCount() int64 {
 		return x.MaximumInputFileCount
 	}
 	return 0
+}
+
+func (x *PersistentWorkersConfiguration) GetExcludedToolKeys() []string {
+	if x != nil {
+		return x.ExcludedToolKeys
+	}
+	return nil
 }
 
 type CompletedActionLoggingConfiguration struct {
@@ -887,9 +895,10 @@ const file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_w
 	"\x05value\x18\x02 \x01(\v26.buildbarn.resourceusage.MonetaryResourceUsage.ExpenseR\x05value:\x028\x01\x1aG\n" +
 	"\x19EnvironmentVariablesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x04\x10\x05J\x04\b\x05\x10\x06\"Y\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x04\x10\x05J\x04\b\x05\x10\x06\"\x87\x01\n" +
 	"\x1ePersistentWorkersConfiguration\x127\n" +
-	"\x18maximum_input_file_count\x18\x01 \x01(\x03R\x15maximumInputFileCount\"\xe0\x01\n" +
+	"\x18maximum_input_file_count\x18\x01 \x01(\x03R\x15maximumInputFileCount\x12,\n" +
+	"\x12excluded_tool_keys\x18\x02 \x03(\tR\x10excludedToolKeys\"\xe0\x01\n" +
 	"#CompletedActionLoggingConfiguration\x12I\n" +
 	"\x06client\x18\x01 \x01(\v21.buildbarn.configuration.grpc.ClientConfigurationR\x06client\x125\n" +
 	"\x17maximum_send_queue_size\x18\x02 \x01(\rR\x14maximumSendQueueSize\x127\n" +

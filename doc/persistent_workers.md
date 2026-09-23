@@ -571,6 +571,25 @@ default is ample in practice; a Javac action in a large Java monorepo
 was measured at roughly 825 input files, because a modular JDK image
 contributes a handful of files rather than thousands.
 
+`excludedToolKeys` is the escape hatch for a single toolchain that
+misbehaves under the worker protocol:
+
+```jsonnet
+persistentWorkers: {
+  maximumInputFileCount: 10000,
+  excludedToolKeys: ['29bbdbc828254928bd19493d0a0ffa2256c04473110411d342f93b1810524e4a'],
+},
+```
+
+Actions carrying a listed key are run as ordinary processes and counted
+under `ExcludedToolKey`. Because the `persistentWorkerKey` platform
+property is left on the action, the REv2 Action digest does not change,
+so cache entries written before a key was excluded stay valid and no
+client needs to be touched. The keys are derived from the tool's own
+inputs and therefore change on every toolchain upgrade, which makes a
+stale entry silently stop excluding anything — treat this as a
+temporary measure and watch the counter, not the config.
+
 `maximumWorkerCount` needs to be sized against the memory available to
 `bb_runner`, not just against `concurrency`: the pool bounds itself by
 process count only, so `maximumWorkerCount` (plus `concurrency`, as the
@@ -595,7 +614,7 @@ Finally, Bazel needs to be invoked with
 
 | Metric | Labels | Meaning |
 | --- | --- | --- |
-| `buildbarn_builder_persistent_worker_extractor_actions_total` | `result` = `Used`, `TooManyInputFiles` | Actions that requested a persistent worker, and whether the request was honoured. |
+| `buildbarn_builder_persistent_worker_extractor_actions_total` | `result` = `Used`, `TooManyInputFiles`, `ExcludedToolKey` | Actions that requested a persistent worker, and whether the request was honoured. |
 | `buildbarn_runner_persistent_worker_pool_operations_total` | `result` = `Reused`, `Created` | Whether an existing process could be reused. The ratio is the primary indicator of how well stickiness is working. |
 | `buildbarn_runner_persistent_worker_pool_terminations_total` | `reason` = `Evicted`, `IdleTimeout`, `Failed` | Why processes were terminated. A high `Evicted` rate means `maximum_worker_count` is too low. |
 | `buildbarn_runner_persistent_worker_pool_processes` | `state` = `Idle`, `Busy` | Current number of processes. |
