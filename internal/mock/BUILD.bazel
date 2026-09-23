@@ -367,6 +367,8 @@ gomock(
     name = "runner_pb",
     out = "runner_pb.go",
     interfaces = [
+        "PersistentRunnerClient",
+        "PersistentRunnerServer",
         "RunnerClient",
         "RunnerServer",
     ],

@@ -455,6 +455,7 @@ type RunnerConfiguration struct {
 	MaximumConsecutiveTestInfrastructureFailures uint32                                                  `protobuf:"varint,14,opt,name=maximum_consecutive_test_infrastructure_failures,json=maximumConsecutiveTestInfrastructureFailures,proto3" json:"maximum_consecutive_test_infrastructure_failures,omitempty"`
 	BuildDirectoryOwnerUserId                    uint32                                                  `protobuf:"varint,15,opt,name=build_directory_owner_user_id,json=buildDirectoryOwnerUserId,proto3" json:"build_directory_owner_user_id,omitempty"`
 	BuildDirectoryOwnerGroupId                   uint32                                                  `protobuf:"varint,16,opt,name=build_directory_owner_group_id,json=buildDirectoryOwnerGroupId,proto3" json:"build_directory_owner_group_id,omitempty"`
+	EnablePersistentWorkers                      bool                                                    `protobuf:"varint,17,opt,name=enable_persistent_workers,json=enablePersistentWorkers,proto3" json:"enable_persistent_workers,omitempty"`
 	unknownFields                                protoimpl.UnknownFields
 	sizeCache                                    protoimpl.SizeCache
 }
@@ -585,6 +586,13 @@ func (x *RunnerConfiguration) GetBuildDirectoryOwnerGroupId() uint32 {
 		return x.BuildDirectoryOwnerGroupId
 	}
 	return 0
+}
+
+func (x *RunnerConfiguration) GetEnablePersistentWorkers() bool {
+	if x != nil {
+		return x.EnablePersistentWorkers
+	}
+	return false
 }
 
 type CompletedActionLoggingConfiguration struct {
@@ -816,8 +824,7 @@ const file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_w
 	"\x1ashuffle_directory_listings\x18\x03 \x01(\bR\x18shuffleDirectoryListings\x120\n" +
 	"\x14hidden_files_pattern\x18\x04 \x01(\tR\x12hiddenFilesPattern\x12e\n" +
 	"\"maximum_writable_file_upload_delay\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\x1emaximumWritableFileUploadDelay\x12)\n" +
-	"\x10case_insensitive\x18\x06 \x01(\bR\x0fcaseInsensitive\"\xc4\n" +
-	"\n" +
+	"\x10case_insensitive\x18\x06 \x01(\bR\x0fcaseInsensitive\"\x80\v\n" +
 	"\x13RunnerConfiguration\x12M\n" +
 	"\bendpoint\x18\x01 \x01(\v21.buildbarn.configuration.grpc.ClientConfigurationR\bendpoint\x12 \n" +
 	"\vconcurrency\x18\x02 \x01(\x04R\vconcurrency\x120\n" +
@@ -834,7 +841,8 @@ const file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_w
 	"\x15environment_variables\x18\v \x03(\v2P.buildbarn.configuration.bb_worker.RunnerConfiguration.EnvironmentVariablesEntryR\x14environmentVariables\x12f\n" +
 	"0maximum_consecutive_test_infrastructure_failures\x18\x0e \x01(\rR,maximumConsecutiveTestInfrastructureFailures\x12@\n" +
 	"\x1dbuild_directory_owner_user_id\x18\x0f \x01(\rR\x19buildDirectoryOwnerUserId\x12B\n" +
-	"\x1ebuild_directory_owner_group_id\x18\x10 \x01(\rR\x1abuildDirectoryOwnerGroupId\x1a;\n" +
+	"\x1ebuild_directory_owner_group_id\x18\x10 \x01(\rR\x1abuildDirectoryOwnerGroupId\x12:\n" +
+	"\x19enable_persistent_workers\x18\x11 \x01(\bR\x17enablePersistentWorkers\x1a;\n" +
 	"\rWorkerIdEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1ay\n" +

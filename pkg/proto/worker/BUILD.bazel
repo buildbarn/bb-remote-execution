@@ -1,0 +1,24 @@
+# gazelle:ignore
+
+load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//proto:def.bzl", "go_proto_library")
+
+alias(
+    name = "worker_proto",
+    actual = "@bazel_worker_api//:worker_protocol_proto",
+    visibility = ["//visibility:public"],
+)
+
+go_proto_library(
+    name = "worker_go_proto",
+    importpath = "github.com/buildbarn/bb-remote-execution/pkg/proto/worker",
+    proto = ":worker_proto",
+    visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "worker",
+    embed = [":worker_go_proto"],
+    importpath = "github.com/buildbarn/bb-remote-execution/pkg/proto/worker",
+    visibility = ["//visibility:public"],
+)
