@@ -1,31 +1,9 @@
-load("@aspect_bazel_lib//lib:transitions.bzl", "platform_transition_filegroup")
-load("@aspect_rules_js//js:defs.bzl", "js_run_binary")
-load("@com_github_buildbarn_bb_remote_execution_npm//:purgecss/package_json.bzl", purgecss_bin = "bin")
 load("@com_github_buildbarn_bb_storage//tools:container.bzl", "container_push_official", "multiarch_go_image")
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
 
 go_library(
     name = "bb_scheduler_lib",
-    srcs = [
-        "build_queue_state_service.go",
-        "main.go",
-    ],
-    # keep
-    embedsrcs = [
-        ":stylesheet",
-        "templates/error.html",
-        "templates/footer.html",
-        "templates/get_build_queue_state.html",
-        "templates/get_operation_state.html",
-        "templates/header.html",
-        "templates/list_drain_state.html",
-        "templates/list_operation_state.html",
-        "templates/list_queued_operation_state.html",
-        "templates/list_worker_state.html",
-        "templates/size_class_queue_info.html",
-        "templates/invocation_info.html",
-        "templates/list_invocation_child_state.html",
-    ],
+    srcs = ["main.go"],
     importpath = "github.com/buildbarn/bb-remote-execution/cmd/bb_scheduler",
     visibility = ["//visibility:private"],
     deps = [
@@ -36,7 +14,6 @@ go_library(
         "//pkg/scheduler",
         "//pkg/scheduler/initialsizeclass",
         "//pkg/scheduler/routing",
-        "//pkg/util",
         "@bazel_remote_apis//build/bazel/remote/execution/v2:remote_execution_go_proto",
         "@com_github_buildbarn_bb_storage//pkg/auth/configuration",
         "@com_github_buildbarn_bb_storage//pkg/blobstore/configuration",
@@ -46,68 +23,16 @@ go_library(
         "@com_github_buildbarn_bb_storage//pkg/digest",
         "@com_github_buildbarn_bb_storage//pkg/global",
         "@com_github_buildbarn_bb_storage//pkg/grpc",
-        "@com_github_buildbarn_bb_storage//pkg/http/server",
         "@com_github_buildbarn_bb_storage//pkg/program",
         "@com_github_buildbarn_bb_storage//pkg/proto/iscc",
         "@com_github_buildbarn_bb_storage//pkg/random",
         "@com_github_buildbarn_bb_storage//pkg/util",
         "@com_github_buildbarn_bb_storage//pkg/zstd",
         "@com_github_google_uuid//:uuid",
-        "@com_github_gorilla_mux//:mux",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//status",
-        "@org_golang_google_protobuf//encoding/protojson",
-        "@org_golang_google_protobuf//types/known/anypb",
-        "@org_golang_google_protobuf//types/known/emptypb",
-        "@org_golang_google_protobuf//types/known/timestamppb",
     ],
-)
-
-templates = glob(["templates/*.html"])
-
-filegroup(
-    name = "templates",
-    srcs = templates,
-)
-
-purgecss_bin.purgecss_binary(
-    name = "purgecss",
-    tags = ["manual"],
-)
-
-# Create a copy of Bootstrap that only contains the style attributes
-# used by the HTML template.
-js_run_binary(
-    name = "stylesheet_platform",
-    srcs = [
-        "@com_github_twbs_bootstrap//:css/bootstrap.min.css",
-    ] + templates,
-    outs = ["stylesheet.css"],
-    args = [
-        # js_run_binary runs in the output dir;
-        # see https://github.com/aspect-build/rules_js/blob/main/docs/migrate.md#account-for-change-to-working-directory
-        "--css",
-        "../../../$(location @com_github_twbs_bootstrap//:css/bootstrap.min.css)",
-        "--output",
-        "../../../$(location stylesheet.css)",
-        "--content",
-    ] + [
-        "../../../$(location %s)" % f
-        for f in templates
-    ],
-    copy_srcs_to_bin = False,
-    tags = ["manual"],
-    tool = ":purgecss",
-)
-
-# Work around https://github.com/aspect-build/rules_js/issues/2121 by always
-# building the stylesheet for the host platform, even if we are cross
-# compiling.
-platform_transition_filegroup(
-    name = "stylesheet",
-    srcs = [":stylesheet_platform"],
-    target_platform = "@platforms//host",
 )
 
 go_binary(

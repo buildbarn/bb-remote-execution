@@ -3882,7 +3882,7 @@
     "@@yq.bzl+//yq:extensions.bzl%yq": {
       "general": {
         "bzlTransitiveDigest": "tDqk+ntWTdxNAWPDjRY1uITgHbti2jcXR5ZdinltBs0=",
-        "usagesDigest": "Pz33iK5QtkPFivaljfReN4KzpAqM2DgY4vwgyZSNoAM=",
+        "usagesDigest": "8sYa7ClsN+H2HBSMl/+XYwnbLRXcR7VcxslfbwfKTpA=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
           "yq_darwin_amd64": {

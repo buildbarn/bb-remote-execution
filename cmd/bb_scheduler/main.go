@@ -2,10 +2,7 @@ package main
 
 import (
 	"context"
-	"net/url"
 	"os"
-	"path"
-	"strings"
 	"time"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
@@ -24,14 +21,12 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/global"
 	bb_grpc "github.com/buildbarn/bb-storage/pkg/grpc"
-	http_server "github.com/buildbarn/bb-storage/pkg/http/server"
 	"github.com/buildbarn/bb-storage/pkg/program"
 	"github.com/buildbarn/bb-storage/pkg/proto/iscc"
 	"github.com/buildbarn/bb-storage/pkg/random"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/buildbarn/bb-storage/pkg/zstd"
 	"github.com/google/uuid"
-	"github.com/gorilla/mux"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -50,11 +45,6 @@ func main() {
 		lifecycleState, grpcClientFactory, err := global.ApplyConfiguration(configuration.Global, dependenciesGroup)
 		if err != nil {
 			return util.StatusWrap(err, "Failed to apply global configuration options")
-		}
-
-		portalURL, err := url.Parse(configuration.DeprecatedPortalUrl)
-		if err != nil {
-			return util.StatusWrap(err, "Failed to parse portal URL")
 		}
 
 		// Storage access. The scheduler requires access to the Action
@@ -221,21 +211,6 @@ func main() {
 		); err != nil {
 			return util.StatusWrap(err, "Build queue state gRPC server failure")
 		}
-
-		// Web server for metrics and profiling.
-		router := mux.NewRouter()
-		routePrefix := path.Join("/", configuration.DeprecatedAdminRoutePrefix)
-		if !strings.HasSuffix(routePrefix, "/") {
-			routePrefix += "/"
-		}
-		subrouter := router.PathPrefix(routePrefix).Subrouter()
-		newBuildQueueStateService(buildQueue, clock.SystemClock, portalURL, subrouter)
-		http_server.NewServersFromConfigurationAndServe(
-			configuration.DeprecatedAdminHttpServers,
-			http_server.NewMetricsHandler(router, "SchedulerUI"),
-			siblingsGroup,
-			grpcClientFactory,
-		)
 
 		lifecycleState.MarkReadyAndWait(siblingsGroup)
 		return nil
