@@ -7,8 +7,8 @@ import (
 
 	"github.com/buildbarn/bb-remote-execution/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/cdc"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/chunklist"
+	"github.com/buildbarn/bb-storage/pkg/blobstore/chunk"
+	"github.com/buildbarn/bb-storage/pkg/capabilities"
 	"github.com/buildbarn/bb-storage/pkg/cas/reader"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 )
@@ -71,43 +71,43 @@ func (r suspendingChunkBytesReader) Read(ctx context.Context, d digest.Digest) (
 }
 
 type suspendingChunkListFetcher struct {
-	chunklist.Fetcher
+	chunk.ListFetcher
 	suspendable clock.Suspendable
 }
 
-// NewSuspendingChunkListFetcher is a decorator for a chunklist.Fetcher
+// NewSuspendingChunkListFetcher is a decorator for a chunk.ListFetcher
 // that suspends a clock.Suspendable object for the duration of every
 // operation.
-func NewSuspendingChunkListFetcher(fetcher chunklist.Fetcher, suspendable clock.Suspendable) chunklist.Fetcher {
+func NewSuspendingChunkListFetcher(fetcher chunk.ListFetcher, suspendable clock.Suspendable) chunk.ListFetcher {
 	return &suspendingChunkListFetcher{
-		Fetcher:     fetcher,
+		ListFetcher: fetcher,
 		suspendable: suspendable,
 	}
 }
 
-func (f suspendingChunkListFetcher) FetchChunkList(ctx context.Context, d digest.Digest) (chunklist.ChunkList, error) {
+func (f suspendingChunkListFetcher) FetchChunkList(ctx context.Context, d digest.Digest) (chunk.List, error) {
 	f.suspendable.Suspend()
 	defer f.suspendable.Resume()
-	return f.Fetcher.FetchChunkList(ctx, d)
+	return f.ListFetcher.FetchChunkList(ctx, d)
 }
 
 type suspendingParametersFetcher struct {
-	cdc.ParametersFetcher
+	capabilities.CDCParametersFetcher
 	suspendable clock.Suspendable
 }
 
 // NewSuspendingParametersFetcher is a decorator for a
-// cdc.ParametersFetcher that suspends a clock.Suspendable object for
-// the duration of every operation.
-func NewSuspendingParametersFetcher(fetcher cdc.ParametersFetcher, suspendable clock.Suspendable) cdc.ParametersFetcher {
+// capabilities.CDCParametersFetcher that suspends a clock.Suspendable
+// object for the duration of every operation.
+func NewSuspendingParametersFetcher(fetcher capabilities.CDCParametersFetcher, suspendable clock.Suspendable) capabilities.CDCParametersFetcher {
 	return &suspendingParametersFetcher{
-		ParametersFetcher: fetcher,
-		suspendable:       suspendable,
+		CDCParametersFetcher: fetcher,
+		suspendable:          suspendable,
 	}
 }
 
 func (f suspendingParametersFetcher) FetchCDCParameters(ctx context.Context, instanceName digest.InstanceName) (*remoteexecution.RepMaxCdcParams, error) {
 	f.suspendable.Suspend()
 	defer f.suspendable.Resume()
-	return f.ParametersFetcher.FetchCDCParameters(ctx, instanceName)
+	return f.CDCParametersFetcher.FetchCDCParameters(ctx, instanceName)
 }

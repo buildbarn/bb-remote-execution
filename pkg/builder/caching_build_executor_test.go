@@ -10,8 +10,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/builder"
 	cas_proto "github.com/buildbarn/bb-remote-execution/pkg/proto/cas"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/chunklist"
+	"github.com/buildbarn/bb-storage/pkg/blobstore/chunk"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/buildbarn/bb-storage/pkg/zstd"
@@ -48,9 +47,9 @@ func TestCachingBuildExecutorCachedSuccess(t *testing.T) {
 			StdoutRaw: []byte("Hello, world!"),
 		},
 	})
-	chunkStorage := mock.NewMockBlobAccess[*buffer.Chunk](ctrl)
-	chunkListStorage := mock.NewMockBlobAccess[chunklist.ChunkList](ctrl)
-	cdcParametersFetcher := mock.NewMockParametersFetcher(ctrl)
+	chunkStorage := mock.NewMockBlobAccess[*chunk.Chunk](ctrl)
+	chunkListStorage := mock.NewMockBlobAccess[chunk.List](ctrl)
+	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
 	actionCache := mock.NewMockBlobAccess[*remoteexecution.ActionResult](ctrl)
 	actionCache.EXPECT().Put(
 		ctx,
@@ -102,9 +101,9 @@ func TestCachingBuildExecutorCachedSuccessExplicitOK(t *testing.T) {
 		},
 		Status: &status_pb.Status{Message: "This is not an error, because it has code zero"},
 	})
-	chunkStorage := mock.NewMockBlobAccess[*buffer.Chunk](ctrl)
-	chunkListStorage := mock.NewMockBlobAccess[chunklist.ChunkList](ctrl)
-	cdcParametersFetcher := mock.NewMockParametersFetcher(ctrl)
+	chunkStorage := mock.NewMockBlobAccess[*chunk.Chunk](ctrl)
+	chunkListStorage := mock.NewMockBlobAccess[chunk.List](ctrl)
+	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
 	actionCache := mock.NewMockBlobAccess[*remoteexecution.ActionResult](ctrl)
 	actionCache.EXPECT().Put(
 		ctx,
@@ -162,9 +161,9 @@ func TestCachingBuildExecutorCachedSuccessNonZeroExitCode(t *testing.T) {
 			StderrRaw: []byte("Compiler error!"),
 		},
 	})
-	chunkStorage := mock.NewMockBlobAccess[*buffer.Chunk](ctrl)
-	chunkListStorage := mock.NewMockBlobAccess[chunklist.ChunkList](ctrl)
-	cdcParametersFetcher := mock.NewMockParametersFetcher(ctrl)
+	chunkStorage := mock.NewMockBlobAccess[*chunk.Chunk](ctrl)
+	chunkListStorage := mock.NewMockBlobAccess[chunk.List](ctrl)
+	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
 	cdcParametersFetcher.EXPECT().
 		FetchCDCParameters(gomock.Any(), gomock.Any()).
 		Return(&remoteexecution.RepMaxCdcParams{MinChunkSizeBytes: 256 << 10, HorizonSizeBytes: 8 * 256 << 10}, nil).
@@ -174,7 +173,7 @@ func TestCachingBuildExecutorCachedSuccessNonZeroExitCode(t *testing.T) {
 		digest.MustNewDigest("freebsd12", remoteexecution.DigestFunction_SHA256, "bb1107706f3aa379d68aa61062f56d99d24a667ec18d5756fb6df1ba9baa1fdc", 93),
 		gomock.Any(),
 	).
-		DoAndReturn(func(ctx context.Context, digest digest.Digest, chunk *buffer.Chunk) error {
+		DoAndReturn(func(ctx context.Context, digest digest.Digest, chunk *chunk.Chunk) error {
 			data, err := chunk.GetBytes(ctx)
 			require.NoError(t, err)
 			historicalExecuteResponse := &cas_proto.HistoricalExecuteResponse{}
@@ -234,9 +233,9 @@ func TestCachingBuildExecutorCachedStorageFailure(t *testing.T) {
 			StdoutRaw: []byte("Hello, world!"),
 		},
 	})
-	chunkStorage := mock.NewMockBlobAccess[*buffer.Chunk](ctrl)
-	chunkListStorage := mock.NewMockBlobAccess[chunklist.ChunkList](ctrl)
-	cdcParametersFetcher := mock.NewMockParametersFetcher(ctrl)
+	chunkStorage := mock.NewMockBlobAccess[*chunk.Chunk](ctrl)
+	chunkListStorage := mock.NewMockBlobAccess[chunk.List](ctrl)
+	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
 	actionCache := mock.NewMockBlobAccess[*remoteexecution.ActionResult](ctrl)
 	actionCache.EXPECT().Put(
 		ctx,
@@ -287,9 +286,9 @@ func TestCachingBuildExecutorUncachedDoNotCache(t *testing.T) {
 			StdoutRaw: []byte("Hello, world!"),
 		},
 	})
-	chunkStorage := mock.NewMockBlobAccess[*buffer.Chunk](ctrl)
-	chunkListStorage := mock.NewMockBlobAccess[chunklist.ChunkList](ctrl)
-	cdcParametersFetcher := mock.NewMockParametersFetcher(ctrl)
+	chunkStorage := mock.NewMockBlobAccess[*chunk.Chunk](ctrl)
+	chunkListStorage := mock.NewMockBlobAccess[chunk.List](ctrl)
+	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
 	cdcParametersFetcher.EXPECT().
 		FetchCDCParameters(gomock.Any(), gomock.Any()).
 		Return(&remoteexecution.RepMaxCdcParams{MinChunkSizeBytes: 256 << 10, HorizonSizeBytes: 8 * 256 << 10}, nil).
@@ -300,7 +299,7 @@ func TestCachingBuildExecutorUncachedDoNotCache(t *testing.T) {
 			digest.MustNewDigest("freebsd12", remoteexecution.DigestFunction_SHA256, "5ed2d5720b99f5575542bb4f89e84b5e00e34ab652292974fdb814ab7dc3c92e", 89),
 			gomock.Any(),
 		).
-		DoAndReturn(func(ctx context.Context, digest digest.Digest, chunk *buffer.Chunk) error {
+		DoAndReturn(func(ctx context.Context, digest digest.Digest, chunk *chunk.Chunk) error {
 			data, err := chunk.GetBytes(ctx)
 			require.NoError(t, err)
 			historicalExecuteResponse := &cas_proto.HistoricalExecuteResponse{}
@@ -359,9 +358,9 @@ func TestCachingBuildExecutorUncachedError(t *testing.T) {
 		},
 		Status: status.New(codes.DeadlineExceeded, "Build took more than ten seconds").Proto(),
 	})
-	chunkStorage := mock.NewMockBlobAccess[*buffer.Chunk](ctrl)
-	chunkListStorage := mock.NewMockBlobAccess[chunklist.ChunkList](ctrl)
-	cdcParametersFetcher := mock.NewMockParametersFetcher(ctrl)
+	chunkStorage := mock.NewMockBlobAccess[*chunk.Chunk](ctrl)
+	chunkListStorage := mock.NewMockBlobAccess[chunk.List](ctrl)
+	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
 	cdcParametersFetcher.EXPECT().
 		FetchCDCParameters(gomock.Any(), gomock.Any()).
 		Return(&remoteexecution.RepMaxCdcParams{MinChunkSizeBytes: 256 << 10, HorizonSizeBytes: 8 * 256 << 10}, nil).
@@ -371,7 +370,7 @@ func TestCachingBuildExecutorUncachedError(t *testing.T) {
 		digest.MustNewDigest("freebsd12", remoteexecution.DigestFunction_SHA256, "a6e4f00dd21540b0b653dcd195b3d54ea4c0b3ca679cf6a69eb7b0dbd378c2cc", 126),
 		gomock.Any(),
 	).
-		DoAndReturn(func(ctx context.Context, digest digest.Digest, chunk *buffer.Chunk) error {
+		DoAndReturn(func(ctx context.Context, digest digest.Digest, chunk *chunk.Chunk) error {
 			data, err := chunk.GetBytes(ctx)
 			require.NoError(t, err)
 			historicalExecuteResponse := &cas_proto.HistoricalExecuteResponse{}
@@ -432,9 +431,9 @@ func TestCachingBuildExecutorUncachedStorageFailure(t *testing.T) {
 		},
 		Status: status.New(codes.DeadlineExceeded, "Build took more than ten seconds").Proto(),
 	})
-	chunkStorage := mock.NewMockBlobAccess[*buffer.Chunk](ctrl)
-	chunkListStorage := mock.NewMockBlobAccess[chunklist.ChunkList](ctrl)
-	cdcParametersFetcher := mock.NewMockParametersFetcher(ctrl)
+	chunkStorage := mock.NewMockBlobAccess[*chunk.Chunk](ctrl)
+	chunkListStorage := mock.NewMockBlobAccess[chunk.List](ctrl)
+	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
 	cdcParametersFetcher.EXPECT().
 		FetchCDCParameters(gomock.Any(), gomock.Any()).
 		Return(&remoteexecution.RepMaxCdcParams{MinChunkSizeBytes: 256 << 10, HorizonSizeBytes: 8 * 256 << 10}, nil).
@@ -444,7 +443,7 @@ func TestCachingBuildExecutorUncachedStorageFailure(t *testing.T) {
 		digest.MustNewDigest("freebsd12", remoteexecution.DigestFunction_SHA256, "a6e4f00dd21540b0b653dcd195b3d54ea4c0b3ca679cf6a69eb7b0dbd378c2cc", 126),
 		gomock.Any(),
 	).
-		DoAndReturn(func(ctx context.Context, digest digest.Digest, chunk *buffer.Chunk) error {
+		DoAndReturn(func(ctx context.Context, digest digest.Digest, chunk *chunk.Chunk) error {
 			data, err := chunk.GetBytes(ctx)
 			require.NoError(t, err)
 			historicalExecuteResponse := &cas_proto.HistoricalExecuteResponse{}

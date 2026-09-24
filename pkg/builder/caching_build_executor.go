@@ -5,16 +5,15 @@ import (
 	"net/url"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	re_cas "github.com/buildbarn/bb-remote-execution/pkg/cas"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	cas_proto "github.com/buildbarn/bb-remote-execution/pkg/proto/cas"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	re_util "github.com/buildbarn/bb-remote-execution/pkg/util"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/cdc"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/chunklist"
-	"github.com/buildbarn/bb-storage/pkg/cas"
+	"github.com/buildbarn/bb-storage/pkg/blobstore/chunk"
+	"github.com/buildbarn/bb-storage/pkg/capabilities"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/buildbarn/bb-storage/pkg/zstd"
@@ -25,9 +24,9 @@ import (
 
 type cachingBuildExecutor struct {
 	BuildExecutor
-	chunkStorage         blobstore.BlobAccess[*buffer.Chunk]
-	chunkListStorage     blobstore.BlobAccess[chunklist.ChunkList]
-	cdcParametersFetcher cdc.ParametersFetcher
+	chunkStorage         blobstore.BlobAccess[*chunk.Chunk]
+	chunkListStorage     blobstore.BlobAccess[chunk.List]
+	cdcParametersFetcher capabilities.CDCParametersFetcher
 	zstdPool             zstd.Pool
 	actionCache          blobstore.BlobAccess[*remoteexecution.ActionResult]
 	portalURL            *url.URL
@@ -40,7 +39,7 @@ type cachingBuildExecutor struct {
 //
 // In both cases, a link to bb-portal is added to the ExecuteResponse,
 // so that the user may inspect the Action and ActionResult in detail.
-func NewCachingBuildExecutor(base BuildExecutor, chunkStorage blobstore.BlobAccess[*buffer.Chunk], chunkListStorage blobstore.BlobAccess[chunklist.ChunkList], cdcParametersFetcher cdc.ParametersFetcher, zstdPool zstd.Pool, actionCache blobstore.BlobAccess[*remoteexecution.ActionResult], portalURL *url.URL) BuildExecutor {
+func NewCachingBuildExecutor(base BuildExecutor, chunkStorage blobstore.BlobAccess[*chunk.Chunk], chunkListStorage blobstore.BlobAccess[chunk.List], cdcParametersFetcher capabilities.CDCParametersFetcher, zstdPool zstd.Pool, actionCache blobstore.BlobAccess[*remoteexecution.ActionResult], portalURL *url.URL) BuildExecutor {
 	return &cachingBuildExecutor{
 		BuildExecutor:        base,
 		chunkStorage:         chunkStorage,
@@ -74,7 +73,7 @@ func (be *cachingBuildExecutor) Execute(ctx context.Context, filePool pool.FileP
 			attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to fetch CDC parameters"))
 			return response
 		}
-		if historicalExecuteResponseDigest, err := cas.PutProto(
+		if historicalExecuteResponseDigest, err := re_cas.PutProto(
 			ctx,
 			be.zstdPool,
 			be.chunkStorage,

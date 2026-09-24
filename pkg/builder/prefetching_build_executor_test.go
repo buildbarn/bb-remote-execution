@@ -11,8 +11,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/chunklist"
+	"github.com/buildbarn/bb-storage/pkg/blobstore/chunk"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/proto/fsac"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
@@ -33,14 +32,14 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 
 	baseBuildExecutor := mock.NewMockBuildExecutor(ctrl)
 	chunkBytesReader := mock.NewMockReader[[]byte](ctrl)
-	chunkListFetcher := mock.NewMockFetcher(ctrl)
-	cdcParametersFetcher := mock.NewMockParametersFetcher(ctrl)
+	chunkListFetcher := mock.NewMockListFetcher(ctrl)
+	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
 	directoryFetcher := mock.NewMockDirectoryFetcher(ctrl)
 	fileReadSemaphore := semaphore.NewWeighted(1)
 	fileSystemAccessCache := mock.NewMockBlobAccess[*fsac.FileSystemAccessProfile](ctrl)
 	zstdPool := zstd.NewUnboundedPool(nil, nil)
-	chunkStorage := mock.NewMockBlobAccess[*buffer.Chunk](ctrl)
-	chunkListStorage := mock.NewMockBlobAccess[chunklist.ChunkList](ctrl)
+	chunkStorage := mock.NewMockBlobAccess[*chunk.Chunk](ctrl)
+	chunkListStorage := mock.NewMockBlobAccess[chunk.List](ctrl)
 	buildExecutor := builder.NewPrefetchingBuildExecutor(
 		baseBuildExecutor,
 		chunkBytesReader,
@@ -540,7 +539,7 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 			}, nil)
 		accessProfileDigest := digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "dc1d3a7d5a534e6175cdc57c96cc031d", 5)
 		chunkStorage.EXPECT().Put(gomock.Any(), accessProfileDigest, gomock.Any()).
-			DoAndReturn(func(ctx context.Context, blobDigest digest.Digest, chunk *buffer.Chunk) error {
+			DoAndReturn(func(ctx context.Context, blobDigest digest.Digest, chunk *chunk.Chunk) error {
 				data, err := chunk.GetBytes(ctx)
 				require.NoError(t, err)
 				profile := &fsac.FileSystemAccessProfile{}
@@ -612,7 +611,7 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 						AuxiliaryMetadata: []*anypb.Any{defaultInputRootResourceUsage},
 					},
 				},
-				Status: status.New(codes.Internal, "Failed to store file system access profile to CAS: Storage offline").Proto(),
+				Status: status.New(codes.Internal, "Failed to store file system access profile to CAS: Failed to save chunk: Storage offline").Proto(),
 			},
 			profileLoggingBuildExecutor.Execute(
 				ctx,

@@ -8,8 +8,7 @@ import (
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/cas"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/chunklist"
+	"github.com/buildbarn/bb-storage/pkg/blobstore/chunk"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/buildbarn/bb-storage/pkg/zstd"
@@ -23,9 +22,9 @@ import (
 func TestBatchingBlobUploadSuccess(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	chunkStorage := mock.NewMockBlobAccess[*buffer.Chunk](ctrl)
-	chunkListStorage := mock.NewMockBlobAccess[chunklist.ChunkList](ctrl)
-	cdcParametersFetcher := mock.NewMockParametersFetcher(ctrl)
+	chunkStorage := mock.NewMockBlobAccess[*chunk.Chunk](ctrl)
+	chunkListStorage := mock.NewMockBlobAccess[chunk.List](ctrl)
+	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
 	uploadConcurrencySemaphore := semaphore.NewWeighted(10)
 
 	blobUploader, flush := cas.NewBatchingBlobUploader(chunkStorage, chunkListStorage, cdcParametersFetcher, digest.KeyWithoutInstance, zstd.NewUnboundedPool(nil, nil), 2, uploadConcurrencySemaphore)
@@ -60,7 +59,7 @@ func TestBatchingBlobUploadSuccess(t *testing.T) {
 		FindMissing(gomock.Any(), digest.EmptySet).
 		Return(digest.EmptySet, nil)
 	chunkStorage.EXPECT().Put(gomock.Any(), digestHello, gomock.Any()).DoAndReturn(
-		func(ctx context.Context, digest digest.Digest, data *buffer.Chunk) error {
+		func(ctx context.Context, digest digest.Digest, data *chunk.Chunk) error {
 			chunkData, err := data.GetBytes(ctx)
 			require.NoError(t, err)
 			require.Equal(t, []byte("Hello"), chunkData)
@@ -85,7 +84,7 @@ func TestBatchingBlobUploadSuccess(t *testing.T) {
 		FindMissing(gomock.Any(), digest.EmptySet).
 		Return(digest.EmptySet, nil)
 	chunkStorage.EXPECT().Put(gomock.Any(), digestGoodbye, gomock.Any()).DoAndReturn(
-		func(ctx context.Context, digest digest.Digest, data *buffer.Chunk) error {
+		func(ctx context.Context, digest digest.Digest, data *chunk.Chunk) error {
 			chunkData, err := data.GetBytes(ctx)
 			require.NoError(t, err)
 			require.Equal(t, []byte("Goodbye"), chunkData)
@@ -101,9 +100,9 @@ func TestBatchingBlobUploadSuccess(t *testing.T) {
 func TestBatchingBlobUploaderFailure(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	chunkStorage := mock.NewMockBlobAccess[*buffer.Chunk](ctrl)
-	chunkListStorage := mock.NewMockBlobAccess[chunklist.ChunkList](ctrl)
-	cdcParametersFetcher := mock.NewMockParametersFetcher(ctrl)
+	chunkStorage := mock.NewMockBlobAccess[*chunk.Chunk](ctrl)
+	chunkListStorage := mock.NewMockBlobAccess[chunk.List](ctrl)
+	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
 	uploadConcurrencySemaphore := semaphore.NewWeighted(1)
 	blobUploader, flush := cas.NewBatchingBlobUploader(chunkStorage, chunkListStorage, cdcParametersFetcher, digest.KeyWithoutInstance, zstd.NewUnboundedPool(nil, nil), 2, uploadConcurrencySemaphore)
 
@@ -137,7 +136,7 @@ func TestBatchingBlobUploaderFailure(t *testing.T) {
 		FindMissing(gomock.Any(), digest.EmptySet).
 		Return(digest.EmptySet, nil)
 	chunkStorage.EXPECT().Put(gomock.Any(), digestHello, gomock.Any()).DoAndReturn(
-		func(ctx context.Context, digest digest.Digest, data *buffer.Chunk) error {
+		func(ctx context.Context, digest digest.Digest, data *chunk.Chunk) error {
 			chunkData, err := data.GetBytes(ctx)
 			require.NoError(t, err)
 			require.Equal(t, []byte("Hello"), chunkData)
@@ -187,9 +186,9 @@ func TestBatchingBlobUploaderFailure(t *testing.T) {
 func TestBatchingBlobUploaderCanceledWhileWaitingOnSemaphore(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	chunkStorage := mock.NewMockBlobAccess[*buffer.Chunk](ctrl)
-	chunkListStorage := mock.NewMockBlobAccess[chunklist.ChunkList](ctrl)
-	cdcParametersFetcher := mock.NewMockParametersFetcher(ctrl)
+	chunkStorage := mock.NewMockBlobAccess[*chunk.Chunk](ctrl)
+	chunkListStorage := mock.NewMockBlobAccess[chunk.List](ctrl)
+	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
 	uploadConcurrencySemaphore := semaphore.NewWeighted(0)
 	blobUploader, flush := cas.NewBatchingBlobUploader(chunkStorage, chunkListStorage, cdcParametersFetcher, digest.KeyWithoutInstance, zstd.NewUnboundedPool(nil, nil), 2, uploadConcurrencySemaphore)
 
@@ -224,9 +223,9 @@ func TestBatchingBlobUploaderCanceledWhileWaitingOnSemaphore(t *testing.T) {
 func TestBatchingBlobUploaderSuccessFileGrownDuringUpload(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	chunkStorage := mock.NewMockBlobAccess[*buffer.Chunk](ctrl)
-	chunkListStorage := mock.NewMockBlobAccess[chunklist.ChunkList](ctrl)
-	cdcParametersFetcher := mock.NewMockParametersFetcher(ctrl)
+	chunkStorage := mock.NewMockBlobAccess[*chunk.Chunk](ctrl)
+	chunkListStorage := mock.NewMockBlobAccess[chunk.List](ctrl)
+	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
 	uploadConcurrencySemaphore := semaphore.NewWeighted(1)
 	blobUploader, flush := cas.NewBatchingBlobUploader(chunkStorage, chunkListStorage, cdcParametersFetcher, digest.KeyWithoutInstance, zstd.NewUnboundedPool(nil, nil), 2, uploadConcurrencySemaphore)
 
@@ -268,7 +267,7 @@ func TestBatchingBlobUploaderSuccessFileGrownDuringUpload(t *testing.T) {
 		FindMissing(gomock.Any(), digest.EmptySet).
 		Return(digest.EmptySet, nil)
 	chunkStorage.EXPECT().Put(gomock.Any(), helloWorldDigest, gomock.Any()).DoAndReturn(
-		func(ctx context.Context, digest digest.Digest, data *buffer.Chunk) error {
+		func(ctx context.Context, digest digest.Digest, data *chunk.Chunk) error {
 			chunkData, err := data.GetBytes(ctx)
 			require.NoError(t, err)
 			require.Equal(t, []byte("Hello world"), chunkData)

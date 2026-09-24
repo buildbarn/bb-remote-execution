@@ -378,6 +378,16 @@ gomock(
 )
 
 gomock(
+    name = "storage_capabilities",
+    out = "storage_capabilities.go",
+    interfaces = ["CDCParametersFetcher"],
+    library = "@com_github_buildbarn_bb_storage//pkg/capabilities",
+    mockgen_model_library = "@org_uber_go_mock//mockgen/model",
+    mockgen_tool = "@org_uber_go_mock//mockgen",
+    package = "mock",
+)
+
+gomock(
     name = "storage_cas",
     out = "storage_cas.go",
     interfaces = [
@@ -400,20 +410,10 @@ gomock(
 )
 
 gomock(
-    name = "storage_cdc",
-    out = "storage_cdc.go",
-    interfaces = ["ParametersFetcher"],
-    library = "@com_github_buildbarn_bb_storage//pkg/blobstore/cdc",
-    mockgen_model_library = "@org_uber_go_mock//mockgen/model",
-    mockgen_tool = "@org_uber_go_mock//mockgen",
-    package = "mock",
-)
-
-gomock(
-    name = "storage_chunklist",
-    out = "storage_chunklist.go",
-    interfaces = ["Fetcher"],
-    library = "@com_github_buildbarn_bb_storage//pkg/blobstore/chunklist",
+    name = "storage_chunk",
+    out = "storage_chunk.go",
+    interfaces = ["ListFetcher"],
+    library = "@com_github_buildbarn_bb_storage//pkg/blobstore/chunk",
     mockgen_model_library = "@org_uber_go_mock//mockgen/model",
     mockgen_tool = "@org_uber_go_mock//mockgen",
     package = "mock",
@@ -490,10 +490,10 @@ go_library(
         ":runner.go",
         ":runner_pb.go",
         ":storage_builder.go",
+        ":storage_capabilities.go",
         ":storage_cas.go",
         ":storage_cas_reader.go",
-        ":storage_cdc.go",
-        ":storage_chunklist.go",
+        ":storage_chunk.go",
         ":storage_util.go",
         ":sync.go",
         ":trace.go",
@@ -534,10 +534,9 @@ go_library(
         "//pkg/scheduler/routing",
         "@bazel_remote_apis//build/bazel/remote/execution/v2:remote_execution_go_proto",
         "@com_github_buildbarn_bb_storage//pkg/blobstore",
-        "@com_github_buildbarn_bb_storage//pkg/blobstore/buffer",
-        "@com_github_buildbarn_bb_storage//pkg/blobstore/cdc",
-        "@com_github_buildbarn_bb_storage//pkg/blobstore/chunklist",
+        "@com_github_buildbarn_bb_storage//pkg/blobstore/chunk",
         "@com_github_buildbarn_bb_storage//pkg/builder",
+        "@com_github_buildbarn_bb_storage//pkg/capabilities",
         "@com_github_buildbarn_bb_storage//pkg/cas",
         "@com_github_buildbarn_bb_storage//pkg/clock",
         "@com_github_buildbarn_bb_storage//pkg/digest",

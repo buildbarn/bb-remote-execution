@@ -108,7 +108,6 @@ func main() {
 				blobstore_configuration.NewFSACBlobAccessCreator(
 					grpcClientFactory,
 					int(configuration.MaximumMessageSizeBytes),
-					zstdPool,
 				),
 			)
 			if err != nil {

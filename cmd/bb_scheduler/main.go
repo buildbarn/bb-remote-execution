@@ -84,7 +84,6 @@ func main() {
 				blobstore_configuration.NewISCCBlobAccessCreator(
 					grpcClientFactory,
 					int(configuration.MaximumMessageSizeBytes),
-					zstdPool,
 				),
 			)
 			if err != nil {

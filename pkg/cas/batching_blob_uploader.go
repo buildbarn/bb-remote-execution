@@ -8,9 +8,8 @@ import (
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/cdc"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/chunklist"
+	"github.com/buildbarn/bb-storage/pkg/blobstore/chunk"
+	"github.com/buildbarn/bb-storage/pkg/capabilities"
 	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
@@ -21,15 +20,21 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
+// ReadAtCloser is an interface that combines io.ReaderAt and io.Closer.
+type ReadAtCloser interface {
+	io.ReaderAt
+	io.Closer
+}
+
 type pendingUploadOperation struct {
 	digest digest.Digest
-	file   buffer.ReadAtCloser
+	file   ReadAtCloser
 }
 
 type batchingBlobUploader struct {
-	chunkStorage               blobstore.BlobAccess[*buffer.Chunk]
-	chunkListStorage           blobstore.BlobAccess[chunklist.ChunkList]
-	cdcParametersFetcher       cdc.ParametersFetcher
+	chunkStorage               blobstore.BlobAccess[*chunk.Chunk]
+	chunkListStorage           blobstore.BlobAccess[chunk.List]
+	cdcParametersFetcher       capabilities.CDCParametersFetcher
 	zstdPool                   zstd.Pool
 	digestKeyFormat            digest.KeyFormat
 	batchSize                  int
@@ -43,7 +48,7 @@ type batchingBlobUploader struct {
 // NewBatchingBlobUploader returns a BlobUploader that batches uploads
 // to the Content Addressable Storage (CAS) into batches of the
 // specified size while respecting an upload concurrency.
-func NewBatchingBlobUploader(chunkStorage blobstore.BlobAccess[*buffer.Chunk], chunkListStorage blobstore.BlobAccess[chunklist.ChunkList], cdcParametersFetcher cdc.ParametersFetcher, digestKeyFormat digest.KeyFormat, zstdPool zstd.Pool, batchSize int, uploadConcurrencySemaphore *semaphore.Weighted) (BlobUploader, func(context.Context) error) {
+func NewBatchingBlobUploader(chunkStorage blobstore.BlobAccess[*chunk.Chunk], chunkListStorage blobstore.BlobAccess[chunk.List], cdcParametersFetcher capabilities.CDCParametersFetcher, digestKeyFormat digest.KeyFormat, zstdPool zstd.Pool, batchSize int, uploadConcurrencySemaphore *semaphore.Weighted) (BlobUploader, func(context.Context) error) {
 	bu := &batchingBlobUploader{
 		chunkStorage:               chunkStorage,
 		chunkListStorage:           chunkListStorage,
@@ -141,7 +146,7 @@ func (bu *batchingBlobUploader) flushLocked(ctx context.Context) {
 	}
 }
 
-func (bu *batchingBlobUploader) uploadBlob(ctx context.Context, d digest.Digest, blob buffer.ReadAtCloser) error {
+func (bu *batchingBlobUploader) uploadBlob(ctx context.Context, d digest.Digest, blob ReadAtCloser) error {
 	bu.lock.Lock()
 	defer bu.lock.Unlock()
 
@@ -196,11 +201,11 @@ func (bu *batchingBlobUploader) UploadBlob(ctx context.Context, digestFunction d
 	return blobDigest, nil
 }
 
-// newSectionReadAtCloser returns a buffer.ReadAtCloser that reads from
-// r at a given offset, but stops with EOF after n bytes. This function
-// is identical to io.NewSectionReader(), except that it provides an
-// buffer.ReadAtCloser instead of an io.ReaderAt.
-func newSectionReadAtCloser(r filesystem.FileReader, off, n int64) buffer.ReadAtCloser {
+// newSectionReadAtCloser returns a ReadAtCloser that reads from r at a
+// given offset, but stops with EOF after n bytes. This function is
+// identical to io.NewSectionReader(), except that it provides a
+// ReadAtCloser instead of an io.ReaderAt.
+func newSectionReadAtCloser(r filesystem.FileReader, off, n int64) ReadAtCloser {
 	return &struct {
 		io.SectionReader
 		io.Closer

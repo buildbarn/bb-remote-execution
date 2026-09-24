@@ -4,8 +4,8 @@ import (
 	"context"
 	"os"
 
-	"github.com/buildbarn/bb-storage/pkg/blobstore/cdc"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/chunklist"
+	"github.com/buildbarn/bb-storage/pkg/blobstore/chunk"
+	"github.com/buildbarn/bb-storage/pkg/capabilities"
 	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/cas/reader"
 	"github.com/buildbarn/bb-storage/pkg/digest"
@@ -16,13 +16,13 @@ import (
 
 type blobAccessFileFetcher struct {
 	chunkBytesReader     reader.Reader[[]byte]
-	chunkListFetcher     chunklist.Fetcher
-	cdcParametersFetcher cdc.ParametersFetcher
+	chunkListFetcher     chunk.ListFetcher
+	cdcParametersFetcher capabilities.CDCParametersFetcher
 }
 
 // NewCASFileFetcher creates a FileFetcher that reads files fom a
 // Content Addressable Storage (CAS).
-func NewCASFileFetcher(chunkBytesReader reader.Reader[[]byte], chunkListFetcher chunklist.Fetcher, cdcParametersFetcher cdc.ParametersFetcher) FileFetcher {
+func NewCASFileFetcher(chunkBytesReader reader.Reader[[]byte], chunkListFetcher chunk.ListFetcher, cdcParametersFetcher capabilities.CDCParametersFetcher) FileFetcher {
 	return &blobAccessFileFetcher{
 		chunkBytesReader:     chunkBytesReader,
 		chunkListFetcher:     chunkListFetcher,

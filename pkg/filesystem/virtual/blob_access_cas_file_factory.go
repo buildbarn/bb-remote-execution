@@ -7,8 +7,8 @@ import (
 	re_cas "github.com/buildbarn/bb-remote-execution/pkg/cas"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/bazeloutputservice"
 	bazeloutputservicerev2 "github.com/buildbarn/bb-remote-execution/pkg/proto/bazeloutputservice/rev2"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/cdc"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/chunklist"
+	"github.com/buildbarn/bb-storage/pkg/blobstore/chunk"
+	"github.com/buildbarn/bb-storage/pkg/capabilities"
 	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/cas/reader"
 	"github.com/buildbarn/bb-storage/pkg/digest"
@@ -23,8 +23,8 @@ import (
 type blobAccessCASFileFactory struct {
 	context              context.Context
 	chunkBytesReader     reader.Reader[[]byte]
-	chunkListFetcher     chunklist.Fetcher
-	cdcParametersFetcher cdc.ParametersFetcher
+	chunkListFetcher     chunk.ListFetcher
+	cdcParametersFetcher capabilities.CDCParametersFetcher
 	errorLogger          util.ErrorLogger
 }
 
@@ -32,7 +32,7 @@ type blobAccessCASFileFactory struct {
 // to create FUSE files that are directly backed by BlobAccess. Files
 // created by this factory are entirely immutable; it is only possible
 // to read their contents.
-func NewBlobAccessCASFileFactory(ctx context.Context, chunkBytesReader reader.Reader[[]byte], chunkListFetcher chunklist.Fetcher, cdcParametersFetcher cdc.ParametersFetcher, errorLogger util.ErrorLogger) CASFileFactory {
+func NewBlobAccessCASFileFactory(ctx context.Context, chunkBytesReader reader.Reader[[]byte], chunkListFetcher chunk.ListFetcher, cdcParametersFetcher capabilities.CDCParametersFetcher, errorLogger util.ErrorLogger) CASFileFactory {
 	return &blobAccessCASFileFactory{
 		context:              ctx,
 		chunkBytesReader:     chunkBytesReader,
