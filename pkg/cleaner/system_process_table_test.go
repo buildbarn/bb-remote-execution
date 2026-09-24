@@ -4,7 +4,6 @@ import (
 	"os"
 	"runtime"
 	"testing"
-	"time"
 
 	"github.com/buildbarn/bb-remote-execution/pkg/cleaner"
 	"github.com/stretchr/testify/require"
@@ -20,8 +19,7 @@ func TestSystemProcessTable(t *testing.T) {
 	require.NoError(t, err)
 
 	// The returned process table should contain the currently
-	// running process. The user ID and creation time should also be
-	// sensible.
+	// running process. The user ID should also be sensible.
 	// TODO: Doesn't testify provide a require.Contains() that takes
 	// a custom matcher function?
 	found := false
@@ -30,8 +28,6 @@ func TestSystemProcessTable(t *testing.T) {
 		if process.ProcessID == processID {
 			found = true
 			require.Equal(t, os.Getuid(), process.UserID)
-			require.True(t, process.CreationTime.After(time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)))
-			require.False(t, process.CreationTime.After(time.Now()))
 			break
 		}
 	}

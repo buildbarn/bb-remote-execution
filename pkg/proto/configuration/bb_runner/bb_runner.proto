@@ -43,10 +43,16 @@ message ApplicationConfiguration {
   //
   // Enabling this feature causes all processes to be killed that run as
   // the same user ID as bb_runner (or the one configured through
-  // 'run_commands_as') and were spawned after bb_runner. This feature
-  // must not be enabled when the same user ID is used for other
-  // purposes (e.g., running multiple bb_runners), as this may cause
-  // unrelated processes to be killed.
+  // 'run_commands_as'), except for the ones that were already running
+  // at the time bb_runner started. Those are identified by process ID,
+  // meaning that they are assumed to outlive bb_runner. Were such a
+  // process to terminate, its process ID could be recycled by a process
+  // spawned by a build action, which would then no longer be killed.
+  // This feature must not be enabled when the same user ID is used for
+  // other purposes (e.g., running multiple bb_runners), as this may
+  // cause unrelated processes to be killed. The recommended setup is to
+  // run bb_runner inside a container or sandbox, so that no other
+  // processes belonging to this user ID can exist.
   bool clean_process_table = 8;
 
   // Was filesystem_writability_checker which has been removed.

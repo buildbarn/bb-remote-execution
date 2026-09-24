@@ -4,8 +4,6 @@
 package cleaner
 
 import (
-	"time"
-
 	"github.com/buildbarn/bb-storage/pkg/util"
 
 	"golang.org/x/sys/unix"
@@ -22,11 +20,9 @@ func (systemProcessTable) GetProcesses() ([]Process, error) {
 
 	processes := make([]Process, 0, len(kinfoProcs))
 	for _, kinfoProc := range kinfoProcs {
-		startTime := kinfoProc.Proc.P_starttime
 		processes = append(processes, Process{
-			ProcessID:    int(kinfoProc.Proc.P_pid),
-			UserID:       int(kinfoProc.Eproc.Ucred.Uid),
-			CreationTime: time.Unix(startTime.Sec, int64(startTime.Usec)*1000),
+			ProcessID: int(kinfoProc.Proc.P_pid),
+			UserID:    int(kinfoProc.Eproc.Ucred.Uid),
 		})
 	}
 	return processes, nil
