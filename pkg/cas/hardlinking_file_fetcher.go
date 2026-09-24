@@ -170,6 +170,14 @@ func (ff *hardlinkingFileFetcher) tryLinkFromCache(key string, directory filesys
 		if err := ff.cacheDirectory.Link(path.MustNewComponent(key), directory, name); err == nil {
 			// Successfully hardlinked the file to its destination.
 			return nil
+		} else if isHardlinkLimitReached(err) {
+			// The file reached the filesystem's maximum hard link
+			// count (1023 on NTFS); copy it into place instead of
+			// failing the action.
+			if err := copyCachedFile(ff.cacheDirectory, path.MustNewComponent(key), directory, name); err != nil {
+				return util.StatusWrapfWithCode(err, codes.Internal, "Failed to copy cached file %#v after reaching the hard link limit", key)
+			}
+			return nil
 		} else if !os.IsNotExist(err) {
 			return util.StatusWrapfWithCode(err, codes.Internal, "Failed to create hardlink to cached file %#v", key)
 		}
