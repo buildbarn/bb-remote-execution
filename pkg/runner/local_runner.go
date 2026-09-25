@@ -124,6 +124,19 @@ func NewPlainCommandCreator(sysProcAttr *syscall.SysProcAttr) CommandCreator {
 	}
 }
 
+// NewProcessGroupCommandCreator makes cancellation of a command also kill
+// subprocesses in the command's process group on UNIX systems.
+func NewProcessGroupCommandCreator(commandCreator CommandCreator) CommandCreator {
+	return func(ctx context.Context, arguments []string, inputRootDirectory *path.Builder, workingDirectoryParser path.Parser, pathVariable string) (*exec.Cmd, error) {
+		cmd, err := commandCreator(ctx, arguments, inputRootDirectory, workingDirectoryParser, pathVariable)
+		if err != nil {
+			return nil, err
+		}
+		setProcessGroupCancellation(cmd)
+		return cmd, nil
+	}
+}
+
 // NewLocalRunner returns a Runner capable of running commands on the
 // local system directly.
 func NewLocalRunner(buildDirectory filesystem.Directory, buildDirectoryPath *path.Builder, commandCreator CommandCreator, setTmpdirEnvironmentVariable bool) runner.RunnerServer {
