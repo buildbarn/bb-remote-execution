@@ -70,25 +70,25 @@ func (r suspendingChunkBytesReader) Read(ctx context.Context, d digest.Digest) (
 	return r.Reader.Read(ctx, d)
 }
 
-type suspendingChunkListFetcher struct {
-	chunk.ListFetcher
+type suspendingChunkMappingFetcher struct {
+	chunk.MappingFetcher
 	suspendable clock.Suspendable
 }
 
-// NewSuspendingChunkListFetcher is a decorator for a chunk.ListFetcher
-// that suspends a clock.Suspendable object for the duration of every
-// operation.
-func NewSuspendingChunkListFetcher(fetcher chunk.ListFetcher, suspendable clock.Suspendable) chunk.ListFetcher {
-	return &suspendingChunkListFetcher{
-		ListFetcher: fetcher,
-		suspendable: suspendable,
+// NewSuspendingChunkMappingFetcher is a decorator for a
+// chunk.MappingFetcher that suspends a clock.Suspendable object for the
+// duration of every operation.
+func NewSuspendingChunkMappingFetcher(fetcher chunk.MappingFetcher, suspendable clock.Suspendable) chunk.MappingFetcher {
+	return &suspendingChunkMappingFetcher{
+		MappingFetcher: fetcher,
+		suspendable:    suspendable,
 	}
 }
 
-func (f suspendingChunkListFetcher) FetchChunkList(ctx context.Context, d digest.Digest) (chunk.List, error) {
+func (f suspendingChunkMappingFetcher) FetchChunkMapping(ctx context.Context, d digest.Digest) (chunk.Mapping, error) {
 	f.suspendable.Suspend()
 	defer f.suspendable.Resume()
-	return f.ListFetcher.FetchChunkList(ctx, d)
+	return f.MappingFetcher.FetchChunkMapping(ctx, d)
 }
 
 type suspendingParametersFetcher struct {

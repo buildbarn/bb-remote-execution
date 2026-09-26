@@ -3,7 +3,6 @@ package cas_test
 import (
 	"bytes"
 	"context"
-	"io"
 	"testing"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
@@ -75,9 +74,8 @@ func TestCASDirectoryFetcherGetTreeRootDirectory(t *testing.T) {
 		// Failures reading the Tree object should be propagated.
 		treeDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "756b15c8f94b519e96135dcfde0e58c5", 50)
 
-		errReader := mock.NewMockReadCloser(ctrl)
+		errReader := mock.NewMockIOReader(ctrl)
 		errReader.EXPECT().Read(gomock.Any()).Return(0, status.Error(codes.Internal, "I/O error")).AnyTimes()
-		errReader.EXPECT().Close()
 
 		treeReader.EXPECT().ReadStream(ctx, treeDigest).Return(errReader, nil)
 
@@ -90,7 +88,7 @@ func TestCASDirectoryFetcherGetTreeRootDirectory(t *testing.T) {
 		// against an REv2 Tree object.
 		treeDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "3478477ca0af085e8d676f9a53b095cb", 25)
 
-		r := io.NopCloser(bytes.NewReader([]byte("This is not a Tree object")))
+		r := bytes.NewReader([]byte("This is not a Tree object"))
 		treeReader.EXPECT().ReadStream(ctx, treeDigest).Return(r, nil)
 
 		_, err := directoryFetcher.GetTreeRootDirectory(ctx, treeDigest)
@@ -103,7 +101,7 @@ func TestCASDirectoryFetcherGetTreeRootDirectory(t *testing.T) {
 
 		treeBytes, err := proto.Marshal(&remoteexecution.Tree{})
 		require.NoError(t, err)
-		r := io.NopCloser(bytes.NewReader(treeBytes))
+		r := bytes.NewReader(treeBytes)
 		treeReader.EXPECT().ReadStream(ctx, treeDigest).Return(r, nil)
 
 		_, err = directoryFetcher.GetTreeRootDirectory(ctx, treeDigest)
@@ -126,7 +124,7 @@ func TestCASDirectoryFetcherGetTreeRootDirectory(t *testing.T) {
 		treeBytes, err := proto.Marshal(&remoteexecution.Tree{
 			Root: exampleDirectory,
 		})
-		treeReader.EXPECT().ReadStream(ctx, treeDigest).Return(io.NopCloser(bytes.NewReader(treeBytes)), nil)
+		treeReader.EXPECT().ReadStream(ctx, treeDigest).Return(bytes.NewReader(treeBytes), nil)
 
 		directory, err := directoryFetcher.GetTreeRootDirectory(ctx, treeDigest)
 		require.NoError(t, err)
@@ -155,9 +153,8 @@ func TestCASDirectoryFetcherGetTreeChildDirectory(t *testing.T) {
 		treeDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "40d8f0c70941162ee9dfacf8863d23f5", 100)
 		directoryDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "756b15c8f94b519e96135dcfde0e58c5", 50)
 
-		r := mock.NewMockReadCloser(ctrl)
+		r := mock.NewMockIOReader(ctrl)
 		r.EXPECT().Read(gomock.Any()).Return(0, status.Error(codes.Internal, "I/O error")).AnyTimes()
-		r.EXPECT().Close()
 		treeReader.EXPECT().ReadStream(ctx, treeDigest).Return(r, nil)
 
 		_, err := directoryFetcher.GetTreeChildDirectory(
@@ -174,7 +171,7 @@ func TestCASDirectoryFetcherGetTreeChildDirectory(t *testing.T) {
 		treeDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "3478477ca0af085e8d676f9a53b095cb", 25)
 		directoryDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "f297d724d679d79d577d46c79fd4d712", 10)
 
-		r := io.NopCloser(bytes.NewReader([]byte("This is not a Tree object")))
+		r := bytes.NewReader([]byte("This is not a Tree object"))
 		treeReader.EXPECT().ReadStream(ctx, treeDigest).Return(r, nil)
 
 		_, err := directoryFetcher.GetTreeChildDirectory(
@@ -237,7 +234,7 @@ func TestCASDirectoryFetcherGetTreeChildDirectory(t *testing.T) {
 		treeBytes, err := proto.Marshal(tree)
 		require.NoError(t, err)
 
-		treeReader.EXPECT().ReadStream(gomock.Any(), treeDigest).Return(io.NopCloser(bytes.NewReader(treeBytes)), nil)
+		treeReader.EXPECT().ReadStream(gomock.Any(), treeDigest).Return(bytes.NewReader(treeBytes), nil)
 		fetchedDirectory, err := directoryFetcher.GetTreeChildDirectory(
 			ctx,
 			treeDigest,
@@ -246,7 +243,7 @@ func TestCASDirectoryFetcherGetTreeChildDirectory(t *testing.T) {
 		require.NoError(t, err)
 		testutil.RequireEqualProto(t, rootDirectory, fetchedDirectory)
 
-		treeReader.EXPECT().ReadStream(gomock.Any(), treeDigest).Return(io.NopCloser(bytes.NewReader(treeBytes)), nil)
+		treeReader.EXPECT().ReadStream(gomock.Any(), treeDigest).Return(bytes.NewReader(treeBytes), nil)
 		fetchedDirectory, err = directoryFetcher.GetTreeChildDirectory(
 			ctx,
 			treeDigest,
@@ -255,7 +252,7 @@ func TestCASDirectoryFetcherGetTreeChildDirectory(t *testing.T) {
 		require.NoError(t, err)
 		testutil.RequireEqualProto(t, childDirectory1, fetchedDirectory)
 
-		treeReader.EXPECT().ReadStream(gomock.Any(), treeDigest).Return(io.NopCloser(bytes.NewReader(treeBytes)), nil)
+		treeReader.EXPECT().ReadStream(gomock.Any(), treeDigest).Return(bytes.NewReader(treeBytes), nil)
 		fetchedDirectory, err = directoryFetcher.GetTreeChildDirectory(
 			ctx,
 			treeDigest,
@@ -264,7 +261,7 @@ func TestCASDirectoryFetcherGetTreeChildDirectory(t *testing.T) {
 		require.NoError(t, err)
 		testutil.RequireEqualProto(t, childDirectory2, fetchedDirectory)
 
-		treeReader.EXPECT().ReadStream(gomock.Any(), treeDigest).Return(io.NopCloser(bytes.NewReader(treeBytes)), nil)
+		treeReader.EXPECT().ReadStream(gomock.Any(), treeDigest).Return(bytes.NewReader(treeBytes), nil)
 		_, err = directoryFetcher.GetTreeChildDirectory(
 			ctx,
 			treeDigest,

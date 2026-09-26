@@ -25,7 +25,7 @@ import (
 type cachingBuildExecutor struct {
 	BuildExecutor
 	chunkStorage         blobstore.BlobAccess[*chunk.Chunk]
-	chunkListStorage     blobstore.BlobAccess[chunk.List]
+	chunkMappingStorage  blobstore.BlobAccess[chunk.Mapping]
 	cdcParametersFetcher capabilities.CDCParametersFetcher
 	zstdPool             zstd.Pool
 	actionCache          blobstore.BlobAccess[*remoteexecution.ActionResult]
@@ -39,11 +39,11 @@ type cachingBuildExecutor struct {
 //
 // In both cases, a link to bb-portal is added to the ExecuteResponse,
 // so that the user may inspect the Action and ActionResult in detail.
-func NewCachingBuildExecutor(base BuildExecutor, chunkStorage blobstore.BlobAccess[*chunk.Chunk], chunkListStorage blobstore.BlobAccess[chunk.List], cdcParametersFetcher capabilities.CDCParametersFetcher, zstdPool zstd.Pool, actionCache blobstore.BlobAccess[*remoteexecution.ActionResult], portalURL *url.URL) BuildExecutor {
+func NewCachingBuildExecutor(base BuildExecutor, chunkStorage blobstore.BlobAccess[*chunk.Chunk], chunkMappingStorage blobstore.BlobAccess[chunk.Mapping], cdcParametersFetcher capabilities.CDCParametersFetcher, zstdPool zstd.Pool, actionCache blobstore.BlobAccess[*remoteexecution.ActionResult], portalURL *url.URL) BuildExecutor {
 	return &cachingBuildExecutor{
 		BuildExecutor:        base,
 		chunkStorage:         chunkStorage,
-		chunkListStorage:     chunkListStorage,
+		chunkMappingStorage:  chunkMappingStorage,
 		cdcParametersFetcher: cdcParametersFetcher,
 		zstdPool:             zstdPool,
 		actionCache:          actionCache,
@@ -77,7 +77,7 @@ func (be *cachingBuildExecutor) Execute(ctx context.Context, filePool pool.FileP
 			ctx,
 			be.zstdPool,
 			be.chunkStorage,
-			be.chunkListStorage,
+			be.chunkMappingStorage,
 			params,
 			&cas_proto.HistoricalExecuteResponse{
 				ActionDigest:    actionDigest.GetProto(),

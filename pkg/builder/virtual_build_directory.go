@@ -25,7 +25,7 @@ import (
 type virtualBuildDirectoryOptions struct {
 	directoryFetcher        re_cas.DirectoryFetcher
 	chunkBytesReader        reader.Reader[[]byte]
-	chunkListFetcher        chunk.ListFetcher
+	chunkMappingFetcher     chunk.MappingFetcher
 	cdcParametersFetcher    capabilities.CDCParametersFetcher
 	blobUploader            re_cas.BlobUploader
 	symlinkFactory          virtual.SymlinkFactory
@@ -45,13 +45,13 @@ type virtualBuildDirectory struct {
 // input root explicitly, it calls PrepopulatedDirectory.CreateChildren
 // to add special file and directory nodes whose contents are read on
 // demand.
-func NewVirtualBuildDirectory(directory virtual.PrepopulatedDirectory, directoryFetcher re_cas.DirectoryFetcher, chunkBytesReader reader.Reader[[]byte], chunkListFetcher chunk.ListFetcher, cdcParametersFetcher capabilities.CDCParametersFetcher, blobUploader re_cas.BlobUploader, symlinkFactory virtual.SymlinkFactory, characterDeviceFactory virtual.CharacterDeviceFactory, handleAllocator virtual.StatefulHandleAllocator, defaultAttributesSetter virtual.DefaultAttributesSetter, clock clock.Clock) BuildDirectory {
+func NewVirtualBuildDirectory(directory virtual.PrepopulatedDirectory, directoryFetcher re_cas.DirectoryFetcher, chunkBytesReader reader.Reader[[]byte], chunkMappingFetcher chunk.MappingFetcher, cdcParametersFetcher capabilities.CDCParametersFetcher, blobUploader re_cas.BlobUploader, symlinkFactory virtual.SymlinkFactory, characterDeviceFactory virtual.CharacterDeviceFactory, handleAllocator virtual.StatefulHandleAllocator, defaultAttributesSetter virtual.DefaultAttributesSetter, clock clock.Clock) BuildDirectory {
 	return &virtualBuildDirectory{
 		PrepopulatedDirectory: directory,
 		options: &virtualBuildDirectoryOptions{
 			directoryFetcher:        directoryFetcher,
 			chunkBytesReader:        chunkBytesReader,
-			chunkListFetcher:        chunkListFetcher,
+			chunkMappingFetcher:     chunkMappingFetcher,
 			cdcParametersFetcher:    cdcParametersFetcher,
 			blobUploader:            blobUploader,
 			symlinkFactory:          symlinkFactory,
@@ -133,7 +133,7 @@ func (d *virtualBuildDirectory) MergeDirectoryContents(ctx context.Context, erro
 			virtual.NewBlobAccessCASFileFactory(
 				ctx,
 				d.options.chunkBytesReader,
-				d.options.chunkListFetcher,
+				d.options.chunkMappingFetcher,
 				d.options.cdcParametersFetcher,
 				errorLogger,
 			),

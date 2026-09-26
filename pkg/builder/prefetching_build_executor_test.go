@@ -32,18 +32,18 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 
 	baseBuildExecutor := mock.NewMockBuildExecutor(ctrl)
 	chunkBytesReader := mock.NewMockReader[[]byte](ctrl)
-	chunkListFetcher := mock.NewMockListFetcher(ctrl)
+	chunkMappingFetcher := mock.NewMockMappingFetcher(ctrl)
 	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
 	directoryFetcher := mock.NewMockDirectoryFetcher(ctrl)
 	fileReadSemaphore := semaphore.NewWeighted(1)
 	fileSystemAccessCache := mock.NewMockBlobAccess[*fsac.FileSystemAccessProfile](ctrl)
 	zstdPool := zstd.NewUnboundedPool(nil, nil)
 	chunkStorage := mock.NewMockBlobAccess[*chunk.Chunk](ctrl)
-	chunkListStorage := mock.NewMockBlobAccess[chunk.List](ctrl)
+	chunkMappingStorage := mock.NewMockBlobAccess[chunk.Mapping](ctrl)
 	buildExecutor := builder.NewPrefetchingBuildExecutor(
 		baseBuildExecutor,
 		chunkBytesReader,
-		chunkListFetcher,
+		chunkMappingFetcher,
 		cdcParametersFetcher,
 		directoryFetcher,
 		fileReadSemaphore,
@@ -54,7 +54,7 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 		/* logFileSystemAccessProfile = */ false,
 		zstdPool,
 		chunkStorage,
-		chunkListStorage,
+		chunkMappingStorage,
 	)
 
 	filePool := mock.NewMockFilePool(ctrl)
@@ -501,7 +501,7 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 	profileLoggingBuildExecutor := builder.NewPrefetchingBuildExecutor(
 		baseBuildExecutor,
 		chunkBytesReader,
-		chunkListFetcher,
+		chunkMappingFetcher,
 		cdcParametersFetcher,
 		directoryFetcher,
 		fileReadSemaphore,
@@ -512,7 +512,7 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 		/* logFileSystemAccessProfile = */ true,
 		zstd.NewUnboundedPool(nil, nil),
 		chunkStorage,
-		chunkListStorage,
+		chunkMappingStorage,
 	)
 
 	t.Run("CASLogAccessProfileSuccess", func(t *testing.T) {
@@ -540,8 +540,7 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 		accessProfileDigest := digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "dc1d3a7d5a534e6175cdc57c96cc031d", 5)
 		chunkStorage.EXPECT().Put(gomock.Any(), accessProfileDigest, gomock.Any()).
 			DoAndReturn(func(ctx context.Context, blobDigest digest.Digest, chunk *chunk.Chunk) error {
-				data, err := chunk.GetBytes(ctx)
-				require.NoError(t, err)
+				data := chunk.GetBytes()
 				profile := &fsac.FileSystemAccessProfile{}
 				require.NoError(t, proto.Unmarshal(data, profile))
 				testutil.RequireEqualProto(t, &fsac.FileSystemAccessProfile{

@@ -61,7 +61,7 @@ func main() {
 		// and Command messages stored in the CAS to obtain platform
 		// properties.
 		zstdPool := zstd.NewPoolFromConfiguration(configuration.ZstdPool)
-		chunkBytesReader, _, _, chunkListFetcher, cdcParametersFetcher, _, err := blobstore_configuration.NewCASFromConfiguration(
+		chunkBytesReader, _, _, chunkMappingFetcher, cdcParametersFetcher, _, err := blobstore_configuration.NewCASFromConfiguration(
 			dependenciesGroup,
 			configuration.ContentAddressableStorage,
 			grpcClientFactory,
@@ -131,7 +131,7 @@ func main() {
 		buildQueue := scheduler.NewInMemoryBuildQueue(
 			cas.NewMessageReader[remoteexecution.Action](
 				chunkBytesReader,
-				chunkListFetcher,
+				chunkMappingFetcher,
 				cdcParametersFetcher,
 				int(configuration.MaximumMessageSizeBytes),
 			),

@@ -33,7 +33,7 @@ type pendingUploadOperation struct {
 
 type batchingBlobUploader struct {
 	chunkStorage               blobstore.BlobAccess[*chunk.Chunk]
-	chunkListStorage           blobstore.BlobAccess[chunk.List]
+	chunkMappingStorage        blobstore.BlobAccess[chunk.Mapping]
 	cdcParametersFetcher       capabilities.CDCParametersFetcher
 	zstdPool                   zstd.Pool
 	digestKeyFormat            digest.KeyFormat
@@ -48,10 +48,10 @@ type batchingBlobUploader struct {
 // NewBatchingBlobUploader returns a BlobUploader that batches uploads
 // to the Content Addressable Storage (CAS) into batches of the
 // specified size while respecting an upload concurrency.
-func NewBatchingBlobUploader(chunkStorage blobstore.BlobAccess[*chunk.Chunk], chunkListStorage blobstore.BlobAccess[chunk.List], cdcParametersFetcher capabilities.CDCParametersFetcher, digestKeyFormat digest.KeyFormat, zstdPool zstd.Pool, batchSize int, uploadConcurrencySemaphore *semaphore.Weighted) (BlobUploader, func(context.Context) error) {
+func NewBatchingBlobUploader(chunkStorage blobstore.BlobAccess[*chunk.Chunk], chunkMappingStorage blobstore.BlobAccess[chunk.Mapping], cdcParametersFetcher capabilities.CDCParametersFetcher, digestKeyFormat digest.KeyFormat, zstdPool zstd.Pool, batchSize int, uploadConcurrencySemaphore *semaphore.Weighted) (BlobUploader, func(context.Context) error) {
 	bu := &batchingBlobUploader{
 		chunkStorage:               chunkStorage,
-		chunkListStorage:           chunkListStorage,
+		chunkMappingStorage:        chunkMappingStorage,
 		cdcParametersFetcher:       cdcParametersFetcher,
 		zstdPool:                   zstdPool,
 		digestKeyFormat:            digestKeyFormat,
@@ -105,7 +105,7 @@ func (bu *batchingBlobUploader) flushLocked(ctx context.Context) {
 		for _, d := range instanceDigests {
 			set.Add(d)
 		}
-		instanceMissing, err := cas.FindMissing(ctx, bu.chunkStorage, bu.chunkListStorage, params, set.Build())
+		instanceMissing, err := cas.FindMissing(ctx, bu.chunkStorage, bu.chunkMappingStorage, params, set.Build())
 		if err != nil {
 			bu.flushError = util.StatusWrap(err, "Failed to determine existence of previous batch of blobs")
 			return
@@ -129,7 +129,7 @@ func (bu *batchingBlobUploader) flushLocked(ctx context.Context) {
 						defer pending.file.Close()
 						// TODO: Use our random access io to do
 						// multithreaded chunking.
-						err := cas.PutReader(groupCtx, bu.zstdPool, bu.chunkStorage, bu.chunkListStorage, params, pending.digest, io.NewSectionReader(pending.file, 0, d.GetSizeBytes()))
+						err := cas.PutReader(groupCtx, bu.zstdPool, bu.chunkStorage, bu.chunkMappingStorage, params, pending.digest, io.NewSectionReader(pending.file, 0, d.GetSizeBytes()))
 						bu.uploadConcurrencySemaphore.Release(1)
 						if err != nil {
 							return util.StatusWrapf(err, "Failed to store previous blob %s", pending.digest)

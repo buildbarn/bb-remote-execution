@@ -9,6 +9,7 @@ gomock(
     interfaces = [
         "CancelFunc",
         "Context",
+        "IOReader",
         "ReadCloser",
     ],
     library = "//internal/mock/aliases",
@@ -412,7 +413,7 @@ gomock(
 gomock(
     name = "storage_chunk",
     out = "storage_chunk.go",
-    interfaces = ["ListFetcher"],
+    interfaces = ["MappingFetcher"],
     library = "@com_github_buildbarn_bb_storage//pkg/blobstore/chunk",
     mockgen_model_library = "@org_uber_go_mock//mockgen/model",
     mockgen_tool = "@org_uber_go_mock//mockgen",

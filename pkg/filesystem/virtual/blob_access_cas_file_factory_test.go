@@ -32,13 +32,13 @@ func TestBlobAccessCASFileFactoryVirtualSeek(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	chunkBytesReader := mock.NewMockReader[[]byte](ctrl)
-	chunkListFetcher := mock.NewMockListFetcher(ctrl)
+	chunkMappingFetcher := mock.NewMockMappingFetcher(ctrl)
 	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	casFileFactory := virtual.NewBlobAccessCASFileFactory(
 		ctx,
 		chunkBytesReader,
-		chunkListFetcher,
+		chunkMappingFetcher,
 		cdcParametersFetcher,
 		errorLogger,
 	)
@@ -90,13 +90,13 @@ func TestBlobAccessCASFileFactoryGetContainingDigests(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	chunkBytesReader := mock.NewMockReader[[]byte](ctrl)
-	chunkListFetcher := mock.NewMockListFetcher(ctrl)
+	chunkMappingFetcher := mock.NewMockMappingFetcher(ctrl)
 	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	casFileFactory := virtual.NewBlobAccessCASFileFactory(
 		ctx,
 		chunkBytesReader,
-		chunkListFetcher,
+		chunkMappingFetcher,
 		cdcParametersFetcher,
 		errorLogger,
 	)
@@ -126,13 +126,13 @@ func TestBlobAccessCASFileFactoryGetBazelOutputServiceStat(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	chunkBytesReader := mock.NewMockReader[[]byte](ctrl)
-	chunkListFetcher := mock.NewMockListFetcher(ctrl)
+	chunkMappingFetcher := mock.NewMockMappingFetcher(ctrl)
 	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	casFileFactory := virtual.NewBlobAccessCASFileFactory(
 		ctx,
 		chunkBytesReader,
-		chunkListFetcher,
+		chunkMappingFetcher,
 		cdcParametersFetcher,
 		errorLogger,
 	)
@@ -182,13 +182,13 @@ func TestBlobAccessCASFileFactoryAppendOutputPathPersistencyDirectoryNode(t *tes
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	chunkBytesReader := mock.NewMockReader[[]byte](ctrl)
-	chunkListFetcher := mock.NewMockListFetcher(ctrl)
+	chunkMappingFetcher := mock.NewMockMappingFetcher(ctrl)
 	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	casFileFactory := virtual.NewBlobAccessCASFileFactory(
 		ctx,
 		chunkBytesReader,
-		chunkListFetcher,
+		chunkMappingFetcher,
 		cdcParametersFetcher,
 		errorLogger,
 	)

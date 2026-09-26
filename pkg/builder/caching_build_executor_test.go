@@ -48,7 +48,7 @@ func TestCachingBuildExecutorCachedSuccess(t *testing.T) {
 		},
 	})
 	chunkStorage := mock.NewMockBlobAccess[*chunk.Chunk](ctrl)
-	chunkListStorage := mock.NewMockBlobAccess[chunk.List](ctrl)
+	chunkMappingStorage := mock.NewMockBlobAccess[chunk.Mapping](ctrl)
 	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
 	actionCache := mock.NewMockBlobAccess[*remoteexecution.ActionResult](ctrl)
 	actionCache.EXPECT().Put(
@@ -62,7 +62,7 @@ func TestCachingBuildExecutorCachedSuccess(t *testing.T) {
 			}, m)
 			return nil
 		})
-	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, chunkStorage, chunkListStorage, cdcParametersFetcher, zstd.NewUnboundedPool(nil, nil), actionCache, &url.URL{
+	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, chunkStorage, chunkMappingStorage, cdcParametersFetcher, zstd.NewUnboundedPool(nil, nil), actionCache, &url.URL{
 		Scheme: "https",
 		Host:   "example.com",
 		Path:   "/some/sub/directory",
@@ -102,7 +102,7 @@ func TestCachingBuildExecutorCachedSuccessExplicitOK(t *testing.T) {
 		Status: &status_pb.Status{Message: "This is not an error, because it has code zero"},
 	})
 	chunkStorage := mock.NewMockBlobAccess[*chunk.Chunk](ctrl)
-	chunkListStorage := mock.NewMockBlobAccess[chunk.List](ctrl)
+	chunkMappingStorage := mock.NewMockBlobAccess[chunk.Mapping](ctrl)
 	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
 	actionCache := mock.NewMockBlobAccess[*remoteexecution.ActionResult](ctrl)
 	actionCache.EXPECT().Put(
@@ -116,7 +116,7 @@ func TestCachingBuildExecutorCachedSuccessExplicitOK(t *testing.T) {
 			}, m)
 			return nil
 		})
-	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, chunkStorage, chunkListStorage, cdcParametersFetcher, zstd.NewUnboundedPool(nil, nil), actionCache, &url.URL{
+	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, chunkStorage, chunkMappingStorage, cdcParametersFetcher, zstd.NewUnboundedPool(nil, nil), actionCache, &url.URL{
 		Scheme: "https",
 		Host:   "example.com",
 		Path:   "/some/sub/directory",
@@ -162,7 +162,7 @@ func TestCachingBuildExecutorCachedSuccessNonZeroExitCode(t *testing.T) {
 		},
 	})
 	chunkStorage := mock.NewMockBlobAccess[*chunk.Chunk](ctrl)
-	chunkListStorage := mock.NewMockBlobAccess[chunk.List](ctrl)
+	chunkMappingStorage := mock.NewMockBlobAccess[chunk.Mapping](ctrl)
 	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
 	cdcParametersFetcher.EXPECT().
 		FetchCDCParameters(gomock.Any(), gomock.Any()).
@@ -174,11 +174,9 @@ func TestCachingBuildExecutorCachedSuccessNonZeroExitCode(t *testing.T) {
 		gomock.Any(),
 	).
 		DoAndReturn(func(ctx context.Context, digest digest.Digest, chunk *chunk.Chunk) error {
-			data, err := chunk.GetBytes(ctx)
-			require.NoError(t, err)
+			data := chunk.GetBytes()
 			historicalExecuteResponse := &cas_proto.HistoricalExecuteResponse{}
-			err = proto.Unmarshal(data, historicalExecuteResponse)
-			require.NoError(t, err)
+			require.NoError(t, proto.Unmarshal(data, historicalExecuteResponse))
 			testutil.RequireEqualProto(t, &cas_proto.HistoricalExecuteResponse{
 				ActionDigest: &remoteexecution.Digest{
 					Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
@@ -194,7 +192,7 @@ func TestCachingBuildExecutorCachedSuccessNonZeroExitCode(t *testing.T) {
 			return nil
 		})
 	actionCache := mock.NewMockBlobAccess[*remoteexecution.ActionResult](ctrl)
-	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, chunkStorage, chunkListStorage, cdcParametersFetcher, zstd.NewUnboundedPool(nil, nil), actionCache, &url.URL{
+	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, chunkStorage, chunkMappingStorage, cdcParametersFetcher, zstd.NewUnboundedPool(nil, nil), actionCache, &url.URL{
 		Scheme: "https",
 		Host:   "example.com",
 		Path:   "/some/sub/directory",
@@ -234,7 +232,7 @@ func TestCachingBuildExecutorCachedStorageFailure(t *testing.T) {
 		},
 	})
 	chunkStorage := mock.NewMockBlobAccess[*chunk.Chunk](ctrl)
-	chunkListStorage := mock.NewMockBlobAccess[chunk.List](ctrl)
+	chunkMappingStorage := mock.NewMockBlobAccess[chunk.Mapping](ctrl)
 	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
 	actionCache := mock.NewMockBlobAccess[*remoteexecution.ActionResult](ctrl)
 	actionCache.EXPECT().Put(
@@ -248,7 +246,7 @@ func TestCachingBuildExecutorCachedStorageFailure(t *testing.T) {
 			}, m)
 			return status.Error(codes.Internal, "Network problems")
 		})
-	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, chunkStorage, chunkListStorage, cdcParametersFetcher, zstd.NewUnboundedPool(nil, nil), actionCache, &url.URL{
+	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, chunkStorage, chunkMappingStorage, cdcParametersFetcher, zstd.NewUnboundedPool(nil, nil), actionCache, &url.URL{
 		Scheme: "https",
 		Host:   "example.com",
 		Path:   "/",
@@ -287,7 +285,7 @@ func TestCachingBuildExecutorUncachedDoNotCache(t *testing.T) {
 		},
 	})
 	chunkStorage := mock.NewMockBlobAccess[*chunk.Chunk](ctrl)
-	chunkListStorage := mock.NewMockBlobAccess[chunk.List](ctrl)
+	chunkMappingStorage := mock.NewMockBlobAccess[chunk.Mapping](ctrl)
 	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
 	cdcParametersFetcher.EXPECT().
 		FetchCDCParameters(gomock.Any(), gomock.Any()).
@@ -300,11 +298,9 @@ func TestCachingBuildExecutorUncachedDoNotCache(t *testing.T) {
 			gomock.Any(),
 		).
 		DoAndReturn(func(ctx context.Context, digest digest.Digest, chunk *chunk.Chunk) error {
-			data, err := chunk.GetBytes(ctx)
-			require.NoError(t, err)
+			data := chunk.GetBytes()
 			historicalExecuteResponse := &cas_proto.HistoricalExecuteResponse{}
-			err = proto.Unmarshal(data, historicalExecuteResponse)
-			require.NoError(t, err)
+			require.NoError(t, proto.Unmarshal(data, historicalExecuteResponse))
 			testutil.RequireEqualProto(t, &cas_proto.HistoricalExecuteResponse{
 				ActionDigest: &remoteexecution.Digest{
 					Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
@@ -319,7 +315,7 @@ func TestCachingBuildExecutorUncachedDoNotCache(t *testing.T) {
 			return nil
 		})
 	actionCache := mock.NewMockBlobAccess[*remoteexecution.ActionResult](ctrl)
-	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, chunkStorage, chunkListStorage, cdcParametersFetcher, zstd.NewUnboundedPool(nil, nil), actionCache, &url.URL{
+	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, chunkStorage, chunkMappingStorage, cdcParametersFetcher, zstd.NewUnboundedPool(nil, nil), actionCache, &url.URL{
 		Scheme: "http",
 		Host:   "example.com",
 		Path:   "/some/sub/directory/",
@@ -359,7 +355,7 @@ func TestCachingBuildExecutorUncachedError(t *testing.T) {
 		Status: status.New(codes.DeadlineExceeded, "Build took more than ten seconds").Proto(),
 	})
 	chunkStorage := mock.NewMockBlobAccess[*chunk.Chunk](ctrl)
-	chunkListStorage := mock.NewMockBlobAccess[chunk.List](ctrl)
+	chunkMappingStorage := mock.NewMockBlobAccess[chunk.Mapping](ctrl)
 	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
 	cdcParametersFetcher.EXPECT().
 		FetchCDCParameters(gomock.Any(), gomock.Any()).
@@ -371,11 +367,9 @@ func TestCachingBuildExecutorUncachedError(t *testing.T) {
 		gomock.Any(),
 	).
 		DoAndReturn(func(ctx context.Context, digest digest.Digest, chunk *chunk.Chunk) error {
-			data, err := chunk.GetBytes(ctx)
-			require.NoError(t, err)
+			data := chunk.GetBytes()
 			historicalExecuteResponse := &cas_proto.HistoricalExecuteResponse{}
-			err = proto.Unmarshal(data, historicalExecuteResponse)
-			require.NoError(t, err)
+			require.NoError(t, proto.Unmarshal(data, historicalExecuteResponse))
 			testutil.RequireEqualProto(t, &cas_proto.HistoricalExecuteResponse{
 				ActionDigest: &remoteexecution.Digest{
 					Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
@@ -391,7 +385,7 @@ func TestCachingBuildExecutorUncachedError(t *testing.T) {
 			return nil
 		})
 	actionCache := mock.NewMockBlobAccess[*remoteexecution.ActionResult](ctrl)
-	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, chunkStorage, chunkListStorage, cdcParametersFetcher, zstd.NewUnboundedPool(nil, nil), actionCache, &url.URL{
+	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, chunkStorage, chunkMappingStorage, cdcParametersFetcher, zstd.NewUnboundedPool(nil, nil), actionCache, &url.URL{
 		Scheme: "http",
 		Host:   "example.com",
 		Path:   "/some/sub/directory/",
@@ -432,7 +426,7 @@ func TestCachingBuildExecutorUncachedStorageFailure(t *testing.T) {
 		Status: status.New(codes.DeadlineExceeded, "Build took more than ten seconds").Proto(),
 	})
 	chunkStorage := mock.NewMockBlobAccess[*chunk.Chunk](ctrl)
-	chunkListStorage := mock.NewMockBlobAccess[chunk.List](ctrl)
+	chunkMappingStorage := mock.NewMockBlobAccess[chunk.Mapping](ctrl)
 	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
 	cdcParametersFetcher.EXPECT().
 		FetchCDCParameters(gomock.Any(), gomock.Any()).
@@ -444,11 +438,9 @@ func TestCachingBuildExecutorUncachedStorageFailure(t *testing.T) {
 		gomock.Any(),
 	).
 		DoAndReturn(func(ctx context.Context, digest digest.Digest, chunk *chunk.Chunk) error {
-			data, err := chunk.GetBytes(ctx)
-			require.NoError(t, err)
+			data := chunk.GetBytes()
 			historicalExecuteResponse := &cas_proto.HistoricalExecuteResponse{}
-			err = proto.Unmarshal(data, historicalExecuteResponse)
-			require.NoError(t, err)
+			require.NoError(t, proto.Unmarshal(data, historicalExecuteResponse))
 			testutil.RequireEqualProto(t, &cas_proto.HistoricalExecuteResponse{
 				ActionDigest: &remoteexecution.Digest{
 					Hash:      "64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c",
@@ -464,7 +456,7 @@ func TestCachingBuildExecutorUncachedStorageFailure(t *testing.T) {
 			return status.Error(codes.Internal, "Cannot store historical execute response")
 		})
 	actionCache := mock.NewMockBlobAccess[*remoteexecution.ActionResult](ctrl)
-	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, chunkStorage, chunkListStorage, cdcParametersFetcher, zstd.NewUnboundedPool(nil, nil), actionCache, &url.URL{
+	cachingBuildExecutor := builder.NewCachingBuildExecutor(baseBuildExecutor, chunkStorage, chunkMappingStorage, cdcParametersFetcher, zstd.NewUnboundedPool(nil, nil), actionCache, &url.URL{
 		Scheme: "http",
 		Host:   "example.com",
 		Path:   "/some/sub/directory/",

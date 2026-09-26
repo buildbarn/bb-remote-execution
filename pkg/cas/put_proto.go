@@ -19,7 +19,7 @@ import (
 // Content Addressable Storage (CAS). It computes the digest of the
 // message and stores it under that key. The digest is then returned, so
 // that the object may be referenced.
-func PutProto(ctx context.Context, zstdPool zstd.Pool, chunkStorage blobstore.BlobAccess[*chunk.Chunk], chunkListStorage blobstore.BlobAccess[chunk.List], params *remoteexecution.RepMaxCdcParams, message proto.Message, digestFunction digest.Function) (digest.Digest, error) {
+func PutProto(ctx context.Context, zstdPool zstd.Pool, chunkStorage blobstore.BlobAccess[*chunk.Chunk], chunkMappingStorage blobstore.BlobAccess[chunk.Mapping], params *remoteexecution.RepMaxCdcParams, message proto.Message, digestFunction digest.Function) (digest.Digest, error) {
 	data, err := proto.Marshal(message)
 	if err != nil {
 		return digest.BadDigest, err
@@ -29,7 +29,7 @@ func PutProto(ctx context.Context, zstdPool zstd.Pool, chunkStorage blobstore.Bl
 		return digest.BadDigest, err
 	}
 	blobDigest := digestGenerator.Sum()
-	if err := bb_cas.PutReader(ctx, zstdPool, chunkStorage, chunkListStorage, params, blobDigest, bytes.NewReader(data)); err != nil {
+	if err := bb_cas.PutReader(ctx, zstdPool, chunkStorage, chunkMappingStorage, params, blobDigest, bytes.NewReader(data)); err != nil {
 		return digest.BadDigest, err
 	}
 	return blobDigest, nil

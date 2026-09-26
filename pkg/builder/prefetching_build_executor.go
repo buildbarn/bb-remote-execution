@@ -32,7 +32,7 @@ import (
 type prefetchingBuildExecutor struct {
 	BuildExecutor
 	chunkBytesReader            reader.Reader[[]byte]
-	chunkListFetcher            chunk.ListFetcher
+	chunkMappingFetcher         chunk.MappingFetcher
 	cdcParametersFetcher        capabilities.CDCParametersFetcher
 	directoryFetcher            re_cas.DirectoryFetcher
 	fileReadSemaphore           *semaphore.Weighted
@@ -44,7 +44,7 @@ type prefetchingBuildExecutor struct {
 	emptyProfile                *fsac.FileSystemAccessProfile
 	zstdPool                    zstd.Pool
 	chunkStorage                blobstore.BlobAccess[*chunk.Chunk]
-	chunkListStorage            blobstore.BlobAccess[chunk.List]
+	chunkMappingStorage         blobstore.BlobAccess[chunk.Mapping]
 }
 
 // NewPrefetchingBuildExecutor creates a decorator for BuildExecutor
@@ -63,11 +63,11 @@ type prefetchingBuildExecutor struct {
 // directory (FUSE, NFSv4). On workers that use native build
 // directories, the monitor is ignored, leading to empty Bloom filters
 // being stored.
-func NewPrefetchingBuildExecutor(buildExecutor BuildExecutor, chunkBytesReader reader.Reader[[]byte], chunkListFetcher chunk.ListFetcher, cdcParametersFetcher capabilities.CDCParametersFetcher, directoryFetcher re_cas.DirectoryFetcher, fileReadSemaphore *semaphore.Weighted, fileSystemAccessCache blobstore.BlobAccess[*fsac.FileSystemAccessProfile], maximumMessageSizeBytes, bloomFilterBitsPerElement, bloomFilterMaximumSizeBytes int, logFileSystemAccessProfile bool, zstdPool zstd.Pool, chunkStorage blobstore.BlobAccess[*chunk.Chunk], chunkListStorage blobstore.BlobAccess[chunk.List]) BuildExecutor {
+func NewPrefetchingBuildExecutor(buildExecutor BuildExecutor, chunkBytesReader reader.Reader[[]byte], chunkMappingFetcher chunk.MappingFetcher, cdcParametersFetcher capabilities.CDCParametersFetcher, directoryFetcher re_cas.DirectoryFetcher, fileReadSemaphore *semaphore.Weighted, fileSystemAccessCache blobstore.BlobAccess[*fsac.FileSystemAccessProfile], maximumMessageSizeBytes, bloomFilterBitsPerElement, bloomFilterMaximumSizeBytes int, logFileSystemAccessProfile bool, zstdPool zstd.Pool, chunkStorage blobstore.BlobAccess[*chunk.Chunk], chunkMappingStorage blobstore.BlobAccess[chunk.Mapping]) BuildExecutor {
 	be := &prefetchingBuildExecutor{
 		BuildExecutor:               buildExecutor,
 		chunkBytesReader:            chunkBytesReader,
-		chunkListFetcher:            chunkListFetcher,
+		chunkMappingFetcher:         chunkMappingFetcher,
 		cdcParametersFetcher:        cdcParametersFetcher,
 		directoryFetcher:            directoryFetcher,
 		fileReadSemaphore:           fileReadSemaphore,
@@ -78,7 +78,7 @@ func NewPrefetchingBuildExecutor(buildExecutor BuildExecutor, chunkBytesReader r
 		logFileSystemAccessProfile:  logFileSystemAccessProfile,
 		zstdPool:                    zstdPool,
 		chunkStorage:                chunkStorage,
-		chunkListStorage:            chunkListStorage,
+		chunkMappingStorage:         chunkMappingStorage,
 	}
 	be.emptyProfile = be.computeProfile(access.NewBloomFilterComputingUnreadDirectoryMonitor())
 	return be
@@ -101,7 +101,7 @@ func (be *prefetchingBuildExecutor) storeFileSystemAccessProfileToCAS(ctx contex
 		ctx,
 		be.zstdPool,
 		be.chunkStorage,
-		be.chunkListStorage,
+		be.chunkMappingStorage,
 		params,
 		profile,
 		digestFunction,
@@ -158,7 +158,7 @@ func (be *prefetchingBuildExecutor) Execute(ctx context.Context, filePool pool.F
 			bloomFilter:          bloomFilter,
 			digestFunction:       digestFunction,
 			chunkBytesReader:     be.chunkBytesReader,
-			chunkListFetcher:     be.chunkListFetcher,
+			chunkMappingFetcher:  be.chunkMappingFetcher,
 			cdcParametersFetcher: be.cdcParametersFetcher,
 			directoryFetcher:     be.directoryFetcher,
 			fileReadSemaphore:    be.fileReadSemaphore,
@@ -246,7 +246,7 @@ type directoryPrefetcher struct {
 	bloomFilter          *access.BloomFilterReader
 	digestFunction       digest.Function
 	chunkBytesReader     reader.Reader[[]byte]
-	chunkListFetcher     chunk.ListFetcher
+	chunkMappingFetcher  chunk.MappingFetcher
 	cdcParametersFetcher capabilities.CDCParametersFetcher
 	directoryFetcher     re_cas.DirectoryFetcher
 	fileReadSemaphore    *semaphore.Weighted
@@ -305,7 +305,7 @@ func (dp *directoryPrefetcher) prefetchRecursively(pathTrace *path.Trace, direct
 					dp.fileReadSemaphore.Release(1)
 					return util.StatusWrap(err, "Failed to fetch CDC parameters")
 				}
-				_, err = cas.ReadBlobAt(dp.context, dp.chunkBytesReader, dp.chunkListFetcher, params, fileDigest, b[:], 0)
+				_, err = cas.ReadBlobAt(dp.context, dp.chunkBytesReader, dp.chunkMappingFetcher, params, fileDigest, b[:], 0)
 				dp.fileReadSemaphore.Release(1)
 				if err != nil && err != io.EOF && status.Code(err) != codes.Canceled {
 					return util.StatusWrapf(re_cas.FailedPreconditionOnMissingBlob(fileDigest, err), "Failed to prefetch file %#v", childPathTrace.GetUNIXString())

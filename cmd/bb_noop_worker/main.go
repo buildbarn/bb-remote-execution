@@ -46,7 +46,7 @@ func main() {
 		// Content Addressable Storage (CAS), as those may contain error
 		// message templates that this worker respects.
 		zstdPool := zstd.NewPoolFromConfiguration(configuration.ZstdPool)
-		chunkBytesReader, _, _, chunkListFetcher, cdcParametersFetcher, _, err := blobstore_configuration.NewCASFromConfiguration(
+		chunkBytesReader, _, _, chunkMappingFetcher, cdcParametersFetcher, _, err := blobstore_configuration.NewCASFromConfiguration(
 			dependenciesGroup,
 			configuration.ContentAddressableStorage,
 			grpcClientFactory,
@@ -78,7 +78,7 @@ func main() {
 			builder.NewNoopBuildExecutor(
 				cas.NewMessageReader[remoteexecution.Command](
 					chunkBytesReader,
-					chunkListFetcher,
+					chunkMappingFetcher,
 					cdcParametersFetcher,
 					int(configuration.MaximumMessageSizeBytes),
 				),

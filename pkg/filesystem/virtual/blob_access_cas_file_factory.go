@@ -23,7 +23,7 @@ import (
 type blobAccessCASFileFactory struct {
 	context              context.Context
 	chunkBytesReader     reader.Reader[[]byte]
-	chunkListFetcher     chunk.ListFetcher
+	chunkMappingFetcher  chunk.MappingFetcher
 	cdcParametersFetcher capabilities.CDCParametersFetcher
 	errorLogger          util.ErrorLogger
 }
@@ -32,11 +32,11 @@ type blobAccessCASFileFactory struct {
 // to create FUSE files that are directly backed by BlobAccess. Files
 // created by this factory are entirely immutable; it is only possible
 // to read their contents.
-func NewBlobAccessCASFileFactory(ctx context.Context, chunkBytesReader reader.Reader[[]byte], chunkListFetcher chunk.ListFetcher, cdcParametersFetcher capabilities.CDCParametersFetcher, errorLogger util.ErrorLogger) CASFileFactory {
+func NewBlobAccessCASFileFactory(ctx context.Context, chunkBytesReader reader.Reader[[]byte], chunkMappingFetcher chunk.MappingFetcher, cdcParametersFetcher capabilities.CDCParametersFetcher, errorLogger util.ErrorLogger) CASFileFactory {
 	return &blobAccessCASFileFactory{
 		context:              ctx,
 		chunkBytesReader:     chunkBytesReader,
-		chunkListFetcher:     chunkListFetcher,
+		chunkMappingFetcher:  chunkMappingFetcher,
 		cdcParametersFetcher: cdcParametersFetcher,
 		errorLogger:          errorLogger,
 	}
@@ -146,7 +146,7 @@ func (f *blobAccessCASFile) VirtualRead(ctx context.Context, buf []byte, off uin
 	if len(buf) > 0 {
 		params, err := f.factory.cdcParametersFetcher.FetchCDCParameters(f.factory.context, f.digest.GetInstanceName())
 		if err == nil {
-			n, err := cas.ReadBlobAt(f.factory.context, f.factory.chunkBytesReader, f.factory.chunkListFetcher, params, f.digest, buf, int64(off))
+			n, err := cas.ReadBlobAt(f.factory.context, f.factory.chunkBytesReader, f.factory.chunkMappingFetcher, params, f.digest, buf, int64(off))
 			if n == len(buf) {
 				return len(buf), eof, StatusOK
 			}

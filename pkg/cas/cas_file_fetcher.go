@@ -16,16 +16,16 @@ import (
 
 type blobAccessFileFetcher struct {
 	chunkBytesReader     reader.Reader[[]byte]
-	chunkListFetcher     chunk.ListFetcher
+	chunkMappingFetcher  chunk.MappingFetcher
 	cdcParametersFetcher capabilities.CDCParametersFetcher
 }
 
 // NewCASFileFetcher creates a FileFetcher that reads files fom a
 // Content Addressable Storage (CAS).
-func NewCASFileFetcher(chunkBytesReader reader.Reader[[]byte], chunkListFetcher chunk.ListFetcher, cdcParametersFetcher capabilities.CDCParametersFetcher) FileFetcher {
+func NewCASFileFetcher(chunkBytesReader reader.Reader[[]byte], chunkMappingFetcher chunk.MappingFetcher, cdcParametersFetcher capabilities.CDCParametersFetcher) FileFetcher {
 	return &blobAccessFileFetcher{
 		chunkBytesReader:     chunkBytesReader,
-		chunkListFetcher:     chunkListFetcher,
+		chunkMappingFetcher:  chunkMappingFetcher,
 		cdcParametersFetcher: cdcParametersFetcher,
 	}
 }
@@ -46,7 +46,7 @@ func (ff *blobAccessFileFetcher) GetFile(ctx context.Context, digest digest.Dige
 	if err != nil {
 		return util.StatusWrap(err, "Failed to fetch CDC parameters")
 	}
-	if err := cas.IntoWriter(ctx, ff.chunkBytesReader, ff.chunkListFetcher, params, digest, 0, w); err != nil {
+	if err := cas.IntoWriter(ctx, ff.chunkBytesReader, ff.chunkMappingFetcher, params, digest, 0, w); err != nil {
 		// Ensure no traces are left behind upon failure.
 		directory.Remove(name)
 		return FailedPreconditionOnMissingBlob(digest, err)

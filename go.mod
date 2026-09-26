@@ -13,7 +13,7 @@ require (
 	github.com/bazelbuild/buildtools v0.0.0-20260527145659-eb0c58a06830
 	github.com/bazelbuild/remote-apis v0.0.0-20260908115904-76ddd98e1f92
 	github.com/bazelbuild/rules_go v0.63.0
-	github.com/buildbarn/bb-storage v0.0.0-20260924153635-068b72c0f26e
+	github.com/buildbarn/bb-storage v0.0.0-20260926191527-c01b28452e9f
 	github.com/buildbarn/go-xdr v0.0.0-20240702182809-236788cf9e89
 	github.com/golang/protobuf v1.5.4
 	github.com/google/uuid v1.6.0

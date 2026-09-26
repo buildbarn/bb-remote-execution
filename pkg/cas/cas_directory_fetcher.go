@@ -57,7 +57,6 @@ func (df *casDirectoryFetcher) GetTreeRootDirectory(ctx context.Context, treeDig
 	if err != nil {
 		return nil, err
 	}
-	defer r.Close()
 
 	var rootDirectory *remoteexecution.Directory
 	err = util.VisitProtoBytesFields(r, func(fieldNumber protowire.Number, offsetBytes, sizeBytes int64, fieldReader io.Reader) error {
@@ -105,7 +104,6 @@ func (df *casDirectoryFetcher) GetTreeChildDirectory(ctx context.Context, treeDi
 	if err != nil {
 		return nil, err
 	}
-	defer r.Close()
 
 	var foundDirectory *remoteexecution.Directory
 	digestFunction := childDigest.GetDigestFunction()
