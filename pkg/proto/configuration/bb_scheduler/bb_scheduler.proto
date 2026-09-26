@@ -53,7 +53,7 @@ message ApplicationConfiguration {
       worker_grpc_servers = 4;
 
   // Configuration for blob storage.
-  buildbarn.configuration.blobstore.BlobAccessConfiguration
+  buildbarn.configuration.blobstore.ContentAddressableStorageConfiguration
       content_addressable_storage = 6;
 
   // Maximum Protobuf message size to unmarshal.

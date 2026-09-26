@@ -9,6 +9,7 @@ gomock(
     interfaces = [
         "CancelFunc",
         "Context",
+        "IOReader",
         "ReadCloser",
     ],
     library = "//internal/mock/aliases",
@@ -34,19 +35,9 @@ gomock(
     out = "blobstore.go",
     interfaces = ["BlobAccess"],
     library = "@com_github_buildbarn_bb_storage//pkg/blobstore",
-    mockgen_model_library = "@org_uber_go_mock//mockgen/model",
     mockgen_tool = "@org_uber_go_mock//mockgen",
     package = "mock",
-)
-
-gomock(
-    name = "blobstore_slicing",
-    out = "blobstore_slicing.go",
-    interfaces = ["BlobSlicer"],
-    library = "@com_github_buildbarn_bb_storage//pkg/blobstore/slicing",
-    mockgen_model_library = "@org_uber_go_mock//mockgen/model",
-    mockgen_tool = "@org_uber_go_mock//mockgen",
-    package = "mock",
+    source = "@com_github_buildbarn_bb_storage//pkg/blobstore:blob_access.go",
 )
 
 gomock(
@@ -85,6 +76,7 @@ gomock(
         "DirectoryFetcher",
         "DirectoryWalker",
         "FileFetcher",
+        "BlobUploader",
     ],
     library = "//pkg/cas",
     mockgen_model_library = "@org_uber_go_mock//mockgen/model",
@@ -387,9 +379,21 @@ gomock(
 )
 
 gomock(
+    name = "storage_capabilities",
+    out = "storage_capabilities.go",
+    interfaces = ["CDCParametersFetcher"],
+    library = "@com_github_buildbarn_bb_storage//pkg/capabilities",
+    mockgen_model_library = "@org_uber_go_mock//mockgen/model",
+    mockgen_tool = "@org_uber_go_mock//mockgen",
+    package = "mock",
+)
+
+gomock(
     name = "storage_cas",
     out = "storage_cas.go",
-    interfaces = ["StreamReader"],
+    interfaces = [
+        "StreamReader",
+    ],
     library = "@com_github_buildbarn_bb_storage//pkg/cas",
     mockgen_model_library = "@org_uber_go_mock//mockgen/model",
     mockgen_tool = "@org_uber_go_mock//mockgen",
@@ -397,13 +401,23 @@ gomock(
 )
 
 gomock(
-    name = "storage_cas_message_reader",
-    out = "storage_cas_message_reader.go",
-    interfaces = ["MessageReader"],
-    library = "@com_github_buildbarn_bb_storage//pkg/cas",
+    name = "storage_cas_reader",
+    out = "storage_cas_reader.go",
+    interfaces = ["Reader"],
+    library = "@com_github_buildbarn_bb_storage//pkg/cas/reader",
     mockgen_tool = "@org_uber_go_mock//mockgen",
     package = "mock",
-    source = "@com_github_buildbarn_bb_storage//pkg/cas:message_reader.go",
+    source = "@com_github_buildbarn_bb_storage//pkg/cas/reader:reader.go",
+)
+
+gomock(
+    name = "storage_chunk",
+    out = "storage_chunk.go",
+    interfaces = ["MappingFetcher"],
+    library = "@com_github_buildbarn_bb_storage//pkg/blobstore/chunk",
+    mockgen_model_library = "@org_uber_go_mock//mockgen/model",
+    mockgen_tool = "@org_uber_go_mock//mockgen",
+    package = "mock",
 )
 
 gomock(
@@ -454,7 +468,6 @@ go_library(
         ":aliases.go",
         ":auth.go",
         ":blobstore.go",
-        ":blobstore_slicing.go",
         ":blockdevice.go",
         ":builder.go",
         ":cas.go",
@@ -478,8 +491,10 @@ go_library(
         ":runner.go",
         ":runner_pb.go",
         ":storage_builder.go",
+        ":storage_capabilities.go",
         ":storage_cas.go",
-        ":storage_cas_message_reader.go",
+        ":storage_cas_reader.go",
+        ":storage_chunk.go",
         ":storage_util.go",
         ":sync.go",
         ":trace.go",
@@ -520,9 +535,9 @@ go_library(
         "//pkg/scheduler/routing",
         "@bazel_remote_apis//build/bazel/remote/execution/v2:remote_execution_go_proto",
         "@com_github_buildbarn_bb_storage//pkg/blobstore",
-        "@com_github_buildbarn_bb_storage//pkg/blobstore/buffer",
-        "@com_github_buildbarn_bb_storage//pkg/blobstore/slicing",
+        "@com_github_buildbarn_bb_storage//pkg/blobstore/chunk",
         "@com_github_buildbarn_bb_storage//pkg/builder",
+        "@com_github_buildbarn_bb_storage//pkg/capabilities",
         "@com_github_buildbarn_bb_storage//pkg/cas",
         "@com_github_buildbarn_bb_storage//pkg/clock",
         "@com_github_buildbarn_bb_storage//pkg/digest",

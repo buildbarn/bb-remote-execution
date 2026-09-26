@@ -23,7 +23,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/auth"
 	"github.com/buildbarn/bb-storage/pkg/builder"
 	"github.com/buildbarn/bb-storage/pkg/capabilities"
-	"github.com/buildbarn/bb-storage/pkg/cas"
+	"github.com/buildbarn/bb-storage/pkg/cas/reader"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/otel"
@@ -236,7 +236,7 @@ type InMemoryBuildQueueConfiguration struct {
 type InMemoryBuildQueue struct {
 	capabilities.Provider
 
-	actionReader                        cas.MessageReader[*remoteexecution.Action]
+	actionReader                        reader.Reader[*remoteexecution.Action]
 	clock                               clock.Clock
 	uuidGenerator                       util.UUIDGenerator
 	configuration                       *InMemoryBuildQueueConfiguration
@@ -315,7 +315,7 @@ var inMemoryBuildQueueCapabilitiesProvider = capabilities.NewStaticProvider(&rem
 // NewInMemoryBuildQueue creates a new InMemoryBuildQueue that is in the
 // initial state. It does not have any queues, workers or queued
 // execution requests. All of these are created by sending it RPCs.
-func NewInMemoryBuildQueue(actionReader cas.MessageReader[*remoteexecution.Action], clock clock.Clock, uuidGenerator util.UUIDGenerator, configuration *InMemoryBuildQueueConfiguration, actionRouter routing.ActionRouter, executeAuthorizer, modifyDrainsAuthorizer, killOperationsAuthorizer, synchronizeAuthorizer auth.Authorizer) *InMemoryBuildQueue {
+func NewInMemoryBuildQueue(actionReader reader.Reader[*remoteexecution.Action], clock clock.Clock, uuidGenerator util.UUIDGenerator, configuration *InMemoryBuildQueueConfiguration, actionRouter routing.ActionRouter, executeAuthorizer, modifyDrainsAuthorizer, killOperationsAuthorizer, synchronizeAuthorizer auth.Authorizer) *InMemoryBuildQueue {
 	inMemoryBuildQueuePrometheusMetrics.Do(func() {
 		prometheus.MustRegister(inMemoryBuildQueueInFlightDeduplicationsTotal)
 
@@ -448,7 +448,7 @@ func (bq *InMemoryBuildQueue) Execute(in *remoteexecution.ExecuteRequest, out re
 	if err != nil {
 		return util.StatusWrap(err, "Failed to extract digest for action")
 	}
-	action, err := bq.actionReader.ReadMessage(ctx, actionDigest)
+	action, err := bq.actionReader.Read(ctx, actionDigest)
 	if err != nil {
 		return util.StatusWrap(err, "Failed to obtain action")
 	}

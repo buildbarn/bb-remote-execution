@@ -19,3 +19,6 @@ type Context = context.Context
 
 // ReadCloser is an alias of io.ReadCloser.
 type ReadCloser = io.ReadCloser
+
+// IOReader is an alias of io.Reader.
+type IOReader = io.Reader
