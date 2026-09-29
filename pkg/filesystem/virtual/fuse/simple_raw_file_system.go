@@ -705,7 +705,19 @@ func (rfs *simpleRawFileSystem) Open(cancel <-chan struct{}, input *fuse.OpenIn,
 	var options virtual.OpenExistingOptions
 	oflagsToOpenExistingOptions(input.Flags, &options)
 
-	return toFUSEStatus(i.VirtualOpenSelf(ctx, shareAccess, &options, 0, &virtual.Attributes{}))
+	if s := toFUSEStatus(i.VirtualOpenSelf(ctx, shareAccess, &options, 0, &virtual.Attributes{})); s != fuse.OK {
+		return s
+	}
+
+	// The kernel discards a file's page cache on every open() unless
+	// FOPEN_KEEP_CACHE is set. Files whose contents never change can
+	// safely keep it, so that concurrent actions sharing an input
+	// don't invalidate each other's mapped pages.
+	var p virtual.ApplyIsContentsImmutable
+	if i.VirtualApply(&p) && p.Immutable {
+		out.OpenFlags |= fuse.FOPEN_KEEP_CACHE
+	}
+	return fuse.OK
 }
 
 func (rfs *simpleRawFileSystem) Read(cancel <-chan struct{}, input *fuse.ReadIn, buf []byte) (fuse.ReadResult, fuse.Status) {
