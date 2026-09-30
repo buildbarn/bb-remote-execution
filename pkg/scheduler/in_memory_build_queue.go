@@ -1057,41 +1057,52 @@ func (bq *InMemoryBuildQueue) ListWorkers(ctx context.Context, request *buildque
 		startAfterWorkerKey = &workerKey
 	}
 
+	filter := request.Filter
+	if filter == nil {
+		return nil, status.Error(codes.InvalidArgument, "No filter specified")
+	}
+
 	bq.enter(bq.clock.Now())
 	defer bq.leave()
 
 	// Obtain IDs of all workers in sorted order.
 	var scq *sizeClassQueue
 	var keyList []string
-	switch filter := request.Filter.GetType().(type) {
+	switch filterType := filter.Type.(type) {
 	case *buildqueuestate.ListWorkersRequest_Filter_All:
 		var err error
-		scq, err = bq.getSizeClassQueueByName(filter.All)
+		scq, err = bq.getSizeClassQueueByName(filterType.All)
 		if err != nil {
 			return nil, err
 		}
 		for workerKey := range scq.workers {
-			keyList = append(keyList, string(workerKey))
+			if workerMatchesPattern(workerKey.getWorkerID(), request.Filter.GetWorkerIdPattern()) {
+				keyList = append(keyList, string(workerKey))
+			}
 		}
 	case *buildqueuestate.ListWorkersRequest_Filter_Executing:
 		var i *invocation
 		var err error
-		i, scq, err = bq.getInvocationByName(filter.Executing)
+		i, scq, err = bq.getInvocationByName(filterType.Executing)
 		if err != nil {
 			return nil, err
 		}
 		for w := range i.executingWorkers {
-			keyList = append(keyList, string(w.workerKey))
+			if workerMatchesPattern(w.workerKey.getWorkerID(), request.Filter.GetWorkerIdPattern()) {
+				keyList = append(keyList, string(w.workerKey))
+			}
 		}
 	case *buildqueuestate.ListWorkersRequest_Filter_IdleSynchronizing:
 		var i *invocation
 		var err error
-		i, scq, err = bq.getInvocationByName(filter.IdleSynchronizing)
+		i, scq, err = bq.getInvocationByName(filterType.IdleSynchronizing)
 		if err != nil {
 			return nil, err
 		}
 		for _, entry := range i.idleSynchronizingWorkers {
-			keyList = append(keyList, string(entry.worker.workerKey))
+			if workerMatchesPattern(entry.worker.workerKey.getWorkerID(), request.Filter.GetWorkerIdPattern()) {
+				keyList = append(keyList, string(entry.worker.workerKey))
+			}
 		}
 	default:
 		return nil, status.Error(codes.InvalidArgument, "Unknown filter provided")
@@ -2328,7 +2339,11 @@ func (o *operation) getOperationState(bq *InMemoryBuildQueue) *buildqueuestate.O
 		}
 	case remoteexecution.ExecutionStage_EXECUTING:
 		s.Stage = &buildqueuestate.OperationState_Executing{
-			Executing: &emptypb.Empty{},
+			Executing: &buildqueuestate.WorkerState{
+				Id:      t.currentWorker.workerKey.getWorkerID(),
+				Timeout: bq.cleanupQueue.getTimestamp(t.currentWorker.cleanupKey),
+				Drained: t.currentWorker.isDrained(t.getCurrentSizeClassQueue(), t.currentWorker.workerKey.getWorkerID()),
+			},
 		}
 	case remoteexecution.ExecutionStage_COMPLETED:
 		s.Stage = &buildqueuestate.OperationState_Completed{
