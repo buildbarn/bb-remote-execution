@@ -3,6 +3,7 @@ package builder
 import (
 	"context"
 	"log"
+	"os"
 	"strconv"
 	"sync/atomic"
 
@@ -16,6 +17,7 @@ import (
 type sharedBuildDirectoryCreator struct {
 	base                 BuildDirectoryCreator
 	nextParallelActionID *atomic.Uint64
+	buildDirectoryMode   os.FileMode
 }
 
 // NewSharedBuildDirectoryCreator is an adapter for
@@ -28,10 +30,11 @@ type sharedBuildDirectoryCreator struct {
 // This adapter can be used to add concurrency to a single worker. When
 // executing build actions in parallel, every build action needs its own
 // build directory.
-func NewSharedBuildDirectoryCreator(base BuildDirectoryCreator, nextParallelActionID *atomic.Uint64) BuildDirectoryCreator {
+func NewSharedBuildDirectoryCreator(base BuildDirectoryCreator, nextParallelActionID *atomic.Uint64, buildDirectoryMode os.FileMode) BuildDirectoryCreator {
 	return &sharedBuildDirectoryCreator{
 		base:                 base,
 		nextParallelActionID: nextParallelActionID,
+		buildDirectoryMode:   buildDirectoryMode,
 	}
 }
 
@@ -73,7 +76,7 @@ func (dc *sharedBuildDirectoryCreator) GetBuildDirectory(ctx context.Context, ac
 	// Create the subdirectory.
 	childDirectoryName := path.MustNewComponent(name)
 	childDirectoryPath := parentDirectoryPath.Append(childDirectoryName)
-	if err := parentDirectory.Mkdir(childDirectoryName, 0o777); err != nil {
+	if err := parentDirectory.Mkdir(childDirectoryName, dc.buildDirectoryMode); err != nil {
 		parentDirectory.Close()
 		return nil, nil, util.StatusWrapfWithCode(err, codes.Internal, "Failed to create build directory %#v", childDirectoryPath.GetUNIXString())
 	}

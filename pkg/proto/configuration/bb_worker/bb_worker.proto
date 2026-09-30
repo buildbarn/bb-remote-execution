@@ -232,6 +232,16 @@ message NativeBuildDirectoryConfiguration {
   // LEAST_RECENTLY_USED can, assuming the cache size is sufficient.
   buildbarn.configuration.eviction.CacheReplacementPolicy
       cache_replacement_policy = 5;
+
+  // Set the sticky bit on action directories, input roots and temporary
+  // directories. This allows actions running under another user ID to
+  // create entries while restricting removal of worker-owned entries.
+  // Disabled by default, as some actions need to remove input files.
+  //
+  // This uses native Unix permission semantics, including any filesystem
+  // ACLs. It does not provide complete action isolation or change Windows
+  // access controls.
+  bool use_sticky_directories = 6;
 }
 
 message VirtualBuildDirectoryConfiguration {

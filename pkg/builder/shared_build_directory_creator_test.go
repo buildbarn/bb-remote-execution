@@ -30,29 +30,33 @@ func TestSharedBuildDirectoryCreatorGetBuildDirectoryFailure(t *testing.T) {
 		Return(nil, nil, status.Error(codes.Internal, "No space left on device"))
 
 	var nextParallelActionID atomic.Uint64
-	buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(baseBuildDirectoryCreator, &nextParallelActionID)
+	buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(baseBuildDirectoryCreator, &nextParallelActionID, 0o777)
 	_, _, err := buildDirectoryCreator.GetBuildDirectory(ctx, &actionDigest)
 	testutil.RequireEqualStatus(t, status.Error(codes.Internal, "No space left on device"), err)
 }
 
 func TestSharedBuildDirectoryCreatorMkdirFailure(t *testing.T) {
-	ctrl, ctx := gomock.WithContext(context.Background(), t)
+	for _, mode := range []os.FileMode{0o777, 0o777 | os.ModeSticky} {
+		t.Run(mode.String(), func(t *testing.T) {
+			ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	// Failure to create a build subdirectory is always an internal error.
-	baseBuildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
-	baseBuildDirectory := mock.NewMockBuildDirectory(ctrl)
-	actionDigest := digest.MustNewDigest("debian8", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0)
-	baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(ctx, &actionDigest).
-		Return(baseBuildDirectory, (*path.Trace)(nil).Append(path.MustNewComponent("base-directory")), nil)
-	baseBuildDirectory.EXPECT().Mkdir(path.MustNewComponent("e3b0c44298fc1c14"), os.FileMode(0o777)).Return(
-		status.Error(codes.AlreadyExists, "Directory already exists"),
-	)
-	baseBuildDirectory.EXPECT().Close()
+			// Failure to create a build subdirectory is always an internal error.
+			baseBuildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
+			baseBuildDirectory := mock.NewMockBuildDirectory(ctrl)
+			actionDigest := digest.MustNewDigest("debian8", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0)
+			baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(ctx, &actionDigest).
+				Return(baseBuildDirectory, (*path.Trace)(nil).Append(path.MustNewComponent("base-directory")), nil)
+			baseBuildDirectory.EXPECT().Mkdir(path.MustNewComponent("e3b0c44298fc1c14"), mode).Return(
+				status.Error(codes.AlreadyExists, "Directory already exists"),
+			)
+			baseBuildDirectory.EXPECT().Close()
 
-	var nextParallelActionID atomic.Uint64
-	buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(baseBuildDirectoryCreator, &nextParallelActionID)
-	_, _, err := buildDirectoryCreator.GetBuildDirectory(ctx, &actionDigest)
-	testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to create build directory \"base-directory/e3b0c44298fc1c14\": Directory already exists"), err)
+			var nextParallelActionID atomic.Uint64
+			buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(baseBuildDirectoryCreator, &nextParallelActionID, mode)
+			_, _, err := buildDirectoryCreator.GetBuildDirectory(ctx, &actionDigest)
+			testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to create build directory \"base-directory/e3b0c44298fc1c14\": Directory already exists"), err)
+		})
+	}
 }
 
 func TestSharedBuildDirectoryCreatorEnterBuildDirectoryFailure(t *testing.T) {
@@ -70,7 +74,7 @@ func TestSharedBuildDirectoryCreatorEnterBuildDirectoryFailure(t *testing.T) {
 	baseBuildDirectory.EXPECT().Close()
 
 	var nextParallelActionID atomic.Uint64
-	buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(baseBuildDirectoryCreator, &nextParallelActionID)
+	buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(baseBuildDirectoryCreator, &nextParallelActionID, 0o777)
 	_, _, err := buildDirectoryCreator.GetBuildDirectory(ctx, &actionDigest)
 	testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to enter build directory \"base-directory/e3b0c44298fc1c14\": Out of file descriptors"), err)
 }
@@ -93,7 +97,7 @@ func TestSharedBuildDirectoryCreatorCloseChildFailure(t *testing.T) {
 	baseBuildDirectory.EXPECT().Close()
 
 	var nextParallelActionID atomic.Uint64
-	buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(baseBuildDirectoryCreator, &nextParallelActionID)
+	buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(baseBuildDirectoryCreator, &nextParallelActionID, 0o777)
 	buildDirectory, buildDirectoryPath, err := buildDirectoryCreator.GetBuildDirectory(ctx, &actionDigest)
 	require.NoError(t, err)
 	require.Equal(t, baseBuildDirectoryPath.Append(path.MustNewComponent("e3b0c44298fc1c14")), buildDirectoryPath)
@@ -120,7 +124,7 @@ func TestSharedBuildDirectoryCreatorRemoveAllFailure(t *testing.T) {
 	baseBuildDirectory.EXPECT().Close()
 
 	var nextParallelActionID atomic.Uint64
-	buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(baseBuildDirectoryCreator, &nextParallelActionID)
+	buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(baseBuildDirectoryCreator, &nextParallelActionID, 0o777)
 	buildDirectory, buildDirectoryPath, err := buildDirectoryCreator.GetBuildDirectory(ctx, &actionDigest)
 	require.NoError(t, err)
 	require.Equal(t, baseBuildDirectoryPath.Append(path.MustNewComponent("e3b0c44298fc1c14")), buildDirectoryPath)
@@ -148,7 +152,7 @@ func TestSharedBuildDirectoryCreatorCloseParentFailure(t *testing.T) {
 	baseBuildDirectory.EXPECT().Close().Return(status.Error(codes.Internal, "Bad file descriptor"))
 
 	var nextParallelActionID atomic.Uint64
-	buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(baseBuildDirectoryCreator, &nextParallelActionID)
+	buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(baseBuildDirectoryCreator, &nextParallelActionID, 0o777)
 	buildDirectory, buildDirectoryPath, err := buildDirectoryCreator.GetBuildDirectory(ctx, &actionDigest)
 	require.NoError(t, err)
 	require.Equal(t, baseBuildDirectoryPath.Append(path.MustNewComponent("e3b0c44298fc1c14")), buildDirectoryPath)
@@ -156,58 +160,66 @@ func TestSharedBuildDirectoryCreatorCloseParentFailure(t *testing.T) {
 }
 
 func TestSharedBuildDirectoryCreatorSuccessNotParallel(t *testing.T) {
-	ctrl, ctx := gomock.WithContext(context.Background(), t)
+	for _, mode := range []os.FileMode{0o777, 0o777 | os.ModeSticky} {
+		t.Run(mode.String(), func(t *testing.T) {
+			ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	// Successful build in a subdirectory for an action that does
-	// not run in parallel. The subdirectory name is based on the
-	// action digest.
-	baseBuildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
-	baseBuildDirectory := mock.NewMockBuildDirectory(ctrl)
-	baseBuildDirectoryPath := (*path.Trace)(nil).Append(path.MustNewComponent("base-directory"))
-	actionDigest := digest.MustNewDigest("debian8", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0)
-	baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(ctx, &actionDigest).
-		Return(baseBuildDirectory, baseBuildDirectoryPath, nil)
-	baseBuildDirectory.EXPECT().Mkdir(path.MustNewComponent("e3b0c44298fc1c14"), os.FileMode(0o777))
-	subDirectory := mock.NewMockBuildDirectory(ctrl)
-	baseBuildDirectory.EXPECT().EnterBuildDirectory(path.MustNewComponent("e3b0c44298fc1c14")).Return(subDirectory, nil)
-	subDirectory.EXPECT().Close()
-	baseBuildDirectory.EXPECT().RemoveAll(path.MustNewComponent("e3b0c44298fc1c14"))
-	baseBuildDirectory.EXPECT().Close()
+			// Successful build in a subdirectory for an action that does
+			// not run in parallel. The subdirectory name is based on the
+			// action digest.
+			baseBuildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
+			baseBuildDirectory := mock.NewMockBuildDirectory(ctrl)
+			baseBuildDirectoryPath := (*path.Trace)(nil).Append(path.MustNewComponent("base-directory"))
+			actionDigest := digest.MustNewDigest("debian8", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0)
+			baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(ctx, &actionDigest).
+				Return(baseBuildDirectory, baseBuildDirectoryPath, nil)
+			baseBuildDirectory.EXPECT().Mkdir(path.MustNewComponent("e3b0c44298fc1c14"), mode)
+			subDirectory := mock.NewMockBuildDirectory(ctrl)
+			baseBuildDirectory.EXPECT().EnterBuildDirectory(path.MustNewComponent("e3b0c44298fc1c14")).Return(subDirectory, nil)
+			subDirectory.EXPECT().Close()
+			baseBuildDirectory.EXPECT().RemoveAll(path.MustNewComponent("e3b0c44298fc1c14"))
+			baseBuildDirectory.EXPECT().Close()
 
-	var nextParallelActionID atomic.Uint64
-	buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(baseBuildDirectoryCreator, &nextParallelActionID)
-	buildDirectory, buildDirectoryPath, err := buildDirectoryCreator.GetBuildDirectory(ctx, &actionDigest)
-	require.NoError(t, err)
-	require.Equal(t, baseBuildDirectoryPath.Append(path.MustNewComponent("e3b0c44298fc1c14")), buildDirectoryPath)
-	require.NoError(t, buildDirectory.Close())
+			var nextParallelActionID atomic.Uint64
+			buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(baseBuildDirectoryCreator, &nextParallelActionID, mode)
+			buildDirectory, buildDirectoryPath, err := buildDirectoryCreator.GetBuildDirectory(ctx, &actionDigest)
+			require.NoError(t, err)
+			require.Equal(t, baseBuildDirectoryPath.Append(path.MustNewComponent("e3b0c44298fc1c14")), buildDirectoryPath)
+			require.NoError(t, buildDirectory.Close())
+		})
+	}
 }
 
 func TestSharedBuildDirectoryCreatorMkdirSuccessParallel(t *testing.T) {
-	ctrl, ctx := gomock.WithContext(context.Background(), t)
+	for _, mode := range []os.FileMode{0o777, 0o777 | os.ModeSticky} {
+		t.Run(mode.String(), func(t *testing.T) {
+			ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	baseBuildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
-	baseBuildDirectory := mock.NewMockBuildDirectory(ctrl)
-	baseBuildDirectoryPath := (*path.Trace)(nil).Append(path.MustNewComponent("base-directory"))
-	var nextParallelActionID atomic.Uint64
-	buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(baseBuildDirectoryCreator, &nextParallelActionID)
+			baseBuildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
+			baseBuildDirectory := mock.NewMockBuildDirectory(ctrl)
+			baseBuildDirectoryPath := (*path.Trace)(nil).Append(path.MustNewComponent("base-directory"))
+			var nextParallelActionID atomic.Uint64
+			buildDirectoryCreator := builder.NewSharedBuildDirectoryCreator(baseBuildDirectoryCreator, &nextParallelActionID, mode)
 
-	// Build directories for actions that run in parallel are simply
-	// named incrementally to prevent collisions.
-	baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(ctx, nil).
-		Return(baseBuildDirectory, baseBuildDirectoryPath, nil)
-	baseBuildDirectory.EXPECT().Mkdir(path.MustNewComponent("1"), os.FileMode(0o777)).Return(
-		status.Error(codes.Internal, "Foo"),
-	)
-	baseBuildDirectory.EXPECT().Close()
-	_, _, err := buildDirectoryCreator.GetBuildDirectory(ctx, nil)
-	testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to create build directory \"base-directory/1\": Foo"), err)
+			// Build directories for actions that run in parallel are simply
+			// named incrementally to prevent collisions.
+			baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(ctx, nil).
+				Return(baseBuildDirectory, baseBuildDirectoryPath, nil)
+			baseBuildDirectory.EXPECT().Mkdir(path.MustNewComponent("1"), mode).Return(
+				status.Error(codes.Internal, "Foo"),
+			)
+			baseBuildDirectory.EXPECT().Close()
+			_, _, err := buildDirectoryCreator.GetBuildDirectory(ctx, nil)
+			testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to create build directory \"base-directory/1\": Foo"), err)
 
-	baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(ctx, nil).
-		Return(baseBuildDirectory, baseBuildDirectoryPath, nil)
-	baseBuildDirectory.EXPECT().Mkdir(path.MustNewComponent("2"), os.FileMode(0o777)).Return(
-		status.Error(codes.Internal, "Foo"),
-	)
-	baseBuildDirectory.EXPECT().Close()
-	_, _, err = buildDirectoryCreator.GetBuildDirectory(ctx, nil)
-	testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to create build directory \"base-directory/2\": Foo"), err)
+			baseBuildDirectoryCreator.EXPECT().GetBuildDirectory(ctx, nil).
+				Return(baseBuildDirectory, baseBuildDirectoryPath, nil)
+			baseBuildDirectory.EXPECT().Mkdir(path.MustNewComponent("2"), mode).Return(
+				status.Error(codes.Internal, "Foo"),
+			)
+			baseBuildDirectory.EXPECT().Close()
+			_, _, err = buildDirectoryCreator.GetBuildDirectory(ctx, nil)
+			testutil.RequireEqualStatus(t, status.Error(codes.Internal, "Failed to create build directory \"base-directory/2\": Foo"), err)
+		})
+	}
 }

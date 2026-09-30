@@ -194,6 +194,7 @@ func main() {
 			var naiveBuildDirectory filesystem.DirectoryCloser
 			var fileFetcher re_cas.FileFetcher
 			var buildDirectoryCleaner cleaner.Cleaner
+			buildDirectoryMode := os.FileMode(0o777)
 			uploadBatchSize := blobstore.RecommendedFindMissingDigestsCount
 			var maximumExecutionTimeoutCompensation time.Duration
 			var maximumWritableFileUploadDelay time.Duration
@@ -281,6 +282,9 @@ func main() {
 			case *bb_worker.BuildDirectoryConfiguration_Native:
 				// Directory where actual builds take place.
 				nativeConfiguration := backend.Native
+				if nativeConfiguration.UseStickyDirectories {
+					buildDirectoryMode |= os.ModeSticky
+				}
 				naiveBuildDirectory, err = filesystem.NewLocalDirectory(path.LocalFormat.NewParser(nativeConfiguration.BuildDirectoryPath))
 				if err != nil {
 					return util.StatusWrapf(err, "Failed to open build directory %v", nativeConfiguration.BuildDirectoryPath)
@@ -450,6 +454,7 @@ func main() {
 							buildDirectoryIdleInvoker,
 						),
 						&sharedBuildDirectoryNextParallelActionID,
+						buildDirectoryMode,
 					)
 
 					workerID := map[string]string{}
@@ -474,6 +479,7 @@ func main() {
 						inputRootCharacterDevices,
 						runnerConfiguration.EnvironmentVariables,
 						configuration.ForceUploadTreesAndDirectories,
+						buildDirectoryMode,
 					)
 
 					if prefetchingConfiguration != nil {
