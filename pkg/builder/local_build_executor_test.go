@@ -31,6 +31,43 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
+func TestLocalBuildExecutorCheckReadiness(t *testing.T) {
+	for _, mode := range []os.FileMode{0o777, 0o777 | os.ModeSticky} {
+		t.Run(mode.String(), func(t *testing.T) {
+			ctrl, ctx := gomock.WithContext(context.Background(), t)
+			contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+			commandReader := mock.NewMockMessageReader[*remoteexecution.Command](ctrl)
+			buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
+			buildDirectory := mock.NewMockBuildDirectory(ctrl)
+			buildDirectoryCreator.EXPECT().GetBuildDirectory(ctx, nil).Return(
+				buildDirectory,
+				(*path.Trace)(nil).Append(path.MustNewComponent("build")),
+				nil,
+			)
+			buildDirectory.EXPECT().Mkdir(path.MustNewComponent("check_readiness"), os.FileMode(0o777))
+			buildDirectory.EXPECT().Close()
+			runner := mock.NewMockRunnerClient(ctrl)
+			runner.EXPECT().CheckReadiness(ctx, &runner_pb.CheckReadinessRequest{
+				Path: "build/check_readiness",
+			}).Return(&emptypb.Empty{}, nil)
+			clock := mock.NewMockClock(ctrl)
+			localBuildExecutor := builder.NewLocalBuildExecutor(
+				contentAddressableStorage,
+				commandReader,
+				buildDirectoryCreator,
+				runner,
+				clock,
+				/* maximumWritableFileUploadDelay = */ 10*time.Second,
+				/* inputRootCharacterDevices = */ nil,
+				/* environmentVariables = */ map[string]string{},
+				/* forceUploadTreesAndDirectories = */ false,
+				/* buildDirectoryMode = */ mode,
+			)
+			require.NoError(t, localBuildExecutor.CheckReadiness(ctx))
+		})
+	}
+}
+
 func TestLocalBuildExecutorInvalidActionDigest(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
@@ -49,6 +86,7 @@ func TestLocalBuildExecutorInvalidActionDigest(t *testing.T) {
 		/* inputRootCharacterDevices = */ nil,
 		/* environmentVariables = */ map[string]string{},
 		/* forceUploadTreesAndDirectories = */ false,
+		/* buildDirectoryMode = */ 0o777,
 	)
 
 	filePool := mock.NewMockFilePool(ctrl)
@@ -100,6 +138,7 @@ func TestLocalBuildExecutorMissingAction(t *testing.T) {
 		/* inputRootCharacterDevices = */ nil,
 		/* environmentVariables = */ map[string]string{},
 		/* forceUploadTreesAndDirectories = */ false,
+		/* buildDirectoryMode = */ 0o777,
 	)
 
 	filePool := mock.NewMockFilePool(ctrl)
@@ -147,6 +186,7 @@ func TestLocalBuildExecutorBuildDirectoryCreatorFailedFailed(t *testing.T) {
 		/* inputRootCharacterDevices = */ nil,
 		/* environmentVariables = */ map[string]string{},
 		/* forceUploadTreesAndDirectories = */ false,
+		/* buildDirectoryMode = */ 0o777,
 	)
 
 	filePool := mock.NewMockFilePool(ctrl)
@@ -181,70 +221,75 @@ func TestLocalBuildExecutorBuildDirectoryCreatorFailedFailed(t *testing.T) {
 }
 
 func TestLocalBuildExecutorInputRootPopulationFailed(t *testing.T) {
-	ctrl, ctx := gomock.WithContext(context.Background(), t)
+	for _, mode := range []os.FileMode{0o777, 0o777 | os.ModeSticky} {
+		t.Run(mode.String(), func(t *testing.T) {
+			ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	commandReader := mock.NewMockMessageReader[*remoteexecution.Command](ctrl)
-	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
-	buildDirectory := mock.NewMockBuildDirectory(ctrl)
-	actionDigest := digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "5555555555555555555555555555555555555555555555555555555555555555", 7)
-	buildDirectoryCreator.EXPECT().GetBuildDirectory(ctx, &actionDigest).
-		Return(buildDirectory, nil, nil)
-	filePool := mock.NewMockFilePool(ctrl)
-	monitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
-	buildDirectory.EXPECT().InstallHooks(filePool, gomock.Any())
-	buildDirectory.EXPECT().Mkdir(path.MustNewComponent("root"), os.FileMode(0o777))
-	inputRootDirectory := mock.NewMockBuildDirectory(ctrl)
-	buildDirectory.EXPECT().EnterBuildDirectory(path.MustNewComponent("root")).Return(inputRootDirectory, nil)
-	inputRootDirectory.EXPECT().MergeDirectoryContents(
-		ctx,
-		gomock.Any(),
-		digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42),
-		monitor,
-	).Return(status.Error(codes.FailedPrecondition, "Some input files could not be found"))
-	inputRootDirectory.EXPECT().Close()
-	buildDirectory.EXPECT().Close()
-	runner := mock.NewMockRunnerClient(ctrl)
-	clock := mock.NewMockClock(ctrl)
-	localBuildExecutor := builder.NewLocalBuildExecutor(
-		contentAddressableStorage,
-		commandReader,
-		buildDirectoryCreator,
-		runner,
-		clock,
-		/* maximumWritableFileUploadDelay = */ 10*time.Second,
-		/* inputRootCharacterDevices = */ nil,
-		/* environmentVariables = */ map[string]string{},
-		/* forceUploadTreesAndDirectories = */ false,
-	)
+			contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+			commandReader := mock.NewMockMessageReader[*remoteexecution.Command](ctrl)
+			buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
+			buildDirectory := mock.NewMockBuildDirectory(ctrl)
+			actionDigest := digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "5555555555555555555555555555555555555555555555555555555555555555", 7)
+			buildDirectoryCreator.EXPECT().GetBuildDirectory(ctx, &actionDigest).
+				Return(buildDirectory, nil, nil)
+			filePool := mock.NewMockFilePool(ctrl)
+			monitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
+			buildDirectory.EXPECT().InstallHooks(filePool, gomock.Any())
+			buildDirectory.EXPECT().Mkdir(path.MustNewComponent("root"), mode)
+			inputRootDirectory := mock.NewMockBuildDirectory(ctrl)
+			buildDirectory.EXPECT().EnterBuildDirectory(path.MustNewComponent("root")).Return(inputRootDirectory, nil)
+			inputRootDirectory.EXPECT().MergeDirectoryContents(
+				ctx,
+				gomock.Any(),
+				digest.MustNewDigest("netbsd", remoteexecution.DigestFunction_SHA256, "7777777777777777777777777777777777777777777777777777777777777777", 42),
+				monitor,
+			).Return(status.Error(codes.FailedPrecondition, "Some input files could not be found"))
+			inputRootDirectory.EXPECT().Close()
+			buildDirectory.EXPECT().Close()
+			runner := mock.NewMockRunnerClient(ctrl)
+			clock := mock.NewMockClock(ctrl)
+			localBuildExecutor := builder.NewLocalBuildExecutor(
+				contentAddressableStorage,
+				commandReader,
+				buildDirectoryCreator,
+				runner,
+				clock,
+				/* maximumWritableFileUploadDelay = */ 10*time.Second,
+				/* inputRootCharacterDevices = */ nil,
+				/* environmentVariables = */ map[string]string{},
+				/* forceUploadTreesAndDirectories = */ false,
+				/* buildDirectoryMode = */ mode,
+			)
 
-	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
-	executeResponse := localBuildExecutor.Execute(
-		ctx,
-		filePool,
-		monitor,
-		digest.MustNewFunction("netbsd", remoteexecution.DigestFunction_SHA256),
-		&remoteworker.DesiredState_Executing{
-			ActionDigest: &remoteexecution.Digest{
-				Hash:      "5555555555555555555555555555555555555555555555555555555555555555",
-				SizeBytes: 7,
-			},
-			Action: &remoteexecution.Action{
-				InputRootDigest: &remoteexecution.Digest{
-					Hash:      "7777777777777777777777777777777777777777777777777777777777777777",
-					SizeBytes: 42,
+			metadata := make(chan *remoteworker.CurrentState_Executing, 10)
+			executeResponse := localBuildExecutor.Execute(
+				ctx,
+				filePool,
+				monitor,
+				digest.MustNewFunction("netbsd", remoteexecution.DigestFunction_SHA256),
+				&remoteworker.DesiredState_Executing{
+					ActionDigest: &remoteexecution.Digest{
+						Hash:      "5555555555555555555555555555555555555555555555555555555555555555",
+						SizeBytes: 7,
+					},
+					Action: &remoteexecution.Action{
+						InputRootDigest: &remoteexecution.Digest{
+							Hash:      "7777777777777777777777777777777777777777777777777777777777777777",
+							SizeBytes: 42,
+						},
+						Timeout: &durationpb.Duration{Seconds: 3600},
+					},
 				},
-				Timeout: &durationpb.Duration{Seconds: 3600},
-			},
-		},
-		metadata,
-	)
-	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
-		Result: &remoteexecution.ActionResult{
-			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
-		},
-		Status: status.New(codes.FailedPrecondition, "Some input files could not be found").Proto(),
-	}, executeResponse)
+				metadata,
+			)
+			testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
+				Result: &remoteexecution.ActionResult{
+					ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
+				},
+				Status: status.New(codes.FailedPrecondition, "Some input files could not be found").Proto(),
+			}, executeResponse)
+		})
+	}
 }
 
 func TestLocalBuildExecutorOutputDirectoryCreationFailure(t *testing.T) {
@@ -294,6 +339,7 @@ func TestLocalBuildExecutorOutputDirectoryCreationFailure(t *testing.T) {
 		/* inputRootCharacterDevices = */ nil,
 		/* environmentVariables = */ map[string]string{},
 		/* forceUploadTreesAndDirectories = */ false,
+		/* buildDirectoryMode = */ 0o777,
 	)
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
@@ -365,6 +411,7 @@ func TestLocalBuildExecutorMissingCommand(t *testing.T) {
 		/* inputRootCharacterDevices = */ nil,
 		/* environmentVariables = */ map[string]string{},
 		/* forceUploadTreesAndDirectories = */ false,
+		/* buildDirectoryMode = */ 0o777,
 	)
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
@@ -496,6 +543,7 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 		/* inputRootCharacterDevices = */ nil,
 		/* environmentVariables = */ map[string]string{},
 		/* forceUploadTreesAndDirectories = */ false,
+		/* buildDirectoryMode = */ 0o777,
 	)
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
@@ -552,254 +600,259 @@ func TestLocalBuildExecutorOutputSymlinkReadingFailure(t *testing.T) {
 // TestLocalBuildExecutorSuccess tests a full invocation of a simple
 // build step, equivalent to compiling a simple C++ file.
 func TestLocalBuildExecutorSuccess(t *testing.T) {
-	ctrl, ctx := gomock.WithContext(context.Background(), t)
+	for _, mode := range []os.FileMode{0o777, 0o777 | os.ModeSticky} {
+		t.Run(mode.String(), func(t *testing.T) {
+			ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	// File system operations that should occur against the input
-	// root directory. Creation of
-	// bazel-out/k8-fastbuild/bin/_objs/hello.
-	inputRootDirectory := mock.NewMockBuildDirectory(ctrl)
-	inputRootDirectory.EXPECT().Mkdir(path.MustNewComponent("bazel-out"), os.FileMode(0o777)).Return(nil)
-	bazelOutDirectory := mock.NewMockParentPopulatableDirectory(ctrl)
-	inputRootDirectory.EXPECT().EnterParentPopulatableDirectory(path.MustNewComponent("bazel-out")).Return(bazelOutDirectory, nil)
-	bazelOutDirectory.EXPECT().Close()
-	bazelOutDirectory.EXPECT().Mkdir(path.MustNewComponent("k8-fastbuild"), os.FileMode(0o777)).Return(nil)
-	k8FastbuildDirectory := mock.NewMockParentPopulatableDirectory(ctrl)
-	bazelOutDirectory.EXPECT().EnterParentPopulatableDirectory(path.MustNewComponent("k8-fastbuild")).Return(k8FastbuildDirectory, nil)
-	k8FastbuildDirectory.EXPECT().Close()
-	k8FastbuildDirectory.EXPECT().Mkdir(path.MustNewComponent("bin"), os.FileMode(0o777)).Return(nil)
-	binDirectory := mock.NewMockParentPopulatableDirectory(ctrl)
-	k8FastbuildDirectory.EXPECT().EnterParentPopulatableDirectory(path.MustNewComponent("bin")).Return(binDirectory, nil)
-	binDirectory.EXPECT().Close()
-	binDirectory.EXPECT().Mkdir(path.MustNewComponent("_objs"), os.FileMode(0o777)).Return(nil)
-	objsDirectory := mock.NewMockParentPopulatableDirectory(ctrl)
-	binDirectory.EXPECT().EnterParentPopulatableDirectory(path.MustNewComponent("_objs")).Return(objsDirectory, nil)
-	objsDirectory.EXPECT().Close()
-	objsDirectory.EXPECT().Mkdir(path.MustNewComponent("hello"), os.FileMode(0o777)).Return(nil)
+			// File system operations that should occur against the input
+			// root directory. Creation of
+			// bazel-out/k8-fastbuild/bin/_objs/hello.
+			inputRootDirectory := mock.NewMockBuildDirectory(ctrl)
+			inputRootDirectory.EXPECT().Mkdir(path.MustNewComponent("bazel-out"), os.FileMode(0o777)).Return(nil)
+			bazelOutDirectory := mock.NewMockParentPopulatableDirectory(ctrl)
+			inputRootDirectory.EXPECT().EnterParentPopulatableDirectory(path.MustNewComponent("bazel-out")).Return(bazelOutDirectory, nil)
+			bazelOutDirectory.EXPECT().Close()
+			bazelOutDirectory.EXPECT().Mkdir(path.MustNewComponent("k8-fastbuild"), os.FileMode(0o777)).Return(nil)
+			k8FastbuildDirectory := mock.NewMockParentPopulatableDirectory(ctrl)
+			bazelOutDirectory.EXPECT().EnterParentPopulatableDirectory(path.MustNewComponent("k8-fastbuild")).Return(k8FastbuildDirectory, nil)
+			k8FastbuildDirectory.EXPECT().Close()
+			k8FastbuildDirectory.EXPECT().Mkdir(path.MustNewComponent("bin"), os.FileMode(0o777)).Return(nil)
+			binDirectory := mock.NewMockParentPopulatableDirectory(ctrl)
+			k8FastbuildDirectory.EXPECT().EnterParentPopulatableDirectory(path.MustNewComponent("bin")).Return(binDirectory, nil)
+			binDirectory.EXPECT().Close()
+			binDirectory.EXPECT().Mkdir(path.MustNewComponent("_objs"), os.FileMode(0o777)).Return(nil)
+			objsDirectory := mock.NewMockParentPopulatableDirectory(ctrl)
+			binDirectory.EXPECT().EnterParentPopulatableDirectory(path.MustNewComponent("_objs")).Return(objsDirectory, nil)
+			objsDirectory.EXPECT().Close()
+			objsDirectory.EXPECT().Mkdir(path.MustNewComponent("hello"), os.FileMode(0o777)).Return(nil)
 
-	// Uploading of files in bazel-out/k8-fastbuild/bin/_objs/hello.
-	bazelOutUploadableDirectory := mock.NewMockUploadableDirectory(ctrl)
-	inputRootDirectory.EXPECT().EnterUploadableDirectory(path.MustNewComponent("bazel-out")).Return(bazelOutUploadableDirectory, nil)
-	bazelOutUploadableDirectory.EXPECT().Close()
-	k8sFastbuildUploadableDirectory := mock.NewMockUploadableDirectory(ctrl)
-	bazelOutUploadableDirectory.EXPECT().EnterUploadableDirectory(path.MustNewComponent("k8-fastbuild")).Return(k8sFastbuildUploadableDirectory, nil)
-	k8sFastbuildUploadableDirectory.EXPECT().Close()
-	binUploadableDirectory := mock.NewMockUploadableDirectory(ctrl)
-	k8sFastbuildUploadableDirectory.EXPECT().EnterUploadableDirectory(path.MustNewComponent("bin")).Return(binUploadableDirectory, nil)
-	binUploadableDirectory.EXPECT().Close()
-	objsUploadableDirectory := mock.NewMockUploadableDirectory(ctrl)
-	binUploadableDirectory.EXPECT().EnterUploadableDirectory(path.MustNewComponent("_objs")).Return(objsUploadableDirectory, nil)
-	objsUploadableDirectory.EXPECT().Close()
-	helloUploadableDirectory := mock.NewMockUploadableDirectory(ctrl)
-	objsUploadableDirectory.EXPECT().EnterUploadableDirectory(path.MustNewComponent("hello")).Return(helloUploadableDirectory, nil)
-	helloUploadableDirectory.EXPECT().Lstat(path.MustNewComponent("hello.pic.d")).Return(filesystem.NewFileInfo(path.MustNewComponent("hello.pic.d"), filesystem.FileTypeRegularFile, false), nil)
-	helloUploadableDirectory.EXPECT().Lstat(path.MustNewComponent("hello.pic.o")).Return(filesystem.NewFileInfo(path.MustNewComponent("hello.pic.o"), filesystem.FileTypeRegularFile, true), nil)
-	helloUploadableDirectory.EXPECT().Close()
+			// Uploading of files in bazel-out/k8-fastbuild/bin/_objs/hello.
+			bazelOutUploadableDirectory := mock.NewMockUploadableDirectory(ctrl)
+			inputRootDirectory.EXPECT().EnterUploadableDirectory(path.MustNewComponent("bazel-out")).Return(bazelOutUploadableDirectory, nil)
+			bazelOutUploadableDirectory.EXPECT().Close()
+			k8sFastbuildUploadableDirectory := mock.NewMockUploadableDirectory(ctrl)
+			bazelOutUploadableDirectory.EXPECT().EnterUploadableDirectory(path.MustNewComponent("k8-fastbuild")).Return(k8sFastbuildUploadableDirectory, nil)
+			k8sFastbuildUploadableDirectory.EXPECT().Close()
+			binUploadableDirectory := mock.NewMockUploadableDirectory(ctrl)
+			k8sFastbuildUploadableDirectory.EXPECT().EnterUploadableDirectory(path.MustNewComponent("bin")).Return(binUploadableDirectory, nil)
+			binUploadableDirectory.EXPECT().Close()
+			objsUploadableDirectory := mock.NewMockUploadableDirectory(ctrl)
+			binUploadableDirectory.EXPECT().EnterUploadableDirectory(path.MustNewComponent("_objs")).Return(objsUploadableDirectory, nil)
+			objsUploadableDirectory.EXPECT().Close()
+			helloUploadableDirectory := mock.NewMockUploadableDirectory(ctrl)
+			objsUploadableDirectory.EXPECT().EnterUploadableDirectory(path.MustNewComponent("hello")).Return(helloUploadableDirectory, nil)
+			helloUploadableDirectory.EXPECT().Lstat(path.MustNewComponent("hello.pic.d")).Return(filesystem.NewFileInfo(path.MustNewComponent("hello.pic.d"), filesystem.FileTypeRegularFile, false), nil)
+			helloUploadableDirectory.EXPECT().Lstat(path.MustNewComponent("hello.pic.o")).Return(filesystem.NewFileInfo(path.MustNewComponent("hello.pic.o"), filesystem.FileTypeRegularFile, true), nil)
+			helloUploadableDirectory.EXPECT().Close()
 
-	// Read operations against the Content Addressable Storage.
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
-	commandReader := mock.NewMockMessageReader[*remoteexecution.Command](ctrl)
-	commandReader.EXPECT().ReadMessage(
-		gomock.Any(),
-		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000002", 234),
-	).Return(&remoteexecution.Command{
-		Arguments: []string{
-			"/usr/local/bin/clang",
-			"-MD",
-			"-MF",
-			"bazel-out/k8-fastbuild/bin/_objs/hello/hello.pic.d",
-			"-c",
-			"hello.cc",
-			"-o",
-			"bazel-out/k8-fastbuild/bin/_objs/hello/hello.pic.o",
-		},
-		EnvironmentVariables: []*remoteexecution.Command_EnvironmentVariable{
-			{Name: "BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN", Value: "1"},
-			{Name: "PATH", Value: "/bin:/usr/bin"},
-			{Name: "PWD", Value: "/proc/self/cwd"},
-		},
-		OutputPaths: []string{
-			"bazel-out/k8-fastbuild/bin/_objs/hello/hello.pic.d",
-			"bazel-out/k8-fastbuild/bin/_objs/hello/hello.pic.o",
-		},
-		Platform: &remoteexecution.Platform{
-			Properties: []*remoteexecution.Platform_Property{
-				{
-					Name:  "container-image",
-					Value: "docker://gcr.io/cloud-marketplace/google/rbe-debian8@sha256:4893599fb00089edc8351d9c26b31d3f600774cb5addefb00c70fdb6ca797abf",
+			// Read operations against the Content Addressable Storage.
+			contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+			commandReader := mock.NewMockMessageReader[*remoteexecution.Command](ctrl)
+			commandReader.EXPECT().ReadMessage(
+				gomock.Any(),
+				digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000002", 234),
+			).Return(&remoteexecution.Command{
+				Arguments: []string{
+					"/usr/local/bin/clang",
+					"-MD",
+					"-MF",
+					"bazel-out/k8-fastbuild/bin/_objs/hello/hello.pic.d",
+					"-c",
+					"hello.cc",
+					"-o",
+					"bazel-out/k8-fastbuild/bin/_objs/hello/hello.pic.o",
 				},
-			},
-		},
-	}, nil)
-
-	// Write operations against the Content Addressable Storage.
-	buildDirectory := mock.NewMockBuildDirectory(ctrl)
-	buildDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("stdout"), gomock.Any(), gomock.Any()).Return(
-		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000005", 567),
-		nil,
-	)
-	buildDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("stderr"), gomock.Any(), gomock.Any()).Return(
-		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000006", 678),
-		nil,
-	)
-	helloUploadableDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("hello.pic.d"), gomock.Any(), gomock.Any()).Return(
-		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000007", 789),
-		nil,
-	)
-	helloUploadableDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("hello.pic.o"), gomock.Any(), gomock.Any()).Return(
-		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000008", 890),
-		nil,
-	)
-
-	// Command execution.
-	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
-	actionDigest := digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000001", 123)
-	buildDirectoryCreator.EXPECT().GetBuildDirectory(ctx, &actionDigest).
-		Return(buildDirectory, (*path.Trace)(nil).Append(path.MustNewComponent("0000000000000000")), nil)
-	filePool := mock.NewMockFilePool(ctrl)
-	monitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
-	buildDirectory.EXPECT().InstallHooks(filePool, gomock.Any())
-	buildDirectory.EXPECT().Mkdir(path.MustNewComponent("root"), os.FileMode(0o777))
-	buildDirectory.EXPECT().EnterBuildDirectory(path.MustNewComponent("root")).Return(inputRootDirectory, nil)
-	inputRootDirectory.EXPECT().MergeDirectoryContents(
-		ctx,
-		gomock.Any(),
-		digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000003", 345),
-		monitor,
-	).Return(nil)
-	inputRootDirectory.EXPECT().Mkdir(path.MustNewComponent("dev"), os.FileMode(0o777))
-	inputRootDevDirectory := mock.NewMockBuildDirectory(ctrl)
-	inputRootDirectory.EXPECT().EnterBuildDirectory(path.MustNewComponent("dev")).Return(inputRootDevDirectory, nil)
-	inputRootDevDirectory.EXPECT().Mknod(
-		path.MustNewComponent("null"),
-		os.FileMode(os.ModeDevice|os.ModeCharDevice|0o666),
-		filesystem.NewDeviceNumberFromMajorMinor(1, 3),
-	)
-	inputRootDevDirectory.EXPECT().Close()
-	buildDirectory.EXPECT().Mkdir(path.MustNewComponent("tmp"), os.FileMode(0o777))
-	buildDirectory.EXPECT().Mkdir(path.MustNewComponent("server_logs"), os.FileMode(0o777))
-	resourceUsage, err := anypb.New(&emptypb.Empty{})
-	require.NoError(t, err)
-	runner := mock.NewMockRunnerClient(ctrl)
-	runner.EXPECT().Run(gomock.Any(), &runner_pb.RunRequest{
-		Arguments: []string{
-			"/usr/local/bin/clang",
-			"-MD",
-			"-MF",
-			"bazel-out/k8-fastbuild/bin/_objs/hello/hello.pic.d",
-			"-c",
-			"hello.cc",
-			"-o",
-			"bazel-out/k8-fastbuild/bin/_objs/hello/hello.pic.o",
-		},
-		EnvironmentVariables: map[string]string{
-			"BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN": "1",
-			"PATH":                              "/bin:/usr/bin",
-			"PWD":                               "/proc/self/cwd",
-			"TEST_VAR":                          "123",
-		},
-		WorkingDirectory:    "",
-		StdoutPath:          "0000000000000000/stdout",
-		StderrPath:          "0000000000000000/stderr",
-		InputRootDirectory:  "0000000000000000/root",
-		TemporaryDirectory:  "0000000000000000/tmp",
-		ServerLogsDirectory: "0000000000000000/server_logs",
-	}).Return(&runner_pb.RunResponse{
-		ExitCode:      0,
-		ResourceUsage: []*anypb.Any{resourceUsage},
-	}, nil)
-	inputRootDirectory.EXPECT().Close()
-	serverLogsDirectory := mock.NewMockUploadableDirectory(ctrl)
-	buildDirectory.EXPECT().EnterUploadableDirectory(path.MustNewComponent("server_logs")).Return(serverLogsDirectory, nil)
-	serverLogsDirectory.EXPECT().ReadDir()
-	serverLogsDirectory.EXPECT().Close()
-	buildDirectory.EXPECT().Close()
-	clock := mock.NewMockClock(ctrl)
-	clock.EXPECT().NewContextWithTimeout(gomock.Any(), time.Hour).DoAndReturn(func(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
-		return context.WithCancel(context.WithValue(parent, re_clock.UnsuspendedDurationKey{}, 5*time.Second))
-	})
-	clock.EXPECT().NewContextWithTimeout(gomock.Any(), 10*time.Second).DoAndReturn(func(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
-		return parent, func() {}
-	})
-	localBuildExecutor := builder.NewLocalBuildExecutor(
-		contentAddressableStorage,
-		commandReader,
-		buildDirectoryCreator,
-		runner,
-		clock,
-		/* maximumWritableFileUploadDelay = */ 10*time.Second,
-		/* inputRootCharacterDevices = */ map[path.Component]filesystem.DeviceNumber{
-			path.MustNewComponent("null"): filesystem.NewDeviceNumberFromMajorMinor(1, 3),
-		},
-		/* environmentVariables = */ map[string]string{
-			"TEST_VAR": "123",
-			"PWD":      "dont-overwrite",
-		},
-		/* forceUploadTreesAndDirectories = */ false,
-	)
-
-	requestMetadata, err := anypb.New(&remoteexecution.RequestMetadata{
-		ToolInvocationId: "666b72d8-c43e-4998-866c-9312a31fe86d",
-	})
-	require.NoError(t, err)
-	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
-	executeResponse := localBuildExecutor.Execute(
-		ctx,
-		filePool,
-		monitor,
-		digest.MustNewFunction("ubuntu1804", remoteexecution.DigestFunction_SHA256),
-		&remoteworker.DesiredState_Executing{
-			ActionDigest: &remoteexecution.Digest{
-				Hash:      "0000000000000000000000000000000000000000000000000000000000000001",
-				SizeBytes: 123,
-			},
-			Action: &remoteexecution.Action{
-				CommandDigest: &remoteexecution.Digest{
-					Hash:      "0000000000000000000000000000000000000000000000000000000000000002",
-					SizeBytes: 234,
+				EnvironmentVariables: []*remoteexecution.Command_EnvironmentVariable{
+					{Name: "BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN", Value: "1"},
+					{Name: "PATH", Value: "/bin:/usr/bin"},
+					{Name: "PWD", Value: "/proc/self/cwd"},
 				},
-				InputRootDigest: &remoteexecution.Digest{
-					Hash:      "0000000000000000000000000000000000000000000000000000000000000003",
-					SizeBytes: 345,
+				OutputPaths: []string{
+					"bazel-out/k8-fastbuild/bin/_objs/hello/hello.pic.d",
+					"bazel-out/k8-fastbuild/bin/_objs/hello/hello.pic.o",
 				},
-				Timeout: &durationpb.Duration{Seconds: 3600},
-			},
-			AuxiliaryMetadata: []*anypb.Any{requestMetadata},
-		},
-		metadata,
-	)
-	testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
-		Result: &remoteexecution.ActionResult{
-			OutputFiles: []*remoteexecution.OutputFile{
-				{
-					Path: "bazel-out/k8-fastbuild/bin/_objs/hello/hello.pic.d",
-					Digest: &remoteexecution.Digest{
-						Hash:      "0000000000000000000000000000000000000000000000000000000000000007",
-						SizeBytes: 789,
+				Platform: &remoteexecution.Platform{
+					Properties: []*remoteexecution.Platform_Property{
+						{
+							Name:  "container-image",
+							Value: "docker://gcr.io/cloud-marketplace/google/rbe-debian8@sha256:4893599fb00089edc8351d9c26b31d3f600774cb5addefb00c70fdb6ca797abf",
+						},
 					},
 				},
-				{
-					Path: "bazel-out/k8-fastbuild/bin/_objs/hello/hello.pic.o",
-					Digest: &remoteexecution.Digest{
-						Hash:      "0000000000000000000000000000000000000000000000000000000000000008",
-						SizeBytes: 890,
-					},
-					IsExecutable: true,
+			}, nil)
+
+			// Write operations against the Content Addressable Storage.
+			buildDirectory := mock.NewMockBuildDirectory(ctrl)
+			buildDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("stdout"), gomock.Any(), gomock.Any()).Return(
+				digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000005", 567),
+				nil,
+			)
+			buildDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("stderr"), gomock.Any(), gomock.Any()).Return(
+				digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000006", 678),
+				nil,
+			)
+			helloUploadableDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("hello.pic.d"), gomock.Any(), gomock.Any()).Return(
+				digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000007", 789),
+				nil,
+			)
+			helloUploadableDirectory.EXPECT().UploadFile(ctx, path.MustNewComponent("hello.pic.o"), gomock.Any(), gomock.Any()).Return(
+				digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000008", 890),
+				nil,
+			)
+
+			// Command execution.
+			buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
+			actionDigest := digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000001", 123)
+			buildDirectoryCreator.EXPECT().GetBuildDirectory(ctx, &actionDigest).
+				Return(buildDirectory, (*path.Trace)(nil).Append(path.MustNewComponent("0000000000000000")), nil)
+			filePool := mock.NewMockFilePool(ctrl)
+			monitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
+			buildDirectory.EXPECT().InstallHooks(filePool, gomock.Any())
+			buildDirectory.EXPECT().Mkdir(path.MustNewComponent("root"), mode)
+			buildDirectory.EXPECT().EnterBuildDirectory(path.MustNewComponent("root")).Return(inputRootDirectory, nil)
+			inputRootDirectory.EXPECT().MergeDirectoryContents(
+				ctx,
+				gomock.Any(),
+				digest.MustNewDigest("ubuntu1804", remoteexecution.DigestFunction_SHA256, "0000000000000000000000000000000000000000000000000000000000000003", 345),
+				monitor,
+			).Return(nil)
+			inputRootDirectory.EXPECT().Mkdir(path.MustNewComponent("dev"), os.FileMode(0o777))
+			inputRootDevDirectory := mock.NewMockBuildDirectory(ctrl)
+			inputRootDirectory.EXPECT().EnterBuildDirectory(path.MustNewComponent("dev")).Return(inputRootDevDirectory, nil)
+			inputRootDevDirectory.EXPECT().Mknod(
+				path.MustNewComponent("null"),
+				os.FileMode(os.ModeDevice|os.ModeCharDevice|0o666),
+				filesystem.NewDeviceNumberFromMajorMinor(1, 3),
+			)
+			inputRootDevDirectory.EXPECT().Close()
+			buildDirectory.EXPECT().Mkdir(path.MustNewComponent("tmp"), mode)
+			buildDirectory.EXPECT().Mkdir(path.MustNewComponent("server_logs"), os.FileMode(0o777))
+			resourceUsage, err := anypb.New(&emptypb.Empty{})
+			require.NoError(t, err)
+			runner := mock.NewMockRunnerClient(ctrl)
+			runner.EXPECT().Run(gomock.Any(), &runner_pb.RunRequest{
+				Arguments: []string{
+					"/usr/local/bin/clang",
+					"-MD",
+					"-MF",
+					"bazel-out/k8-fastbuild/bin/_objs/hello/hello.pic.d",
+					"-c",
+					"hello.cc",
+					"-o",
+					"bazel-out/k8-fastbuild/bin/_objs/hello/hello.pic.o",
 				},
-			},
-			StdoutDigest: &remoteexecution.Digest{
-				Hash:      "0000000000000000000000000000000000000000000000000000000000000005",
-				SizeBytes: 567,
-			},
-			StderrDigest: &remoteexecution.Digest{
-				Hash:      "0000000000000000000000000000000000000000000000000000000000000006",
-				SizeBytes: 678,
-			},
-			ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
-				AuxiliaryMetadata:        []*anypb.Any{requestMetadata, resourceUsage},
-				VirtualExecutionDuration: &durationpb.Duration{Seconds: 5},
-			},
-		},
-	}, executeResponse)
+				EnvironmentVariables: map[string]string{
+					"BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN": "1",
+					"PATH":                              "/bin:/usr/bin",
+					"PWD":                               "/proc/self/cwd",
+					"TEST_VAR":                          "123",
+				},
+				WorkingDirectory:    "",
+				StdoutPath:          "0000000000000000/stdout",
+				StderrPath:          "0000000000000000/stderr",
+				InputRootDirectory:  "0000000000000000/root",
+				TemporaryDirectory:  "0000000000000000/tmp",
+				ServerLogsDirectory: "0000000000000000/server_logs",
+			}).Return(&runner_pb.RunResponse{
+				ExitCode:      0,
+				ResourceUsage: []*anypb.Any{resourceUsage},
+			}, nil)
+			inputRootDirectory.EXPECT().Close()
+			serverLogsDirectory := mock.NewMockUploadableDirectory(ctrl)
+			buildDirectory.EXPECT().EnterUploadableDirectory(path.MustNewComponent("server_logs")).Return(serverLogsDirectory, nil)
+			serverLogsDirectory.EXPECT().ReadDir()
+			serverLogsDirectory.EXPECT().Close()
+			buildDirectory.EXPECT().Close()
+			clock := mock.NewMockClock(ctrl)
+			clock.EXPECT().NewContextWithTimeout(gomock.Any(), time.Hour).DoAndReturn(func(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+				return context.WithCancel(context.WithValue(parent, re_clock.UnsuspendedDurationKey{}, 5*time.Second))
+			})
+			clock.EXPECT().NewContextWithTimeout(gomock.Any(), 10*time.Second).DoAndReturn(func(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+				return parent, func() {}
+			})
+			localBuildExecutor := builder.NewLocalBuildExecutor(
+				contentAddressableStorage,
+				commandReader,
+				buildDirectoryCreator,
+				runner,
+				clock,
+				/* maximumWritableFileUploadDelay = */ 10*time.Second,
+				/* inputRootCharacterDevices = */ map[path.Component]filesystem.DeviceNumber{
+					path.MustNewComponent("null"): filesystem.NewDeviceNumberFromMajorMinor(1, 3),
+				},
+				/* environmentVariables = */ map[string]string{
+					"TEST_VAR": "123",
+					"PWD":      "dont-overwrite",
+				},
+				/* forceUploadTreesAndDirectories = */ false,
+				/* buildDirectoryMode = */ mode,
+			)
+
+			requestMetadata, err := anypb.New(&remoteexecution.RequestMetadata{
+				ToolInvocationId: "666b72d8-c43e-4998-866c-9312a31fe86d",
+			})
+			require.NoError(t, err)
+			metadata := make(chan *remoteworker.CurrentState_Executing, 10)
+			executeResponse := localBuildExecutor.Execute(
+				ctx,
+				filePool,
+				monitor,
+				digest.MustNewFunction("ubuntu1804", remoteexecution.DigestFunction_SHA256),
+				&remoteworker.DesiredState_Executing{
+					ActionDigest: &remoteexecution.Digest{
+						Hash:      "0000000000000000000000000000000000000000000000000000000000000001",
+						SizeBytes: 123,
+					},
+					Action: &remoteexecution.Action{
+						CommandDigest: &remoteexecution.Digest{
+							Hash:      "0000000000000000000000000000000000000000000000000000000000000002",
+							SizeBytes: 234,
+						},
+						InputRootDigest: &remoteexecution.Digest{
+							Hash:      "0000000000000000000000000000000000000000000000000000000000000003",
+							SizeBytes: 345,
+						},
+						Timeout: &durationpb.Duration{Seconds: 3600},
+					},
+					AuxiliaryMetadata: []*anypb.Any{requestMetadata},
+				},
+				metadata,
+			)
+			testutil.RequireEqualProto(t, &remoteexecution.ExecuteResponse{
+				Result: &remoteexecution.ActionResult{
+					OutputFiles: []*remoteexecution.OutputFile{
+						{
+							Path: "bazel-out/k8-fastbuild/bin/_objs/hello/hello.pic.d",
+							Digest: &remoteexecution.Digest{
+								Hash:      "0000000000000000000000000000000000000000000000000000000000000007",
+								SizeBytes: 789,
+							},
+						},
+						{
+							Path: "bazel-out/k8-fastbuild/bin/_objs/hello/hello.pic.o",
+							Digest: &remoteexecution.Digest{
+								Hash:      "0000000000000000000000000000000000000000000000000000000000000008",
+								SizeBytes: 890,
+							},
+							IsExecutable: true,
+						},
+					},
+					StdoutDigest: &remoteexecution.Digest{
+						Hash:      "0000000000000000000000000000000000000000000000000000000000000005",
+						SizeBytes: 567,
+					},
+					StderrDigest: &remoteexecution.Digest{
+						Hash:      "0000000000000000000000000000000000000000000000000000000000000006",
+						SizeBytes: 678,
+					},
+					ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
+						AuxiliaryMetadata:        []*anypb.Any{requestMetadata, resourceUsage},
+						VirtualExecutionDuration: &durationpb.Duration{Seconds: 5},
+					},
+				},
+			}, executeResponse)
+		})
+	}
 }
 
 func TestLocalBuildExecutorCachingInvalidTimeout(t *testing.T) {
@@ -820,6 +873,7 @@ func TestLocalBuildExecutorCachingInvalidTimeout(t *testing.T) {
 		/* inputRootCharacterDevices = */ nil,
 		/* environmentVariables = */ map[string]string{},
 		/* forceUploadTreesAndDirectories = */ false,
+		/* buildDirectoryMode = */ 0o777,
 	)
 
 	// Execution should fail, as the number of nanoseconds in the
@@ -943,6 +997,7 @@ func TestLocalBuildExecutorInputRootIOFailureDuringExecution(t *testing.T) {
 		/* inputRootCharacterDevices = */ nil,
 		/* environmentVariables = */ map[string]string{},
 		/* forceUploadTreesAndDirectories = */ false,
+		/* buildDirectoryMode = */ 0o777,
 	)
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
@@ -1080,6 +1135,7 @@ func TestLocalBuildExecutorTimeoutDuringExecution(t *testing.T) {
 		/* inputRootCharacterDevices = */ nil,
 		/* environmentVariables = */ map[string]string{},
 		/* forceUploadTreesAndDirectories = */ false,
+		/* buildDirectoryMode = */ 0o777,
 	)
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)
@@ -1183,6 +1239,7 @@ func TestLocalBuildExecutorCharacterDeviceNodeCreationFailed(t *testing.T) {
 		},
 		/* environmentVariables = */ map[string]string{},
 		/* forceUploadTreesAndDirectories = */ false,
+		/* buildDirectoryMode = */ 0o777,
 	)
 
 	metadata := make(chan *remoteworker.CurrentState_Executing, 10)

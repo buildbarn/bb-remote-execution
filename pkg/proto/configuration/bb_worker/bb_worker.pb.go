@@ -286,6 +286,7 @@ type NativeBuildDirectoryConfiguration struct {
 	MaximumCacheFileCount  uint64                          `protobuf:"varint,3,opt,name=maximum_cache_file_count,json=maximumCacheFileCount,proto3" json:"maximum_cache_file_count,omitempty"`
 	MaximumCacheSizeBytes  int64                           `protobuf:"varint,4,opt,name=maximum_cache_size_bytes,json=maximumCacheSizeBytes,proto3" json:"maximum_cache_size_bytes,omitempty"`
 	CacheReplacementPolicy eviction.CacheReplacementPolicy `protobuf:"varint,5,opt,name=cache_replacement_policy,json=cacheReplacementPolicy,proto3,enum=buildbarn.configuration.eviction.CacheReplacementPolicy" json:"cache_replacement_policy,omitempty"`
+	UseStickyDirectories   bool                            `protobuf:"varint,6,opt,name=use_sticky_directories,json=useStickyDirectories,proto3" json:"use_sticky_directories,omitempty"`
 	unknownFields          protoimpl.UnknownFields
 	sizeCache              protoimpl.SizeCache
 }
@@ -353,6 +354,13 @@ func (x *NativeBuildDirectoryConfiguration) GetCacheReplacementPolicy() eviction
 		return x.CacheReplacementPolicy
 	}
 	return eviction.CacheReplacementPolicy(0)
+}
+
+func (x *NativeBuildDirectoryConfiguration) GetUseStickyDirectories() bool {
+	if x != nil {
+		return x.UseStickyDirectories
+	}
+	return false
 }
 
 type VirtualBuildDirectoryConfiguration struct {
@@ -803,13 +811,14 @@ const file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_w
 	"\x06native\x18\x01 \x01(\v2D.buildbarn.configuration.bb_worker.NativeBuildDirectoryConfigurationH\x00R\x06native\x12a\n" +
 	"\avirtual\x18\x02 \x01(\v2E.buildbarn.configuration.bb_worker.VirtualBuildDirectoryConfigurationH\x00R\avirtual\x12P\n" +
 	"\arunners\x18\x03 \x03(\v26.buildbarn.configuration.bb_worker.RunnerConfigurationR\arunnersB\t\n" +
-	"\abackend\"\xed\x02\n" +
+	"\abackend\"\xa3\x03\n" +
 	"!NativeBuildDirectoryConfiguration\x120\n" +
 	"\x14build_directory_path\x18\x01 \x01(\tR\x12buildDirectoryPath\x120\n" +
 	"\x14cache_directory_path\x18\x02 \x01(\tR\x12cacheDirectoryPath\x127\n" +
 	"\x18maximum_cache_file_count\x18\x03 \x01(\x04R\x15maximumCacheFileCount\x127\n" +
 	"\x18maximum_cache_size_bytes\x18\x04 \x01(\x03R\x15maximumCacheSizeBytes\x12r\n" +
-	"\x18cache_replacement_policy\x18\x05 \x01(\x0e28.buildbarn.configuration.eviction.CacheReplacementPolicyR\x16cacheReplacementPolicy\"\xec\x03\n" +
+	"\x18cache_replacement_policy\x18\x05 \x01(\x0e28.buildbarn.configuration.eviction.CacheReplacementPolicyR\x16cacheReplacementPolicy\x124\n" +
+	"\x16use_sticky_directories\x18\x06 \x01(\bR\x14useStickyDirectories\"\xec\x03\n" +
 	"\"VirtualBuildDirectoryConfiguration\x12T\n" +
 	"\x05mount\x18\x01 \x01(\v2>.buildbarn.configuration.filesystem.virtual.MountConfigurationR\x05mount\x12n\n" +
 	"&maximum_execution_timeout_compensation\x18\x02 \x01(\v2\x19.google.protobuf.DurationR#maximumExecutionTimeoutCompensation\x12<\n" +
