@@ -766,7 +766,7 @@ func (bq *InMemoryBuildQueue) GetOperation(ctx context.Context, request *buildqu
 	if !ok {
 		return nil, status.Errorf(codes.NotFound, "Operation %#v not found", request.OperationName)
 	}
-	s := o.getOperationState(bq)
+	s := o.getOperationState(bq, true)
 	s.Name = ""
 	return &buildqueuestate.GetOperationResponse{
 		Operation: s,
@@ -883,7 +883,7 @@ func (bq *InMemoryBuildQueue) ListOperations(ctx context.Context, request *build
 	operations := make([]*buildqueuestate.OperationState, 0, len(nameListRegion))
 	for _, name := range nameListRegion {
 		o := bq.operationsNameMap[name]
-		operations = append(operations, o.getOperationState(bq))
+		operations = append(operations, o.getOperationState(bq, true))
 	}
 	return &buildqueuestate.ListOperationsResponse{
 		Operations:     operations,
@@ -1038,7 +1038,7 @@ func (bq *InMemoryBuildQueue) ListQueuedOperations(ctx context.Context, request 
 	queuedOperationsRegion := i.queuedOperations[paginationInfo.StartIndex:endIndex]
 	queuedOperations := make([]*buildqueuestate.OperationState, 0, queuedOperationsRegion.Len())
 	for _, o := range queuedOperationsRegion {
-		s := o.getOperationState(bq)
+		s := o.getOperationState(bq, true)
 		s.InvocationName = nil
 		queuedOperations = append(queuedOperations, s)
 	}
@@ -1046,6 +1046,39 @@ func (bq *InMemoryBuildQueue) ListQueuedOperations(ctx context.Context, request 
 		QueuedOperations: queuedOperations,
 		PaginationInfo:   paginationInfo,
 	}, nil
+}
+
+func (w *worker) getWorkerState(bq *InMemoryBuildQueue, scq *sizeClassQueue, includeCurrentOperation bool) *buildqueuestate.WorkerState {
+	var currentOperation *buildqueuestate.OperationState
+	if includeCurrentOperation && w.currentTask != nil {
+		// A task may have more than one operation
+		// associated with it, in case deduplication of
+		// in-flight requests occurred. For the time
+		// being, let's not expose the concept of tasks
+		// through the web UI yet. Just show one of the
+		// operations.
+		//
+		// Do make this deterministic by picking the
+		// operation with the lowest name,
+		// alphabetically.
+		var o *operation
+		for _, oCheck := range w.currentTask.operations {
+			if o == nil || o.name > oCheck.name {
+				o = oCheck
+			}
+		}
+		currentOperation = o.getOperationState(bq, false)
+		currentOperation.InvocationName = nil
+		currentOperation.Stage = nil
+	}
+	workerID := w.workerKey.getWorkerID()
+	workerState := &buildqueuestate.WorkerState{
+		Id:               workerID,
+		Timeout:          bq.cleanupQueue.getTimestamp(w.cleanupKey),
+		CurrentOperation: currentOperation,
+		Drained:          w.isDrained(scq, workerID),
+	}
+	return workerState
 }
 
 // ListWorkers returns basic properties of all workers for a given
@@ -1057,41 +1090,52 @@ func (bq *InMemoryBuildQueue) ListWorkers(ctx context.Context, request *buildque
 		startAfterWorkerKey = &workerKey
 	}
 
+	filter := request.Filter
+	if filter == nil {
+		return nil, status.Error(codes.InvalidArgument, "No filter specified")
+	}
+
 	bq.enter(bq.clock.Now())
 	defer bq.leave()
 
 	// Obtain IDs of all workers in sorted order.
 	var scq *sizeClassQueue
 	var keyList []string
-	switch filter := request.Filter.GetType().(type) {
+	switch filterType := filter.Type.(type) {
 	case *buildqueuestate.ListWorkersRequest_Filter_All:
 		var err error
-		scq, err = bq.getSizeClassQueueByName(filter.All)
+		scq, err = bq.getSizeClassQueueByName(filterType.All)
 		if err != nil {
 			return nil, err
 		}
 		for workerKey := range scq.workers {
-			keyList = append(keyList, string(workerKey))
+			if workerMatchesPattern(workerKey.getWorkerID(), request.Filter.GetWorkerIdPattern()) {
+				keyList = append(keyList, string(workerKey))
+			}
 		}
 	case *buildqueuestate.ListWorkersRequest_Filter_Executing:
 		var i *invocation
 		var err error
-		i, scq, err = bq.getInvocationByName(filter.Executing)
+		i, scq, err = bq.getInvocationByName(filterType.Executing)
 		if err != nil {
 			return nil, err
 		}
 		for w := range i.executingWorkers {
-			keyList = append(keyList, string(w.workerKey))
+			if workerMatchesPattern(w.workerKey.getWorkerID(), request.Filter.GetWorkerIdPattern()) {
+				keyList = append(keyList, string(w.workerKey))
+			}
 		}
 	case *buildqueuestate.ListWorkersRequest_Filter_IdleSynchronizing:
 		var i *invocation
 		var err error
-		i, scq, err = bq.getInvocationByName(filter.IdleSynchronizing)
+		i, scq, err = bq.getInvocationByName(filterType.IdleSynchronizing)
 		if err != nil {
 			return nil, err
 		}
 		for _, entry := range i.idleSynchronizingWorkers {
-			keyList = append(keyList, string(entry.worker.workerKey))
+			if workerMatchesPattern(entry.worker.workerKey.getWorkerID(), request.Filter.GetWorkerIdPattern()) {
+				keyList = append(keyList, string(entry.worker.workerKey))
+			}
 		}
 	default:
 		return nil, status.Error(codes.InvalidArgument, "Unknown filter provided")
@@ -1107,35 +1151,7 @@ func (bq *InMemoryBuildQueue) ListWorkers(ctx context.Context, request *buildque
 	for _, key := range keyListRegion {
 		workerKey := workerKey(key)
 		w := scq.workers[workerKey]
-		var currentOperation *buildqueuestate.OperationState
-		if t := w.currentTask; t != nil {
-			// A task may have more than one operation
-			// associated with it, in case deduplication of
-			// in-flight requests occurred. For the time
-			// being, let's not expose the concept of tasks
-			// through the web UI yet. Just show one of the
-			// operations.
-			//
-			// Do make this deterministic by picking the
-			// operation with the lowest name,
-			// alphabetically.
-			var o *operation
-			for _, oCheck := range t.operations {
-				if o == nil || o.name > oCheck.name {
-					o = oCheck
-				}
-			}
-			currentOperation = o.getOperationState(bq)
-			currentOperation.InvocationName = nil
-			currentOperation.Stage = nil
-		}
-		workerID := workerKey.getWorkerID()
-		workers = append(workers, &buildqueuestate.WorkerState{
-			Id:               workerID,
-			Timeout:          bq.cleanupQueue.getTimestamp(w.cleanupKey),
-			CurrentOperation: currentOperation,
-			Drained:          w.isDrained(scq, workerID),
-		})
+		workers = append(workers, w.getWorkerState(bq, scq, true))
 	}
 	return &buildqueuestate.ListWorkersResponse{
 		Workers:        workers,
@@ -2307,7 +2323,7 @@ func (o *operation) remove(bq *InMemoryBuildQueue) {
 	delete(t.operations, o.invocation)
 }
 
-func (o *operation) getOperationState(bq *InMemoryBuildQueue) *buildqueuestate.OperationState {
+func (o *operation) getOperationState(bq *InMemoryBuildQueue, includeStage bool) *buildqueuestate.OperationState {
 	i := o.invocation
 	t := o.task
 	sizeClassKey := t.getCurrentSizeClassQueue().getKey()
@@ -2330,18 +2346,20 @@ func (o *operation) getOperationState(bq *InMemoryBuildQueue) *buildqueuestate.O
 		InstanceNameSuffix: t.desiredState.InstanceNameSuffix,
 		DigestFunction:     t.desiredState.DigestFunction,
 	}
-	switch t.getStage() {
-	case remoteexecution.ExecutionStage_QUEUED:
-		s.Stage = &buildqueuestate.OperationState_Queued{
-			Queued: &emptypb.Empty{},
-		}
-	case remoteexecution.ExecutionStage_EXECUTING:
-		s.Stage = &buildqueuestate.OperationState_Executing{
-			Executing: &emptypb.Empty{},
-		}
-	case remoteexecution.ExecutionStage_COMPLETED:
-		s.Stage = &buildqueuestate.OperationState_Completed{
-			Completed: t.executeResponse,
+	if includeStage {
+		switch t.getStage() {
+		case remoteexecution.ExecutionStage_QUEUED:
+			s.Stage = &buildqueuestate.OperationState_Queued{
+				Queued: &emptypb.Empty{},
+			}
+		case remoteexecution.ExecutionStage_EXECUTING:
+			s.Stage = &buildqueuestate.OperationState_Executing{
+				Executing: t.currentWorker.getWorkerState(bq, t.getCurrentSizeClassQueue(), false),
+			}
+		case remoteexecution.ExecutionStage_COMPLETED:
+			s.Stage = &buildqueuestate.OperationState_Completed{
+				Completed: t.executeResponse,
+			}
 		}
 	}
 	return s

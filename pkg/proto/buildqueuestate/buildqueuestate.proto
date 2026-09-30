@@ -168,9 +168,7 @@ message OperationState {
     google.protobuf.Empty queued = 8;
 
     // The operation is in the EXECUTING stage.
-    // TODO: Would we want this to use type WorkerState, so that we can
-    // get the ID of the worker on which an operation is executing?
-    google.protobuf.Empty executing = 9;
+    WorkerState executing = 9;
 
     // The operation is in the COMPLETED stage.
     build.bazel.remote.execution.v2.ExecuteResponse completed = 10;
@@ -532,6 +530,11 @@ message ListWorkersRequest {
       // belonging to a given invocation.
       InvocationName idle_synchronizing = 3;
     }
+
+    // The pattern of matching workers to list. This pattern matches
+    // all workers for which the worker ID is a superset of the pattern.
+    // An empty worker ID pattern would match all workers.
+    map<string, string> worker_id_pattern = 4;
   }
 
   message StartAfter {
