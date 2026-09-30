@@ -153,7 +153,7 @@ var (
 			Subsystem: "builder",
 			Name:      "build_executor_posix_maximum_resident_set_size",
 			Help:      "Maximum resident set size of build actions, in bytes.",
-			Buckets:   prometheus.ExponentialBuckets(1024.0, 2.0, 23),
+			Buckets:   prometheus.ExponentialBuckets(1024.0, 2.0, 28),
 		},
 		[]string{"result", "grpc_code"},
 	)
