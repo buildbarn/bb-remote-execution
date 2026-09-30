@@ -1048,6 +1048,25 @@ func (bq *InMemoryBuildQueue) ListQueuedOperations(ctx context.Context, request 
 	}, nil
 }
 
+func filterWorkers(workerKeyList []string, filter map[string]string) []string {
+	var filteredKeys []string
+	for _, workerKeysString := range workerKeyList {
+		var parsedWorkerKeys map[string]string
+		json.Unmarshal([]byte(workerKeysString), &parsedWorkerKeys)
+		isValid := true
+		for filterKey, filterValue := range filter {
+			if workerValue, ok := parsedWorkerKeys[filterKey]; !ok || workerValue != filterValue {
+				isValid = false
+				break
+			}
+		}
+		if isValid {
+			filteredKeys = append(filteredKeys, workerKeysString)
+		}
+	}
+	return filteredKeys
+}
+
 // ListWorkers returns basic properties of all workers for a given
 // platform queue.
 func (bq *InMemoryBuildQueue) ListWorkers(ctx context.Context, request *buildqueuestate.ListWorkersRequest) (*buildqueuestate.ListWorkersResponse, error) {
@@ -1097,6 +1116,9 @@ func (bq *InMemoryBuildQueue) ListWorkers(ctx context.Context, request *buildque
 		return nil, status.Error(codes.InvalidArgument, "Unknown filter provided")
 	}
 	sort.Strings(keyList)
+	if len(request.WorkerIdFilter) > 0 {
+		keyList = filterWorkers(keyList, request.WorkerIdFilter)
+	}
 	paginationInfo, endIndex := getPaginationInfo(len(keyList), request.PageSize, func(i int) bool {
 		return startAfterWorkerKey == nil || keyList[i] > *startAfterWorkerKey
 	})
@@ -2330,10 +2352,14 @@ func (o *operation) getOperationState(bq *InMemoryBuildQueue) *buildqueuestate.O
 		s.Stage = &buildqueuestate.OperationState_Executing{
 			Executing: &emptypb.Empty{},
 		}
+		s.WorkerId = t.currentWorker.workerKey.getWorkerID()
 	case remoteexecution.ExecutionStage_COMPLETED:
+		var parsedWorkerKeys map[string]string
+		json.Unmarshal([]byte(t.executeResponse.Result.ExecutionMetadata.Worker), &parsedWorkerKeys)
 		s.Stage = &buildqueuestate.OperationState_Completed{
 			Completed: t.executeResponse,
 		}
+		s.WorkerId = parsedWorkerKeys
 	}
 	return s
 }

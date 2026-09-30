@@ -191,6 +191,10 @@ message OperationState {
 
   // The digest function that was used to compute the action digest.
   build.bazel.remote.execution.v2.DigestFunction.Value digest_function = 15;
+
+  // The labels that uniquely identifies the worker assigned to this
+  // opperation.
+  map<string, string> worker_id = 16;
 }
 
 message SizeClassQueueState {
@@ -552,6 +556,11 @@ message ListWorkersRequest {
   // the provided platform queue. When set, return the first workers
   // after the provided starting point.
   StartAfter start_after = 4;
+
+  // A filter for which workers to list. This filter matches all
+  // workers for which the worker ID is a superset of the filter. An
+  // empty worker ID filter would match all workers.
+  map<string, string> worker_id_filter = 5;
 }
 
 message ListWorkersResponse {
