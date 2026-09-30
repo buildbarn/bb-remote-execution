@@ -94,6 +94,19 @@ type ApplyAppendOutputPathPersistencyDirectoryNode struct {
 	Name      path.Component
 }
 
+// ApplyIsContentsImmutable is an operation for VirtualApply that
+// reports whether the contents of a regular file are guaranteed not to
+// change for as long as the node exists. Files backed by the Content
+// Addressable Storage satisfy this property.
+//
+// Kernel file systems may use this to keep a file's page cache across
+// open() calls. Without it, every open() of a shared input such as a
+// JDK discards the pages that other running actions have mapped.
+type ApplyIsContentsImmutable struct {
+	// Outputs.
+	Immutable bool
+}
+
 // ApplyOpenReadFrozen is an operation for VirtualApply that opens a
 // regular file for reading. The file's contents are guaranteed to be
 // immutable as long as the file is kept open.
