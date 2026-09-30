@@ -1,3 +1,4 @@
+load("@aspect_bazel_lib//lib:write_source_files.bzl", "write_source_file")
 load("@com_github_buildbarn_bb_remote_execution_npm//:defs.bzl", "npm_link_all_packages")
 
 # gazelle:go_grpc_compilers @rules_go//proto:go_proto,@rules_go//proto:go_grpc_v2
@@ -18,4 +19,10 @@ load("@com_github_buildbarn_bb_remote_execution_npm//:defs.bzl", "npm_link_all_p
 
 npm_link_all_packages(
     name = "node_modules",
+)
+
+write_source_file(
+    name = "generate_workflows",
+    in_file = "//tools/github_workflows",
+    out_file = ".github/workflows",
 )
