@@ -39,9 +39,13 @@ type BuildDirectory interface {
 	InstallHooks(filePool pool.FilePool, errorLogger util.ErrorLogger)
 
 	// Recursively merges the contents of a Directory stored in the
-	// Content Addressable Storage into a local directory. If this
-	// process is synchronous, this function can return a
-	// synchronous error. If this process is lazy/asynchronous, the
-	// provided ErrorLogger may be used to return an error.
-	MergeDirectoryContents(ctx context.Context, errorLogger util.ErrorLogger, digest digest.Digest, monitor access.UnreadDirectoryMonitor) error
+	// Content Addressable Storage into a local directory, retaining
+	// existing directories. Existing files are not reconciled: the
+	// caller must remove conflicting or stale entries first. Files in
+	// preservedFiles are skipped, using input-root-relative UNIX paths;
+	// the caller must ensure they already exist with matching contents
+	// and permissions. If this process is synchronous, this function
+	// can return a synchronous error. If this process is lazy/asynchronous,
+	// the provided ErrorLogger may be used to return an error.
+	MergeDirectoryContents(ctx context.Context, errorLogger util.ErrorLogger, digest digest.Digest, monitor access.UnreadDirectoryMonitor, preservedFiles map[string]struct{}) error
 }

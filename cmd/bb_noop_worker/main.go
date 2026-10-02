@@ -93,7 +93,7 @@ func main() {
 			configuration.Platform,
 			0,
 		)
-		builder.LaunchWorkerThread(siblingsGroup, buildClient, "noop")
+		builder.LaunchWorkerThread(siblingsGroup, buildClient, "noop", nil)
 
 		lifecycleState.MarkReadyAndWait(siblingsGroup)
 		return nil

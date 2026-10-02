@@ -2,6 +2,7 @@ package builder
 
 import (
 	"context"
+	"errors"
 	"log"
 	"time"
 
@@ -309,10 +310,18 @@ func (bc *BuildClient) Run(ctx context.Context) (bool, error) {
 }
 
 // LaunchWorkerThread launches a single routine that uses a build client
-// to repeatedly synchronizes against the scheduler, requesting a task
-// to execute.
-func LaunchWorkerThread(group program.Group, buildClient *BuildClient, workerName string) {
-	group.Go(func(ctx context.Context, siblingsGroup, dependenciesGroup program.Group) error {
+// to repeatedly synchronize against the scheduler, requesting a task
+// to execute. On shutdown, active execution is canceled and joined before
+// the optional cleanup callback runs. Dependencies remain available until
+// the callback completes.
+func LaunchWorkerThread(group program.Group, buildClient *BuildClient, workerName string, cleanup func() error) {
+	group.Go(func(ctx context.Context, siblingsGroup, dependenciesGroup program.Group) (returnError error) {
+		defer func() {
+			buildClient.stopExecution()
+			if cleanup != nil {
+				returnError = errors.Join(returnError, cleanup())
+			}
+		}()
 		generator := random.NewFastSingleThreadedGenerator()
 		for {
 			terminationStartedBeforeRun := ctx.Err() != nil
