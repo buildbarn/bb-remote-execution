@@ -135,4 +135,8 @@ message ApplicationConfiguration {
   // https://github.com/bazelbuild/bazel/blob/master/src/main/java/com/google/devtools/build/lib/exec/local/XcodeLocalEnvProvider.java
   // https://www.smileykeith.com/2021/03/08/locking-xcode-in-bazel/
   map<string, string> apple_xcode_developer_directories = 14;
+
+  // Kill the process group of a command when its action is canceled. This
+  // also kills subprocesses of helpers used to run actions outside a chroot.
+  bool cancel_process_group = 15;
 }
