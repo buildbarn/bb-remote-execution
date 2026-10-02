@@ -7,13 +7,13 @@ import (
 	"time"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	re_cas "github.com/buildbarn/bb-remote-execution/pkg/cas"
 	re_clock "github.com/buildbarn/bb-remote-execution/pkg/clock"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	runner_pb "github.com/buildbarn/bb-remote-execution/pkg/proto/runner"
-	"github.com/buildbarn/bb-storage/pkg/blobstore"
-	"github.com/buildbarn/bb-storage/pkg/cas"
+	"github.com/buildbarn/bb-storage/pkg/cas/reader"
 	"github.com/buildbarn/bb-storage/pkg/clock"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
@@ -66,8 +66,8 @@ func (el *capturingErrorLogger) GetError() error {
 }
 
 type localBuildExecutor struct {
-	contentAddressableStorage      blobstore.BlobAccess
-	commandReader                  cas.MessageReader[*remoteexecution.Command]
+	commandReader                  reader.Reader[*remoteexecution.Command]
+	blobUploader                   re_cas.BlobUploader
 	buildDirectoryCreator          BuildDirectoryCreator
 	runner                         runner_pb.RunnerClient
 	clock                          clock.Clock
@@ -79,9 +79,9 @@ type localBuildExecutor struct {
 
 // NewLocalBuildExecutor returns a BuildExecutor that executes build
 // steps on the local system.
-func NewLocalBuildExecutor(contentAddressableStorage blobstore.BlobAccess, commandReader cas.MessageReader[*remoteexecution.Command], buildDirectoryCreator BuildDirectoryCreator, runner runner_pb.RunnerClient, clock clock.Clock, maximumWritableFileUploadDelay time.Duration, inputRootCharacterDevices map[path.Component]filesystem.DeviceNumber, environmentVariables map[string]string, forceUploadTreesAndDirectories bool) BuildExecutor {
+func NewLocalBuildExecutor(commandReader reader.Reader[*remoteexecution.Command], blobUploader re_cas.BlobUploader, buildDirectoryCreator BuildDirectoryCreator, runner runner_pb.RunnerClient, clock clock.Clock, maximumWritableFileUploadDelay time.Duration, inputRootCharacterDevices map[path.Component]filesystem.DeviceNumber, environmentVariables map[string]string, forceUploadTreesAndDirectories bool) BuildExecutor {
 	return &localBuildExecutor{
-		contentAddressableStorage:      contentAddressableStorage,
+		blobUploader:                   blobUploader,
 		commandReader:                  commandReader,
 		buildDirectoryCreator:          buildDirectoryCreator,
 		runner:                         runner,
@@ -232,9 +232,9 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool pool.FilePoo
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to extract digest for command"))
 		return response
 	}
-	command, err := be.commandReader.ReadMessage(ctx, commandDigest)
+	command, err := be.commandReader.Read(ctx, commandDigest)
 	if err != nil {
-		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to obtain command"))
+		attachErrorToExecuteResponse(response, util.StatusWrap(re_cas.FailedPreconditionOnMissingBlob(commandDigest, err), "Failed to obtain command"))
 		return response
 	}
 	outputHierarchy, err := NewOutputHierarchy(command)
@@ -343,7 +343,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool pool.FilePoo
 	} else if stderrDigest.GetSizeBytes() > 0 {
 		response.Result.StderrDigest = stderrDigest.GetProto()
 	}
-	if err := outputHierarchy.UploadOutputs(ctx, inputRootDirectory, be.contentAddressableStorage, digestFunction, writableFileUploadDelayChan, response.Result, be.forceUploadTreesAndDirectories); err != nil {
+	if err := outputHierarchy.UploadOutputs(ctx, inputRootDirectory, be.blobUploader, digestFunction, writableFileUploadDelayChan, response.Result, be.forceUploadTreesAndDirectories); err != nil {
 		attachErrorToExecuteResponse(response, err)
 	}
 

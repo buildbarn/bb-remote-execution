@@ -31,11 +31,15 @@ const blobAccessCASFileFactoryAttributesMask = virtual.AttributesMaskChangeID |
 func TestBlobAccessCASFileFactoryVirtualSeek(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	chunkBytesReader := mock.NewMockReader[[]byte](ctrl)
+	chunkMappingFetcher := mock.NewMockMappingFetcher(ctrl)
+	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	casFileFactory := virtual.NewBlobAccessCASFileFactory(
 		ctx,
-		contentAddressableStorage,
+		chunkBytesReader,
+		chunkMappingFetcher,
+		cdcParametersFetcher,
 		errorLogger,
 	)
 
@@ -85,11 +89,15 @@ func TestBlobAccessCASFileFactoryVirtualSeek(t *testing.T) {
 func TestBlobAccessCASFileFactoryGetContainingDigests(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	chunkBytesReader := mock.NewMockReader[[]byte](ctrl)
+	chunkMappingFetcher := mock.NewMockMappingFetcher(ctrl)
+	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	casFileFactory := virtual.NewBlobAccessCASFileFactory(
 		ctx,
-		contentAddressableStorage,
+		chunkBytesReader,
+		chunkMappingFetcher,
+		cdcParametersFetcher,
 		errorLogger,
 	)
 
@@ -117,11 +125,15 @@ func TestBlobAccessCASFileFactoryGetContainingDigests(t *testing.T) {
 func TestBlobAccessCASFileFactoryGetBazelOutputServiceStat(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	chunkBytesReader := mock.NewMockReader[[]byte](ctrl)
+	chunkMappingFetcher := mock.NewMockMappingFetcher(ctrl)
+	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	casFileFactory := virtual.NewBlobAccessCASFileFactory(
 		ctx,
-		contentAddressableStorage,
+		chunkBytesReader,
+		chunkMappingFetcher,
+		cdcParametersFetcher,
 		errorLogger,
 	)
 
@@ -169,11 +181,15 @@ func TestBlobAccessCASFileFactoryGetBazelOutputServiceStat(t *testing.T) {
 func TestBlobAccessCASFileFactoryAppendOutputPathPersistencyDirectoryNode(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	chunkBytesReader := mock.NewMockReader[[]byte](ctrl)
+	chunkMappingFetcher := mock.NewMockMappingFetcher(ctrl)
+	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
 	errorLogger := mock.NewMockErrorLogger(ctrl)
 	casFileFactory := virtual.NewBlobAccessCASFileFactory(
 		ctx,
-		contentAddressableStorage,
+		chunkBytesReader,
+		chunkMappingFetcher,
+		cdcParametersFetcher,
 		errorLogger,
 	)
 
