@@ -119,7 +119,7 @@ func NewPlainCommandCreator(sysProcAttr *syscall.SysProcAttr) CommandCreator {
 		cmd.Args = arguments
 		cmd.Dir = workingDirectoryStr
 		cmd.Path = executablePath
-		cmd.SysProcAttr = sysProcAttr
+		cmd.SysProcAttr = sysProcAttrForArguments(sysProcAttr, arguments)
 		return cmd, nil
 	}
 }
