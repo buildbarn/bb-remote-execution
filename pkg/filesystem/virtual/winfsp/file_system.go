@@ -445,8 +445,9 @@ func setAndGetAttributes(ctx context.Context, newAttributesMask virtual.Attribut
 }
 
 type directoryResolver struct {
-	ctx     context.Context
-	current virtual.Directory
+	ctx             context.Context
+	current         virtual.Directory
+	failedOnSymlink bool
 }
 
 func (d *directoryResolver) OnDirectory(component path.Component) (path.GotDirectoryOrSymlink, error) {
@@ -455,10 +456,12 @@ func (d *directoryResolver) OnDirectory(component path.Component) (path.GotDirec
 	if status != virtual.StatusOK {
 		return nil, toNTStatus(status)
 	}
-	d.current, _ = child.GetPair()
-	if d.current == nil {
+	directory, _ := child.GetPair()
+	if directory == nil {
+		d.failedOnSymlink = attributes.GetFileType() == filesystem.FileTypeSymlink
 		return nil, windows.STATUS_NOT_A_DIRECTORY
 	}
+	d.current = directory
 	return path.GotDirectory{
 		Child:        d,
 		IsReversible: false,
@@ -492,15 +495,15 @@ func (directoryResolver) OnShare(server, share string) (path.ComponentWalker, er
 // resolveDirectory resolves a path from WinFSP into a virtual.Directory. It
 // is only designed to cope with directory paths from WinFSP, which are guaranteed
 // to start with \ and not contain any .. components.
-func (fs *FileSystem) resolveDirectory(ctx context.Context, name string) (virtual.Directory, error) {
+func (fs *FileSystem) resolveDirectory(ctx context.Context, name string) (directory virtual.Directory, failedOnSymlink bool, err error) {
 	w := directoryResolver{
 		current: fs.rootDirectory,
 		ctx:     ctx,
 	}
 	if err := path.Resolve(path.LocalFormat.NewParser(name), &w); err != nil {
-		return nil, err
+		return nil, w.failedOnSymlink, err
 	}
-	return w.current, nil
+	return w.current, false, nil
 }
 
 func (FileSystem) openOrCreateDir(ctx context.Context, parent virtual.Directory, leafName path.Component, disposition uint32, attributes *virtual.Attributes) (virtual.DirectoryChild, error) {
@@ -631,7 +634,7 @@ func (fs *FileSystem) createHandle(ctx context.Context, name string, createOptio
 			return 0, windows.STATUS_INVALID_PARAMETER
 		}
 	} else {
-		parent, err = fs.resolveDirectory(ctx, parentName)
+		parent, _, err = fs.resolveDirectory(ctx, parentName)
 		if err != nil {
 			return 0, err
 		}
@@ -1101,14 +1104,6 @@ func (fs *FileSystem) GetSecurity(ref *ffi.FileSystemRef, handle uintptr) (*wind
 	return toSecurityDescriptor(&attributes)
 }
 
-func (FileSystem) containsReparsePoint(ref *ffi.FileSystemRef, fileName string) bool {
-	found, _, err := ffi.FileSystemFindReparsePoint(ref, fileName)
-	if found && err == nil {
-		return found
-	}
-	return false
-}
-
 func (fs *FileSystem) GetSecurityByName(ref *ffi.FileSystemRef, name string, flags ffi.GetSecurityByNameFlags) (uint32, *windows.SECURITY_DESCRIPTOR, error) {
 	ctx, err := fs.createContext()
 	if err != nil {
@@ -1123,18 +1118,17 @@ func (fs *FileSystem) GetSecurityByName(ref *ffi.FileSystemRef, name string, fla
 	if leafName == nil {
 		fs.rootDirectory.VirtualGetAttributes(ctx, AttributesMaskForWinFSPAttr, &attributes)
 	} else {
-		parent, err := fs.resolveDirectory(ctx, parentName)
+		parent, failedOnSymlink, err := fs.resolveDirectory(ctx, parentName)
 		if err != nil {
-			if fs.containsReparsePoint(ref, name) {
+			if failedOnSymlink {
+				// Let WinFSP resolve the symlink, which it does by
+				// calling GetReparsePointByName.
 				return 0, nil, windows.STATUS_REPARSE
 			}
 			return 0, nil, err
 		}
 		_, status := parent.VirtualLookup(ctx, *leafName, AttributesMaskForWinFSPAttr, &attributes)
 		if status != virtual.StatusOK {
-			if fs.containsReparsePoint(ref, name) {
-				return 0, nil, windows.STATUS_REPARSE
-			}
 			return 0, nil, toNTStatus(status)
 		}
 	}
@@ -1201,7 +1195,7 @@ func (fs *FileSystem) Rename(ref *ffi.FileSystemRef, handle uintptr, source, tar
 	if targetLeafName == nil {
 		return windows.STATUS_INVALID_PARAMETER
 	}
-	targetParent, err := fs.resolveDirectory(ctx, targetParentName)
+	targetParent, _, err := fs.resolveDirectory(ctx, targetParentName)
 	if err != nil {
 		return err
 	}
@@ -1402,7 +1396,7 @@ func (fs *FileSystem) GetReparsePointByName(ref *ffi.FileSystemRef, name string,
 	if leafName == nil {
 		return 0, windows.STATUS_NOT_A_REPARSE_POINT
 	}
-	parent, err := fs.resolveDirectory(ctx, parentName)
+	parent, _, err := fs.resolveDirectory(ctx, parentName)
 	if err != nil {
 		return 0, err
 	}

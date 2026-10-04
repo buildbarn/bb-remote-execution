@@ -2475,6 +2475,44 @@ func TestWinFSPFileSystemGetSecurityByName(t *testing.T) {
 		require.Equal(t, uint32(windows.FILE_ATTRIBUTE_REPARSE_POINT|windows.FILE_ATTRIBUTE_READONLY), fileAttributes)
 		require.NotNil(t, securityDescriptor)
 	})
+
+	t.Run("GetSecurityByNameThroughSymlink", func(t *testing.T) {
+		rootDirectory.EXPECT().VirtualLookup(
+			gomock.Any(),
+			path.MustNewComponent("directory_symlink"),
+			virtual.AttributesMaskFileType,
+			gomock.Any(),
+		).DoAndReturn(func(ctx context.Context, name path.Component, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.DirectoryChild, virtual.Status) {
+			out.SetFileType(filesystem.FileTypeSymlink)
+			return virtual.DirectoryChild{}.FromLeaf(file), virtual.StatusOK
+		})
+
+		_, _, err := fs.GetSecurityByName(
+			ref,
+			"\\directory_symlink\\file.txt",
+			ffi.GetSecurityByName,
+		)
+		require.Equal(t, windows.STATUS_REPARSE, err)
+	})
+
+	t.Run("GetSecurityByNameThroughFile", func(t *testing.T) {
+		rootDirectory.EXPECT().VirtualLookup(
+			gomock.Any(),
+			path.MustNewComponent("regular_file"),
+			virtual.AttributesMaskFileType,
+			gomock.Any(),
+		).DoAndReturn(func(ctx context.Context, name path.Component, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.DirectoryChild, virtual.Status) {
+			out.SetFileType(filesystem.FileTypeRegularFile)
+			return virtual.DirectoryChild{}.FromLeaf(file), virtual.StatusOK
+		})
+
+		_, _, err := fs.GetSecurityByName(
+			ref,
+			"\\regular_file\\file.txt",
+			ffi.GetSecurityByName,
+		)
+		require.Equal(t, windows.STATUS_NOT_A_DIRECTORY, err)
+	})
 }
 
 // There are no unit tests for SetSecurity as that requires WinFSP to be
