@@ -81,8 +81,8 @@ github.com/buildbarn/bb-storage v0.0.0-20260906092937-ae61334ea798 h1:5rj162zHEC
 github.com/buildbarn/bb-storage v0.0.0-20260906092937-ae61334ea798/go.mod h1:mMbgzFUH/PretKFO1H2QQmqPv12Om7Y14Ri0TqS6m/8=
 github.com/buildbarn/go-sha256tree v0.0.0-20250310211320-0f70f20e855b h1:IKUxixGBm9UxobU7c248z0BF0ojG19uoSLz8MFZM/KA=
 github.com/buildbarn/go-sha256tree v0.0.0-20250310211320-0f70f20e855b/go.mod h1:e7g3/yWApcg+PpDqd4eQEEV8pexQmfCgK3frP+1Wuvk=
-github.com/buildbarn/go-xdr v0.0.0-20240702182809-236788cf9e89 h1:Wtpgk4CIkoEJ7Qx3BwjaMp3TOVv834heqyCC9jMKStM=
-github.com/buildbarn/go-xdr v0.0.0-20240702182809-236788cf9e89/go.mod h1:zO8MAbsa53deqysDsONWhnRaj8fNFKDU96pKWrvieOw=
+github.com/buildbarn/go-xdr v0.0.0-20261005144839-a2095890273e h1:IIEfPy5IjG/IWrWLi6M+ApeNM8+9gZDeRWWUwDdsfQI=
+github.com/buildbarn/go-xdr v0.0.0-20261005144839-a2095890273e/go.mod h1:zO8MAbsa53deqysDsONWhnRaj8fNFKDU96pKWrvieOw=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=

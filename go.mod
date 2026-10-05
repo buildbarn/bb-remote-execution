@@ -14,7 +14,7 @@ require (
 	github.com/bazelbuild/remote-apis v0.0.0-20260331222004-becdd8f9ff81
 	github.com/bazelbuild/rules_go v0.63.0
 	github.com/buildbarn/bb-storage v0.0.0-20260906092937-ae61334ea798
-	github.com/buildbarn/go-xdr v0.0.0-20240702182809-236788cf9e89
+	github.com/buildbarn/go-xdr v0.0.0-20261005144839-a2095890273e
 	github.com/golang/protobuf v1.5.4
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
