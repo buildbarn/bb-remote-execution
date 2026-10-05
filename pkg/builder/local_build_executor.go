@@ -75,11 +75,12 @@ type localBuildExecutor struct {
 	inputRootCharacterDevices      map[path.Component]filesystem.DeviceNumber
 	environmentVariables           map[string]string
 	forceUploadTreesAndDirectories bool
+	buildDirectoryMode             os.FileMode
 }
 
 // NewLocalBuildExecutor returns a BuildExecutor that executes build
 // steps on the local system.
-func NewLocalBuildExecutor(contentAddressableStorage blobstore.BlobAccess, commandReader cas.MessageReader[*remoteexecution.Command], buildDirectoryCreator BuildDirectoryCreator, runner runner_pb.RunnerClient, clock clock.Clock, maximumWritableFileUploadDelay time.Duration, inputRootCharacterDevices map[path.Component]filesystem.DeviceNumber, environmentVariables map[string]string, forceUploadTreesAndDirectories bool) BuildExecutor {
+func NewLocalBuildExecutor(contentAddressableStorage blobstore.BlobAccess, commandReader cas.MessageReader[*remoteexecution.Command], buildDirectoryCreator BuildDirectoryCreator, runner runner_pb.RunnerClient, clock clock.Clock, maximumWritableFileUploadDelay time.Duration, inputRootCharacterDevices map[path.Component]filesystem.DeviceNumber, environmentVariables map[string]string, forceUploadTreesAndDirectories bool, buildDirectoryMode os.FileMode) BuildExecutor {
 	return &localBuildExecutor{
 		contentAddressableStorage:      contentAddressableStorage,
 		commandReader:                  commandReader,
@@ -90,6 +91,7 @@ func NewLocalBuildExecutor(contentAddressableStorage blobstore.BlobAccess, comma
 		inputRootCharacterDevices:      inputRootCharacterDevices,
 		environmentVariables:           environmentVariables,
 		forceUploadTreesAndDirectories: forceUploadTreesAndDirectories,
+		buildDirectoryMode:             buildDirectoryMode,
 	}
 }
 
@@ -188,7 +190,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool pool.FilePoo
 	}
 
 	// Create input root directory inside of build directory.
-	if err := buildDirectory.Mkdir(inputRootDirectoryComponent, 0o777); err != nil {
+	if err := buildDirectory.Mkdir(inputRootDirectoryComponent, be.buildDirectoryMode); err != nil {
 		attachErrorToExecuteResponse(
 			response,
 			util.StatusWrap(err, "Failed to create input root directory"),
@@ -252,7 +254,7 @@ func (be *localBuildExecutor) Execute(ctx context.Context, filePool pool.FilePoo
 	// temporary files are automatically removed when the build
 	// action completes. When using FUSE, it also causes quotas to
 	// be applied to them.
-	if err := buildDirectory.Mkdir(temporaryDirectoryComponent, 0o777); err != nil {
+	if err := buildDirectory.Mkdir(temporaryDirectoryComponent, be.buildDirectoryMode); err != nil {
 		attachErrorToExecuteResponse(
 			response,
 			util.StatusWrap(err, "Failed to create temporary directory inside build directory"),
