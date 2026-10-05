@@ -30,7 +30,7 @@ git_override(
 
 git_override(
     module_name = "com_github_buildbarn_go_xdr",
-    commit = "236788cf9e8948a1e8875c7dd243e2be180cdfd7",
+    commit = "a2095890273efee7f8bb2b0007914f8b66398c57",
     remote = "https://github.com/buildbarn/go-xdr.git",
 )
 
