@@ -45,6 +45,10 @@ func findFreeDriveLetter() (string, error) {
 }
 
 func createWinFSPForTest(t *testing.T, terminationGroup program.Group, caseSensitive bool) (string, blockdevice.BlockDevice, virtual_configuration.Mount, virtual.PrepopulatedDirectory, virtual.SymlinkFactory) {
+	return createWinFSPWithAttributesForTest(t, terminationGroup, caseSensitive, func(requested virtual.AttributesMask, attributes *virtual.Attributes) {})
+}
+
+func createWinFSPWithAttributesForTest(t *testing.T, terminationGroup program.Group, caseSensitive bool, defaultAttributesSetter virtual.DefaultAttributesSetter) (string, blockdevice.BlockDevice, virtual_configuration.Mount, virtual.PrepopulatedDirectory, virtual.SymlinkFactory) {
 	// We can't run winfsp-tests at a directory path due to
 	// https://github.com/winfsp/winfsp/issues/279. Instead find a free drive
 	// letter and run it there instead.
@@ -80,7 +84,6 @@ func createWinFSPForTest(t *testing.T, terminationGroup program.Group, caseSensi
 	}
 
 	// Create a virtual directory to hold new files.
-	defaultAttributesSetter := func(requested virtual.AttributesMask, attributes *virtual.Attributes) {}
 	symlinkFactory := virtual.NewHandleAllocatingSymlinkFactory(
 		virtual.NewBaseSymlinkFactory(defaultAttributesSetter),
 		handleAllocator.New(),
@@ -363,6 +366,81 @@ func TestWinFSPFileSystemSetSecurity(t *testing.T) {
 			newDacl, _, err := newSd.DACL()
 			require.NoError(t, err)
 			require.NotNil(t, newDacl)
+		})
+
+		return nil
+	})
+}
+
+func TestWinFSPFileSystemWithOwnerIDs(t *testing.T) {
+	require.NoError(t, ffi.LoadWinFSP())
+	token := windows.GetCurrentProcessToken()
+	user, err := token.GetTokenUser()
+	require.NoError(t, err)
+	uid, err := ffi.PosixMapSidToUid(user.User.Sid)
+	require.NoError(t, err)
+	primaryGroup, err := token.GetTokenPrimaryGroup()
+	require.NoError(t, err)
+	gid, err := ffi.PosixMapSidToUid(primaryGroup.PrimaryGroup)
+	require.NoError(t, err)
+
+	program.RunLocal(context.Background(), func(ctx context.Context, siblingsGroup, dependenciesGroup program.Group) error {
+		// Emulate what bb-worker does by setting the uid and gid.
+		vfsPath, bd, mount, rootDir, _ := createWinFSPWithAttributesForTest(t, dependenciesGroup, false, func(requested virtual.AttributesMask, attributes *virtual.Attributes) {
+			attributes.SetOwnerUserID(uid)
+			attributes.SetOwnerGroupID(gid)
+		})
+		defer bd.Close()
+		require.NoError(t, mount.Expose(dependenciesGroup, rootDir))
+
+		t.Run("OverwriteExistingFile", func(t *testing.T) {
+			testFile := filepath.Join(vfsPath, "overwrite.txt")
+			require.NoError(t, os.WriteFile(testFile, []byte("old contents"), 0o644))
+
+			// CREATE_ALWAYS on an existing file.
+			testFileUTF16, err := windows.UTF16PtrFromString(testFile)
+			require.NoError(t, err)
+			h, err := windows.CreateFile(testFileUTF16, windows.GENERIC_WRITE, 0, nil, windows.CREATE_ALWAYS, windows.FILE_ATTRIBUTE_NORMAL, 0)
+			require.NoError(t, err)
+			require.NoError(t, windows.Close(h))
+
+			info, err := os.Stat(testFile)
+			require.NoError(t, err)
+			require.Equal(t, int64(0), info.Size())
+		})
+
+		t.Run("SetSecurityChangesPermissions", func(t *testing.T) {
+			// Replacing only the DACL should leave the owner and group
+			// unchanged which should therefore succeed. The pool-backed
+			// files used in this test track only whether they are executable,
+			// so we modify that.
+			name := "executable.txt"
+			testFile := filepath.Join(vfsPath, name)
+			require.NoError(t, os.WriteFile(testFile, []byte("contents"), 0o644))
+			getPermissions := func() virtual.Permissions {
+				var attributes virtual.Attributes
+				_, s := rootDir.VirtualLookup(ctx, bb_path.MustNewComponent(name), virtual.AttributesMaskPermissions, &attributes)
+				require.Equal(t, virtual.StatusOK, s)
+				permissions, ok := attributes.GetPermissions()
+				require.True(t, ok)
+				return permissions
+			}
+			require.NotZero(t, getPermissions()&virtual.PermissionsExecute)
+
+			everyoneSid, err := windows.CreateWellKnownSid(windows.WinWorldSid)
+			require.NoError(t, err)
+			dacl, err := windows.ACLFromEntries([]windows.EXPLICIT_ACCESS{{
+				AccessPermissions: windows.FILE_GENERIC_READ,
+				AccessMode:        windows.GRANT_ACCESS,
+				Inheritance:       windows.NO_INHERITANCE,
+				Trustee: windows.TRUSTEE{
+					TrusteeForm:  windows.TRUSTEE_IS_SID,
+					TrusteeValue: windows.TrusteeValueFromSID(everyoneSid),
+				},
+			}}, nil)
+			require.NoError(t, err)
+			require.NoError(t, windows.SetNamedSecurityInfo(testFile, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION, nil, nil, dacl, nil))
+			require.Zero(t, getPermissions()&virtual.PermissionsExecute)
 		})
 
 		return nil
