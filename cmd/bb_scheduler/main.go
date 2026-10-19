@@ -30,7 +30,6 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/proto/iscc"
 	"github.com/buildbarn/bb-storage/pkg/random"
 	"github.com/buildbarn/bb-storage/pkg/util"
-	"github.com/buildbarn/bb-storage/pkg/zstd"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 
@@ -61,13 +60,11 @@ func main() {
 		// Storage access. The scheduler requires access to the Action
 		// and Command messages stored in the CAS to obtain platform
 		// properties.
-		zstdPool := zstd.NewPoolFromConfiguration(configuration.ZstdPool)
 		chunkBytesReader, _, _, chunkMappingFetcher, cdcParametersFetcher, _, err := blobstore_configuration.NewCASFromConfiguration(
 			dependenciesGroup,
 			configuration.ContentAddressableStorage,
 			grpcClientFactory,
 			int(configuration.MaximumMessageSizeBytes),
-			zstdPool,
 		)
 		if err != nil {
 			return util.StatusWrap(err, "Failed to create Content Adddressable Storage")

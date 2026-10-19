@@ -40,7 +40,6 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/proto/fsac"
 	"github.com/buildbarn/bb-storage/pkg/random"
 	"github.com/buildbarn/bb-storage/pkg/util"
-	"github.com/buildbarn/bb-storage/pkg/zstd"
 	"github.com/google/uuid"
 
 	"golang.org/x/sync/semaphore"
@@ -87,13 +86,11 @@ func main() {
 		}
 
 		// Storage access.
-		zstdPool := zstd.NewPoolFromConfiguration(configuration.ZstdPool)
 		chunkBytesReader, chunkStorage, chunkMappingStorage, chunkMappingFetcher, cdcParametersFetcher, digestKeyFormat, actionCache, err := blobstore_configuration.NewCASAndACFromConfiguration(
 			dependenciesGroup,
 			configuration.Blobstore,
 			grpcClientFactory,
 			int(configuration.MaximumMessageSizeBytes),
-			zstdPool,
 		)
 		if err != nil {
 			return err
@@ -408,7 +405,6 @@ func main() {
 						cas.NewReaderPutter(
 							localChunkStorage,
 							localChunkMappingStorage,
-							zstdPool,
 						),
 					)
 
@@ -500,7 +496,6 @@ func main() {
 							re_cas.NewProtoPutter(cas.NewReaderPutter(
 								chunkStorage,
 								chunkMappingStorage,
-								zstdPool,
 							)),
 						)
 					}
@@ -536,7 +531,6 @@ func main() {
 						re_cas.NewProtoPutter(cas.NewReaderPutter(
 							chunkStorage,
 							chunkMappingStorage,
-							zstdPool,
 						)),
 						actionCache,
 						portalURL,

@@ -11,7 +11,6 @@ import (
 	blobstore "github.com/buildbarn/bb-storage/pkg/proto/configuration/blobstore"
 	global "github.com/buildbarn/bb-storage/pkg/proto/configuration/global"
 	grpc "github.com/buildbarn/bb-storage/pkg/proto/configuration/grpc"
-	zstd "github.com/buildbarn/bb-storage/pkg/proto/configuration/zstd"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -36,7 +35,6 @@ type ApplicationConfiguration struct {
 	WorkerId                  map[string]string                                 `protobuf:"bytes,6,rep,name=worker_id,json=workerId,proto3" json:"worker_id,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	ContentAddressableStorage *blobstore.ContentAddressableStorageConfiguration `protobuf:"bytes,7,opt,name=content_addressable_storage,json=contentAddressableStorage,proto3" json:"content_addressable_storage,omitempty"`
 	MaximumMessageSizeBytes   int64                                             `protobuf:"varint,8,opt,name=maximum_message_size_bytes,json=maximumMessageSizeBytes,proto3" json:"maximum_message_size_bytes,omitempty"`
-	ZstdPool                  *zstd.PoolConfiguration                           `protobuf:"bytes,9,opt,name=zstd_pool,json=zstdPool,proto3" json:"zstd_pool,omitempty"`
 	unknownFields             protoimpl.UnknownFields
 	sizeCache                 protoimpl.SizeCache
 }
@@ -127,18 +125,11 @@ func (x *ApplicationConfiguration) GetMaximumMessageSizeBytes() int64 {
 	return 0
 }
 
-func (x *ApplicationConfiguration) GetZstdPool() *zstd.PoolConfiguration {
-	if x != nil {
-		return x.ZstdPool
-	}
-	return nil
-}
-
 var File_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_noop_worker_bb_noop_worker_proto protoreflect.FileDescriptor
 
 const file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_noop_worker_bb_noop_worker_proto_rawDesc = "" +
 	"\n" +
-	"dgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_noop_worker/bb_noop_worker.proto\x12&buildbarn.configuration.bb_noop_worker\x1a6build/bazel/remote/execution/v2/remote_execution.proto\x1aQgithub.com/buildbarn/bb-storage/pkg/proto/configuration/blobstore/blobstore.proto\x1aKgithub.com/buildbarn/bb-storage/pkg/proto/configuration/global/global.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/grpc/grpc.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/zstd/zstd.proto\"\x8b\x06\n" +
+	"dgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_noop_worker/bb_noop_worker.proto\x12&buildbarn.configuration.bb_noop_worker\x1a6build/bazel/remote/execution/v2/remote_execution.proto\x1aQgithub.com/buildbarn/bb-storage/pkg/proto/configuration/blobstore/blobstore.proto\x1aKgithub.com/buildbarn/bb-storage/pkg/proto/configuration/global/global.proto\x1aGgithub.com/buildbarn/bb-storage/pkg/proto/configuration/grpc/grpc.proto\"\xc3\x05\n" +
 	"\x18ApplicationConfiguration\x12E\n" +
 	"\x06global\x18\x01 \x01(\v2-.buildbarn.configuration.global.ConfigurationR\x06global\x12\x1d\n" +
 	"\n" +
@@ -148,11 +139,11 @@ const file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_n
 	"\bplatform\x18\x05 \x01(\v2).build.bazel.remote.execution.v2.PlatformR\bplatform\x12k\n" +
 	"\tworker_id\x18\x06 \x03(\v2N.buildbarn.configuration.bb_noop_worker.ApplicationConfiguration.WorkerIdEntryR\bworkerId\x12\x89\x01\n" +
 	"\x1bcontent_addressable_storage\x18\a \x01(\v2I.buildbarn.configuration.blobstore.ContentAddressableStorageConfigurationR\x19contentAddressableStorage\x12;\n" +
-	"\x1amaximum_message_size_bytes\x18\b \x01(\x03R\x17maximumMessageSizeBytes\x12L\n" +
-	"\tzstd_pool\x18\t \x01(\v2/.buildbarn.configuration.zstd.PoolConfigurationR\bzstdPool\x1a;\n" +
+	"\x1amaximum_message_size_bytes\x18\b \x01(\x03R\x17maximumMessageSizeBytes\x1a;\n" +
 	"\rWorkerIdEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01BQZOgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_noop_workerb\x06proto3"
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\t\x10\n" +
+	"BQZOgithub.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_noop_workerb\x06proto3"
 
 var (
 	file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_noop_worker_bb_noop_worker_proto_rawDescOnce sync.Once
@@ -174,7 +165,6 @@ var file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_noo
 	(*grpc.ClientConfiguration)(nil), // 3: buildbarn.configuration.grpc.ClientConfiguration
 	(*v2.Platform)(nil),              // 4: build.bazel.remote.execution.v2.Platform
 	(*blobstore.ContentAddressableStorageConfiguration)(nil), // 5: buildbarn.configuration.blobstore.ContentAddressableStorageConfiguration
-	(*zstd.PoolConfiguration)(nil),                           // 6: buildbarn.configuration.zstd.PoolConfiguration
 }
 var file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_noop_worker_bb_noop_worker_proto_depIdxs = []int32{
 	2, // 0: buildbarn.configuration.bb_noop_worker.ApplicationConfiguration.global:type_name -> buildbarn.configuration.global.Configuration
@@ -182,12 +172,11 @@ var file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_noo
 	4, // 2: buildbarn.configuration.bb_noop_worker.ApplicationConfiguration.platform:type_name -> build.bazel.remote.execution.v2.Platform
 	1, // 3: buildbarn.configuration.bb_noop_worker.ApplicationConfiguration.worker_id:type_name -> buildbarn.configuration.bb_noop_worker.ApplicationConfiguration.WorkerIdEntry
 	5, // 4: buildbarn.configuration.bb_noop_worker.ApplicationConfiguration.content_addressable_storage:type_name -> buildbarn.configuration.blobstore.ContentAddressableStorageConfiguration
-	6, // 5: buildbarn.configuration.bb_noop_worker.ApplicationConfiguration.zstd_pool:type_name -> buildbarn.configuration.zstd.PoolConfiguration
-	6, // [6:6] is the sub-list for method output_type
-	6, // [6:6] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	5, // [5:5] is the sub-list for method output_type
+	5, // [5:5] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() {

@@ -9,7 +9,6 @@ import "github.com/buildbarn/bb-storage/pkg/proto/configuration/blobstore/blobst
 import "github.com/buildbarn/bb-storage/pkg/proto/configuration/global/global.proto";
 import "github.com/buildbarn/bb-storage/pkg/proto/configuration/grpc/grpc.proto";
 import "github.com/buildbarn/bb-storage/pkg/proto/configuration/http/server/server.proto";
-import "github.com/buildbarn/bb-storage/pkg/proto/configuration/zstd/zstd.proto";
 import "google/protobuf/duration.proto";
 
 option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_scheduler";
@@ -169,10 +168,9 @@ message ApplicationConfiguration {
   buildbarn.configuration.auth.AuthorizerConfiguration synchronize_authorizer =
       23;
 
-  // ZSTD encoder/decoder pool configuration. When set, creates a
-  // process-wide pool shared by all gRPC CAS clients and the
-  // ByteStream server.
-  buildbarn.configuration.zstd.PoolConfiguration zstd_pool = 24;
+  // Was 'zstd_pool' no longer required as bb-remote-execution doesn't
+  // need to stream long lived zstd encoding/decoding.
+  reserved 24;
 }
 
 message PredeclaredPlatformQueueConfiguration {
