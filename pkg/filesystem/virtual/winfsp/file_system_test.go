@@ -1270,6 +1270,10 @@ func TestWinFSPFileSystemOverwrite(t *testing.T) {
 		require.NoError(t, err)
 
 		// Mock overwrite operation
+		file.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskPermissions, gomock.Any()).
+			Do(func(ctx context.Context, requested virtual.AttributesMask, out *virtual.Attributes) {
+				out.SetPermissions(virtual.PermissionsRead | virtual.PermissionsWrite)
+			})
 		file.EXPECT().VirtualSetAttributes(
 			gomock.Any(),
 			gomock.Any(),
@@ -1279,6 +1283,8 @@ func TestWinFSPFileSystemOverwrite(t *testing.T) {
 			size, present := in.GetSizeBytes()
 			require.True(t, present)
 			require.Equal(t, uint64(0), size)
+			_, hasPermissions := in.GetPermissions()
+			require.False(t, hasPermissions)
 
 			out.SetFileType(filesystem.FileTypeRegularFile)
 			out.SetInodeNumber(700)
@@ -1293,6 +1299,123 @@ func TestWinFSPFileSystemOverwrite(t *testing.T) {
 
 		require.NoError(t, err)
 		require.Equal(t, uint64(0), info.FileSize)
+	})
+
+	t.Run("OverwriteFileMergingAttributes", func(t *testing.T) {
+		// Without replaceAttributes the file's other attributes are
+		// kept. The owner ID must not be set as nodes do not permit that.
+		ownedFile := mock.NewMockVirtualLeaf(ctrl)
+		ownedFile.EXPECT().VirtualGetAttributes(gomock.Any(), gomock.Any(), gomock.Any()).
+			Do(func(ctx context.Context, requested virtual.AttributesMask, out *virtual.Attributes) {
+				out.SetFileType(filesystem.FileTypeRegularFile)
+				out.SetOwnerUserID(1000)
+				out.SetOwnerGroupID(1000)
+				out.SetPermissions(virtual.PermissionsRead | virtual.PermissionsWrite)
+				out.SetSizeBytes(100)
+			}).
+			AnyTimes()
+		rootDirectory.EXPECT().VirtualOpenChild(
+			gomock.Any(),
+			path.MustNewComponent("owned_file.txt"),
+			virtual.ShareMaskWrite,
+			(&virtual.Attributes{}).SetPermissions(virtual.PermissionsExecute|virtual.PermissionsRead|virtual.PermissionsWrite),
+			&virtual.OpenExistingOptions{Truncate: true},
+			winfsp.AttributesMaskForWinFSPAttr,
+			gomock.Any(),
+		).DoAndReturn(func(ctx context.Context, name path.Component, shareAccess virtual.ShareMask, createAttributes *virtual.Attributes, existingOptions *virtual.OpenExistingOptions, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Leaf, virtual.AttributesMask, virtual.ChangeInfo, virtual.Status) {
+			out.SetFileType(filesystem.FileTypeRegularFile)
+			out.SetInodeNumber(701)
+			out.SetSizeBytes(100)
+			out.SetPermissions(virtual.PermissionsRead | virtual.PermissionsWrite)
+			out.SetLinkCount(1)
+			return ownedFile, 0, virtual.ChangeInfo{}, virtual.StatusOK
+		})
+
+		var createInfo ffi.FSP_FSCTL_FILE_INFO
+		handle, err := fs.Create(ref, "\\owned_file.txt", 0, windows.FILE_WRITE_DATA, 0, nil, 0, &createInfo)
+		require.NoError(t, err)
+
+		ownedFile.EXPECT().VirtualSetAttributes(
+			gomock.Any(),
+			gomock.Any(),
+			winfsp.AttributesMaskForWinFSPAttr,
+			gomock.Any(),
+		).DoAndReturn(func(ctx context.Context, in *virtual.Attributes, attributesMask virtual.AttributesMask, out *virtual.Attributes) virtual.Status {
+			_, hasOwnerUserID := in.GetOwnerUserID()
+			require.False(t, hasOwnerUserID)
+			_, hasOwnerGroupID := in.GetOwnerGroupID()
+			require.False(t, hasOwnerGroupID)
+			size, present := in.GetSizeBytes()
+			require.True(t, present)
+			require.Equal(t, uint64(0), size)
+
+			out.SetFileType(filesystem.FileTypeRegularFile)
+			out.SetInodeNumber(701)
+			out.SetSizeBytes(0)
+			out.SetPermissions(virtual.PermissionsRead | virtual.PermissionsWrite)
+			out.SetLinkCount(1)
+			return virtual.StatusOK
+		})
+
+		var info ffi.FSP_FSCTL_FILE_INFO
+		err = fs.Overwrite(ref, handle, windows.FILE_ATTRIBUTE_ARCHIVE, false, 0, &info)
+
+		require.NoError(t, err)
+		require.Equal(t, uint64(0), info.FileSize)
+	})
+
+	t.Run("OverwriteReadOnlyFileReplacingAttributes", func(t *testing.T) {
+		// Replacing the attributes of a read-only file with ones that
+		// don't include READONLY makes it writable again.
+		readOnlyFile := mock.NewMockVirtualLeaf(ctrl)
+		rootDirectory.EXPECT().VirtualOpenChild(
+			gomock.Any(),
+			path.MustNewComponent("read_only_file.txt"),
+			virtual.ShareMaskWrite,
+			(&virtual.Attributes{}).SetPermissions(virtual.PermissionsExecute|virtual.PermissionsRead|virtual.PermissionsWrite),
+			&virtual.OpenExistingOptions{Truncate: true},
+			winfsp.AttributesMaskForWinFSPAttr,
+			gomock.Any(),
+		).DoAndReturn(func(ctx context.Context, name path.Component, shareAccess virtual.ShareMask, createAttributes *virtual.Attributes, existingOptions *virtual.OpenExistingOptions, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.Leaf, virtual.AttributesMask, virtual.ChangeInfo, virtual.Status) {
+			out.SetFileType(filesystem.FileTypeRegularFile)
+			out.SetInodeNumber(702)
+			out.SetSizeBytes(100)
+			out.SetPermissions(virtual.PermissionsRead | virtual.PermissionsExecute)
+			out.SetLinkCount(1)
+			return readOnlyFile, 0, virtual.ChangeInfo{}, virtual.StatusOK
+		})
+
+		var createInfo ffi.FSP_FSCTL_FILE_INFO
+		handle, err := fs.Create(ref, "\\read_only_file.txt", 0, windows.FILE_WRITE_DATA, 0, nil, 0, &createInfo)
+		require.NoError(t, err)
+
+		readOnlyFile.EXPECT().VirtualGetAttributes(gomock.Any(), virtual.AttributesMaskPermissions, gomock.Any()).
+			Do(func(ctx context.Context, requested virtual.AttributesMask, out *virtual.Attributes) {
+				out.SetPermissions(virtual.PermissionsRead | virtual.PermissionsExecute)
+			})
+		readOnlyFile.EXPECT().VirtualSetAttributes(
+			gomock.Any(),
+			gomock.Any(),
+			winfsp.AttributesMaskForWinFSPAttr,
+			gomock.Any(),
+		).DoAndReturn(func(ctx context.Context, in *virtual.Attributes, attributesMask virtual.AttributesMask, out *virtual.Attributes) virtual.Status {
+			permissions, ok := in.GetPermissions()
+			require.True(t, ok)
+			require.Equal(t, virtual.PermissionsRead|virtual.PermissionsWrite|virtual.PermissionsExecute, permissions)
+
+			out.SetFileType(filesystem.FileTypeRegularFile)
+			out.SetInodeNumber(702)
+			out.SetSizeBytes(0)
+			out.SetPermissions(permissions)
+			out.SetLinkCount(1)
+			return virtual.StatusOK
+		})
+
+		var info ffi.FSP_FSCTL_FILE_INFO
+		err = fs.Overwrite(ref, handle, windows.FILE_ATTRIBUTE_NORMAL, true, 0, &info)
+
+		require.NoError(t, err)
+		require.Zero(t, info.FileAttributes&windows.FILE_ATTRIBUTE_READONLY)
 	})
 }
 

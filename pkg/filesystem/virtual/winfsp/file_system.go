@@ -819,14 +819,21 @@ func (fs *FileSystem) Overwrite(ref *ffi.FileSystemRef, handle uintptr, winfspAt
 
 	var newAttributes virtual.Attributes
 	var newAttributesMask virtual.AttributesMask
-	if !replaceAttributes {
-		// Then initialise based on the current attributes.
-		file.VirtualGetAttributes(ctx, AttributesMaskForWinFSPAttr, &newAttributes)
-	}
-
-	// Add additional attributes
 	if err := toVirtualAttributes(openNode, winfspAttributes, &newAttributes, &newAttributesMask); err != nil {
 		return err
+	}
+	// winfspAttributes are attributes in the Windows sense (i.e.
+	// FILE_ATTRIBUTE_READONLY, HIDDEN, etc.), of which the VFS only tracks
+	// READONLY.
+	if replaceAttributes && winfspAttributes&windows.FILE_ATTRIBUTE_READONLY == 0 {
+		// Then to do the replace we need to remove the write bit, if it's
+		// currently set.
+		var currentAttributes virtual.Attributes
+		file.VirtualGetAttributes(ctx, virtual.AttributesMaskPermissions, &currentAttributes)
+		if permissions, ok := currentAttributes.GetPermissions(); ok && permissions&virtual.PermissionsWrite == 0 {
+			newAttributes.SetPermissions(permissions | virtual.PermissionsWrite)
+			newAttributesMask |= virtual.AttributesMaskPermissions
+		}
 	}
 	newAttributesMask |= virtual.AttributesMaskSizeBytes
 	newAttributes.SetSizeBytes(0)
@@ -1247,20 +1254,29 @@ func (fs *FileSystem) SetSecurity(ref *ffi.FileSystemRef, handle uintptr, info w
 	}
 	defer ffi.DeleteSecurityDescriptor(newSd)
 
+	currentUID, currentGID, _, err := ffi.PosixMapSecurityDescriptorToPermissions(currentSd)
+	if err != nil {
+		return err
+	}
 	uid, gid, mode, err := ffi.PosixMapSecurityDescriptorToPermissions(newSd)
 	if err != nil {
 		return err
 	}
 
-	attributes.SetOwnerGroupID(gid)
-	attributes.SetOwnerUserID(uid)
-	attributes.SetPermissions(virtual.NewPermissionsFromMode(mode))
+	var newAttributes virtual.Attributes
+	newAttributes.SetPermissions(virtual.NewPermissionsFromMode(mode))
+	// Only pass the owner and group if they change, as nodes reject
+	// any attempt to set them.
+	if uid != currentUID {
+		newAttributes.SetOwnerUserID(uid)
+	}
+	if gid != currentGID {
+		newAttributes.SetOwnerGroupID(gid)
+	}
 	var outAttributes virtual.Attributes
-	openNode.GetNode().VirtualSetAttributes(ctx,
-		&attributes,
-		virtual.AttributesMaskOwnerGroupID|virtual.AttributesMaskOwnerUserID|virtual.AttributesMaskPermissions,
-		&outAttributes)
-
+	if s := openNode.GetNode().VirtualSetAttributes(ctx, &newAttributes, 0, &outAttributes); s != virtual.StatusOK {
+		return toNTStatus(s)
+	}
 	return nil
 }
 
