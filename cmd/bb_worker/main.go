@@ -325,7 +325,7 @@ func main() {
 			buildDirectoryIdleInvoker := cleaner.NewIdleInvoker(buildDirectoryCleaner)
 			var sharedBuildDirectoryNextParallelActionID atomic.Uint64
 			if len(buildDirectoryConfiguration.Runners) == 0 {
-				return util.StatusWrap(err, "Cannot start worker without any runners")
+				return status.Error(codes.InvalidArgument, "Cannot start worker without any runners")
 			}
 			for _, runnerConfiguration := range buildDirectoryConfiguration.Runners {
 				if runnerConfiguration.Concurrency < 1 {
