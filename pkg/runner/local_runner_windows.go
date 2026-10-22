@@ -26,6 +26,8 @@ var temporaryDirectoryEnvironmentVariablePrefixes = [...]string{"TMP=", "TEMP="}
 
 var invalidArgumentErrs = [...]error{exec.ErrNotFound, os.ErrPermission, os.ErrNotExist, windows.ERROR_BAD_EXE_FORMAT}
 
+func setProcessGroupCancellation(cmd *exec.Cmd) {}
+
 func getPOSIXResourceUsage(cmd *exec.Cmd) *resourceusage.POSIXResourceUsage {
 	// TODO: These do not work.
 	processState := cmd.ProcessState

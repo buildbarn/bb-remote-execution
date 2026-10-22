@@ -56,6 +56,19 @@ var temporaryDirectoryEnvironmentVariablePrefixes = [...]string{"TMPDIR="}
 
 var invalidArgumentErrs = []error{exec.ErrNotFound, os.ErrPermission, syscall.EISDIR, syscall.ENOENT, syscall.ENOEXEC}
 
+func setProcessGroupCancellation(cmd *exec.Cmd) {
+	// Cancel the action's entire process group, including helper subprocesses.
+	sysProcAttr := syscall.SysProcAttr{}
+	if cmd.SysProcAttr != nil {
+		sysProcAttr = *cmd.SysProcAttr
+	}
+	sysProcAttr.Setpgid = true
+	cmd.SysProcAttr = &sysProcAttr
+	cmd.Cancel = func() error {
+		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+	}
+}
+
 func convertTimeval(t syscall.Timeval) *durationpb.Duration {
 	return &durationpb.Duration{
 		Seconds: int64(t.Sec),

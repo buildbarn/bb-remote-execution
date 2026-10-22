@@ -62,6 +62,9 @@ func main() {
 			}
 		} else {
 			commandCreator = runner.NewPlainCommandCreator(sysProcAttr)
+			if configuration.CancelProcessGroup {
+				commandCreator = runner.NewProcessGroupCommandCreator(commandCreator)
+			}
 		}
 
 		r := runner.NewLocalRunner(
