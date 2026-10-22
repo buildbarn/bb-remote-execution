@@ -20,6 +20,8 @@ func NewKeyExtractorFromConfiguration(configuration *pb.InvocationKeyExtractorCo
 		return CorrelatedInvocationsIDKeyExtractor, nil
 	case *pb.InvocationKeyExtractorConfiguration_AuthenticationMetadata:
 		return AuthenticationMetadataKeyExtractor, nil
+	case *pb.InvocationKeyExtractorConfiguration_PlatformPropertyName:
+		return NewPlatformPropertyKeyExtractor(configuration.GetPlatformPropertyName()), nil
 	default:
 		return nil, status.Error(codes.InvalidArgument, "Configuration did not contain a supported invocation key extractor type")
 	}

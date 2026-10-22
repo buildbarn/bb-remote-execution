@@ -8,6 +8,7 @@ proto_library(
     import_prefix = "github.com/buildbarn/bb-remote-execution",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/proto/bazelworker:bazelworker_proto",
         "@protobuf//:any_proto",
         "@protobuf//:empty_proto",
     ],
@@ -22,6 +23,7 @@ go_proto_library(
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/proto/runner",
     proto = ":runner_proto",
     visibility = ["//visibility:public"],
+    deps = ["//pkg/proto/bazelworker"],
 )
 
 go_library(

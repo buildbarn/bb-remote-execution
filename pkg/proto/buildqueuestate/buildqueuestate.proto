@@ -595,3 +595,21 @@ message AddOrRemoveDrainRequest {
 // probability of failure. Background learning is performed to ensure
 // that execution statistics remain calibrated.
 message BackgroundLearning {}
+
+// A message type that is used as an invocation ID to group operations
+// by the value of a single REv2 platform property.
+//
+// This is used to give workers affinity for actions that need to be
+// executed by the same tool. For example, when combined with
+// 'worker_invocation_stickiness_limits', grouping actions by the
+// 'persistentWorkerKey' platform property causes workers to keep
+// running actions that can be executed by a persistent worker process
+// that they already started.
+message PlatformProperty {
+  // The name of the REv2 platform property.
+  string name = 1;
+
+  // The value of the REv2 platform property, or an empty string if the
+  // action does not have a property with this name.
+  string value = 2;
+}

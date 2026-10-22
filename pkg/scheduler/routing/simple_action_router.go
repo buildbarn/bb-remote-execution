@@ -39,7 +39,7 @@ func (ar *simpleActionRouter) RouteAction(ctx context.Context, digestFunction di
 	}
 	invocationKeys := make([]invocation.Key, 0, len(ar.invocationKeyExtractors))
 	for _, invocationKeyExtractor := range ar.invocationKeyExtractors {
-		invocationKey, err := invocationKeyExtractor.ExtractKey(ctx, requestMetadata)
+		invocationKey, err := invocationKeyExtractor.ExtractKey(ctx, digestFunction, action, requestMetadata)
 		if err != nil {
 			return nil, platform.Key{}, nil, nil, util.StatusWrap(err, "Failed to extract invocation key")
 		}

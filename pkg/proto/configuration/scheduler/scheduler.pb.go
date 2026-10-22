@@ -301,6 +301,7 @@ type PlatformKeyExtractorConfiguration struct {
 	//
 	//	*PlatformKeyExtractorConfiguration_Action
 	//	*PlatformKeyExtractorConfiguration_Static
+	//	*PlatformKeyExtractorConfiguration_Stripping
 	Kind          isPlatformKeyExtractorConfiguration_Kind `protobuf_oneof:"kind"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -361,6 +362,15 @@ func (x *PlatformKeyExtractorConfiguration) GetStatic() *v2.Platform {
 	return nil
 }
 
+func (x *PlatformKeyExtractorConfiguration) GetStripping() *StrippingPlatformKeyExtractorConfiguration {
+	if x != nil {
+		if x, ok := x.Kind.(*PlatformKeyExtractorConfiguration_Stripping); ok {
+			return x.Stripping
+		}
+	}
+	return nil
+}
+
 type isPlatformKeyExtractorConfiguration_Kind interface {
 	isPlatformKeyExtractorConfiguration_Kind()
 }
@@ -373,9 +383,67 @@ type PlatformKeyExtractorConfiguration_Static struct {
 	Static *v2.Platform `protobuf:"bytes,3,opt,name=static,proto3,oneof"`
 }
 
+type PlatformKeyExtractorConfiguration_Stripping struct {
+	Stripping *StrippingPlatformKeyExtractorConfiguration `protobuf:"bytes,4,opt,name=stripping,proto3,oneof"`
+}
+
 func (*PlatformKeyExtractorConfiguration_Action) isPlatformKeyExtractorConfiguration_Kind() {}
 
 func (*PlatformKeyExtractorConfiguration_Static) isPlatformKeyExtractorConfiguration_Kind() {}
+
+func (*PlatformKeyExtractorConfiguration_Stripping) isPlatformKeyExtractorConfiguration_Kind() {}
+
+type StrippingPlatformKeyExtractorConfiguration struct {
+	state         protoimpl.MessageState             `protogen:"open.v1"`
+	PropertyNames []string                           `protobuf:"bytes,1,rep,name=property_names,json=propertyNames,proto3" json:"property_names,omitempty"`
+	Base          *PlatformKeyExtractorConfiguration `protobuf:"bytes,2,opt,name=base,proto3" json:"base,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StrippingPlatformKeyExtractorConfiguration) Reset() {
+	*x = StrippingPlatformKeyExtractorConfiguration{}
+	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StrippingPlatformKeyExtractorConfiguration) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StrippingPlatformKeyExtractorConfiguration) ProtoMessage() {}
+
+func (x *StrippingPlatformKeyExtractorConfiguration) ProtoReflect() protoreflect.Message {
+	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StrippingPlatformKeyExtractorConfiguration.ProtoReflect.Descriptor instead.
+func (*StrippingPlatformKeyExtractorConfiguration) Descriptor() ([]byte, []int) {
+	return file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *StrippingPlatformKeyExtractorConfiguration) GetPropertyNames() []string {
+	if x != nil {
+		return x.PropertyNames
+	}
+	return nil
+}
+
+func (x *StrippingPlatformKeyExtractorConfiguration) GetBase() *PlatformKeyExtractorConfiguration {
+	if x != nil {
+		return x.Base
+	}
+	return nil
+}
 
 type InvocationKeyExtractorConfiguration struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -384,6 +452,7 @@ type InvocationKeyExtractorConfiguration struct {
 	//	*InvocationKeyExtractorConfiguration_ToolInvocationId
 	//	*InvocationKeyExtractorConfiguration_CorrelatedInvocationsId
 	//	*InvocationKeyExtractorConfiguration_AuthenticationMetadata
+	//	*InvocationKeyExtractorConfiguration_PlatformPropertyName
 	Kind          isInvocationKeyExtractorConfiguration_Kind `protobuf_oneof:"kind"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -391,7 +460,7 @@ type InvocationKeyExtractorConfiguration struct {
 
 func (x *InvocationKeyExtractorConfiguration) Reset() {
 	*x = InvocationKeyExtractorConfiguration{}
-	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[5]
+	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -403,7 +472,7 @@ func (x *InvocationKeyExtractorConfiguration) String() string {
 func (*InvocationKeyExtractorConfiguration) ProtoMessage() {}
 
 func (x *InvocationKeyExtractorConfiguration) ProtoReflect() protoreflect.Message {
-	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[5]
+	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -416,7 +485,7 @@ func (x *InvocationKeyExtractorConfiguration) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use InvocationKeyExtractorConfiguration.ProtoReflect.Descriptor instead.
 func (*InvocationKeyExtractorConfiguration) Descriptor() ([]byte, []int) {
-	return file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_rawDescGZIP(), []int{5}
+	return file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *InvocationKeyExtractorConfiguration) GetKind() isInvocationKeyExtractorConfiguration_Kind {
@@ -453,6 +522,15 @@ func (x *InvocationKeyExtractorConfiguration) GetAuthenticationMetadata() *empty
 	return nil
 }
 
+func (x *InvocationKeyExtractorConfiguration) GetPlatformPropertyName() string {
+	if x != nil {
+		if x, ok := x.Kind.(*InvocationKeyExtractorConfiguration_PlatformPropertyName); ok {
+			return x.PlatformPropertyName
+		}
+	}
+	return ""
+}
+
 type isInvocationKeyExtractorConfiguration_Kind interface {
 	isInvocationKeyExtractorConfiguration_Kind()
 }
@@ -469,6 +547,10 @@ type InvocationKeyExtractorConfiguration_AuthenticationMetadata struct {
 	AuthenticationMetadata *emptypb.Empty `protobuf:"bytes,4,opt,name=authentication_metadata,json=authenticationMetadata,proto3,oneof"`
 }
 
+type InvocationKeyExtractorConfiguration_PlatformPropertyName struct {
+	PlatformPropertyName string `protobuf:"bytes,5,opt,name=platform_property_name,json=platformPropertyName,proto3,oneof"`
+}
+
 func (*InvocationKeyExtractorConfiguration_ToolInvocationId) isInvocationKeyExtractorConfiguration_Kind() {
 }
 
@@ -476,6 +558,9 @@ func (*InvocationKeyExtractorConfiguration_CorrelatedInvocationsId) isInvocation
 }
 
 func (*InvocationKeyExtractorConfiguration_AuthenticationMetadata) isInvocationKeyExtractorConfiguration_Kind() {
+}
+
+func (*InvocationKeyExtractorConfiguration_PlatformPropertyName) isInvocationKeyExtractorConfiguration_Kind() {
 }
 
 type InitialSizeClassAnalyzerConfiguration struct {
@@ -489,7 +574,7 @@ type InitialSizeClassAnalyzerConfiguration struct {
 
 func (x *InitialSizeClassAnalyzerConfiguration) Reset() {
 	*x = InitialSizeClassAnalyzerConfiguration{}
-	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[6]
+	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -501,7 +586,7 @@ func (x *InitialSizeClassAnalyzerConfiguration) String() string {
 func (*InitialSizeClassAnalyzerConfiguration) ProtoMessage() {}
 
 func (x *InitialSizeClassAnalyzerConfiguration) ProtoReflect() protoreflect.Message {
-	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[6]
+	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -514,7 +599,7 @@ func (x *InitialSizeClassAnalyzerConfiguration) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use InitialSizeClassAnalyzerConfiguration.ProtoReflect.Descriptor instead.
 func (*InitialSizeClassAnalyzerConfiguration) Descriptor() ([]byte, []int) {
-	return file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_rawDescGZIP(), []int{6}
+	return file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *InitialSizeClassAnalyzerConfiguration) GetDefaultExecutionTimeout() *durationpb.Duration {
@@ -549,7 +634,7 @@ type InitialSizeClassFeedbackDrivenAnalyzerConfiguration struct {
 
 func (x *InitialSizeClassFeedbackDrivenAnalyzerConfiguration) Reset() {
 	*x = InitialSizeClassFeedbackDrivenAnalyzerConfiguration{}
-	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[7]
+	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -561,7 +646,7 @@ func (x *InitialSizeClassFeedbackDrivenAnalyzerConfiguration) String() string {
 func (*InitialSizeClassFeedbackDrivenAnalyzerConfiguration) ProtoMessage() {}
 
 func (x *InitialSizeClassFeedbackDrivenAnalyzerConfiguration) ProtoReflect() protoreflect.Message {
-	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[7]
+	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -574,7 +659,7 @@ func (x *InitialSizeClassFeedbackDrivenAnalyzerConfiguration) ProtoReflect() pro
 
 // Deprecated: Use InitialSizeClassFeedbackDrivenAnalyzerConfiguration.ProtoReflect.Descriptor instead.
 func (*InitialSizeClassFeedbackDrivenAnalyzerConfiguration) Descriptor() ([]byte, []int) {
-	return file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_rawDescGZIP(), []int{7}
+	return file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *InitialSizeClassFeedbackDrivenAnalyzerConfiguration) GetFailureCacheDuration() *durationpb.Duration {
@@ -610,7 +695,7 @@ type InitialSizeClassPageRankStrategyCalculatorConfiguration struct {
 
 func (x *InitialSizeClassPageRankStrategyCalculatorConfiguration) Reset() {
 	*x = InitialSizeClassPageRankStrategyCalculatorConfiguration{}
-	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[8]
+	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -622,7 +707,7 @@ func (x *InitialSizeClassPageRankStrategyCalculatorConfiguration) String() strin
 func (*InitialSizeClassPageRankStrategyCalculatorConfiguration) ProtoMessage() {}
 
 func (x *InitialSizeClassPageRankStrategyCalculatorConfiguration) ProtoReflect() protoreflect.Message {
-	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[8]
+	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -635,7 +720,7 @@ func (x *InitialSizeClassPageRankStrategyCalculatorConfiguration) ProtoReflect()
 
 // Deprecated: Use InitialSizeClassPageRankStrategyCalculatorConfiguration.ProtoReflect.Descriptor instead.
 func (*InitialSizeClassPageRankStrategyCalculatorConfiguration) Descriptor() ([]byte, []int) {
-	return file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_rawDescGZIP(), []int{8}
+	return file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *InitialSizeClassPageRankStrategyCalculatorConfiguration) GetAcceptableExecutionTimeIncreaseExponent() float64 {
@@ -677,7 +762,7 @@ type DemultiplexingActionRouterConfiguration_Backend struct {
 
 func (x *DemultiplexingActionRouterConfiguration_Backend) Reset() {
 	*x = DemultiplexingActionRouterConfiguration_Backend{}
-	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[9]
+	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -689,7 +774,7 @@ func (x *DemultiplexingActionRouterConfiguration_Backend) String() string {
 func (*DemultiplexingActionRouterConfiguration_Backend) ProtoMessage() {}
 
 func (x *DemultiplexingActionRouterConfiguration_Backend) ProtoReflect() protoreflect.Message {
-	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[9]
+	mi := &file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -751,15 +836,20 @@ const file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_sche
 	"\x1fRemoteActionRouterConfiguration\x12R\n" +
 	"\vgrpc_client\x18\x01 \x01(\v21.buildbarn.configuration.grpc.ClientConfigurationR\n" +
 	"grpcClient\x12\x87\x01\n" +
-	"\x1binitial_size_class_analyzer\x18\x02 \x01(\v2H.buildbarn.configuration.scheduler.InitialSizeClassAnalyzerConfigurationR\x18initialSizeClassAnalyzer\"\xa8\x01\n" +
+	"\x1binitial_size_class_analyzer\x18\x02 \x01(\v2H.buildbarn.configuration.scheduler.InitialSizeClassAnalyzerConfigurationR\x18initialSizeClassAnalyzer\"\x97\x02\n" +
 	"!PlatformKeyExtractorConfiguration\x120\n" +
 	"\x06action\x18\x01 \x01(\v2\x16.google.protobuf.EmptyH\x00R\x06action\x12C\n" +
-	"\x06static\x18\x03 \x01(\v2).build.bazel.remote.execution.v2.PlatformH\x00R\x06staticB\x06\n" +
-	"\x04kindJ\x04\b\x02\x10\x03\"\xa4\x02\n" +
+	"\x06static\x18\x03 \x01(\v2).build.bazel.remote.execution.v2.PlatformH\x00R\x06static\x12m\n" +
+	"\tstripping\x18\x04 \x01(\v2M.buildbarn.configuration.scheduler.StrippingPlatformKeyExtractorConfigurationH\x00R\tstrippingB\x06\n" +
+	"\x04kindJ\x04\b\x02\x10\x03\"\xad\x01\n" +
+	"*StrippingPlatformKeyExtractorConfiguration\x12%\n" +
+	"\x0eproperty_names\x18\x01 \x03(\tR\rpropertyNames\x12X\n" +
+	"\x04base\x18\x02 \x01(\v2D.buildbarn.configuration.scheduler.PlatformKeyExtractorConfigurationR\x04base\"\xdc\x02\n" +
 	"#InvocationKeyExtractorConfiguration\x12F\n" +
 	"\x12tool_invocation_id\x18\x02 \x01(\v2\x16.google.protobuf.EmptyH\x00R\x10toolInvocationId\x12T\n" +
 	"\x19correlated_invocations_id\x18\x03 \x01(\v2\x16.google.protobuf.EmptyH\x00R\x17correlatedInvocationsId\x12Q\n" +
-	"\x17authentication_metadata\x18\x04 \x01(\v2\x16.google.protobuf.EmptyH\x00R\x16authenticationMetadataB\x06\n" +
+	"\x17authentication_metadata\x18\x04 \x01(\v2\x16.google.protobuf.EmptyH\x00R\x16authenticationMetadata\x126\n" +
+	"\x16platform_property_name\x18\x05 \x01(\tH\x00R\x14platformPropertyNameB\x06\n" +
 	"\x04kindJ\x04\b\x01\x10\x02\"\xd6\x02\n" +
 	"%InitialSizeClassAnalyzerConfiguration\x12U\n" +
 	"\x19default_execution_timeout\x18\x01 \x01(\v2\x19.google.protobuf.DurationR\x17defaultExecutionTimeout\x12U\n" +
@@ -787,53 +877,56 @@ func file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_sched
 	return file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_rawDescData
 }
 
-var file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_goTypes = []any{
 	(*ActionRouterConfiguration)(nil),                               // 0: buildbarn.configuration.scheduler.ActionRouterConfiguration
 	(*SimpleActionRouterConfiguration)(nil),                         // 1: buildbarn.configuration.scheduler.SimpleActionRouterConfiguration
 	(*DemultiplexingActionRouterConfiguration)(nil),                 // 2: buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration
 	(*RemoteActionRouterConfiguration)(nil),                         // 3: buildbarn.configuration.scheduler.RemoteActionRouterConfiguration
 	(*PlatformKeyExtractorConfiguration)(nil),                       // 4: buildbarn.configuration.scheduler.PlatformKeyExtractorConfiguration
-	(*InvocationKeyExtractorConfiguration)(nil),                     // 5: buildbarn.configuration.scheduler.InvocationKeyExtractorConfiguration
-	(*InitialSizeClassAnalyzerConfiguration)(nil),                   // 6: buildbarn.configuration.scheduler.InitialSizeClassAnalyzerConfiguration
-	(*InitialSizeClassFeedbackDrivenAnalyzerConfiguration)(nil),     // 7: buildbarn.configuration.scheduler.InitialSizeClassFeedbackDrivenAnalyzerConfiguration
-	(*InitialSizeClassPageRankStrategyCalculatorConfiguration)(nil), // 8: buildbarn.configuration.scheduler.InitialSizeClassPageRankStrategyCalculatorConfiguration
-	(*DemultiplexingActionRouterConfiguration_Backend)(nil),         // 9: buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration.Backend
-	(*grpc.ClientConfiguration)(nil),                                // 10: buildbarn.configuration.grpc.ClientConfiguration
-	(*emptypb.Empty)(nil),                                           // 11: google.protobuf.Empty
-	(*v2.Platform)(nil),                                             // 12: build.bazel.remote.execution.v2.Platform
-	(*durationpb.Duration)(nil),                                     // 13: google.protobuf.Duration
+	(*StrippingPlatformKeyExtractorConfiguration)(nil),              // 5: buildbarn.configuration.scheduler.StrippingPlatformKeyExtractorConfiguration
+	(*InvocationKeyExtractorConfiguration)(nil),                     // 6: buildbarn.configuration.scheduler.InvocationKeyExtractorConfiguration
+	(*InitialSizeClassAnalyzerConfiguration)(nil),                   // 7: buildbarn.configuration.scheduler.InitialSizeClassAnalyzerConfiguration
+	(*InitialSizeClassFeedbackDrivenAnalyzerConfiguration)(nil),     // 8: buildbarn.configuration.scheduler.InitialSizeClassFeedbackDrivenAnalyzerConfiguration
+	(*InitialSizeClassPageRankStrategyCalculatorConfiguration)(nil), // 9: buildbarn.configuration.scheduler.InitialSizeClassPageRankStrategyCalculatorConfiguration
+	(*DemultiplexingActionRouterConfiguration_Backend)(nil),         // 10: buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration.Backend
+	(*grpc.ClientConfiguration)(nil),                                // 11: buildbarn.configuration.grpc.ClientConfiguration
+	(*emptypb.Empty)(nil),                                           // 12: google.protobuf.Empty
+	(*v2.Platform)(nil),                                             // 13: build.bazel.remote.execution.v2.Platform
+	(*durationpb.Duration)(nil),                                     // 14: google.protobuf.Duration
 }
 var file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_depIdxs = []int32{
 	1,  // 0: buildbarn.configuration.scheduler.ActionRouterConfiguration.simple:type_name -> buildbarn.configuration.scheduler.SimpleActionRouterConfiguration
 	2,  // 1: buildbarn.configuration.scheduler.ActionRouterConfiguration.demultiplexing:type_name -> buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration
 	3,  // 2: buildbarn.configuration.scheduler.ActionRouterConfiguration.remote:type_name -> buildbarn.configuration.scheduler.RemoteActionRouterConfiguration
 	4,  // 3: buildbarn.configuration.scheduler.SimpleActionRouterConfiguration.platform_key_extractor:type_name -> buildbarn.configuration.scheduler.PlatformKeyExtractorConfiguration
-	5,  // 4: buildbarn.configuration.scheduler.SimpleActionRouterConfiguration.invocation_key_extractors:type_name -> buildbarn.configuration.scheduler.InvocationKeyExtractorConfiguration
-	6,  // 5: buildbarn.configuration.scheduler.SimpleActionRouterConfiguration.initial_size_class_analyzer:type_name -> buildbarn.configuration.scheduler.InitialSizeClassAnalyzerConfiguration
+	6,  // 4: buildbarn.configuration.scheduler.SimpleActionRouterConfiguration.invocation_key_extractors:type_name -> buildbarn.configuration.scheduler.InvocationKeyExtractorConfiguration
+	7,  // 5: buildbarn.configuration.scheduler.SimpleActionRouterConfiguration.initial_size_class_analyzer:type_name -> buildbarn.configuration.scheduler.InitialSizeClassAnalyzerConfiguration
 	4,  // 6: buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration.platform_key_extractor:type_name -> buildbarn.configuration.scheduler.PlatformKeyExtractorConfiguration
-	9,  // 7: buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration.backends:type_name -> buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration.Backend
+	10, // 7: buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration.backends:type_name -> buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration.Backend
 	0,  // 8: buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration.default_action_router:type_name -> buildbarn.configuration.scheduler.ActionRouterConfiguration
-	10, // 9: buildbarn.configuration.scheduler.RemoteActionRouterConfiguration.grpc_client:type_name -> buildbarn.configuration.grpc.ClientConfiguration
-	6,  // 10: buildbarn.configuration.scheduler.RemoteActionRouterConfiguration.initial_size_class_analyzer:type_name -> buildbarn.configuration.scheduler.InitialSizeClassAnalyzerConfiguration
-	11, // 11: buildbarn.configuration.scheduler.PlatformKeyExtractorConfiguration.action:type_name -> google.protobuf.Empty
-	12, // 12: buildbarn.configuration.scheduler.PlatformKeyExtractorConfiguration.static:type_name -> build.bazel.remote.execution.v2.Platform
-	11, // 13: buildbarn.configuration.scheduler.InvocationKeyExtractorConfiguration.tool_invocation_id:type_name -> google.protobuf.Empty
-	11, // 14: buildbarn.configuration.scheduler.InvocationKeyExtractorConfiguration.correlated_invocations_id:type_name -> google.protobuf.Empty
-	11, // 15: buildbarn.configuration.scheduler.InvocationKeyExtractorConfiguration.authentication_metadata:type_name -> google.protobuf.Empty
-	13, // 16: buildbarn.configuration.scheduler.InitialSizeClassAnalyzerConfiguration.default_execution_timeout:type_name -> google.protobuf.Duration
-	13, // 17: buildbarn.configuration.scheduler.InitialSizeClassAnalyzerConfiguration.maximum_execution_timeout:type_name -> google.protobuf.Duration
-	7,  // 18: buildbarn.configuration.scheduler.InitialSizeClassAnalyzerConfiguration.feedback_driven:type_name -> buildbarn.configuration.scheduler.InitialSizeClassFeedbackDrivenAnalyzerConfiguration
-	13, // 19: buildbarn.configuration.scheduler.InitialSizeClassFeedbackDrivenAnalyzerConfiguration.failure_cache_duration:type_name -> google.protobuf.Duration
-	8,  // 20: buildbarn.configuration.scheduler.InitialSizeClassFeedbackDrivenAnalyzerConfiguration.page_rank:type_name -> buildbarn.configuration.scheduler.InitialSizeClassPageRankStrategyCalculatorConfiguration
-	13, // 21: buildbarn.configuration.scheduler.InitialSizeClassPageRankStrategyCalculatorConfiguration.minimum_execution_timeout:type_name -> google.protobuf.Duration
-	12, // 22: buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration.Backend.platform:type_name -> build.bazel.remote.execution.v2.Platform
-	0,  // 23: buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration.Backend.action_router:type_name -> buildbarn.configuration.scheduler.ActionRouterConfiguration
-	24, // [24:24] is the sub-list for method output_type
-	24, // [24:24] is the sub-list for method input_type
-	24, // [24:24] is the sub-list for extension type_name
-	24, // [24:24] is the sub-list for extension extendee
-	0,  // [0:24] is the sub-list for field type_name
+	11, // 9: buildbarn.configuration.scheduler.RemoteActionRouterConfiguration.grpc_client:type_name -> buildbarn.configuration.grpc.ClientConfiguration
+	7,  // 10: buildbarn.configuration.scheduler.RemoteActionRouterConfiguration.initial_size_class_analyzer:type_name -> buildbarn.configuration.scheduler.InitialSizeClassAnalyzerConfiguration
+	12, // 11: buildbarn.configuration.scheduler.PlatformKeyExtractorConfiguration.action:type_name -> google.protobuf.Empty
+	13, // 12: buildbarn.configuration.scheduler.PlatformKeyExtractorConfiguration.static:type_name -> build.bazel.remote.execution.v2.Platform
+	5,  // 13: buildbarn.configuration.scheduler.PlatformKeyExtractorConfiguration.stripping:type_name -> buildbarn.configuration.scheduler.StrippingPlatformKeyExtractorConfiguration
+	4,  // 14: buildbarn.configuration.scheduler.StrippingPlatformKeyExtractorConfiguration.base:type_name -> buildbarn.configuration.scheduler.PlatformKeyExtractorConfiguration
+	12, // 15: buildbarn.configuration.scheduler.InvocationKeyExtractorConfiguration.tool_invocation_id:type_name -> google.protobuf.Empty
+	12, // 16: buildbarn.configuration.scheduler.InvocationKeyExtractorConfiguration.correlated_invocations_id:type_name -> google.protobuf.Empty
+	12, // 17: buildbarn.configuration.scheduler.InvocationKeyExtractorConfiguration.authentication_metadata:type_name -> google.protobuf.Empty
+	14, // 18: buildbarn.configuration.scheduler.InitialSizeClassAnalyzerConfiguration.default_execution_timeout:type_name -> google.protobuf.Duration
+	14, // 19: buildbarn.configuration.scheduler.InitialSizeClassAnalyzerConfiguration.maximum_execution_timeout:type_name -> google.protobuf.Duration
+	8,  // 20: buildbarn.configuration.scheduler.InitialSizeClassAnalyzerConfiguration.feedback_driven:type_name -> buildbarn.configuration.scheduler.InitialSizeClassFeedbackDrivenAnalyzerConfiguration
+	14, // 21: buildbarn.configuration.scheduler.InitialSizeClassFeedbackDrivenAnalyzerConfiguration.failure_cache_duration:type_name -> google.protobuf.Duration
+	9,  // 22: buildbarn.configuration.scheduler.InitialSizeClassFeedbackDrivenAnalyzerConfiguration.page_rank:type_name -> buildbarn.configuration.scheduler.InitialSizeClassPageRankStrategyCalculatorConfiguration
+	14, // 23: buildbarn.configuration.scheduler.InitialSizeClassPageRankStrategyCalculatorConfiguration.minimum_execution_timeout:type_name -> google.protobuf.Duration
+	13, // 24: buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration.Backend.platform:type_name -> build.bazel.remote.execution.v2.Platform
+	0,  // 25: buildbarn.configuration.scheduler.DemultiplexingActionRouterConfiguration.Backend.action_router:type_name -> buildbarn.configuration.scheduler.ActionRouterConfiguration
+	26, // [26:26] is the sub-list for method output_type
+	26, // [26:26] is the sub-list for method input_type
+	26, // [26:26] is the sub-list for extension type_name
+	26, // [26:26] is the sub-list for extension extendee
+	0,  // [0:26] is the sub-list for field type_name
 }
 
 func init() {
@@ -851,11 +944,13 @@ func file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_sched
 	file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[4].OneofWrappers = []any{
 		(*PlatformKeyExtractorConfiguration_Action)(nil),
 		(*PlatformKeyExtractorConfiguration_Static)(nil),
+		(*PlatformKeyExtractorConfiguration_Stripping)(nil),
 	}
-	file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[5].OneofWrappers = []any{
+	file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_msgTypes[6].OneofWrappers = []any{
 		(*InvocationKeyExtractorConfiguration_ToolInvocationId)(nil),
 		(*InvocationKeyExtractorConfiguration_CorrelatedInvocationsId)(nil),
 		(*InvocationKeyExtractorConfiguration_AuthenticationMetadata)(nil),
+		(*InvocationKeyExtractorConfiguration_PlatformPropertyName)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -863,7 +958,7 @@ func file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_sched
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_rawDesc), len(file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_scheduler_scheduler_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   10,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

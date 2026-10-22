@@ -8,6 +8,7 @@ go_library(
         "key.go",
         "key_extractor.go",
         "static_key_extractor.go",
+        "stripping_key_extractor.go",
         "trie.go",
     ],
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/scheduler/platform",
@@ -23,6 +24,7 @@ go_library(
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//status",
         "@org_golang_google_protobuf//encoding/protojson",
+        "@org_golang_google_protobuf//proto",
     ],
 )
 
@@ -32,6 +34,7 @@ go_test(
         "action_key_extractor_test.go",
         "key_test.go",
         "static_key_extractor_test.go",
+        "stripping_key_extractor_test.go",
     ],
     deps = [
         ":platform",

@@ -120,6 +120,18 @@ message PlatformKeyExtractorConfiguration {
     // out, and best effort support is provided by directing requests to
     // workers of a newer similar platform.
     build.bazel.remote.execution.v2.Platform static = 3;
+
+    // Remove a given set of platform properties from the action, before
+    // letting another platform key extractor compute the platform key.
+    //
+    // This option must be used for platform properties that merely act
+    // as a hint to the worker, as opposed to describing a capability of
+    // the execution environment. Workers announce the platform
+    // properties they provide to the scheduler, and actions are only
+    // assigned to a worker if the resulting platform keys are
+    // identical. Properties that workers cannot know about ahead of
+    // time would therefore cause actions to remain queued forever.
+    StrippingPlatformKeyExtractorConfiguration stripping = 4;
   }
 
   // Was 'action_and_command', which caused it to extract platform
@@ -127,6 +139,20 @@ message PlatformKeyExtractorConfiguration {
   // Command message in case the Action message contains no platform
   // properties. This was provided to support REv2.1 and earlier.
   reserved 2;
+}
+
+message StrippingPlatformKeyExtractorConfiguration {
+  // The names of the REv2 platform properties that need to be removed
+  // from the action before computing the platform key.
+  //
+  // When support for persistent workers is enabled, this list must
+  // contain "persistentWorkerKey", as Bazel sets this property to a
+  // fingerprint of the tool that needs to execute the action.
+  repeated string property_names = 1;
+
+  // The platform key extractor that needs to be invoked after removing
+  // the platform properties listed above.
+  PlatformKeyExtractorConfiguration base = 2;
 }
 
 message InvocationKeyExtractorConfiguration {
@@ -152,6 +178,21 @@ message InvocationKeyExtractorConfiguration {
     // as the invocation key. This causes all actions belonging to the
     // same user to be grouped together.
     google.protobuf.Empty authentication_metadata = 4;
+
+    // Use the value of a given REv2 platform property as the invocation
+    // key. Actions that do not have a property with this name are
+    // grouped together as if the property had an empty value.
+    //
+    // This option is intended to be combined with
+    // 'worker_invocation_stickiness_limits'. Setting it to
+    // "persistentWorkerKey" causes workers to keep executing actions
+    // that can be handled by a persistent worker process that they
+    // already started, thereby reducing the number of times these
+    // processes need to be launched.
+    //
+    // Note that the platform property also needs to be removed from the
+    // platform key, using StrippingPlatformKeyExtractorConfiguration.
+    string platform_property_name = 5;
   }
 }
 

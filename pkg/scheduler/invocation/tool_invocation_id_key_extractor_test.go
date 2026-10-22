@@ -6,6 +6,7 @@ import (
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/invocation"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/stretchr/testify/require"
 
@@ -14,8 +15,9 @@ import (
 
 func TestToolInvocationIDInvocationKeyExtractor(t *testing.T) {
 	ctx := context.Background()
+	digestFunction := digest.MustNewFunction("hello", remoteexecution.DigestFunction_SHA256)
 
-	key, err := invocation.ToolInvocationIDKeyExtractor.ExtractKey(ctx, &remoteexecution.RequestMetadata{
+	key, err := invocation.ToolInvocationIDKeyExtractor.ExtractKey(ctx, digestFunction, &remoteexecution.Action{}, &remoteexecution.RequestMetadata{
 		ToolDetails: &remoteexecution.ToolDetails{
 			ToolName:    "bazel",
 			ToolVersion: "4.2.1",
