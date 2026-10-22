@@ -31,6 +31,17 @@ func TestHardlinkingFileFetcher(t *testing.T) {
 	blobDigest1 := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "8b1a9953c4611296a827abf8c47804d7", 5)
 	buildDirectory := mock.NewMockDirectory(ctrl)
 
+	emptyBlobDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_SHA256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0)
+	for _, isExecutable := range []bool{false, true} {
+		baseFileFetcher.EXPECT().GetFile(ctx, emptyBlobDigest, buildDirectory, path.MustNewComponent("empty.txt"), isExecutable).Times(2)
+		require.NoError(
+			t,
+			fileFetcher.GetFile(ctx, emptyBlobDigest, buildDirectory, path.MustNewComponent("empty.txt"), isExecutable))
+		require.NoError(
+			t,
+			fileFetcher.GetFile(ctx, emptyBlobDigest, buildDirectory, path.MustNewComponent("empty.txt"), isExecutable))
+	}
+
 	// Errors fetching files from the backend should be propagated.
 	baseFileFetcher.EXPECT().GetFile(ctx, blobDigest1, buildDirectory, path.MustNewComponent("hello.txt"), false).
 		Return(status.Error(codes.Internal, "Server not reachable"))
