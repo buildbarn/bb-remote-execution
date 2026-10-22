@@ -16,6 +16,33 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
+func TestAppleXcodeResolvingPersistentRunner(test *testing.T) {
+	ctrl := gomock.NewController(test)
+	base := mock.NewMockPersistentRunnerServer(ctrl)
+	resolver := mock.NewMockAppleXcodeSDKRootResolver(ctrl)
+	server := runner.NewAppleXcodeResolvingPersistentRunner(base, map[string]string{"version": "/Xcode/Developer"}, resolver.Call)
+	request := &runner_pb.CreateSessionRequest{Arguments: []string{"compiler", "--persistent_worker"}, EnvironmentVariables: map[string]string{
+		"XCODE_VERSION_OVERRIDE": "version",
+		"APPLE_SDK_PLATFORM":     "MacOSX",
+	}}
+	resolver.EXPECT().Call(gomock.Any(), "/Xcode/Developer", "macosx").Return("/Xcode/SDK", nil)
+	base.EXPECT().CreateSession(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, resolved *runner_pb.CreateSessionRequest) (*runner_pb.CreateSessionResponse, error) {
+		require.Equal(test, request.Arguments, resolved.Arguments)
+		require.Equal(test, "/Xcode/Developer", resolved.EnvironmentVariables["DEVELOPER_DIR"])
+		require.Equal(test, "/Xcode/SDK", resolved.EnvironmentVariables["SDKROOT"])
+		return &runner_pb.CreateSessionResponse{SessionId: "session"}, nil
+	})
+	_, err := server.CreateSession(context.Background(), request)
+	require.NoError(test, err)
+	require.NotContains(test, request.EnvironmentVariables, "DEVELOPER_DIR")
+	require.NotContains(test, request.EnvironmentVariables, "SDKROOT")
+	request.EnvironmentVariables["XCODE_VERSION_OVERRIDE"] = "missing"
+	_, err = server.CreateSession(context.Background(), request)
+	require.Error(test, err)
+	require.Len(test, status.Convert(err).Details(), 1)
+	require.IsType(test, &runner_pb.CreateSessionFailure{}, status.Convert(err).Details()[0])
+}
+
 func TestAppleXcodeResolvingRunner(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 

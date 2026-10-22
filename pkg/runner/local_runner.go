@@ -135,7 +135,7 @@ func NewLocalRunner(buildDirectory filesystem.Directory, buildDirectoryPath *pat
 	}
 }
 
-func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*runner.RunResponse, error) {
+func (r *localRunner) createCommand(ctx context.Context, request *runner.RunRequest) (*exec.Cmd, error) {
 	if len(request.Arguments) < 1 {
 		return nil, status.Error(codes.InvalidArgument, "Insufficient number of command arguments")
 	}
@@ -167,6 +167,14 @@ func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*run
 	}
 	for name, value := range request.EnvironmentVariables {
 		cmd.Env = append(cmd.Env, name+"="+value)
+	}
+	return cmd, nil
+}
+
+func (r *localRunner) Run(ctx context.Context, request *runner.RunRequest) (*runner.RunResponse, error) {
+	cmd, err := r.createCommand(ctx, request)
+	if err != nil {
+		return nil, err
 	}
 
 	// Open output files for logging.

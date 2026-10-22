@@ -1,0 +1,19 @@
+# gazelle:ignore
+
+load("@rules_go//go:def.bzl", "go_binary")
+
+go_binary(
+    name = "fake_worker",
+    testonly = True,
+    srcs = ["main.go"],
+    visibility = [
+        "//cmd/bb_runner:__pkg__",
+        "//pkg/builder:__pkg__",
+        "//pkg/runner:__pkg__",
+    ],
+    deps = [
+        "//pkg/proto/worker",
+        "@com_github_google_uuid//:uuid",
+        "@org_golang_google_protobuf//proto",
+    ],
+)

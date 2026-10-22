@@ -131,10 +131,12 @@ func main() {
 			)
 		}
 
+		var idleInvoker *cleaner.IdleInvoker
 		if len(cleaners) > 0 {
+			idleInvoker = cleaner.NewIdleInvoker(cleaner.NewChainedCleaner(cleaners))
 			r = runner.NewCleanRunner(
 				r,
-				cleaner.NewIdleInvoker(cleaner.NewChainedCleaner(cleaners)),
+				idleInvoker,
 			)
 		}
 
@@ -157,10 +159,24 @@ func main() {
 			)
 		}
 
+		persistentRunner, persistentRunnerCloser, err := newPersistentRunnerFromConfiguration(ctx, &configuration, buildDirectory, buildDirectoryPath, commandCreator, idleInvoker)
+		if err != nil {
+			return util.StatusWrap(err, "Failed to configure persistent workers")
+		}
+		if persistentRunnerCloser != nil {
+			siblingsGroup.Go(func(ctx context.Context, siblingsGroup, dependenciesGroup program.Group) error {
+				<-ctx.Done()
+				return persistentRunnerCloser.Close()
+			})
+		}
+
 		if err := bb_grpc.NewServersFromConfigurationAndServe(
 			configuration.GrpcServers,
 			func(s grpc.ServiceRegistrar) {
 				runner_pb.RegisterRunnerServer(s, r)
+				if persistentRunner != nil {
+					runner_pb.RegisterPersistentRunnerServer(s, persistentRunner)
+				}
 			},
 			siblingsGroup,
 			grpcClientFactory,

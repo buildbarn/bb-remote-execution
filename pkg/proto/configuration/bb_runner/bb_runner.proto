@@ -135,4 +135,16 @@ message ApplicationConfiguration {
   // https://github.com/bazelbuild/bazel/blob/master/src/main/java/com/google/devtools/build/lib/exec/local/XcodeLocalEnvProvider.java
   // https://www.smileykeith.com/2021/03/08/locking-xcode-in-bazel/
   map<string, string> apple_xcode_developer_directories = 14;
+
+  // Enable the PersistentRunner service. Omit this message to disable
+  // persistent workers. When present, its response size limit is required.
+  PersistentWorkersConfiguration persistent_workers = 15;
+}
+
+message PersistentWorkersConfiguration {
+  // Maximum serialized WorkResponse payload size, excluding the length prefix.
+  // Must be explicitly set to a positive value that fits in a Go int on the
+  // runner's architecture. Omitted or zero values cause startup to fail;
+  // there is no default limit.
+  uint64 maximum_work_response_size_bytes = 1;
 }

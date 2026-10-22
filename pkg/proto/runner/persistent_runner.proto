@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package buildbarn.runner;
+
+import "github.com/buildbarn/bb-remote-execution/pkg/proto/runner/runner.proto";
+import "google/protobuf/any.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/runner";
+
+// Similar to Runner but with added session management endpoints for persistent
+// workers support. See https://bazel.build/remote/creating
+service PersistentRunner {
+  rpc CheckReadiness(CheckReadinessRequest) returns (google.protobuf.Empty);
+  rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
+  rpc ExecuteInPersistentWorker(ExecuteInPersistentWorkerRequest)
+      returns (ExecuteInPersistentWorkerResponse);
+  rpc CloseSession(SessionRequest) returns (google.protobuf.Empty);
+
+  // TODO: Define RenewSession so orphaned workers are cleaned up.
+}
+
+message CreateSessionRequest {
+  repeated string arguments = 1;
+  map<string, string> environment_variables = 2;
+  string working_directory = 3;
+  string input_root_directory = 4;
+  string temporary_directory = 5;
+  string process_stderr_path = 6;
+  string server_logs_directory = 7;
+}
+
+message CreateSessionResponse {
+  string session_id = 1;
+}
+
+// Error detail attached to a failed CreateSession response only when no
+// session was retained and any started worker has been terminated and reaped.
+// The caller may discard the workspace and retry with a new session. Without
+// this detail, a failure without a session ID has an unknown creation outcome;
+// the caller must not delete files that a possibly live worker could still use.
+message CreateSessionFailure {}
+
+message SessionRequest {
+  string session_id = 1;
+}
+
+message ExecuteInPersistentWorkerRequest {
+  string session_id = 1;
+  // WorkRequest serialized by bb_worker, without the varint length prefix.
+  bytes serialized_work_request = 2;
+}
+
+message ExecuteInPersistentWorkerResponse {
+  // WorkResponse from the compiler, without the varint length prefix.
+  bytes serialized_work_response = 1;
+  repeated google.protobuf.Any resource_usage = 2;
+}
