@@ -114,6 +114,24 @@ func TestBlobAccessCASFileFactoryGetContainingDigests(t *testing.T) {
 	require.Equal(t, digest.ToSingletonSet(), p.ContainingDigests)
 }
 
+func TestBlobAccessCASFileFactoryIsContentsImmutable(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	contentAddressableStorage := mock.NewMockBlobAccess(ctrl)
+	errorLogger := mock.NewMockErrorLogger(ctrl)
+	casFileFactory := virtual.NewBlobAccessCASFileFactory(
+		context.Background(),
+		contentAddressableStorage,
+		errorLogger)
+
+	digest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "d7ac2672607ba20a44d01d03a6685b24", 400)
+	f := casFileFactory.LookupFile(digest, false, nil)
+
+	p := virtual.ApplyIsContentsImmutable{}
+	require.True(t, f.VirtualApply(&p))
+	require.True(t, p.Immutable)
+}
+
 func TestBlobAccessCASFileFactoryGetBazelOutputServiceStat(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 

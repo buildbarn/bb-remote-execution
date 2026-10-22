@@ -83,6 +83,8 @@ func (f *blobAccessCASFile) virtualApplyCommon(data any) bool {
 		p.Digest = f.digest
 	case *ApplyGetContainingDigests:
 		p.ContainingDigests = f.digest.ToSingletonSet()
+	case *ApplyIsContentsImmutable:
+		p.Immutable = true
 	case *ApplyGetBazelOutputServiceStat:
 		// Assume that the file uses the same hash algorithm as
 		// the provided digest function. Incompatible files are
