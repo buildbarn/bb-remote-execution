@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"sync/atomic"
@@ -305,7 +306,13 @@ func main() {
 				if err != nil {
 					return util.StatusWrap(err, "Failed to create eviction set for cache directory")
 				}
-				fileFetcher = re_cas.NewHardlinkingFileFetcher(
+				// Shared hardlinked inputs let macOS actions reach each
+				// other's paths, so give every action its own clones there.
+				newCachingFileFetcher := re_cas.NewHardlinkingFileFetcher
+				if runtime.GOOS == "darwin" {
+					newCachingFileFetcher = re_cas.NewCloningFileFetcher
+				}
+				fileFetcher = newCachingFileFetcher(
 					re_cas.NewBlobAccessFileFetcher(globalContentAddressableStorage),
 					cacheDirectory,
 					int(nativeConfiguration.MaximumCacheFileCount),
