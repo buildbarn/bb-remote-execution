@@ -29,6 +29,12 @@ type hardlinkingFileFetcher struct {
 
 	downloadsLock sync.Mutex
 	downloads     map[string]<-chan struct{}
+
+	// Creates a file at a destination from a file at a source, either
+	// as a hardlink or as a copy-on-write clone, and names what it
+	// creates in error messages.
+	materialize     func(oldDirectory filesystem.Directory, oldName path.Component, newDirectory filesystem.Directory, newName path.Component) error
+	materializeName string
 }
 
 // NewHardlinkingFileFetcher is an adapter for FileFetcher that stores
@@ -37,6 +43,30 @@ type hardlinkingFileFetcher struct {
 // calls for the same file will hardlink them from the cache to the
 // target location. This reduces the amount of network traffic needed.
 func NewHardlinkingFileFetcher(base FileFetcher, cacheDirectory filesystem.Directory, maxFiles int, maxSize int64, evictionSet eviction.Set[string]) FileFetcher {
+	return newCachingFileFetcher(base, cacheDirectory, maxFiles, maxSize, evictionSet, func(oldDirectory filesystem.Directory, oldName path.Component, newDirectory filesystem.Directory, newName path.Component) error {
+		return oldDirectory.Link(oldName, newDirectory, newName)
+	}, "hardlink to")
+}
+
+// NewCloningFileFetcher is identical to NewHardlinkingFileFetcher,
+// except that files are cloned into and out of the cache instead of
+// hardlinked. Every file placed in a build directory therefore has an
+// inode of its own, while still sharing storage with the cache.
+//
+// On macOS, concurrent build actions sharing one hardlinked input were
+// observed locating their own files under another action's build
+// directory: Python found its standard library through a sibling's path,
+// and imports failed once that sibling's build directory was removed.
+// Giving every action an inode of its own prevented it. Cloning also
+// avoids linking out of application bundles, which macOS prohibits for
+// PkgInfo files.
+func NewCloningFileFetcher(base FileFetcher, cacheDirectory filesystem.Directory, maxFiles int, maxSize int64, evictionSet eviction.Set[string]) FileFetcher {
+	return newCachingFileFetcher(base, cacheDirectory, maxFiles, maxSize, evictionSet, func(oldDirectory filesystem.Directory, oldName path.Component, newDirectory filesystem.Directory, newName path.Component) error {
+		return oldDirectory.Clonefile(oldName, newDirectory, newName)
+	}, "clone of")
+}
+
+func newCachingFileFetcher(base FileFetcher, cacheDirectory filesystem.Directory, maxFiles int, maxSize int64, evictionSet eviction.Set[string], materialize func(filesystem.Directory, path.Component, filesystem.Directory, path.Component) error, materializeName string) FileFetcher {
 	return &hardlinkingFileFetcher{
 		base:           base,
 		cacheDirectory: cacheDirectory,
@@ -48,6 +78,9 @@ func NewHardlinkingFileFetcher(base FileFetcher, cacheDirectory filesystem.Direc
 		evictionSet: evictionSet,
 
 		downloads: map[string]<-chan struct{}{},
+
+		materialize:     materialize,
+		materializeName: materializeName,
 	}
 }
 
@@ -76,7 +109,7 @@ func (ff *hardlinkingFileFetcher) GetFile(ctx context.Context, blobDigest digest
 	}
 
 	for {
-		// If the file is present in the cache, hardlink it to the destination.
+		// If the file is present in the cache, materialize it at the destination.
 		if err := ff.tryLinkFromCache(key, directory, name); err == nil {
 			return nil
 		} else if !os.IsNotExist(err) {
@@ -137,8 +170,8 @@ func (ff *hardlinkingFileFetcher) GetFile(ctx context.Context, blobDigest digest
 			return err
 		}
 
-		// Hardlink the file into the cache.
-		if err := directory.Link(name, ff.cacheDirectory, path.MustNewComponent(key)); err != nil && !os.IsExist(err) {
+		// Add the file to the cache.
+		if err := ff.materialize(directory, name, ff.cacheDirectory, path.MustNewComponent(key)); err != nil && !os.IsExist(err) {
 			return util.StatusWrapfWithCode(err, codes.Internal, "Failed to add cached file %#v", key)
 		}
 		ff.evictionSet.Insert(key)
@@ -147,14 +180,14 @@ func (ff *hardlinkingFileFetcher) GetFile(ctx context.Context, blobDigest digest
 	} else {
 		// Even though the file is part of our bookkeeping, we
 		// observed it didn't exist. Repair this inconsistency.
-		if err := directory.Link(name, ff.cacheDirectory, path.MustNewComponent(key)); err != nil && !os.IsExist(err) {
+		if err := ff.materialize(directory, name, ff.cacheDirectory, path.MustNewComponent(key)); err != nil && !os.IsExist(err) {
 			return util.StatusWrapfWithCode(err, codes.Internal, "Failed to repair cached file %#v", key)
 		}
 	}
 	return nil
 }
 
-// tryLinkFromCache attempts to create a hardlink from the cache to a
+// tryLinkFromCache attempts to materialize a file from the cache at a
 // file in the build directory. It returns os.ErrNotExist if the file
 // is not in the cache bookkeeping, or if it was in bookkeeping but
 // missing on disk.
@@ -167,11 +200,11 @@ func (ff *hardlinkingFileFetcher) tryLinkFromCache(key string, directory filesys
 		ff.evictionSet.Touch(key)
 		ff.evictionLock.Unlock()
 
-		if err := ff.cacheDirectory.Link(path.MustNewComponent(key), directory, name); err == nil {
-			// Successfully hardlinked the file to its destination.
+		if err := ff.materialize(ff.cacheDirectory, path.MustNewComponent(key), directory, name); err == nil {
+			// Successfully materialized the file at its destination.
 			return nil
 		} else if !os.IsNotExist(err) {
-			return util.StatusWrapfWithCode(err, codes.Internal, "Failed to create hardlink to cached file %#v", key)
+			return util.StatusWrapfWithCode(err, codes.Internal, "Failed to create %s cached file %#v", ff.materializeName, key)
 		}
 	}
 	return os.ErrNotExist
