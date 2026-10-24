@@ -10,6 +10,7 @@ import (
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	re_blobstore "github.com/buildbarn/bb-remote-execution/pkg/blobstore"
+	re_cas "github.com/buildbarn/bb-remote-execution/pkg/cas"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/buildqueuestate"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_scheduler"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
@@ -29,7 +30,6 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/proto/iscc"
 	"github.com/buildbarn/bb-storage/pkg/random"
 	"github.com/buildbarn/bb-storage/pkg/util"
-	"github.com/buildbarn/bb-storage/pkg/zstd"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 
@@ -60,20 +60,15 @@ func main() {
 		// Storage access. The scheduler requires access to the Action
 		// and Command messages stored in the CAS to obtain platform
 		// properties.
-		zstdPool := zstd.NewPoolFromConfiguration(configuration.ZstdPool)
-		info, err := blobstore_configuration.NewBlobAccessFromConfiguration(
+		casInfo, err := blobstore_configuration.NewCASFromConfiguration(
 			dependenciesGroup,
 			configuration.ContentAddressableStorage,
-			blobstore_configuration.NewCASBlobAccessCreator(
-				grpcClientFactory,
-				int(configuration.MaximumMessageSizeBytes),
-				zstdPool,
-			),
+			grpcClientFactory,
+			int(configuration.MaximumMessageSizeBytes),
 		)
 		if err != nil {
 			return util.StatusWrap(err, "Failed to create Content Adddressable Storage")
 		}
-		contentAddressableStorage := re_blobstore.NewExistencePreconditionBlobAccess(info.BlobAccess)
 
 		// Optional: Initial Size Class Cache (ISCC) access. This data
 		// store is only used if one or more parts of the ActionRouter
@@ -94,14 +89,13 @@ func main() {
 			}
 			previousExecutionStatsStore = re_blobstore.NewBlobAccessMutableProtoStore[iscc.PreviousExecutionStats](
 				info.BlobAccess,
-				int(configuration.MaximumMessageSizeBytes),
 			)
 		}
 
 		// Create an action router that is responsible for analyzing
 		// incoming execution requests and determining how they are
 		// scheduled.
-		actionRouter, err := routing.NewActionRouterFromConfiguration(configuration.ActionRouter, contentAddressableStorage, previousExecutionStatsStore, grpcClientFactory, dependenciesGroup)
+		actionRouter, err := routing.NewActionRouterFromConfiguration(configuration.ActionRouter, previousExecutionStatsStore, grpcClientFactory, dependenciesGroup)
 		if err != nil {
 			return util.StatusWrap(err, "Failed to create action router")
 		}
@@ -133,10 +127,12 @@ func main() {
 		// TODO: Make timeouts configurable.
 		generator := random.NewFastSingleThreadedGenerator()
 		buildQueue := scheduler.NewInMemoryBuildQueue(
-			cas.NewBlobAccessMessageReader[remoteexecution.Action](
-				contentAddressableStorage,
+			re_cas.NewExistencePreconditionReader(cas.NewMessageReader[remoteexecution.Action](
+				casInfo.ChunkBytesReader,
+				casInfo.ChunkMappingFetcher,
+				casInfo.CDCParametersFetcher,
 				int(configuration.MaximumMessageSizeBytes),
-			),
+			)),
 			clock.SystemClock,
 			uuid.NewRandom,
 			&scheduler.InMemoryBuildQueueConfiguration{

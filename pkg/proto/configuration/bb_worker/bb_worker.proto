@@ -12,7 +12,6 @@ import "github.com/buildbarn/bb-storage/pkg/proto/configuration/eviction/evictio
 import "github.com/buildbarn/bb-storage/pkg/proto/configuration/global/global.proto";
 import "github.com/buildbarn/bb-storage/pkg/proto/configuration/grpc/grpc.proto";
 import "github.com/buildbarn/bb-storage/pkg/proto/configuration/http/client/client.proto";
-import "github.com/buildbarn/bb-storage/pkg/proto/configuration/zstd/zstd.proto";
 import "google/protobuf/duration.proto";
 
 option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_worker";
@@ -172,10 +171,9 @@ message ApplicationConfiguration {
   repeated HttpExecutionTimeoutCompensator http_execution_timeout_compensators =
       30;
 
-  // ZSTD encoder/decoder pool configuration. When set, creates a
-  // process-wide pool shared by all gRPC CAS clients and the
-  // ByteStream server.
-  buildbarn.configuration.zstd.PoolConfiguration zstd_pool = 31;
+  // Was 'zstd_pool' no longer required as bb-remote-execution doesn't
+  // need to stream long lived zstd encoding/decoding.
+  reserved 31;
 }
 
 message BuildDirectoryConfiguration {
@@ -196,10 +194,7 @@ message BuildDirectoryConfiguration {
     // performance, it is important that a Content Addressable Storage
     // backend is used that supports fast random access to blobs. It is
     // suggested that workers use ReadCachingBlobAccess in combination
-    // with LocalBlobAccess to achieve this. When LocalBlobAccess is
-    // backed by a block device, 'data_integrity_validation_cache' must
-    // be set to ensure the file isn't checksum validated for every
-    // individual read.
+    // with LocalBlobAccess to achieve this.
     VirtualBuildDirectoryConfiguration virtual = 2;
   }
 

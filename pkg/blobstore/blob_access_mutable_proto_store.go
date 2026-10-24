@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/util"
 	"github.com/prometheus/client_golang/prometheus"
@@ -58,8 +57,7 @@ type blobAccessMutableProtoStore[T any, TProto interface {
 	*T
 	proto.Message
 }] struct {
-	initialSizeClassCache   blobstore.BlobAccess
-	maximumMessageSizeBytes int
+	initialSizeClassCache blobstore.BlobAccess[TProto]
 
 	lock           sync.Mutex
 	handles        map[digest.Digest]*blobAccessMutableProtoHandle[T, TProto]
@@ -79,7 +77,7 @@ type blobAccessMutableProtoStore[T any, TProto interface {
 func NewBlobAccessMutableProtoStore[T any, TProto interface {
 	*T
 	proto.Message
-}](initialSizeClassCache blobstore.BlobAccess, maximumMessageSizeBytes int) MutableProtoStore[TProto] {
+}](initialSizeClassCache blobstore.BlobAccess[TProto]) MutableProtoStore[TProto] {
 	blobAccessMutableProtoHandleMetrics.Do(func() {
 		prometheus.MustRegister(blobAccessMutableProtoHandlesCreated)
 		prometheus.MustRegister(blobAccessMutableProtoHandlesDestroyed)
@@ -88,9 +86,8 @@ func NewBlobAccessMutableProtoStore[T any, TProto interface {
 	})
 
 	return &blobAccessMutableProtoStore[T, TProto]{
-		initialSizeClassCache:   initialSizeClassCache,
-		maximumMessageSizeBytes: maximumMessageSizeBytes,
-		handles:                 map[digest.Digest]*blobAccessMutableProtoHandle[T, TProto]{},
+		initialSizeClassCache: initialSizeClassCache,
+		handles:               map[digest.Digest]*blobAccessMutableProtoHandle[T, TProto]{},
 	}
 }
 
@@ -99,7 +96,7 @@ type handleToWrite[T any, TProto interface {
 	proto.Message
 }] struct {
 	handle         *blobAccessMutableProtoHandle[T, TProto]
-	message        proto.Message
+	message        TProto
 	writingVersion int
 }
 
@@ -131,7 +128,7 @@ func (ss *blobAccessMutableProtoStore[T, TProto]) Get(ctx context.Context, reduc
 		handle.handlesToWriteIndex = -1
 		handlesToWrite = append(handlesToWrite, handleToWrite[T, TProto]{
 			handle:         handle,
-			message:        proto.Clone(TProto(&handle.message)),
+			message:        proto.Clone(TProto(&handle.message)).(TProto),
 			writingVersion: handle.currentVersion,
 		})
 	}
@@ -149,8 +146,7 @@ func (ss *blobAccessMutableProtoStore[T, TProto]) Get(ctx context.Context, reduc
 			handlesToWriteIndex: -1,
 		}
 		group.Go(func() error {
-			emptyMessage := new(T)
-			if m, err := ss.initialSizeClassCache.Get(ctxWithCancel, reducedActionDigest).ToProto(TProto(emptyMessage), ss.maximumMessageSizeBytes); err == nil {
+			if m, err := ss.initialSizeClassCache.Get(ctxWithCancel, reducedActionDigest); err == nil {
 				proto.Merge(TProto(&handleToReturn.message), m)
 			} else if status.Code(err) != codes.NotFound {
 				return util.StatusWrapf(err, "Failed to read mutable Protobuf message with digest %#v", reducedActionDigest.String())
@@ -163,7 +159,7 @@ func (ss *blobAccessMutableProtoStore[T, TProto]) Get(ctx context.Context, reduc
 	for _, handleToWriteIter := range handlesToWrite {
 		handleToWrite := handleToWriteIter
 		group.Go(func() error {
-			if err := ss.initialSizeClassCache.Put(ctxWithCancel, handleToWrite.handle.digest, buffer.NewProtoBufferFromProto(handleToWrite.message, buffer.UserProvided)); err != nil {
+			if err := ss.initialSizeClassCache.Put(ctxWithCancel, handleToWrite.handle.digest, handleToWrite.message); err != nil {
 				ss.lock.Lock()
 				handleToWrite.handle.removeOrQueueForWriteLocked()
 				ss.lock.Unlock()
