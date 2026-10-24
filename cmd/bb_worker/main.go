@@ -86,7 +86,7 @@ func main() {
 		}
 
 		// Storage access.
-		chunkBytesReader, chunkStorage, chunkMappingStorage, chunkMappingFetcher, cdcParametersFetcher, digestKeyFormat, actionCache, err := blobstore_configuration.NewCASAndACFromConfiguration(
+		casInfo, actionCache, err := blobstore_configuration.NewCASAndACFromConfiguration(
 			dependenciesGroup,
 			configuration.Blobstore,
 			grpcClientFactory,
@@ -120,8 +120,8 @@ func main() {
 		directoryFetcher, err := re_cas.NewCachingDirectoryFetcherFromConfiguration(
 			configuration.DirectoryCache,
 			re_cas.NewCASDirectoryFetcher(
-				re_cas.NewExistencePreconditionReader(cas.NewMessageReader[remoteexecution.Directory](chunkBytesReader, chunkMappingFetcher, cdcParametersFetcher, int(configuration.MaximumMessageSizeBytes))),
-				re_cas.NewExistencePreconditionStreamReader(cas.NewStorageBackedStreamReader(chunkBytesReader, chunkMappingFetcher, cdcParametersFetcher)),
+				re_cas.NewExistencePreconditionReader(cas.NewMessageReader[remoteexecution.Directory](casInfo.ChunkBytesReader, casInfo.ChunkMappingFetcher, casInfo.CDCParametersFetcher, int(configuration.MaximumMessageSizeBytes))),
+				re_cas.NewExistencePreconditionStreamReader(cas.NewStorageBackedStreamReader(casInfo.ChunkBytesReader, casInfo.ChunkMappingFetcher, casInfo.CDCParametersFetcher)),
 				/* maximumDirectorySizeBytes = */ configuration.MaximumMessageSizeBytes,
 				/* maximumTreeSizeBytes = */ 0,
 			),
@@ -301,7 +301,7 @@ func main() {
 					return util.StatusWrap(err, "Failed to create eviction set for cache directory")
 				}
 				fileFetcher = re_cas.NewHardlinkingFileFetcher(
-					re_cas.NewCASFileFetcher(chunkBytesReader, chunkMappingFetcher, cdcParametersFetcher),
+					re_cas.NewCASFileFetcher(casInfo.ChunkBytesReader, casInfo.ChunkMappingFetcher, casInfo.CDCParametersFetcher),
 					cacheDirectory,
 					int(nativeConfiguration.MaximumCacheFileCount),
 					nativeConfiguration.MaximumCacheSizeBytes,
@@ -383,13 +383,13 @@ func main() {
 						executionTimeoutClock = suspendableClock
 					}
 
-					localChunkStorage, localChunkMappingStorage, localChunkBytesReader, localChunkMappingFetcher, localCdcParametersFetcher := chunkStorage, chunkMappingStorage, chunkBytesReader, chunkMappingFetcher, cdcParametersFetcher
+					localChunkStorage, localChunkMappingStorage, localChunkBytesReader, localChunkMappingFetcher, localCdcParametersFetcher := casInfo.ChunkStorage, casInfo.ChunkMappingStorage, casInfo.ChunkBytesReader, casInfo.ChunkMappingFetcher, casInfo.CDCParametersFetcher
 					if virtualBuildDirectory != nil {
-						localChunkStorage = re_cas.NewSuspendingBlobAccess(chunkStorage, suspendableClock)
-						localChunkMappingStorage = re_cas.NewSuspendingBlobAccess(chunkMappingStorage, suspendableClock)
-						localChunkBytesReader = re_cas.NewSuspendingChunkBytesReader(chunkBytesReader, suspendableClock)
-						localChunkMappingFetcher = re_cas.NewSuspendingChunkMappingFetcher(chunkMappingFetcher, suspendableClock)
-						localCdcParametersFetcher = re_cas.NewSuspendingParametersFetcher(cdcParametersFetcher, suspendableClock)
+						localChunkStorage = re_cas.NewSuspendingBlobAccess(casInfo.ChunkStorage, suspendableClock)
+						localChunkMappingStorage = re_cas.NewSuspendingBlobAccess(casInfo.ChunkMappingStorage, suspendableClock)
+						localChunkBytesReader = re_cas.NewSuspendingChunkBytesReader(casInfo.ChunkBytesReader, suspendableClock)
+						localChunkMappingFetcher = re_cas.NewSuspendingChunkMappingFetcher(casInfo.ChunkMappingFetcher, suspendableClock)
+						localCdcParametersFetcher = re_cas.NewSuspendingParametersFetcher(casInfo.CDCParametersFetcher, suspendableClock)
 					}
 
 					// Per-worker separate writer of the Content
@@ -399,7 +399,7 @@ func main() {
 						localChunkStorage,
 						localChunkMappingStorage,
 						localCdcParametersFetcher,
-						digestKeyFormat,
+						casInfo.DigestKeyFormat,
 						uploadBatchSize,
 						outputUploadConcurrencySemaphore,
 						cas.NewReaderPutter(
@@ -483,9 +483,9 @@ func main() {
 					if prefetchingConfiguration != nil {
 						buildExecutor = builder.NewPrefetchingBuildExecutor(
 							buildExecutor,
-							re_cas.NewExistencePreconditionReader(chunkBytesReader),
-							chunkMappingFetcher,
-							cdcParametersFetcher,
+							re_cas.NewExistencePreconditionReader(casInfo.ChunkBytesReader),
+							casInfo.ChunkMappingFetcher,
+							casInfo.CDCParametersFetcher,
 							directoryFetcher,
 							inputDownloadConcurrencySemaphore,
 							fileSystemAccessCache,
@@ -494,8 +494,8 @@ func main() {
 							int(prefetchingConfiguration.BloomFilterMaximumSizeBytes),
 							prefetchingConfiguration.LogFileSystemAccessProfile,
 							re_cas.NewProtoPutter(cas.NewReaderPutter(
-								chunkStorage,
-								chunkMappingStorage,
+								casInfo.ChunkStorage,
+								casInfo.ChunkMappingStorage,
 							)),
 						)
 					}
@@ -527,10 +527,10 @@ func main() {
 
 					buildExecutor = builder.NewCachingBuildExecutor(
 						buildExecutor,
-						cdcParametersFetcher,
+						casInfo.CDCParametersFetcher,
 						re_cas.NewProtoPutter(cas.NewReaderPutter(
-							chunkStorage,
-							chunkMappingStorage,
+							casInfo.ChunkStorage,
+							casInfo.ChunkMappingStorage,
 						)),
 						actionCache,
 						portalURL,

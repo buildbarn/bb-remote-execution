@@ -60,7 +60,7 @@ func main() {
 		// Storage access. The scheduler requires access to the Action
 		// and Command messages stored in the CAS to obtain platform
 		// properties.
-		chunkBytesReader, _, _, chunkMappingFetcher, cdcParametersFetcher, _, err := blobstore_configuration.NewCASFromConfiguration(
+		casInfo, err := blobstore_configuration.NewCASFromConfiguration(
 			dependenciesGroup,
 			configuration.ContentAddressableStorage,
 			grpcClientFactory,
@@ -128,9 +128,9 @@ func main() {
 		generator := random.NewFastSingleThreadedGenerator()
 		buildQueue := scheduler.NewInMemoryBuildQueue(
 			re_cas.NewExistencePreconditionReader(cas.NewMessageReader[remoteexecution.Action](
-				chunkBytesReader,
-				chunkMappingFetcher,
-				cdcParametersFetcher,
+				casInfo.ChunkBytesReader,
+				casInfo.ChunkMappingFetcher,
+				casInfo.CDCParametersFetcher,
 				int(configuration.MaximumMessageSizeBytes),
 			)),
 			clock.SystemClock,

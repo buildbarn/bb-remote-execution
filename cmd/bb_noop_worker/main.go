@@ -44,7 +44,7 @@ func main() {
 		// Storage access. This worker loads Command objects from the
 		// Content Addressable Storage (CAS), as those may contain error
 		// message templates that this worker respects.
-		chunkBytesReader, _, _, chunkMappingFetcher, cdcParametersFetcher, _, err := blobstore_configuration.NewCASFromConfiguration(
+		casInfo, err := blobstore_configuration.NewCASFromConfiguration(
 			dependenciesGroup,
 			configuration.ContentAddressableStorage,
 			grpcClientFactory,
@@ -74,9 +74,9 @@ func main() {
 			schedulerClient,
 			builder.NewNoopBuildExecutor(
 				re_cas.NewExistencePreconditionReader(cas.NewMessageReader[remoteexecution.Command](
-					chunkBytesReader,
-					chunkMappingFetcher,
-					cdcParametersFetcher,
+					casInfo.ChunkBytesReader,
+					casInfo.ChunkMappingFetcher,
+					casInfo.CDCParametersFetcher,
 					int(configuration.MaximumMessageSizeBytes),
 				)),
 				portalURL,
