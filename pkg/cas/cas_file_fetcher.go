@@ -4,21 +4,22 @@ import (
 	"context"
 	"os"
 
-	"github.com/buildbarn/bb-storage/pkg/blobstore"
+	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
+	"github.com/buildbarn/bb-storage/pkg/util"
 )
 
 type blobAccessFileFetcher struct {
-	blobAccess blobstore.BlobAccess
+	readInfo cas.ReadInfo
 }
 
-// NewBlobAccessFileFetcher creates a FileFetcher that reads files fom a
-// BlobAccess based store.
-func NewBlobAccessFileFetcher(blobAccess blobstore.BlobAccess) FileFetcher {
+// NewCASFileFetcher creates a FileFetcher that reads files fom a
+// Content Addressable Storage (CAS).
+func NewCASFileFetcher(readInfo cas.ReadInfo) FileFetcher {
 	return &blobAccessFileFetcher{
-		blobAccess: blobAccess,
+		readInfo: readInfo,
 	}
 }
 
@@ -34,10 +35,14 @@ func (ff *blobAccessFileFetcher) GetFile(ctx context.Context, digest digest.Dige
 	}
 	defer w.Close()
 
-	if err := ff.blobAccess.Get(ctx, digest).IntoWriter(w); err != nil {
+	params, err := ff.readInfo.CDCParametersFetcher.FetchCDCParameters(ctx, digest.GetInstanceName())
+	if err != nil {
+		return util.StatusWrap(err, "Failed to fetch CDC parameters")
+	}
+	if err := cas.IntoWriter(ctx, ff.readInfo.ChunkBytesReader, ff.readInfo.ChunkMappingFetcher, params, digest, 0, w); err != nil {
 		// Ensure no traces are left behind upon failure.
 		directory.Remove(name)
-		return err
+		return FailedPreconditionOnMissingBlob(digest, err)
 	}
 	time := filesystem.DeterministicFileModificationTimestamp
 	if err := directory.Chtimes(name, time, time); err != nil {
