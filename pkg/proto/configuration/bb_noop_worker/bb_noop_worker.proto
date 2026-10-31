@@ -6,7 +6,6 @@ import "build/bazel/remote/execution/v2/remote_execution.proto";
 import "github.com/buildbarn/bb-storage/pkg/proto/configuration/blobstore/blobstore.proto";
 import "github.com/buildbarn/bb-storage/pkg/proto/configuration/global/global.proto";
 import "github.com/buildbarn/bb-storage/pkg/proto/configuration/grpc/grpc.proto";
-import "github.com/buildbarn/bb-storage/pkg/proto/configuration/zstd/zstd.proto";
 
 option go_package = "github.com/buildbarn/bb-remote-execution/pkg/proto/configuration/bb_noop_worker";
 
@@ -31,15 +30,14 @@ message ApplicationConfiguration {
   // as announced to the scheduler.
   map<string, string> worker_id = 6;
 
-  // Configuration for blob storage.
-  buildbarn.configuration.blobstore.BlobAccessConfiguration
+  // Configuration for Content Addressable Storage
+  buildbarn.configuration.blobstore.ContentAddressableStorageConfiguration
       content_addressable_storage = 7;
 
   // Maximum Protobuf message size to unmarshal.
   int64 maximum_message_size_bytes = 8;
 
-  // ZSTD encoder/decoder pool configuration. When set, creates a
-  // process-wide pool shared by all gRPC CAS clients and the
-  // ByteStream server.
-  buildbarn.configuration.zstd.PoolConfiguration zstd_pool = 9;
+  // Was 'zstd_pool' no longer required as bb-remote-execution doesn't
+  // need to stream long lived zstd encoding/decoding.
+  reserved 9;
 }

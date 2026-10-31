@@ -6,7 +6,6 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/initialsizeclass"
 	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/invocation"
 	"github.com/buildbarn/bb-remote-execution/pkg/scheduler/platform"
-	"github.com/buildbarn/bb-storage/pkg/blobstore"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	bb_grpc "github.com/buildbarn/bb-storage/pkg/grpc"
 	"github.com/buildbarn/bb-storage/pkg/program"
@@ -18,13 +17,13 @@ import (
 
 // NewActionRouterFromConfiguration creates an ActionRouter based on
 // options specified in a configuration file.
-func NewActionRouterFromConfiguration(configuration *pb.ActionRouterConfiguration, contentAddressableStorage blobstore.BlobAccess, previousExecutionStatsStore initialsizeclass.PreviousExecutionStatsStore, grpcClientFactory bb_grpc.ClientFactory, dependenciesGroup program.Group) (ActionRouter, error) {
+func NewActionRouterFromConfiguration(configuration *pb.ActionRouterConfiguration, previousExecutionStatsStore initialsizeclass.PreviousExecutionStatsStore, grpcClientFactory bb_grpc.ClientFactory, dependenciesGroup program.Group) (ActionRouter, error) {
 	if configuration == nil {
 		return nil, status.Error(codes.InvalidArgument, "No action router configuration provided")
 	}
 	switch kind := configuration.Kind.(type) {
 	case *pb.ActionRouterConfiguration_Simple:
-		platformKeyExtractor, err := platform.NewKeyExtractorFromConfiguration(kind.Simple.PlatformKeyExtractor, contentAddressableStorage)
+		platformKeyExtractor, err := platform.NewKeyExtractorFromConfiguration(kind.Simple.PlatformKeyExtractor)
 		if err != nil {
 			return nil, util.StatusWrap(err, "Failed to create platform key extractor")
 		}
@@ -42,11 +41,11 @@ func NewActionRouterFromConfiguration(configuration *pb.ActionRouterConfiguratio
 		}
 		return NewSimpleActionRouter(platformKeyExtractor, invocationKeyExtractors, initialSizeClassAnalyzer), nil
 	case *pb.ActionRouterConfiguration_Demultiplexing:
-		platformKeyExtractor, err := platform.NewKeyExtractorFromConfiguration(kind.Demultiplexing.PlatformKeyExtractor, contentAddressableStorage)
+		platformKeyExtractor, err := platform.NewKeyExtractorFromConfiguration(kind.Demultiplexing.PlatformKeyExtractor)
 		if err != nil {
 			return nil, util.StatusWrap(err, "Failed to create platform key extractor")
 		}
-		defaultActionRouter, err := NewActionRouterFromConfiguration(kind.Demultiplexing.DefaultActionRouter, contentAddressableStorage, previousExecutionStatsStore, grpcClientFactory, dependenciesGroup)
+		defaultActionRouter, err := NewActionRouterFromConfiguration(kind.Demultiplexing.DefaultActionRouter, previousExecutionStatsStore, grpcClientFactory, dependenciesGroup)
 		if err != nil {
 			return nil, util.StatusWrap(err, "Failed to create default action router")
 		}
@@ -56,7 +55,7 @@ func NewActionRouterFromConfiguration(configuration *pb.ActionRouterConfiguratio
 			if err != nil {
 				return nil, util.StatusWrapf(err, "Invalid instance name prefix %#v", backend.InstanceNamePrefix)
 			}
-			backendActionRouter, err := NewActionRouterFromConfiguration(backend.ActionRouter, contentAddressableStorage, previousExecutionStatsStore, grpcClientFactory, dependenciesGroup)
+			backendActionRouter, err := NewActionRouterFromConfiguration(backend.ActionRouter, previousExecutionStatsStore, grpcClientFactory, dependenciesGroup)
 			if err != nil {
 				return nil, util.StatusWrap(err, "Failed to create demultiplexing action router backend")
 			}

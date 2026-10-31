@@ -18,7 +18,7 @@ go_library(
         "@com_github_buildbarn_bb_storage//pkg/auth",
         "@com_github_buildbarn_bb_storage//pkg/builder",
         "@com_github_buildbarn_bb_storage//pkg/capabilities",
-        "@com_github_buildbarn_bb_storage//pkg/cas",
+        "@com_github_buildbarn_bb_storage//pkg/cas/reader",
         "@com_github_buildbarn_bb_storage//pkg/clock",
         "@com_github_buildbarn_bb_storage//pkg/digest",
         "@com_github_buildbarn_bb_storage//pkg/otel",

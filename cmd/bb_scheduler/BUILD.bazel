@@ -30,6 +30,7 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "//pkg/blobstore",
+        "//pkg/cas",
         "//pkg/proto/buildqueuestate",
         "//pkg/proto/configuration/bb_scheduler",
         "//pkg/proto/remoteworker",
@@ -51,7 +52,6 @@ go_library(
         "@com_github_buildbarn_bb_storage//pkg/proto/iscc",
         "@com_github_buildbarn_bb_storage//pkg/random",
         "@com_github_buildbarn_bb_storage//pkg/util",
-        "@com_github_buildbarn_bb_storage//pkg/zstd",
         "@com_github_google_uuid//:uuid",
         "@com_github_gorilla_mux//:mux",
         "@org_golang_google_grpc//:grpc",
