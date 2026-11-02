@@ -54,6 +54,7 @@ go_library(
         "@com_github_buildbarn_bb_storage//pkg/zstd",
         "@com_github_google_uuid//:uuid",
         "@com_github_gorilla_mux//:mux",
+        "@com_github_prometheus_client_golang//prometheus",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//status",

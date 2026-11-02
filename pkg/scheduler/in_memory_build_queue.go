@@ -182,6 +182,30 @@ var (
 		},
 		[]string{"instance_name_prefix", "platform", "size_class"},
 	)
+
+	// Gauges reporting the current state of the size class queues,
+	// computed whenever InMemoryBuildQueue is collected. Unlike the
+	// counters above, they can be used directly by systems that do
+	// not compute differences between counters, such as
+	// autoscalers.
+	inMemoryBuildQueueTasksQueuedDesc = prometheus.NewDesc(
+		"buildbarn_builder_in_memory_build_queue_tasks_queued",
+		"Number of tasks that are currently queued, waiting for a worker.",
+		[]string{"instance_name_prefix", "platform", "size_class"},
+		nil,
+	)
+	inMemoryBuildQueueTasksExecutingDesc = prometheus.NewDesc(
+		"buildbarn_builder_in_memory_build_queue_tasks_executing",
+		"Number of tasks that are currently executing on a worker.",
+		[]string{"instance_name_prefix", "platform", "size_class"},
+		nil,
+	)
+	inMemoryBuildQueueWorkersDesc = prometheus.NewDesc(
+		"buildbarn_builder_in_memory_build_queue_workers",
+		"Number of workers that are currently registered.",
+		[]string{"instance_name_prefix", "platform", "size_class"},
+		nil,
+	)
 )
 
 // InMemoryBuildQueueConfiguration contains all the tunable settings of
@@ -1306,6 +1330,41 @@ func (bq *InMemoryBuildQueue) leave() {
 func (bq *InMemoryBuildQueue) ForceCleanup() {
 	bq.enter(bq.clock.Now())
 	bq.leave()
+}
+
+var _ prometheus.Collector = (*InMemoryBuildQueue)(nil)
+
+// Describe sends the descriptors of the gauges reported by Collect.
+// It is part of the prometheus.Collector interface.
+func (bq *InMemoryBuildQueue) Describe(ch chan<- *prometheus.Desc) {
+	ch <- inMemoryBuildQueueTasksQueuedDesc
+	ch <- inMemoryBuildQueueTasksExecutingDesc
+	ch <- inMemoryBuildQueueWorkersDesc
+}
+
+// Collect reports the number of tasks that are queued and executing,
+// and the number of workers, for every size class queue. Like any RPC,
+// it first runs pending cleanup tasks, so that stale workers and queues
+// are not reported. It is part of the prometheus.Collector interface.
+func (bq *InMemoryBuildQueue) Collect(ch chan<- prometheus.Metric) {
+	bq.enter(bq.clock.Now())
+	defer bq.leave()
+
+	for _, scq := range bq.sizeClassQueues {
+		instanceNamePrefix, platformStr, sizeClassStr := scq.platformQueue.getSizeClassQueueLabels(scq.sizeClass)
+
+		// Tasks of the root invocation and of all its children.
+		rootInvocation := &scq.rootInvocation
+		queuedTasks := uint32(rootInvocation.queuedOperations.Len()) + rootInvocation.getIndirectQueuedOperationsCount()
+		executingTasks := 0
+		for _, count := range rootInvocation.executingWorkers {
+			executingTasks += count
+		}
+
+		ch <- prometheus.MustNewConstMetric(inMemoryBuildQueueTasksQueuedDesc, prometheus.GaugeValue, float64(queuedTasks), instanceNamePrefix, platformStr, sizeClassStr)
+		ch <- prometheus.MustNewConstMetric(inMemoryBuildQueueTasksExecutingDesc, prometheus.GaugeValue, float64(executingTasks), instanceNamePrefix, platformStr, sizeClassStr)
+		ch <- prometheus.MustNewConstMetric(inMemoryBuildQueueWorkersDesc, prometheus.GaugeValue, float64(len(scq.workers)), instanceNamePrefix, platformStr, sizeClassStr)
+	}
 }
 
 // getIdleSynchronizeResponse returns a synchronization response that
