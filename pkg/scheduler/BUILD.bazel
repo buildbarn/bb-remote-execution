@@ -40,7 +40,10 @@ go_library(
 
 go_test(
     name = "scheduler_test",
-    srcs = ["in_memory_build_queue_test.go"],
+    srcs = [
+        "in_memory_build_queue_collector_test.go",
+        "in_memory_build_queue_test.go",
+    ],
     # By using bufconn, there are various places where these tests leave
     # goroutines running in the background, which may cause calls
     # against mocks to get triggered after tests should have complete.
@@ -62,6 +65,7 @@ go_test(
         "@com_github_buildbarn_bb_storage//pkg/testutil",
         "@com_github_buildbarn_bb_storage//pkg/util",
         "@com_github_google_uuid//:uuid",
+        "@com_github_prometheus_client_golang//prometheus/testutil",
         "@com_github_stretchr_testify//require",
         "@com_google_cloud_go_longrunning//autogen/longrunningpb",
         "@org_golang_google_grpc//:grpc",

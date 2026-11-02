@@ -32,6 +32,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/zstd"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -160,14 +161,16 @@ func main() {
 			synchronizeAuthorizer,
 		)
 
+		// Report the number of queued and executing tasks and of
+		// workers of every size class queue as gauges. Cleanups
+		// also run whenever the scheduler is scraped.
+		prometheus.MustRegister(buildQueue)
+
 		// Force periodic cleanups of stale workers. This also
-		// happens automatically when RPCs occur, but that's not
-		// sufficient to ensure Prometheus metrics are updated
-		// if the final workers disappear.
-		//
-		// TODO: Maybe it's better to let InMemoryBuildQueue
-		// implement prometheus.Collector? Then cleanups can run
-		// whenever the scheduler is scraped.
+		// happens automatically when RPCs occur, and whenever the
+		// scheduler is scraped, but that's not sufficient to ensure
+		// the counters are updated if the final workers disappear
+		// and nothing scrapes the scheduler.
 		dependenciesGroup.Go(func(ctx context.Context, siblingsGroup, dependenciesGroup program.Group) error {
 			t := time.NewTicker(time.Minute)
 			for {
