@@ -126,6 +126,7 @@ var (
 	operationHistogramSetXAttr      = newOperationHistogramWithStatus("SetXAttr")
 	operationHistogramRemoveXAttr   = newOperationHistogramWithStatus("RemoveXAttr")
 	operationHistogramCreate        = newOperationHistogramWithStatus("Create")
+	operationHistogramTmpfile       = newOperationHistogramWithStatus("Tmpfile")
 	operationHistogramOpen          = newOperationHistogramWithStatus("Open")
 	operationHistogramRead          = newOperationHistogramWithStatus("Read")
 	operationHistogramLseek         = newOperationHistogramWithStatus("Lseek")
@@ -134,6 +135,7 @@ var (
 	operationHistogramSetLkw        = newOperationHistogramWithStatus("SetLkw")
 	operationHistogramRelease       = newOperationHistogram("Release")
 	operationHistogramWrite         = newOperationHistogramWithStatus("Write")
+	operationHistogramWritev        = newOperationHistogramWithStatus("Writev")
 	operationHistogramCopyFileRange = newOperationHistogramWithStatus("CopyFileRange")
 	operationHistogramIoctl         = newOperationHistogramWithStatus("Ioctl")
 	operationHistogramFlush         = newOperationHistogramWithStatus("Flush")
@@ -306,6 +308,13 @@ func (rfs *metricsRawFileSystem) Create(cancel <-chan struct{}, input *fuse.Crea
 	return s
 }
 
+func (rfs *metricsRawFileSystem) Tmpfile(cancel <-chan struct{}, input *fuse.CreateIn, out *fuse.CreateOut) fuse.Status {
+	timeStart := rfs.clock.Now()
+	s := rfs.base.Tmpfile(cancel, input, out)
+	operationHistogramTmpfile.observe(s, timeStart, rfs.clock.Now())
+	return s
+}
+
 func (rfs *metricsRawFileSystem) Open(cancel <-chan struct{}, input *fuse.OpenIn, out *fuse.OpenOut) fuse.Status {
 	timeStart := rfs.clock.Now()
 	s := rfs.base.Open(cancel, input, out)
@@ -358,6 +367,13 @@ func (rfs *metricsRawFileSystem) Write(cancel <-chan struct{}, input *fuse.Write
 	timeStart := rfs.clock.Now()
 	r, s := rfs.base.Write(cancel, input, data)
 	operationHistogramWrite.observe(s, timeStart, rfs.clock.Now())
+	return r, s
+}
+
+func (rfs *metricsRawFileSystem) Writev(cancel <-chan struct{}, input *fuse.WriteIn, data [][]byte) (uint32, fuse.Status) {
+	timeStart := rfs.clock.Now()
+	r, s := rfs.base.Writev(cancel, input, data)
+	operationHistogramWritev.observe(s, timeStart, rfs.clock.Now())
 	return r, s
 }
 
