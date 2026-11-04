@@ -24,7 +24,7 @@ git_override(
 
 git_override(
     module_name = "com_github_buildbarn_bb_storage",
-    commit = "ca3d8b49a5af52eb02ed473dd689d19b949c9e41",
+    commit = "04c4240170c1ab25e446c241ac0009f7ea54a824",
     remote = "https://github.com/buildbarn/bb-storage.git",
 )
 
@@ -96,12 +96,14 @@ go_deps_dev.module_override(
     path = "github.com/grpc-ecosystem/go-grpc-prometheus",
 )
 go_deps_dev.module_override(
-    patches = ["@com_github_buildbarn_bb_storage//:patches/org_golang_x_lint/generic.diff"],
-    path = "golang.org/x/lint",
+    # Backport of https://github.com/hanwen/go-fuse/commit/2d50fff207d78c197869fa492eff3a79bc1d8408.
+    # Remove once a go-fuse release newer than v2.12.1 is available.
+    patches = ["//:patches/com_github_hanwen_go_fuse_v2/splice-386.diff"],
+    path = "github.com/hanwen/go-fuse/v2",
 )
 go_deps_dev.module_override(
-    patches = ["@com_github_buildbarn_bb_storage//:patches/org_golang_x_sys/o-search.diff"],
-    path = "golang.org/x/sys",
+    patches = ["@com_github_buildbarn_bb_storage//:patches/org_golang_x_lint/generic.diff"],
+    path = "golang.org/x/lint",
 )
 go_deps_dev.module_override(
     patches = ["@com_github_buildbarn_bb_storage//:patches/cc_mvdan_gofumpt/unused-receiver-idents.diff"],

@@ -688,6 +688,10 @@ func (rfs *simpleRawFileSystem) Create(cancel <-chan struct{}, input *fuse.Creat
 	return fuse.OK
 }
 
+func (simpleRawFileSystem) Tmpfile(cancel <-chan struct{}, input *fuse.CreateIn, out *fuse.CreateOut) fuse.Status {
+	return fuse.ENOSYS
+}
+
 func (rfs *simpleRawFileSystem) Open(cancel <-chan struct{}, input *fuse.OpenIn, out *fuse.OpenOut) fuse.Status {
 	ctx, s := rfs.createContext(cancel, &input.Caller)
 	if s != fuse.OK {
@@ -790,6 +794,10 @@ func (rfs *simpleRawFileSystem) Write(cancel <-chan struct{}, input *fuse.WriteI
 
 	n, vs := i.VirtualWrite(ctx, data, input.Offset)
 	return uint32(n), toFUSEStatus(vs)
+}
+
+func (simpleRawFileSystem) Writev(cancel <-chan struct{}, input *fuse.WriteIn, data [][]byte) (uint32, fuse.Status) {
+	return 0, fuse.ENOSYS
 }
 
 func (simpleRawFileSystem) CopyFileRange(cancel <-chan struct{}, input *fuse.CopyFileRangeIn) (uint32, fuse.Status) {
