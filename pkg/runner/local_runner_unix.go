@@ -5,6 +5,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"strings"
@@ -15,6 +16,8 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/util"
 
 	"golang.org/x/sys/unix"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 
@@ -55,6 +58,43 @@ func NewChrootedCommandCreator(sysProcAttr *syscall.SysProcAttr) (CommandCreator
 var temporaryDirectoryEnvironmentVariablePrefixes = [...]string{"TMPDIR="}
 
 var invalidArgumentErrs = []error{exec.ErrNotFound, os.ErrPermission, syscall.EISDIR, syscall.ENOENT, syscall.ENOEXEC}
+
+// NewProcessGroupCommandCreator creates a decorator for CommandCreator
+// that creates commands in their own process group and kills that group
+// immediately when the execution context is canceled. Descendants must
+// remain in the group to be killed. This does not clean up after normal
+// exit or wait for descendants to exit.
+func NewProcessGroupCommandCreator(commandCreator CommandCreator) (CommandCreator, error) {
+	return func(ctx context.Context, arguments []string, inputRootDirectory *path.Builder, workingDirectoryParser path.Parser, pathVariable string) (*exec.Cmd, error) {
+		cmd, err := commandCreator(ctx, arguments, inputRootDirectory, workingDirectoryParser, pathVariable)
+		if err != nil {
+			return nil, err
+		}
+		sysProcAttr := syscall.SysProcAttr{}
+		if cmd.SysProcAttr != nil {
+			sysProcAttr = *cmd.SysProcAttr
+		}
+		// Setsid creates a session leader, which cannot change
+		// process groups. Setctty requires a new session. An
+		// existing Pgid would join another command's group instead
+		// of creating a group led by this command.
+		if sysProcAttr.Setsid || sysProcAttr.Setctty || sysProcAttr.Pgid != 0 {
+			return nil, status.Error(codes.InvalidArgument, "Process group cancellation requires a new process group without Setsid, Setctty or a nonzero Pgid")
+		}
+		sysProcAttr.Setpgid = true
+		cmd.SysProcAttr = &sysProcAttr
+		cmd.Cancel = func() error {
+			if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL); err != nil {
+				if errors.Is(err, syscall.ESRCH) {
+					return os.ErrProcessDone
+				}
+				return util.StatusWrapWithCode(err, codes.Internal, "Failed to kill command process group")
+			}
+			return nil
+		}
+		return cmd, nil
+	}, nil
+}
 
 func convertTimeval(t syscall.Timeval) *durationpb.Duration {
 	return &durationpb.Duration{

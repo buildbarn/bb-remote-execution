@@ -26,6 +26,12 @@ var temporaryDirectoryEnvironmentVariablePrefixes = [...]string{"TMP=", "TEMP="}
 
 var invalidArgumentErrs = [...]error{exec.ErrNotFound, os.ErrPermission, os.ErrNotExist, windows.ERROR_BAD_EXE_FORMAT}
 
+// NewProcessGroupCommandCreator gives an error on Windows, as Unix process
+// groups are not supported on the platform.
+func NewProcessGroupCommandCreator(commandCreator CommandCreator) (CommandCreator, error) {
+	return nil, status.Error(codes.InvalidArgument, "Process group cancellation is not supported on Windows")
+}
+
 func getPOSIXResourceUsage(cmd *exec.Cmd) *resourceusage.POSIXResourceUsage {
 	// TODO: These do not work.
 	processState := cmd.ProcessState
