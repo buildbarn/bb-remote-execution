@@ -1282,6 +1282,80 @@ func TestSimpleRawFileSystemReadlink(t *testing.T) {
 	})
 }
 
+func TestSimpleRawFileSystemOpen(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	rootDirectory := mock.NewMockVirtualDirectory(ctrl)
+	removalNotifierRegistrar := mock.NewMockFUSERemovalNotifierRegistrar(ctrl)
+	rfs := fuse.NewSimpleRawFileSystem(rootDirectory, removalNotifierRegistrar.Call, fuse.AllowAuthenticator)
+
+	leaf := mock.NewMockVirtualLeaf(ctrl)
+	rootDirectory.EXPECT().VirtualLookup(gomock.Any(), path.MustNewComponent("file"), fuse.AttributesMaskForFUSEAttr, gomock.Any()).DoAndReturn(
+		func(ctx context.Context, name path.Component, requested virtual.AttributesMask, out *virtual.Attributes) (virtual.DirectoryChild, virtual.Status) {
+			out.SetFileType(filesystem.FileTypeRegularFile)
+			out.SetInodeNumber(2)
+			out.SetLinkCount(1)
+			out.SetPermissions(virtual.PermissionsRead)
+			out.SetSizeBytes(6)
+			return virtual.DirectoryChild{}.FromLeaf(leaf), virtual.StatusOK
+		},
+	)
+
+	var entryOut go_fuse.EntryOut
+	require.Equal(t, go_fuse.OK, rfs.Lookup(nil, &go_fuse.InHeader{
+		NodeId: go_fuse.FUSE_ROOT_ID,
+	}, "file", &entryOut))
+	require.Equal(t, uint64(2), entryOut.NodeId)
+
+	t.Run("Failure", func(t *testing.T) {
+		leaf.EXPECT().VirtualOpenSelf(gomock.Any(), virtual.ShareMaskRead, &virtual.OpenExistingOptions{}, virtual.AttributesMask(0), gomock.Any()).
+			Return(virtual.StatusErrAccess)
+
+		var openOut go_fuse.OpenOut
+		require.Equal(t, go_fuse.EACCES, rfs.Open(nil, &go_fuse.OpenIn{
+			InHeader: go_fuse.InHeader{NodeId: 2},
+			Flags:    syscall.O_RDONLY,
+		}, &openOut))
+		require.Equal(t, go_fuse.OpenOut{}, openOut)
+	})
+
+	t.Run("MutableContents", func(t *testing.T) {
+		// Files that may change must not keep the page cache
+		// across open() calls.
+		leaf.EXPECT().VirtualOpenSelf(gomock.Any(), virtual.ShareMaskRead, &virtual.OpenExistingOptions{}, virtual.AttributesMask(0), gomock.Any()).
+			Return(virtual.StatusOK)
+		leaf.EXPECT().VirtualApply(&virtual.ApplyIsContentsImmutable{}).Return(false)
+
+		var openOut go_fuse.OpenOut
+		require.Equal(t, go_fuse.OK, rfs.Open(nil, &go_fuse.OpenIn{
+			InHeader: go_fuse.InHeader{NodeId: 2},
+			Flags:    syscall.O_RDONLY,
+		}, &openOut))
+		require.Equal(t, go_fuse.OpenOut{}, openOut)
+	})
+
+	t.Run("ImmutableContents", func(t *testing.T) {
+		// Files backed by the Content Addressable Storage keep
+		// the page cache, so that concurrent actions sharing an
+		// input do not invalidate each other's mapped pages.
+		leaf.EXPECT().VirtualOpenSelf(gomock.Any(), virtual.ShareMaskRead, &virtual.OpenExistingOptions{}, virtual.AttributesMask(0), gomock.Any()).
+			Return(virtual.StatusOK)
+		leaf.EXPECT().VirtualApply(&virtual.ApplyIsContentsImmutable{}).DoAndReturn(
+			func(data any) bool {
+				data.(*virtual.ApplyIsContentsImmutable).Immutable = true
+				return true
+			},
+		)
+
+		var openOut go_fuse.OpenOut
+		require.Equal(t, go_fuse.OK, rfs.Open(nil, &go_fuse.OpenIn{
+			InHeader: go_fuse.InHeader{NodeId: 2},
+			Flags:    syscall.O_RDONLY,
+		}, &openOut))
+		require.Equal(t, go_fuse.OpenOut{OpenFlags: go_fuse.FOPEN_KEEP_CACHE}, openOut)
+	})
+}
+
 func TestSimpleRawFileSystemStatFs(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
