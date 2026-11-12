@@ -709,7 +709,17 @@ func (rfs *simpleRawFileSystem) Open(cancel <-chan struct{}, input *fuse.OpenIn,
 	var options virtual.OpenExistingOptions
 	oflagsToOpenExistingOptions(input.Flags, &options)
 
-	return toFUSEStatus(i.VirtualOpenSelf(ctx, shareAccess, &options, 0, &virtual.Attributes{}))
+	if s := toFUSEStatus(i.VirtualOpenSelf(ctx, shareAccess, &options, 0, &virtual.Attributes{})); s != fuse.OK {
+		return s
+	}
+
+	// On Linux, the FUSE driver discards a file's page cache on every
+	// open() unless FOPEN_KEEP_CACHE is set (fs/fuse/file.c,
+	// fuse_open()). As our virtual filesystem does not allow files to
+	// be modified outside of regular file system operations this flag
+	// can be safely set unconditionally.
+	out.OpenFlags |= fuse.FOPEN_KEEP_CACHE
+	return fuse.OK
 }
 
 func (rfs *simpleRawFileSystem) Read(cancel <-chan struct{}, input *fuse.ReadIn, buf []byte) (fuse.ReadResult, fuse.Status) {
