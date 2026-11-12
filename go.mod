@@ -1,6 +1,6 @@
 module github.com/buildbarn/bb-remote-execution
 
-go 1.27.3
+go 1.27.4
 
 // rules_go doesn't support gomock's package mode.
 replace go.uber.org/mock => go.uber.org/mock v0.4.0
@@ -12,7 +12,7 @@ require (
 	cloud.google.com/go/longrunning v1.5.0
 	github.com/bazelbuild/buildtools v0.0.0-20260904073137-eaa4d125b423
 	github.com/bazelbuild/remote-apis v0.0.0-20261020142950-c2c07e3d718d
-	github.com/bazelbuild/rules_go v0.64.2
+	github.com/bazelbuild/rules_go v0.65.0
 	github.com/buildbarn/bb-storage v0.0.0-20261104052814-04c4240170c1
 	github.com/buildbarn/go-xdr v0.0.0-20261005144839-a2095890273e
 	github.com/golang/protobuf v1.5.4
