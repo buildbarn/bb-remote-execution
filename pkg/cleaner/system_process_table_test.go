@@ -59,6 +59,7 @@ func TestSystemProcessTableCreationTime(t *testing.T) {
 	if runtime.GOOS == "freebsd" || runtime.GOOS == "windows" {
 		return
 	}
+	testStart := time.Now()
 
 	// Creation times are derived from clocks that have a limited
 	// resolution (e.g., clock ticks on Linux). Permit them to lie
@@ -101,21 +102,23 @@ func TestSystemProcessTableCreationTime(t *testing.T) {
 		require.False(t, creationTime.Before(beforeStart.Add(-slack)), "Process was created at %s, which is before %s", creationTime, beforeStart)
 	})
 
-	t.Run("Stable", func(t *testing.T) {
-		// The creation time of a process must not change
-		// between successive calls, as that could cause
-		// processes that already existed when bb_runner
-		// started to be killed later on.
-		processID, _, _ := startProcess(t, sleepPath)
-		ownCreationTime1 := getProcessCreationTime(t, os.Getpid())
-		childCreationTime1 := getProcessCreationTime(t, processID)
-		time.Sleep(200 * time.Millisecond)
-		ownCreationTime2 := getProcessCreationTime(t, os.Getpid())
-		childCreationTime2 := getProcessCreationTime(t, processID)
+	t.Run("RepeatedObservations", func(t *testing.T) {
+		// A process must not appear to have been created
+		// later when it is observed again, as that would
+		// cause processes that already existed when bb_runner
+		// started, including bb_runner itself, to be killed
+		// later on.
+		processID, beforeStart, afterStart := startProcess(t, sleepPath)
+		for i := 0; i < 5; i++ {
+			ownCreationTime := getProcessCreationTime(t, os.Getpid())
+			require.False(t, ownCreationTime.After(testStart), "The current process was created at %s, which is after %s", ownCreationTime, testStart)
 
-		require.True(t, ownCreationTime1.Equal(ownCreationTime2), "Creation time of the current process changed from %s to %s", ownCreationTime1, ownCreationTime2)
-		require.True(t, childCreationTime1.Equal(childCreationTime2), "Creation time of the child process changed from %s to %s", childCreationTime1, childCreationTime2)
-		require.False(t, childCreationTime1.Before(ownCreationTime1), "The child process was created at %s, which is before the creation of the current process at %s", childCreationTime1, ownCreationTime1)
+			creationTime := getProcessCreationTime(t, processID)
+			require.False(t, creationTime.After(afterStart), "Process was created at %s, which is after %s", creationTime, afterStart)
+			require.False(t, creationTime.Before(beforeStart.Add(-slack)), "Process was created at %s, which is before %s", creationTime, beforeStart)
+
+			time.Sleep(100 * time.Millisecond)
+		}
 	})
 
 	t.Run("NotInTheFuture", func(t *testing.T) {

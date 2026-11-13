@@ -20,6 +20,8 @@ import (
 
 // atClkTck is the key of the auxiliary vector entry that holds the
 // number of clock ticks per second (AT_CLKTCK in <linux/auxvec.h>).
+// It is declared here, as golang.org/x/sys/unix does not provide
+// constants for the keys of the auxiliary vector.
 const atClkTck = 17
 
 // getClockTicksPerSecond returns the unit in which the kernel reports
@@ -37,37 +39,7 @@ func getClockTicksPerSecond() uint64 {
 	return 100
 }
 
-type systemProcessTable struct {
-	// A single point in time, expressed both as a wall clock time
-	// and as the amount of time that had passed since the system
-	// booted. It is used to convert process start times, which
-	// the kernel reports relative to boot, to wall clock times.
-	referenceTime          time.Time
-	referenceTimeSinceBoot time.Duration
-	referenceErr           error
-
-	clockTicksPerSecond uint64
-}
-
-func newSystemProcessTable() ProcessTable {
-	pt := &systemProcessTable{
-		clockTicksPerSecond: getClockTicksPerSecond(),
-	}
-
-	// The wall clock must be sampled before the time since boot.
-	// Any delay between the two calls then makes processes appear
-	// to have been created earlier than they actually were, never
-	// later. As a result, a process that already existed at this
-	// point is guaranteed to have a creation time that does not
-	// lie after any time.Now() that is obtained from here on.
-	pt.referenceTime = time.Now()
-	var timeSinceBoot unix.Timespec
-	if err := unix.ClockGettime(unix.CLOCK_BOOTTIME, &timeSinceBoot); err != nil {
-		pt.referenceErr = util.StatusWrapWithCode(err, codes.Internal, "Failed to obtain the time since boot")
-	}
-	pt.referenceTimeSinceBoot = time.Duration(timeSinceBoot.Nano())
-	return pt
-}
+var clockTicksPerSecond = getClockTicksPerSecond()
 
 // isProcessUnavailable returns true if an error that occurred while
 // inspecting a process indicates that the process terminated in the
@@ -84,7 +56,7 @@ func isProcessUnavailable(err error) bool {
 // getProcessStartTime extracts the time at which a process was started
 // from the contents of /proc/<pid>/stat. The time is relative to the
 // time at which the system booted.
-func (pt *systemProcessTable) getProcessStartTime(stat []byte) (time.Duration, error) {
+func getProcessStartTime(stat []byte) (time.Duration, error) {
 	// The second field holds the name of the executable in
 	// parentheses. As that name may itself contain spaces and
 	// parentheses, the fields that follow it must be located by
@@ -110,13 +82,14 @@ func (pt *systemProcessTable) getProcessStartTime(stat []byte) (time.Duration, e
 	// multiplying the number of ticks by the number of nanoseconds
 	// per second would overflow after less than three years of
 	// uptime.
-	return time.Duration(startTicks/pt.clockTicksPerSecond)*time.Second +
-		time.Duration(startTicks%pt.clockTicksPerSecond)*time.Second/time.Duration(pt.clockTicksPerSecond), nil
+	return time.Duration(startTicks/clockTicksPerSecond)*time.Second +
+		time.Duration(startTicks%clockTicksPerSecond)*time.Second/time.Duration(clockTicksPerSecond), nil
 }
 
 // getProcess obtains the properties of a single process through its
-// directory in procfs.
-func (pt *systemProcessTable) getProcess(procFD int, name string, pid int) (Process, error) {
+// directory in procfs. The time at which the system booted is used to
+// convert the start time of the process to a wall clock time.
+func getProcess(procFD int, name string, pid int, bootTime time.Time) (Process, error) {
 	// Open the directory of the process and obtain all properties
 	// through that file descriptor. A file descriptor of a process
 	// directory keeps referring to that one process, meaning that
@@ -150,7 +123,7 @@ func (pt *systemProcessTable) getProcess(procFD int, name string, pid int) (Proc
 	if err != nil {
 		return Process{}, err
 	}
-	startTime, err := pt.getProcessStartTime(stat)
+	startTime, err := getProcessStartTime(stat)
 	if err != nil {
 		return Process{}, err
 	}
@@ -158,14 +131,39 @@ func (pt *systemProcessTable) getProcess(procFD int, name string, pid int) (Proc
 	return Process{
 		ProcessID:    pid,
 		UserID:       int(processStat.Uid),
-		CreationTime: pt.referenceTime.Add(startTime - pt.referenceTimeSinceBoot),
+		CreationTime: bootTime.Add(startTime),
 	}, nil
 }
 
-func (pt *systemProcessTable) GetProcesses() ([]Process, error) {
-	if pt.referenceErr != nil {
-		return nil, pt.referenceErr
+type systemProcessTable struct{}
+
+func (systemProcessTable) GetProcesses() ([]Process, error) {
+	// The kernel reports the start times of processes relative to
+	// the time at which the system booted. Determine the latter,
+	// so that start times can be converted to wall clock times.
+	//
+	// The current time must be sampled before the time since boot.
+	// A delay between the two calls then makes processes appear
+	// to have been created earlier than they actually were, never
+	// later. The same holds for time during which the system is
+	// suspended, which the time since boot includes, while the
+	// monotonic clock reading of time.Now() does not. This
+	// guarantees that a process that already existed when
+	// time.Now() was called at some earlier point is never
+	// reported as having been created after that time. bb_runner
+	// depends on this for processes that already existed when it
+	// started, including itself.
+	//
+	// As creation times are derived from time.Now(), they carry a
+	// monotonic clock reading. Comparing them against other times
+	// obtained through time.Now() is therefore not affected by
+	// changes to the wall clock.
+	now := time.Now()
+	var timeSinceBoot unix.Timespec
+	if err := unix.ClockGettime(unix.CLOCK_BOOTTIME, &timeSinceBoot); err != nil {
+		return nil, util.StatusWrapWithCode(err, codes.Internal, "Failed to obtain the time since boot")
 	}
+	bootTime := now.Add(-time.Duration(timeSinceBoot.Nano()))
 
 	// Open procfs.
 	fd, err := unix.Open("/proc", unix.O_CLOEXEC|unix.O_DIRECTORY|unix.O_RDONLY, 0)
@@ -189,7 +187,7 @@ func (pt *systemProcessTable) GetProcesses() ([]Process, error) {
 			continue
 		}
 
-		process, err := pt.getProcess(fd, name, int(pid))
+		process, err := getProcess(fd, name, int(pid), bootTime)
 		if isProcessUnavailable(err) {
 			continue
 		} else if err != nil {
@@ -203,4 +201,4 @@ func (pt *systemProcessTable) GetProcesses() ([]Process, error) {
 // SystemProcessTable corresponds with the process table of the locally
 // running operating system. On this operating system the information is
 // extracted from procfs.
-var SystemProcessTable ProcessTable = newSystemProcessTable()
+var SystemProcessTable ProcessTable = systemProcessTable{}
