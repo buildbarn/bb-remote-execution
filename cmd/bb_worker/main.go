@@ -487,11 +487,10 @@ func main() {
 					)
 
 					if prefetchingConfiguration != nil {
-						prefetchReadInfo := casInfo.ReadInfo
-						prefetchReadInfo.ChunkBytesReader = re_cas.NewExistencePreconditionReader(casInfo.ChunkBytesReader)
 						buildExecutor = builder.NewPrefetchingBuildExecutor(
 							buildExecutor,
-							prefetchReadInfo,
+							casInfo.ReadInfo,
+							casInfo.ChunkStorage,
 							directoryFetcher,
 							inputDownloadConcurrencySemaphore,
 							fileSystemAccessCache,
