@@ -11,6 +11,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage"
+	"github.com/buildbarn/bb-storage/pkg/blobstore/chunk"
 	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/proto/fsac"
@@ -19,6 +20,7 @@ import (
 
 	"golang.org/x/sync/semaphore"
 
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -30,7 +32,7 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
 	baseBuildExecutor := mock.NewMockBuildExecutor(ctrl)
-	chunkBytesReader := mock.NewMockReader[[]byte](ctrl)
+	chunkStorage := mock.NewMockBlobAccess[*chunk.Chunk](ctrl)
 	chunkMappingFetcher := mock.NewMockMappingFetcher(ctrl)
 	cdcParametersFetcher := mock.NewMockCDCParametersFetcher(ctrl)
 	directoryFetcher := mock.NewMockDirectoryFetcher(ctrl)
@@ -39,10 +41,10 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 	buildExecutor := builder.NewPrefetchingBuildExecutor(
 		baseBuildExecutor,
 		cas.ReadInfo{
-			ChunkBytesReader:     chunkBytesReader,
 			ChunkMappingFetcher:  chunkMappingFetcher,
 			CDCParametersFetcher: cdcParametersFetcher,
 		},
+		chunkStorage,
 		directoryFetcher,
 		fileReadSemaphore,
 		fileSystemAccessCache,
@@ -56,6 +58,13 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 	baseMonitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
 	digestFunction := digest.MustNewFunction("hello", remoteexecution.DigestFunction_MD5)
 	executionStateUpdates := make(chan<- *remoteworker.CurrentState_Executing)
+
+	// Use the minimum chunk size, so that tests can distinguish
+	// single-chunk and multi-chunk files using small blobs.
+	cdcParametersFetcher.EXPECT().
+		FetchCDCParameters(gomock.Any(), gomock.Any()).
+		Return(&remoteexecution.RepMaxCdcParams{MinChunkSizeBytes: 64, HorizonSizeBytes: 128}, nil).
+		AnyTimes()
 
 	defaultInputRootResourceUsage, err := anypb.New(&resourceusage.InputRootResourceUsage{
 		DirectoriesResolved: 1,
@@ -311,18 +320,14 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 					{
 						Name: "hello.txt",
 						Digest: &remoteexecution.Digest{
-							Hash:      "3ffe1ce0624ece24e5d9b31c2342a6d4",
-							SizeBytes: 200,
+							Hash:      "8b1a9953c4611296a827abf8c47804d7",
+							SizeBytes: 5,
 						},
 					},
 				},
 			}, nil)
-		cdcParametersFetcher.EXPECT().
-			FetchCDCParameters(gomock.Any(), gomock.Any()).
-			Return(&remoteexecution.RepMaxCdcParams{MinChunkSizeBytes: 256 << 10, HorizonSizeBytes: 8 * 256 << 10}, nil).
-			AnyTimes()
-		chunkBytesReader.EXPECT().Read(gomock.Any(), digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "3ffe1ce0624ece24e5d9b31c2342a6d4", 200)).
-			Return(nil, status.Error(codes.Internal, "Storage offline"))
+		chunkStorage.EXPECT().Prefetch(gomock.Any(), digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "8b1a9953c4611296a827abf8c47804d7", 5).ToSingletonSet()).
+			Return(status.Error(codes.Internal, "Storage offline"))
 
 		testutil.RequireEqualProto(
 			t,
@@ -333,6 +338,164 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 					},
 				},
 				Status: status.New(codes.Internal, "Failed to prefetch file \"hello.txt\": Storage offline").Proto(),
+			},
+			buildExecutor.Execute(
+				ctx,
+				filePool,
+				baseMonitor,
+				digestFunction,
+				exampleRequest,
+				executionStateUpdates,
+			),
+		)
+	})
+
+	t.Run("ContentAddressableStorageMissing", func(t *testing.T) {
+		// If a file turns out to be missing from the CAS while
+		// prefetching, it should be reported as a
+		// FAILED_PRECONDITION error that refers to the file, not to
+		// one of its chunks.
+		baseBuildExecutor.EXPECT().Execute(
+			gomock.Any(),
+			filePool,
+			gomock.Any(),
+			digestFunction,
+			testutil.EqProto(t, exampleRequest),
+			executionStateUpdates,
+		).DoAndReturn(func(ctx context.Context, filePool pool.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+			<-ctx.Done()
+			require.Equal(t, context.Canceled, ctx.Err())
+			return &remoteexecution.ExecuteResponse{
+				Result: &remoteexecution.ActionResult{
+					ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
+				},
+				Status: status.New(codes.Canceled, "Execution cancelled").Proto(),
+			}
+		})
+		fileSystemAccessCache.EXPECT().Get(gomock.Any(), exampleReducedActionDigest).
+			Return(&fsac.FileSystemAccessProfile{
+				BloomFilter:              []byte{0xff},
+				BloomFilterHashFunctions: 1,
+			}, nil)
+		fileDigest := digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "8b1a9953c4611296a827abf8c47804d7", 5)
+		directoryFetcher.EXPECT().GetDirectory(gomock.Any(), digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "095afbd64b6358665546558583c64d38", 456)).
+			Return(&remoteexecution.Directory{
+				Files: []*remoteexecution.FileNode{
+					{
+						Name:   "hello.txt",
+						Digest: fileDigest.GetProto(),
+					},
+				},
+			}, nil)
+		chunkStorage.EXPECT().Prefetch(gomock.Any(), fileDigest.ToSingletonSet()).
+			Return(status.Error(codes.NotFound, "Blob not found"))
+
+		wantStatus, err := status.New(codes.FailedPrecondition, "Failed to prefetch file \"hello.txt\": Blob not found").WithDetails(
+			&errdetails.PreconditionFailure{
+				Violations: []*errdetails.PreconditionFailure_Violation{
+					{
+						Type: "MISSING",
+						Subject: digest.NewInstanceNamePatcher(fileDigest.GetInstanceName(), digest.EmptyInstanceName).
+							PatchDigest(fileDigest).
+							GetByteStreamReadPath(remoteexecution.Compressor_IDENTITY),
+					},
+				},
+			},
+		)
+		require.NoError(t, err)
+
+		testutil.RequireEqualProto(
+			t,
+			&remoteexecution.ExecuteResponse{
+				Result: &remoteexecution.ActionResult{
+					ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
+						AuxiliaryMetadata: []*anypb.Any{defaultInputRootResourceUsage},
+					},
+				},
+				Status: wantStatus.Proto(),
+			},
+			buildExecutor.Execute(
+				ctx,
+				filePool,
+				baseMonitor,
+				digestFunction,
+				exampleRequest,
+				executionStateUpdates,
+			),
+		)
+	})
+
+	t.Run("ContentAddressableStorageMissingChunked", func(t *testing.T) {
+		// For a file that is made up of multiple chunks, a missing
+		// chunk must still be reported as a FAILED_PRECONDITION
+		// error that refers to the file, not to the chunk. This is
+		// the case that regressed when the existence precondition
+		// was applied at the chunk level.
+		baseBuildExecutor.EXPECT().Execute(
+			gomock.Any(),
+			filePool,
+			gomock.Any(),
+			digestFunction,
+			testutil.EqProto(t, exampleRequest),
+			executionStateUpdates,
+		).DoAndReturn(func(ctx context.Context, filePool pool.FilePool, monitor access.UnreadDirectoryMonitor, digestFunction digest.Function, request *remoteworker.DesiredState_Executing, executionStateUpdates chan<- *remoteworker.CurrentState_Executing) *remoteexecution.ExecuteResponse {
+			<-ctx.Done()
+			require.Equal(t, context.Canceled, ctx.Err())
+			return &remoteexecution.ExecuteResponse{
+				Result: &remoteexecution.ActionResult{
+					ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{},
+				},
+				Status: status.New(codes.Canceled, "Execution cancelled").Proto(),
+			}
+		})
+		fileSystemAccessCache.EXPECT().Get(gomock.Any(), exampleReducedActionDigest).
+			Return(&fsac.FileSystemAccessProfile{
+				BloomFilter:              []byte{0xff},
+				BloomFilterHashFunctions: 1,
+			}, nil)
+		// A file of 143 bytes is larger than twice the minimum
+		// chunk size, so it is stored as two chunks.
+		fileDigest := digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "c1df2b2b8aa945f29de62076a8f1e2d9", 143)
+		chunk1 := digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "9871f053ed93e778d5090e3dc038815d", 77)
+		chunk2 := digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "2044d462a0be5850ee579b02a1ca3b25", 66)
+		mapping, err := chunk.NewMappingFromDigests([]digest.Digest{chunk1, chunk2}, 143, true)
+		require.NoError(t, err)
+		directoryFetcher.EXPECT().GetDirectory(gomock.Any(), digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "095afbd64b6358665546558583c64d38", 456)).
+			Return(&remoteexecution.Directory{
+				Files: []*remoteexecution.FileNode{
+					{
+						Name:   "hello.txt",
+						Digest: fileDigest.GetProto(),
+					},
+				},
+			}, nil)
+		chunkMappingFetcher.EXPECT().FetchChunkMapping(gomock.Any(), fileDigest).Return(mapping, nil)
+		chunkStorage.EXPECT().Prefetch(gomock.Any(), digest.GetUnion([]digest.Set{chunk1.ToSingletonSet(), chunk2.ToSingletonSet()})).
+			Return(status.Error(codes.NotFound, "Chunk not found"))
+
+		wantStatus, err := status.New(codes.FailedPrecondition, "Failed to prefetch file \"hello.txt\": Chunk not found").WithDetails(
+			&errdetails.PreconditionFailure{
+				Violations: []*errdetails.PreconditionFailure_Violation{
+					{
+						Type: "MISSING",
+						Subject: digest.NewInstanceNamePatcher(fileDigest.GetInstanceName(), digest.EmptyInstanceName).
+							PatchDigest(fileDigest).
+							GetByteStreamReadPath(remoteexecution.Compressor_IDENTITY),
+					},
+				},
+			},
+		)
+		require.NoError(t, err)
+
+		testutil.RequireEqualProto(
+			t,
+			&remoteexecution.ExecuteResponse{
+				Result: &remoteexecution.ActionResult{
+					ExecutionMetadata: &remoteexecution.ExecutedActionMetadata{
+						AuxiliaryMetadata: []*anypb.Any{defaultInputRootResourceUsage},
+					},
+				},
+				Status: wantStatus.Proto(),
 			},
 			buildExecutor.Execute(
 				ctx,
@@ -497,10 +660,10 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 	profileLoggingBuildExecutor := builder.NewPrefetchingBuildExecutor(
 		baseBuildExecutor,
 		cas.ReadInfo{
-			ChunkBytesReader:     chunkBytesReader,
 			ChunkMappingFetcher:  chunkMappingFetcher,
 			CDCParametersFetcher: cdcParametersFetcher,
 		},
+		chunkStorage,
 		directoryFetcher,
 		fileReadSemaphore,
 		fileSystemAccessCache,
