@@ -48,6 +48,12 @@ func (ba suspendingBlobAccess[T]) FindMissing(ctx context.Context, digests diges
 	return ba.BlobAccess.FindMissing(ctx, digests)
 }
 
+func (ba suspendingBlobAccess[T]) Prefetch(ctx context.Context, digests digest.Set) error {
+	ba.suspendable.Suspend()
+	defer ba.suspendable.Resume()
+	return ba.BlobAccess.Prefetch(ctx, digests)
+}
+
 type suspendingChunkBytesReader struct {
 	reader.Reader[[]byte]
 	suspendable clock.Suspendable
