@@ -2,6 +2,7 @@ package cleaner_test
 
 import (
 	"os"
+	"os/exec"
 	"runtime"
 	"testing"
 	"time"
@@ -32,6 +33,34 @@ func TestSystemProcessTable(t *testing.T) {
 			require.Equal(t, os.Getuid(), process.UserID)
 			require.True(t, process.CreationTime.After(time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)))
 			require.False(t, process.CreationTime.After(time.Now()))
+			break
+		}
+	}
+	require.True(t, found)
+}
+
+func TestSystemProcessTableCreationTime(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		return
+	}
+
+	// The creation time of a process should not depend on when its
+	// entry in the process table is first read. On Linux, the
+	// timestamps of procfs entries are set when first looked up.
+	child := exec.Command("sleep", "10")
+	require.NoError(t, child.Start())
+	defer child.Process.Kill()
+	started := time.Now()
+	time.Sleep(100 * time.Millisecond)
+
+	processes, err := cleaner.SystemProcessTable.GetProcesses()
+	require.NoError(t, err)
+	found := false
+	for _, process := range processes {
+		if process.ProcessID == child.Process.Pid {
+			found = true
+			require.False(t, process.CreationTime.After(started))
+			require.True(t, process.CreationTime.After(started.Add(-time.Second)))
 			break
 		}
 	}
