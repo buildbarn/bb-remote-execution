@@ -109,7 +109,15 @@ var (
 			Subsystem: "builder",
 			Name:      "in_memory_build_queue_tasks_queued_duration_seconds",
 			Help:      "Time in seconds that tasks were queued before executing.",
-			Buckets:   util.DecimalExponentialBuckets(-3, 6, 2),
+			// A few buckets below one minute, followed by one
+			// minute buckets up to 30 minutes, so that queue times
+			// have a precision of at least one minute. Followed by
+			// a coarse tail up to two hours.
+			Buckets: append(
+				append(
+					[]float64{0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 30},
+					prometheus.LinearBuckets(60, 60, 30)...),
+				3600, 7200),
 		},
 		[]string{"instance_name_prefix", "platform", "size_class"},
 	)
