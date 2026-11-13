@@ -63,6 +63,12 @@ func main() {
 		} else {
 			commandCreator = runner.NewPlainCommandCreator(sysProcAttr)
 		}
+		if configuration.CancelProcessGroup {
+			commandCreator, err = runner.NewProcessGroupCommandCreator(commandCreator)
+			if err != nil {
+				return util.StatusWrap(err, "Failed to create process group command creator")
+			}
+		}
 
 		r := runner.NewLocalRunner(
 			buildDirectory,

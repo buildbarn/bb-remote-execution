@@ -135,4 +135,16 @@ message ApplicationConfiguration {
   // https://github.com/bazelbuild/bazel/blob/master/src/main/java/com/google/devtools/build/lib/exec/local/XcodeLocalEnvProvider.java
   // https://www.smileykeith.com/2021/03/08/locking-xcode-in-bazel/
   map<string, string> apple_xcode_developer_directories = 14;
+
+  // On Unix, start each command in a new process group and send SIGKILL to
+  // that group immediately when the execution context is canceled, including
+  // when its deadline expires. Applies with and without chroot. Disabled by
+  // default; enabling this on Windows is an error.
+  //
+  // Commands must keep their descendants in this process group. Descendants
+  // that create or join another process group or session are not covered.
+  // There is no grace period, cleanup after normal command exit, or guarantee
+  // that descendants have exited before the Run RPC returns. This option is
+  // not a filesystem cleanup or build directory reuse barrier.
+  bool cancel_process_group = 15;
 }
