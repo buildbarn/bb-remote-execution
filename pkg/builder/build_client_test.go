@@ -16,6 +16,7 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -38,6 +39,24 @@ func TestBuildClient(t *testing.T) {
 		},
 	}
 	bc := builder.NewBuildClient(operationQueueClient, buildExecutor, filePool, clock, workerID, util.Must(digest.NewInstanceName("prefix")), platform, 4)
+
+	// Synchronization errors are annotated with the size of the
+	// idle request that was sent.
+	idleSynchronizeError := func(preferBeingIdle bool, message string) error {
+		requestSize := proto.Size(&remoteworker.SynchronizeRequest{
+			WorkerId:           workerID,
+			InstanceNamePrefix: "prefix",
+			Platform:           platform,
+			SizeClass:          4,
+			CurrentState: &remoteworker.CurrentState{
+				WorkerState: &remoteworker.CurrentState_Idle{
+					Idle: &emptypb.Empty{},
+				},
+			},
+			PreferBeingIdle: preferBeingIdle,
+		})
+		return status.Errorf(codes.Unavailable, "Failed to synchronize with scheduler (request size %d bytes, worker state idle): %s", requestSize, message)
+	}
 
 	// If synchronizing against the scheduler doesn't yield any
 	// action to run, the client should remain in the idle state.
@@ -263,7 +282,7 @@ func TestBuildClient(t *testing.T) {
 	})).Return(nil, status.Error(codes.Unavailable, "Connection refused"))
 	mayTerminate, err = bc.Run(context.Background())
 	require.Equal(t, false, mayTerminate)
-	testutil.RequireEqualStatus(t, status.Error(codes.Unavailable, "Failed to synchronize with scheduler: Connection refused"), err)
+	testutil.RequireEqualStatus(t, idleSynchronizeError(false, "Connection refused"), err)
 
 	for i := 0; i < 10; i++ {
 		operationQueueClient.EXPECT().Synchronize(context.Background(), testutil.EqProto(t, &remoteworker.SynchronizeRequest{
@@ -280,7 +299,7 @@ func TestBuildClient(t *testing.T) {
 		})).Return(nil, status.Error(codes.Unavailable, "Connection refused"))
 		mayTerminate, err = bc.Run(context.Background())
 		require.Equal(t, false, mayTerminate)
-		testutil.RequireEqualStatus(t, status.Error(codes.Unavailable, "Failed to synchronize with scheduler: Connection refused"), err)
+		testutil.RequireEqualStatus(t, idleSynchronizeError(true, "Connection refused"), err)
 	}
 
 	// Once Synchronize() starts to work once again, we may perform
@@ -348,7 +367,7 @@ func TestBuildClient(t *testing.T) {
 	})).Return(nil, status.Error(codes.Unavailable, "Failed to return response to worker"))
 	mayTerminate, err = bc.Run(context.Background())
 	require.Equal(t, false, mayTerminate)
-	testutil.RequireEqualStatus(t, status.Error(codes.Unavailable, "Failed to synchronize with scheduler: Failed to return response to worker"), err)
+	testutil.RequireEqualStatus(t, idleSynchronizeError(false, "Failed to return response to worker"), err)
 
 	clock.EXPECT().Now().Return(time.Unix(1073, 0))
 	operationQueueClient.EXPECT().Synchronize(context.Background(), testutil.EqProto(t, &remoteworker.SynchronizeRequest{
@@ -365,7 +384,7 @@ func TestBuildClient(t *testing.T) {
 	})).Return(nil, status.Error(codes.Unavailable, "Failed to return response to worker"))
 	mayTerminate, err = bc.Run(canceledCtx)
 	require.Equal(t, false, mayTerminate)
-	testutil.RequireEqualStatus(t, status.Error(codes.Unavailable, "Failed to synchronize with scheduler: Failed to return response to worker"), err)
+	testutil.RequireEqualStatus(t, idleSynchronizeError(true, "Failed to return response to worker"), err)
 
 	// Because we don't want termination of the worker to hang if
 	// the scheduler is unavailable for a longer amount of time, we

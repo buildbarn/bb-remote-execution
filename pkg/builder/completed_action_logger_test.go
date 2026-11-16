@@ -2,6 +2,7 @@ package builder_test
 
 import (
 	"context"
+	"io"
 	"testing"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
@@ -132,5 +133,29 @@ func TestRemoteCompletedActionLogger(t *testing.T) {
 		})
 		err = logger.SendAllCompletedActions()
 		testutil.RequireEqualStatus(t, status.Error(codes.Unavailable, "Failed to receive response from server: Server out of memory"), err)
+	})
+
+	t.Run("ServerClosedStreamWhileSending", func(t *testing.T) {
+		// When the server terminates the stream, Send() only
+		// returns io.EOF. The status reported by Recv() is the
+		// one that explains the failure.
+		clientStream := mock.NewMockClientStream(ctrl)
+		conn.EXPECT().NewStream(gomock.Any(), gomock.Any(), "/buildbarn.completedactionlogger.CompletedActionLogger/LogCompletedActions", gomock.Any()).
+			Return(clientStream, nil)
+
+		sent := make(chan struct{})
+		clientStream.EXPECT().SendMsg(completedAction).DoAndReturn(func(i interface{}) error {
+			close(sent)
+			return io.EOF
+		})
+		clientStream.EXPECT().RecvMsg(gomock.Any()).DoAndReturn(func(i interface{}) error {
+			<-sent
+			return status.Error(codes.ResourceExhausted, "grpc: received message larger than max (6101346 vs. 4194304)")
+		})
+		clientStream.EXPECT().RecvMsg(gomock.Any()).Return(status.Error(codes.ResourceExhausted, "Stream finished"))
+
+		logger.LogCompletedAction(completedAction)
+		err := logger.SendAllCompletedActions()
+		testutil.RequireEqualStatus(t, status.Error(codes.ResourceExhausted, "Failed to receive response from server: grpc: received message larger than max (6101346 vs. 4194304)"), err)
 	})
 }
