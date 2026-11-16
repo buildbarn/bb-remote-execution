@@ -55,6 +55,21 @@ type ApplyUploadFile struct {
 	Err    error
 }
 
+// ApplyGetDigest is an operation for VirtualApply that returns the
+// digest of the object in the Content Addressable Storage that backs
+// the contents of this file.
+//
+// To recursively retreive all digests of a directory tree, use
+// ApplyGetContainingDigests instead.
+type ApplyGetDigest struct {
+	// Inputs.
+	Context context.Context
+
+	// Outputs.
+	Digest digest.Digest
+	Err    error
+}
+
 // ApplyGetContainingDigests is an operation for VirtualApply that
 // returns a set of digests of objects in the Content Addressable
 // Storage that back the contents of this file.

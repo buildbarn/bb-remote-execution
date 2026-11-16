@@ -241,6 +241,18 @@ func TestCASInitialContentsFetcherFetchContents(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, grandchildren)
 	})
+
+	t.Run("GetDigest", func(t *testing.T) {
+		directoryDigest := digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "7f390b0d6fb7831b0172bd7ce3e54256", 12)
+		directoryWalker.EXPECT().GetContainingDigest().Return(directoryDigest)
+
+		p := virtual.ApplyGetDigest{
+			Context: ctx,
+		}
+		require.True(t, initialContentsFetcher.VirtualApply(&p))
+		require.NoError(t, p.Err)
+		require.Equal(t, directoryDigest, p.Digest)
+	})
 }
 
 func TestCASInitialContentsFetcherGetContainingDigests(t *testing.T) {

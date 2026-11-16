@@ -132,6 +132,8 @@ func (icf *casInitialContentsFetcher) FetchContents(fileReadMonitorFactory FileR
 
 func (icf *casInitialContentsFetcher) VirtualApply(data any) bool {
 	switch p := data.(type) {
+	case *ApplyGetDigest:
+		p.Digest = icf.directoryWalker.GetContainingDigest()
 	case *ApplyGetContainingDigests:
 		gatherer := casContainingDigestsGatherer{
 			context:             p.Context,

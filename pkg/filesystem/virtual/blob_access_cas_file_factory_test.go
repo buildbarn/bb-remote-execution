@@ -251,6 +251,15 @@ func TestBlobAccessCASFileFactoryGetContainingDigests(t *testing.T) {
 	require.Equal(t, digest.ToSingletonSet(), p.ContainingDigests)
 }
 
+func TestBlobAccessCASFileFactoryGetDigest(t *testing.T) {
+	digest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "d7ac2672607ba20a44d01d03a6685b24", 400)
+	f := virtual.NewBlobAccessCASFileFactory(context.Background(), cas.ReadInfo{}, nil).LookupFile(digest, true, nil)
+
+	p := virtual.ApplyGetDigest{}
+	require.True(t, f.VirtualApply(&p))
+	require.Equal(t, digest, p.Digest)
+}
+
 func TestBlobAccessCASFileFactoryGetBazelOutputServiceStat(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
