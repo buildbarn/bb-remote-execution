@@ -67,12 +67,12 @@ func NewPrefetchingBuildExecutor(buildExecutor BuildExecutor, readInfo cas.ReadI
 		logFileSystemAccessProfile:  logFileSystemAccessProfile,
 		protoPutter:                 protoPutter,
 	}
-	be.emptyProfile = be.computeProfile(access.NewBloomFilterComputingUnreadDirectoryMonitor())
+	be.emptyProfile = be.computeProfile(access.NewBloomFilterComputingUnreadDirectoryMonitor(digest.BadDigest))
 	return be
 }
 
 func (be *prefetchingBuildExecutor) computeProfile(monitor *access.BloomFilterComputingUnreadDirectoryMonitor) *fsac.FileSystemAccessProfile {
-	bloomFilter, bloomFilterHashFunctions := monitor.GetBloomFilter(be.bloomFilterBitsPerElement, be.bloomFilterMaximumSizeBytes)
+	bloomFilter, bloomFilterHashFunctions := monitor.GetBloomFilter(be.directoryFetcher, be.bloomFilterBitsPerElement, be.bloomFilterMaximumSizeBytes)
 	return &fsac.FileSystemAccessProfile{
 		BloomFilter:              bloomFilter,
 		BloomFilterHashFunctions: bloomFilterHashFunctions,
@@ -92,6 +92,12 @@ func (be *prefetchingBuildExecutor) Execute(ctx context.Context, filePool pool.F
 	if err != nil {
 		response := NewDefaultExecuteResponse(request)
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Cannot compute reduced action digest"))
+		return response
+	}
+	inputRootDigest, err := digestFunction.NewDigestFromProto(action.InputRootDigest)
+	if err != nil {
+		response := NewDefaultExecuteResponse(request)
+		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Cannot parse input root digest"))
 		return response
 	}
 
@@ -144,7 +150,7 @@ func (be *prefetchingBuildExecutor) Execute(ctx context.Context, filePool pool.F
 	// While prefetching is happening, already launch the build
 	// action. It may initially run slower due to local cache
 	// misses, but should speed up as prefetching nears completion.
-	bloomFilterMonitor := access.NewBloomFilterComputingUnreadDirectoryMonitor()
+	bloomFilterMonitor := access.NewBloomFilterComputingUnreadDirectoryMonitor(inputRootDigest)
 	var response *remoteexecution.ExecuteResponse
 	group.Go(func() error {
 		response = be.BuildExecutor.Execute(groupCtx, filePool, bloomFilterMonitor, digestFunction, request, executionStateUpdates)

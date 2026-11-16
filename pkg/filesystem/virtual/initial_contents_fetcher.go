@@ -1,6 +1,7 @@
 package virtual
 
 import (
+	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 )
 
@@ -30,7 +31,7 @@ type FileReadMonitor func()
 // that are returned.
 //
 // If this function returns nil, no monitor is attached to the file.
-type FileReadMonitorFactory func(name path.Component) FileReadMonitor
+type FileReadMonitorFactory func(digest digest.Digest) FileReadMonitor
 
 // InitialContentsFetcher is called into by PrepopulatedDirectory when a
 // directory whose contents need to be instantiated lazily is accessed.

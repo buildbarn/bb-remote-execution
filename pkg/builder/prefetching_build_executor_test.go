@@ -89,16 +89,14 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 
 	// The request that will be used in the tests below, and the
 	// reduced action digest that corresponds with it.
+	inputRootDigest := digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "095afbd64b6358665546558583c64d38", 456)
 	exampleRequest := &remoteworker.DesiredState_Executing{
 		Action: &remoteexecution.Action{
 			CommandDigest: &remoteexecution.Digest{
 				Hash:      "e72499b7c6de12b7ad046541f6de8beb",
 				SizeBytes: 123,
 			},
-			InputRootDigest: &remoteexecution.Digest{
-				Hash:      "095afbd64b6358665546558583c64d38",
-				SizeBytes: 456,
-			},
+			InputRootDigest: inputRootDigest.GetProto(),
 			Platform: &remoteexecution.Platform{
 				Properties: []*remoteexecution.Platform_Property{
 					{Name: "os", Value: "linux"},
@@ -457,6 +455,9 @@ func TestPrefetchingBuildExecutor(t *testing.T) {
 				BloomFilter:              []byte{0x80},
 				BloomFilterHashFunctions: 1,
 			}, nil)
+		// The access profile loader reads the directory.
+		directoryFetcher.EXPECT().GetDirectory(gomock.Any(), inputRootDigest).
+			Return(&remoteexecution.Directory{}, nil)
 		fileSystemAccessCache.EXPECT().Put(gomock.Any(), exampleReducedActionDigest, gomock.Any()).
 			DoAndReturn(func(ctx context.Context, blobDigest digest.Digest, profile *fsac.FileSystemAccessProfile) error {
 				testutil.RequireEqualProto(t, &fsac.FileSystemAccessProfile{

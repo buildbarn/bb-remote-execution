@@ -11,6 +11,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	re_sync "github.com/buildbarn/bb-remote-execution/pkg/sync"
 	"github.com/buildbarn/bb-storage/pkg/clock"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/util"
@@ -300,7 +301,7 @@ func NewInMemoryPrepopulatedDirectory(fileAllocator FileAllocator, symlinkFactor
 // to gain access to the directory's contents.
 func (i *inMemoryPrepopulatedDirectory) getContents() (*inMemoryDirectoryContents, error) {
 	if i.initialContentsFetcher != nil {
-		children, err := i.initialContentsFetcher.FetchContents(func(name path.Component) FileReadMonitor { return nil })
+		children, err := i.initialContentsFetcher.FetchContents(func(fileDigest digest.Digest) FileReadMonitor { return nil })
 		if err != nil {
 			return nil, err
 		}

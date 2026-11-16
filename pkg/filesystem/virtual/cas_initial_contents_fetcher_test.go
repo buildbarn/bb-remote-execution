@@ -108,7 +108,7 @@ func TestCASInitialContentsFetcherFetchContents(t *testing.T) {
 		}, nil)
 		file1 := mock.NewMockLinkableLeaf(ctrl)
 		fileReadMonitor1 := mock.NewMockFileReadMonitor(ctrl)
-		fileReadMonitorFactory.EXPECT().Call(path.MustNewComponent("file1")).Return(fileReadMonitor1.Call)
+		fileReadMonitorFactory.EXPECT().Call(digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "ded43ceff96666255cbb89a40cb9d1bd", 1200)).Return(fileReadMonitor1.Call)
 		casFileFactory.EXPECT().LookupFile(
 			digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "ded43ceff96666255cbb89a40cb9d1bd", 1200),
 			/* isExecutable = */ false,
@@ -142,7 +142,7 @@ func TestCASInitialContentsFetcherFetchContents(t *testing.T) {
 		}, nil)
 		file1 := mock.NewMockLinkableLeaf(ctrl)
 		fileReadMonitor1 := mock.NewMockFileReadMonitor(ctrl)
-		fileReadMonitorFactory.EXPECT().Call(path.MustNewComponent("hello")).Return(fileReadMonitor1.Call)
+		fileReadMonitorFactory.EXPECT().Call(digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "0970ca3d192dde1268a19b44bbecadcf", 3000)).Return(fileReadMonitor1.Call)
 		casFileFactory.EXPECT().LookupFile(
 			digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "0970ca3d192dde1268a19b44bbecadcf", 3000),
 			/* isExecutable = */ false,
@@ -198,7 +198,7 @@ func TestCASInitialContentsFetcherFetchContents(t *testing.T) {
 			Return(childDirectoryWalker)
 		executableLeaf := mock.NewMockLinkableLeaf(ctrl)
 		executableReadMonitor := mock.NewMockFileReadMonitor(ctrl)
-		fileReadMonitorFactory.EXPECT().Call(path.MustNewComponent("executable")).Return(executableReadMonitor.Call)
+		fileReadMonitorFactory.EXPECT().Call(digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "946fbe7108add776d3e3094f512c3483", 456)).Return(executableReadMonitor.Call)
 		casFileFactory.EXPECT().LookupFile(
 			digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "946fbe7108add776d3e3094f512c3483", 456),
 			/* isExecutable = */ true,
@@ -206,7 +206,7 @@ func TestCASInitialContentsFetcherFetchContents(t *testing.T) {
 		).Return(executableLeaf)
 		fileLeaf := mock.NewMockLinkableLeaf(ctrl)
 		fileReadMonitor := mock.NewMockFileReadMonitor(ctrl)
-		fileReadMonitorFactory.EXPECT().Call(path.MustNewComponent("file")).Return(fileReadMonitor.Call)
+		fileReadMonitorFactory.EXPECT().Call(digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "c0607941dd5b3ca8e175a1bfbfd1c0ea", 789)).Return(fileReadMonitor.Call)
 		casFileFactory.EXPECT().LookupFile(
 			digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "c0607941dd5b3ca8e175a1bfbfd1c0ea", 789),
 			/* isExecutable = */ false,
@@ -246,9 +246,7 @@ func TestCASInitialContentsFetcherFetchContents(t *testing.T) {
 		directoryDigest := digest.MustNewDigest("hello", remoteexecution.DigestFunction_MD5, "7f390b0d6fb7831b0172bd7ce3e54256", 12)
 		directoryWalker.EXPECT().GetContainingDigest().Return(directoryDigest)
 
-		p := virtual.ApplyGetDigest{
-			Context: ctx,
-		}
+		p := virtual.ApplyGetDigest{}
 		require.True(t, initialContentsFetcher.VirtualApply(&p))
 		require.NoError(t, p.Err)
 		require.Equal(t, directoryDigest, p.Digest)

@@ -62,9 +62,6 @@ type ApplyUploadFile struct {
 // To recursively retreive all digests of a directory tree, use
 // ApplyGetContainingDigests instead.
 type ApplyGetDigest struct {
-	// Inputs.
-	Context context.Context
-
 	// Outputs.
 	Digest digest.Digest
 	Err    error

@@ -119,10 +119,10 @@ func (d *virtualBuildDirectory) InstallHooks(filePool pool.FilePool, errorLogger
 	)
 }
 
-func (d *virtualBuildDirectory) MergeDirectoryContents(ctx context.Context, errorLogger util.ErrorLogger, digest digest.Digest, monitor access.UnreadDirectoryMonitor) error {
+func (d *virtualBuildDirectory) MergeDirectoryContents(ctx context.Context, errorLogger util.ErrorLogger, directoryDigest digest.Digest, monitor access.UnreadDirectoryMonitor) error {
 	initialContentsFetcher := virtual.NewCASInitialContentsFetcher(
 		ctx,
-		re_cas.NewDecomposedDirectoryWalker(d.options.directoryFetcher, digest),
+		re_cas.NewDecomposedDirectoryWalker(d.options.directoryFetcher, directoryDigest),
 		virtual.NewStatelessHandleAllocatingCASFileFactory(
 			virtual.NewBlobAccessCASFileFactory(
 				ctx,
@@ -132,12 +132,12 @@ func (d *virtualBuildDirectory) MergeDirectoryContents(ctx context.Context, erro
 			d.options.handleAllocator.New(),
 		),
 		d.options.symlinkFactory,
-		digest.GetDigestFunction(),
+		directoryDigest.GetDigestFunction(),
 	)
 	if monitor != nil {
 		initialContentsFetcher = virtual.NewAccessMonitoringInitialContentsFetcher(initialContentsFetcher, monitor)
 	}
-	children, err := initialContentsFetcher.FetchContents(func(name path.Component) virtual.FileReadMonitor { return nil })
+	children, err := initialContentsFetcher.FetchContents(func(fileDigest digest.Digest) virtual.FileReadMonitor { return nil })
 	if err != nil {
 		return err
 	}
