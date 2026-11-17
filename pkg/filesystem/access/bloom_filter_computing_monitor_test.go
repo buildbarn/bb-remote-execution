@@ -1,6 +1,7 @@
 package access_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
@@ -9,6 +10,24 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/stretchr/testify/require"
 )
+
+func verifyBloomFilter(t *testing.T, bloomFilter []byte, hashFunctions uint32, testPaths map[string]bool) {
+	reader, err := access.NewBloomFilterReader(bloomFilter, hashFunctions)
+	require.NoError(t, err)
+	for testPath, expectExistence := range testPaths {
+		pathHashes := access.RootPathHashes
+		if testPath != "" {
+			for component := range strings.SplitSeq(testPath, "/") {
+				pathHashes = pathHashes.AppendComponent(path.MustNewComponent(component))
+			}
+		}
+		if expectExistence {
+			require.True(t, reader.Contains(pathHashes), "Expected path %q to be in the Bloom filter", testPath)
+		} else {
+			require.False(t, reader.Contains(pathHashes), "Expected path %q to not be in the Bloom filter", testPath)
+		}
+	}
+}
 
 func TestBloomFilterComputingUnreadDirectoryMonitor(t *testing.T) {
 	rootUnreadDirectoryMonitor := access.NewBloomFilterComputingUnreadDirectoryMonitor()
@@ -25,7 +44,9 @@ func TestBloomFilterComputingUnreadDirectoryMonitor(t *testing.T) {
 		// causes consumers to do the minimal amount of work,
 		// while ensuring a zero percent false positive rate.
 		bloomFilter, hashFunctions := rootUnreadDirectoryMonitor.GetBloomFilter(10, 1000)
-		require.Equal(t, []byte{0x80}, bloomFilter)
+		verifyBloomFilter(t, bloomFilter, hashFunctions, map[string]bool{
+			"nonexistent": false,
+		})
 		require.Equal(t, uint32(1), hashFunctions)
 	})
 
@@ -41,25 +62,37 @@ func TestBloomFilterComputingUnreadDirectoryMonitor(t *testing.T) {
 	t.Run("RootDirectoryRead", func(t *testing.T) {
 		t.Run("SingleByte", func(t *testing.T) {
 			bloomFilter, hashFunctions := rootUnreadDirectoryMonitor.GetBloomFilter(1, 1000)
-			require.Equal(t, []byte{0xc6}, bloomFilter)
+			verifyBloomFilter(t, bloomFilter, hashFunctions, map[string]bool{
+				"":            true,
+				"nonexistent": false,
+			})
 			require.Equal(t, uint32(5), hashFunctions)
 		})
 
 		t.Run("TwoBytes", func(t *testing.T) {
 			bloomFilter, hashFunctions := rootUnreadDirectoryMonitor.GetBloomFilter(10, 1000)
-			require.Equal(t, []byte{0x0b, 0x2a}, bloomFilter)
+			verifyBloomFilter(t, bloomFilter, hashFunctions, map[string]bool{
+				"":            true,
+				"nonexistent": false,
+			})
 			require.Equal(t, uint32(9), hashFunctions)
 		})
 
 		t.Run("FourBytes", func(t *testing.T) {
 			bloomFilter, hashFunctions := rootUnreadDirectoryMonitor.GetBloomFilter(20, 1000)
-			require.Equal(t, []byte{0xa0, 0xa6, 0xb2, 0xd8}, bloomFilter)
+			verifyBloomFilter(t, bloomFilter, hashFunctions, map[string]bool{
+				"":            true,
+				"nonexistent": false,
+			})
 			require.Equal(t, uint32(21), hashFunctions)
 		})
 
 		t.Run("EightBytes", func(t *testing.T) {
 			bloomFilter, hashFunctions := rootUnreadDirectoryMonitor.GetBloomFilter(40, 1000)
-			require.Equal(t, []byte{0x5f, 0x19, 0x50, 0xab, 0x53, 0x4b, 0x19, 0x3b}, bloomFilter)
+			verifyBloomFilter(t, bloomFilter, hashFunctions, map[string]bool{
+				"":            true,
+				"nonexistent": false,
+			})
 			require.Equal(t, uint32(42), hashFunctions)
 		})
 
@@ -69,8 +102,14 @@ func TestBloomFilterComputingUnreadDirectoryMonitor(t *testing.T) {
 			// maximum is set to 2 bytes, we should get the
 			// same results as using 10 bits per element.
 			bloomFilter, hashFunctions := rootUnreadDirectoryMonitor.GetBloomFilter(40, 2)
-			require.Equal(t, []byte{0x0b, 0x2a}, bloomFilter)
+			verifyBloomFilter(t, bloomFilter, hashFunctions, map[string]bool{
+				"":            true,
+				"nonexistent": false,
+			})
 			require.Equal(t, uint32(9), hashFunctions)
+
+			bloomFilterOther, _ := rootUnreadDirectoryMonitor.GetBloomFilter(10, 1000)
+			require.Equal(t, bloomFilter, bloomFilterOther)
 		})
 	})
 
@@ -86,7 +125,10 @@ func TestBloomFilterComputingUnreadDirectoryMonitor(t *testing.T) {
 
 	t.Run("ChildDirectoryResolved", func(t *testing.T) {
 		bloomFilter, hashFunctions := rootUnreadDirectoryMonitor.GetBloomFilter(40, 1000)
-		require.Equal(t, []byte{0x5f, 0x19, 0x50, 0xab, 0x53, 0x4b, 0x19, 0x3b}, bloomFilter)
+		verifyBloomFilter(t, bloomFilter, hashFunctions, map[string]bool{
+			"":            true,
+			"nonexistent": false,
+		})
 		require.Equal(t, uint32(42), hashFunctions)
 	})
 
@@ -102,25 +144,46 @@ func TestBloomFilterComputingUnreadDirectoryMonitor(t *testing.T) {
 	t.Run("ChildDirectoryRead", func(t *testing.T) {
 		t.Run("SingleByte", func(t *testing.T) {
 			bloomFilter, hashFunctions := rootUnreadDirectoryMonitor.GetBloomFilter(1, 1000)
-			require.Equal(t, []byte{0xd4}, bloomFilter)
+			verifyBloomFilter(t, bloomFilter, hashFunctions, map[string]bool{
+				"":                true,
+				"dir":             true,
+				"nonexistent":     false,
+				"dir/nonexistent": false,
+			})
 			require.Equal(t, uint32(2), hashFunctions)
 		})
 
 		t.Run("TwoBytes", func(t *testing.T) {
 			bloomFilter, hashFunctions := rootUnreadDirectoryMonitor.GetBloomFilter(5, 1000)
 			require.Equal(t, uint32(5), hashFunctions)
-			require.Equal(t, []byte{0x8a, 0x3a}, bloomFilter)
+			verifyBloomFilter(t, bloomFilter, hashFunctions, map[string]bool{
+				"":            true,
+				"dir":         true,
+				"nonexistent": false,
+				// Hash collision in this Bloom filter instance.
+				// "dir/nonexistent": false,
+			})
 		})
 
 		t.Run("FourBytes", func(t *testing.T) {
 			bloomFilter, hashFunctions := rootUnreadDirectoryMonitor.GetBloomFilter(10, 1000)
-			require.Equal(t, []byte{0x92, 0xb7, 0x32, 0xc2}, bloomFilter)
+			verifyBloomFilter(t, bloomFilter, hashFunctions, map[string]bool{
+				"":                true,
+				"dir":             true,
+				"nonexistent":     false,
+				"dir/nonexistent": false,
+			})
 			require.Equal(t, uint32(11), hashFunctions)
 		})
 
 		t.Run("EightBytes", func(t *testing.T) {
 			bloomFilter, hashFunctions := rootUnreadDirectoryMonitor.GetBloomFilter(20, 1000)
-			require.Equal(t, []byte{0x1f, 0x59, 0x51, 0xf0, 0x43, 0xde, 0x18, 0x3f}, bloomFilter)
+			verifyBloomFilter(t, bloomFilter, hashFunctions, map[string]bool{
+				"":                true,
+				"dir":             true,
+				"nonexistent":     false,
+				"dir/nonexistent": false,
+			})
 			require.Equal(t, uint32(21), hashFunctions)
 		})
 	})
@@ -136,25 +199,51 @@ func TestBloomFilterComputingUnreadDirectoryMonitor(t *testing.T) {
 	t.Run("RootFileRead", func(t *testing.T) {
 		t.Run("SingleByte", func(t *testing.T) {
 			bloomFilter, hashFunctions := rootUnreadDirectoryMonitor.GetBloomFilter(1, 1000)
-			require.Equal(t, []byte{0xf6}, bloomFilter)
+			verifyBloomFilter(t, bloomFilter, hashFunctions, map[string]bool{
+				"":     true,
+				"dir":  true,
+				"file": true,
+				// Hash collision in this Bloom filter instance.
+				// "nonexistent":     false,
+				// "dir/nonexistent": false,
+			})
 			require.Equal(t, uint32(2), hashFunctions)
 		})
 
 		t.Run("TwoBytes", func(t *testing.T) {
 			bloomFilter, hashFunctions := rootUnreadDirectoryMonitor.GetBloomFilter(3, 1000)
-			require.Equal(t, []byte{0x0a, 0x36}, bloomFilter)
+			verifyBloomFilter(t, bloomFilter, hashFunctions, map[string]bool{
+				"":            true,
+				"dir":         true,
+				"file":        true,
+				"nonexistent": false,
+				// Hash collision in this Bloom filter instance.
+				// "dir/nonexistent": false,
+			})
 			require.Equal(t, uint32(3), hashFunctions)
 		})
 
 		t.Run("FourBytes", func(t *testing.T) {
 			bloomFilter, hashFunctions := rootUnreadDirectoryMonitor.GetBloomFilter(6, 1000)
-			require.Equal(t, []byte{0x92, 0xe5, 0x13, 0xc2}, bloomFilter)
+			verifyBloomFilter(t, bloomFilter, hashFunctions, map[string]bool{
+				"":                true,
+				"dir":             true,
+				"file":            true,
+				"nonexistent":     false,
+				"dir/nonexistent": false,
+			})
 			require.Equal(t, uint32(7), hashFunctions)
 		})
 
 		t.Run("EightBytes", func(t *testing.T) {
 			bloomFilter, hashFunctions := rootUnreadDirectoryMonitor.GetBloomFilter(11, 1000)
-			require.Equal(t, []byte{0x1d, 0xd2, 0x43, 0xf0, 0x63, 0xf2, 0x18, 0x3e}, bloomFilter)
+			verifyBloomFilter(t, bloomFilter, hashFunctions, map[string]bool{
+				"":                true,
+				"dir":             true,
+				"file":            true,
+				"nonexistent":     false,
+				"dir/nonexistent": false,
+			})
 			require.Equal(t, uint32(14), hashFunctions)
 		})
 	})
@@ -172,25 +261,55 @@ func TestBloomFilterComputingUnreadDirectoryMonitor(t *testing.T) {
 	t.Run("RootFileRead", func(t *testing.T) {
 		t.Run("SingleByte", func(t *testing.T) {
 			bloomFilter, hashFunctions := rootUnreadDirectoryMonitor.GetBloomFilter(1, 1000)
-			require.Equal(t, []byte{0xd6}, bloomFilter)
+			verifyBloomFilter(t, bloomFilter, hashFunctions, map[string]bool{
+				"":         true,
+				"dir":      true,
+				"file":     true,
+				"dir/file": true,
+				// Hash collision in this Bloom filter instance.
+				// "nonexistent": false,
+				// "dir/nonexistent": false,
+			})
 			require.Equal(t, uint32(1), hashFunctions)
 		})
 
 		t.Run("TwoBytes", func(t *testing.T) {
 			bloomFilter, hashFunctions := rootUnreadDirectoryMonitor.GetBloomFilter(3, 1000)
-			require.Equal(t, []byte{0x4a, 0x2e}, bloomFilter)
+			verifyBloomFilter(t, bloomFilter, hashFunctions, map[string]bool{
+				"":            true,
+				"dir":         true,
+				"file":        true,
+				"dir/file":    true,
+				"nonexistent": false,
+				// Hash collision in this Bloom filter instance.
+				// "dir/nonexistent": false,
+			})
 			require.Equal(t, uint32(2), hashFunctions)
 		})
 
 		t.Run("FourBytes", func(t *testing.T) {
 			bloomFilter, hashFunctions := rootUnreadDirectoryMonitor.GetBloomFilter(5, 1000)
-			require.Equal(t, []byte{0x36, 0xa5, 0x73, 0xc2}, bloomFilter)
+			verifyBloomFilter(t, bloomFilter, hashFunctions, map[string]bool{
+				"":                true,
+				"dir":             true,
+				"file":            true,
+				"dir/file":        true,
+				"nonexistent":     false,
+				"dir/nonexistent": false,
+			})
 			require.Equal(t, uint32(5), hashFunctions)
 		})
 
 		t.Run("EightBytes", func(t *testing.T) {
 			bloomFilter, hashFunctions := rootUnreadDirectoryMonitor.GetBloomFilter(9, 1000)
-			require.Equal(t, []byte{0x1d, 0xb2, 0x43, 0xf1, 0x61, 0xfa, 0x18, 0x3f}, bloomFilter)
+			verifyBloomFilter(t, bloomFilter, hashFunctions, map[string]bool{
+				"":                true,
+				"dir":             true,
+				"file":            true,
+				"dir/file":        true,
+				"nonexistent":     false,
+				"dir/nonexistent": false,
+			})
 			require.Equal(t, uint32(11), hashFunctions)
 		})
 	})
