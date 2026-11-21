@@ -10,19 +10,28 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-var cloningSupportProbeName = path.MustNewComponent(".clonefile_probe")
+var (
+	cloningSupportProbeName         = path.MustNewComponent(".clonefile_probe")
+	cloningSupportReturnedProbeName = path.MustNewComponent(".clonefile_probe_returned")
+)
 
-// CheckCloningSupported verifies that files can be cloned from a cache
-// directory into a build directory, as NewCloningFileFetcher does.
+// CheckCloningSupported verifies that files can be cloned between a
+// cache directory and a build directory in both directions, as
+// NewCloningFileFetcher does: from the cache to serve a cache hit, and
+// into the cache to add or repair a downloaded file.
 //
 // Cloning requires both directories to reside on a single file system
 // that supports it (e.g., APFS), which is not the case for every file
-// system that supports hardlinks. Probing at startup lets a worker
+// system that supports hardlinks, and macOS checks permissions on the
+// source and destination separately. Probing at startup lets a worker
 // refuse a configuration it cannot serve, instead of failing every
 // build action it accepts.
 func CheckCloningSupported(cacheDirectory filesystem.Directory, cacheDirectoryPath string, buildDirectory filesystem.Directory, buildDirectoryPath string) error {
-	// Unlike the cache directory, the build directory is not emptied
-	// at startup, so a worker that crashed mid-probe leaves one behind.
+	// The cache directory is emptied at startup, but the build
+	// directory is only emptied before its first build action, so a
+	// worker that crashed mid-probe leaves one behind there. Nothing
+	// else in the build directory survives that emptying, so removing
+	// it discards nothing of value.
 	if err := buildDirectory.Remove(cloningSupportProbeName); err != nil && !os.IsNotExist(err) {
 		return util.StatusWrapf(err, "Failed to remove stale clone probe file from build directory %#v", buildDirectoryPath)
 	}
@@ -34,18 +43,31 @@ func CheckCloningSupported(cacheDirectory filesystem.Directory, cacheDirectoryPa
 		cacheDirectory.Remove(cloningSupportProbeName)
 		return util.StatusWrapf(err, "Failed to close clone probe file in cache directory %#v", cacheDirectoryPath)
 	}
+
 	cloneErr := cacheDirectory.Clonefile(cloningSupportProbeName, buildDirectory, cloningSupportProbeName)
 	if cloneErr == nil {
-		if err := buildDirectory.Remove(cloningSupportProbeName); err != nil {
-			cacheDirectory.Remove(cloningSupportProbeName)
-			return util.StatusWrapf(err, "Failed to remove clone probe file from build directory %#v", buildDirectoryPath)
+		cloneErr = buildDirectory.Clonefile(cloningSupportProbeName, cacheDirectory, cloningSupportReturnedProbeName)
+	}
+
+	// Remove every probe file, including after a failed clone, so
+	// that none is left for build actions to see.
+	var removeErr error
+	for _, probe := range []struct {
+		directory     filesystem.Directory
+		directoryPath string
+		name          path.Component
+	}{
+		{buildDirectory, buildDirectoryPath, cloningSupportProbeName},
+		{cacheDirectory, cacheDirectoryPath, cloningSupportReturnedProbeName},
+		{cacheDirectory, cacheDirectoryPath, cloningSupportProbeName},
+	} {
+		if err := probe.directory.Remove(probe.name); err != nil && !os.IsNotExist(err) && removeErr == nil {
+			removeErr = util.StatusWrapf(err, "Failed to remove clone probe file %#v from directory %#v", probe.name.String(), probe.directoryPath)
 		}
 	}
-	if err := cacheDirectory.Remove(cloningSupportProbeName); err != nil {
-		return util.StatusWrapf(err, "Failed to remove clone probe file from cache directory %#v", cacheDirectoryPath)
-	}
+
 	if cloneErr != nil {
-		return util.StatusWrapfWithCode(cloneErr, codes.FailedPrecondition, "Cannot clone files from cache directory %#v into build directory %#v", cacheDirectoryPath, buildDirectoryPath)
+		return util.StatusWrapfWithCode(cloneErr, codes.FailedPrecondition, "Cannot clone files between cache directory %#v and build directory %#v", cacheDirectoryPath, buildDirectoryPath)
 	}
-	return nil
+	return removeErr
 }

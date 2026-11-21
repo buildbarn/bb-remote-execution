@@ -230,8 +230,10 @@ message NativeBuildDirectoryConfiguration {
       cache_replacement_policy = 5;
 
   // If unset, input files are hardlinked from the cache into the build
-  // directory. Identical files then share a single inode, both across
-  // paths within a build action and across concurrent build actions.
+  // directory. Identical files then share an inode while they remain
+  // cached, both across paths within a build action and across
+  // concurrent build actions; cache_replacement_policy describes when
+  // eviction breaks this.
   //
   // If set, input files are copy-on-write clones of the cache instead,
   // giving every path in every build action an inode of its own while

@@ -20,8 +20,9 @@ import (
 func TestCheckCloningSupported(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	probe := path.MustNewComponent(".clonefile_probe")
+	returnedProbe := path.MustNewComponent(".clonefile_probe_returned")
 
-	t.Run("Unsupported", func(t *testing.T) {
+	t.Run("CloneFromCacheUnsupported", func(t *testing.T) {
 		// A volume that supports hardlinks but not clones must be
 		// reported at startup, naming both directories, instead of
 		// failing every build action the worker would accept.
@@ -33,12 +34,40 @@ func TestCheckCloningSupported(t *testing.T) {
 			cacheDirectory.EXPECT().OpenWrite(probe, filesystem.CreateExcl(0o444)).Return(probeFile, nil),
 			probeFile.EXPECT().Close(),
 			cacheDirectory.EXPECT().Clonefile(probe, buildDirectory, probe).Return(syscall.ENOTSUP),
+			buildDirectory.EXPECT().Remove(probe).Return(syscall.ENOENT),
+			cacheDirectory.EXPECT().Remove(returnedProbe).Return(syscall.ENOENT),
 			cacheDirectory.EXPECT().Remove(probe),
 		)
 
 		testutil.RequireEqualStatus(
 			t,
-			status.Error(codes.FailedPrecondition, "Cannot clone files from cache directory \"/cache\" into build directory \"/build\": "+syscall.ENOTSUP.Error()),
+			status.Error(codes.FailedPrecondition, "Cannot clone files between cache directory \"/cache\" and build directory \"/build\": "+syscall.ENOTSUP.Error()),
+			cas.CheckCloningSupported(cacheDirectory, "/cache", buildDirectory, "/build"),
+		)
+	})
+
+	t.Run("CloneIntoCacheUnsupported", func(t *testing.T) {
+		// Adding a downloaded file to the cache clones it out of the
+		// build directory. macOS checks permissions on either side
+		// separately, so this direction can fail while the other
+		// succeeds, and every cold fetch would then fail.
+		cacheDirectory := mock.NewMockDirectory(ctrl)
+		buildDirectory := mock.NewMockDirectory(ctrl)
+		probeFile := mock.NewMockFileWriter(ctrl)
+		gomock.InOrder(
+			buildDirectory.EXPECT().Remove(probe).Return(syscall.ENOENT),
+			cacheDirectory.EXPECT().OpenWrite(probe, filesystem.CreateExcl(0o444)).Return(probeFile, nil),
+			probeFile.EXPECT().Close(),
+			cacheDirectory.EXPECT().Clonefile(probe, buildDirectory, probe),
+			buildDirectory.EXPECT().Clonefile(probe, cacheDirectory, returnedProbe).Return(syscall.EACCES),
+			buildDirectory.EXPECT().Remove(probe),
+			cacheDirectory.EXPECT().Remove(returnedProbe).Return(syscall.ENOENT),
+			cacheDirectory.EXPECT().Remove(probe),
+		)
+
+		testutil.RequireEqualStatus(
+			t,
+			status.Error(codes.FailedPrecondition, "Cannot clone files between cache directory \"/cache\" and build directory \"/build\": "+syscall.EACCES.Error()),
 			cas.CheckCloningSupported(cacheDirectory, "/cache", buildDirectory, "/build"),
 		)
 	})
@@ -55,7 +84,9 @@ func TestCheckCloningSupported(t *testing.T) {
 			cacheDirectory.EXPECT().OpenWrite(probe, filesystem.CreateExcl(0o444)).Return(probeFile, nil),
 			probeFile.EXPECT().Close(),
 			cacheDirectory.EXPECT().Clonefile(probe, buildDirectory, probe),
+			buildDirectory.EXPECT().Clonefile(probe, cacheDirectory, returnedProbe),
 			buildDirectory.EXPECT().Remove(probe),
+			cacheDirectory.EXPECT().Remove(returnedProbe),
 			cacheDirectory.EXPECT().Remove(probe),
 		)
 
