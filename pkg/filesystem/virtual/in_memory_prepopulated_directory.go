@@ -1076,12 +1076,12 @@ func (i *inMemoryPrepopulatedDirectory) VirtualRename(ctx context.Context, oldNa
 		newContents.attach(i.subtree, newName, normalizedNewName, oldChild)
 	}
 	return ChangeInfo{
-			Before: oldChangeIDBefore,
-			After:  oldContents.changeID,
-		}, ChangeInfo{
-			Before: newChangeIDBefore,
-			After:  newContents.changeID,
-		}, StatusOK
+		Before: oldChangeIDBefore,
+		After:  oldContents.changeID,
+	}, ChangeInfo{
+		Before: newChangeIDBefore,
+		After:  newContents.changeID,
+	}, StatusOK
 }
 
 func (i *inMemoryPrepopulatedDirectory) VirtualRemove(ctx context.Context, name path.Component, removeDirectory, removeLeaf bool) (ChangeInfo, Status) {

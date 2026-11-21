@@ -12,7 +12,6 @@ import (
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/cas"
-	"github.com/buildbarn/bb-storage/pkg/blobstore/buffer"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/eviction"
 	"github.com/buildbarn/bb-storage/pkg/filesystem"
@@ -30,6 +29,29 @@ func openLocalDirectory(t *testing.T, location string) filesystem.DirectoryClose
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, directory.Close()) })
 	return directory
+}
+
+// expectDownload makes the base FileFetcher write contents to the
+// destination once, as the CAS-backed one does, so that the real
+// filesystem calls made around it can be observed.
+func expectDownload(ctrl *gomock.Controller, blobDigest digest.Digest, contents string) cas.FileFetcher {
+	base := mock.NewMockFileFetcher(ctrl)
+	base.EXPECT().GetFile(gomock.Any(), blobDigest, gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		func(ctx context.Context, blobDigest digest.Digest, directory filesystem.Directory, name path.Component, isExecutable bool) error {
+			var mode os.FileMode = 0o444
+			if isExecutable {
+				mode = 0o555
+			}
+			w, err := directory.OpenAppend(name, filesystem.CreateExcl(mode))
+			if err != nil {
+				return err
+			}
+			defer w.Close()
+			_, err = w.Write([]byte(contents))
+			return err
+		},
+	)
+	return base
 }
 
 func requireOwnInode(t *testing.T, location string) os.FileInfo {
@@ -50,10 +72,8 @@ func TestCloningFileFetcherDistinctInodes(t *testing.T) {
 	first := openLocalDirectory(t, filepath.Join(root, "first"))
 	second := openLocalDirectory(t, filepath.Join(root, "second"))
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	backend := mock.NewMockBlobAccess(ctrl)
 	blobDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "8b1a9953c4611296a827abf8c47804d7", 5)
-	backend.EXPECT().Get(ctx, blobDigest).Return(buffer.NewValidatedBufferFromByteSlice([]byte("Hello")))
-	fetcher := cas.NewCloningFileFetcher(cas.NewBlobAccessFileFetcher(backend), cache, 10, 1024, eviction.NewLRUSet[string]())
+	fetcher := cas.NewCloningFileFetcher(expectDownload(ctrl, blobDigest, "Hello"), cache, 10, 1024, eviction.NewLRUSet[string]())
 
 	require.NoError(t, fetcher.GetFile(ctx, blobDigest, first, path.MustNewComponent("python3"), true))
 	require.NoError(t, fetcher.GetFile(ctx, blobDigest, second, path.MustNewComponent("python3"), true))
@@ -77,10 +97,8 @@ func TestCloningFileFetcherPkgInfo(t *testing.T) {
 	cache := openLocalDirectory(t, filepath.Join(root, "cache"))
 	app := openLocalDirectory(t, filepath.Join(root, "Example.app"))
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	backend := mock.NewMockBlobAccess(ctrl)
 	blobDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_SHA256, "82502191c9484b04d685374f9879a0066069c49b8acae7a04b01d38d07e8eca0", 8)
-	backend.EXPECT().Get(ctx, blobDigest).Return(buffer.NewValidatedBufferFromByteSlice([]byte("APPL????")))
-	fetcher := cas.NewCloningFileFetcher(cas.NewBlobAccessFileFetcher(backend), cache, 10, 1024, eviction.NewLRUSet[string]())
+	fetcher := cas.NewCloningFileFetcher(expectDownload(ctrl, blobDigest, "APPL????"), cache, 10, 1024, eviction.NewLRUSet[string]())
 
 	require.NoError(t, fetcher.GetFile(ctx, blobDigest, app, path.MustNewComponent("PkgInfo"), false))
 	contents, err := os.ReadFile(filepath.Join(root, "Example.app", "PkgInfo"))
@@ -102,10 +120,8 @@ func TestCloningFileFetcherFailureNamesClone(t *testing.T) {
 	cache := openLocalDirectory(t, filepath.Join(root, "cache"))
 	build := openLocalDirectory(t, filepath.Join(root, "build"))
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	backend := mock.NewMockBlobAccess(ctrl)
 	blobDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "8b1a9953c4611296a827abf8c47804d7", 5)
-	backend.EXPECT().Get(ctx, blobDigest).Return(buffer.NewValidatedBufferFromByteSlice([]byte("Hello")))
-	fetcher := cas.NewCloningFileFetcher(cas.NewBlobAccessFileFetcher(backend), cache, 10, 1024, eviction.NewLRUSet[string]())
+	fetcher := cas.NewCloningFileFetcher(expectDownload(ctrl, blobDigest, "Hello"), cache, 10, 1024, eviction.NewLRUSet[string]())
 	require.NoError(t, fetcher.GetFile(ctx, blobDigest, build, path.MustNewComponent("input"), false))
 
 	// The cache now holds the file, so this is a cache hit whose clone

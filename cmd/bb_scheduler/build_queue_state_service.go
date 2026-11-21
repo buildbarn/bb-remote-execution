@@ -87,7 +87,7 @@ var (
 			}
 			return nil
 		},
-		"operation_stage_executing": func(o *buildqueuestate.OperationState) *emptypb.Empty {
+		"operation_stage_executing": func(o *buildqueuestate.OperationState) *buildqueuestate.WorkerState {
 			if s, ok := o.Stage.(*buildqueuestate.OperationState_Executing); ok {
 				return s.Executing
 			}

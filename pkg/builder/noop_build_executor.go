@@ -11,7 +11,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	re_util "github.com/buildbarn/bb-remote-execution/pkg/util"
-	"github.com/buildbarn/bb-storage/pkg/cas"
+	"github.com/buildbarn/bb-storage/pkg/cas/reader"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/util"
 
@@ -20,7 +20,7 @@ import (
 )
 
 type noopBuildExecutor struct {
-	commandReader cas.MessageReader[*remoteexecution.Command]
+	commandReader reader.Reader[*remoteexecution.Command]
 	portalURL     *url.URL
 }
 
@@ -31,7 +31,7 @@ type noopBuildExecutor struct {
 // to upload the input root of an action into the Content Addressable
 // Storage (CAS) without causing it to be executed afterwards. This may
 // be useful when attempting to debug actions.
-func NewNoopBuildExecutor(commandReader cas.MessageReader[*remoteexecution.Command], portalURL *url.URL) BuildExecutor {
+func NewNoopBuildExecutor(commandReader reader.Reader[*remoteexecution.Command], portalURL *url.URL) BuildExecutor {
 	return &noopBuildExecutor{
 		commandReader: commandReader,
 		portalURL:     portalURL,
@@ -67,7 +67,7 @@ func (be *noopBuildExecutor) Execute(ctx context.Context, filePool pool.FilePool
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to extract digest for command"))
 		return response
 	}
-	command, err := be.commandReader.ReadMessage(ctx, commandDigest)
+	command, err := be.commandReader.Read(ctx, commandDigest)
 	if err != nil {
 		attachErrorToExecuteResponse(response, util.StatusWrap(err, "Failed to obtain command"))
 		return response

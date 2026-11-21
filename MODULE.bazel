@@ -1,30 +1,29 @@
 module(name = "com_github_buildbarn_bb_remote_execution")
 
 bazel_dep(name = "aspect_bazel_lib", version = "2.22.5")
-bazel_dep(name = "aspect_rules_js", version = "3.1.2")
+bazel_dep(name = "aspect_rules_js", version = "3.6.1")
 bazel_dep(name = "bazel_remote_apis", version = "0")
-bazel_dep(name = "bazel_skylib", version = "1.9.0")
-bazel_dep(name = "cel-spec", version = "0.25.1")
+bazel_dep(name = "bazel_skylib", version = "1.9.2")
+bazel_dep(name = "cel-spec", version = "0.25.3")
 bazel_dep(name = "com_github_buildbarn_bb_storage")
 bazel_dep(name = "com_github_buildbarn_go_xdr")
-bazel_dep(name = "gazelle", version = "0.51.3")
-bazel_dep(name = "googleapis", version = "0.0.0-20260525-ef19b7b7")
-bazel_dep(name = "platforms", version = "1.0.0")
-bazel_dep(name = "protobuf", version = "35.0")
-bazel_dep(name = "rules_go", version = "0.64.2")
+bazel_dep(name = "gazelle", version = "0.54.0")
+bazel_dep(name = "googleapis", version = "0.0.0-20261103-57aa4dbc")
+bazel_dep(name = "platforms", version = "1.1.0")
+bazel_dep(name = "protobuf", version = "36.2")
+bazel_dep(name = "rules_go", version = "0.65.0")
 bazel_dep(name = "rules_jsonnet", version = "0.7.2")
-bazel_dep(name = "toolchains_llvm", version = "1.7.0")
+bazel_dep(name = "toolchains_llvm", version = "1.13.0")
 
 git_override(
     module_name = "bazel_remote_apis",
-    commit = "becdd8f9ff811df88a22d3eadd6341753d51d167",
-    patches = ["//:patches/bazel_remote_apis/upstream-pr-378.diff"],
+    commit = "e0c0554bfc8a37abf336c3e78070684367738e1d",
     remote = "https://github.com/bazelbuild/remote-apis.git",
 )
 
 git_override(
     module_name = "com_github_buildbarn_bb_storage",
-    commit = "025ab8081c7f70bc1ca6d2d6ba746ce6c7246b5c",
+    commit = "c307abb24d8705c1057eb27d27e79a2d24747b6d",
     remote = "https://github.com/buildbarn/bb-storage.git",
 )
 
@@ -64,7 +63,6 @@ use_repo(
     go_deps,
     "cc_mvdan_gofumpt",
     "com_github_bazelbuild_buildtools",
-    "com_github_bazelbuild_remote_apis",
     "com_github_golang_protobuf",
     "com_github_google_uuid",
     "com_github_gorilla_mux",
@@ -96,12 +94,14 @@ go_deps_dev.module_override(
     path = "github.com/grpc-ecosystem/go-grpc-prometheus",
 )
 go_deps_dev.module_override(
-    patches = ["@com_github_buildbarn_bb_storage//:patches/org_golang_x_lint/generic.diff"],
-    path = "golang.org/x/lint",
+    # Backport of https://github.com/hanwen/go-fuse/commit/2d50fff207d78c197869fa492eff3a79bc1d8408.
+    # Remove once a go-fuse release newer than v2.12.1 is available.
+    patches = ["//:patches/com_github_hanwen_go_fuse_v2/splice-386.diff"],
+    path = "github.com/hanwen/go-fuse/v2",
 )
 go_deps_dev.module_override(
-    patches = ["@com_github_buildbarn_bb_storage//:patches/org_golang_x_sys/o-search.diff"],
-    path = "golang.org/x/sys",
+    patches = ["@com_github_buildbarn_bb_storage//:patches/org_golang_x_lint/generic.diff"],
+    path = "golang.org/x/lint",
 )
 go_deps_dev.module_override(
     patches = ["@com_github_buildbarn_bb_storage//:patches/cc_mvdan_gofumpt/unused-receiver-idents.diff"],

@@ -21,7 +21,7 @@ import (
 func TestNoopBuildExecutor(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
-	commandReader := mock.NewMockMessageReader[*remoteexecution.Command](ctrl)
+	commandReader := mock.NewMockReader[*remoteexecution.Command](ctrl)
 	buildExecutor := builder.NewNoopBuildExecutor(
 		commandReader,
 		&url.URL{
@@ -91,7 +91,7 @@ func TestNoopBuildExecutor(t *testing.T) {
 	t.Run("InvalidTemplate", func(t *testing.T) {
 		// If an invalid template is provided in the
 		// environment, parsing it should fail.
-		commandReader.EXPECT().ReadMessage(ctx, digest.MustNewDigest("build", remoteexecution.DigestFunction_SHA256, "7f53aed4b5489c487be514dd88d3314d966e19b84bc766a972d82246ee6f494f", 150)).
+		commandReader.EXPECT().Read(ctx, digest.MustNewDigest("build", remoteexecution.DigestFunction_SHA256, "7f53aed4b5489c487be514dd88d3314d966e19b84bc766a972d82246ee6f494f", 150)).
 			Return(&remoteexecution.Command{
 				EnvironmentVariables: []*remoteexecution.Command_EnvironmentVariable{
 					{
@@ -135,7 +135,7 @@ func TestNoopBuildExecutor(t *testing.T) {
 	t.Run("SuccessDefaultTemplate", func(t *testing.T) {
 		// If no template is provided in the environment
 		// variables, then a default template should be used.
-		commandReader.EXPECT().ReadMessage(ctx, digest.MustNewDigest("build", remoteexecution.DigestFunction_SHA256, "d134371fd7573f7ef77c90e907c8bfaf95f34b82ac8503dbed5e062fb6fe4702", 200)).
+		commandReader.EXPECT().Read(ctx, digest.MustNewDigest("build", remoteexecution.DigestFunction_SHA256, "d134371fd7573f7ef77c90e907c8bfaf95f34b82ac8503dbed5e062fb6fe4702", 200)).
 			Return(&remoteexecution.Command{}, nil)
 		filePool := mock.NewMockFilePool(ctrl)
 		monitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
@@ -172,7 +172,7 @@ func TestNoopBuildExecutor(t *testing.T) {
 	t.Run("SuccessCustomTemplate", func(t *testing.T) {
 		// If a custom template is provided in the environment,
 		// it should be preferred over the default template.
-		commandReader.EXPECT().ReadMessage(ctx, digest.MustNewDigest("build", remoteexecution.DigestFunction_SHA256, "9da17cb226048f5bb3e6a20311b551e73ce8ac0d408e69e737d28a8f3179d0ce", 300)).
+		commandReader.EXPECT().Read(ctx, digest.MustNewDigest("build", remoteexecution.DigestFunction_SHA256, "9da17cb226048f5bb3e6a20311b551e73ce8ac0d408e69e737d28a8f3179d0ce", 300)).
 			Return(&remoteexecution.Command{
 				EnvironmentVariables: []*remoteexecution.Command_EnvironmentVariable{
 					{

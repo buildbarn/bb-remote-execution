@@ -67,8 +67,10 @@ type RawFileSystem interface {
 	Statx(cancel <-chan struct{}, input *fuse.StatxIn, out *fuse.StatxOut) fuse.Status
 	String() string
 	Symlink(cancel <-chan struct{}, header *fuse.InHeader, pointedTo, linkName string, out *fuse.EntryOut) fuse.Status
+	Tmpfile(cancel <-chan struct{}, input *fuse.CreateIn, out *fuse.CreateOut) fuse.Status
 	Unlink(cancel <-chan struct{}, header *fuse.InHeader, name string) fuse.Status
 	Write(cancel <-chan struct{}, input *fuse.WriteIn, data []byte) (uint32, fuse.Status)
+	Writev(cancel <-chan struct{}, input *fuse.WriteIn, data [][]byte) (uint32, fuse.Status)
 }
 
 type concreteRawFileSystem struct {
