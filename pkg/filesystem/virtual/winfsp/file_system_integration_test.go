@@ -542,7 +542,7 @@ func TestWinFSPFileSystemStatFollowsSymlink(t *testing.T) {
 		// normalized to native Windows format.
 		digestFunction := digest.MustNewFunction("test", remoteexecution.DigestFunction_SHA256)
 		noopFileReadMonitorFactory := virtual.FileReadMonitorFactory(
-			func(name bb_path.Component) virtual.FileReadMonitor {
+			func(fileDigest digest.Digest) virtual.FileReadMonitor {
 				return func() {}
 			},
 		)

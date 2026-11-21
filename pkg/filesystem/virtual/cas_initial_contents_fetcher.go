@@ -95,7 +95,7 @@ func (icf *casInitialContentsFetcher) fetchContentsUnwrapped(fileReadMonitorFact
 		if err != nil {
 			return nil, util.StatusWrapf(err, "Failed to obtain digest for file %#v", entry.Name)
 		}
-		leaf := icf.options.casFileFactory.LookupFile(childDigest, entry.IsExecutable, fileReadMonitorFactory(component))
+		leaf := icf.options.casFileFactory.LookupFile(childDigest, entry.IsExecutable, fileReadMonitorFactory(childDigest))
 		children[component] = InitialChild{}.FromLeaf(leaf)
 		leavesToUnlink = append(leavesToUnlink, leaf)
 	}
@@ -132,6 +132,8 @@ func (icf *casInitialContentsFetcher) FetchContents(fileReadMonitorFactory FileR
 
 func (icf *casInitialContentsFetcher) VirtualApply(data any) bool {
 	switch p := data.(type) {
+	case *ApplyGetDigest:
+		p.Digest = icf.directoryWalker.GetContainingDigest()
 	case *ApplyGetContainingDigests:
 		gatherer := casContainingDigestsGatherer{
 			context:             p.Context,
