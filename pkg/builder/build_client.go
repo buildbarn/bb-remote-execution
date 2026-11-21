@@ -2,7 +2,9 @@ package builder
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
@@ -17,8 +19,73 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
+
+// describeSynchronizeRequest returns a short summary of a
+// SynchronizeRequest, so that failures of Synchronize() (e.g., a
+// request exceeding the maximum gRPC message size) can be traced back to
+// the action whose result was being reported.
+func describeSynchronizeRequest(request *remoteworker.SynchronizeRequest) string {
+	description := fmt.Sprintf("request size %d bytes", proto.Size(request))
+	executing, ok := request.GetCurrentState().GetWorkerState().(*remoteworker.CurrentState_Executing_)
+	if !ok {
+		return description + ", worker state idle"
+	}
+	actionDigest := executing.Executing.GetActionDigest()
+	description += fmt.Sprintf(", action %s-%d", actionDigest.GetHash(), actionDigest.GetSizeBytes())
+	switch state := executing.Executing.ExecutionState.(type) {
+	case *remoteworker.CurrentState_Executing_Completed:
+		response := state.Completed
+		result := response.GetResult()
+		return description + fmt.Sprintf(
+			", worker state completed (response size %d bytes, %d output files, %d output directories, %d output symlinks, %d bytes inline stdout, %d bytes inline stderr, %d server logs)",
+			proto.Size(response),
+			len(result.GetOutputFiles()),
+			len(result.GetOutputDirectories()),
+			len(result.GetOutputSymlinks()),
+			len(result.GetStdoutRaw()),
+			len(result.GetStderrRaw()),
+			len(response.GetServerLogs()))
+	case *remoteworker.CurrentState_Executing_Started:
+		return description + ", worker state started"
+	case *remoteworker.CurrentState_Executing_FetchingInputs:
+		return description + ", worker state fetching inputs"
+	case *remoteworker.CurrentState_Executing_Running:
+		return description + ", worker state running"
+	case *remoteworker.CurrentState_Executing_UploadingOutputs:
+		return description + ", worker state uploading outputs"
+	default:
+		return description + ", worker state executing"
+	}
+}
+
+// replaceOversizedResult replaces the result of a completed action with
+// a ResourceExhausted failure if the scheduler refused it for exceeding
+// the maximum gRPC message size. Without this, the worker would resend
+// the same request forever and never become idle again.
+func replaceOversizedResult(request *remoteworker.SynchronizeRequest, err error) bool {
+	if status.Code(err) != codes.ResourceExhausted || !strings.Contains(err.Error(), "larger than max") {
+		return false
+	}
+	executing, ok := request.GetCurrentState().GetWorkerState().(*remoteworker.CurrentState_Executing_)
+	if !ok {
+		return false
+	}
+	completed, ok := executing.Executing.ExecutionState.(*remoteworker.CurrentState_Executing_Completed)
+	if !ok || completed.Completed.GetResult() == nil {
+		return false
+	}
+	completed.Completed = &remoteexecution.ExecuteResponse{
+		Status: status.Newf(
+			codes.ResourceExhausted,
+			"Action result of %d bytes is too large to report to the scheduler: %s",
+			proto.Size(completed.Completed),
+			status.Convert(err).Message()).Proto(),
+	}
+	return true
+}
 
 // BuildClient is a client for the Remote Worker protocol. It can send
 // synchronization requests to a scheduler, informing it of the current
@@ -266,7 +333,11 @@ func (bc *BuildClient) Run(ctx context.Context) (bool, error) {
 		bc.touchSchedulerMayThinkExecuting()
 	}
 	if err != nil {
-		return false, util.StatusWrap(err, "Failed to synchronize with scheduler")
+		description := describeSynchronizeRequest(&bc.request)
+		if replaceOversizedResult(&bc.request, err) {
+			log.Printf("Replaced oversized action result with a failure (%s)", description)
+		}
+		return false, util.StatusWrapf(err, "Failed to synchronize with scheduler (%s)", description)
 	}
 
 	// Determine when we should contact the scheduler again in case

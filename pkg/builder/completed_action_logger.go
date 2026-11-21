@@ -2,6 +2,8 @@ package builder
 
 import (
 	"context"
+	"errors"
+	"io"
 	"sync"
 
 	cal_proto "github.com/buildbarn/bb-remote-execution/pkg/proto/completedactionlogger"
@@ -122,6 +124,13 @@ func (logger *RemoteCompletedActionLogger) SendAllCompletedActions() error {
 
 			for _, action := range actionsToSend {
 				if err := stream.Send(action); err != nil {
+					// Send() only returns io.EOF when the server
+					// terminated the stream. Its actual status is
+					// returned by Recv(), so let the receiving
+					// goroutine report it.
+					if errors.Is(err, io.EOF) {
+						return nil
+					}
 					return util.StatusWrapf(err, "Failed to transmit completed action %#v", action.Uuid)
 				}
 				completedActionLoggerCompletedActionsSent.Inc()
