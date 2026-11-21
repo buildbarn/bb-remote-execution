@@ -9,7 +9,6 @@ import (
 	"net/url"
 	"os"
 	"regexp"
-	"runtime"
 	"sort"
 	"strconv"
 	"sync/atomic"
@@ -292,8 +291,8 @@ func main() {
 				buildDirectoryCleaner = cleaner.NewDirectoryCleaner(naiveBuildDirectory, nativeConfiguration.BuildDirectoryPath)
 
 				// Create a cache directory that holds input
-				// files that can be hardlinked into build
-				// directory.
+				// files that can be hardlinked or cloned into
+				// build directory.
 				//
 				// TODO: Have a single process-wide hardlinking
 				// cache even if multiple build directories are
@@ -309,10 +308,11 @@ func main() {
 				if err != nil {
 					return util.StatusWrap(err, "Failed to create eviction set for cache directory")
 				}
-				// Shared hardlinked inputs let macOS actions reach each
-				// other's paths, so give every action its own clones there.
 				newCachingFileFetcher := re_cas.NewHardlinkingFileFetcher
-				if runtime.GOOS == "darwin" {
+				if nativeConfiguration.CloneInputFiles {
+					if err := re_cas.CheckCloningSupported(cacheDirectory, nativeConfiguration.CacheDirectoryPath, naiveBuildDirectory, nativeConfiguration.BuildDirectoryPath); err != nil {
+						return err
+					}
 					newCachingFileFetcher = re_cas.NewCloningFileFetcher
 				}
 				fileFetcher = newCachingFileFetcher(

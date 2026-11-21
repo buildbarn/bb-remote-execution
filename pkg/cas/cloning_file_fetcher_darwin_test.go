@@ -62,6 +62,22 @@ func requireOwnInode(t *testing.T, location string) os.FileInfo {
 	return info
 }
 
+func TestCheckCloningSupportedLocal(t *testing.T) {
+	// The startup probe must pass on a volume that supports cloning,
+	// and must not leave its probe file in the build directory, where
+	// build actions would see it, or in the cache.
+	root := t.TempDir()
+	cache := openLocalDirectory(t, filepath.Join(root, "cache"))
+	build := openLocalDirectory(t, filepath.Join(root, "build"))
+
+	require.NoError(t, cas.CheckCloningSupported(cache, filepath.Join(root, "cache"), build, filepath.Join(root, "build")))
+	for _, name := range []string{"cache", "build"} {
+		entries, err := os.ReadDir(filepath.Join(root, name))
+		require.NoError(t, err)
+		require.Empty(t, entries)
+	}
+}
+
 func TestCloningFileFetcherDistinctInodes(t *testing.T) {
 	// Concurrent build actions sharing one hardlinked inode can be
 	// handed each other's paths by the kernel when resolving an
