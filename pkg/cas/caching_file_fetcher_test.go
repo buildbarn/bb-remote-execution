@@ -145,6 +145,31 @@ func TestCachingFileFetcher(t *testing.T) {
 	)
 }
 
+// readinessProbe matches whichever name a readiness check picks for its
+// probe file first, and only that name afterwards.
+type readinessProbe struct {
+	name *path.Component
+}
+
+func newReadinessProbe() readinessProbe {
+	return readinessProbe{name: &path.Component{}}
+}
+
+func (m readinessProbe) Matches(x any) bool {
+	name, ok := x.(path.Component)
+	if !ok {
+		return false
+	}
+	if *m.name == (path.Component{}) {
+		*m.name = name
+	}
+	return name == *m.name
+}
+
+func (readinessProbe) String() string {
+	return "is the readiness probe"
+}
+
 func TestCachingFileFetcherCheckReadiness(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 
@@ -153,18 +178,26 @@ func TestCachingFileFetcherCheckReadiness(t *testing.T) {
 	buildDirectory := mock.NewMockDirectory(ctrl)
 	fileFetcher := cas.NewCachingFileFetcher(baseFileFetcher, cacheDirectory, cas.LinkCachedFile, 1, 1024, eviction.NewLRUSet[string]())
 
-	expectCreateProbe := func(probe path.Component) {
+	// Runners share the cache directory and may check readiness
+	// concurrently, so no two checks may use the same probe name.
+	probeNames := map[path.Component]struct{}{}
+	expectCreateProbe := func(t *testing.T) readinessProbe {
+		probe := newReadinessProbe()
 		probeFile := mock.NewMockFileWriter(ctrl)
 		buildDirectory.EXPECT().OpenWrite(probe, filesystem.CreateExcl(0o444)).Return(probeFile, nil)
 		probeFile.EXPECT().Close()
+		t.Cleanup(func() {
+			require.NotContains(t, probeNames, *probe.name)
+			probeNames[*probe.name] = struct{}{}
+		})
+		return probe
 	}
 
 	t.Run("Success", func(t *testing.T) {
 		// The probe must travel in both directions GetFile() uses,
 		// and be removed from both directories afterwards, so that
 		// neither build actions nor the cache see it.
-		probe := path.MustNewComponent(".readiness_probe_1")
-		expectCreateProbe(probe)
+		probe := expectCreateProbe(t)
 		gomock.InOrder(
 			buildDirectory.EXPECT().Link(probe, cacheDirectory, probe),
 			buildDirectory.EXPECT().Remove(probe),
@@ -179,11 +212,7 @@ func TestCachingFileFetcherCheckReadiness(t *testing.T) {
 		// Adding a downloaded file to the cache fails if the build
 		// and cache directories are on different file systems. A
 		// worker that would fail every cold fetch must not be ready.
-		// Runners share the cache directory and may check readiness
-		// concurrently, so this check must not reuse the previous
-		// probe's name.
-		probe := path.MustNewComponent(".readiness_probe_2")
-		expectCreateProbe(probe)
+		probe := expectCreateProbe(t)
 		buildDirectory.EXPECT().Link(probe, cacheDirectory, probe).Return(syscall.EXDEV)
 		buildDirectory.EXPECT().Remove(probe)
 		cacheDirectory.EXPECT().Remove(probe).Return(syscall.ENOENT)
@@ -199,8 +228,7 @@ func TestCachingFileFetcherCheckReadiness(t *testing.T) {
 		// separately, so materializing out of the cache can fail
 		// even if materializing into it succeeded. A worker that
 		// would fail every cache hit must not be ready either.
-		probe := path.MustNewComponent(".readiness_probe_3")
-		expectCreateProbe(probe)
+		probe := expectCreateProbe(t)
 		buildDirectory.EXPECT().Link(probe, cacheDirectory, probe)
 		buildDirectory.EXPECT().Remove(probe)
 		cacheDirectory.EXPECT().Link(probe, buildDirectory, probe).Return(syscall.EPERM)
@@ -216,8 +244,7 @@ func TestCachingFileFetcherCheckReadiness(t *testing.T) {
 	t.Run("RemovalFails", func(t *testing.T) {
 		// A probe that cannot be removed would be visible to build
 		// actions, so failing to remove it must be reported.
-		probe := path.MustNewComponent(".readiness_probe_4")
-		expectCreateProbe(probe)
+		probe := expectCreateProbe(t)
 		buildDirectory.EXPECT().Link(probe, cacheDirectory, probe)
 		buildDirectory.EXPECT().Remove(probe)
 		cacheDirectory.EXPECT().Link(probe, buildDirectory, probe)

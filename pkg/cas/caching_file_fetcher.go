@@ -61,9 +61,12 @@ type cachingFileFetcher struct {
 
 	downloadsLock sync.Mutex
 	downloads     map[string]<-chan struct{}
-
-	nextReadinessProbeID atomic.Uint64
 }
+
+// Runners check readiness concurrently, and multiple build directories
+// may be configured with the same cache directory, so every readiness
+// check in the process takes a probe name of its own.
+var nextReadinessProbeID atomic.Uint64
 
 // NewCachingFileFetcher is an adapter for FileFetcher that stores files
 // in an internal directory. After successfully downloading files at the
@@ -197,12 +200,10 @@ func (ff *cachingFileFetcher) GetFile(ctx context.Context, blobDigest digest.Dig
 // require one that supports them, and macOS checks the permissions of
 // the source and destination separately.
 func (ff *cachingFileFetcher) CheckReadiness(ctx context.Context, directory filesystem.Directory) error {
-	// Runners sharing this FileFetcher check readiness concurrently,
-	// and share the cache directory. Give every check a probe name
-	// of its own. The leading dot keeps it apart from cache keys, and
-	// the cache directory is emptied at startup, which removes probes
-	// left behind by a crash.
-	probeName := path.MustNewComponent(fmt.Sprintf(".readiness_probe_%d", ff.nextReadinessProbeID.Add(1)))
+	// The leading dot keeps the probe apart from cache keys, and the
+	// cache directory is emptied at startup, which removes probes left
+	// behind by a crash.
+	probeName := path.MustNewComponent(fmt.Sprintf(".readiness_probe_%d", nextReadinessProbeID.Add(1)))
 	f, err := directory.OpenWrite(probeName, filesystem.CreateExcl(0o444))
 	if err != nil {
 		return util.StatusWrapWithCode(err, codes.Internal, "Failed to create readiness probe file")
@@ -241,8 +242,8 @@ func (ff *cachingFileFetcher) materializeReadinessProbe(directory filesystem.Dir
 	return nil
 }
 
-// tryMaterializeFromCache attempts to materialize a file from the cache at a
-// file in the build directory. It returns os.ErrNotExist if the file
+// tryMaterializeFromCache attempts to materialize a file from the
+// cache in the build directory. It returns os.ErrNotExist if the file
 // is not in the cache bookkeeping, or if it was in bookkeeping but
 // missing on disk.
 func (ff *cachingFileFetcher) tryMaterializeFromCache(key string, directory filesystem.Directory, name path.Component) error {
