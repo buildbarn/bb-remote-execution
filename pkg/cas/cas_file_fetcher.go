@@ -23,6 +23,12 @@ func NewCASFileFetcher(readInfo cas.ReadInfo) FileFetcher {
 	}
 }
 
+// CheckReadiness does not probe anything, as GetFile() only needs to
+// be able to create files in the directory.
+func (*blobAccessFileFetcher) CheckReadiness(ctx context.Context, directory filesystem.Directory) error {
+	return nil
+}
+
 func (ff *blobAccessFileFetcher) GetFile(ctx context.Context, digest digest.Digest, directory filesystem.Directory, name path.Component, isExecutable bool) error {
 	var mode os.FileMode = 0o444
 	if isExecutable {

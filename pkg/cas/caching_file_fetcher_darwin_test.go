@@ -60,15 +60,17 @@ func requireOwnInode(t *testing.T, location string) os.FileInfo {
 	return info
 }
 
-func TestCheckCloningSupportedLocal(t *testing.T) {
-	// The startup probe must pass on a volume that supports cloning,
+func TestCachingFileFetcherCloneCheckReadiness(t *testing.T) {
+	// The readiness check must pass on a volume that supports cloning,
 	// and must not leave its probe file in the build directory, where
 	// build actions would see it, or in the cache.
 	root := t.TempDir()
 	cache := openLocalDirectory(t, filepath.Join(root, "cache"))
 	build := openLocalDirectory(t, filepath.Join(root, "build"))
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+	fetcher := cas.NewCachingFileFetcher(mock.NewMockFileFetcher(ctrl), cache, cas.CloneCachedFile, 10, 1024, eviction.NewLRUSet[string]())
 
-	require.NoError(t, cas.CheckCloningSupported(cache, filepath.Join(root, "cache"), build, filepath.Join(root, "build")))
+	require.NoError(t, fetcher.CheckReadiness(ctx, build))
 	for _, name := range []string{"cache", "build"} {
 		entries, err := os.ReadDir(filepath.Join(root, name))
 		require.NoError(t, err)

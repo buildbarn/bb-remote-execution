@@ -310,9 +310,6 @@ func main() {
 				}
 				cachedFileMaterializer := re_cas.LinkCachedFile
 				if nativeConfiguration.CloneInputFiles {
-					if err := re_cas.CheckCloningSupported(cacheDirectory, nativeConfiguration.CacheDirectoryPath, naiveBuildDirectory, nativeConfiguration.BuildDirectoryPath); err != nil {
-						return err
-					}
 					cachedFileMaterializer = re_cas.CloneCachedFile
 				}
 				fileFetcher = re_cas.NewCachingFileFetcher(

@@ -1213,3 +1213,54 @@ func TestLocalBuildExecutorCharacterDeviceNodeCreationFailed(t *testing.T) {
 		Status: status.New(codes.Internal, "Failed to create character device \"null\": Device node creation failed").Proto(),
 	}, executeResponse)
 }
+
+func TestLocalBuildExecutorCheckReadiness(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+
+	buildDirectoryCreator := mock.NewMockBuildDirectoryCreator(ctrl)
+	runner := mock.NewMockRunnerClient(ctrl)
+	localBuildExecutor := builder.NewLocalBuildExecutor(
+		mock.NewMockReader[*remoteexecution.Command](ctrl),
+		mock.NewMockBlobUploader(ctrl),
+		buildDirectoryCreator,
+		runner,
+		mock.NewMockClock(ctrl),
+		/* maximumWritableFileUploadDelay = */ 10*time.Second,
+		/* inputRootCharacterDevices = */ nil,
+		/* environmentVariables = */ map[string]string{},
+		/* forceUploadTreesAndDirectories = */ false,
+	)
+	buildDirectoryPath := (*path.Trace)(nil).Append(path.MustNewComponent("1"))
+
+	t.Run("BuildDirectoryNotReady", func(t *testing.T) {
+		// A worker whose build directory cannot be populated with
+		// input files, for example because it resides on another
+		// file system than the cache, would fail every build action
+		// it accepts. It must not report being ready.
+		buildDirectory := mock.NewMockBuildDirectory(ctrl)
+		buildDirectoryCreator.EXPECT().GetBuildDirectory(ctx, nil).Return(buildDirectory, buildDirectoryPath, nil)
+		buildDirectory.EXPECT().CheckReadiness(ctx).Return(status.Error(codes.Internal, "Failed to materialize readiness probe file into cache directory: cross-device link"))
+		buildDirectory.EXPECT().Close()
+
+		testutil.RequireEqualStatus(
+			t,
+			status.Error(codes.Internal, "Cannot place input files in build directory \"1\": Failed to materialize readiness probe file into cache directory: cross-device link"),
+			localBuildExecutor.CheckReadiness(ctx),
+		)
+	})
+
+	t.Run("Ready", func(t *testing.T) {
+		// Once the build directory is ready, the runner is checked
+		// next, against a directory created inside it.
+		buildDirectory := mock.NewMockBuildDirectory(ctrl)
+		buildDirectoryCreator.EXPECT().GetBuildDirectory(ctx, nil).Return(buildDirectory, buildDirectoryPath, nil)
+		buildDirectory.EXPECT().CheckReadiness(ctx)
+		buildDirectory.EXPECT().Mkdir(path.MustNewComponent("check_readiness"), os.FileMode(0o777))
+		runner.EXPECT().CheckReadiness(ctx, testutil.EqProto(t, &runner_pb.CheckReadinessRequest{
+			Path: "1/check_readiness",
+		})).Return(&emptypb.Empty{}, nil)
+		buildDirectory.EXPECT().Close()
+
+		require.NoError(t, localBuildExecutor.CheckReadiness(ctx))
+	})
+}

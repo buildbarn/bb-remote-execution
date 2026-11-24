@@ -117,6 +117,10 @@ func (be *localBuildExecutor) CheckReadiness(ctx context.Context) error {
 	}
 	defer buildDirectory.Close()
 
+	if err := buildDirectory.CheckReadiness(ctx); err != nil {
+		return util.StatusWrapf(err, "Cannot place input files in build directory %#v", buildDirectoryPath.GetUNIXString())
+	}
+
 	// Create a useless directory inside the build directory. The
 	// runner will validate that it exists.
 	if err := buildDirectory.Mkdir(checkReadinessComponent, 0o777); err != nil {

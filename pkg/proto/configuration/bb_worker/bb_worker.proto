@@ -249,8 +249,9 @@ message NativeBuildDirectoryConfiguration {
   //
   // Cloning is only supported on macOS, and requires the build and
   // cache directories to reside on a single file system that supports
-  // it, such as APFS. bb_worker refuses to start if it cannot clone
-  // files between them.
+  // it, such as APFS. Before accepting build actions, bb_worker checks
+  // that it can clone files between the two directories. A worker that
+  // cannot fails its readiness check and accepts no work.
   bool clone_input_files = 6;
 }
 

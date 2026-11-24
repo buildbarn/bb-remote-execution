@@ -2,8 +2,10 @@ package cas
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"sync"
+	"sync/atomic"
 
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/eviction"
@@ -59,6 +61,8 @@ type cachingFileFetcher struct {
 
 	downloadsLock sync.Mutex
 	downloads     map[string]<-chan struct{}
+
+	nextReadinessProbeID atomic.Uint64
 }
 
 // NewCachingFileFetcher is an adapter for FileFetcher that stores files
@@ -181,6 +185,58 @@ func (ff *cachingFileFetcher) GetFile(ctx context.Context, blobDigest digest.Dig
 		if err := ff.materializer(directory, name, ff.cacheDirectory, path.MustNewComponent(key)); err != nil && !os.IsExist(err) {
 			return util.StatusWrapfWithCode(err, codes.Internal, "Failed to repair cached file %#v", key)
 		}
+	}
+	return nil
+}
+
+// CheckReadiness verifies that files can be materialized between the
+// provided directory and the cache directory in both directions, as
+// GetFile() does: into the cache to add a downloaded file, and out of
+// the cache to serve a cache hit. Hardlinks and clones both require the
+// directories to reside on a single file system, clones additionally
+// require one that supports them, and macOS checks the permissions of
+// the source and destination separately.
+func (ff *cachingFileFetcher) CheckReadiness(ctx context.Context, directory filesystem.Directory) error {
+	// Runners sharing this FileFetcher check readiness concurrently,
+	// and share the cache directory. Give every check a probe name
+	// of its own. The leading dot keeps it apart from cache keys, and
+	// the cache directory is emptied at startup, which removes probes
+	// left behind by a crash.
+	probeName := path.MustNewComponent(fmt.Sprintf(".readiness_probe_%d", ff.nextReadinessProbeID.Add(1)))
+	f, err := directory.OpenWrite(probeName, filesystem.CreateExcl(0o444))
+	if err != nil {
+		return util.StatusWrapWithCode(err, codes.Internal, "Failed to create readiness probe file")
+	}
+	if err := f.Close(); err != nil {
+		directory.Remove(probeName)
+		return util.StatusWrapWithCode(err, codes.Internal, "Failed to close readiness probe file")
+	}
+
+	materializeErr := ff.materializeReadinessProbe(directory, probeName)
+
+	// Remove the probe from both directories, including after a
+	// failure, so that build actions and the cache never see it.
+	var removeErr error
+	for _, probeDirectory := range []filesystem.Directory{directory, ff.cacheDirectory} {
+		if err := probeDirectory.Remove(probeName); err != nil && !os.IsNotExist(err) && removeErr == nil {
+			removeErr = util.StatusWrapWithCode(err, codes.Internal, "Failed to remove readiness probe file")
+		}
+	}
+	if materializeErr != nil {
+		return materializeErr
+	}
+	return removeErr
+}
+
+func (ff *cachingFileFetcher) materializeReadinessProbe(directory filesystem.Directory, probeName path.Component) error {
+	if err := ff.materializer(directory, probeName, ff.cacheDirectory, probeName); err != nil {
+		return util.StatusWrapWithCode(err, codes.Internal, "Failed to materialize readiness probe file into cache directory")
+	}
+	if err := directory.Remove(probeName); err != nil {
+		return util.StatusWrapWithCode(err, codes.Internal, "Failed to remove readiness probe file")
+	}
+	if err := ff.materializer(ff.cacheDirectory, probeName, directory, probeName); err != nil {
+		return util.StatusWrapWithCode(err, codes.Internal, "Failed to materialize readiness probe file from cache directory")
 	}
 	return nil
 }
