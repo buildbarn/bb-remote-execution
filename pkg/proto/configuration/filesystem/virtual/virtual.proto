@@ -190,6 +190,21 @@ message FUSEMountConfiguration {
   // worker thread (e.g. 1024 for 8 threads); tune up if reads still
   // stall under sustained concurrency.
   uint32 maximum_background_tasks = 11;
+
+  // If set, reply to lookups of names that do not exist with a negative
+  // cache entry, instead of ENOENT. The kernel then remembers that the
+  // name does not exist for as long as the directory entry validity
+  // (see directory_entry_validity), instead of asking the file system
+  // again for every probe. This is beneficial for workloads that probe
+  // many names that do not exist, such as module resolution in
+  // Node.js.
+  //
+  // Because the kernel only learns about names that are created behind
+  // its back once the entry validity expires, this option should only
+  // be enabled if the directory hierarchy is mutated exclusively
+  // through the mount, or if staleness up to the entry validity is
+  // acceptable. A zero entry validity makes this option ineffective.
+  bool negative_entries = 12;
 }
 
 message NFSv4MountConfiguration {
