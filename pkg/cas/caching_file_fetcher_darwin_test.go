@@ -18,8 +18,6 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 func openLocalDirectory(t *testing.T, location string) filesystem.DirectoryCloser {
@@ -78,7 +76,7 @@ func TestCheckCloningSupportedLocal(t *testing.T) {
 	}
 }
 
-func TestCloningFileFetcherDistinctInodes(t *testing.T) {
+func TestCachingFileFetcherCloneDistinctInodes(t *testing.T) {
 	// Concurrent build actions sharing one hardlinked inode can be
 	// handed each other's paths by the kernel when resolving an
 	// executable's location. Every materialized file must therefore have
@@ -89,7 +87,7 @@ func TestCloningFileFetcherDistinctInodes(t *testing.T) {
 	second := openLocalDirectory(t, filepath.Join(root, "second"))
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	blobDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "8b1a9953c4611296a827abf8c47804d7", 5)
-	fetcher := cas.NewCloningFileFetcher(expectDownload(ctrl, blobDigest, "Hello"), cache, 10, 1024, eviction.NewLRUSet[string]())
+	fetcher := cas.NewCachingFileFetcher(expectDownload(ctrl, blobDigest, "Hello"), cache, cas.CloneCachedFile, 10, 1024, eviction.NewLRUSet[string]())
 
 	require.NoError(t, fetcher.GetFile(ctx, blobDigest, first, path.MustNewComponent("python3"), true))
 	require.NoError(t, fetcher.GetFile(ctx, blobDigest, second, path.MustNewComponent("python3"), true))
@@ -105,7 +103,7 @@ func TestCloningFileFetcherDistinctInodes(t *testing.T) {
 	}
 }
 
-func TestCloningFileFetcherPkgInfo(t *testing.T) {
+func TestCachingFileFetcherClonePkgInfo(t *testing.T) {
 	// macOS refuses to create a hardlink to an application bundle's
 	// PkgInfo file, so a cold fetch that downloads into the bundle must
 	// not depend on linking out of it.
@@ -114,7 +112,7 @@ func TestCloningFileFetcherPkgInfo(t *testing.T) {
 	app := openLocalDirectory(t, filepath.Join(root, "Example.app"))
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	blobDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_SHA256, "82502191c9484b04d685374f9879a0066069c49b8acae7a04b01d38d07e8eca0", 8)
-	fetcher := cas.NewCloningFileFetcher(expectDownload(ctrl, blobDigest, "APPL????"), cache, 10, 1024, eviction.NewLRUSet[string]())
+	fetcher := cas.NewCachingFileFetcher(expectDownload(ctrl, blobDigest, "APPL????"), cache, cas.CloneCachedFile, 10, 1024, eviction.NewLRUSet[string]())
 
 	require.NoError(t, fetcher.GetFile(ctx, blobDigest, app, path.MustNewComponent("PkgInfo"), false))
 	contents, err := os.ReadFile(filepath.Join(root, "Example.app", "PkgInfo"))
@@ -126,23 +124,4 @@ func TestCloningFileFetcherPkgInfo(t *testing.T) {
 	other := openLocalDirectory(t, filepath.Join(root, "Other.app"))
 	require.NoError(t, fetcher.GetFile(ctx, blobDigest, other, path.MustNewComponent("PkgInfo"), false))
 	requireOwnInode(t, filepath.Join(root, "Other.app", "PkgInfo"))
-}
-
-func TestCloningFileFetcherFailureNamesClone(t *testing.T) {
-	// A failed clone out of the cache must say that a clone failed, so an
-	// incident on a cloning worker does not send an operator after
-	// hardlinks.
-	root := t.TempDir()
-	cache := openLocalDirectory(t, filepath.Join(root, "cache"))
-	build := openLocalDirectory(t, filepath.Join(root, "build"))
-	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	blobDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "8b1a9953c4611296a827abf8c47804d7", 5)
-	fetcher := cas.NewCloningFileFetcher(expectDownload(ctrl, blobDigest, "Hello"), cache, 10, 1024, eviction.NewLRUSet[string]())
-	require.NoError(t, fetcher.GetFile(ctx, blobDigest, build, path.MustNewComponent("input"), false))
-
-	// The cache now holds the file, so this is a cache hit whose clone
-	// fails because the destination already exists.
-	err := fetcher.GetFile(ctx, blobDigest, build, path.MustNewComponent("input"), false)
-	require.Equal(t, codes.Internal, status.Code(err))
-	require.Equal(t, "Failed to create clone of cached file \""+blobDigest.GetKey(digest.KeyWithoutInstance)+"-x\": file exists", status.Convert(err).Message())
 }

@@ -16,8 +16,8 @@ var (
 )
 
 // CheckCloningSupported verifies that files can be cloned between a
-// cache directory and a build directory in both directions, as
-// NewCloningFileFetcher does: from the cache to serve a cache hit, and
+// cache directory and a build directory in both directions, as a
+// caching FileFetcher using CloneCachedFile does: from the cache to serve a cache hit, and
 // into the cache to add or repair a downloaded file.
 //
 // Cloning requires both directories to reside on a single file system

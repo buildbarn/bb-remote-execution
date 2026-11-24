@@ -308,16 +308,17 @@ func main() {
 				if err != nil {
 					return util.StatusWrap(err, "Failed to create eviction set for cache directory")
 				}
-				newCachingFileFetcher := re_cas.NewHardlinkingFileFetcher
+				cachedFileMaterializer := re_cas.LinkCachedFile
 				if nativeConfiguration.CloneInputFiles {
 					if err := re_cas.CheckCloningSupported(cacheDirectory, nativeConfiguration.CacheDirectoryPath, naiveBuildDirectory, nativeConfiguration.BuildDirectoryPath); err != nil {
 						return err
 					}
-					newCachingFileFetcher = re_cas.NewCloningFileFetcher
+					cachedFileMaterializer = re_cas.CloneCachedFile
 				}
-				fileFetcher = newCachingFileFetcher(
+				fileFetcher = re_cas.NewCachingFileFetcher(
 					re_cas.NewCASFileFetcher(casInfo.ReadInfo),
 					cacheDirectory,
+					cachedFileMaterializer,
 					int(nativeConfiguration.MaximumCacheFileCount),
 					nativeConfiguration.MaximumCacheSizeBytes,
 					eviction.NewMetricsSet(evictionSet, "HardlinkingFileFetcher"),
