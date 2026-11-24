@@ -7,6 +7,7 @@ go_library(
         "blob_uploader.go",
         "byte_slice_file_reader.go",
         "caching_directory_fetcher.go",
+        "caching_file_fetcher.go",
         "cas_directory_fetcher.go",
         "cas_file_fetcher.go",
         "configuration.go",
@@ -17,7 +18,6 @@ go_library(
         "existence_precondition_stream_reader.go",
         "failed_precondition.go",
         "file_fetcher.go",
-        "hardlinking_file_fetcher.go",
         "proto_putter.go",
         "suspending.go",
         "suspending_directory_fetcher.go",
@@ -53,13 +53,21 @@ go_test(
     srcs = [
         "batching_blob_uploader_test.go",
         "caching_directory_fetcher_test.go",
+        "caching_file_fetcher_test.go",
         "cas_directory_fetcher_test.go",
         "decomposed_directory_walker_test.go",
         "existence_precondition_reader_test.go",
         "existence_precondition_stream_reader_test.go",
         "failed_precondition_test.go",
-        "hardlinking_file_fetcher_test.go",
-    ],
+    ] + select({
+        "@rules_go//go/platform:darwin": [
+            "caching_file_fetcher_darwin_test.go",
+        ],
+        "@rules_go//go/platform:ios": [
+            "caching_file_fetcher_darwin_test.go",
+        ],
+        "//conditions:default": [],
+    }),
     deps = [
         ":cas",
         "//internal/mock",
@@ -67,6 +75,7 @@ go_test(
         "@com_github_buildbarn_bb_storage//pkg/blobstore/chunk",
         "@com_github_buildbarn_bb_storage//pkg/digest",
         "@com_github_buildbarn_bb_storage//pkg/eviction",
+        "@com_github_buildbarn_bb_storage//pkg/filesystem",
         "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
         "@com_github_buildbarn_bb_storage//pkg/testutil",
         "@com_github_stretchr_testify//require",

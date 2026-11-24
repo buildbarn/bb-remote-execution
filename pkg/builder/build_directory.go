@@ -44,4 +44,9 @@ type BuildDirectory interface {
 	// synchronous error. If this process is lazy/asynchronous, the
 	// provided ErrorLogger may be used to return an error.
 	MergeDirectoryContents(ctx context.Context, errorLogger util.ErrorLogger, digest digest.Digest, monitor access.UnreadDirectoryMonitor) error
+
+	// Returns an error if MergeDirectoryContents() is known to be
+	// unable to place input files in this directory, so that a
+	// worker can stop accepting build actions that it would fail.
+	CheckReadiness(ctx context.Context) error
 }

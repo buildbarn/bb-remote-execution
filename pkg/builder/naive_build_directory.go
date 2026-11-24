@@ -52,6 +52,10 @@ func NewNaiveBuildDirectory(directory filesystem.DirectoryCloser, directoryFetch
 	}
 }
 
+func (d *naiveBuildDirectory) CheckReadiness(ctx context.Context) error {
+	return d.options.fileFetcher.CheckReadiness(ctx, d.DirectoryCloser)
+}
+
 func (d *naiveBuildDirectory) EnterBuildDirectory(name path.Component) (BuildDirectory, error) {
 	child, err := d.EnterDirectory(name)
 	if err != nil {

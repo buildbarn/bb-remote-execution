@@ -57,6 +57,12 @@ func NewVirtualBuildDirectory(directory virtual.PrepopulatedDirectory, directory
 	}
 }
 
+// CheckReadiness does not probe anything, as input files are served by
+// the virtual file system instead of being placed in the directory.
+func (*virtualBuildDirectory) CheckReadiness(ctx context.Context) error {
+	return nil
+}
+
 func (d *virtualBuildDirectory) EnterBuildDirectory(name path.Component) (BuildDirectory, error) {
 	child, err := d.LookupChild(name)
 	if err != nil {

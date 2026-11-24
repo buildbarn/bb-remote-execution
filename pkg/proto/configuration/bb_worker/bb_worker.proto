@@ -225,8 +225,34 @@ message NativeBuildDirectoryConfiguration {
   // different paths have identical inode numbers. The
   // RANDOM_REPLACEMENT algorithm cannot guarantee this property, while
   // LEAST_RECENTLY_USED can, assuming the cache size is sufficient.
+  // Neither can when clone_input_files is set.
   buildbarn.configuration.eviction.CacheReplacementPolicy
       cache_replacement_policy = 5;
+
+  // If unset, input files are hardlinked from the cache into the build
+  // directory. Identical files then share an inode while they remain
+  // cached, both across paths within a build action and across
+  // concurrent build actions; cache_replacement_policy describes when
+  // eviction breaks this.
+  //
+  // If set, input files are copy-on-write clones of the cache instead,
+  // giving every path in every build action an inode of its own while
+  // still sharing storage with the cache. On macOS, concurrent build
+  // actions sharing hardlinked inputs have been observed resolving the
+  // location of their own executables to another build action's build
+  // directory, causing them to fail once that build directory was
+  // removed. Cloning prevents this, and also permits placing PkgInfo
+  // files in application bundles, which macOS refuses to hardlink.
+  // Cloning is incompatible with workloads that rely on identical
+  // files under different paths sharing an inode, such as Clang's
+  // implementation of '#pragma once'.
+  //
+  // Cloning is only supported on macOS, and requires the build and
+  // cache directories to reside on a single file system that supports
+  // it, such as APFS. Before accepting build actions, bb_worker checks
+  // that it can clone files between the two directories. A worker that
+  // cannot fails its readiness check and accepts no work.
+  bool clone_input_files = 6;
 }
 
 message VirtualBuildDirectoryConfiguration {

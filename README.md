@@ -30,7 +30,8 @@ following:
 - To make it possible to use privilege separation. Privilege separation
   is used to prevent build actions from overwriting input files. This
   allows `bb_worker` to cache these files across build actions,
-  exposing it to the build action through hardlinking.
+  exposing it to the build action through hardlinking (or, on macOS,
+  optionally through copy-on-write clones).
 - To make execution pluggable. `bb_worker` communicates with `bb_runner`
   using [a simple gRPC-based protocol](https://github.com/buildbarn/bb-remote-execution/blob/main/pkg/proto/runner/runner.proto).
   One could, for example, implement a custom runner process that
