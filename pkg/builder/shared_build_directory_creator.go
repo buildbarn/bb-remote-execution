@@ -16,6 +16,7 @@ import (
 type sharedBuildDirectoryCreator struct {
 	base                 BuildDirectoryCreator
 	nextParallelActionID *atomic.Uint64
+	forceUnstableNames   bool
 }
 
 // NewSharedBuildDirectoryCreator is an adapter for
@@ -23,15 +24,17 @@ type sharedBuildDirectoryCreator struct {
 // a subdirectory within the build directory, as opposed to inside the
 // build directory itself. The subdirectory is either named after the
 // action digest of the build action or uses an incrementing number,
-// based on whether collisions may occur.
+// based on whether collisions may occur. If forceUnstableNames is
+// set, the subdirectory always uses an incrementing number.
 //
 // This adapter can be used to add concurrency to a single worker. When
 // executing build actions in parallel, every build action needs its own
 // build directory.
-func NewSharedBuildDirectoryCreator(base BuildDirectoryCreator, nextParallelActionID *atomic.Uint64) BuildDirectoryCreator {
+func NewSharedBuildDirectoryCreator(base BuildDirectoryCreator, nextParallelActionID *atomic.Uint64, forceUnstableNames bool) BuildDirectoryCreator {
 	return &sharedBuildDirectoryCreator{
 		base:                 base,
 		nextParallelActionID: nextParallelActionID,
+		forceUnstableNames:   forceUnstableNames,
 	}
 }
 
@@ -43,11 +46,14 @@ func (dc *sharedBuildDirectoryCreator) GetBuildDirectory(ctx context.Context, ac
 
 	// Determine the name of the subdirectory.
 	var name string
-	if actionDigestIfNotRunInParallel == nil {
+	if actionDigestIfNotRunInParallel == nil || dc.forceUnstableNames {
 		// Multiple instances of this action may run in
 		// parallel, as the scheduler is not permitted to
 		// deduplicate them. This is likely caused by the
 		// 'do_not_cache' flag being set in the Action message.
+		// Alternatively, the worker is configured to number
+		// all subdirectories, so that instances of a cacheable
+		// action cannot collide either.
 		//
 		// Number subdirectories incrementally to prevent
 		// collisions if multiple of them are scheduled on the

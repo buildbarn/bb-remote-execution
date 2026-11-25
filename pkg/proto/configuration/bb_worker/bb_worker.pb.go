@@ -186,10 +186,11 @@ type BuildDirectoryConfiguration struct {
 	//
 	//	*BuildDirectoryConfiguration_Native
 	//	*BuildDirectoryConfiguration_Virtual
-	Backend       isBuildDirectoryConfiguration_Backend `protobuf_oneof:"backend"`
-	Runners       []*RunnerConfiguration                `protobuf:"bytes,3,rep,name=runners,proto3" json:"runners,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Backend                          isBuildDirectoryConfiguration_Backend `protobuf_oneof:"backend"`
+	Runners                          []*RunnerConfiguration                `protobuf:"bytes,3,rep,name=runners,proto3" json:"runners,omitempty"`
+	ForceUnstableBuildDirectoryNames bool                                  `protobuf:"varint,4,opt,name=force_unstable_build_directory_names,json=forceUnstableBuildDirectoryNames,proto3" json:"force_unstable_build_directory_names,omitempty"`
+	unknownFields                    protoimpl.UnknownFields
+	sizeCache                        protoimpl.SizeCache
 }
 
 func (x *BuildDirectoryConfiguration) Reset() {
@@ -252,6 +253,13 @@ func (x *BuildDirectoryConfiguration) GetRunners() []*RunnerConfiguration {
 		return x.Runners
 	}
 	return nil
+}
+
+func (x *BuildDirectoryConfiguration) GetForceUnstableBuildDirectoryNames() bool {
+	if x != nil {
+		return x.ForceUnstableBuildDirectoryNames
+	}
+	return false
 }
 
 type isBuildDirectoryConfiguration_Backend interface {
@@ -787,11 +795,12 @@ const file_github_com_buildbarn_bb_remote_execution_pkg_proto_configuration_bb_w
 	"\"force_upload_trees_and_directories\x18\x1b \x01(\bR\x1eforceUploadTreesAndDirectories\x12<\n" +
 	"\x1ainput_download_concurrency\x18\x1c \x01(\x03R\x18inputDownloadConcurrency\x12\x91\x01\n" +
 	"#http_execution_timeout_compensators\x18\x1e \x03(\v2B.buildbarn.configuration.bb_worker.HttpExecutionTimeoutCompensatorR httpExecutionTimeoutCompensatorsJ\x04\b\t\x10\n" +
-	"J\x04\b\f\x10\rJ\x04\b\x10\x10\x11J\x04\b\x12\x10\x13J\x04\b\x15\x10\x16J\x04\b\x1d\x10\x1eJ\x04\b\x1f\x10 \"\xbd\x02\n" +
+	"J\x04\b\f\x10\rJ\x04\b\x10\x10\x11J\x04\b\x12\x10\x13J\x04\b\x15\x10\x16J\x04\b\x1d\x10\x1eJ\x04\b\x1f\x10 \"\x8d\x03\n" +
 	"\x1bBuildDirectoryConfiguration\x12^\n" +
 	"\x06native\x18\x01 \x01(\v2D.buildbarn.configuration.bb_worker.NativeBuildDirectoryConfigurationH\x00R\x06native\x12a\n" +
 	"\avirtual\x18\x02 \x01(\v2E.buildbarn.configuration.bb_worker.VirtualBuildDirectoryConfigurationH\x00R\avirtual\x12P\n" +
-	"\arunners\x18\x03 \x03(\v26.buildbarn.configuration.bb_worker.RunnerConfigurationR\arunnersB\t\n" +
+	"\arunners\x18\x03 \x03(\v26.buildbarn.configuration.bb_worker.RunnerConfigurationR\arunners\x12N\n" +
+	"$force_unstable_build_directory_names\x18\x04 \x01(\bR forceUnstableBuildDirectoryNamesB\t\n" +
 	"\abackend\"\xed\x02\n" +
 	"!NativeBuildDirectoryConfiguration\x120\n" +
 	"\x14build_directory_path\x18\x01 \x01(\tR\x12buildDirectoryPath\x120\n" +

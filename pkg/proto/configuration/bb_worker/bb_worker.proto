@@ -200,6 +200,28 @@ message BuildDirectoryConfiguration {
 
   // Runners to which to send requests to invoke build action commands.
   repeated RunnerConfiguration runners = 3;
+
+  // Each action is executed in its own subdirectory of the build
+  // directory. By default, actions that may be cached are executed in
+  // a subdirectory named after their action digest, while actions
+  // that may not be cached (e.g., due to 'do_not_cache' being set)
+  // are executed in a subdirectory that is numbered sequentially.
+  //
+  // Naming subdirectories after the action digest ensures that the
+  // working directory of an action is deterministic. Some build
+  // actions leak the absolute path of their working directory into
+  // their outputs, meaning that this is needed to keep these outputs
+  // reproducible.
+  //
+  // The downside of this approach is that creating the subdirectory
+  // fails if one with the same name already exists. This may happen
+  // if multiple instances of the same action are executed on this
+  // worker concurrently, or if the subdirectory of a previous
+  // execution could not be removed. When enabled, this option causes
+  // all actions to be executed in a sequentially numbered
+  // subdirectory, which prevents such failures at the cost of making
+  // outputs that contain absolute paths non-reproducible.
+  bool force_unstable_build_directory_names = 4;
 }
 
 message NativeBuildDirectoryConfiguration {
