@@ -448,7 +448,8 @@ func main() {
 
 					// Create a per-action subdirectory in
 					// the build directory named after the
-					// action digest, so that multiple
+					// action digest or numbered
+					// sequentially, so that multiple
 					// actions may be run concurrently.
 					//
 					// Also clean the build directory every
@@ -460,6 +461,7 @@ func main() {
 							buildDirectoryIdleInvoker,
 						),
 						&sharedBuildDirectoryNextParallelActionID,
+						buildDirectoryConfiguration.ForceUnstableBuildDirectoryNames,
 					)
 
 					workerID := map[string]string{}
