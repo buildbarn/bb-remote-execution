@@ -65,6 +65,8 @@ func (m *fuseMount) Expose(terminationGroup program.Group, rootDirectory virtual
 		// make it into the virtual file system after
 		// calling close()/fsync()/munmap()/msync().
 		ExtraCapabilities: go_fuse.CAP_WRITEBACK_CACHE,
+		// Cache the targets of symbolic links, if requested.
+		EnableSymlinkCaching: m.configuration.CacheSymlinks,
 		// Cap the FUSE asynchronous request queue. When zero,
 		// go-fuse falls back to its default of 12.
 		MaxBackground: int(m.configuration.MaximumBackgroundTasks),

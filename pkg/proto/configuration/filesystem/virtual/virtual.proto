@@ -190,6 +190,18 @@ message FUSEMountConfiguration {
   // worker thread (e.g. 1024 for 8 threads); tune up if reads still
   // stall under sustained concurrency.
   uint32 maximum_background_tasks = 11;
+
+  // If set, ask the kernel to cache the targets of symbolic links
+  // (FUSE_CACHE_SYMLINKS), so that following the same symbolic link
+  // repeatedly does not call readlink() against the file system every
+  // time. This is beneficial for directory trees that consist of many
+  // symbolic links, such as the node_modules tree created by pnpm.
+  //
+  // Because the kernel is never told that a symbolic link has changed,
+  // this option should only be enabled if the targets of symbolic links
+  // in the file system are immutable for as long as the kernel may
+  // cache them.
+  bool cache_symlinks = 13;
 }
 
 message NFSv4MountConfiguration {
