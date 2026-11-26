@@ -46,6 +46,15 @@ func (m *fuseMount) Expose(terminationGroup program.Group, rootDirectory virtual
 		authenticator = fuse.NewInHeaderAuthenticator(compiledExpression)
 	}
 
+	var simpleRawFileSystem fuse.RawFileSystem = fuse.NewSimpleRawFileSystem(
+		rootDirectory,
+		m.handleAllocator.RegisterRemovalNotifier,
+		authenticator,
+	)
+	if m.configuration.NegativeEntries {
+		simpleRawFileSystem = fuse.NewNegativeEntryCachingRawFileSystem(simpleRawFileSystem)
+	}
+
 	// Launch the FUSE server.
 	removeStaleMounts(m.mountPath)
 	deterministicTimestamp := uint64(filesystem.DeterministicFileModificationTimestamp.Unix())
@@ -85,11 +94,7 @@ func (m *fuseMount) Expose(terminationGroup program.Group, rootDirectory virtual
 		fuse.NewConcreteRawFileSystem(
 			fuse.NewMetricsRawFileSystem(
 				fuse.NewDefaultAttributesInjectingRawFileSystem(
-					fuse.NewSimpleRawFileSystem(
-						rootDirectory,
-						m.handleAllocator.RegisterRemovalNotifier,
-						authenticator,
-					),
+					simpleRawFileSystem,
 					directoryEntryValidity,
 					inodeAttributeValidity,
 					&go_fuse.Attr{
