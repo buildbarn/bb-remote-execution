@@ -2,7 +2,6 @@ package builder
 
 import (
 	"context"
-	"io"
 	"log"
 
 	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
@@ -11,6 +10,7 @@ import (
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/pool"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/remoteworker"
 	"github.com/buildbarn/bb-storage/pkg/blobstore"
+	"github.com/buildbarn/bb-storage/pkg/blobstore/chunk"
 	"github.com/buildbarn/bb-storage/pkg/cas"
 	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
@@ -29,6 +29,7 @@ import (
 type prefetchingBuildExecutor struct {
 	BuildExecutor
 	readInfo                    cas.ReadInfo
+	chunkStorage                blobstore.BlobAccess[*chunk.Chunk]
 	directoryFetcher            re_cas.DirectoryFetcher
 	fileReadSemaphore           *semaphore.Weighted
 	fileSystemAccessCache       blobstore.BlobAccess[*fsac.FileSystemAccessProfile]
@@ -55,10 +56,11 @@ type prefetchingBuildExecutor struct {
 // directory (FUSE, NFSv4). On workers that use native build
 // directories, the monitor is ignored, leading to empty Bloom filters
 // being stored.
-func NewPrefetchingBuildExecutor(buildExecutor BuildExecutor, readInfo cas.ReadInfo, directoryFetcher re_cas.DirectoryFetcher, fileReadSemaphore *semaphore.Weighted, fileSystemAccessCache blobstore.BlobAccess[*fsac.FileSystemAccessProfile], bloomFilterBitsPerElement, bloomFilterMaximumSizeBytes int, logFileSystemAccessProfile bool, protoPutter re_cas.ProtoPutter) BuildExecutor {
+func NewPrefetchingBuildExecutor(buildExecutor BuildExecutor, readInfo cas.ReadInfo, chunkStorage blobstore.BlobAccess[*chunk.Chunk], directoryFetcher re_cas.DirectoryFetcher, fileReadSemaphore *semaphore.Weighted, fileSystemAccessCache blobstore.BlobAccess[*fsac.FileSystemAccessProfile], bloomFilterBitsPerElement, bloomFilterMaximumSizeBytes int, logFileSystemAccessProfile bool, protoPutter re_cas.ProtoPutter) BuildExecutor {
 	be := &prefetchingBuildExecutor{
 		BuildExecutor:               buildExecutor,
 		readInfo:                    readInfo,
+		chunkStorage:                chunkStorage,
 		directoryFetcher:            directoryFetcher,
 		fileReadSemaphore:           fileReadSemaphore,
 		fileSystemAccessCache:       fileSystemAccessCache,
@@ -129,6 +131,7 @@ func (be *prefetchingBuildExecutor) Execute(ctx context.Context, filePool pool.F
 			bloomFilter:       bloomFilter,
 			digestFunction:    digestFunction,
 			readInfo:          be.readInfo,
+			chunkStorage:      be.chunkStorage,
 			directoryFetcher:  be.directoryFetcher,
 			fileReadSemaphore: be.fileReadSemaphore,
 		}
@@ -215,12 +218,47 @@ type directoryPrefetcher struct {
 	bloomFilter       *access.BloomFilterReader
 	digestFunction    digest.Function
 	readInfo          cas.ReadInfo
+	chunkStorage      blobstore.BlobAccess[*chunk.Chunk]
 	directoryFetcher  re_cas.DirectoryFetcher
 	fileReadSemaphore *semaphore.Weighted
 }
 
 func (dp *directoryPrefetcher) shouldPrefetch(pathHashes access.PathHashes) bool {
 	return dp.bloomFilter.Contains(pathHashes)
+}
+
+// prefetchFile ensures that the data making up a file is present in the
+// Chunk Storage (CS). Files that are stored as a single chunk are
+// prefetched directly. Larger files are decomposed into their
+// constituent chunks by fetching the chunk mapping, which also warms the
+// Chunk Mapping Storage (CMS).
+//
+// Because a file may be made up of multiple chunks, a NOT_FOUND error
+// observed while prefetching is translated into a FAILED_PRECONDITION
+// error that refers to the file as a whole. This ensures that the client
+// is asked to upload the file, as opposed to one of its chunks.
+func (dp *directoryPrefetcher) prefetchFile(ctx context.Context, d digest.Digest) error {
+	if d.GetSizeBytes() == 0 {
+		// By definition in the Remote Execution API, a zero-sized
+		// blob is always present.
+		return nil
+	}
+	params, err := dp.readInfo.CDCParametersFetcher.FetchCDCParameters(ctx, d.GetInstanceName())
+	if err != nil {
+		return util.StatusWrap(err, "Failed to fetch CDC parameters")
+	}
+	if cas.IsSingleChunk(params, d) {
+		return re_cas.FailedPreconditionOnMissingBlob(d, dp.chunkStorage.Prefetch(ctx, d.ToSingletonSet()))
+	}
+	mapping, err := dp.readInfo.ChunkMappingFetcher.FetchChunkMapping(ctx, d)
+	if err != nil {
+		return re_cas.FailedPreconditionOnMissingBlob(d, util.StatusWrapf(err, "Failed to fetch chunk mapping for file %s", d))
+	}
+	chunks := digest.NewSetBuilder(mapping.Length())
+	for i := range mapping.Length() {
+		chunks.Add(mapping.GetDigestAtIndex(d.GetInstanceName(), i))
+	}
+	return re_cas.FailedPreconditionOnMissingBlob(d, dp.chunkStorage.Prefetch(ctx, chunks.Build()))
 }
 
 func (dp *directoryPrefetcher) prefetchRecursively(pathTrace *path.Trace, directoryPathHashes access.PathHashes, rawDirectoryDigest *remoteexecution.Digest) error {
@@ -256,25 +294,13 @@ func (dp *directoryPrefetcher) prefetchRecursively(pathTrace *path.Trace, direct
 			}
 
 			// Download files at a globally bounded concurrency.
-			//
-			// TODO: We currently do a 1 byte read against
-			// the file, as a BlobAccess.Prefetch() doesn't
-			// carry its weight just yet. We should revisit
-			// this once we support chunking/decomposition,
-			// as in that case it is insufficient.
 			if err := util.AcquireSemaphore(dp.context, dp.fileReadSemaphore, 1); err != nil {
 				return err
 			}
 			dp.group.Go(func() error {
-				var b [1]byte
-				params, err := dp.readInfo.CDCParametersFetcher.FetchCDCParameters(dp.context, fileDigest.GetInstanceName())
-				if err != nil {
-					dp.fileReadSemaphore.Release(1)
-					return util.StatusWrap(err, "Failed to fetch CDC parameters")
-				}
-				_, err = cas.ReadBlobAt(dp.context, dp.readInfo.ChunkBytesReader, dp.readInfo.ChunkMappingFetcher, params, fileDigest, b[:], 0)
+				err := dp.prefetchFile(dp.context, fileDigest)
 				dp.fileReadSemaphore.Release(1)
-				if err != nil && err != io.EOF && status.Code(err) != codes.Canceled {
+				if err != nil && status.Code(err) != codes.Canceled {
 					return util.StatusWrapf(err, "Failed to prefetch file %#v", childPathTrace.GetUNIXString())
 				}
 				return nil
