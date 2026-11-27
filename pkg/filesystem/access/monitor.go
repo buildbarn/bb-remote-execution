@@ -1,7 +1,7 @@
 package access
 
 import (
-	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 )
 
 // UnreadDirectoryMonitor is used to report file system access activity
@@ -15,6 +15,6 @@ type UnreadDirectoryMonitor interface {
 // report resolution of child directories, and reads against child
 // files.
 type ReadDirectoryMonitor interface {
-	ResolvedDirectory(name path.Component) UnreadDirectoryMonitor
-	ReadFile(name path.Component)
+	ResolvedDirectory(directoryDigest digest.Digest) UnreadDirectoryMonitor
+	ReadFile(fileDigest digest.Digest)
 }

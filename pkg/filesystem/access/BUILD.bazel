@@ -11,8 +11,11 @@ go_library(
     importpath = "github.com/buildbarn/bb-remote-execution/pkg/filesystem/access",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/cas",
         "//pkg/proto/resourceusage",
+        "@com_github_buildbarn_bb_storage//pkg/digest",
         "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
+        "@com_github_buildbarn_bb_storage//pkg/util",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//status",
     ],
@@ -26,11 +29,15 @@ go_test(
     ],
     deps = [
         ":access",
+        "//internal/mock",
         "//pkg/proto/resourceusage",
+        "@bazel_remote_apis//build/bazel/remote/execution/v2:remote_execution_go_proto",
+        "@com_github_buildbarn_bb_storage//pkg/digest",
         "@com_github_buildbarn_bb_storage//pkg/filesystem/path",
         "@com_github_buildbarn_bb_storage//pkg/testutil",
         "@com_github_stretchr_testify//require",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//status",
+        "@org_uber_go_mock//gomock",
     ],
 )

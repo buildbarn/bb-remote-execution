@@ -2,6 +2,7 @@ package virtual
 
 import (
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/access"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 )
 
@@ -26,15 +27,15 @@ func (icf *accessMonitoringInitialContentsFetcher) FetchContents(fileReadMonitor
 	// read monitors that are installed on the files, so that we can
 	// detect file access.
 	readDirectoryMonitor := icf.unreadDirectoryMonitor.ReadDirectory()
-	contents, err := icf.InitialContentsFetcher.FetchContents(func(name path.Component) FileReadMonitor {
-		if fileReadMonitor := fileReadMonitorFactory(name); fileReadMonitor != nil {
+	contents, err := icf.InitialContentsFetcher.FetchContents(func(fileDigest digest.Digest) FileReadMonitor {
+		if fileReadMonitor := fileReadMonitorFactory(fileDigest); fileReadMonitor != nil {
 			return func() {
 				fileReadMonitor()
-				readDirectoryMonitor.ReadFile(name)
+				readDirectoryMonitor.ReadFile(fileDigest)
 			}
 		}
 		return func() {
-			readDirectoryMonitor.ReadFile(name)
+			readDirectoryMonitor.ReadFile(fileDigest)
 		}
 	})
 	if err != nil {
@@ -47,9 +48,11 @@ func (icf *accessMonitoringInitialContentsFetcher) FetchContents(fileReadMonitor
 	for name, node := range contents {
 		childInitialContentsFetcher, leaf := node.GetPair()
 		if childInitialContentsFetcher != nil {
+			var getDigest ApplyGetDigest
+			childInitialContentsFetcher.VirtualApply(&getDigest)
 			wrappedContents[name] = InitialChild{}.FromDirectory(&accessMonitoringInitialContentsFetcher{
 				InitialContentsFetcher: childInitialContentsFetcher,
-				unreadDirectoryMonitor: readDirectoryMonitor.ResolvedDirectory(name),
+				unreadDirectoryMonitor: readDirectoryMonitor.ResolvedDirectory(getDigest.Digest),
 			})
 		} else {
 			wrappedContents[name] = InitialChild{}.FromLeaf(leaf)

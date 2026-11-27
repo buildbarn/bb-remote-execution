@@ -3,8 +3,10 @@ package virtual_test
 import (
 	"testing"
 
+	remoteexecution "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buildbarn/bb-remote-execution/internal/mock"
 	"github.com/buildbarn/bb-remote-execution/pkg/filesystem/virtual"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
 	"github.com/buildbarn/bb-storage/pkg/testutil"
 	"github.com/stretchr/testify/require"
@@ -47,11 +49,18 @@ func TestAccessMonitoringInitialContentsFetcher(t *testing.T) {
 		baseChildFile := mock.NewMockLinkableLeaf(ctrl)
 		baseChildFileReadMonitor := mock.NewMockFileReadMonitor(ctrl)
 		baseFileReadMonitorFactory := mock.NewMockFileReadMonitorFactory(ctrl)
-		baseFileReadMonitorFactory.EXPECT().Call(path.MustNewComponent("file")).Return(baseChildFileReadMonitor.Call)
+		childDirectoryDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "4b3b03436604cb9d831b91c71a8c1952", 123)
+		baseChildInitialContentsFetcher.EXPECT().VirtualApply(gomock.AssignableToTypeOf(&virtual.ApplyGetDigest{})).
+			DoAndReturn(func(data any) bool {
+				data.(*virtual.ApplyGetDigest).Digest = childDirectoryDigest
+				return true
+			})
+		fileDigest := digest.MustNewDigest("example", remoteexecution.DigestFunction_MD5, "c0607941dd5b3ca8e175a1bfbfd1c0ea", 789)
+		baseFileReadMonitorFactory.EXPECT().Call(fileDigest).Return(baseChildFileReadMonitor.Call)
 		var childFileReadMonitor virtual.FileReadMonitor
 		baseInitialContentsFetcher.EXPECT().FetchContents(gomock.Any()).
 			DoAndReturn(func(fileReadMonitorFactory virtual.FileReadMonitorFactory) (map[path.Component]virtual.InitialChild, error) {
-				childFileReadMonitor = fileReadMonitorFactory(path.MustNewComponent("file"))
+				childFileReadMonitor = fileReadMonitorFactory(fileDigest)
 				return map[path.Component]virtual.InitialChild{
 					path.MustNewComponent("dir"):  virtual.InitialChild{}.FromDirectory(baseChildInitialContentsFetcher),
 					path.MustNewComponent("file"): virtual.InitialChild{}.FromLeaf(baseChildFile),
@@ -60,7 +69,7 @@ func TestAccessMonitoringInitialContentsFetcher(t *testing.T) {
 		rootReadDirectoryMonitor := mock.NewMockReadDirectoryMonitor(ctrl)
 		rootUnreadDirectoryMonitor.EXPECT().ReadDirectory().Return(rootReadDirectoryMonitor)
 		childUnreadDirectoryMonitor := mock.NewMockUnreadDirectoryMonitor(ctrl)
-		rootReadDirectoryMonitor.EXPECT().ResolvedDirectory(path.MustNewComponent("dir")).Return(childUnreadDirectoryMonitor)
+		rootReadDirectoryMonitor.EXPECT().ResolvedDirectory(childDirectoryDigest).Return(childUnreadDirectoryMonitor)
 
 		rootContents, err := initialContentsFetcher.FetchContents(baseFileReadMonitorFactory.Call)
 		require.NoError(t, err)
@@ -90,7 +99,7 @@ func TestAccessMonitoringInitialContentsFetcher(t *testing.T) {
 			// duplicated both to the base file read
 			// monitor, and the read directory monitor.
 			baseChildFileReadMonitor.EXPECT().Call()
-			rootReadDirectoryMonitor.EXPECT().ReadFile(path.MustNewComponent("file"))
+			rootReadDirectoryMonitor.EXPECT().ReadFile(fileDigest)
 
 			childFileReadMonitor()
 		})

@@ -1,12 +1,18 @@
 package access
 
 import (
+	"context"
 	"math"
 	"sync"
 	"sync/atomic"
 
+	re_cas "github.com/buildbarn/bb-remote-execution/pkg/cas"
 	"github.com/buildbarn/bb-remote-execution/pkg/proto/resourceusage"
+	"github.com/buildbarn/bb-storage/pkg/digest"
 	"github.com/buildbarn/bb-storage/pkg/filesystem/path"
+	"github.com/buildbarn/bb-storage/pkg/util"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // bloomFilterComputingState is the shared state that's referenced by
@@ -16,8 +22,9 @@ import (
 type bloomFilterComputingState struct {
 	directoriesResolved atomic.Uint64
 
-	lock            sync.Mutex
-	allHashes       map[PathHashes]struct{}
+	lock sync.Mutex
+
+	allDigests      map[digest.Digest]struct{}
 	directoriesRead uint64
 	filesRead       uint64
 }
@@ -26,8 +33,8 @@ type bloomFilterComputingState struct {
 // UnreadDirectoryMonitor that is capable of computing a Bloom filter of
 // all of the paths of files and directories that have been read.
 type BloomFilterComputingUnreadDirectoryMonitor struct {
-	state  *bloomFilterComputingState
-	hashes PathHashes
+	state           *bloomFilterComputingState
+	directoryDigest digest.Digest
 }
 
 // NewBloomFilterComputingUnreadDirectoryMonitor creates an
@@ -35,12 +42,12 @@ type BloomFilterComputingUnreadDirectoryMonitor struct {
 // all of the paths of files and directories that have been read. The
 // instance that is returned corresponds to the empty path (root
 // directory).
-func NewBloomFilterComputingUnreadDirectoryMonitor() *BloomFilterComputingUnreadDirectoryMonitor {
+func NewBloomFilterComputingUnreadDirectoryMonitor(rootDigest digest.Digest) *BloomFilterComputingUnreadDirectoryMonitor {
 	udm := &BloomFilterComputingUnreadDirectoryMonitor{
 		state: &bloomFilterComputingState{
-			allHashes: map[PathHashes]struct{}{},
+			allDigests: map[digest.Digest]struct{}{},
 		},
-		hashes: RootPathHashes,
+		directoryDigest: rootDigest,
 	}
 	// Assume the root directory is always resolved.
 	udm.state.directoriesResolved.Store(1)
@@ -56,12 +63,11 @@ func (udm *BloomFilterComputingUnreadDirectoryMonitor) ReadDirectory() ReadDirec
 	s := udm.state
 	s.lock.Lock()
 	s.directoriesRead++
-	s.allHashes[udm.hashes] = struct{}{}
+	s.allDigests[udm.directoryDigest] = struct{}{}
 	s.lock.Unlock()
 
 	return &bloomFilterComputingReadDirectoryMonitor{
-		state:  s,
-		hashes: udm.hashes,
+		state: s,
 	}
 }
 
@@ -139,16 +145,25 @@ var largestPrimeOffsets = [...]uint8{
 // per element, and the maximum size in bits. In case it is limited by
 // the maximum size, the resulting Bloom filter will be oversaturated,
 // causing the probability of false positives to increase.
-func (udm *BloomFilterComputingUnreadDirectoryMonitor) GetBloomFilter(bitsPerElement, maximumSizeBytes int) ([]byte, uint32) {
+func (udm *BloomFilterComputingUnreadDirectoryMonitor) GetBloomFilter(directoryFetcher re_cas.DirectoryFetcher, bitsPerElement, maximumSizeBytes int) ([]byte, uint32) {
 	s := udm.state
 	s.lock.Lock()
 	defer s.lock.Unlock()
+
+	// Iterate through the tree to find all the paths that might have been touched. A single digest might exists on many paths, but as the content probably was cached by the operating system if multiple paths were accessed, all paths must be registered as potentially accessed.
+	allHashes := make(map[PathHashes]struct{}, len(s.allDigests))
+	readPathsResolver := readPathsResolver{
+		directoryFetcher: directoryFetcher,
+		allDigests:       s.allDigests,
+		allHashes:        allHashes,
+	}
+	readPathsResolver.recurseFromRoot(context.Background(), udm.directoryDigest)
 
 	// Determine the size of the Bloom filter, taking both the
 	// element count and size per element. The resulting size is the
 	// largest prime below a power of 2, not exceeding the
 	// configured maximum size.
-	elementCount := len(s.allHashes)
+	elementCount := len(allHashes)
 	desiredSizeBits := elementCount * bitsPerElement
 	sizeBits, sizeBytes := 7, 1
 	for shift, largestPrimeOffset := range largestPrimeOffsets {
@@ -177,7 +192,7 @@ func (udm *BloomFilterComputingUnreadDirectoryMonitor) GetBloomFilter(bitsPerEle
 	// bit, so that consumers can reobtain the exact size in bits.
 	bloomFilter := make([]byte, sizeBytes)
 	bloomFilter[sizeBytes-1] |= 1 << (sizeBits % 8)
-	for hashes := range s.allHashes {
+	for hashes := range allHashes {
 		hashIterator := hashes.Finalize()
 		for i := uint32(0); i < hashFunctions; i++ {
 			bit := hashIterator.GetNextHash() % uint64(sizeBits)
@@ -204,24 +219,76 @@ func (udm *BloomFilterComputingUnreadDirectoryMonitor) GetInputRootResourceUsage
 }
 
 type bloomFilterComputingReadDirectoryMonitor struct {
-	state  *bloomFilterComputingState
-	hashes PathHashes
+	state *bloomFilterComputingState
 }
 
-func (sdm *bloomFilterComputingReadDirectoryMonitor) ResolvedDirectory(name path.Component) UnreadDirectoryMonitor {
+func (sdm *bloomFilterComputingReadDirectoryMonitor) ResolvedDirectory(directoryDigest digest.Digest) UnreadDirectoryMonitor {
 	s := sdm.state
 	s.directoriesResolved.Add(1)
 
 	return &BloomFilterComputingUnreadDirectoryMonitor{
-		state:  s,
-		hashes: sdm.hashes.AppendComponent(name),
+		state:           s,
+		directoryDigest: directoryDigest,
 	}
 }
 
-func (sdm *bloomFilterComputingReadDirectoryMonitor) ReadFile(name path.Component) {
+func (sdm *bloomFilterComputingReadDirectoryMonitor) ReadFile(fileDigest digest.Digest) {
 	s := sdm.state
 	s.lock.Lock()
 	s.filesRead++
-	s.allHashes[sdm.hashes.AppendComponent(name)] = struct{}{}
+	s.allDigests[fileDigest] = struct{}{}
 	s.lock.Unlock()
+}
+
+type readPathsResolver struct {
+	directoryFetcher re_cas.DirectoryFetcher
+	allDigests       map[digest.Digest]struct{}
+	allHashes        map[PathHashes]struct{}
+}
+
+func (r *readPathsResolver) recurseFromRoot(ctx context.Context, rootDirectoryDigest digest.Digest) error {
+	if _, ok := r.allDigests[rootDirectoryDigest]; !ok {
+		return nil
+	}
+	return r.recurseDirectory(ctx, RootPathHashes, rootDirectoryDigest)
+}
+
+func (r *readPathsResolver) recurseDirectory(ctx context.Context, directoryPathHashes PathHashes, directoryDigest digest.Digest) error {
+	r.allHashes[directoryPathHashes] = struct{}{}
+	directory, err := r.directoryFetcher.GetDirectory(ctx, directoryDigest)
+	if err != nil {
+		return err
+	}
+	for _, file := range directory.Files {
+		fileDigest, err := directoryDigest.GetDigestFunction().NewDigestFromProto(file.Digest)
+		if err != nil {
+			return util.StatusWrap(err, "Failed to extract digest for file")
+		}
+		if _, ok := r.allDigests[fileDigest]; ok {
+			component, ok := path.NewComponent(file.Name)
+			if !ok {
+				return status.Errorf(codes.InvalidArgument, "File %#v has an invalid name", file.Name)
+			}
+			r.allHashes[directoryPathHashes.AppendComponent(component)] = struct{}{}
+		}
+	}
+	// Symlinks are not recorded in the Bloom filter, they are provided
+	// within the directory proto without indirection.
+	for _, directory := range directory.Directories {
+		subdirDigest, err := directoryDigest.GetDigestFunction().NewDigestFromProto(directory.Digest)
+		if err != nil {
+			return util.StatusWrap(err, "Failed to extract digest for directory")
+		}
+		if _, ok := r.allDigests[subdirDigest]; ok {
+			component, ok := path.NewComponent(directory.Name)
+			if !ok {
+				return status.Errorf(codes.InvalidArgument, "Directory %#v has an invalid name", directory.Name)
+			}
+			err := r.recurseDirectory(ctx, directoryPathHashes.AppendComponent(component), subdirDigest)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

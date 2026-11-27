@@ -82,6 +82,8 @@ func (f *blobAccessCASFile) virtualApplyCommon(data any) bool {
 		// degree of certainty that this file won't disappear from the
 		// Content Addressable Storage any time soon.
 		p.Digest = f.digest
+	case *ApplyGetDigest:
+		p.Digest = f.digest
 	case *ApplyGetContainingDigests:
 		p.ContainingDigests = f.digest.ToSingletonSet()
 	case *ApplyGetBazelOutputServiceStat:
